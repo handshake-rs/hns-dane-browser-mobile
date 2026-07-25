@@ -34,11 +34,8 @@
     <string name="security_syncing">المزامنة</string>
     <string name="security_loading">تحميل</string>
     <string name="security_hns_verified">تم التحقق من HNS</string>
-    <string name="security_hns_compat">HNS عبر DoH</string>
     <string name="security_dane_verified">تم التحقق من DANE</string>
-    <string name="security_dane_compat">DANE عبر DoH</string>
     <string name="security_webpki">WebPKI</string>
-    <string name="security_hns_webpki">HNS + WebPKI</string>
     <string name="security_failed">فشل التحقق من الصحة</string>
     <string name="security_proof_unavailable">الدليل غير متوفر</string>
     <string name="http_transport_warning">غير آمن: حركة مرور HTTP غير مشفّرة</string>
@@ -124,7 +121,6 @@
     <string name="row_clear_history">مسح التاريخ</string>
     <string name="row_clear_history_summary">قم بإزالة Regtest التصفح المحفوظ من هذا الجهاز.</string>
     <string name="row_clear_resolver_cache">مسح ذاكرة التخزين المؤقت للمحلل</string>
-    <string name="row_compatibility_doh_resolver">التوافق DoH محلل</string>
     <string name="row_cookies">ملفات تعريف الارتباط</string>
     <string name="row_copy_diagnostic_bundle">انسخ حزمة التشخيص</string>
     <string name="row_copy_diagnostic_bundle_summary">انسخ تفاصيل البناء ووقت التشغيل والتفاصيل الأساسية الأصلية.</string>
@@ -270,11 +266,6 @@
     <string name="settings_homepage_reset_title">إعادة تعيين الصفحة الرئيسية؟</string>
     <string name="settings_homepage_reset_message">يؤدي هذا إلى استعادة الصفحة الرئيسية الافتراضية لـ Denuo Web.</string>
     <string name="settings_homepage_reset">إعادة تعيين الصفحة الرئيسية</string>
-    <string name="settings_doh_edit_title">تحرير محلل DoH</string>
-    <string name="settings_doh_edit_message">أدخل نقطة نهاية HTTPS DNS-over-HTTPS. اتركه فارغًا لاستخدام الإعداد الافتراضي.</string>
-    <string name="settings_doh_error">أدخل عنوان URL صالحًا لـ HTTPS DoH</string>
-    <string name="settings_doh_saved">تم حفظ محلل DoH</string>
-    <string name="settings_doh_reset">إعادة تعيين محلل DoH</string>
     <string name="settings_resolver_cache_clear_title">هل تريد مسح ذاكرة التخزين المؤقت للمحلل؟</string>
     <string name="settings_resolver_cache_clear_message">سيحتفظ التطبيق برؤوس وأقران %1$s المتزامنة، ولكن ستتم إزالة قيم موارد HNS المخزنة مؤقتًا لهذه الشبكة.</string>
     <string name="settings_resolver_cache_cleared">تم مسح ذاكرة التخزين المؤقت لمحلل %1$s</string>
@@ -287,12 +278,9 @@
     <string name="settings_header_resync_started">بدأت إعادة مزامنة الرأس</string>
     <string name="settings_header_resync_failed_status">لم تكتمل إعادة تعيين الرأس. افتح التشخيص للحصول على التفاصيل.</string>
     <string name="settings_header_resync_failed">لم تبدأ عملية إعادة مزامنة الرأس</string>
-    <string name="settings_hns_mode_on">على. فشل القرار المفوض مغلق.</string>
-    <string name="settings_hns_mode_off">عن. يمكن استخدام خيار التوافق الاحتياطي بعد فشل الحل المحلي أو المباشر.</string>
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">على. قد ترضي أدلة إثبات HNS المحملة بالشهادة DANE عندما تكون صالحة.</string>
     <string name="settings_stateless_dane_off">عن. يستخدم دليل HNS وأدلة TLSA مسار المحلل المباشر.</string>
-    <string name="settings_strict_hns_mode">وضع HNS الصارم</string>
     <string name="settings_stateless_dane_certificates">شهادات DANE التجريبية عديمة الجنسية</string>
     <string name="settings_theme_dialog_title">السمة</string>
     <string name="settings_theme_set">تم تعيين السمة إلى %1$s.</string>
@@ -445,7 +433,6 @@
     <string name="trace_protocol_authoritative_udp53">UDP الرسمي 53</string>
     <string name="trace_protocol_authoritative_tcp53">برنامج التعاون الفني الرسمي 53</string>
     <string name="trace_protocol_authoritative_doh">DoH الرسمية</string>
-    <string name="trace_protocol_hns_doh">التوافق HNS DoH</string>
     <string name="trace_protocol_icann_doh">دائرة صحة ICANN الموثوقة</string>
     <string name="trace_tlsa_present">حاضر</string>
     <string name="trace_tlsa_absent">غائب</string>
@@ -482,7 +469,6 @@
     <string name="trace_fix_dnssec_before_tlsa">قم بإصلاح DNSSEC المفوض أولاً. لم يتم تقييم TLSA/DANE بسبب فشل الحل الآمن قبل بحث TLSA.</string>
     <string name="trace_fix_renew_cert">تجديد شهادة HTTPS الأصلية. وصلت البوابة إلى أصل HTTPS، ولكن فشل TLS لأن الشهادة تجاوزت فترة صلاحيتها.</string>
     <string name="trace_fix_origin_address_missing">خدمة A/AAAA للمضيف المطلوب من DNS المفوض. تُستخدم بيانات HNS GLUE/SYNTH فقط للوصول إلى خوادم الأسماء، وليس كعنوان أصلي.</string>
-    <string name="trace_fix_compat_fallback_used">تم استخدام التوافق DoH الاحتياطي. قم بتمكين وضع Strict HNS للتحقق مما إذا كان الموقع يعمل بشكل كامل بدون DoH التابع لجهة خارجية.</string>
     <string name="trace_fix_no_obvious_hns">لا يوجد حل واضح من هذا التتبع. إذا فشل HTTPS، فافحص TLSA/DANE بمجرد تمكين تتبع الشهادة.</string>
     <string name="trace_fix_icann_dnssec_bogus">إصلاح سلسلة ICANN DNSSEC: يجب التحقق من صحة DS وDNSKEY والتوقيعات وRegtestات الرفض.</string>
     <string name="trace_fix_icann_origin_address_missing">قم بنشر Regtest A أو AAAA تم التحقق من صحته بواسطة DNSSEC لهذا المضيف.</string>

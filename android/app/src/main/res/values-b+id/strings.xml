@@ -34,11 +34,8 @@
   <string name="security_syncing">Sinkronisasi</string>
   <string name="security_loading">Memuat</string>
   <string name="security_hns_verified">HNS terverifikasi</string>
-  <string name="security_hns_compat">HNS melalui DoH</string>
   <string name="security_dane_verified">DANE terverifikasi</string>
-  <string name="security_dane_compat">DANE melalui DoH</string>
   <string name="security_webpki">WebPKI</string>
-  <string name="security_hns_webpki">HNS + WebPKI</string>
   <string name="security_failed">Validasi gagal</string>
   <string name="security_proof_unavailable">Bukti tidak tersedia</string>
   <string name="http_transport_warning">Tidak aman: lalu lintas HTTP tidak dienkripsi</string>
@@ -124,7 +121,6 @@
   <string name="row_clear_history">Hapus riwayat</string>
   <string name="row_clear_history_summary">Hapus riwayat penelusuran yang disimpan dari perangkat ini.</string>
   <string name="row_clear_resolver_cache">Hapus cache penyelesai</string>
-  <string name="row_compatibility_doh_resolver">Kompatibilitas DoH penyelesai</string>
   <string name="row_cookies">kue</string>
   <string name="row_copy_diagnostic_bundle">Salin bundel diagnostik</string>
   <string name="row_copy_diagnostic_bundle_summary">Salin detail build, runtime, dan inti asli.</string>
@@ -246,11 +242,6 @@
   <string name="settings_homepage_reset_title">Setel ulang beranda?</string>
   <string name="settings_homepage_reset_message">Ini mengembalikan beranda Denuo Web default.</string>
   <string name="settings_homepage_reset">Reset beranda</string>
-  <string name="settings_doh_edit_title">Sunting DoH penyelesai</string>
-  <string name="settings_doh_edit_message">Masukkan titik akhir HTTPS DNS-over-HTTPS. Biarkan kosong untuk menggunakan default.</string>
-  <string name="settings_doh_error">Masukkan HTTPS DoH URL yang valid</string>
-  <string name="settings_doh_saved">DoH penyelesai disimpan</string>
-  <string name="settings_doh_reset">DoH penyetel ulang penyelesai</string>
   <string name="settings_resolver_cache_clear_title">Hapus cache penyelesai?</string>
   <string name="settings_resolver_cache_clear_message">Aplikasi akan tetap menyinkronkan %1$s header dan peer, tetapi nilai sumber daya HNS yang di-cache untuk jaringan ini akan dihapus.</string>
   <string name="settings_resolver_cache_cleared">%1$s cache penyelesai dibersihkan</string>
@@ -263,12 +254,9 @@
   <string name="settings_header_resync_started">Sinkronisasi ulang header dimulai</string>
   <string name="settings_header_resync_failed_status">Penyetelan ulang tajuk tidak selesai. Buka diagnostik untuk detailnya.</string>
   <string name="settings_header_resync_failed">Sinkronisasi ulang header tidak dimulai</string>
-  <string name="settings_hns_mode_on">Aktif. Kegagalan resolusi yang didelegasikan gagal ditutup.</string>
-  <string name="settings_hns_mode_off">Mati. Penggantian kompatibilitas dapat digunakan setelah resolusi lokal atau langsung gagal.</string>
   <string name="settings_hns_network_summary">%1$s. %2$s</string>
   <string name="settings_stateless_dane_on">Aktif. Bukti bukti HNS yang dibawa sertifikat dapat memenuhi DANE jika valid.</string>
   <string name="settings_stateless_dane_off">Mati. HNS bukti dan TLSA bukti menggunakan jalur penyelesai langsung.</string>
-  <string name="settings_strict_hns_mode">Mode HNS yang ketat</string>
   <string name="settings_stateless_dane_certificates">Sertifikat DANE tanpa kewarganegaraan eksperimental</string>
   <string name="settings_theme_dialog_title">Tema</string>
   <string name="settings_theme_set">Tema disetel ke %1$s.</string>
@@ -421,7 +409,6 @@
   <string name="trace_protocol_authoritative_udp53">Resmi UDP 53</string>
   <string name="trace_protocol_authoritative_tcp53">Resmi TCP 53</string>
   <string name="trace_protocol_authoritative_doh">Resmi DoH</string>
-  <string name="trace_protocol_hns_doh">Kompatibilitas HNS DoH</string>
   <string name="trace_protocol_icann_doh">Tepercaya ICANN DoH</string>
   <string name="trace_tlsa_present">hadir</string>
   <string name="trace_tlsa_absent">tidak ada</string>
@@ -458,7 +445,6 @@
   <string name="trace_fix_dnssec_before_tlsa">Perbaiki delegasi DNSSEC terlebih dahulu. TLSA/DANE tidak dievaluasi karena resolusi aman gagal sebelum pencarian TLSA.</string>
   <string name="trace_fix_renew_cert">Perbarui sertifikat asal HTTPS. Gateway mencapai asal HTTPS, tetapi TLS gagal karena sertifikat telah melewati masa validitasnya.</string>
   <string name="trace_fix_origin_address_missing">Sajikan A/AAAA untuk host yang diminta dari delegasi DNS. HNS Data GLUE/SYNTH hanya digunakan untuk menjangkau server nama, bukan sebagai alamat asal.</string>
-  <string name="trace_fix_compat_fallback_used">Kompatibilitas DoH fallback digunakan. Aktifkan mode Ketat HNS untuk memverifikasi apakah situs berfungsi sepenuhnya tanpa pihak ketiga DoH.</string>
   <string name="trace_fix_no_obvious_hns">Tidak ada perbaikan yang jelas dari jejak ini. Jika HTTPS gagal, periksa TLSA/DANE setelah penelusuran sertifikat diaktifkan.</string>
   <string name="trace_fix_icann_dnssec_bogus">Perbaiki rantai ICANN DNSSEC: DS, DNSKEY, tanda tangan, dan catatan penolakan harus divalidasi.</string>
   <string name="trace_fix_icann_origin_address_missing">Publikasikan catatan A atau AAAA yang divalidasi DNSSEC untuk host ini.</string>

@@ -47,7 +47,6 @@ pub struct TlsaRecord {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DomainTrustMode {
     HnsStrict,
-    HnsCompatibility,
     IcannWebPki,
 }
 
@@ -287,7 +286,7 @@ fn evaluate_no_tlsa_policy(
 ) -> Result<DaneDecision, DaneError> {
     match mode {
         DomainTrustMode::HnsStrict => Err(DaneError::MissingRequiredTlsa),
-        DomainTrustMode::HnsCompatibility | DomainTrustMode::IcannWebPki => match webpki_status {
+        DomainTrustMode::IcannWebPki => match webpki_status {
             WebPkiStatus::Valid => Ok(DaneDecision::WebPkiFallback),
             WebPkiStatus::Invalid => Err(DaneError::WebPkiFailed),
             WebPkiStatus::NotEvaluated => Ok(DaneDecision::NoTlsa),
@@ -937,7 +936,7 @@ mod tests {
             association_data: b"spki".to_vec(),
         };
         let decision = evaluate_policy(DaneValidationInput {
-            mode: DomainTrustMode::HnsCompatibility,
+            mode: DomainTrustMode::HnsStrict,
             dnssec_secure: false,
             tlsa_records: &[record],
             cert_der: b"cert",
@@ -949,9 +948,9 @@ mod tests {
     }
 
     #[test]
-    fn compatibility_mode_allows_valid_webpki_without_tlsa() {
+    fn icann_mode_allows_valid_webpki_without_tlsa() {
         let decision = evaluate_policy(DaneValidationInput {
-            mode: DomainTrustMode::HnsCompatibility,
+            mode: DomainTrustMode::IcannWebPki,
             dnssec_secure: true,
             tlsa_records: &[],
             cert_der: b"cert",

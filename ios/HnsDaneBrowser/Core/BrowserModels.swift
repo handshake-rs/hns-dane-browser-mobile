@@ -293,7 +293,6 @@ enum BrowserSecurityLevel: Equatable, Sendable {
     case webPKI
     case insecure
     case handshakeDANE
-    case handshakeFallback
     case blocked
 }
 

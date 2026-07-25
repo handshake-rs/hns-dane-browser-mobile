@@ -34,11 +34,8 @@
 <string name="security_syncing">Đang đồng bộ hóa</string>
 <string name="security_loading">Đang tải</string>
 <string name="security_hns_verified">Đã xác minh HNS</string>
-<string name="security_hns_compat">HNS qua DoH</string>
 <string name="security_dane_verified">Đã xác minh DANE</string>
-<string name="security_dane_compat">DANE qua DoH</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS + WebPKI</string>
 <string name="security_failed">Xác thực không thành công</string>
 <string name="security_proof_unavailable">Không có bằng chứng</string>
 <string name="http_transport_warning">Không an toàn: lưu lượng HTTP không được mã hóa</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">Xóa lịch sử</string>
 <string name="row_clear_history_summary">Xóa lịch sử duyệt web đã lưu khỏi thiết bị này.</string>
 <string name="row_clear_resolver_cache">Xóa bộ đệm của trình phân giải</string>
-<string name="row_compatibility_doh_resolver">Trình phân giải DoH tương thích</string>
 <string name="row_cookies">Cookie</string>
 <string name="row_copy_diagnostic_bundle">Sao chép gói chẩn đoán</string>
 <string name="row_copy_diagnostic_bundle_summary">Sao chép chi tiết bản dựng, thời gian chạy và lõi gốc.</string>
@@ -246,11 +242,6 @@
 <string name="settings_homepage_reset_title">Đặt lại trang chủ?</string>
 <string name="settings_homepage_reset_message">Điều này khôi phục trang chủ Denuo Web mặc định.</string>
 <string name="settings_homepage_reset">Đặt lại trang chủ</string>
-<string name="settings_doh_edit_title">Chỉnh sửa trình phân giải DoH</string>
-<string name="settings_doh_edit_message">Nhập điểm cuối HTTPS DNS-over-HTTPS. Để trống để sử dụng mặc định.</string>
-<string name="settings_doh_error">Nhập HTTPS DoH URL hợp lệ</string>
-<string name="settings_doh_saved">Đã lưu trình phân giải DoH</string>
-<string name="settings_doh_reset">Đặt lại trình phân giải DoH</string>
 <string name="settings_resolver_cache_clear_title">Xóa bộ nhớ đệm của trình phân giải?</string>
 <string name="settings_resolver_cache_clear_message">Ứng dụng sẽ giữ lại các tiêu đề và ngang hàng %1$s đã được đồng bộ hóa nhưng các giá trị tài nguyên HNS được lưu trong bộ nhớ đệm cho mạng này sẽ bị xóa.</string>
 <string name="settings_resolver_cache_cleared">Đã xóa bộ nhớ đệm của trình phân giải %1$s</string>
@@ -263,12 +254,9 @@
 <string name="settings_header_resync_started">Đã bắt đầu đồng bộ hóa lại tiêu đề</string>
 <string name="settings_header_resync_failed_status">Việc đặt lại tiêu đề không hoàn tất. Mở chẩn đoán để biết chi tiết.</string>
 <string name="settings_header_resync_failed">Đồng bộ hóa lại tiêu đề không bắt đầu</string>
-<string name="settings_hns_mode_on">Bật. Lỗi giải quyết được ủy quyền không đóng được.</string>
-<string name="settings_hns_mode_off">Tắt. Dự phòng tương thích có thể được sử dụng sau khi giải pháp cục bộ hoặc trực tiếp không thành công.</string>
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Bật. Bằng chứng chứng minh HNS mang theo chứng chỉ có thể đáp ứng DANE khi hợp lệ.</string>
 <string name="settings_stateless_dane_off">Tắt. Bằng chứng HNS và bằng chứng TLSA sử dụng đường dẫn trình phân giải trực tiếp.</string>
-<string name="settings_strict_hns_mode">Chế độ HNS nghiêm ngặt</string>
 <string name="settings_stateless_dane_certificates">Chứng chỉ DANE không trạng thái thử nghiệm</string>
 <string name="settings_theme_dialog_title">chủ đề</string>
 <string name="settings_theme_set">Chủ đề được đặt thành %1$s.</string>
@@ -421,7 +409,6 @@
 <string name="trace_protocol_authoritative_udp53">UDP 53 có thẩm quyền</string>
 <string name="trace_protocol_authoritative_tcp53">TCP 53 có thẩm quyền</string>
 <string name="trace_protocol_authoritative_doh">DoH có thẩm quyền</string>
-<string name="trace_protocol_hns_doh">Khả năng tương thích HNS DoH</string>
 <string name="trace_protocol_icann_doh">ICANN DoH đáng tin cậy</string>
 <string name="trace_tlsa_present">hiện tại</string>
 <string name="trace_tlsa_absent">vắng mặt</string>
@@ -458,7 +445,6 @@
 <string name="trace_fix_dnssec_before_tlsa">Trước tiên hãy sửa DNSSEC được ủy quyền. TLSA/DANE không được đánh giá vì độ phân giải an toàn không thành công trước khi tra cứu TLSA.</string>
 <string name="trace_fix_renew_cert">Gia hạn chứng chỉ HTTPS gốc. Cổng đã đạt đến nguồn HTTPS nhưng TLS không thành công do chứng chỉ đã vượt quá thời hạn hiệu lực của nó.</string>
 <string name="trace_fix_origin_address_missing">Phục vụ A/AAAA cho máy chủ được yêu cầu từ DNS được ủy quyền. Dữ liệu HNS GLUE/SYNTH chỉ được sử dụng để tiếp cận máy chủ tên chứ không phải địa chỉ gốc.</string>
-<string name="trace_fix_compat_fallback_used">Khả năng tương thích Dự phòng DoH đã được sử dụng. Bật chế độ HNS nghiêm ngặt để xác minh xem trang web có hoạt động hoàn toàn mà không cần DoH của bên thứ ba hay không.</string>
 <string name="trace_fix_no_obvious_hns">Không có sửa chữa rõ ràng từ dấu vết này. Nếu HTTPS không thành công, hãy kiểm tra TLSA/DANE sau khi tính năng theo dõi chứng chỉ được bật.</string>
 <string name="trace_fix_icann_dnssec_bogus">Sửa chuỗi ICANN DNSSEC: DS, DNSKEY, chữ ký và bản ghi từ chối phải xác thực.</string>
 <string name="trace_fix_icann_origin_address_missing">Xuất bản bản ghi A hoặc AAAA đã được DNSSEC xác thực cho máy chủ này.</string>

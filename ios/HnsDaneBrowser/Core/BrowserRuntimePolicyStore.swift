@@ -13,18 +13,20 @@ struct BrowserRuntimePolicy: Equatable, Sendable {
     let legacyHNSDoHCompatibility: Bool
 
     init(
-        resolutionMode: BrowserResolutionMode = .compatibility,
+        resolutionMode: BrowserResolutionMode = .strict,
         hnsDohResolver: String? = nil,
         statelessDANECertificates: Bool = false,
         experimentalP2PDNSRelay: Bool = true,
-        legacyHNSDoHCompatibility: Bool = true
+        legacyHNSDoHCompatibility: Bool = false
     ) {
-        self.resolutionMode = resolutionMode
-        let endpoint = hnsDohResolver?.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.hnsDohResolver = endpoint?.isEmpty == false ? endpoint : nil
+        _ = resolutionMode
+        _ = hnsDohResolver
+        _ = legacyHNSDoHCompatibility
+        self.resolutionMode = .strict
+        self.hnsDohResolver = nil
         self.statelessDANECertificates = statelessDANECertificates
         self.experimentalP2PDNSRelay = experimentalP2PDNSRelay
-        self.legacyHNSDoHCompatibility = legacyHNSDoHCompatibility
+        self.legacyHNSDoHCompatibility = false
     }
 
     static let `default` = BrowserRuntimePolicy()
@@ -46,29 +48,33 @@ final class BrowserRuntimePolicyStore {
     }
 
     func load() -> BrowserRuntimePolicy {
-        let mode = defaults.string(forKey: Key.resolutionMode)
-            .flatMap(BrowserResolutionMode.init(rawValue:)) ?? .compatibility
-        return BrowserRuntimePolicy(
-            resolutionMode: mode,
-            hnsDohResolver: defaults.string(forKey: Key.hnsDohResolver),
+        let explicitRelayPreference =
+            defaults.object(forKey: Key.experimentalP2PDNSRelay) as? Bool
+        let hadExplicitLegacyFallbackPreference =
+            defaults.string(forKey: Key.resolutionMode) == BrowserResolutionMode.compatibility.rawValue
+            || defaults.object(forKey: Key.hnsDohResolver) != nil
+            || (defaults.object(forKey: Key.legacyHNSDoHCompatibility) as? Bool) == true
+        let relayEnabled =
+            explicitRelayPreference ?? !hadExplicitLegacyFallbackPreference
+        let policy = BrowserRuntimePolicy(
             statelessDANECertificates: defaults.bool(forKey: Key.statelessDANE),
-            experimentalP2PDNSRelay:
-                defaults.object(forKey: Key.experimentalP2PDNSRelay) as? Bool ?? true,
-            legacyHNSDoHCompatibility:
-                defaults.object(forKey: Key.legacyHNSDoHCompatibility) as? Bool ?? true
+            experimentalP2PDNSRelay: relayEnabled
         )
+        if explicitRelayPreference == nil, hadExplicitLegacyFallbackPreference {
+            defaults.set(relayEnabled, forKey: Key.experimentalP2PDNSRelay)
+        }
+        defaults.removeObject(forKey: Key.resolutionMode)
+        defaults.removeObject(forKey: Key.hnsDohResolver)
+        defaults.removeObject(forKey: Key.legacyHNSDoHCompatibility)
+        return policy
     }
 
     func save(_ policy: BrowserRuntimePolicy) {
-        defaults.set(policy.resolutionMode.rawValue, forKey: Key.resolutionMode)
-        if let endpoint = policy.hnsDohResolver {
-            defaults.set(endpoint, forKey: Key.hnsDohResolver)
-        } else {
-            defaults.removeObject(forKey: Key.hnsDohResolver)
-        }
+        defaults.removeObject(forKey: Key.resolutionMode)
+        defaults.removeObject(forKey: Key.hnsDohResolver)
+        defaults.removeObject(forKey: Key.legacyHNSDoHCompatibility)
         defaults.set(policy.statelessDANECertificates, forKey: Key.statelessDANE)
         defaults.set(policy.experimentalP2PDNSRelay, forKey: Key.experimentalP2PDNSRelay)
-        defaults.set(policy.legacyHNSDoHCompatibility, forKey: Key.legacyHNSDoHCompatibility)
     }
 }
 

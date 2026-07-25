@@ -4,7 +4,7 @@
 
 The app verifies header chainwork, checkpoint ancestry, proof-of-work difficulty, Urkel proofs against header tree roots, DNSSEC chains below HNS delegations, TLSA records, DANE certificate or SPKI matches, and transport downgrade policy.
 
-The default proof-backed path does not trust a single peer, external HNS resolvers, unsigned DNS answers for HNS names, TLSA answers without a valid proof chain, stale caches, or origin certificates that fail active DANE policy. Configured compatibility mode may query the selected HNS DoH resolver only after the local HNS proof/delegation path has established the root name and then failed at delegated nameserver transport/validation; those fallback answers are treated as secure only when the DNS response carries authenticated-data.
+The proof-backed path does not trust a single peer, public recursive HNS resolvers, unsigned DNS answers for HNS names, TLSA answers without a valid proof chain, stale caches, or origin certificates that fail active DANE policy. HNS uses strict DNSSEC/DANE. Public recursive HNS DoH and HNS WebPKI fallback are prohibited; proof-anchored authoritative HNS DoH is a transport for the proven delegation, not a recursive fallback. Ordinary ICANN browsing retains bounded ICANN DoH and WebPKI.
 
 ## Failure Policy
 
@@ -68,7 +68,7 @@ The app follows the Android privacy checklist as a platform baseline:
 - External storage use is limited to user-initiated downloads through Android DownloadManager into public Downloads; app metadata stays in private shared preferences or app-private files and is excluded from backup and device transfer.
 - Sensitive app-to-app sharing uses explicit user actions such as Android share/copy flows or DownloadManager. Sync snapshots stay in-process and internal diagnostic activities are non-exported.
 - Production Logcat output avoids browsing URLs, user-entered content, request/response bodies, and resolver secrets; default persisted diagnostics remain bounded and sanitized.
-- The Google Play Data safety and privacy policy drafts disclose local browsing data, user-initiated downloads, HNS peer/DNS/web requests, optional compatibility DoH, and local deletion controls.
+- The Google Play Data safety and privacy policy drafts disclose local browsing data, user-initiated downloads, HNS peer/DNS/web requests, optional P2P relay use, ordinary ICANN DoH, and local deletion controls.
 
 ## iOS WebKit Profile
 
@@ -86,14 +86,15 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 
 The P2P DNS relay is an untrusted transport beneath the existing proof-backed
 delegated resolver. Android new installs enable it by default, while preserving
-an explicit preference already chosen by an existing installation. It is
+an explicit preference already chosen by an existing installation. An explicit
+legacy compatibility preference is revoked and does not enable the relay when no
+independent relay preference exists. The relay is
 considered only after current locally validated headers and a matching Urkel
 proof have produced an acceptable HNS NS/DS delegation, proof-declared
 authoritative DoH has not succeeded, and direct authoritative UDP/TCP 53 has
-failed or has been classified as intercepted. The legacy third-party HNS DoH
-path remains a later, independently controlled compatibility mechanism and is
-also enabled by default for Android new installs. The `hsd` relay responder is
-never enabled implicitly; an operator must opt in to serving queries.
+failed or has been classified as intercepted. There is no later public recursive
+HNS DoH or HNS WebPKI fallback. The `hsd` relay responder is never enabled
+implicitly; an operator must opt in to serving queries.
 
 The peer necessarily learns the qname, qtype, client P2P connection, and source
 network address. The ordinary Handshake TCP listener is plaintext; no query
@@ -199,9 +200,8 @@ does not by itself change peer score or start a cooldown. See
 - No TLSA downgrade without an explicit policy event.
 - No TLSA record should influence HTTPS trust unless its exact `_port._tcp.host` resolver result is DNSSEC-secure.
 - No HNS-strict HTTPS connection should proceed without a DNSSEC-secure TLSA match.
-- No HNS compatibility-mode HTTPS connection should be labeled as DANE verified when it used WebPKI fallback; the Android toolbar must show the explicit mixed `HNS + WebPKI` state.
-- No HNS DoH compatibility fallback answer should be treated as secure unless the response matches the query tuple and carries the DNS authenticated-data bit.
-- No page resolved through the HNS DoH compatibility fallback should be labeled as plain local `DANE verified` or `HNS verified`; the toolbar must show an explicit `via DoH` compatibility state.
+- No HNS HTTPS connection may select WebPKI in place of a DNSSEC-secure TLSA match.
+- No public recursive HNS DoH endpoint may be selected by settings, persisted policy, raw gateway metadata, JNI, the Apple C ABI, or the resolver plan.
 - No unbounded or panic-prone X.509 parsing for DANE SPKI selector matching.
 - No QUIC downgrade without an explicit policy event.
 - No local gateway listener beyond loopback and no fixed browser proxy port in normal app startup. Android must not apply a broad proxy when WebView cannot scope it to the active HNS host; iOS intentionally proxies the whole data store and therefore must not enable failover or any direct WebKit route. Neither platform keeps a browser proxy listener after its owning foreground browser lifecycle is revoked.

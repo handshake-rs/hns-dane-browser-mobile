@@ -34,11 +34,8 @@
     <string name="security_syncing">同期中</string>
     <string name="security_loading">読み込み中</string>
     <string name="security_hns_verified">HNS 認証済み</string>
-    <string name="security_hns_compat">DoH 経由の HNS</string>
     <string name="security_dane_verified">DANE 検証済み</string>
-    <string name="security_dane_compat">DANE (DoH 経由)</string>
     <string name="security_webpki">WebPKI</string>
-    <string name="security_hns_webpki">HNS + WebPKI</string>
     <string name="security_failed">検証に失敗しました</string>
     <string name="security_proof_unavailable">証拠がありません</string>
     <string name="http_transport_warning">安全ではありません: HTTP 通信は暗号化されていません</string>
@@ -124,7 +121,6 @@
     <string name="row_clear_history">履歴をクリアする</string>
     <string name="row_clear_history_summary">保存されている閲覧履歴をこのデバイスから削除します。</string>
     <string name="row_clear_resolver_cache">リゾルバキャッシュをクリアする</string>
-    <string name="row_compatibility_doh_resolver">互換性 DoH リゾルバー</string>
     <string name="row_cookies">クッキー</string>
     <string name="row_copy_diagnostic_bundle">診断バンドルをコピーする</string>
     <string name="row_copy_diagnostic_bundle_summary">ビルド、ランタイム、ネイティブ コアの詳細をコピーします。</string>
@@ -246,11 +242,6 @@
     <string name="settings_homepage_reset_title">ホームページをリセットしますか?</string>
     <string name="settings_homepage_reset_message">これにより、デフォルトの Denuo Web ホームページが復元されます。</string>
     <string name="settings_homepage_reset">ホームページのリセット</string>
-    <string name="settings_doh_edit_title">DoH リゾルバーの編集</string>
-    <string name="settings_doh_edit_message">HTTPS DNS-over-HTTPS エンドポイントを入力します。デフォルトを使用する場合は空白のままにします。</string>
-    <string name="settings_doh_error">有効な HTTPS DoH URL を入力してください</string>
-    <string name="settings_doh_saved">DoH リゾルバーが保存されました</string>
-    <string name="settings_doh_reset">DoHリゾルバのリセット</string>
     <string name="settings_resolver_cache_clear_title">リゾルバキャッシュをクリアしますか?</string>
     <string name="settings_resolver_cache_clear_message">アプリは同期された %1$s ヘッダーとピアを維持しますが、このネットワークのキャッシュされた HNS リソース値は削除されます。</string>
     <string name="settings_resolver_cache_cleared">%1$s リゾルバー キャッシュがクリアされました</string>
@@ -263,12 +254,9 @@
     <string name="settings_header_resync_started">ヘッダーの再同期が開始されました</string>
     <string name="settings_header_resync_failed_status">ヘッダーのリセットが完了しませんでした。詳細については、診断を開いてください。</string>
     <string name="settings_header_resync_failed">ヘッダーの再同期が開始されませんでした</string>
-    <string name="settings_hns_mode_on">の上。委任された解決の失敗はフェールクローズされます。</string>
-    <string name="settings_hns_mode_off">オフ。ローカルまたは直接の解決が失敗した後、互換性フォールバックが使用される場合があります。</string>
     <string name="settings_hns_network_summary">%1$s。 %2$s</string>
     <string name="settings_stateless_dane_on">の上。証明書に含まれる HNS 証明証拠は、有効であれば DANE を満たす可能性があります。</string>
     <string name="settings_stateless_dane_off">オフ。 HNS 証明と TLSA 証拠はライブ リゾルバー パスを使用します。</string>
-    <string name="settings_strict_hns_mode">厳密な HNS モード</string>
     <string name="settings_stateless_dane_certificates">実験的なステートレス DANE 証明書</string>
     <string name="settings_theme_dialog_title">テーマ</string>
     <string name="settings_theme_set">テーマを %1$s に設定しました。</string>
@@ -421,7 +409,6 @@
     <string name="trace_protocol_authoritative_udp53">権威のある UDP 53</string>
     <string name="trace_protocol_authoritative_tcp53">権威あるTCP 53</string>
     <string name="trace_protocol_authoritative_doh">権威のある DoH</string>
-    <string name="trace_protocol_hns_doh">互換性 HNS DoH</string>
     <string name="trace_protocol_icann_doh">信頼できる ICANN DoH</string>
     <string name="trace_tlsa_present">現在</string>
     <string name="trace_tlsa_absent">不在</string>
@@ -458,7 +445,6 @@
     <string name="trace_fix_dnssec_before_tlsa">まず、委任された DNSSEC を修正します。 TLSA ルックアップの前に安全な解決が失敗したため、TLSA/DANE は評価されませんでした。</string>
     <string name="trace_fix_renew_cert">オリジンHTTPS証明書を更新します。ゲートウェイは HTTPS オリジンに到達しましたが、証明書の有効期間が過ぎているため TLS が失敗しました。</string>
     <string name="trace_fix_origin_address_missing">委任された DNS から要求されたホストに A/AAAA を提供します。 HNS GLUE/SYNTH データは、発信元アドレスとしてではなく、ネームサーバーに到達するためにのみ使用されます。</string>
-    <string name="trace_fix_compat_fallback_used">互換性 DoH フォールバックが使用されました。 Strict HNS モードを有効にして、サードパーティの DoH なしでサイトが完全に動作するかどうかを確認します。</string>
     <string name="trace_fix_no_obvious_hns">このトレースからは明らかな修正はありません。 HTTPS が失敗した場合は、証明書トレースを有効にしてから TLSA/DANE を検査します。</string>
     <string name="trace_fix_icann_dnssec_bogus">ICANN DNSSEC チェーンを修正します。DS、DNSSKEY、署名、および拒否レコードを検証する必要があります。</string>
     <string name="trace_fix_icann_origin_address_missing">このホストの DNSSEC 検証済み A または AAAA レコードを公開します。</string>

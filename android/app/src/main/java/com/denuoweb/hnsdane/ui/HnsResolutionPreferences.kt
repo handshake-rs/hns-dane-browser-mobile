@@ -42,10 +42,9 @@ enum class HandshakeNetwork(
 
 internal object HnsResolutionPreferences {
     const val DEFAULT_HANDSHAKE_NETWORK = "mainnet"
-    const val DEFAULT_STRICT_HNS_MODE = false
-    const val DEFAULT_DOH_RESOLVER_URL = "https://zorro.hnsdoh.com/dns-query"
+    const val DEFAULT_STRICT_HNS_MODE = true
     const val DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY = true
-    const val DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY = true
+    const val DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY = false
 
     private const val PREFS = "hns_resolution_preferences"
     private const val KEY_HANDSHAKE_NETWORK = "handshake_network"
@@ -71,16 +70,7 @@ internal object HnsResolutionPreferences {
             .apply()
     }
 
-    fun strictHnsMode(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_STRICT_HNS_MODE, buildDefaultStrictHnsMode())
-
-    fun setStrictHnsMode(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_STRICT_HNS_MODE, enabled)
-            .apply()
-    }
+    fun strictHnsMode(@Suppress("UNUSED_PARAMETER") context: Context): Boolean = true
 
     fun statelessDaneCertificates(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -107,39 +97,42 @@ internal object HnsResolutionPreferences {
             .apply()
     }
 
-    fun legacyHnsDohCompatibility(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(
-                KEY_LEGACY_HNS_DOH_COMPATIBILITY,
-                buildDefaultLegacyHnsDohCompatibility(),
-            )
+    fun legacyHnsDohCompatibility(@Suppress("UNUSED_PARAMETER") context: Context): Boolean = false
 
-    fun setLegacyHnsDohCompatibility(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_LEGACY_HNS_DOH_COMPATIBILITY, enabled)
-            .apply()
-    }
+    fun dohResolverUrl(@Suppress("UNUSED_PARAMETER") context: Context): String = ""
 
-    fun dohResolverUrl(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_DOH_RESOLVER_URL, DEFAULT_DOH_RESOLVER_URL)
-            ?.let(::normalizeDohResolverUrl)
-            ?: DEFAULT_DOH_RESOLVER_URL
+    /**
+     * One-way migration for releases that persisted public recursive HNS DoH or
+     * HNS WebPKI compatibility controls. An explicit legacy compatibility choice
+     * is never reinterpreted as consent to the P2P relay: when no independent
+     * relay preference exists, that migration starts with relay fallback off.
+     * Fresh installs have no legacy preference and retain the relay-on requester
+     * default.
+     */
+    fun migrateProhibitedHnsFallbackSettings(context: Context) {
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val hadExplicitRelayPreference =
+            preferences.contains(KEY_EXPERIMENTAL_P2P_DNS_RELAY)
+        val hadExplicitLegacyFallbackPreference =
+            (
+                preferences.contains(KEY_STRICT_HNS_MODE) &&
+                    !preferences.getBoolean(KEY_STRICT_HNS_MODE, true)
+                ) ||
+                (
+                    preferences.contains(KEY_LEGACY_HNS_DOH_COMPATIBILITY) &&
+                        preferences.getBoolean(KEY_LEGACY_HNS_DOH_COMPATIBILITY, false)
+                    ) ||
+                preferences.contains(KEY_DOH_RESOLVER_URL)
 
-    fun setDohResolverUrl(context: Context, input: String): String? {
-        val normalized = normalizeDohResolverUrl(input) ?: return null
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_DOH_RESOLVER_URL, normalized)
-            .apply()
-        return normalized
-    }
-
-    fun resetDohResolverUrl(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
+        preferences.edit()
+            .putBoolean(KEY_STRICT_HNS_MODE, true)
+            .putBoolean(KEY_LEGACY_HNS_DOH_COMPATIBILITY, false)
             .remove(KEY_DOH_RESOLVER_URL)
+            .also { editor ->
+                if (hadExplicitLegacyFallbackPreference && !hadExplicitRelayPreference) {
+                    editor.putBoolean(KEY_EXPERIMENTAL_P2P_DNS_RELAY, false)
+                }
+            }
             .apply()
     }
 
@@ -211,45 +204,6 @@ internal object HnsResolutionPreferences {
         return null
     }
 
-    fun normalizeDohResolverUrl(input: String): String? {
-        val trimmed = input.trim()
-        if (trimmed.isBlank()) {
-            return DEFAULT_DOH_RESOLVER_URL
-        }
-        if (trimmed.length > MAX_DOH_URL_CHARS) {
-            return null
-        }
-        val uri = runCatching { URI(trimmed) }.getOrNull() ?: return null
-        if (!uri.scheme.equals("https", ignoreCase = true) ||
-            uri.host.isNullOrBlank() ||
-            uri.host.contains(':') ||
-            uri.userInfo != null ||
-            uri.fragment != null
-        ) {
-            return null
-        }
-        val explicitPort = uri.port
-        if (explicitPort != -1 && (explicitPort !in 1..65535 || isBrowserUnsafePort(explicitPort))) {
-            return null
-        }
-        val path = uri.rawPath?.takeIf { it.isNotBlank() } ?: "/dns-query"
-        val query = uri.rawQuery?.let { "?$it" }.orEmpty()
-        val port = if (explicitPort != -1 && explicitPort != 443) ":$explicitPort" else ""
-        return "https://${uri.host.lowercase(Locale.US)}$port$path$query"
-    }
-
-    private fun isBrowserUnsafePort(port: Int): Boolean =
-        port in BROWSER_UNSAFE_PORTS || port in 6665..6669
-
-    private val BROWSER_UNSAFE_PORTS = setOf(
-        1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79,
-        87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139,
-        143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548,
-        554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659,
-        4045, 4190, 5060, 5061, 6000, 6566, 6679, 6697, 10080,
-    )
-
-    private const val MAX_DOH_URL_CHARS = 4 * 1024
     private const val MAX_STATIC_RELAY_PEER_ENDPOINT_CHARS = 320
     private val IPV6_LITERAL_CHARS = ('0'..'9').toSet() + ('a'..'f') + ('A'..'F') + setOf(':', '.')
 

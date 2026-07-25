@@ -34,11 +34,8 @@
 <string name="security_syncing">Senkronizasyon</string>
 <string name="security_loading">Yükleniyor</string>
 <string name="security_hns_verified">HNS doğrulandı</string>
-<string name="security_hns_compat">HNS aracılığıyla DoH</string>
 <string name="security_dane_verified">DANE doğrulandı</string>
-<string name="security_dane_compat">DANE aracılığıyla DoH</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS + WebPKI</string>
 <string name="security_failed">Doğrulama başarısız oldu</string>
 <string name="security_proof_unavailable">Kanıt mevcut değil</string>
 <string name="http_transport_warning">Güvenli değil: HTTP trafiği şifrelenmiyor</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">Geçmişi temizle</string>
 <string name="row_clear_history_summary">Kaydedilen tarama geçmişini bu cihazdan kaldırın.</string>
 <string name="row_clear_resolver_cache">Çözümleyici önbelleğini temizle</string>
-<string name="row_compatibility_doh_resolver">Uyumluluk DoH çözümleyici</string>
 <string name="row_cookies">Çerezler</string>
 <string name="row_copy_diagnostic_bundle">Teşhis paketini kopyala</string>
 <string name="row_copy_diagnostic_bundle_summary">Derlemeyi, çalışma zamanını ve yerel çekirdek ayrıntılarını kopyalayın.</string>
@@ -246,11 +242,6 @@
 <string name="settings_homepage_reset_title">Ana sayfa sıfırlansın mı?</string>
 <string name="settings_homepage_reset_message">Bu, varsayılan Denuo Web ana sayfasını geri yükler.</string>
 <string name="settings_homepage_reset">Ana sayfayı sıfırla</string>
-<string name="settings_doh_edit_title">DoH çözümleyiciyi düzenleyin</string>
-<string name="settings_doh_edit_message">Bir HTTPS DNS-over-HTTPS uç noktası girin. Varsayılanı kullanmak için boş bırakın.</string>
-<string name="settings_doh_error">Geçerli bir HTTPS DoH URL girin</string>
-<string name="settings_doh_saved">DoH çözümleyici kaydedildi</string>
-<string name="settings_doh_reset">DoH çözümleyici sıfırlama</string>
 <string name="settings_resolver_cache_clear_title">Çözümleyici önbelleği temizlensin mi?</string>
 <string name="settings_resolver_cache_clear_message">Uygulama, senkronize edilmiş %1$s başlıklarını ve eşlerini koruyacak, ancak bu ağ için önbelleğe alınmış HNS kaynak değerleri kaldırılacak.</string>
 <string name="settings_resolver_cache_cleared">%1$s çözümleyici önbelleği temizlendi</string>
@@ -263,12 +254,9 @@
 <string name="settings_header_resync_started">Üstbilgi yeniden senkronizasyonu başlatıldı</string>
 <string name="settings_header_resync_failed_status">Başlık sıfırlama işlemi tamamlanmadı. Ayrıntılar için tanılamayı açın.</string>
 <string name="settings_header_resync_failed">Üstbilgi yeniden senkronizasyonu başlamadı</string>
-<string name="settings_hns_mode_on">Açık. Yetki verilen çözümleme hataları kapatılamaz.</string>
-<string name="settings_hns_mode_off">Kapalı. Yerel veya doğrudan çözüm başarısız olduktan sonra uyumluluk geri dönüşü kullanılabilir.</string>
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Açık. Sertifikayla taşınan HNS kanıtı, geçerli olduğunda DANE\'yi karşılayabilir.</string>
 <string name="settings_stateless_dane_off">Kapalı. HNS kanıtı ve TLSA kanıtı canlı çözümleyici yolunu kullanır.</string>
-<string name="settings_strict_hns_mode">Katı HNS modu</string>
 <string name="settings_stateless_dane_certificates">Deneysel durum bilgisiz DANE sertifikaları</string>
 <string name="settings_theme_dialog_title">Tema</string>
 <string name="settings_theme_set">Tema %1$s olarak ayarlandı.</string>
@@ -421,7 +409,6 @@
 <string name="trace_protocol_authoritative_udp53">Yetkili UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Yetkili TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Yetkili DoH</string>
-<string name="trace_protocol_hns_doh">Uyumluluk HNS DoH</string>
 <string name="trace_protocol_icann_doh">Güvenilir ICANN DoH</string>
 <string name="trace_tlsa_present">mevcut</string>
 <string name="trace_tlsa_absent">yok</string>
@@ -458,7 +445,6 @@
 <string name="trace_fix_dnssec_before_tlsa">Önce yetki verilen DNSSEC\'i düzeltin. TLSA/DANE, TLSA aramasından önce güvenli çözümleme başarısız olduğundan değerlendirilmedi.</string>
 <string name="trace_fix_renew_cert">Menşe HTTPS sertifikasını yenileyin. Ağ geçidi bir HTTPS kaynağına ulaştı ancak sertifika geçerlilik penceresini aştığı için TLS başarısız oldu.</string>
 <string name="trace_fix_origin_address_missing">Yetki verilen DNS\'den istenen ana makineye A/AAAA hizmetini verin. HNS GLUE/SYNTH verileri, kaynak adresi olarak değil, yalnızca ad sunucularına ulaşmak için kullanılır.</string>
-<string name="trace_fix_compat_fallback_used">Uyumluluk DoH geri dönüşü kullanıldı. Sitenin üçüncü taraf DoH olmadan tam olarak çalışıp çalışmadığını doğrulamak için Katı HNS modunu etkinleştirin.</string>
 <string name="trace_fix_no_obvious_hns">Bu izde belirgin bir düzeltme yok. HTTPS başarısız olursa sertifika izleme etkinleştirildikten sonra TLSA/DANE\'yi inceleyin.</string>
 <string name="trace_fix_icann_dnssec_bogus">ICANN DNSSEC zincirini düzeltin: DS, DNSKEY, imzalar ve ret kayıtları doğrulanmalıdır.</string>
 <string name="trace_fix_icann_origin_address_missing">Bu ana makine için DNSSEC tarafından doğrulanmış bir A veya AAAA kaydı yayınlayın.</string>

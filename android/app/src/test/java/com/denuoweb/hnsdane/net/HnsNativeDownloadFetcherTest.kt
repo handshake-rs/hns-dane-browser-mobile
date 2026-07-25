@@ -129,6 +129,87 @@ class HnsNativeDownloadFetcherTest {
         dataDir.deleteRecursively()
     }
 
+    @Test
+    fun fetchRejectsDisabledHnsTrustMetadataAndDeletesBody() {
+        val metadataValues = listOf(
+            "X-HNS-Resolver-Policy: hns-doh-compat\r\n",
+            "$HNS_SECURITY_PATH_HEADER: dane-third-party-doh\r\n",
+            "$HNS_SECURITY_PATH_HEADER: hns-third-party-doh\r\n",
+            "X-HNS-TLS-Policy: webpki-fallback\r\n",
+        )
+
+        metadataValues.forEachIndexed { index, metadata ->
+            val dataDir =
+                createTempDirectory("hns-download-disabled-trust-$index").toFile()
+            val bridge = QueueGatewayBridge(
+                GatewayResponse.file(
+                    head =
+                        "HTTP/1.1 200 OK\r\n" +
+                            metadata +
+                            "Content-Length: 7\r\n\r\n",
+                    body = "payload",
+                ),
+            )
+            val fetcher =
+                HnsNativeDownloadFetcher(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+            assertThrows(HnsNativeDownloadException::class.java) {
+                fetcher.fetch("https://welcome/file.bin", null)
+            }
+
+            assertFalse(bridge.bodyFiles.single().exists())
+            dataDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun fetchRejectsDisabledTrustRedirectBeforeFollowingIt() {
+        val dataDir = createTempDirectory("hns-download-disabled-trust-redirect").toFile()
+        val bridge = QueueGatewayBridge(
+            GatewayResponse.file(
+                head =
+                    "HTTP/1.1 302 Found\r\n" +
+                        "Location: /attacker-selected\r\n" +
+                        "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                        "Content-Length: 0\r\n\r\n",
+                body = "",
+            ),
+        )
+        val fetcher = HnsNativeDownloadFetcher(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        assertThrows(HnsNativeDownloadException::class.java) {
+            fetcher.fetch("https://welcome/start.bin", null)
+        }
+
+        assertEquals(1, bridge.calls.size)
+        assertFalse(bridge.bodyFiles.single().exists())
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun fetchAllowsWebPkiForTheExplicitIcannNativeGatewayHost() {
+        val dataDir = createTempDirectory("icann-download-webpki").toFile()
+        val bridge = QueueGatewayBridge(
+            GatewayResponse.file(
+                head =
+                    "HTTP/1.1 200 OK\r\n" +
+                        "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                        "Content-Length: 7\r\n\r\n",
+                body = "payload",
+            ),
+        )
+        val fetcher = HnsNativeDownloadFetcher(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = fetcher.fetch(
+            "https://dane-test.denuoweb.com/file.bin",
+            null,
+        )
+
+        assertEquals("payload", response.bodyFile.readText())
+        response.deleteBodyFile()
+        dataDir.deleteRecursively()
+    }
+
     private data class GatewayCall(
         val method: String,
         val scheme: String,

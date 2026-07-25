@@ -35,6 +35,7 @@ class HnsDaneApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        HnsResolutionPreferences.migrateProhibitedHnsFallbackSettings(this)
         registerActivityLifecycleCallbacks(AppLifecycleCallbacks(foregroundActivities))
         startWebViewInitialization()
     }

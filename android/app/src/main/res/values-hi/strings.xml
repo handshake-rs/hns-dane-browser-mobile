@@ -34,11 +34,8 @@
 <string name="security_syncing">सिंक हो रहा है</string>
 <string name="security_loading">लोड हो रहा है</string>
 <string name="security_hns_verified">HNS सत्यापित</string>
-<string name="security_hns_compat">HNS से DoH तक</string>
 <string name="security_dane_verified">DANE सत्यापित</string>
-<string name="security_dane_compat">DANE से DoH तक</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS + WebPKI</string>
 <string name="security_failed">सत्यापन विफल रहा</string>
 <string name="security_proof_unavailable">प्रमाण उपलब्ध नहीं है</string>
 <string name="http_transport_warning">असुरक्षित: HTTP ट्रैफ़िक एन्क्रिप्टेड नहीं है</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">स्पष्ट इतिहास</string>
 <string name="row_clear_history_summary">इस डिवाइस से सहेजा गया ब्राउज़िंग इतिहास हटाएं.</string>
 <string name="row_clear_resolver_cache">रिज़ॉल्वर कैश साफ़ करें</string>
-<string name="row_compatibility_doh_resolver">अनुकूलता DoH रिज़ॉल्वर</string>
 <string name="row_cookies">कुकीज़</string>
 <string name="row_copy_diagnostic_bundle">डायग्नोस्टिक बंडल कॉपी करें</string>
 <string name="row_copy_diagnostic_bundle_summary">बिल्ड, रनटाइम और मूल मूल विवरण कॉपी करें।</string>
@@ -246,11 +242,6 @@
 <string name="settings_homepage_reset_title">मुखपृष्ठ रीसेट करें?</string>
 <string name="settings_homepage_reset_message">यह डिफ़ॉल्ट Denuo Web होमपेज को पुनर्स्थापित करता है।</string>
 <string name="settings_homepage_reset">मुखपृष्ठ रीसेट</string>
-<string name="settings_doh_edit_title">DoH रिज़ॉल्वर संपादित करें</string>
-<string name="settings_doh_edit_message">HTTPS DNS-over-HTTPS समापन बिंदु दर्ज करें। डिफ़ॉल्ट का उपयोग करने के लिए खाली छोड़ दें.</string>
-<string name="settings_doh_error">वैध HTTPS DoH URL दर्ज करें</string>
-<string name="settings_doh_saved">DoH रिज़ॉल्वर सहेजा गया</string>
-<string name="settings_doh_reset">DoH रिज़ॉल्वर रीसेट</string>
 <string name="settings_resolver_cache_clear_title">रिज़ॉल्वर कैश साफ़ करें?</string>
 <string name="settings_resolver_cache_clear_message">ऐप %1$s हेडर और पीयर को समन्वयित रखेगा, लेकिन इस नेटवर्क के लिए कैश्ड HNS संसाधन मान हटा दिए जाएंगे।</string>
 <string name="settings_resolver_cache_cleared">%1$s रिज़ॉल्वर कैश साफ़ किया गया</string>
@@ -263,12 +254,9 @@
 <string name="settings_header_resync_started">हेडर पुनः समन्वयन प्रारंभ हुआ</string>
 <string name="settings_header_resync_failed_status">हेडर रीसेट पूरा नहीं हुआ. विवरण के लिए डायग्नोस्टिक्स खोलें।</string>
 <string name="settings_header_resync_failed">हेडर पुनः समन्वयन प्रारंभ नहीं हुआ</string>
-<string name="settings_hns_mode_on">पर. प्रत्यायोजित समाधान विफलताएँ बंद हो गईं।</string>
-<string name="settings_hns_mode_off">बंद. स्थानीय या प्रत्यक्ष रिज़ॉल्यूशन विफल होने के बाद संगतता फ़ॉलबैक का उपयोग किया जा सकता है।</string>
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">पर. प्रमाणपत्र-युक्त HNS प्रमाण साक्ष्य मान्य होने पर DANE को संतुष्ट कर सकता है।</string>
 <string name="settings_stateless_dane_off">बंद. HNS प्रमाण और TLSA प्रमाण लाइव रिज़ॉल्वर पथ का उपयोग करते हैं।</string>
-<string name="settings_strict_hns_mode">सख्त HNS मोड</string>
 <string name="settings_stateless_dane_certificates">प्रायोगिक स्टेटलेस DANE प्रमाणपत्र</string>
 <string name="settings_theme_dialog_title">थीम</string>
 <string name="settings_theme_set">थीम %1$s पर सेट है.</string>
@@ -421,7 +409,6 @@
 <string name="trace_protocol_authoritative_udp53">आधिकारिक UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">आधिकारिक TCP 53</string>
 <string name="trace_protocol_authoritative_doh">आधिकारिक DoH</string>
-<string name="trace_protocol_hns_doh">अनुकूलता HNS DoH</string>
 <string name="trace_protocol_icann_doh">विश्वसनीय ICANN DoH</string>
 <string name="trace_tlsa_present">वर्तमान</string>
 <string name="trace_tlsa_absent">अनुपस्थित</string>
@@ -458,7 +445,6 @@
 <string name="trace_fix_dnssec_before_tlsa">पहले प्रत्यायोजित DNSSEC को ठीक करें. TLSA/DANE का मूल्यांकन नहीं किया गया क्योंकि TLSA लुकअप से पहले सुरक्षित रिज़ॉल्यूशन विफल हो गया था।</string>
 <string name="trace_fix_renew_cert">मूल HTTPS प्रमाणपत्र नवीनीकृत करें। गेटवे HTTPS मूल तक पहुंच गया, लेकिन TLS विफल हो गया क्योंकि प्रमाणपत्र अपनी वैधता अवधि पार कर चुका है।</string>
 <string name="trace_fix_origin_address_missing">प्रत्यायोजित DNS से अनुरोधित होस्ट के लिए A/AAAA परोसें। HNS GLUE/SYNTH डेटा का उपयोग केवल नेमसर्वर तक पहुंचने के लिए किया जाता है, मूल पते के रूप में नहीं।</string>
-<string name="trace_fix_compat_fallback_used">संगतता DoH फ़ॉलबैक का उपयोग किया गया था। यह सत्यापित करने के लिए सख्त HNS मोड सक्षम करें कि साइट तृतीय-पक्ष DoH के बिना पूरी तरह से काम करती है या नहीं।</string>
 <string name="trace_fix_no_obvious_hns">इस ट्रेस से कोई स्पष्ट समाधान नहीं। यदि HTTPS विफल रहता है, तो प्रमाणपत्र ट्रेसिंग सक्षम होने पर TLSA/DANE का निरीक्षण करें।</string>
 <string name="trace_fix_icann_dnssec_bogus">ICANN DNSSEC श्रृंखला को ठीक करें: DS, DNSKEY, हस्ताक्षर और अस्वीकरण रिकॉर्ड मान्य होने चाहिए।</string>
 <string name="trace_fix_icann_origin_address_missing">इस होस्ट के लिए DNSSEC-मान्य A या AAAA रिकॉर्ड प्रकाशित करें।</string>

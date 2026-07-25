@@ -34,11 +34,8 @@
     <string name="security_syncing">در حال همگام سازی</string>
     <string name="security_loading">در حال بارگذاری</string>
     <string name="security_hns_verified">HNS تایید شده است</string>
-    <string name="security_hns_compat">HNS از طریق DoH</string>
     <string name="security_dane_verified">DANE تأیید شد</string>
-    <string name="security_dane_compat">DANE از طریق DoH</string>
     <string name="security_webpki">WebPKI</string>
-    <string name="security_hns_webpki">HNS + WebPKI</string>
     <string name="security_failed">اعتبارسنجی ناموفق بود</string>
     <string name="security_proof_unavailable">مدرک در دسترس نیست</string>
     <string name="http_transport_warning">ناامن: ترافیک HTTP رمزگذاری نشده است</string>
@@ -124,7 +121,6 @@
     <string name="row_clear_history">پاک کردن تاریخچه</string>
     <string name="row_clear_history_summary">سابقه مرور ذخیره شده را از این دستگاه حذف کنید.</string>
     <string name="row_clear_resolver_cache">حافظه پنهان حل کننده را پاک کنید</string>
-    <string name="row_compatibility_doh_resolver">حل‌کننده DoH سازگاری</string>
     <string name="row_cookies">کوکی ها</string>
     <string name="row_copy_diagnostic_bundle">بسته تشخیصی را کپی کنید</string>
     <string name="row_copy_diagnostic_bundle_summary">جزئیات ساخت، زمان اجرا و هسته اصلی را کپی کنید.</string>
@@ -246,11 +242,6 @@
     <string name="settings_homepage_reset_title">صفحه اصلی بازنشانی شود؟</string>
     <string name="settings_homepage_reset_message">این صفحه اصلی وب پیش فرض Denuo را بازیابی می کند.</string>
     <string name="settings_homepage_reset">بازنشانی صفحه اصلی</string>
-    <string name="settings_doh_edit_title">ویرایشگر DoH را ویرایش کنید</string>
-    <string name="settings_doh_edit_message">یک نقطه پایانی HTTPS DNS-over-HTTPS وارد کنید. برای استفاده از پیش فرض خالی بگذارید.</string>
-    <string name="settings_doh_error">یک URL معتبر HTTPS DoH وارد کنید</string>
-    <string name="settings_doh_saved">حل‌کننده DoH ذخیره شد</string>
-    <string name="settings_doh_reset">بازنشانی حل‌کننده DoH</string>
     <string name="settings_resolver_cache_clear_title">حافظه پنهان حل کننده پاک شود؟</string>
     <string name="settings_resolver_cache_clear_message">این برنامه سرصفحه‌ها و همتایان %1$s را همگام‌سازی می‌کند، اما مقادیر منبع HNS ذخیره‌شده برای این شبکه حذف خواهد شد.</string>
     <string name="settings_resolver_cache_cleared">حافظه پنهان حل‌کننده %1$s پاک شد</string>
@@ -263,12 +254,9 @@
     <string name="settings_header_resync_started">همگام سازی مجدد هدر شروع شد</string>
     <string name="settings_header_resync_failed_status">بازنشانی هدر کامل نشد. برای جزئیات، عیب‌یابی را باز کنید.</string>
     <string name="settings_header_resync_failed">همگام سازی مجدد هدر شروع نشد</string>
-    <string name="settings_hns_mode_on">روشن خرابی‌های تفویض‌شده با شکست مواجه می‌شوند.</string>
-    <string name="settings_hns_mode_off">خاموش پس از عدم موفقیت در وضوح محلی یا مستقیم، ممکن است از بازگردانی سازگاری استفاده شود.</string>
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">روشن شواهد اثبات HNS حامل گواهی ممکن است در صورت معتبر بودن، DANE را راضی کند.</string>
     <string name="settings_stateless_dane_off">خاموش شواهد HNS و TLSA از مسیر حل کننده زنده استفاده می کنند.</string>
-    <string name="settings_strict_hns_mode">حالت سختگیرانه HNS</string>
     <string name="settings_stateless_dane_certificates">گواهینامه های آزمایشی DANE بدون تابعیت</string>
     <string name="settings_theme_dialog_title">پوسته</string>
     <string name="settings_theme_set">پوسته روی %1$s تنظیم شد.</string>
@@ -421,7 +409,6 @@
     <string name="trace_protocol_authoritative_udp53">UDP معتبر 53</string>
     <string name="trace_protocol_authoritative_tcp53">TCP 53 معتبر</string>
     <string name="trace_protocol_authoritative_doh">DoH معتبر</string>
-    <string name="trace_protocol_hns_doh">سازگاری HNS DoH</string>
     <string name="trace_protocol_icann_doh">ICANN DoH قابل اعتماد</string>
     <string name="trace_tlsa_present">حاضر</string>
     <string name="trace_tlsa_absent">غایب</string>
@@ -458,7 +445,6 @@
     <string name="trace_fix_dnssec_before_tlsa">ابتدا DNSSEC واگذار شده را برطرف کنید. TLSA/DANE ارزیابی نشد زیرا وضوح ایمن قبل از جستجوی TLSA ناموفق بود.</string>
     <string name="trace_fix_renew_cert">گواهی مبدا HTTPS را تمدید کنید. دروازه به یک مبدا HTTPS رسید، اما TLS ناموفق بود زیرا گواهینامه از پنجره اعتبار خود گذشته است.</string>
     <string name="trace_fix_origin_address_missing">A/AAAA را برای میزبان درخواستی از DNS واگذار شده ارائه دهید. داده های HNS GLUE/SYNTH فقط برای دسترسی به سرورهای نام استفاده می شود، نه به عنوان آدرس مبدا.</string>
-    <string name="trace_fix_compat_fallback_used">سازگاری DoH بازگشتی استفاده شد. حالت Strict HNS را فعال کنید تا بررسی کنید که آیا سایت به طور کامل بدون DoH شخص ثالث کار می کند یا خیر.</string>
     <string name="trace_fix_no_obvious_hns">هیچ راه حل واضحی از این ردیابی وجود ندارد. اگر HTTPS ناموفق بود، پس از فعال شدن ردیابی گواهی، TLSA/DANE را بررسی کنید.</string>
     <string name="trace_fix_icann_dnssec_bogus">زنجیره ICANN DNSSEC را برطرف کنید: DS، DNSKEY، امضاها و سوابق انکار باید اعتبارسنجی شوند.</string>
     <string name="trace_fix_icann_origin_address_missing">یک رکورد A یا AAAA تایید شده توسط DNSSEC برای این میزبان منتشر کنید.</string>

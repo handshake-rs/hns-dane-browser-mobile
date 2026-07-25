@@ -34,11 +34,8 @@
 <string name="security_syncing">Синхронізація</string>
 <string name="security_loading">Завантаження</string>
 <string name="security_hns_verified">HNS перевірено</string>
-<string name="security_hns_compat">HNS через DoH</string>
 <string name="security_dane_verified">DANE перевірено</string>
-<string name="security_dane_compat">DANE через DoH</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS + WebPKI</string>
 <string name="security_failed">Помилка перевірки</string>
 <string name="security_proof_unavailable">Доказ недоступний</string>
 <string name="http_transport_warning">Небезпечно: HTTP-трафік не зашифровано</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">Очистити історію</string>
 <string name="row_clear_history_summary">Видалити збережену історію веб-перегляду з цього пристрою.</string>
 <string name="row_clear_resolver_cache">Очистити кеш резолвера</string>
-<string name="row_compatibility_doh_resolver">Резолвер сумісності DoH</string>
 <string name="row_cookies">Печиво</string>
 <string name="row_copy_diagnostic_bundle">Скопіюйте діагностичний комплект</string>
 <string name="row_copy_diagnostic_bundle_summary">Скопіюйте деталі збірки, середовища виконання та нативного ядра.</string>
@@ -258,11 +254,6 @@
 <string name="settings_homepage_reset_title">Скинути домашню сторінку?</string>
 <string name="settings_homepage_reset_message">Це відновить домашню сторінку Denuo Web за умовчанням.</string>
 <string name="settings_homepage_reset">Скидання домашньої сторінки</string>
-<string name="settings_doh_edit_title">Редагувати резольвер DoH</string>
-<string name="settings_doh_edit_message">Введіть кінцеву точку HTTPS DNS-over-HTTPS. Залиште поле порожнім, щоб використовувати значення за умовчанням.</string>
-<string name="settings_doh_error">Введіть дійсний HTTPS DoH URL</string>
-<string name="settings_doh_saved">Резолвер DoH збережено</string>
-<string name="settings_doh_reset">Скидання резольвера DoH</string>
 <string name="settings_resolver_cache_clear_title">Очистити кеш резолвера?</string>
 <string name="settings_resolver_cache_clear_message">Програма зберігатиме синхронізовані заголовки %1$s і вузли, але кешовані значення ресурсів HNS для цієї мережі буде видалено.</string>
 <string name="settings_resolver_cache_cleared">Кеш резолвера %1$s очищено</string>
@@ -275,12 +266,9 @@
 <string name="settings_header_resync_started">Розпочато повторну синхронізацію заголовка</string>
 <string name="settings_header_resync_failed_status">Скидання заголовка не завершено. Відкрийте діагностику, щоб дізнатися більше.</string>
 <string name="settings_header_resync_failed">Повторна синхронізація заголовка не почалася</string>
-<string name="settings_hns_mode_on">Увімкнено. Помилки делегованого вирішення не вдалося закрити.</string>
-<string name="settings_hns_mode_off">Вимкнено. Резервну сумісність можна використовувати після невдачі локального або прямого вирішення.</string>
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Увімкнено. Підтвердження HNS, що містить сертифікат, може задовольнити DANE, якщо воно є дійсним.</string>
 <string name="settings_stateless_dane_off">Вимкнено. Докази HNS і докази TLSA використовують живий шлях розпізнавання.</string>
-<string name="settings_strict_hns_mode">Строгий режим HNS</string>
 <string name="settings_stateless_dane_certificates">Експериментальні сертифікати DANE без стану</string>
 <string name="settings_theme_dialog_title">Тема</string>
 <string name="settings_theme_set">Для теми встановлено %1$s.</string>
@@ -433,7 +421,6 @@
 <string name="trace_protocol_authoritative_udp53">Авторитетний UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Авторитетний TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Авторитетний DoH</string>
-<string name="trace_protocol_hns_doh">Сумісність HNS DoH</string>
 <string name="trace_protocol_icann_doh">Надійний ICANN DoH</string>
 <string name="trace_tlsa_present">присутній</string>
 <string name="trace_tlsa_absent">відсутній</string>
@@ -470,7 +457,6 @@
 <string name="trace_fix_dnssec_before_tlsa">Спочатку виправте делегований DNSSEC. TLSA/DANE не було оцінено, оскільки безпечне вирішення не вдалось перед пошуком TLSA.</string>
 <string name="trace_fix_renew_cert">Поновити сертифікат походження HTTPS. Шлюз досяг джерела HTTPS, але TLS не вдалося, оскільки період дії сертифіката минув.</string>
 <string name="trace_fix_origin_address_missing">Обслуговувати A/AAAA для запитуваного хоста з делегованого DNS. Дані HNS GLUE/SYNTH використовуються лише для доступу до серверів імен, а не як адреса джерела.</string>
-<string name="trace_fix_compat_fallback_used">Було використано запасний варіант сумісності DoH. Увімкніть строгий режим HNS, щоб перевірити, чи сайт працює повністю без стороннього DoH.</string>
 <string name="trace_fix_no_obvious_hns">Немає очевидного виправлення з цього сліду. Якщо HTTPS не вдається, перевірте TLSA/DANE після ввімкнення трасування сертифіката.</string>
 <string name="trace_fix_icann_dnssec_bogus">Виправте ланцюжок ICANN DNSSEC: DS, DNSKEY, підписи та записи про відмову мають перевірятися.</string>
 <string name="trace_fix_icann_origin_address_missing">Опублікуйте перевірений DNSSEC запис A або AAAA для цього хосту.</string>

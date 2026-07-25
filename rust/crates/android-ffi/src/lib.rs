@@ -587,21 +587,17 @@ fn runtime_gateway_policy(
 }
 
 fn runtime_gateway_policy_from_values(
-    strict_hns_mode: jboolean,
-    doh_resolver_url: String,
+    _strict_hns_mode: jboolean,
+    _doh_resolver_url: String,
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
-    legacy_hns_doh_compatibility: jboolean,
+    _legacy_hns_doh_compatibility: jboolean,
 ) -> RuntimePolicy {
     RuntimePolicy {
-        resolution_mode: if strict_hns_mode == 0 {
-            ResolutionMode::Compatibility
-        } else {
-            ResolutionMode::Strict
-        },
-        hns_doh_resolver: (!doh_resolver_url.is_empty()).then_some(doh_resolver_url),
+        resolution_mode: ResolutionMode::Strict,
+        hns_doh_resolver: None,
         experimental_p2p_dns_relay: experimental_p2p_dns_relay != 0,
-        legacy_hns_doh_compatibility: legacy_hns_doh_compatibility != 0,
+        legacy_hns_doh_compatibility: false,
         stateless_dane_certificates: stateless_dane_certificates != 0,
     }
 }
@@ -1123,16 +1119,17 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn gateway_policy_carries_independent_relay_controls() {
+    fn gateway_policy_migrates_legacy_fallback_controls_to_strict() {
         let policy = runtime_gateway_policy_from_values(
-            1,
+            0,
             "https://resolver.example/dns-query".to_owned(),
             0,
             1,
-            0,
+            1,
         );
 
         assert_eq!(policy.resolution_mode, ResolutionMode::Strict);
+        assert!(policy.hns_doh_resolver.is_none());
         assert!(policy.experimental_p2p_dns_relay);
         assert!(!policy.legacy_hns_doh_compatibility);
         assert!(!policy.stateless_dane_certificates);

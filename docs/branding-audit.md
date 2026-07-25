@@ -15,7 +15,7 @@ Recommended copy:
 - Short description: `Browse HNS names with local proofs, RFC 8484 DoH, DNSSEC, and DANE.`
 - Longer positioning line: `A Handshake-first browser with local HNS proofs, delegated authoritative DoH, and DNSSEC/DANE diagnostics for selected ICANN domains.`
 
-Do not use `CA-free browser` as the product promise. The app still has WebPKI paths and compatibility modes, so that wording overpromises and may create policy or trust problems. Use wording such as `DANE-capable`, `DNSSEC-validated`, or `CA-bypass capable for validated DANE paths` only where the UI can show the exact validation path.
+Do not use `CA-free browser` as the product promise. Ordinary ICANN browsing still uses WebPKI, so that wording overpromises and may create policy or trust problems. Use wording such as `DANE-capable`, `DNSSEC-validated`, or `CA-bypass capable for validated HNS DANE paths` only where the UI can show the exact validation path.
 
 ## Brand Positioning
 

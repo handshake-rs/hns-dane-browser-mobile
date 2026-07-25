@@ -19,13 +19,12 @@ The resolution order is:
 2. locally verified current Handshake root state and name proof;
 3. proof-declared authoritative DoH;
 4. direct authoritative UDP/TCP DNS;
-5. the HNS P2P recursive relay (enabled by default for Android new installs);
-6. the independently controlled legacy third-party HNS recursive DoH path.
+5. the optional HNS P2P recursive relay (enabled by default for new installs).
 
-A successful authoritative DoH exchange suppresses direct DNS, P2P relay, and
-legacy DoH. A successful direct authoritative exchange suppresses both
-fallbacks. The P2P path is never considered before a current, locally verified
-proof has produced an acceptable delegation.
+A successful authoritative DoH exchange suppresses direct DNS and P2P relay.
+A successful direct authoritative exchange suppresses the relay. The P2P path
+is never considered before a current, locally verified proof has produced an
+acceptable delegation. Public recursive HNS DoH is not a fallback.
 
 ## Temporary negotiation and framing
 
@@ -222,16 +221,13 @@ invalid DNSSEC, invalid negative proof, invalid TLSA, or a failed DANE match.
 
 ## Controls and diagnostics
 
-Android new installs enable `Experimental HNS peer DNS relay` and the
-independent `Legacy third-party HNS DoH compatibility` fallback by default;
-explicit preferences from existing installations are preserved. The isolated
-proof-of-concept acceptance configuration enables the relay while disabling
-legacy DoH so a successful test cannot silently use the later fallback. Relay
-provenance is `p2p_dns_relay`; authoritative DoH, direct authoritative DNS, and
-legacy DoH retain distinct provenance. A relayed result may be displayed as
-`DANE via HNS P2P`, never as third-party DoH. Serving remains separate: the
-companion `hsd` responder starts only when its operator explicitly enables the
-experimental relay service.
+New installs enable `Experimental HNS peer DNS relay`; existing installations
+retain their relay preference. Startup migration deletes the former public
+recursive HNS DoH endpoint and compatibility flags. Relay provenance is
+`p2p_dns_relay`, distinct from proof-anchored authoritative DoH and direct
+authoritative DNS. A relayed result may be displayed as `DANE via HNS P2P`.
+Serving remains separate: the companion `hsd` responder starts only when its
+operator explicitly enables the experimental relay service.
 
 Settings can add a known relay peer by numeric `IPv4:port` or `[IPv6]:port`.
 The runtime applies the selected network's endpoint policy, completes a live
@@ -293,17 +289,16 @@ artifacts to pass.
 No public responder node is deployed by this repository. A future operator
 canary starts with two or three explicitly enabled patched nodes in different
 networks/administrative domains, aggregate-only logging, project-controlled
-synthetic names, and development builds. It then progresses through ordinary
-fallback and tester builds with legacy DoH disabled only after diversity,
-reliability, privacy, and resource bounds are demonstrated. The Android client
-default does not opt any `hsd` operator into serving relay queries.
+synthetic names, and development builds. It progresses to tester builds only
+after diversity, reliability, privacy, and resource bounds are demonstrated.
+Every stage retains the same fail-closed order described above; public recursive
+HNS DoH is not a canary fallback. The Android client default does not opt any
+`hsd` operator into serving relay queries.
 
 Rollback is immediate: disable the browser relay setting and the operator's
-`hsd` relay flag.
-Legacy DoH remains separately available. Removing legacy DoH from defaults
-requires measured independent relay diversity, availability and failure rate,
-median/tail latency, reliable alternate failover, authoritative-DoH adoption,
-no centralized discovery dependency, and stable interoperability.
+`hsd` relay flag. Names that cannot use a locally verified proof plus
+authoritative transport then fail closed; rollback never re-enables public
+recursive HNS DoH or HNS WebPKI fallback.
 
 ## Future standardization and `hnsd`
 

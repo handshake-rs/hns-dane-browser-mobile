@@ -441,7 +441,6 @@ class HnsWebViewGatewayInterceptorTest {
                 "HTTP/1.1 200 OK\r\n" +
                     "$HNS_SECURITY_PATH_HEADER: dane-authoritative-doh\r\n" +
                     "X-HNS-TLS-Policy: dane\r\n" +
-                    "X-HNS-Resolver-Policy: hns-doh-compat\r\n" +
                     "$HNS_RESOLUTION_TRACE_HEADER: private-trace\r\n" +
                     "x-hns-future-metadata: private-future\r\n" +
                     "X-Public: visible\r\n" +
@@ -471,10 +470,79 @@ class HnsWebViewGatewayInterceptorTest {
         requireNotNull(response)
         assertEquals(listOf(HnsPageSecurityPath.DaneAuthoritativeDoh), paths)
         assertEquals(listOf(HnsPageTlsPolicy.Dane), tlsPolicies)
-        assertEquals(listOf(HnsPageResolverPolicy.HnsDohCompatibility), resolverPolicies)
+        assertEquals(listOf(null), resolverPolicies)
         assertEquals(listOf("private-trace"), traces)
         assertFalse(response.webResponseHeaders().keys.any { it.startsWith("X-HNS-", ignoreCase = true) })
         assertEquals("visible", response.webResponseHeaders()["X-Public"])
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun successfulDisabledHnsTrustMetadataIsRejectedBeforeRendering() {
+        val responses = listOf(
+            "X-HNS-Resolver-Policy: hns-doh-compat\r\n",
+            "$HNS_SECURITY_PATH_HEADER: dane-third-party-doh\r\nX-HNS-TLS-Policy: dane\r\n",
+            "$HNS_SECURITY_PATH_HEADER: hns-third-party-doh\r\n",
+            "X-HNS-TLS-Policy: webpki-fallback\r\n",
+        )
+
+        responses.forEachIndexed { index, metadata ->
+            val bridge = RecordingGatewayBridge(
+                (
+                    "HTTP/1.1 200 OK\r\n" +
+                        metadata +
+                        "Content-Length: 6\r\n\r\nlegacy"
+                    ).toByteArray(StandardCharsets.ISO_8859_1),
+            )
+            val dataDir =
+                createTempDirectory("hns-disabled-trust-status-$index").toFile()
+            val interceptor = HnsWebViewGatewayInterceptor(
+                dataDir,
+                bridge,
+                TEST_BROWSER_NAMESPACE_POLICY,
+            )
+
+            val response = interceptor.intercept(
+                method = "GET",
+                url = "https://welcome/",
+                requestHeaders = emptyMap(),
+            )
+
+            requireNotNull(response)
+            assertEquals(502, response.statusCode)
+            assertEquals("Disabled HNS Trust Path", response.reason)
+            assertFalse(String(response.body).contains("legacy"))
+            dataDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun disabledHnsTrustMetadataIsRejectedBeforeFollowingRedirect() {
+        val bridge = RecordingGatewayBridge(
+            (
+                "HTTP/1.1 302 Found\r\n" +
+                    "Location: /attacker-selected\r\n" +
+                    "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                    "Content-Length: 0\r\n\r\n"
+                ).toByteArray(StandardCharsets.ISO_8859_1),
+        )
+        val dataDir = createTempDirectory("hns-disabled-trust-redirect").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir,
+            bridge,
+            TEST_BROWSER_NAMESPACE_POLICY,
+        )
+
+        val response = interceptor.intercept(
+            method = "GET",
+            url = "https://welcome/",
+            requestHeaders = emptyMap(),
+        )
+
+        requireNotNull(response)
+        assertEquals(502, response.statusCode)
+        assertEquals("Disabled HNS Trust Path", response.reason)
+        assertEquals(1, bridge.calls.size)
         dataDir.deleteRecursively()
     }
 

@@ -745,11 +745,9 @@ final class BrowserViewController: UIViewController {
 
         Build: \(BrowserSettingsViewController.buildLabelForDiagnostics)
         Network: \(process.currentNetwork.title)
-        Resolution mode: \(policy.resolutionMode == .strict ? "strict" : "compatibility")
+        HNS trust policy: strict DNSSEC/DANE; public recursive HNS DoH and WebPKI fallback prohibited
         Stateless DANE certificates: \(policy.statelessDANECertificates)
         Experimental P2P DNS relay: \(policy.experimentalP2PDNSRelay)
-        Legacy HNS DoH compatibility: \(policy.legacyHNSDoHCompatibility)
-        Compatibility DoH resolver: \(policy.hnsDohResolver ?? BrowserSettingsViewController.defaultDoHResolverURL)
 
         SYNC STATUS
 
@@ -814,7 +812,7 @@ final class BrowserViewController: UIViewController {
             notices = "Third-party notices are unavailable."
         }
         let agreement = """
-        This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, a P2P DNS relay, RFC 8484 DoH transport, and DNSSEC/DANE diagnostics. HNS resolution, validation, relay, compatibility fallback, and sync may fail closed or be incomplete. The app is provided without warranty and is not a financial service.
+        This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, an optional P2P DNS relay, proof-anchored authoritative DoH, and DNSSEC/DANE diagnostics. HNS resolution, validation, relay, and sync may fail closed or be incomplete. Public recursive HNS DoH and HNS WebPKI fallback are prohibited. The app is provided without warranty and is not a financial service.
         """
         let text = """
         PRIVACY POLICY
@@ -1208,9 +1206,6 @@ final class BrowserViewController: UIViewController {
         case .handshakeDANE:
             symbol = "checkmark.shield.fill"
             color = .systemGreen
-        case .handshakeFallback:
-            symbol = "shield.lefthalf.filled"
-            color = .systemOrange
         case .blocked:
             symbol = "xmark.shield.fill"
             color = .systemRed
@@ -1485,7 +1480,7 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
         switch summary.level {
         case .pending: status = 102
         case .blocked: status = 502
-        case .webPKI, .insecure, .handshakeDANE, .handshakeFallback: status = 200
+        case .webPKI, .insecure, .handshakeDANE: status = 200
         }
         recordGatewayEvent(
             stage: "security",

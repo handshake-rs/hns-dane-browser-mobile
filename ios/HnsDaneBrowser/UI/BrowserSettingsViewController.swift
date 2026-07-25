@@ -81,12 +81,9 @@ final class BrowserSettingsViewController: UITableViewController {
         case theme
         case appLanguage
         case handshakeNetwork
-        case strictHNSMode
         case statelessDANECertificates
         case experimentalP2PDNSRelay
         case addHNSRelayPeer
-        case legacyHNSDoHCompatibility
-        case compatibilityDoHResolver
         case clearResolverCache
         case hnsSync
         case hnsDomainSetup
@@ -111,12 +108,9 @@ final class BrowserSettingsViewController: UITableViewController {
             case .theme: "Theme"
             case .appLanguage: "App language"
             case .handshakeNetwork: "Handshake network"
-            case .strictHNSMode: "Strict HNS mode"
             case .statelessDANECertificates: "Experimental stateless DANE certificates"
             case .experimentalP2PDNSRelay: "Experimental P2P DNS relay"
             case .addHNSRelayPeer: "Add HNS relay peer"
-            case .legacyHNSDoHCompatibility: "Legacy HNS DoH compatibility"
-            case .compatibilityDoHResolver: "Compatibility DoH resolver"
             case .clearResolverCache: "Clear resolver cache"
             case .hnsSync: "HNS sync"
             case .hnsDomainSetup: "HNS domain setup"
@@ -143,16 +137,11 @@ final class BrowserSettingsViewController: UITableViewController {
             case .theme: "settings.appearance.theme"
             case .appLanguage: "settings.language.app-language"
             case .handshakeNetwork: "settings.hns-resolution.handshake-network"
-            case .strictHNSMode: "settings.hns-resolution.strict-hns-mode"
             case .statelessDANECertificates:
                 "settings.hns-resolution.stateless-dane-certificates"
             case .experimentalP2PDNSRelay:
                 "settings.hns-resolution.experimental-p2p-dns-relay"
             case .addHNSRelayPeer: "settings.hns-resolution.add-hns-relay-peer"
-            case .legacyHNSDoHCompatibility:
-                "settings.hns-resolution.legacy-hns-doh-compatibility"
-            case .compatibilityDoHResolver:
-                "settings.hns-resolution.compatibility-doh-resolver"
             case .clearResolverCache: "settings.hns-resolution.clear-resolver-cache"
             case .hnsSync: "settings.hns-resolution.hns-sync"
             case .hnsDomainSetup: "settings.diagnostics-and-tools.hns-domain-setup"
@@ -171,12 +160,9 @@ final class BrowserSettingsViewController: UITableViewController {
         var isRuntimeAction: Bool {
             switch self {
             case .handshakeNetwork,
-                 .strictHNSMode,
                  .statelessDANECertificates,
                  .experimentalP2PDNSRelay,
                  .addHNSRelayPeer,
-                 .legacyHNSDoHCompatibility,
-                 .compatibilityDoHResolver,
                  .clearResolverCache,
                  .hnsDomainSetup,
                  .resolverTrace,
@@ -204,10 +190,8 @@ final class BrowserSettingsViewController: UITableViewController {
 
         var isToggle: Bool {
             switch self {
-            case .strictHNSMode,
-                 .statelessDANECertificates,
-                 .experimentalP2PDNSRelay,
-                 .legacyHNSDoHCompatibility:
+            case .statelessDANECertificates,
+                 .experimentalP2PDNSRelay:
                 true
             default:
                 false
@@ -217,7 +201,6 @@ final class BrowserSettingsViewController: UITableViewController {
 
     static let privacyPolicyURL = "https://denuoweb.com/work/hns-dane-browser/privacy"
     static let sourceCodeURL = "https://github.com/Denuo-Web/hns-dane-browser"
-    static let defaultDoHResolverURL = "https://zorro.hnsdoh.com/dns-query"
 
     weak var delegate: BrowserSettingsViewControllerDelegate?
 
@@ -342,12 +325,9 @@ final class BrowserSettingsViewController: UITableViewController {
         case .hnsResolution:
             [
                 .handshakeNetwork,
-                .strictHNSMode,
                 .statelessDANECertificates,
                 .experimentalP2PDNSRelay,
                 .addHNSRelayPeer,
-                .legacyHNSDoHCompatibility,
-                .compatibilityDoHResolver,
                 .clearResolverCache,
                 .hnsSync,
             ]
@@ -452,8 +432,6 @@ final class BrowserSettingsViewController: UITableViewController {
             presentNetworkConfiguration()
         case .addHNSRelayPeer:
             presentRelayPeerConfiguration()
-        case .compatibilityDoHResolver:
-            presentDoHConfiguration()
         case .clearResolverCache:
             confirmClearResolverCache()
         case .hnsSync:
@@ -477,10 +455,8 @@ final class BrowserSettingsViewController: UITableViewController {
         case .sourceCode:
             request(.showSourceCode)
         case .build,
-             .strictHNSMode,
              .statelessDANECertificates,
-             .experimentalP2PDNSRelay,
-             .legacyHNSDoHCompatibility:
+             .experimentalP2PDNSRelay:
             break
         }
     }
@@ -518,11 +494,6 @@ final class BrowserSettingsViewController: UITableViewController {
             return "Uses your iOS system or per-app language setting."
         case .handshakeNetwork:
             return "\(handshakeNetwork.title). \(handshakeNetwork.summary)"
-        case .strictHNSMode:
-            if policy.resolutionMode == .strict {
-                return "On. Delegated resolution failures fail closed."
-            }
-            return "Off. Compatibility fallback may be used after local or direct resolution fails."
         case .statelessDANECertificates:
             if policy.statelessDANECertificates {
                 return "On. Certificate-carried HNS proof evidence may satisfy DANE when valid."
@@ -535,13 +506,6 @@ final class BrowserSettingsViewController: UITableViewController {
             return "Off. Peer DNS relay messages are not used."
         case .addHNSRelayPeer:
             return relayPeerSummary
-        case .legacyHNSDoHCompatibility:
-            if policy.legacyHNSDoHCompatibility {
-                return "On by default. The configured third-party HNS DoH path remains available as a compatibility fallback."
-            }
-            return "Off. The legacy third-party HNS DoH compatibility path is disabled independently of P2P relay."
-        case .compatibilityDoHResolver:
-            return policy.hnsDohResolver ?? Self.defaultDoHResolverURL
         case .clearResolverCache:
             return resolverCacheSummary
         case .hnsSync:
@@ -624,7 +588,7 @@ final class BrowserSettingsViewController: UITableViewController {
 
     private func actionTitle(for row: Row) -> String? {
         switch row {
-        case .homepage, .compatibilityDoHResolver: "Edit"
+        case .homepage: "Edit"
         case .setCurrentPageAsHomepage: "Set"
         case .resetHomepage: "Reset"
         case .cookies: "Manage"
@@ -647,24 +611,18 @@ final class BrowserSettingsViewController: UITableViewController {
              .sourceCode:
             "Open"
         case .build,
-             .strictHNSMode,
              .statelessDANECertificates,
-             .experimentalP2PDNSRelay,
-             .legacyHNSDoHCompatibility:
+             .experimentalP2PDNSRelay:
             nil
         }
     }
 
     private func toggleValue(for row: Row) -> Bool {
         switch row {
-        case .strictHNSMode:
-            policy.resolutionMode == .strict
         case .statelessDANECertificates:
             policy.statelessDANECertificates
         case .experimentalP2PDNSRelay:
             policy.experimentalP2PDNSRelay
-        case .legacyHNSDoHCompatibility:
-            policy.legacyHNSDoHCompatibility
         default:
             false
         }
@@ -678,16 +636,10 @@ final class BrowserSettingsViewController: UITableViewController {
 
         let updatedPolicy: BrowserRuntimePolicy
         switch row {
-        case .strictHNSMode:
-            updatedPolicy = policyByReplacingResolutionMode(
-                sender.isOn ? .strict : .compatibility
-            )
         case .statelessDANECertificates:
             updatedPolicy = policyByReplacingStatelessDANECertificates(sender.isOn)
         case .experimentalP2PDNSRelay:
             updatedPolicy = policyByReplacingExperimentalP2PDNSRelay(sender.isOn)
-        case .legacyHNSDoHCompatibility:
-            updatedPolicy = policyByReplacingLegacyHNSDoHCompatibility(sender.isOn)
         default:
             return
         }
@@ -856,36 +808,6 @@ final class BrowserSettingsViewController: UITableViewController {
         present(alert, animated: true)
     }
 
-    private func presentDoHConfiguration() {
-        let alert = UIAlertController(
-            title: "Edit DoH resolver",
-            message: "Enter an HTTPS DNS-over-HTTPS endpoint. Leave blank to use the default.",
-            preferredStyle: .alert
-        )
-        alert.addTextField { [policy = self.policy] textField in
-            textField.text = policy.hnsDohResolver ?? Self.defaultDoHResolverURL
-            textField.placeholder = "https://resolver.example/dns-query"
-            textField.keyboardType = .URL
-            textField.autocapitalizationType = .none
-            textField.autocorrectionType = .no
-            textField.clearButtonMode = .whileEditing
-            textField.accessibilityIdentifier =
-                "settings.hns-resolution.compatibility-doh-resolver.field"
-        }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Reset", style: .default) { [weak self] _ in
-            guard let self else { return }
-            self.requestPolicyUpdate(self.policyByReplacingDoHResolver(nil))
-        })
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
-            guard let self else { return }
-            self.requestPolicyUpdate(
-                self.policyByReplacingDoHResolver(alert?.textFields?.first?.text)
-            )
-        })
-        present(alert, animated: true)
-    }
-
     private func confirmClearResolverCache() {
         let alert = UIAlertController(
             title: "Clear resolver cache?",
@@ -937,37 +859,12 @@ final class BrowserSettingsViewController: UITableViewController {
         delegate?.browserSettingsViewController(self, didRequest: action)
     }
 
-    private func policyByReplacingResolutionMode(
-        _ mode: BrowserResolutionMode
-    ) -> BrowserRuntimePolicy {
-        BrowserRuntimePolicy(
-            resolutionMode: mode,
-            hnsDohResolver: policy.hnsDohResolver,
-            statelessDANECertificates: policy.statelessDANECertificates,
-            experimentalP2PDNSRelay: policy.experimentalP2PDNSRelay,
-            legacyHNSDoHCompatibility: policy.legacyHNSDoHCompatibility
-        )
-    }
-
-    private func policyByReplacingDoHResolver(_ resolver: String?) -> BrowserRuntimePolicy {
-        BrowserRuntimePolicy(
-            resolutionMode: policy.resolutionMode,
-            hnsDohResolver: resolver,
-            statelessDANECertificates: policy.statelessDANECertificates,
-            experimentalP2PDNSRelay: policy.experimentalP2PDNSRelay,
-            legacyHNSDoHCompatibility: policy.legacyHNSDoHCompatibility
-        )
-    }
-
     private func policyByReplacingStatelessDANECertificates(
         _ enabled: Bool
     ) -> BrowserRuntimePolicy {
         BrowserRuntimePolicy(
-            resolutionMode: policy.resolutionMode,
-            hnsDohResolver: policy.hnsDohResolver,
             statelessDANECertificates: enabled,
-            experimentalP2PDNSRelay: policy.experimentalP2PDNSRelay,
-            legacyHNSDoHCompatibility: policy.legacyHNSDoHCompatibility
+            experimentalP2PDNSRelay: policy.experimentalP2PDNSRelay
         )
     }
 
@@ -975,23 +872,8 @@ final class BrowserSettingsViewController: UITableViewController {
         _ enabled: Bool
     ) -> BrowserRuntimePolicy {
         BrowserRuntimePolicy(
-            resolutionMode: policy.resolutionMode,
-            hnsDohResolver: policy.hnsDohResolver,
             statelessDANECertificates: policy.statelessDANECertificates,
-            experimentalP2PDNSRelay: enabled,
-            legacyHNSDoHCompatibility: policy.legacyHNSDoHCompatibility
-        )
-    }
-
-    private func policyByReplacingLegacyHNSDoHCompatibility(
-        _ enabled: Bool
-    ) -> BrowserRuntimePolicy {
-        BrowserRuntimePolicy(
-            resolutionMode: policy.resolutionMode,
-            hnsDohResolver: policy.hnsDohResolver,
-            statelessDANECertificates: policy.statelessDANECertificates,
-            experimentalP2PDNSRelay: policy.experimentalP2PDNSRelay,
-            legacyHNSDoHCompatibility: enabled
+            experimentalP2PDNSRelay: enabled
         )
     }
 

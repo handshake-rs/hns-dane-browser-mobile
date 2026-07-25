@@ -12,7 +12,7 @@ Handshake test:
 3. Confirm the security label identifies the resolver and TLS validation path.
 4. Tap the Settings gear button to inspect HNS resolution, HNS sync, Clear resolver cache, Resolver trace, HNS proof details, Privacy policy, and Source code.
 
-Compatibility note: some review networks block Handshake peer traffic or direct authoritative DNS. In Compatibility mode, the app may use its HNS DNS-over-HTTPS fallback and labels that path. Strict Handshake mode disables that fallback. The experimental P2P DNS relay is enabled by default on iOS; DNSSEC and proof validation remain local.
+Network note: some review networks block Handshake peer traffic or direct authoritative DNS. The app never sends an HNS target to a public recursive resolver and never substitutes WebPKI for required HNS DANE. The experimental P2P DNS relay is enabled by default on a fresh iOS install and can be disabled in Settings; relay answers still require local proof, DNSSEC, TLSA, and DANE validation. If no permitted validated path succeeds, the HNS request fails closed.
 
 Cleartext HTTP pages are marked insecure. No reviewer-supplied personal data or credentials are needed. The two test URLs above are developer-controlled.
 

@@ -34,11 +34,8 @@
 <string name="security_syncing">Sincronizzazione</string>
 <string name="security_loading">Caricamento in corso</string>
 <string name="security_hns_verified">HNS verificato</string>
-<string name="security_hns_compat">HNS tramite DoH</string>
 <string name="security_dane_verified">DANE verificato</string>
-<string name="security_dane_compat">DANE tramite DoH</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS + WebPKI</string>
 <string name="security_failed">Convalida non riuscita</string>
 <string name="security_proof_unavailable">Prova non disponibile</string>
 <string name="http_transport_warning">Non sicuro: il traffico HTTP non è crittografato</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">Cancella cronologia</string>
 <string name="row_clear_history_summary">Rimuovi la cronologia di navigazione salvata da questo dispositivo.</string>
 <string name="row_clear_resolver_cache">Cancella la cache del risolutore</string>
-<string name="row_compatibility_doh_resolver">Compatibilità risolutore DoH</string>
 <string name="row_cookies">Biscotti</string>
 <string name="row_copy_diagnostic_bundle">Copia pacchetto diagnostico</string>
 <string name="row_copy_diagnostic_bundle_summary">Copia i dettagli di build, runtime e core nativi.</string>
@@ -246,11 +242,6 @@
 <string name="settings_homepage_reset_title">Reimpostare la home page?</string>
 <string name="settings_homepage_reset_message">Ciò ripristina la home page Denuo Web predefinita.</string>
 <string name="settings_homepage_reset">Reimpostazione della home page</string>
-<string name="settings_doh_edit_title">Modifica il risolutore DoH</string>
-<string name="settings_doh_edit_message">Inserisci un endpoint HTTPS DNS-over-HTTPS. Lascia vuoto per utilizzare l\'impostazione predefinita.</string>
-<string name="settings_doh_error">Inserisci un HTTPS DoH URL valido</string>
-<string name="settings_doh_saved">Risoltore DoH salvato</string>
-<string name="settings_doh_reset">Reset del risolutore DoH</string>
 <string name="settings_resolver_cache_clear_title">Svuotare la cache del risolutore?</string>
 <string name="settings_resolver_cache_clear_message">L\'app manterrà le intestazioni e i peer %1$s sincronizzati, ma i valori delle risorse HNS memorizzati nella cache per questa rete verranno rimossi.</string>
 <string name="settings_resolver_cache_cleared">Cache del risolutore %1$s cancellata</string>
@@ -263,12 +254,9 @@
 <string name="settings_header_resync_started">È iniziata la risincronizzazione dell\'intestazione</string>
 <string name="settings_header_resync_failed_status">La reimpostazione dell\'intestazione non è stata completata. Apri la diagnostica per i dettagli.</string>
 <string name="settings_header_resync_failed">La risincronizzazione dell\'intestazione non è stata avviata</string>
-<string name="settings_hns_mode_on">Su. Gli errori di risoluzione delegata non vengono chiusi.</string>
-<string name="settings_hns_mode_off">Spento. È possibile utilizzare il fallback di compatibilità dopo che la risoluzione locale o diretta non riesce.</string>
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Su. La prova di prova HNS accompagnata dal certificato può soddisfare DANE quando valida.</string>
 <string name="settings_stateless_dane_off">Spento. La prova HNS e la prova TLSA utilizzano il percorso del risolutore live.</string>
-<string name="settings_strict_hns_mode">Modalità HNS rigorosa</string>
 <string name="settings_stateless_dane_certificates">Certificati sperimentali apolidi DANE</string>
 <string name="settings_theme_dialog_title">Tema</string>
 <string name="settings_theme_set">Tema impostato su %1$s.</string>
@@ -421,7 +409,6 @@
 <string name="trace_protocol_authoritative_udp53">Autorevole UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Autorevole TCP 53</string>
 <string name="trace_protocol_authoritative_doh">DoH autorevole</string>
-<string name="trace_protocol_hns_doh">CompatibilitàHNS DoH</string>
 <string name="trace_protocol_icann_doh">ICANN DoH affidabile</string>
 <string name="trace_tlsa_present">presente</string>
 <string name="trace_tlsa_absent">assente</string>
@@ -458,7 +445,6 @@
 <string name="trace_fix_dnssec_before_tlsa">Correggere prima il DNSSEC delegato. TLSA/DANE non è stato valutato perché la risoluzione sicura non è riuscita prima della ricerca TLSA.</string>
 <string name="trace_fix_renew_cert">Rinnova il certificato di origine HTTPS. Il gateway ha raggiunto un\'origine HTTPS, ma TLS non è riuscito perché il certificato ha superato il periodo di validità.</string>
 <string name="trace_fix_origin_address_missing">Servire A/AAAA per l\'host richiesto da DNS delegato. I dati HNS GLUE/SYNTH vengono utilizzati solo per raggiungere i nameserver, non come indirizzo di origine.</string>
-<string name="trace_fix_compat_fallback_used">È stato utilizzato il fallback Compatibilità DoH. Abilita la modalità Strict HNS per verificare se il sito funziona completamente senza DoH di terze parti.</string>
 <string name="trace_fix_no_obvious_hns">Nessuna soluzione ovvia da questa traccia. Se HTTPS fallisce, ispeziona TLSA/DANE una volta abilitata la traccia del certificato.</string>
 <string name="trace_fix_icann_dnssec_bogus">Correggi la catena ICANN DNSSEC: DS, DNSKEY, firme e record di rifiuto devono essere convalidati.</string>
 <string name="trace_fix_icann_origin_address_missing">Pubblica un record A o AAAA convalidato DNSSEC per questo host.</string>

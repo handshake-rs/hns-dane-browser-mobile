@@ -12,11 +12,11 @@ internal class HnsNativeDownloadFetcher(
     private val dataDir: File,
     private val hnsGatewayBridge: HnsGatewayBridge = NativeBridge,
     private val namespacePolicy: BrowserNamespacePolicy,
-    private val strictHnsMode: () -> Boolean = { false },
+    private val strictHnsMode: () -> Boolean = { true },
     private val dohResolverUrl: () -> String = { "" },
     private val statelessDaneCertificates: () -> Boolean = { false },
     private val experimentalP2pDnsRelay: () -> Boolean = { false },
-    private val legacyHnsDohCompatibility: () -> Boolean = { true },
+    private val legacyHnsDohCompatibility: () -> Boolean = { false },
     private val handshakeNetwork: () -> String = { DEFAULT_NETWORK },
 ) {
     @Throws(IOException::class)
@@ -29,6 +29,17 @@ internal class HnsNativeDownloadFetcher(
             val target = HnsNativeDownloadTarget.parse(currentUrl, namespacePolicy)
                 ?: throw HnsNativeDownloadException("HNS download URL is not supported.")
             val response = request(target, userAgent, currentUrl)
+            if (
+                response.hasDisabledHnsTrustStatus(
+                    requiresHnsResolution =
+                        HnsHostPolicy.requiresHnsResolution(target.host, namespacePolicy),
+                )
+            ) {
+                response.deleteBodyFile()
+                throw HnsNativeDownloadException(
+                    "Native HNS gateway reported a prohibited legacy resolver or WebPKI path.",
+                )
+            }
 
             if (response.statusCode in REDIRECT_STATUS_CODES) {
                 val location = response.headerValue("Location")
@@ -233,6 +244,23 @@ internal data class HnsNativeDownloadResponse(
 ) {
     fun headerValue(name: String): String? =
         headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
+
+    fun hasDisabledHnsTrustStatus(requiresHnsResolution: Boolean): Boolean {
+        if (statusCode !in 200..399) {
+            return false
+        }
+        return headerValue("X-HNS-Resolver-Policy")
+            .equals("hns-doh-compat", ignoreCase = true) ||
+            headerValue(HNS_SECURITY_PATH_HEADER)
+                .equals("dane-third-party-doh", ignoreCase = true) ||
+            headerValue(HNS_SECURITY_PATH_HEADER)
+                .equals("hns-third-party-doh", ignoreCase = true) ||
+            (
+                requiresHnsResolution &&
+                    headerValue("X-HNS-TLS-Policy")
+                        .equals("webpki-fallback", ignoreCase = true)
+                )
+    }
 
     fun deleteBodyFile() {
         GatewayResponseBodyStore.release(bodyFile)

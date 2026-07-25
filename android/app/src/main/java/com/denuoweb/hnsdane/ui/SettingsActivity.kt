@@ -33,12 +33,9 @@ class SettingsActivity : ComponentActivity() {
     private lateinit var homepageStatus: TextView
     private lateinit var cookieStatus: TextView
     private lateinit var hnsNetworkStatus: TextView
-    private lateinit var hnsModeStatus: TextView
     private lateinit var statelessDaneStatus: TextView
     private lateinit var experimentalP2pRelayStatus: TextView
     private lateinit var staticRelayPeerStatus: TextView
-    private lateinit var legacyHnsDohStatus: TextView
-    private lateinit var dohResolverStatus: TextView
     private lateinit var resolverCacheStatus: TextView
     private lateinit var historyStatus: TextView
     private lateinit var downloadStatus: TextView
@@ -53,12 +50,9 @@ class SettingsActivity : ComponentActivity() {
         homepageStatus = preferenceSummary(BrowserPreferences.homepage(this))
         cookieStatus = preferenceSummary(cookieSummary())
         hnsNetworkStatus = preferenceSummary(hnsNetworkText())
-        hnsModeStatus = preferenceSummary(hnsModeText())
         statelessDaneStatus = preferenceSummary(statelessDaneText())
         experimentalP2pRelayStatus = preferenceSummary(experimentalP2pRelayText())
         staticRelayPeerStatus = preferenceSummary(getString(R.string.settings_static_relay_peer_summary))
-        legacyHnsDohStatus = preferenceSummary(legacyHnsDohText())
-        dohResolverStatus = preferenceSummary(HnsResolutionPreferences.dohResolverUrl(this))
         resolverCacheStatus = preferenceSummary(getString(R.string.settings_resolver_cache_ready))
         historyStatus = preferenceSummary(historySummary())
         downloadStatus = preferenceSummary(downloadSummary())
@@ -151,7 +145,6 @@ class SettingsActivity : ComponentActivity() {
                 ) {
                     showNetworkDialog()
                 })
-                addPreference(strictHnsModeOption())
                 addPreference(statelessDaneCertificateOption())
                 addPreference(experimentalP2pDnsRelayOption())
                 addPreference(preferenceRow(
@@ -160,14 +153,6 @@ class SettingsActivity : ComponentActivity() {
                     actionLabel = getString(R.string.action_add),
                 ) {
                     showAddStaticRelayPeerDialog()
-                })
-                addPreference(legacyHnsDohCompatibilityOption())
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_compatibility_doh_resolver),
-                    summaryView = dohResolverStatus,
-                    actionLabel = getString(R.string.action_edit),
-                ) {
-                    showEditDohResolverDialog()
                 })
                 addPreference(preferenceRow(
                     title = getString(R.string.row_clear_resolver_cache),
@@ -296,10 +281,8 @@ class SettingsActivity : ComponentActivity() {
             refreshHomepageStatus()
             refreshCookieStatus()
             refreshHnsNetworkStatus()
-            refreshHnsModeStatus()
             refreshStatelessDaneStatus()
             refreshExperimentalP2pRelayStatus()
-            refreshLegacyHnsDohStatus()
             refreshHistoryStatus()
             refreshDownloadStatus()
             refreshThemeStatus()
@@ -424,31 +407,6 @@ class SettingsActivity : ComponentActivity() {
             )
         }
 
-    private fun strictHnsModeOption(): LinearLayout =
-        LinearLayout(this).apply {
-            val colors = themeColors()
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(colors.background)
-            setPadding(0, dp(8), 0, dp(10))
-            addView(CheckBox(this@SettingsActivity).apply {
-                text = getString(R.string.settings_strict_hns_mode)
-                textSize = 16f
-                setTextColor(colors.primaryText)
-                setPadding(0, 0, 0, 0)
-                isChecked = HnsResolutionPreferences.strictHnsMode(this@SettingsActivity)
-                setOnCheckedChangeListener { _, checked ->
-                    HnsResolutionPreferences.setStrictHnsMode(this@SettingsActivity, checked)
-                    refreshHnsModeStatus()
-                }
-            })
-            addView(hnsModeStatus, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                leftMargin = dp(36)
-            })
-        }
-
     private fun statelessDaneCertificateOption(): LinearLayout =
         LinearLayout(this).apply {
             val colors = themeColors()
@@ -492,31 +450,6 @@ class SettingsActivity : ComponentActivity() {
                 }
             })
             addView(experimentalP2pRelayStatus, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                leftMargin = dp(36)
-            })
-        }
-
-    private fun legacyHnsDohCompatibilityOption(): LinearLayout =
-        LinearLayout(this).apply {
-            val colors = themeColors()
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(colors.background)
-            setPadding(0, dp(8), 0, dp(10))
-            addView(CheckBox(this@SettingsActivity).apply {
-                text = getString(R.string.settings_legacy_hns_doh_compatibility)
-                textSize = 16f
-                setTextColor(colors.primaryText)
-                setPadding(0, 0, 0, 0)
-                isChecked = HnsResolutionPreferences.legacyHnsDohCompatibility(this@SettingsActivity)
-                setOnCheckedChangeListener { _, checked ->
-                    HnsResolutionPreferences.setLegacyHnsDohCompatibility(this@SettingsActivity, checked)
-                    refreshLegacyHnsDohStatus()
-                }
-            })
-            addView(legacyHnsDohStatus, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply {
@@ -593,43 +526,6 @@ class SettingsActivity : ComponentActivity() {
                 }
                 refreshHomepageStatus()
                 Toast.makeText(this, getString(R.string.settings_homepage_saved), Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-            }
-        }
-        dialog.show()
-    }
-
-    private fun showEditDohResolverDialog() {
-        val input = EditText(this).apply {
-            setText(HnsResolutionPreferences.dohResolverUrl(this@SettingsActivity))
-            setSingleLine(true)
-            setSelection(0, text.length)
-            imeOptions = EditorInfo.IME_ACTION_DONE
-        }
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.settings_doh_edit_title)
-            .setMessage(R.string.settings_doh_edit_message)
-            .setView(input)
-            .setNegativeButton(R.string.action_cancel, null)
-            .setNeutralButton(R.string.action_reset, null)
-            .setPositiveButton(R.string.action_save, null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val saved = HnsResolutionPreferences.setDohResolverUrl(this, input.text.toString())
-                if (saved == null) {
-                    input.error = getString(R.string.settings_doh_error)
-                    return@setOnClickListener
-                }
-                refreshDohResolverStatus()
-                Toast.makeText(this, getString(R.string.settings_doh_saved), Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-            }
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                HnsResolutionPreferences.resetDohResolverUrl(this)
-                refreshDohResolverStatus()
-                Toast.makeText(this, getString(R.string.settings_doh_reset), Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
         }
@@ -860,24 +756,12 @@ class SettingsActivity : ComponentActivity() {
         hnsNetworkStatus.text = hnsNetworkText()
     }
 
-    private fun refreshHnsModeStatus() {
-        hnsModeStatus.text = hnsModeText()
-    }
-
     private fun refreshStatelessDaneStatus() {
         statelessDaneStatus.text = statelessDaneText()
     }
 
     private fun refreshExperimentalP2pRelayStatus() {
         experimentalP2pRelayStatus.text = experimentalP2pRelayText()
-    }
-
-    private fun refreshLegacyHnsDohStatus() {
-        legacyHnsDohStatus.text = legacyHnsDohText()
-    }
-
-    private fun refreshDohResolverStatus() {
-        dohResolverStatus.text = HnsResolutionPreferences.dohResolverUrl(this)
     }
 
     private fun refreshHistoryStatus() {
@@ -891,13 +775,6 @@ class SettingsActivity : ComponentActivity() {
     private fun refreshThemeStatus() {
         themeStatus.text = themeText()
     }
-
-    private fun hnsModeText(): String =
-        if (HnsResolutionPreferences.strictHnsMode(this)) {
-            getString(R.string.settings_hns_mode_on)
-        } else {
-            getString(R.string.settings_hns_mode_off)
-        }
 
     private fun hnsNetworkText(): String {
         val network = HnsResolutionPreferences.handshakeNetwork(this)
@@ -916,13 +793,6 @@ class SettingsActivity : ComponentActivity() {
             getString(R.string.settings_experimental_p2p_dns_relay_on)
         } else {
             getString(R.string.settings_experimental_p2p_dns_relay_off)
-        }
-
-    private fun legacyHnsDohText(): String =
-        if (HnsResolutionPreferences.legacyHnsDohCompatibility(this)) {
-            getString(R.string.settings_legacy_hns_doh_compatibility_on)
-        } else {
-            getString(R.string.settings_legacy_hns_doh_compatibility_off)
         }
 
     private fun defaultPeerPort(network: HandshakeNetwork): Int = when (network) {

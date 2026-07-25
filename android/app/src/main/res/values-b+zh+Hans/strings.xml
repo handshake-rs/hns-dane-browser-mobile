@@ -34,11 +34,8 @@
 <string name="security_syncing">正在同步</string>
 <string name="security_loading">加载中</string>
 <string name="security_hns_verified">HNS 已验证</string>
-<string name="security_hns_compat">HNS 至 DoH</string>
 <string name="security_dane_verified">DANE 已验证</string>
-<string name="security_dane_compat">DANE 至 DoH</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS+WebPKI</string>
 <string name="security_failed">验证失败</string>
 <string name="security_proof_unavailable">无法提供证明</string>
 <string name="http_transport_warning">不安全：HTTP 流量未加密</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">清除历史记录</string>
 <string name="row_clear_history_summary">从此设备中删除保存的浏览历史记录。</string>
 <string name="row_clear_resolver_cache">清除解析器缓存</string>
-<string name="row_compatibility_doh_resolver">兼容性 DoH 旋转变压器</string>
 <string name="row_cookies">饼干</string>
 <string name="row_copy_diagnostic_bundle">复制诊断包</string>
 <string name="row_copy_diagnostic_bundle_summary">复制构建、运行时和本机核心详细信息。</string>
@@ -246,11 +242,6 @@
 <string name="settings_homepage_reset_title">重置主页？</string>
 <string name="settings_homepage_reset_message">这将恢复默认的 Denuo Web 主页。</string>
 <string name="settings_homepage_reset">主页重置</string>
-<string name="settings_doh_edit_title">编辑 DoH 解析器</string>
-<string name="settings_doh_edit_message">输入 HTTPS DNS-over-HTTPS 端点。留空以使用默认值。</string>
-<string name="settings_doh_error">输入有效的 HTTPS DoH URL</string>
-<string name="settings_doh_saved">DoH 解析器已保存</string>
-<string name="settings_doh_reset">DoH 旋转变压器复位</string>
 <string name="settings_resolver_cache_clear_title">清除解析器缓存？</string>
 <string name="settings_resolver_cache_clear_message">应用程序将保持同步 %1$s 标头和对等点，但该网络的缓存 HNS 资源值将被删除。</string>
 <string name="settings_resolver_cache_cleared">%1$s 解析器缓存已清除</string>
@@ -263,12 +254,9 @@
 <string name="settings_header_resync_started">标头重新同步已开始</string>
 <string name="settings_header_resync_failed_status">标头重置未完成。打开诊断了解详细信息。</string>
 <string name="settings_header_resync_failed">标头重新同步未开始</string>
-<string name="settings_hns_mode_on">上。委托解决失败失败关闭。</string>
-<string name="settings_hns_mode_off">关闭。本地或直接解析失败后，可以使用兼容性回退。</string>
 <string name="settings_hns_network_summary">%1$s。 %2$s</string>
 <string name="settings_stateless_dane_on">上。证书携带的 HNS 证明证据在有效时可以满足 DANE。</string>
 <string name="settings_stateless_dane_off">关闭。 HNS 证明和 TLSA 证据使用实时解析器路径。</string>
-<string name="settings_strict_hns_mode">严格HNS模式</string>
 <string name="settings_stateless_dane_certificates">实验性无状态 DANE 证书</string>
 <string name="settings_theme_dialog_title">主题</string>
 <string name="settings_theme_set">主题设置为 %1$s。</string>
@@ -421,7 +409,6 @@
 <string name="trace_protocol_authoritative_udp53">权威UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">权威TCP 53</string>
 <string name="trace_protocol_authoritative_doh">权威DoH</string>
-<string name="trace_protocol_hns_doh">兼容性HNS DoH</string>
 <string name="trace_protocol_icann_doh">值得信赖的ICANN DoH</string>
 <string name="trace_tlsa_present">现在</string>
 <string name="trace_tlsa_absent">缺席</string>
@@ -458,7 +445,6 @@
 <string name="trace_fix_dnssec_before_tlsa">首先修复委托的 DNSSEC。未评估 TLSA/DANE，因为安全解析在 TLSA 查找之前失败。</string>
 <string name="trace_fix_renew_cert">更新原产地HTTPS证书。网关到达 HTTPS 源，但 TLS 失败，因为证书已超过其有效期窗口。</string>
 <string name="trace_fix_origin_address_missing">从委托的 DNS 为请求的主机提供 A/AAAA 服务。 HNS GLUE/SYNTH 数据仅用于到达名称服务器，而不用作原始地址。</string>
-<string name="trace_fix_compat_fallback_used">使用兼容性 DoH 回退。启用严格 HNS 模式以验证站点是否在没有第三方 DoH 的情况下完全正常工作。</string>
 <string name="trace_fix_no_obvious_hns">此跟踪没有明显的修复。如果 HTTPS 失败，请在启用证书跟踪后检查 TLSA/DANE。</string>
 <string name="trace_fix_icann_dnssec_bogus">修复 ICANN DNSSEC 链：DS、DNSKEY、签名和拒绝记录必须验证。</string>
 <string name="trace_fix_icann_origin_address_missing">为此主机发布经过 DNSSEC 验证的 A 或 AAAA 记录。</string>

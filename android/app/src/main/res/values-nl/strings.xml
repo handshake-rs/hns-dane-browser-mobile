@@ -34,11 +34,8 @@
 <string name="security_syncing">Synchroniseren</string>
 <string name="security_loading">Laden</string>
 <string name="security_hns_verified">HNS geverifieerd</string>
-<string name="security_hns_compat">HNS via DoH</string>
 <string name="security_dane_verified">DANE geverifieerd</string>
-<string name="security_dane_compat">DANE via DoH</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS + WebPKI</string>
 <string name="security_failed">Validatie mislukt</string>
 <string name="security_proof_unavailable">Bewijs niet beschikbaar</string>
 <string name="http_transport_warning">Niet beveiligd: HTTP-verkeer is niet versleuteld</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">Geschiedenis wissen</string>
 <string name="row_clear_history_summary">Verwijder de opgeslagen browsegeschiedenis van dit apparaat.</string>
 <string name="row_clear_resolver_cache">Wis de cache van de oplosser</string>
-<string name="row_compatibility_doh_resolver">Compatibiliteit DoH-resolver</string>
 <string name="row_cookies">Koekjes</string>
 <string name="row_copy_diagnostic_bundle">Diagnostische bundel kopiëren</string>
 <string name="row_copy_diagnostic_bundle_summary">Kopieer build-, runtime- en native core-details.</string>
@@ -246,11 +242,6 @@
 <string name="settings_homepage_reset_title">Startpagina opnieuw instellen?</string>
 <string name="settings_homepage_reset_message">Hiermee wordt de standaard Denuo Web-startpagina hersteld.</string>
 <string name="settings_homepage_reset">Startpagina opnieuw ingesteld</string>
-<string name="settings_doh_edit_title">DoH-resolver bewerken</string>
-<string name="settings_doh_edit_message">Voer een HTTPS DNS-over-HTTPS-eindpunt in. Laat dit leeg om de standaardwaarde te gebruiken.</string>
-<string name="settings_doh_error">Voer een geldige HTTPS DoH URL in</string>
-<string name="settings_doh_saved">DoH-resolver opgeslagen</string>
-<string name="settings_doh_reset">DoH-resolver gereset</string>
 <string name="settings_resolver_cache_clear_title">De cache van de oplosser wissen?</string>
 <string name="settings_resolver_cache_clear_message">De app behoudt gesynchroniseerde %1$s-headers en peers, maar in de cache opgeslagen HNS-bronwaarden voor dit netwerk worden verwijderd.</string>
 <string name="settings_resolver_cache_cleared">%1$s-resolvercache gewist</string>
@@ -263,12 +254,9 @@
 <string name="settings_header_resync_started">Hersynchronisatie van koptekst gestart</string>
 <string name="settings_header_resync_failed_status">Het resetten van de header is niet voltooid. Open diagnostiek voor meer informatie.</string>
 <string name="settings_header_resync_failed">Hersynchronisatie van header is niet gestart</string>
-<string name="settings_hns_mode_on">Aan. Gedelegeerde oplossingsfouten zijn mislukt.</string>
-<string name="settings_hns_mode_off">Uit. Compatibiliteitsterugval kan worden gebruikt nadat lokale of directe resolutie mislukt.</string>
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Aan. Op een certificaat gedragen HNS-bewijs kan voldoen aan DANE als het geldig is.</string>
 <string name="settings_stateless_dane_off">Uit. HNS-bewijs en TLSA-bewijs gebruiken het live-resolverpad.</string>
-<string name="settings_strict_hns_mode">Strikte HNS-modus</string>
 <string name="settings_stateless_dane_certificates">Experimentele staatloze DANE-certificaten</string>
 <string name="settings_theme_dialog_title">Thema</string>
 <string name="settings_theme_set">Thema ingesteld op %1$s.</string>
@@ -421,7 +409,6 @@
 <string name="trace_protocol_authoritative_udp53">Gezaghebbende UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Gezaghebbende TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Gezaghebbende DoH</string>
-<string name="trace_protocol_hns_doh">Compatibiliteit HNS DoH</string>
 <string name="trace_protocol_icann_doh">Vertrouwde ICANN DoH</string>
 <string name="trace_tlsa_present">aanwezig</string>
 <string name="trace_tlsa_absent">afwezig</string>
@@ -458,7 +445,6 @@
 <string name="trace_fix_dnssec_before_tlsa">Repareer eerst de gedelegeerde DNSSEC. TLSA/DANE is niet geëvalueerd omdat de beveiligde resolutie vóór de TLSA-zoekopdracht mislukte.</string>
 <string name="trace_fix_renew_cert">Vernieuw het oorsprong HTTPS-certificaat. De gateway heeft een HTTPS-oorsprong bereikt, maar TLS is mislukt omdat het certificaat de geldigheidsduur heeft overschreden.</string>
 <string name="trace_fix_origin_address_missing">Serveer A/AAAA voor de gevraagde host vanaf gedelegeerde DNS. HNS GLUE/SYNTH-gegevens worden alleen gebruikt om naamservers te bereiken, niet als het herkomstadres.</string>
-<string name="trace_fix_compat_fallback_used">Compatibiliteit DoH fallback werd gebruikt. Schakel de strikte HNS-modus in om te verifiëren of de site volledig werkt zonder DoH van derden.</string>
 <string name="trace_fix_no_obvious_hns">Er is geen duidelijke oplossing voor dit spoor. Als HTTPS mislukt, inspecteer dan TLSA/DANE zodra certificaattracering is ingeschakeld.</string>
 <string name="trace_fix_icann_dnssec_bogus">Repareer de ICANN DNSSEC-keten: DS-, DNSKEY-, handtekeningen- en weigeringsrecords moeten valideren.</string>
 <string name="trace_fix_icann_origin_address_missing">Publiceer een DNSSEC-gevalideerd A- of AAAA-record voor deze host.</string>

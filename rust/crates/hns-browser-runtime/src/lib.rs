@@ -17,7 +17,7 @@ use hns_dane::{
     DaneDecision, MAX_STATELESS_DANE_ROOTS, StatelessDaneConfig, TlsaMatching, TlsaRecord,
     TlsaSelector, TlsaUsage,
 };
-use hns_gateway::{Gateway, GatewayConfig, GatewayError, GatewayRequest, HnsHttpsMode};
+use hns_gateway::{Gateway, GatewayConfig, GatewayError, GatewayRequest};
 use hns_loopback_proxy::{
     BackendError as ProxyBackendError, CancellationToken as ProxyCancellationToken, HostScope,
     HostScopeError, IcannNetwork, IcannNetworkError, InternalResponseMetadata, NoopProxyObserver,
@@ -257,7 +257,6 @@ const DNSSEC_DO_FLAG: u32 = 0x8000;
 const DEFAULT_DNS_UDP_PAYLOAD: usize = 1232;
 const DEFAULT_GATEWAY_PROOF_PEERS: usize = 8;
 const DEFAULT_GATEWAY_PROOF_TIMEOUT: Duration = Duration::from_secs(3);
-const ANDROID_COMPAT_AUTHORITATIVE_DNS_TIMEOUT: Duration = Duration::from_millis(900);
 const DNS_INTERCEPTION_PROBE_TIMEOUT: Duration = Duration::from_millis(350);
 const DNS_INTERCEPTION_PROBE_ID: u16 = 0x484a;
 const DNS_INTERCEPTION_PROBE_NAME: &str = "hns-dns-interception-probe.invalid";
@@ -274,8 +273,6 @@ const HEADER_SNAPSHOT_MAX_HEIGHT: u32 = 1_000_000;
 const MAINNET_GENESIS_TIME: u64 = 1_580_745_078;
 const MAINNET_TARGET_SPACING_SECONDS: u64 = 10 * 60;
 const LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG: u32 = RESOURCE_PROOF_CACHE_CANONICAL_WINDOW;
-const HNS_DOH_HOST: &str = "zorro.hnsdoh.com";
-const HNS_DOH_PATH: &str = "/dns-query";
 const ICANN_DOH_HOST: &str = "cloudflare-dns.com";
 const ICANN_DOH_PATH: &str = "/dns-query";
 // Cloudflare's documented 1.1.1.1 resolver endpoints. Connecting to these
@@ -410,7 +407,7 @@ pub struct RuntimePolicy {
     pub hns_doh_resolver: Option<String>,
     /// Enables the private, proof-backed HNS peer DNS-relay transport.
     pub experimental_p2p_dns_relay: bool,
-    /// Keeps the existing third-party HNS recursive DoH compatibility paths available.
+    /// Retained for mobile ABI migration. The runtime always forces this off.
     pub legacy_hns_doh_compatibility: bool,
     pub stateless_dane_certificates: bool,
 }
@@ -422,14 +419,25 @@ pub enum ResolutionMode {
 }
 
 impl RuntimePolicy {
+    /// Legacy constructor retained for callers compiled against earlier releases.
+    ///
+    /// HNS resolution is always strict; public recursive HNS DoH and HNS WebPKI
+    /// fallback are no longer selectable.
     pub fn compatibility() -> Self {
         Self {
-            resolution_mode: ResolutionMode::Compatibility,
+            resolution_mode: ResolutionMode::Strict,
             hns_doh_resolver: None,
             experimental_p2p_dns_relay: false,
-            legacy_hns_doh_compatibility: true,
+            legacy_hns_doh_compatibility: false,
             stateless_dane_certificates: false,
         }
+    }
+
+    fn enforce_hns_trust_policy(mut self) -> Self {
+        self.resolution_mode = ResolutionMode::Strict;
+        self.hns_doh_resolver = None;
+        self.legacy_hns_doh_compatibility = false;
+        self
     }
 }
 
@@ -1149,14 +1157,10 @@ impl BrowserRuntime {
             })?
             .to_owned();
         configuration.data_dir = canonical_data_dir;
-        let mut policy = configuration.initial_policy.clone();
-        if let Some(endpoint) = policy.hns_doh_resolver.as_deref() {
-            policy.hns_doh_resolver = Some(
-                HnsDohEndpoint::parse(endpoint)
-                    .map_err(|error| RuntimeError::InvalidConfiguration(error.to_owned()))?
-                    .display(),
-            );
-        }
+        let policy = configuration
+            .initial_policy
+            .clone()
+            .enforce_hns_trust_policy();
         let base = network_base_path(&data_dir, configuration.network);
         fs::create_dir_all(&base).map_err(|error| {
             RuntimeError::Operation(format!("create runtime directory: {error}"))
@@ -1213,14 +1217,8 @@ impl BrowserRuntime {
         self.set_policy_locked(policy)
     }
 
-    fn set_policy_locked(&self, mut policy: RuntimePolicy) -> Result<u64, RuntimeError> {
-        if let Some(endpoint) = policy.hns_doh_resolver.as_deref() {
-            policy.hns_doh_resolver = Some(
-                HnsDohEndpoint::parse(endpoint)
-                    .map_err(|error| RuntimeError::InvalidConfiguration(error.to_owned()))?
-                    .display(),
-            );
-        }
+    fn set_policy_locked(&self, policy: RuntimePolicy) -> Result<u64, RuntimeError> {
+        let policy = policy.enforce_hns_trust_policy();
         let mut current = self
             .inner
             .policy
@@ -1236,6 +1234,7 @@ impl BrowserRuntime {
         policy: RuntimePolicy,
         operation: impl FnOnce(&BrowserRuntime) -> Result<T, RuntimeError>,
     ) -> Result<T, RuntimeError> {
+        let policy = policy.enforce_hns_trust_policy();
         let _operation = self
             .inner
             .operation
@@ -1733,22 +1732,8 @@ impl BrowserRuntime {
         } else {
             ": 0\r\n"
         });
-        header_text.push_str(HNS_GATEWAY_LEGACY_DOH_HEADER);
-        header_text.push_str(if policy.legacy_hns_doh_compatibility {
-            ": 1\r\n"
-        } else {
-            ": 0\r\n"
-        });
-        if policy.resolution_mode == ResolutionMode::Strict {
-            header_text.push_str(HNS_GATEWAY_STRICT_MODE_HEADER);
-            header_text.push_str(": 1\r\n");
-        }
-        if let Some(endpoint) = policy.hns_doh_resolver.as_deref() {
-            header_text.push_str(HNS_GATEWAY_DOH_RESOLVER_HEADER);
-            header_text.push_str(": ");
-            header_text.push_str(endpoint);
-            header_text.push_str("\r\n");
-        }
+        header_text.push_str(HNS_GATEWAY_STRICT_MODE_HEADER);
+        header_text.push_str(": 1\r\n");
         if policy.stateless_dane_certificates {
             header_text.push_str(HNS_GATEWAY_STATELESS_DANE_HEADER);
             header_text.push_str(": 1\r\n");
@@ -1880,7 +1865,7 @@ impl BrowserRuntime {
         let parsed_headers = parse_gateway_headers(&header_text)
             .map_err(|error| RuntimeError::InvalidConfiguration(error.to_owned()))?;
         let network = parsed_headers.network;
-        let mode = GatewayResolutionMode::from_strict_hns_mode(parsed_headers.strict_hns_mode);
+        let mode = GatewayResolutionMode::Strict;
         let input = GatewayHttpRequestInput {
             data_dir: &self.inner.data_dir,
             method: &request.method,
@@ -1905,22 +1890,17 @@ impl BrowserRuntime {
             values,
             GatewayResolverContext {
                 network,
-                mode,
-                doh_endpoint: parsed_headers.doh_endpoint,
                 experimental_p2p_dns_relay: parsed_headers.experimental_p2p_dns_relay,
-                legacy_hns_doh_compatibility: parsed_headers.legacy_hns_doh_compatibility,
                 peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
                 relay: Some(self.inner.coordination.relay.clone()),
                 http: self.inner.transport.clone(),
             },
-            fallback_marker.clone(),
             dns_trace.clone(),
         );
         let stateless_dane =
             stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
         let gateway = Gateway::new(
             GatewayConfig {
-                hns_https_mode: HnsHttpsMode::Compatibility,
                 stateless_dane,
                 allow_non_public_origin_addresses: network == NetworkKind::Regtest || cfg!(test),
                 allow_unsafe_origin_ports: network == NetworkKind::Regtest,
@@ -2402,10 +2382,7 @@ fn is_valid_gateway_header_value(value: &str) -> bool {
 
 struct ParsedGatewayHeaders {
     headers: Vec<(String, String)>,
-    strict_hns_mode: bool,
-    doh_endpoint: HnsDohEndpoint,
     experimental_p2p_dns_relay: bool,
-    legacy_hns_doh_compatibility: bool,
     stateless_dane_certificates: bool,
     network: NetworkKind,
 }
@@ -2413,22 +2390,12 @@ struct ParsedGatewayHeaders {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum GatewayResolutionMode {
     Strict,
-    Compatibility,
 }
 
 impl GatewayResolutionMode {
-    fn from_strict_hns_mode(strict_hns_mode: bool) -> Self {
-        if strict_hns_mode {
-            Self::Strict
-        } else {
-            Self::Compatibility
-        }
-    }
-
     fn as_str(self) -> &'static str {
         match self {
             Self::Strict => "strict",
-            Self::Compatibility => "compatibility",
         }
     }
 }
@@ -2585,67 +2552,7 @@ struct HnsDohEndpoint {
     path_and_query: String,
 }
 
-impl Default for HnsDohEndpoint {
-    fn default() -> Self {
-        Self {
-            host: HNS_DOH_HOST.to_owned(),
-            port: 443,
-            path_and_query: HNS_DOH_PATH.to_owned(),
-        }
-    }
-}
-
 impl HnsDohEndpoint {
-    fn parse(input: &str) -> Result<Self, &'static str> {
-        let trimmed = input.trim();
-        if trimmed.is_empty() {
-            return Ok(Self::default());
-        }
-        let rest = trimmed
-            .get(..8)
-            .filter(|scheme| scheme.eq_ignore_ascii_case("https://"))
-            .and_then(|_| trimmed.get(8..))
-            .ok_or("DoH resolver must be an HTTPS URL")?;
-        let (authority, path) = rest
-            .split_once('/')
-            .unwrap_or((rest, HNS_DOH_PATH.trim_start_matches('/')));
-        if authority.is_empty()
-            || authority.contains('@')
-            || authority.bytes().any(|byte| byte.is_ascii_control())
-        {
-            return Err("DoH resolver authority is invalid");
-        }
-        let (host, port) = match authority.rsplit_once(':') {
-            Some((host, port)) if !host.contains(':') => {
-                let port = port
-                    .parse::<u16>()
-                    .map_err(|_| "DoH resolver port is invalid")?;
-                (host, port)
-            }
-            Some(_) if authority.contains(':') => {
-                return Err("DoH resolver IPv6 literals are not supported");
-            }
-            _ => (authority, 443),
-        };
-        if !valid_doh_host(host) {
-            return Err("DoH resolver host is invalid");
-        }
-        let host = host.trim_end_matches('.').to_ascii_lowercase();
-        let path_and_query = format!("/{path}");
-        if path_and_query.contains('#')
-            || path_and_query
-                .bytes()
-                .any(|byte| byte.is_ascii_control() || byte == b' ')
-        {
-            return Err("DoH resolver path is invalid");
-        }
-        Ok(Self {
-            host,
-            port,
-            path_and_query,
-        })
-    }
-
     fn display(&self) -> String {
         if self.port == 443 {
             format!("https://{}{}", self.host, self.path_and_query)
@@ -2653,21 +2560,6 @@ impl HnsDohEndpoint {
             format!("https://{}:{}{}", self.host, self.port, self.path_and_query)
         }
     }
-}
-
-fn valid_doh_host(host: &str) -> bool {
-    let trimmed = host.trim_end_matches('.');
-    !trimmed.is_empty()
-        && trimmed.len() <= 253
-        && trimmed.split('.').all(|label| {
-            !label.is_empty()
-                && label.len() <= 63
-                && !label.starts_with('-')
-                && !label.ends_with('-')
-                && label
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
-        })
 }
 
 struct GatewayProofProvider {
@@ -3771,6 +3663,7 @@ struct FallbackMarker {
 }
 
 impl FallbackMarker {
+    #[cfg(test)]
     fn mark(&self, reason: &'static str) {
         self.used.store(true, Ordering::Relaxed);
         if let Ok(mut fallback_reason) = self.reason.lock()
@@ -3789,129 +3682,8 @@ impl FallbackMarker {
     }
 }
 
-struct FallbackResolver<P, F> {
-    primary: P,
-    fallback: F,
-    fallback_marker: FallbackMarker,
-    fallback_roots: Arc<Mutex<HashMap<String, &'static str>>>,
-}
-
-impl<P, F> FallbackResolver<P, F> {
-    fn with_marker(primary: P, fallback: F, fallback_marker: FallbackMarker) -> Self {
-        Self {
-            primary,
-            fallback,
-            fallback_marker,
-            fallback_roots: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    fn cached_fallback_reason(&self, request: &ResolutionRequest) -> Option<&'static str> {
-        let root = fallback_cache_root(request);
-        self.fallback_roots
-            .lock()
-            .ok()
-            .and_then(|roots| roots.get(&root).copied())
-    }
-
-    fn remember_fallback_reason(&self, request: &ResolutionRequest, reason: &'static str) {
-        let root = fallback_cache_root(request);
-        if let Ok(mut roots) = self.fallback_roots.lock() {
-            roots.entry(root).or_insert(reason);
-        }
-    }
-}
-
-impl<P, F> Resolver for FallbackResolver<P, F>
-where
-    P: Resolver,
-    F: Resolver,
-{
-    fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
-        if let Some(reason) = self.cached_fallback_reason(request) {
-            self.fallback_marker.mark(reason);
-            return self.fallback.resolve(request);
-        }
-
-        match self.primary.resolve(request) {
-            Ok(answer) => Ok(answer),
-            Err(error) => {
-                let Some(reason) = doh_fallback_reason(&error) else {
-                    return Err(error);
-                };
-                self.remember_fallback_reason(request, reason);
-                self.fallback_marker.mark(reason);
-                self.fallback.resolve(request)
-            }
-        }
-    }
-}
-
 fn fallback_cache_root(request: &ResolutionRequest) -> String {
     hns_trace_root(&request.qname).to_ascii_lowercase()
-}
-
-#[derive(Clone, Debug)]
-struct FallbackDelegatedResolver<P, F> {
-    primary: P,
-    fallback: F,
-    fallback_marker: FallbackMarker,
-    fallback_roots: Arc<Mutex<HashMap<String, &'static str>>>,
-}
-
-impl<P, F> FallbackDelegatedResolver<P, F> {
-    fn new(primary: P, fallback: F, fallback_marker: FallbackMarker) -> Self {
-        Self {
-            primary,
-            fallback,
-            fallback_marker,
-            fallback_roots: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    fn cached_fallback_reason(&self, request: &ResolutionRequest) -> Option<&'static str> {
-        let root = fallback_cache_root(request);
-        self.fallback_roots
-            .lock()
-            .ok()
-            .and_then(|roots| roots.get(&root).copied())
-    }
-
-    fn remember_fallback_reason(&self, request: &ResolutionRequest, reason: &'static str) {
-        let root = fallback_cache_root(request);
-        if let Ok(mut roots) = self.fallback_roots.lock() {
-            roots.entry(root).or_insert(reason);
-        }
-    }
-}
-
-impl<P, F> DelegatedResolver for FallbackDelegatedResolver<P, F>
-where
-    P: DelegatedResolver,
-    F: DelegatedResolver,
-{
-    fn resolve_delegated(
-        &self,
-        request: &ResolutionRequest,
-        delegation: &HnsDelegation,
-    ) -> Result<ResolutionAnswer, ResolverError> {
-        if let Some(reason) = self.cached_fallback_reason(request) {
-            self.fallback_marker.mark(reason);
-            return self.fallback.resolve_delegated(request, delegation);
-        }
-
-        match self.primary.resolve_delegated(request, delegation) {
-            Ok(answer) => Ok(answer),
-            Err(error) => {
-                let Some(reason) = delegated_doh_transport_fallback_reason(&error) else {
-                    return Err(error);
-                };
-                self.remember_fallback_reason(request, reason);
-                self.fallback_marker.mark(reason);
-                self.fallback.resolve_delegated(request, delegation)
-            }
-        }
-    }
 }
 
 trait RelayDnssecAttemptFeedback {
@@ -4086,130 +3858,6 @@ fn relay_dnssec_result(
 }
 
 #[derive(Clone, Debug)]
-struct HnsDohDnsTransport {
-    endpoint: HnsDohEndpoint,
-    trace: DnsTraceRecorder,
-    endpoint_policy: DnsEndpointPolicy,
-    http: TcpHttpTransport,
-}
-
-impl HnsDohDnsTransport {
-    fn new(
-        endpoint: HnsDohEndpoint,
-        trace: DnsTraceRecorder,
-        endpoint_policy: DnsEndpointPolicy,
-        http: TcpHttpTransport,
-    ) -> Self {
-        Self {
-            endpoint,
-            trace,
-            endpoint_policy,
-            http,
-        }
-    }
-
-    fn exchange_doh(&self, _server: SocketAddr, query: &[u8]) -> Result<Vec<u8>, ResolverError> {
-        let (query, original_id) = recursive_doh_query(query)?;
-        let started = Instant::now();
-        let response = fetch_doh_message(&self.http, &self.endpoint, query.clone());
-        self.trace.push(doh_trace_event(
-            "hns_doh",
-            self.endpoint.display(),
-            &query,
-            elapsed_millis(started),
-            &response,
-        ));
-        let response = response.map_err(|error| {
-            ResolverError::DnsTransport(format!("HNS DoH DNS transport failed: {error}"))
-        })?;
-        if !doh_http_status_success(response.status) {
-            return Err(ResolverError::DnsTransport(format!(
-                "HNS DoH DNS transport returned HTTP {}",
-                response.status
-            )));
-        }
-        if !doh_response_has_dns_message_content_type(&response) {
-            return Err(ResolverError::InvalidDnsResponse);
-        }
-        restore_doh_response_id(&response.body, original_id)
-    }
-}
-
-impl DnsTransport for HnsDohDnsTransport {
-    fn endpoint_policy(&self) -> DnsEndpointPolicy {
-        self.endpoint_policy
-    }
-
-    fn exchange_udp(&self, server: SocketAddr, query: &[u8]) -> Result<Vec<u8>, ResolverError> {
-        self.exchange_doh(server, query)
-    }
-
-    fn exchange_tcp(&self, server: SocketAddr, query: &[u8]) -> Result<Vec<u8>, ResolverError> {
-        self.exchange_doh(server, query)
-    }
-}
-
-#[derive(Clone, Debug)]
-struct HnsDohResolver {
-    endpoint: HnsDohEndpoint,
-    trace: DnsTraceRecorder,
-    http: TcpHttpTransport,
-}
-
-impl Default for HnsDohResolver {
-    fn default() -> Self {
-        Self::new(
-            HnsDohEndpoint::default(),
-            DnsTraceRecorder::default(),
-            shared_http_transport(),
-        )
-    }
-}
-
-impl HnsDohResolver {
-    fn new(endpoint: HnsDohEndpoint, trace: DnsTraceRecorder, http: TcpHttpTransport) -> Self {
-        Self {
-            endpoint,
-            trace,
-            http,
-        }
-    }
-}
-
-impl Resolver for HnsDohResolver {
-    fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
-        let qname =
-            DnsName::from_ascii(&request.qname).map_err(|_| ResolverError::UnsupportedBackend)?;
-        let qtype = RecordType::from_code(request.qtype);
-        let id = DOH_DNS_ID;
-        let query = build_doh_query(id, &qname, qtype)?;
-        let started = Instant::now();
-        let response = fetch_doh_message(&self.http, &self.endpoint, query.clone());
-        self.trace.push(doh_trace_event(
-            "hns_doh",
-            self.endpoint.display(),
-            &query,
-            elapsed_millis(started),
-            &response,
-        ));
-        let response = response.map_err(|error| {
-            ResolverError::DnsTransport(format!("HNS DoH compatibility resolver failed: {error}"))
-        })?;
-        if !doh_http_status_success(response.status) {
-            return Err(ResolverError::DnsTransport(format!(
-                "HNS DoH compatibility resolver returned HTTP {}",
-                response.status
-            )));
-        }
-        if !doh_response_has_dns_message_content_type(&response) {
-            return Err(ResolverError::InvalidDnsResponse);
-        }
-
-        doh_answer_from_body(id, &qname, qtype, &response.body)
-    }
-}
-
-#[derive(Clone, Debug)]
 struct IcannDohResolver {
     endpoint: HnsDohEndpoint,
     trace: DnsTraceRecorder,
@@ -4264,25 +3912,6 @@ fn default_icann_doh_endpoint() -> HnsDohEndpoint {
         host: ICANN_DOH_HOST.to_owned(),
         port: 443,
         path_and_query: ICANN_DOH_PATH.to_owned(),
-    }
-}
-
-fn doh_fallback_reason(error: &ResolverError) -> Option<&'static str> {
-    match error {
-        ResolverError::ProofUnavailable => Some("local_hns_proof_unavailable"),
-        ResolverError::LocalChainNotCurrent => Some("local_chain_not_current"),
-        ResolverError::NoNameserverAddress => Some("no_verified_nameserver_address"),
-        _ => None,
-    }
-}
-
-fn delegated_doh_transport_fallback_reason(error: &ResolverError) -> Option<&'static str> {
-    match error {
-        ResolverError::DnsTransport(_) => Some("authoritative_nameserver_transport_failed"),
-        ResolverError::DnsResponseCode(_) => Some("authoritative_nameserver_response_code"),
-        ResolverError::InvalidDnsResponse => Some("authoritative_nameserver_invalid_response"),
-        ResolverError::DnssecFailed => Some("delegated_dnssec_validation_failed"),
-        _ => None,
     }
 }
 
@@ -4421,27 +4050,6 @@ fn doh_response_has_dns_message_content_type(response: &OriginResponse) -> bool 
         })
 }
 
-fn recursive_doh_query(query: &[u8]) -> Result<(Vec<u8>, u16), ResolverError> {
-    if query.len() < 4 {
-        return Err(ResolverError::InvalidDnsResponse);
-    }
-    let original_id = u16::from_be_bytes([query[0], query[1]]);
-    let mut query = query.to_vec();
-    query[0] = 0;
-    query[1] = 0;
-    query[2] |= 0x01;
-    Ok((query, original_id))
-}
-
-fn restore_doh_response_id(body: &[u8], original_id: u16) -> Result<Vec<u8>, ResolverError> {
-    if body.len() < 2 || body[0] != 0 || body[1] != 0 {
-        return Err(ResolverError::InvalidDnsResponse);
-    }
-    let mut body = body.to_vec();
-    body[..2].copy_from_slice(&original_id.to_be_bytes());
-    Ok(body)
-}
-
 fn build_doh_query(id: u16, qname: &DnsName, qtype: RecordType) -> Result<Vec<u8>, ResolverError> {
     let message = DnsMessage {
         header: DnsHeader {
@@ -4511,6 +4119,10 @@ pub fn core_version() -> &'static str {
 pub fn diagnostics_json() -> String {
     r#"{"core":"hns-dane-browser-rust-core","version":"__VERSION__","features":["header-hash","header-pow-validation","header-mainnet-difficulty-retarget","header-mainnet-checkpoints","header-canonical-height-index","hns-name-hash","hns-dotted-root-label","urkel-proof-verification","urkel-proof-value-handoff","hns-name-state-resource-extraction","hns-resource-decoder","hns-authoritative-doh-rfc8484","hns-resource-provider-adapter","hns-memory-resource-provider","hns-sqlite-resource-provider","hns-negative-cache","hns-ttl-cache-lru","hns-resource-cache-stats","hns-resource-cache-eviction","hns-resource-cache-cap-enforcement","hns-resource-cache-chain-anchors","hns-resource-cache-reorg-invalidation","hns-resource-cache-current-tip","hns-proof-backed-resolver-boundary","hns-delegating-resolver-boundary","hns-proof-backed-ns-address-hydration","hns-authoritative-dnssec-delegated-resolver","android-hns-doh-compat-resolver","dns-wire","dns-svcb-https","dnssec-ds-dnskey-link","dnssec-ds-sha1","dnssec-ds-sha384","dnssec-rrsig-signed-data","dnssec-canonical-name-rdata","dnssec-ecdsa-p256-verify","dnssec-ecdsa-p384-verify","dnssec-rsa-sha1-verify","dnssec-rsa-sha256-sha512-verify","dnssec-ed25519-verify","dnssec-signed-rrset-validation","dnssec-delegated-chain-validation","dnssec-delegated-no-data-validation","dnssec-delegated-name-error-validation","dnssec-delegated-cname-chain","dnssec-child-referral-validation","dnssec-child-cname-chain","dnssec-child-no-data-validation","dnssec-child-name-error-validation","dnssec-nsec-denial-validation","dnssec-nsec3-denial-validation","dnssec-nxdomain-name-error-validation","dane-policy","dane-certificate-chain-policy","x509-spki-extraction","x509-stateless-dane-evidence","hip17-experimental-urkel-extension","rfc9102-authentication-chain-parser","p2p-codec","p2p-tcp-peer-connection","p2p-static-peer-source","p2p-dns-seed-source","p2p-getaddr-peer-discovery","p2p-discovery-rotation","p2p-peer-diversity","p2p-sqlite-peer-store","sync-coordinator","sync-header-runner","sync-multi-batch-header-runner","sync-parallel-peer-probing","sync-ranged-peer-rotation","sync-checkpoint-prefetch","sync-proof-scheduler","android-native-sync-once","android-sync-status","android-sync-outcome-status","android-sync-progress-heights","android-sync-high-batch-catchup","android-clear-resolver-cache","android-persistent-gateway-resolver","android-gateway-live-proof-fetch","android-gateway-header-forwarding","android-gateway-range-forwarding","android-gateway-body-forwarding","android-gateway-file-body-stream","android-webview-hns-intercept","android-service-worker-hns-intercept","android-hns-redirect-follow","android-actionable-hns-errors","hns-name-not-found-error","gateway-policy","gateway-hns-address-required","gateway-tlsa-service-scope","gateway-delegated-origin-address-lookup","gateway-origin-address-query","gateway-https-service-query","gateway-svcb-alpn-policy","gateway-actionable-nameserver-errors","gateway-cname-address-routing","android-proxy-gateway-hook","android-random-loopback-proxy-port","rust-loopback-local-hns-connect-certs","hns-websocket-native-tunnel","http-origin-transport","http-origin-connection-pooling","http2-origin-transport","http3-origin-transport","http-origin-response-framing","https-rustls-transport","https-tls-session-resumption","https-alt-svc-promotion","dane-tls-policy"],"securityDefault":"fail-closed"}"#
         .replace("__VERSION__", env!("CARGO_PKG_VERSION"))
+        .replace(
+            "android-hns-doh-compat-resolver",
+            "hns-public-recursive-doh-prohibited",
+        )
 }
 
 pub fn sync_once(data_dir: &str) -> String {
@@ -4605,7 +4217,7 @@ fn gateway_http_response_with_transport(
         Err(error) => return plain_response_for_request(&input, 400, "Bad Request", error),
     };
     let network = parsed_headers.network;
-    let mode = GatewayResolutionMode::from_strict_hns_mode(parsed_headers.strict_hns_mode);
+    let mode = GatewayResolutionMode::Strict;
     let request = gateway_request(&input, parsed_headers.headers);
     let dns_trace = DnsTraceRecorder::default();
 
@@ -4635,21 +4247,16 @@ fn gateway_http_response_with_transport(
         values,
         GatewayResolverContext {
             network,
-            mode,
-            doh_endpoint: parsed_headers.doh_endpoint,
             experimental_p2p_dns_relay: parsed_headers.experimental_p2p_dns_relay,
-            legacy_hns_doh_compatibility: parsed_headers.legacy_hns_doh_compatibility,
             peer_state,
             relay: None,
             http: transport.clone(),
         },
-        fallback_marker.clone(),
         dns_trace.clone(),
     );
     let stateless_dane = stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
     let gateway = match Gateway::new(
         GatewayConfig {
-            hns_https_mode: HnsHttpsMode::Compatibility,
             stateless_dane,
             allow_non_public_origin_addresses: network == NetworkKind::Regtest || cfg!(test),
             allow_unsafe_origin_ports: network == NetworkKind::Regtest,
@@ -4748,7 +4355,7 @@ fn gateway_http_response_body_to_file_with_transport(
         }
     };
     let network = parsed_headers.network;
-    let mode = GatewayResolutionMode::from_strict_hns_mode(parsed_headers.strict_hns_mode);
+    let mode = GatewayResolutionMode::Strict;
     let request = gateway_request(&input, parsed_headers.headers);
     let dns_trace = DnsTraceRecorder::default();
 
@@ -4780,21 +4387,16 @@ fn gateway_http_response_body_to_file_with_transport(
         values,
         GatewayResolverContext {
             network,
-            mode,
-            doh_endpoint: parsed_headers.doh_endpoint,
             experimental_p2p_dns_relay: parsed_headers.experimental_p2p_dns_relay,
-            legacy_hns_doh_compatibility: parsed_headers.legacy_hns_doh_compatibility,
             peer_state,
             relay: None,
             http: transport.clone(),
         },
-        fallback_marker.clone(),
         dns_trace.clone(),
     );
     let stateless_dane = stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
     let gateway = match Gateway::new(
         GatewayConfig {
-            hns_https_mode: HnsHttpsMode::Compatibility,
             stateless_dane,
             allow_non_public_origin_addresses: network == NetworkKind::Regtest || cfg!(test),
             allow_unsafe_origin_ports: network == NetworkKind::Regtest,
@@ -4902,7 +4504,7 @@ fn gateway_http_upgrade_tunnel_with_transport(
         }
     };
     let network = parsed_headers.network;
-    let mode = GatewayResolutionMode::from_strict_hns_mode(parsed_headers.strict_hns_mode);
+    let mode = GatewayResolutionMode::Strict;
     let request = gateway_request(&input, parsed_headers.headers);
     let dns_trace = DnsTraceRecorder::default();
 
@@ -4938,21 +4540,16 @@ fn gateway_http_upgrade_tunnel_with_transport(
         values,
         GatewayResolverContext {
             network,
-            mode,
-            doh_endpoint: parsed_headers.doh_endpoint,
             experimental_p2p_dns_relay: parsed_headers.experimental_p2p_dns_relay,
-            legacy_hns_doh_compatibility: parsed_headers.legacy_hns_doh_compatibility,
             peer_state,
             relay: None,
             http: transport.clone(),
         },
-        fallback_marker.clone(),
         dns_trace.clone(),
     );
     let stateless_dane = stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
     let gateway = match Gateway::new(
         GatewayConfig {
-            hns_https_mode: HnsHttpsMode::Compatibility,
             stateless_dane,
             allow_non_public_origin_addresses: network == NetworkKind::Regtest || cfg!(test),
             allow_unsafe_origin_ports: network == NetworkKind::Regtest,
@@ -5110,7 +4707,7 @@ fn gateway_request(
             tls: if input.scheme.eq_ignore_ascii_case("https")
                 || input.scheme.eq_ignore_ascii_case("wss")
             {
-                TlsValidation::hns_compatibility(false, Vec::new())
+                TlsValidation::hns_strict(false, Vec::new())
             } else {
                 TlsValidation::default()
             },
@@ -5168,22 +4765,18 @@ fn android_gateway_resolver(
     base: PathBuf,
     values: SqliteResourceValueProvider,
     context: GatewayResolverContext,
-    fallback_marker: FallbackMarker,
     dns_trace: DnsTraceRecorder,
 ) -> AndroidGatewayResolver {
     let GatewayResolverContext {
         network,
-        mode,
-        doh_endpoint,
         experimental_p2p_dns_relay,
-        legacy_hns_doh_compatibility,
         peer_state,
         relay,
         http,
     } = context;
     let endpoint_policy = DnsEndpointPolicy::for_network(network);
     let authoritative_dns_transport =
-        android_authoritative_dns_transport(mode, dns_trace.clone(), endpoint_policy, http.clone());
+        android_authoritative_dns_transport(dns_trace.clone(), endpoint_policy, http.clone());
     let proof_peer = Arc::new(Mutex::new(None));
     let direct =
         AuthoritativeDnssecResolver::new(authoritative_dns_transport, SystemDnssecVerifier)
@@ -5210,67 +4803,31 @@ fn android_gateway_resolver(
             BoxedDelegatedResolver::new(P2pFallbackDelegatedResolver::new(delegated, relay));
     }
 
-    let use_legacy_doh =
-        mode == GatewayResolutionMode::Compatibility && legacy_hns_doh_compatibility;
-    if use_legacy_doh {
-        let doh = AuthoritativeDnssecResolver::new(
-            HnsDohDnsTransport::new(
-                doh_endpoint.clone(),
-                dns_trace.clone(),
-                endpoint_policy,
-                http.clone(),
-            ),
-            SystemDnssecVerifier,
-        );
-        delegated = BoxedDelegatedResolver::new(FallbackDelegatedResolver::new(
-            delegated,
-            doh,
-            fallback_marker.clone(),
-        ));
-    }
-
     let proof_provider = GatewayProofProvider::new(base, values, network)
         .with_peer_state(peer_state)
         .with_proof_peer(proof_peer);
     let primary = DelegatingResolver::new(proof_provider, delegated);
-    let icann = IcannDohResolver::new(dns_trace.clone(), http.clone());
-
-    if use_legacy_doh {
-        let hns = FallbackResolver::with_marker(
-            primary,
-            HnsDohResolver::new(doh_endpoint, dns_trace, http),
-            fallback_marker,
-        );
-        AndroidGatewayResolver::new(CompositeResolver::new(hns, icann))
-    } else {
-        AndroidGatewayResolver::new(CompositeResolver::new(primary, icann))
-    }
+    let icann = IcannDohResolver::new(dns_trace, http);
+    AndroidGatewayResolver::new(CompositeResolver::new(primary, icann))
 }
 
 struct GatewayResolverContext {
     network: NetworkKind,
-    mode: GatewayResolutionMode,
-    doh_endpoint: HnsDohEndpoint,
     experimental_p2p_dns_relay: bool,
-    legacy_hns_doh_compatibility: bool,
     peer_state: Option<Arc<Mutex<()>>>,
     relay: Option<SharedDnsRelayState>,
     http: TcpHttpTransport,
 }
 
 fn android_authoritative_dns_transport(
-    mode: GatewayResolutionMode,
     dns_trace: DnsTraceRecorder,
     endpoint_policy: DnsEndpointPolicy,
     http: TcpHttpTransport,
 ) -> AndroidAuthoritativeDnsTransport {
-    let mut transport = UdpTcpDnsTransport {
+    let transport = UdpTcpDnsTransport {
         endpoint_policy,
         ..UdpTcpDnsTransport::default()
     };
-    if mode == GatewayResolutionMode::Compatibility {
-        transport.timeout = ANDROID_COMPAT_AUTHORITATIVE_DNS_TIMEOUT;
-    }
     AndroidAuthoritativeDnsTransport::new(transport, dns_trace, http)
 }
 
@@ -5280,10 +4837,7 @@ fn parse_gateway_headers(header_text: &str) -> Result<ParsedGatewayHeaders, &'st
     }
 
     let mut headers = Vec::new();
-    let mut strict_hns_mode = false;
-    let mut doh_endpoint = HnsDohEndpoint::default();
     let mut experimental_p2p_dns_relay = false;
-    let mut legacy_hns_doh_compatibility = true;
     let mut stateless_dane_certificates = false;
     let mut network = NetworkKind::Mainnet;
     for line in header_text.split("\r\n").filter(|line| !line.is_empty()) {
@@ -5296,13 +4850,9 @@ fn parse_gateway_headers(header_text: &str) -> Result<ParsedGatewayHeaders, &'st
             return Err("request header is invalid");
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_STRICT_MODE_HEADER) {
-            if value == "1" || value.eq_ignore_ascii_case("true") {
-                strict_hns_mode = true;
-            }
             continue;
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_DOH_RESOLVER_HEADER) {
-            doh_endpoint = HnsDohEndpoint::parse(value)?;
             continue;
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_P2P_DNS_RELAY_HEADER) {
@@ -5310,7 +4860,6 @@ fn parse_gateway_headers(header_text: &str) -> Result<ParsedGatewayHeaders, &'st
             continue;
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_LEGACY_DOH_HEADER) {
-            legacy_hns_doh_compatibility = value == "1" || value.eq_ignore_ascii_case("true");
             continue;
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_STATELESS_DANE_HEADER) {
@@ -5331,10 +4880,7 @@ fn parse_gateway_headers(header_text: &str) -> Result<ParsedGatewayHeaders, &'st
 
     Ok(ParsedGatewayHeaders {
         headers,
-        strict_hns_mode,
-        doh_endpoint,
         experimental_p2p_dns_relay,
-        legacy_hns_doh_compatibility,
         stateless_dane_certificates,
         network,
     })
@@ -6052,7 +5598,6 @@ fn transport_certificate_message_is_expired(message: &str) -> bool {
 fn tls_mode_name(tls: &TlsValidation) -> &'static str {
     match tls.mode {
         hns_dane::DomainTrustMode::HnsStrict => "hns_strict",
-        hns_dane::DomainTrustMode::HnsCompatibility => "hns_compatibility",
         hns_dane::DomainTrustMode::IcannWebPki => "icann_webpki",
     }
 }
@@ -8657,13 +8202,17 @@ mod tests {
         let data_dir = temp_dir_path("browser-runtime-headers");
         let configuration = RuntimeConfiguration::new(&data_dir, NetworkKind::Testnet)
             .with_initial_policy(RuntimePolicy {
-                resolution_mode: ResolutionMode::Strict,
+                resolution_mode: ResolutionMode::Compatibility,
                 hns_doh_resolver: Some("https://resolver.example/dns-query".to_owned()),
                 experimental_p2p_dns_relay: true,
-                legacy_hns_doh_compatibility: false,
+                legacy_hns_doh_compatibility: true,
                 stateless_dane_certificates: true,
             });
         let runtime = BrowserRuntime::open(configuration).unwrap();
+        let policy = runtime.policy().unwrap();
+        assert_eq!(policy.resolution_mode, ResolutionMode::Strict);
+        assert!(policy.hns_doh_resolver.is_none());
+        assert!(!policy.legacy_hns_doh_compatibility);
         let header_text = runtime
             .gateway_header_text(&[
                 ("Accept".to_owned(), "text/html".to_owned()),
@@ -8681,15 +8230,9 @@ mod tests {
             parsed.headers,
             vec![("Accept".to_owned(), "text/html".to_owned())]
         );
-        assert!(parsed.strict_hns_mode);
         assert!(parsed.experimental_p2p_dns_relay);
-        assert!(!parsed.legacy_hns_doh_compatibility);
         assert!(parsed.stateless_dane_certificates);
         assert_eq!(parsed.network, NetworkKind::Testnet);
-        assert_eq!(
-            parsed.doh_endpoint.display(),
-            "https://resolver.example/dns-query"
-        );
         cleanup_dir(&data_dir);
     }
 
@@ -8712,7 +8255,7 @@ mod tests {
     }
 
     #[test]
-    fn browser_runtime_policy_updates_are_revisioned_and_normalized() {
+    fn browser_runtime_policy_updates_migrate_legacy_hns_fallbacks() {
         let data_dir = temp_dir_path("browser-runtime-policy");
         let runtime =
             BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Mainnet))
@@ -8721,10 +8264,10 @@ mod tests {
 
         let revision = runtime
             .set_policy(RuntimePolicy {
-                resolution_mode: ResolutionMode::Strict,
+                resolution_mode: ResolutionMode::Compatibility,
                 hns_doh_resolver: Some("https://Resolver.Example:443/dns-query".to_owned()),
                 experimental_p2p_dns_relay: true,
-                legacy_hns_doh_compatibility: false,
+                legacy_hns_doh_compatibility: true,
                 stateless_dane_certificates: true,
             })
             .unwrap();
@@ -8735,11 +8278,32 @@ mod tests {
         assert_eq!(policy.resolution_mode, ResolutionMode::Strict);
         assert!(policy.experimental_p2p_dns_relay);
         assert!(!policy.legacy_hns_doh_compatibility);
-        assert_eq!(
-            policy.hns_doh_resolver.as_deref(),
-            Some("https://resolver.example/dns-query")
-        );
+        assert!(policy.hns_doh_resolver.is_none());
         assert!(policy.stateless_dane_certificates);
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn prohibited_legacy_policy_fields_do_not_create_spurious_revisions() {
+        let data_dir = temp_dir_path("browser-runtime-policy-noop");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Mainnet))
+                .unwrap();
+
+        runtime
+            .with_policy_operation(
+                RuntimePolicy {
+                    resolution_mode: ResolutionMode::Compatibility,
+                    hns_doh_resolver: Some("https://resolver.example/dns-query".to_owned()),
+                    experimental_p2p_dns_relay: false,
+                    legacy_hns_doh_compatibility: true,
+                    stateless_dane_certificates: false,
+                },
+                |_| Ok(()),
+            )
+            .unwrap();
+
+        assert_eq!(runtime.policy_revision(), 0);
         cleanup_dir(&data_dir);
     }
 
@@ -8804,19 +8368,6 @@ mod tests {
             .into_bytes();
         assert!(oversized.starts_with(b"HTTP/1.1 413 Origin Request Too Large\r\n"));
 
-        let invalid_policy = runtime
-            .raw_gateway_request(
-                request(443, "Accept: text/html\r\n", Vec::new()),
-                RuntimePolicy {
-                    resolution_mode: ResolutionMode::Strict,
-                    hns_doh_resolver: Some("not-a-doh-url".to_owned()),
-                    experimental_p2p_dns_relay: true,
-                    legacy_hns_doh_compatibility: false,
-                    stateless_dane_certificates: true,
-                },
-            )
-            .into_bytes();
-        assert!(invalid_policy.starts_with(b"HTTP/1.1 400 Bad Request\r\n"));
         assert_eq!(
             parse_untrusted_gateway_headers(
                 "Accept: text/html\r\nX-HNS-Browser-Network: mainnet\r\nx-hns-spoofed: yes\r\n",
@@ -9422,7 +8973,8 @@ mod tests {
         assert!(diagnostics_json().contains(r#""android-webview-hns-intercept""#));
         assert!(diagnostics_json().contains(r#""android-service-worker-hns-intercept""#));
         assert!(diagnostics_json().contains(r#""android-hns-redirect-follow""#));
-        assert!(diagnostics_json().contains(r#""android-hns-doh-compat-resolver""#));
+        assert!(diagnostics_json().contains(r#""hns-public-recursive-doh-prohibited""#));
+        assert!(!diagnostics_json().contains(r#""android-hns-doh-compat-resolver""#));
         assert!(diagnostics_json().contains(r#""android-random-loopback-proxy-port""#));
     }
 
@@ -9995,27 +9547,19 @@ mod tests {
     }
 
     #[test]
-    fn gateway_headers_strip_internal_control_headers() {
+    fn gateway_headers_cannot_enable_legacy_hns_fallbacks() {
         let parsed = parse_gateway_headers(
             "Accept: text/html\r\n\
-             X-HNS-Browser-Strict-Mode: 1\r\n\
-             X-HNS-Browser-DoH-Resolver: https://resolver.example/dns-query\r\n\
+             X-HNS-Browser-Strict-Mode: 0\r\n\
+             X-HNS-Browser-DoH-Resolver: http://resolver.example/dns-query\r\n\
+             X-HNS-Browser-Legacy-HNS-DoH: 1\r\n\
              X-HNS-Browser-Stateless-DANE: 1\r\n\
              X-HNS-Security-Path: dane-authoritative-doh\r\n",
         )
         .unwrap();
 
-        assert!(parsed.strict_hns_mode);
         assert!(parsed.stateless_dane_certificates);
         assert_eq!(parsed.network, NetworkKind::Mainnet);
-        assert_eq!(
-            parsed.doh_endpoint,
-            HnsDohEndpoint {
-                host: "resolver.example".to_owned(),
-                port: 443,
-                path_and_query: "/dns-query".to_owned(),
-            },
-        );
         assert_eq!(
             parsed.headers,
             vec![("Accept".to_owned(), "text/html".to_owned())]
@@ -10038,15 +9582,6 @@ mod tests {
         assert!(recent.contains(&roots[1].into_bytes()));
         assert!(recent.contains(&roots[40].into_bytes()));
         cleanup_dir(&base);
-    }
-
-    #[test]
-    fn default_hns_doh_endpoint_uses_working_zorro_node() {
-        let endpoint = HnsDohEndpoint::default();
-
-        assert_eq!(endpoint.host, "zorro.hnsdoh.com");
-        assert_eq!(endpoint.port, 443);
-        assert_eq!(endpoint.path_and_query, "/dns-query");
     }
 
     #[test]
@@ -10099,16 +9634,6 @@ mod tests {
     }
 
     #[test]
-    fn gateway_headers_reject_invalid_doh_endpoint() {
-        assert!(matches!(
-            parse_gateway_headers(
-                "X-HNS-Browser-DoH-Resolver: http://resolver.example/dns-query\r\n"
-            ),
-            Err("DoH resolver must be an HTTPS URL")
-        ));
-    }
-
-    #[test]
     fn gateway_headers_parse_internal_network() {
         let parsed = parse_gateway_headers("X-HNS-Browser-Network: regtest\r\n").unwrap();
 
@@ -10122,15 +9647,6 @@ mod tests {
             parse_gateway_headers("X-HNS-Browser-Network: staging\r\n"),
             Err("Handshake network is invalid")
         ));
-    }
-
-    #[test]
-    fn gateway_headers_default_doh_path_when_url_has_no_path() {
-        let parsed =
-            parse_gateway_headers("X-HNS-Browser-DoH-Resolver: https://resolver.example\r\n")
-                .unwrap();
-
-        assert_eq!(parsed.doh_endpoint.path_and_query, "/dns-query");
     }
 
     #[test]
@@ -10583,7 +10099,7 @@ mod tests {
                 body: &[],
             },
             NetworkKind::Mainnet,
-            GatewayResolutionMode::Compatibility,
+            GatewayResolutionMode::Strict,
             Some(&ResolutionAnswer {
                 name: DnsName::from_ascii("dane-test.denuoweb.com").unwrap(),
                 records: vec![address_record(
@@ -10672,7 +10188,7 @@ mod tests {
                 body: &[],
             },
             NetworkKind::Mainnet,
-            GatewayResolutionMode::Compatibility,
+            GatewayResolutionMode::Strict,
             None,
             TlsTraceInput::default(),
             Some(&GatewayError::Resolver(ResolverError::LocalChainNotCurrent)),
@@ -10718,7 +10234,7 @@ mod tests {
                 body: &[],
             },
             NetworkKind::Mainnet,
-            GatewayResolutionMode::Compatibility,
+            GatewayResolutionMode::Strict,
             Some(&ResolutionAnswer {
                 name: DnsName::from_ascii("denuoweb").unwrap(),
                 records: vec![address_record("denuoweb", [35, 212, 156, 128])],
@@ -10743,7 +10259,7 @@ mod tests {
             matching: TlsaMatching::Sha256,
             association_data: vec![0xaa, 0xbb],
         };
-        let mut tls = TlsValidation::hns_compatibility(true, vec![tlsa]);
+        let mut tls = TlsValidation::hns_strict(true, vec![tlsa]);
         tls.service_port = 8443;
         let inspection = TlsCertificateInspection {
             end_entity_der: b"cert".to_vec(),
@@ -10763,7 +10279,7 @@ mod tests {
                 body: &[],
             },
             NetworkKind::Mainnet,
-            GatewayResolutionMode::Compatibility,
+            GatewayResolutionMode::Strict,
             None,
             TlsTraceInput {
                 validation: Some(&tls),
@@ -10808,7 +10324,7 @@ mod tests {
                 body: &[],
             },
             NetworkKind::Mainnet,
-            GatewayResolutionMode::Compatibility,
+            GatewayResolutionMode::Strict,
             None,
             TlsTraceInput::default(),
             Some(&GatewayError::Resolver(ResolverError::DnssecFailed)),
@@ -10838,7 +10354,7 @@ mod tests {
                 body: &[],
             },
             NetworkKind::Mainnet,
-            GatewayResolutionMode::Compatibility,
+            GatewayResolutionMode::Strict,
             None,
             TlsTraceInput::default(),
             Some(&GatewayError::Transport(TransportError::Io(
@@ -10853,78 +10369,6 @@ mod tests {
         assert!(trace.contains(
             r#""finalError":"transport error: origin I/O error: invalid peer certificate: certificate expired:"#
         ));
-    }
-
-    #[test]
-    fn fallback_delegated_resolver_uses_doh_transport_on_nameserver_transport_error() {
-        let answer = ResolutionAnswer {
-            name: DnsName::from_ascii("nathan.woodburn").unwrap(),
-            records: vec![address_record("nathan.woodburn", [103, 152, 197, 116])],
-            secure: true,
-        };
-        let marker = FallbackMarker::default();
-        let resolver = FallbackDelegatedResolver::new(
-            TestDelegatedResolver::error(|| ResolverError::DnsTransport("closed".to_owned())),
-            TestDelegatedResolver::answer(answer.clone()),
-            marker.clone(),
-        );
-
-        let resolved = resolver
-            .resolve_delegated(
-                &ResolutionRequest {
-                    qname: "nathan.woodburn".to_owned(),
-                    qtype: RecordType::A.code(),
-                },
-                &test_delegation("woodburn"),
-            )
-            .unwrap();
-
-        assert_eq!(resolved, answer);
-        assert_eq!(
-            marker.reason(),
-            Some("authoritative_nameserver_transport_failed")
-        );
-    }
-
-    #[test]
-    fn fallback_delegated_resolver_skips_primary_after_root_fallback() {
-        use std::sync::atomic::AtomicUsize;
-
-        let primary_calls = Arc::new(AtomicUsize::new(0));
-        let answer = ResolutionAnswer {
-            name: DnsName::from_ascii("shakeshift").unwrap(),
-            records: vec![address_record("shakeshift", [203, 0, 113, 10])],
-            secure: true,
-        };
-        let resolver = FallbackDelegatedResolver::new(
-            CountingErrorDelegatedResolver {
-                calls: primary_calls.clone(),
-                error: || ResolverError::DnsTransport("closed".to_owned()),
-            },
-            TestDelegatedResolver::answer(answer),
-            FallbackMarker::default(),
-        );
-
-        resolver
-            .resolve_delegated(
-                &ResolutionRequest {
-                    qname: "shakeshift".to_owned(),
-                    qtype: RecordType::A.code(),
-                },
-                &test_delegation("shakeshift"),
-            )
-            .unwrap();
-        resolver
-            .resolve_delegated(
-                &ResolutionRequest {
-                    qname: "_443._tcp.shakeshift".to_owned(),
-                    qtype: RecordType::Tlsa.code(),
-                },
-                &test_delegation("shakeshift"),
-            )
-            .unwrap();
-
-        assert_eq!(primary_calls.load(Ordering::Relaxed), 1);
     }
 
     #[test]
@@ -11083,53 +10527,13 @@ mod tests {
     }
 
     #[test]
-    fn legacy_doh_follows_p2p_unavailability_and_keeps_distinct_marker() {
-        let answer = ResolutionAnswer {
-            name: DnsName::from_ascii("legacy.relaytest").unwrap(),
-            records: vec![address_record("legacy.relaytest", [203, 0, 113, 45])],
-            secure: true,
-        };
-        let p2p = P2pFallbackDelegatedResolver::new(
-            TestDelegatedResolver::error(|| {
-                ResolverError::DnsTransport("direct port 53 blocked".to_owned())
-            }),
-            TestDelegatedResolver::error(|| {
-                ResolverError::DnsTransport("no capable relay peer".to_owned())
-            }),
-        );
-        let marker = FallbackMarker::default();
-        let resolver = FallbackDelegatedResolver::new(
-            p2p,
-            TestDelegatedResolver::answer(answer.clone()),
-            marker.clone(),
-        );
-
-        assert_eq!(
-            resolver
-                .resolve_delegated(
-                    &ResolutionRequest {
-                        qname: "legacy.relaytest".to_owned(),
-                        qtype: RecordType::A.code(),
-                    },
-                    &test_delegation("relaytest"),
-                )
-                .unwrap(),
-            answer,
-        );
-        assert_eq!(
-            marker.reason(),
-            Some("authoritative_nameserver_transport_failed")
-        );
-    }
-
-    #[test]
-    fn relay_dnssec_failure_is_distinct_and_does_not_fall_through_to_legacy_doh() {
+    fn relay_dnssec_failure_fails_closed_after_bounded_retry() {
         let first_peer: SocketAddr = "203.0.113.80:12038".parse().unwrap();
         let alternate_peer: SocketAddr = "203.0.113.81:12038".parse().unwrap();
         let relay_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let feedback =
             TestRelayDnssecFeedback::with_attempt_peers([vec![first_peer], vec![alternate_peer]]);
-        let p2p = P2pFallbackDelegatedResolver::new(
+        let resolver = P2pFallbackDelegatedResolver::new(
             TestDelegatedResolver::error(|| {
                 ResolverError::DnsTransport("direct port 53 blocked".to_owned())
             }),
@@ -11140,16 +10544,6 @@ mod tests {
                 },
                 feedback.clone(),
             ),
-        );
-        let marker = FallbackMarker::default();
-        let resolver = FallbackDelegatedResolver::new(
-            p2p,
-            TestDelegatedResolver::answer(ResolutionAnswer {
-                name: DnsName::from_ascii("legacy.relaytest").unwrap(),
-                records: vec![address_record("legacy.relaytest", [203, 0, 113, 46])],
-                secure: true,
-            }),
-            marker.clone(),
         );
 
         assert_eq!(
@@ -11169,7 +10563,6 @@ mod tests {
             feedback.reported_peers(),
             vec![vec![first_peer], vec![alternate_peer]]
         );
-        assert!(!marker.used());
     }
 
     #[test]
@@ -11239,78 +10632,6 @@ mod tests {
         assert!(peers.get(retained).unwrap().is_banned(now));
         assert_eq!(peers.get(discovered).unwrap().last_height, Height(300));
         assert!(peers.get(removed).is_none());
-        cleanup_dir(&path);
-    }
-
-    #[test]
-    fn fallback_resolver_uses_doh_on_proof_unavailable_in_compatibility_mode() {
-        let marker = FallbackMarker::default();
-        let answer = ResolutionAnswer {
-            name: DnsName::from_ascii("welcome").unwrap(),
-            records: vec![address_record("welcome", [127, 0, 0, 1])],
-            secure: true,
-        };
-        let resolver = FallbackResolver::with_marker(
-            TestResolver::error(|| ResolverError::ProofUnavailable),
-            TestResolver::answer(answer.clone()),
-            marker.clone(),
-        );
-
-        assert_eq!(
-            resolver
-                .resolve(&ResolutionRequest {
-                    qname: "welcome".to_owned(),
-                    qtype: RecordType::A.code(),
-                })
-                .unwrap(),
-            answer,
-        );
-        assert_eq!(marker.reason(), Some("local_hns_proof_unavailable"));
-    }
-
-    #[test]
-    fn compatibility_fallback_uses_doh_on_stale_cached_non_inclusion() {
-        let path = temp_dir_path("stale-negative-compat-fallback");
-        let base = path.join("hns");
-        std::fs::create_dir_all(&base).unwrap();
-        let resources = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
-        let root_name = "future".to_owned();
-        let name_hash = NameHash::from_name(&root_name).unwrap();
-        let proof_root = Hash::new([9; 32]);
-        let proof_height = store_best_header_with_tree_root(&base, proof_root);
-        let target_height = proof_height.0 + LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG + 1;
-        store_peer_height(&base, target_height);
-        resources
-            .insert(
-                VerifiedResourceValue::non_inclusion(root_name.clone(), name_hash)
-                    .with_anchor(proof_root, proof_height),
-            )
-            .unwrap();
-        let marker = FallbackMarker::default();
-        let fallback_answer = ResolutionAnswer {
-            name: DnsName::from_ascii(&root_name).unwrap(),
-            records: vec![address_record(&root_name, [203, 0, 113, 8])],
-            secure: true,
-        };
-        let primary = DelegatingResolver::new(
-            GatewayProofProvider::new(base.clone(), resources, NetworkKind::Mainnet),
-            TestResolver::error(|| ResolverError::ProofUnavailable),
-        );
-        let resolver = FallbackResolver::with_marker(
-            primary,
-            TestResolver::answer(fallback_answer.clone()),
-            marker.clone(),
-        );
-
-        let resolved = resolver
-            .resolve(&ResolutionRequest {
-                qname: root_name,
-                qtype: RecordType::A.code(),
-            })
-            .unwrap();
-
-        assert_eq!(resolved, fallback_answer);
-        assert_eq!(marker.reason(), Some("local_chain_not_current"));
         cleanup_dir(&path);
     }
 
@@ -11413,8 +10734,8 @@ mod tests {
     }
 
     #[test]
-    fn compatibility_fallback_keeps_current_non_inclusion_as_name_not_found() {
-        let path = temp_dir_path("current-negative-no-fallback");
+    fn current_cached_non_inclusion_remains_name_not_found() {
+        let path = temp_dir_path("current-negative");
         let base = path.join("hns");
         std::fs::create_dir_all(&base).unwrap();
         let resources = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
@@ -11429,20 +10750,9 @@ mod tests {
                     .with_anchor(proof_root, proof_height),
             )
             .unwrap();
-        let marker = FallbackMarker::default();
-        let fallback_answer = ResolutionAnswer {
-            name: DnsName::from_ascii(&root_name).unwrap(),
-            records: vec![address_record(&root_name, [203, 0, 113, 9])],
-            secure: true,
-        };
-        let primary = DelegatingResolver::new(
+        let resolver = DelegatingResolver::new(
             GatewayProofProvider::new(base.clone(), resources, NetworkKind::Mainnet),
             TestResolver::error(|| ResolverError::ProofUnavailable),
-        );
-        let resolver = FallbackResolver::with_marker(
-            primary,
-            TestResolver::answer(fallback_answer),
-            marker.clone(),
         );
 
         let error = resolver
@@ -11453,8 +10763,6 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(error, ResolverError::NameNotFound);
-        assert!(!marker.used());
-        assert_eq!(marker.reason(), None);
         cleanup_dir(&path);
     }
 
@@ -11500,31 +10808,6 @@ mod tests {
             ),
         );
         cleanup_dir(&path);
-    }
-
-    #[test]
-    fn fallback_resolver_does_not_use_doh_on_name_not_found() {
-        let marker = FallbackMarker::default();
-        let answer = ResolutionAnswer {
-            name: DnsName::from_ascii("missing").unwrap(),
-            records: vec![address_record("missing", [203, 0, 113, 10])],
-            secure: true,
-        };
-        let resolver = FallbackResolver::with_marker(
-            TestResolver::error(|| ResolverError::NameNotFound),
-            TestResolver::answer(answer),
-            marker.clone(),
-        );
-
-        let error = resolver
-            .resolve(&ResolutionRequest {
-                qname: "missing".to_owned(),
-                qtype: RecordType::A.code(),
-            })
-            .unwrap_err();
-
-        assert_eq!(error, ResolverError::NameNotFound);
-        assert!(!marker.used());
     }
 
     #[test]
@@ -11720,42 +11003,6 @@ mod tests {
             }),
         );
         assert_eq!(invalid.status, "invalid_response");
-    }
-
-    #[test]
-    fn recursive_doh_query_uses_zero_dns_id_on_wire() {
-        let qname = DnsName::from_ascii("dane-test.denuoweb.com").unwrap();
-        let query = build_doh_query(0x1234, &qname, RecordType::A).unwrap();
-
-        let (wire_query, original_id) = recursive_doh_query(&query).unwrap();
-        let wire_message = DnsMessage::parse(&wire_query).unwrap();
-
-        assert_eq!(original_id, 0x1234);
-        assert_eq!(wire_message.header.id, DOH_DNS_ID);
-        assert!(wire_message.header.flags.recursion_desired());
-
-        let response = DnsMessage {
-            header: DnsHeader {
-                id: DOH_DNS_ID,
-                flags: DnsFlags::new(0x8180),
-                question_count: 1,
-                answer_count: 0,
-                authority_count: 0,
-                additional_count: 0,
-            },
-            questions: wire_message.questions,
-            answers: Vec::new(),
-            authorities: Vec::new(),
-            additionals: Vec::new(),
-        }
-        .encode(&DnsEncodeConfig {
-            max_message_len: 4096,
-        })
-        .unwrap();
-
-        let restored = restore_doh_response_id(&response, original_id).unwrap();
-        let restored_message = DnsMessage::parse(&restored).unwrap();
-        assert_eq!(restored_message.header.id, 0x1234);
     }
 
     #[test]
@@ -12276,12 +11523,6 @@ mod tests {
     }
 
     impl TestResolver {
-        fn answer(answer: ResolutionAnswer) -> Self {
-            Self {
-                outcome: TestResolverOutcome::Answer(answer),
-            }
-        }
-
         fn error(error: fn() -> ResolverError) -> Self {
             Self {
                 outcome: TestResolverOutcome::Error(error),

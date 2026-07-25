@@ -358,13 +358,13 @@ Input name
 - If TLSA exists and validates: accept according to DANE.
 - If TLSA exists and does not validate: fail closed.
 - If TLSA does not exist:
-  - HNS domain default can require DANE or allow WebPKI based on product mode.
+  - HNS domains require DANE and fail closed.
   - ICANN domain uses normal WebPKI.
 
 ### Recommended product policy
 
-- Strict HNS mode: HNS HTTPS requires valid DANE.
-- Compatibility HNS mode: allow WebPKI if no TLSA exists, but show security state clearly.
+- HNS HTTPS always requires valid DNSSEC/TLSA/DANE.
+- Public recursive HNS DoH and HNS WebPKI fallback are prohibited.
 
 ### Deliverables
 

@@ -138,7 +138,7 @@ Required for HTTPS trust decisions.
 
 ## TLS / X.509 / PKI
 
-Required for DANE validation, WebPKI fallback, local gateway trust, and QUIC TLS binding.
+Required for DANE validation, ordinary ICANN WebPKI, local gateway trust, and QUIC TLS binding. HNS WebPKI fallback is prohibited.
 
 - [RFC 5280, X.509 PKIX certificate profile](https://www.rfc-editor.org/info/rfc5280)
 - [RFC 6066, TLS extensions including SNI](https://www.rfc-editor.org/info/rfc6066)

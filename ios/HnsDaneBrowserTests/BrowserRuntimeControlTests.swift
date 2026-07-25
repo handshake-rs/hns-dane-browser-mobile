@@ -1,4 +1,5 @@
 import Foundation
+import HnsBrowserRuntime
 import UIKit
 import XCTest
 @testable import HnsDaneBrowser
@@ -20,41 +21,103 @@ final class BrowserRuntimeControlTests: XCTestCase {
         super.tearDown()
     }
 
-    func testPolicyNormalizesEmptyResolverEndpoint() {
-        let policy = BrowserRuntimePolicy(hnsDohResolver: "  \n ")
-        XCTAssertNil(policy.hnsDohResolver)
-
+    func testPolicyMigratesProhibitedHNSFallbackValues() {
         let configured = BrowserRuntimePolicy(
-            resolutionMode: .strict,
+            resolutionMode: .compatibility,
             hnsDohResolver: "  https://resolver.example/dns-query  ",
             statelessDANECertificates: true,
             experimentalP2PDNSRelay: true,
-            legacyHNSDoHCompatibility: false
+            legacyHNSDoHCompatibility: true
         )
-        XCTAssertEqual(configured.hnsDohResolver, "https://resolver.example/dns-query")
+        XCTAssertEqual(configured.resolutionMode, .strict)
+        XCTAssertNil(configured.hnsDohResolver)
+        XCTAssertFalse(configured.legacyHNSDoHCompatibility)
+        XCTAssertTrue(configured.statelessDANECertificates)
+        XCTAssertTrue(configured.experimentalP2PDNSRelay)
     }
 
     func testPolicyStoreRoundTripsNonSensitiveSettings() {
         let store = BrowserRuntimePolicyStore(defaults: defaults)
         let expected = BrowserRuntimePolicy(
-            resolutionMode: .strict,
-            hnsDohResolver: "https://resolver.example/dns-query",
             statelessDANECertificates: true,
-            experimentalP2PDNSRelay: true,
-            legacyHNSDoHCompatibility: false
+            experimentalP2PDNSRelay: true
         )
 
         store.save(expected)
 
         XCTAssertEqual(store.load(), expected)
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"))
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.legacyHNSDoHCompatibility"))
     }
 
-    func testPolicyDefaultsMatchAndroidRelayAndLegacyCompatibilityDefaults() {
+    func testPolicyStoreOneWayMigratesLegacyHNSFallbackSettings() {
+        defaults.set("compatibility", forKey: "hnsBrowser.runtimePolicy.resolutionMode")
+        defaults.set(
+            "https://resolver.example/dns-query",
+            forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"
+        )
+        defaults.set(true, forKey: "hnsBrowser.runtimePolicy.legacyHNSDoHCompatibility")
+        defaults.set(true, forKey: "hnsBrowser.runtimePolicy.statelessDANE")
+        defaults.set(false, forKey: "hnsBrowser.runtimePolicy.experimentalP2PDNSRelay")
+
         let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
 
+        XCTAssertEqual(policy.resolutionMode, .strict)
+        XCTAssertNil(policy.hnsDohResolver)
+        XCTAssertFalse(policy.legacyHNSDoHCompatibility)
+        XCTAssertTrue(policy.statelessDANECertificates)
+        XCTAssertFalse(policy.experimentalP2PDNSRelay)
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"))
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.legacyHNSDoHCompatibility"))
+    }
+
+    func testLegacyFallbackConsentDoesNotBecomeRelayConsent() {
+        defaults.set("compatibility", forKey: "hnsBrowser.runtimePolicy.resolutionMode")
+        defaults.set(
+            "https://resolver.example/dns-query",
+            forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"
+        )
+        defaults.set(true, forKey: "hnsBrowser.runtimePolicy.legacyHNSDoHCompatibility")
+
+        let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
+
+        XCTAssertFalse(policy.experimentalP2PDNSRelay)
+        XCTAssertEqual(
+            defaults.object(
+                forKey: "hnsBrowser.runtimePolicy.experimentalP2PDNSRelay"
+            ) as? Bool,
+            false
+        )
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"))
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.legacyHNSDoHCompatibility"))
+        XCTAssertFalse(
+            BrowserRuntimePolicyStore(defaults: defaults).load().experimentalP2PDNSRelay
+        )
+    }
+
+    func testLegacyMigrationPreservesIndependentRelayOptIn() {
+        defaults.set("compatibility", forKey: "hnsBrowser.runtimePolicy.resolutionMode")
+        defaults.set(true, forKey: "hnsBrowser.runtimePolicy.experimentalP2PDNSRelay")
+
+        let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
+
+        XCTAssertTrue(policy.experimentalP2PDNSRelay)
+        XCTAssertTrue(
+            BrowserRuntimePolicyStore(defaults: defaults).load().experimentalP2PDNSRelay
+        )
+    }
+
+    func testPolicyDefaultsMatchAndroidStrictTrustDefaults() {
+        let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
+
+        XCTAssertEqual(policy.resolutionMode, .strict)
+        XCTAssertNil(policy.hnsDohResolver)
         XCTAssertFalse(policy.statelessDANECertificates)
         XCTAssertTrue(policy.experimentalP2PDNSRelay)
-        XCTAssertTrue(policy.legacyHNSDoHCompatibility)
+        XCTAssertFalse(policy.legacyHNSDoHCompatibility)
     }
 
     @MainActor
@@ -85,24 +148,18 @@ final class BrowserRuntimeControlTests: XCTestCase {
             rows,
             [
                 .handshakeNetwork,
-                .strictHNSMode,
                 .statelessDANECertificates,
                 .experimentalP2PDNSRelay,
                 .addHNSRelayPeer,
-                .legacyHNSDoHCompatibility,
-                .compatibilityDoHResolver,
                 .clearResolverCache,
                 .hnsSync,
             ]
         )
         XCTAssertEqual(rows.map(\.title), [
             "Handshake network",
-            "Strict HNS mode",
             "Experimental stateless DANE certificates",
             "Experimental P2P DNS relay",
             "Add HNS relay peer",
-            "Legacy HNS DoH compatibility",
-            "Compatibility DoH resolver",
             "Clear resolver cache",
             "HNS sync",
         ])
@@ -165,7 +222,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             ["Manage", "View", "View"],
             ["Change"],
             ["Open"],
-            ["Change", nil, nil, nil, "Add", nil, "Edit", "Clear", "View"],
+            ["Change", nil, nil, "Add", "Clear", "View"],
             ["Open", "Open", "Open", "Open", "View", "View"],
             [nil, "View", "Open", "Open"],
         ]
@@ -192,7 +249,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             runtimeControlsAreAvailable: true
         )
         settings.loadViewIfNeeded()
-        let indexPath = IndexPath(row: 2, section: 4)
+        let indexPath = IndexPath(row: 1, section: 4)
 
         var cell = settings.tableView(settings.tableView, cellForRowAt: indexPath)
         var content = try XCTUnwrap(cell.contentConfiguration as? UIListContentConfiguration)
@@ -242,7 +299,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         navigation.loadViewIfNeeded()
         settings.loadViewIfNeeded()
 
-        let settingsIndexPath = IndexPath(row: 8, section: 4)
+        let settingsIndexPath = IndexPath(row: 5, section: 4)
         let settingsCell = settings.tableView(
             settings.tableView,
             cellForRowAt: settingsIndexPath
@@ -286,7 +343,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         settings.loadViewIfNeeded()
         settings.tableView(
             settings.tableView,
-            didSelectRowAt: IndexPath(row: 8, section: 4)
+            didSelectRowAt: IndexPath(row: 5, section: 4)
         )
         let sync = try XCTUnwrap(navigation.topViewController as? HNSSyncViewController)
         sync.loadViewIfNeeded()
@@ -329,20 +386,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
         settings.loadViewIfNeeded()
 
-        let doh = settings.tableView(
-            settings.tableView,
-            cellForRowAt: IndexPath(row: 6, section: 4)
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(doh.contentConfiguration as? UIListContentConfiguration)
-                .secondaryText,
-            "https://zorro.hnsdoh.com/dns-query"
-        )
-        XCTAssertEqual((doh.accessoryView as? UILabel)?.text, "Edit")
-
         let cache = settings.tableView(
             settings.tableView,
-            cellForRowAt: IndexPath(row: 7, section: 4)
+            cellForRowAt: IndexPath(row: 4, section: 4)
         )
         XCTAssertEqual(
             try XCTUnwrap(cache.contentConfiguration as? UIListContentConfiguration)
@@ -353,7 +399,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let hnsSync = settings.tableView(
             settings.tableView,
-            cellForRowAt: IndexPath(row: 8, section: 4)
+            cellForRowAt: IndexPath(row: 5, section: 4)
         )
         XCTAssertEqual((hnsSync.accessoryView as? UILabel)?.text, "View")
 
@@ -383,8 +429,46 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         XCTAssertEqual(
             BrowserRuntimePolicyStore(defaults: defaults).load().resolutionMode,
-            .compatibility
+            .strict
         )
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
+    }
+
+    func testDisabledLegacyHNSStatusesFailClosedInSecurityUI() {
+        let legacyResolver = RustBrowserProxySession.securitySummary(
+            httpStatus: 200,
+            tlsPolicy: HNS_BROWSER_TLS_POLICY_DANE,
+            resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_HNS_DOH_COMPATIBILITY,
+            securityPath: HNS_BROWSER_SECURITY_PATH_STATELESS_DANE
+        )
+        let legacyPath = RustBrowserProxySession.securitySummary(
+            httpStatus: 200,
+            tlsPolicy: HNS_BROWSER_TLS_POLICY_DANE,
+            resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
+            securityPath: HNS_BROWSER_SECURITY_PATH_DANE_THIRD_PARTY_DOH
+        )
+        let legacyWebPKI = RustBrowserProxySession.securitySummary(
+            httpStatus: 200,
+            tlsPolicy: HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK,
+            resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
+            securityPath: HNS_BROWSER_SECURITY_PATH_UNKNOWN
+        )
+
+        XCTAssertEqual(legacyResolver.level, .blocked)
+        XCTAssertEqual(legacyPath.level, .blocked)
+        XCTAssertEqual(legacyWebPKI.level, .blocked)
+    }
+
+    func testCurrentDANEStatusRemainsVerifiedInSecurityUI() {
+        let summary = RustBrowserProxySession.securitySummary(
+            httpStatus: 200,
+            tlsPolicy: HNS_BROWSER_TLS_POLICY_DANE,
+            resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
+            securityPath: HNS_BROWSER_SECURITY_PATH_DANE_P2P_DNS_RELAY
+        )
+
+        XCTAssertEqual(summary.level, .handshakeDANE)
+        XCTAssertTrue(summary.detail.contains("P2P DNS relay"))
     }
 
     func testSyncSchedulingUsesBoundedFailureBackoff() {

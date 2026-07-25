@@ -20,11 +20,11 @@ class HnsWebViewGatewayInterceptor(
     private val hnsGatewayBridge: HnsGatewayBridge = NativeBridge,
     private val namespacePolicy: BrowserNamespacePolicy,
     private val allowProxyFallbackForBodyRequests: () -> Boolean = { false },
-    private val strictHnsMode: () -> Boolean = { false },
+    private val strictHnsMode: () -> Boolean = { true },
     private val dohResolverUrl: () -> String = { "" },
     private val statelessDaneCertificates: () -> Boolean = { false },
     private val experimentalP2pDnsRelay: () -> Boolean = { false },
-    private val legacyHnsDohCompatibility: () -> Boolean = { true },
+    private val legacyHnsDohCompatibility: () -> Boolean = { false },
     private val handshakeNetwork: () -> String = { DEFAULT_NETWORK },
     private val reportAllHnsStatuses: Boolean = false,
     private val onMainFrameHnsStatus: (Int, HnsPageTlsPolicy?, HnsPageResolverPolicy?, HnsPageSecurityPath?, String?) -> Unit = { _, _, _, _, _ -> },
@@ -168,12 +168,51 @@ class HnsWebViewGatewayInterceptor(
             }
         }
 
-        return response.followHnsRedirects(
+        val policyCheckedResponse = response.rejectDisabledTrustStatus(
+            host = target.host,
+            requiresHnsResolution =
+                HnsHostPolicy.requiresHnsResolution(target.host, namespacePolicy),
+        )
+
+        return policyCheckedResponse.followHnsRedirects(
             method = normalizedMethod,
             target = target,
             requestHeaders = requestHeaders,
             redirectsRemaining = redirectsRemaining,
             allowBodyRequestProxyFallback = allowBodyRequestProxyFallback,
+        )
+    }
+
+    private fun HnsInterceptedResponse.rejectDisabledTrustStatus(
+        host: String,
+        requiresHnsResolution: Boolean,
+    ): HnsInterceptedResponse {
+        if (statusCode !in 200..399) {
+            return this
+        }
+        val resolverPolicy = hnsResolverPolicy()
+        val securityPath = hnsSecurityPath()
+        val tlsPolicy = hnsTlsPolicy()
+        val disabledStatus =
+            resolverPolicy == HnsPageResolverPolicy.HnsDohCompatibility ||
+                securityPath == HnsPageSecurityPath.DaneThirdPartyDoh ||
+                securityPath == HnsPageSecurityPath.HnsThirdPartyDoh ||
+                (requiresHnsResolution && tlsPolicy == HnsPageTlsPolicy.WebPkiFallback)
+        if (!disabledStatus) {
+            return this
+        }
+
+        discardBodyFile()
+        GatewayEventLog.record(
+            "webview_trust_policy",
+            host,
+            502,
+            "Disabled HNS Trust Path",
+        )
+        return plainInterceptResponse(
+            statusCode = 502,
+            reason = "Disabled HNS Trust Path",
+            detail = "The native gateway reported a prohibited legacy HNS resolver or WebPKI path.",
         )
     }
 

@@ -37,21 +37,16 @@
     <string name="security_syncing">Syncing</string>
     <string name="security_loading">Loading</string>
     <string name="security_hns_verified">HNS verified</string>
-    <string name="security_hns_compat">HNS via DoH</string>
     <string name="security_hns_via_authoritative_doh" translatable="false">HNS via ADoH</string>
     <string name="security_hns_via_authoritative_dns53" translatable="false">HNS via DNS53</string>
     <string name="security_hns_via_p2p_dns_relay" translatable="false">HNS via P2P DNS relay</string>
-    <string name="security_hns_via_third_party_doh" translatable="false">HNS via 3rd DoH</string>
     <string name="security_dane_verified">DANE verified</string>
-    <string name="security_dane_compat">DANE via DoH</string>
     <string name="security_dane_via_authoritative_doh" translatable="false">DANE via ADoH</string>
     <string name="security_dane_via_authoritative_dns53" translatable="false">DANE via DNS53</string>
     <string name="security_dane_via_p2p_dns_relay" translatable="false">DANE via P2P DNS relay</string>
-    <string name="security_dane_via_third_party_doh" translatable="false">DANE via 3rd DoH</string>
     <string name="security_stateless_dane" translatable="false">Stateless DANE</string>
     <string name="security_dane_via_icann_doh" translatable="false">DANE via ICANN DoH</string>
     <string name="security_webpki">WebPKI</string>
-    <string name="security_hns_webpki">HNS + WebPKI</string>
     <string name="security_failed">Validation failed</string>
     <string name="security_proof_unavailable">Proof unavailable</string>
     <string name="security_status_content_description">Open resolver trace</string>
@@ -143,7 +138,6 @@
     <string name="row_clear_history">Clear history</string>
     <string name="row_clear_history_summary">Remove saved browsing history from this device.</string>
     <string name="row_clear_resolver_cache">Clear resolver cache</string>
-    <string name="row_compatibility_doh_resolver">Compatibility DoH resolver</string>
     <string name="row_cookies">Cookies</string>
     <string name="row_copy_diagnostic_bundle">Copy diagnostic bundle</string>
     <string name="row_copy_diagnostic_bundle_summary">Copy build, runtime, and native core details.</string>
@@ -278,11 +272,6 @@
     <string name="settings_homepage_reset_title">Reset homepage?</string>
     <string name="settings_homepage_reset_message">This restores the default Denuo Web homepage.</string>
     <string name="settings_homepage_reset">Homepage reset</string>
-    <string name="settings_doh_edit_title">Edit DoH resolver</string>
-    <string name="settings_doh_edit_message">Enter an HTTPS DNS-over-HTTPS endpoint. Leave blank to use the default.</string>
-    <string name="settings_doh_error">Enter a valid HTTPS DoH URL</string>
-    <string name="settings_doh_saved">DoH resolver saved</string>
-    <string name="settings_doh_reset">DoH resolver reset</string>
     <string name="settings_resolver_cache_clear_title">Clear resolver cache?</string>
     <string name="settings_resolver_cache_clear_message">The app will keep synced %1$s headers and peers, but cached HNS resource values for this network will be removed.</string>
     <string name="settings_resolver_cache_cleared">%1$s resolver cache cleared</string>
@@ -295,12 +284,9 @@
     <string name="settings_header_resync_started">Header resync started</string>
     <string name="settings_header_resync_failed_status">Header reset did not complete. Open diagnostics for details.</string>
     <string name="settings_header_resync_failed">Header resync did not start</string>
-    <string name="settings_hns_mode_on">On. Delegated resolution failures fail closed.</string>
-    <string name="settings_hns_mode_off">Off. Compatibility fallback may be used after local or direct resolution fails.</string>
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">On. Certificate-carried HNS proof evidence may satisfy DANE when valid.</string>
     <string name="settings_stateless_dane_off">Off. HNS proof and TLSA evidence use the live resolver path.</string>
-    <string name="settings_strict_hns_mode">Strict HNS mode</string>
     <string name="settings_stateless_dane_certificates">Experimental stateless DANE certificates</string>
     <string name="settings_experimental_p2p_dns_relay" translatable="false">Experimental P2P DNS relay</string>
     <string name="settings_experimental_p2p_dns_relay_on" translatable="false">On by default. Delegated DNS may use relay-capable Handshake peers; DNSSEC validation remains local.</string>
@@ -315,9 +301,6 @@
     <string name="settings_static_relay_peer_saved" translatable="false">%1$s relay peer added</string>
     <string name="settings_static_relay_peer_saved_status" translatable="false">Verified relay-capable %1$s peer saved. Add another if needed.</string>
     <string name="settings_static_relay_peer_in_progress" translatable="false">A relay peer is already being verified</string>
-    <string name="settings_legacy_hns_doh_compatibility" translatable="false">Legacy HNS DoH compatibility</string>
-    <string name="settings_legacy_hns_doh_compatibility_on" translatable="false">On by default. The configured third-party HNS DoH path remains available as a compatibility fallback.</string>
-    <string name="settings_legacy_hns_doh_compatibility_off" translatable="false">Off. The legacy third-party HNS DoH compatibility path is disabled independently of P2P relay.</string>
     <string name="settings_theme_dialog_title">Theme</string>
     <string name="settings_theme_set">Theme set to %1$s.</string>
     <string name="theme_choice_dark">Dark</string>
@@ -355,8 +338,8 @@
     <string name="gateway_cleared" translatable="false">Gateway events cleared</string>
 
     <string name="legal_license_summary">HNS DANE Browser is source-available under the PolyForm Noncommercial License 1.0.0. Noncommercial use, study, modification, and redistribution are allowed under the license. Commercial use requires separate written permission from Denuo Web, LLC.</string>
-    <string name="legal_user_agreement" translatable="false">This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, a P2P DNS relay, RFC 8484 DoH transport, and DNSSEC/DANE diagnostics. HNS resolution, DNSSEC validation, DANE checks, relay and compatibility fallback, and sync may fail closed or be incomplete. The app is provided without warranty, is not a financial service, and donations are optional and unlock no features.</string>
-    <string name="legal_privacy_summary" translatable="false">HNS DANE Browser does not include ads, analytics SDKs, or developer-operated accounts. It stores browsing history, cookies, website data, download records, settings, diagnostics, HNS sync/cache data, and manually added relay-peer IP endpoints locally on the device. It sends network requests needed for browser functionality to websites you visit, HNS peers, DNS seeds, authoritative nameservers, proof-bootstrapped or RFC 9461-discovered authoritative DoH endpoints, WebView Safe Browsing services when supported by the installed WebView provider, and the non-routable 192.0.2.1 TEST-NET DNS sentinel after delegated DNS failure. New installs enable the HNS P2P DNS relay and independent legacy HNS DoH fallback by default. A selected relay peer can observe each relayed qname, qtype, timing, and the source network address of the P2P connection; relayed answers still undergo local DNSSEC and DANE validation. Strict HNS mode disables the legacy third-party fallback, and each relay control can be changed in Settings. Local browsing data can be cleared from Settings.</string>
+    <string name="legal_user_agreement" translatable="false">This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, an optional P2P DNS relay, proof-anchored authoritative DoH, and DNSSEC/DANE diagnostics. HNS resolution, DNSSEC validation, DANE checks, relay, and sync may fail closed or be incomplete. Public recursive HNS DoH and HNS WebPKI fallback are prohibited. The app is provided without warranty, is not a financial service, and donations are optional and unlock no features.</string>
+    <string name="legal_privacy_summary" translatable="false">HNS DANE Browser does not include ads, analytics SDKs, or developer-operated accounts. It stores browsing history, cookies, website data, download records, settings, diagnostics, HNS sync/cache data, and manually added relay-peer IP endpoints locally on the device. It sends network requests needed for browser functionality to websites you visit, HNS peers, DNS seeds, authoritative nameservers, proof-bootstrapped or RFC 9461-discovered authoritative DoH endpoints, the optional HNS P2P relay, Cloudflare DoH for ordinary ICANN browsing, WebView Safe Browsing services when supported by the installed WebView provider, and the non-routable 192.0.2.1 TEST-NET DNS sentinel after delegated DNS failure. Fresh installs enable the relay requester by default; an explicit former compatibility choice is not converted into relay consent during upgrade. A selected relay peer can observe each relayed qname, qtype, timing, and the source network address of the P2P connection; relayed answers still undergo local DNSSEC and DANE validation. Public recursive HNS DoH and HNS WebPKI fallback are prohibited. Local browsing data can be cleared from Settings.</string>
     <string name="legal_license_name" translatable="false">PolyForm Noncommercial 1.0.0</string>
     <string name="legal_copy_privacy_policy_url">privacy policy URL</string>
     <string name="legal_copy_source_code_url">source code URL</string>
@@ -480,13 +463,13 @@
     <string name="trace_source_icann_dns">ICANN DNS</string>
     <string name="trace_source_authoritative_dns">authoritative DNS</string>
     <string name="trace_source_authoritative_doh">authoritative DoH</string>
-    <string name="trace_source_hns_doh" translatable="false">third-party HNS DoH</string>
+    <string name="trace_source_hns_doh" translatable="false">unsupported legacy HNS DoH status</string>
     <string name="trace_source_hns_resource">HNS resource</string>
     <string name="trace_protocol_authoritative_udp53">Authoritative UDP 53</string>
     <string name="trace_protocol_authoritative_tcp53">Authoritative TCP 53</string>
     <string name="trace_protocol_authoritative_doh">Authoritative DoH</string>
     <string name="trace_protocol_dns_interception_probe" translatable="false">Port 53 interception probe</string>
-    <string name="trace_protocol_hns_doh">Compatibility HNS DoH</string>
+    <string name="trace_protocol_hns_doh">Unsupported legacy HNS DoH</string>
     <string name="trace_protocol_icann_doh">Trusted ICANN DoH</string>
     <string name="trace_tlsa_present">present</string>
     <string name="trace_tlsa_absent">absent</string>
@@ -527,7 +510,7 @@
     <string name="trace_fix_dnssec_before_tlsa">Fix delegated DNSSEC first. TLSA/DANE was not evaluated because secure resolution failed before the TLSA lookup.</string>
     <string name="trace_fix_renew_cert">Renew the origin HTTPS certificate. The gateway reached an HTTPS origin, but TLS failed because the certificate is past its validity window.</string>
     <string name="trace_fix_origin_address_missing">Serve A/AAAA for the requested host from delegated DNS. HNS GLUE/SYNTH data is only used to reach nameservers, not as the origin address.</string>
-    <string name="trace_fix_compat_fallback_used">Compatibility DoH fallback was used. Enable Strict HNS mode to verify whether the site works fully without third-party DoH.</string>
+    <string name="trace_fix_compat_fallback_used">An unsupported legacy HNS DoH status was reported. Current builds prohibit this path; update or restart the runtime.</string>
     <string name="trace_fix_no_obvious_hns">No obvious fix from this trace. If HTTPS fails, inspect TLSA/DANE once certificate tracing is enabled.</string>
     <string name="trace_fix_icann_dnssec_bogus">Fix the ICANN DNSSEC chain: DS, DNSKEY, signatures, and denial records must validate.</string>
     <string name="trace_fix_icann_origin_address_missing">Publish a DNSSEC-validated A or AAAA record for this host.</string>

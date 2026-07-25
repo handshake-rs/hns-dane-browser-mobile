@@ -158,8 +158,8 @@ intended use; delete the disposable key when the retained topology is no longer
 needed.
 
 The registered A record is `127.0.0.1`, so the same DNSSEC/TLSA data reaches the
-device-side forwarded HTTPS origin. Enable strict HNS mode and the experimental
-peer relay and disable legacy HNS DoH. The Docker/native pass does not by itself
+device-side forwarded HTTPS origin. Enable the experimental peer relay; strict
+HNS DNSSEC/DANE is mandatory and public recursive HNS DoH is unavailable. The Docker/native pass does not by itself
 claim Android application-binary execution; record the device result
 separately, then remove the two `adb reverse` mappings and stop the kept Compose
 project.
@@ -233,7 +233,8 @@ advertises the relay capability. Ordinary discovered peers remain available,
 and arbitrary public peers must not be assumed to support the private
 identifiers. The relay-only requester advertises no local services, and the
 remote version height observed by this capability check does not affect sync
-target/currentness. P2P relay and legacy DoH remain independently configurable.
+target/currentness. The P2P relay remains independently disableable; public
+recursive HNS DoH is not a runtime option.
 
 ### Stage 1: synthetic shadow
 
@@ -242,19 +243,21 @@ queries for measurement. Verify cross-implementation bytes, response limits,
 local DNSSEC/DANE outcomes, alternate-peer failover, and aggregate latency and
 availability. No user browsing traffic is eligible.
 
-### Stage 2: development-build fallback
+### Stage 2: development-build fail-closed fallback
 
 Use the enforced order: proof-declared authoritative DoH, direct authoritative
-53, experimental relay, then separately enabled legacy DoH. Confirm that a
-successful authoritative DoH or direct exchange suppresses all later paths.
-Review aggregate BUSY, timeout, malformed, retry, and validation-failure counts.
+53, experimental relay, then fail closed. Confirm that a successful
+authoritative DoH or direct exchange suppresses all later paths, and that relay
+unavailability never contacts the zero-contact public-resolver sentinel. Review
+aggregate BUSY, timeout, malformed, retry, and validation-failure counts.
 
-### Stage 3: tester builds without legacy DoH
+### Stage 3: tester builds
 
-For explicitly consenting testers only, enable the relay while disabling legacy
-DoH. Demonstrate that port-53-only HNS sites remain usable through at least two
-independent relays and that invalid DNSSEC/TLSA/DANE remains fail-closed. Provide
-an immediate in-app off switch and a documented fallback/rollback route.
+For explicitly consenting testers only, enable the relay. Demonstrate that
+port-53-only HNS sites remain usable through at least two independent relays and
+that invalid DNSSEC/TLSA/DANE remains fail-closed. Exercise the in-app off
+switch and verify that a name with no available authoritative path fails closed
+without a public recursive or WebPKI fallback.
 
 ### Stage 4: wider opt-in
 
@@ -262,22 +265,22 @@ Expand only after relay diversity, stable rate/concurrency limits, reliable
 failover, measured tail latency, privacy review, and confirmed qname-free normal
 logging. Keep this opt-in while identifiers remain private.
 
-## Stop, rollback, and eventual legacy-DoH removal
+## Stop and rollback
 
 Stop a stage on any trust regression, qname/raw-DNS logging, unbounded pending
 work or memory, repeated cross-implementation decode failure, material DNSSEC or
 DANE discrepancy, single-relay dependency, or inability to distinguish
 provenance. Disable the browser relay setting first, then disable the `hsd`
-experimental option. The legacy path remains a separate setting and is not
-removed by rollback. Purge only ephemeral aggregate canary data according to its
-published retention policy; do not preserve query data that should never have
-been logged.
+experimental option. The client then fails closed when no direct authoritative
+path succeeds; rollback does not restore public recursive HNS DoH or HNS WebPKI.
+Purge only ephemeral aggregate canary data according to its published retention
+policy; do not preserve query data that should never have been logged.
 
-Removing legacy DoH from default behavior requires measured independent relay
-diversity, availability and failure rates, median/p95/p99 latency, successful
-alternate-peer failover, adequate authoritative-DoH adoption, no centralized
-discovery requirement, stable interoperability, and a completed protocol and
-privacy review. Permanent service/packet assignments, exact wire behavior,
-admission, limits, retry/scoring, encryption expectations, AD treatment,
-logging, and a possible future oblivious mode belong in a future HIP; this
-runbook does not create one.
+Wider relay use still requires measured independent relay diversity,
+availability and failure rates, median/p95/p99 latency, successful alternate
+failover, adequate authoritative-DoH adoption, no centralized discovery
+requirement, stable interoperability, and completed protocol and privacy
+review. Permanent service/packet assignments, exact wire behavior, admission,
+limits, retry/scoring, encryption expectations, AD treatment, logging, and a
+possible future oblivious mode belong in a future HIP; this runbook does not
+create one.

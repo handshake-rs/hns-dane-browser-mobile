@@ -11,9 +11,9 @@ class HnsResolutionPreferencesTest {
     @Test
     fun relayControlsUseSafeIndependentDefaults() {
         assertEquals("mainnet", HnsResolutionPreferences.DEFAULT_HANDSHAKE_NETWORK)
-        assertFalse(HnsResolutionPreferences.DEFAULT_STRICT_HNS_MODE)
+        assertTrue(HnsResolutionPreferences.DEFAULT_STRICT_HNS_MODE)
         assertTrue(HnsResolutionPreferences.DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY)
-        assertTrue(HnsResolutionPreferences.DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY)
+        assertFalse(HnsResolutionPreferences.DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY)
     }
 
     @Test
@@ -24,20 +24,9 @@ class HnsResolutionPreferencesTest {
             if (relayTestBuild) HandshakeNetwork.Regtest else HandshakeNetwork.Mainnet,
             HnsResolutionPreferences.buildDefaultHandshakeNetwork(),
         )
-        assertEquals(relayTestBuild, HnsResolutionPreferences.buildDefaultStrictHnsMode())
+        assertTrue(HnsResolutionPreferences.buildDefaultStrictHnsMode())
         assertTrue(HnsResolutionPreferences.buildDefaultExperimentalP2pDnsRelay())
-        assertEquals(
-            !relayTestBuild,
-            HnsResolutionPreferences.buildDefaultLegacyHnsDohCompatibility(),
-        )
-    }
-
-    @Test
-    fun defaultDohResolverUsesWorkingZorroNode() {
-        assertEquals(
-            "https://zorro.hnsdoh.com/dns-query",
-            HnsResolutionPreferences.DEFAULT_DOH_RESOLVER_URL,
-        )
+        assertFalse(HnsResolutionPreferences.buildDefaultLegacyHnsDohCompatibility())
     }
 
     @Test
@@ -83,38 +72,5 @@ class HnsResolutionPreferencesTest {
         )) {
             assertNull(endpoint, HnsResolutionPreferences.normalizeStaticRelayPeerEndpoint(endpoint))
         }
-    }
-
-    @Test
-    fun normalizeDohResolverUrlAcceptsHttpsEndpoint() {
-        assertEquals(
-            "https://resolver.example/dns-query",
-            HnsResolutionPreferences.normalizeDohResolverUrl(" https://Resolver.Example/dns-query "),
-        )
-        assertEquals(
-            "https://resolver.example:8443/query",
-            HnsResolutionPreferences.normalizeDohResolverUrl("https://resolver.example:8443/query"),
-        )
-    }
-
-    @Test
-    fun normalizeDohResolverUrlUsesDefaultForBlank() {
-        assertEquals(
-            HnsResolutionPreferences.DEFAULT_DOH_RESOLVER_URL,
-            HnsResolutionPreferences.normalizeDohResolverUrl(" "),
-        )
-    }
-
-    @Test
-    fun normalizeDohResolverUrlRejectsUnsafeUrls() {
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("http://resolver.example/dns-query"))
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("https://user@resolver.example/dns-query"))
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("https://resolver.example/dns-query#frag"))
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("https://resolver.example:0/dns-query"))
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("https://resolver.example:65536/dns-query"))
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("https://resolver.example:25/dns-query"))
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("https://resolver.example:6667/dns-query"))
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("https://[::1]/dns-query"))
-        assertNull(HnsResolutionPreferences.normalizeDohResolverUrl("https://resolver.example/" + "x".repeat(5_000)))
     }
 }

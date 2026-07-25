@@ -47,7 +47,7 @@ final class RustBrowserRuntime: BrowserRuntime {
             case .regtest:
                 options.network = HNS_BROWSER_NETWORK_REGTEST
             }
-            options.resolution_mode = HNS_BROWSER_RESOLUTION_COMPATIBILITY
+            options.resolution_mode = HNS_BROWSER_RESOLUTION_STRICT
             return hns_browser_runtime_create(&options, &handle)
         }
         try RustBridge.check(result, operation: "runtime create")
@@ -130,26 +130,13 @@ final class RustBrowserRuntime: BrowserRuntime {
             hns_browser_policy_default(&nativePolicy),
             operation: "policy defaults"
         )
-        switch policy.resolutionMode {
-        case .compatibility:
-            nativePolicy.resolution_mode = HNS_BROWSER_RESOLUTION_COMPATIBILITY
-        case .strict:
-            nativePolicy.resolution_mode = HNS_BROWSER_RESOLUTION_STRICT
-        }
+        nativePolicy.resolution_mode = HNS_BROWSER_RESOLUTION_STRICT
         nativePolicy.stateless_dane_certificates = policy.statelessDANECertificates ? 1 : 0
         nativePolicy.experimental_p2p_dns_relay = policy.experimentalP2PDNSRelay ? 1 : 0
-        nativePolicy.legacy_hns_doh_compatibility = policy.legacyHNSDoHCompatibility ? 1 : 0
+        nativePolicy.legacy_hns_doh_compatibility = 0
 
         var revision: UInt64 = 0
-        let result: HnsBrowserResult
-        if let endpoint = policy.hnsDohResolver {
-            result = RustBridge.withUTF8Slice(endpoint) { endpointSlice in
-                nativePolicy.hns_doh_resolver = endpointSlice
-                return hns_browser_runtime_set_policy(handle, &nativePolicy, &revision)
-            }
-        } else {
-            result = hns_browser_runtime_set_policy(handle, &nativePolicy, &revision)
-        }
+        let result = hns_browser_runtime_set_policy(handle, &nativePolicy, &revision)
         try RustBridge.check(result, operation: "runtime policy update")
         guard revision != 0 else {
             throw RustBridgeError.invalidOutput("policy revision is zero")
@@ -406,7 +393,7 @@ final class RustBrowserRuntime: BrowserRuntime {
 
 }
 
-private final class RustBrowserProxySession: BrowserProxySession {
+final class RustBrowserProxySession: BrowserProxySession {
     let endpoint: BrowserProxyEndpoint
     private(set) var latestResolutionTraceJSON: String?
 
@@ -535,29 +522,51 @@ private final class RustBrowserProxySession: BrowserProxySession {
             latestResolutionTraceJSON = trace
         }
 
-        if status.http_status >= 400 {
+        return Self.securitySummary(
+            httpStatus: status.http_status,
+            tlsPolicy: status.tls_policy,
+            resolverPolicy: status.resolver_policy,
+            securityPath: status.security_path
+        )
+    }
+
+    static func securitySummary(
+        httpStatus: UInt32,
+        tlsPolicy: UInt32,
+        resolverPolicy: UInt32,
+        securityPath: UInt32
+    ) -> BrowserSecuritySummary {
+        if httpStatus >= 400 {
             return BrowserSecuritySummary(
                 level: .blocked,
                 detail: "The Rust proxy rejected the HNS response"
             )
         }
-        if status.tls_policy == HNS_BROWSER_TLS_POLICY_UNKNOWN,
-           status.security_path != HNS_BROWSER_SECURITY_PATH_UNKNOWN {
+        if resolverPolicy == HNS_BROWSER_RESOLVER_POLICY_HNS_DOH_COMPATIBILITY ||
+            securityPath == HNS_BROWSER_SECURITY_PATH_DANE_THIRD_PARTY_DOH ||
+            securityPath == HNS_BROWSER_SECURITY_PATH_HNS_THIRD_PARTY_DOH {
+            return BrowserSecuritySummary(
+                level: .blocked,
+                detail: "Unsupported legacy HNS resolver status"
+            )
+        }
+        if tlsPolicy == HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK {
+            return BrowserSecuritySummary(
+                level: .blocked,
+                detail: "Unsupported legacy HNS WebPKI status"
+            )
+        }
+        if tlsPolicy == HNS_BROWSER_TLS_POLICY_UNKNOWN,
+           securityPath != HNS_BROWSER_SECURITY_PATH_UNKNOWN {
             return BrowserSecuritySummary(
                 level: .insecure,
-                detail: "Rust HNS resolution · \(Self.securityPathLabel(status.security_path)) · plain HTTP"
+                detail: "Rust HNS resolution · \(Self.securityPathLabel(securityPath)) · plain HTTP"
             )
         }
-        if status.tls_policy == HNS_BROWSER_TLS_POLICY_DANE {
+        if tlsPolicy == HNS_BROWSER_TLS_POLICY_DANE {
             return BrowserSecuritySummary(
                 level: .handshakeDANE,
-                detail: "DANE verified · \(Self.securityPathLabel(status.security_path))"
-            )
-        }
-        if status.tls_policy == HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK {
-            return BrowserSecuritySummary(
-                level: .handshakeFallback,
-                detail: "HNS resolved · system WebPKI fallback"
+                detail: "DANE verified · \(Self.securityPathLabel(securityPath))"
             )
         }
         return BrowserSecuritySummary(
@@ -591,7 +600,7 @@ private final class RustBrowserProxySession: BrowserProxySession {
         case HNS_BROWSER_SECURITY_PATH_DANE_AUTHORITATIVE_DNS53:
             return "authoritative DNS"
         case HNS_BROWSER_SECURITY_PATH_DANE_THIRD_PARTY_DOH:
-            return "configured DoH"
+            return "unsupported legacy HNS DoH"
         case HNS_BROWSER_SECURITY_PATH_STATELESS_DANE:
             return "stateless DANE"
         case HNS_BROWSER_SECURITY_PATH_DANE_ICANN_DOH:
@@ -601,7 +610,7 @@ private final class RustBrowserProxySession: BrowserProxySession {
         case HNS_BROWSER_SECURITY_PATH_HNS_AUTHORITATIVE_DNS53:
             return "HNS authoritative DNS"
         case HNS_BROWSER_SECURITY_PATH_HNS_THIRD_PARTY_DOH:
-            return "HNS configured DoH"
+            return "unsupported legacy HNS DoH"
         case HNS_BROWSER_SECURITY_PATH_DANE_P2P_DNS_RELAY:
             return "P2P DNS relay"
         case HNS_BROWSER_SECURITY_PATH_HNS_P2P_DNS_RELAY:

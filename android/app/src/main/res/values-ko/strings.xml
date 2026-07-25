@@ -34,11 +34,8 @@
 <string name="security_syncing">동기화 중</string>
 <string name="security_loading">로드 중</string>
 <string name="security_hns_verified">HNS이 확인되었습니다.</string>
-<string name="security_hns_compat">DoH를 통한 HNS</string>
 <string name="security_dane_verified">DANE이 확인되었습니다.</string>
-<string name="security_dane_compat">DoH를 통한 DANE</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS + WebPKI</string>
 <string name="security_failed">검증 실패</string>
 <string name="security_proof_unavailable">증명할 수 없음</string>
 <string name="http_transport_warning">안전하지 않음: HTTP 트래픽이 암호화되지 않습니다</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">기록 지우기</string>
 <string name="row_clear_history_summary">이 기기에서 저장된 인터넷 사용기록을 삭제하세요.</string>
 <string name="row_clear_resolver_cache">확인자 캐시 지우기</string>
-<string name="row_compatibility_doh_resolver">호환성 DoH 리졸버</string>
 <string name="row_cookies">쿠키</string>
 <string name="row_copy_diagnostic_bundle">진단 번들 복사</string>
 <string name="row_copy_diagnostic_bundle_summary">빌드, 런타임 및 네이티브 핵심 세부정보를 복사합니다.</string>
@@ -246,11 +242,6 @@
 <string name="settings_homepage_reset_title">홈페이지를 재설정하시겠습니까?</string>
 <string name="settings_homepage_reset_message">그러면 기본 Denuo Web 홈페이지가 복원됩니다.</string>
 <string name="settings_homepage_reset">홈페이지 재설정</string>
-<string name="settings_doh_edit_title">DoH 해석기 편집</string>
-<string name="settings_doh_edit_message">HTTPS DNS-over-HTTPS 엔드포인트를 입력하세요. 기본값을 사용하려면 비워 두세요.</string>
-<string name="settings_doh_error">유효한 HTTPS DoH URL을 입력하세요.</string>
-<string name="settings_doh_saved">DoH 리졸버가 저장되었습니다.</string>
-<string name="settings_doh_reset">DoH 리졸버 재설정</string>
 <string name="settings_resolver_cache_clear_title">확인자 캐시를 지우시겠습니까?</string>
 <string name="settings_resolver_cache_clear_message">앱은 동기화된 %1$s 헤더 및 피어를 유지하지만 이 네트워크에 대해 캐시된 HNS 리소스 값은 제거됩니다.</string>
 <string name="settings_resolver_cache_cleared">%1$s 확인자 캐시가 지워졌습니다.</string>
@@ -263,12 +254,9 @@
 <string name="settings_header_resync_started">헤더 재동기화 시작됨</string>
 <string name="settings_header_resync_failed_status">헤더 재설정이 완료되지 않았습니다. 자세한 내용은 진단을 여세요.</string>
 <string name="settings_header_resync_failed">헤더 재동기화가 시작되지 않았습니다.</string>
-<string name="settings_hns_mode_on">켜짐. 위임된 해결 실패는 페일클로즈됩니다.</string>
-<string name="settings_hns_mode_off">꺼짐. 로컬 또는 직접 해결이 실패한 후에 호환성 대체를 사용할 수 있습니다.</string>
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">켜짐. 인증서가 포함된 HNS 증명 증거는 유효할 경우 DANE를 충족할 수 있습니다.</string>
 <string name="settings_stateless_dane_off">꺼짐. HNS 증거 및 TLSA 증거는 라이브 확인자 경로를 사용합니다.</string>
-<string name="settings_strict_hns_mode">엄격한 HNS 모드</string>
 <string name="settings_stateless_dane_certificates">실험적인 무상태 DANE 인증서</string>
 <string name="settings_theme_dialog_title">테마</string>
 <string name="settings_theme_set">테마가 %1$s로 설정되었습니다.</string>
@@ -421,7 +409,6 @@
 <string name="trace_protocol_authoritative_udp53">신뢰할 수 있는 UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">신뢰할 수 있는 TCP 53</string>
 <string name="trace_protocol_authoritative_doh">신뢰할 수 있는 DoH</string>
-<string name="trace_protocol_hns_doh">호환성 HNS DoH</string>
 <string name="trace_protocol_icann_doh">신뢰할 수 있는 ICANN DoH</string>
 <string name="trace_tlsa_present">현재</string>
 <string name="trace_tlsa_absent">결석</string>
@@ -458,7 +445,6 @@
 <string name="trace_fix_dnssec_before_tlsa">위임된 DNSSEC을 먼저 수정하세요. TLSA 조회 전에 보안 확인이 실패했기 때문에 TLSA/DANE가 평가되지 않았습니다.</string>
 <string name="trace_fix_renew_cert">원본 HTTPS 인증서를 갱신합니다. 게이트웨이가 HTTPS 원본에 도달했지만 인증서가 유효 기간을 지나 TLS가 실패했습니다.</string>
 <string name="trace_fix_origin_address_missing">위임된 DNS에서 요청된 호스트에 대해 A/AAAA을 제공합니다. HNS GLUE/SYNTH 데이터는 원본 주소가 아닌 네임서버에 도달하는 데에만 사용됩니다.</string>
-<string name="trace_fix_compat_fallback_used">호환성 DoH 대체가 사용되었습니다. 엄격한 HNS 모드를 활성화하여 타사 DoH 없이도 사이트가 완벽하게 작동하는지 확인하세요.</string>
 <string name="trace_fix_no_obvious_hns">이 추적에서는 확실한 수정 사항이 없습니다. HTTPS이 실패하면 인증서 추적이 활성화된 후 TLSA/DANE를 검사합니다.</string>
 <string name="trace_fix_icann_dnssec_bogus">ICANN DNSSEC 체인 수정: DS, DNSKEY, 서명 및 거부 기록을 검증해야 합니다.</string>
 <string name="trace_fix_icann_origin_address_missing">이 호스트에 대해 DNSSEC 검증 A 또는 AAAA 레코드를 게시합니다.</string>

@@ -57,8 +57,8 @@ Presenting an unrelated certificate, another host's certificate, or a stopped ge
 ### Browser behavior
 
 - Repeat the Android parity cases for GET, POST, uploads, range requests, redirects, cookies, JavaScript fetch/XHR, Service Workers, WebSockets, downloads, HTTP/1.1, HTTP/2, HTTP/3 origin transport, IPv4, and IPv6.
-- Exercise `https://denuoweb/` for authoritative DoH and `https://aboutlife/` for the compatibility resolver path; compare security labels and bounded traces with Android.
-- Verify strict mode, compatibility mode, configured HNS DoH, stateless DANE, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
+- Exercise `https://denuoweb/` for proof-anchored authoritative DoH and a second HNS origin whose direct authoritative path is unavailable; verify that the second origin uses the independently enabled P2P relay or fails closed, and compare bounded security traces with Android.
+- Verify the strict HNS trust invariant, absence of public recursive HNS DoH and HNS WebPKI fallback, explicit relay opt-out, legacy-policy migration, stateless DANE, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
 
 ## Apple References
 

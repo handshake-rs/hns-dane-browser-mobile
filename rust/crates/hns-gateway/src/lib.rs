@@ -26,15 +26,8 @@ pub struct GatewayConfig {
     pub allow_non_public_origin_addresses: bool,
     pub allow_unsafe_origin_ports: bool,
     pub require_secure_resolution: bool,
-    pub hns_https_mode: HnsHttpsMode,
     pub supported_origin_protocols: Vec<OriginProtocol>,
     pub stateless_dane: StatelessDaneConfig,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum HnsHttpsMode {
-    Strict,
-    Compatibility,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -115,7 +108,6 @@ impl Default for GatewayConfig {
             allow_non_public_origin_addresses: false,
             allow_unsafe_origin_ports: false,
             require_secure_resolution: true,
-            hns_https_mode: HnsHttpsMode::Strict,
             supported_origin_protocols: vec![
                 OriginProtocol::Http11,
                 OriginProtocol::Http2,
@@ -141,7 +133,6 @@ impl std::fmt::Debug for GatewayConfig {
             )
             .field("allow_unsafe_origin_ports", &self.allow_unsafe_origin_ports)
             .field("require_secure_resolution", &self.require_secure_resolution)
-            .field("hns_https_mode", &self.hns_https_mode)
             .field(
                 "supported_origin_protocols",
                 &self.supported_origin_protocols,
@@ -282,8 +273,7 @@ where
             .ok_or(GatewayError::NoResolvedAddress)?;
         self.validate_origin_address(connect_host)?;
         if is_tls_origin_scheme(&origin_request.scheme) {
-            origin_request.tls.mode =
-                domain_trust_mode_for_host(&origin_request.host, self.config.hns_https_mode);
+            origin_request.tls.mode = domain_trust_mode_for_host(&origin_request.host);
             if origin_request.tls.mode != DomainTrustMode::IcannWebPki {
                 origin_request.tls.stateless_dane = self.config.stateless_dane.clone();
             }
@@ -408,18 +398,9 @@ fn optional_https_service_policy_error(error: &GatewayError) -> bool {
     matches!(error, GatewayError::Resolver(_))
 }
 
-impl HnsHttpsMode {
-    fn domain_trust_mode(self) -> DomainTrustMode {
-        match self {
-            HnsHttpsMode::Strict => DomainTrustMode::HnsStrict,
-            HnsHttpsMode::Compatibility => DomainTrustMode::HnsCompatibility,
-        }
-    }
-}
-
-fn domain_trust_mode_for_host(host: &str, hns_https_mode: HnsHttpsMode) -> DomainTrustMode {
+fn domain_trust_mode_for_host(host: &str) -> DomainTrustMode {
     match classify_name(host) {
-        NameClass::Hns => hns_https_mode.domain_trust_mode(),
+        NameClass::Hns => DomainTrustMode::HnsStrict,
         NameClass::Icann | NameClass::Search => DomainTrustMode::IcannWebPki,
     }
 }
@@ -1901,12 +1882,9 @@ mod tests {
     }
 
     #[test]
-    fn compatibility_mode_allows_https_transport_webpki_fallback() {
+    fn hns_https_transport_never_selects_webpki_fallback() {
         let gateway = Gateway::new(
-            GatewayConfig {
-                hns_https_mode: HnsHttpsMode::Compatibility,
-                ..GatewayConfig::default()
-            },
+            GatewayConfig::default(),
             ScriptedResolver::new(
                 vec![
                     response("name", RecordType::A.code(), true, vec![address_record()]),
@@ -1928,7 +1906,7 @@ mod tests {
             .unwrap()
             .clone()
             .unwrap();
-        assert_eq!(captured.tls.mode, DomainTrustMode::HnsCompatibility);
+        assert_eq!(captured.tls.mode, DomainTrustMode::HnsStrict);
         assert!(captured.tls.dnssec_secure);
         assert!(captured.tls.tlsa_records.is_empty());
     }
@@ -1937,7 +1915,6 @@ mod tests {
     fn rejects_unsigned_hns_https_origin() {
         let gateway = Gateway::new(
             GatewayConfig {
-                hns_https_mode: HnsHttpsMode::Compatibility,
                 supported_origin_protocols: vec![OriginProtocol::Http11, OriginProtocol::Http2],
                 ..GatewayConfig::default()
             },
@@ -1959,10 +1936,7 @@ mod tests {
     #[test]
     fn rejects_unsigned_https_service_policy() {
         let gateway = Gateway::new(
-            GatewayConfig {
-                hns_https_mode: HnsHttpsMode::Compatibility,
-                ..GatewayConfig::default()
-            },
+            GatewayConfig::default(),
             ScriptedResolver::new(
                 vec![
                     response("name", RecordType::A.code(), true, vec![address_record()]),
@@ -1983,10 +1957,7 @@ mod tests {
     #[test]
     fn rejects_unsigned_https_service_policy_by_default() {
         let gateway = Gateway::new(
-            GatewayConfig {
-                hns_https_mode: HnsHttpsMode::Compatibility,
-                ..GatewayConfig::default()
-            },
+            GatewayConfig::default(),
             ScriptedResolver::new(
                 vec![
                     response("name", RecordType::A.code(), true, vec![address_record()]),

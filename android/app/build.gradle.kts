@@ -559,9 +559,9 @@ android {
         versionName = "0.5.0"
 
         buildConfigField("String", "HNS_DEFAULT_HANDSHAKE_NETWORK", "\"mainnet\"")
-        buildConfigField("boolean", "HNS_DEFAULT_STRICT_MODE", "false")
+        buildConfigField("boolean", "HNS_DEFAULT_STRICT_MODE", "true")
         buildConfigField("boolean", "HNS_DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY", "true")
-        buildConfigField("boolean", "HNS_DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY", "true")
+        buildConfigField("boolean", "HNS_DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {

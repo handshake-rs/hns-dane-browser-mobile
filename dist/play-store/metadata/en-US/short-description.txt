@@ -1,1 +1,1 @@
-Browse HNS names with local proofs, RFC 8484 DoH, DNSSEC, and DANE.
+Browse HNS with local proofs, DNSSEC, DANE, and an optional P2P relay.

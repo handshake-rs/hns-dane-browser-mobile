@@ -20,26 +20,31 @@ object BrowserSecurityPolicy {
             return SecurityState.ValidationFailed
         }
         if (mainFrameHnsStatusCode?.let { it in 200..299 } == true) {
+            if (
+                mainFrameHnsResolverPolicy == HnsPageResolverPolicy.HnsDohCompatibility ||
+                mainFrameHnsSecurityPath == HnsPageSecurityPath.DaneThirdPartyDoh ||
+                mainFrameHnsSecurityPath == HnsPageSecurityPath.HnsThirdPartyDoh ||
+                (
+                    targetKind == BrowserTargetKind.HnsName &&
+                        mainFrameHnsTlsPolicy == HnsPageTlsPolicy.WebPkiFallback
+                    )
+            ) {
+                return SecurityState.ValidationFailed
+            }
             mainFrameHnsSecurityPath?.let { securityPath ->
                 return securityPath.securityState()
             }
             if (mainFrameHnsTlsPolicy == HnsPageTlsPolicy.Dane) {
-                if (mainFrameHnsResolverPolicy == HnsPageResolverPolicy.HnsDohCompatibility) {
-                    return SecurityState.DaneCompatibility
-                }
                 return SecurityState.DaneVerified
             }
             if (mainFrameHnsTlsPolicy == HnsPageTlsPolicy.WebPkiFallback) {
                 if (targetKind == BrowserTargetKind.NativeGateway) {
                     return SecurityState.WebPkiOnly
                 }
-                return SecurityState.MixedPolicy
+                return SecurityState.ValidationFailed
             }
             if (targetKind == BrowserTargetKind.NativeGateway) {
                 return SecurityState.WebPkiOnly
-            }
-            if (mainFrameHnsResolverPolicy == HnsPageResolverPolicy.HnsDohCompatibility) {
-                return SecurityState.HnsCompatibility
             }
             return SecurityState.HnsVerified
         }
@@ -70,12 +75,12 @@ object BrowserSecurityPolicy {
         when (this) {
             HnsPageSecurityPath.DaneAuthoritativeDoh -> SecurityState.DaneViaAuthoritativeDoh
             HnsPageSecurityPath.DaneAuthoritativeDns53 -> SecurityState.DaneViaAuthoritativeDns53
-            HnsPageSecurityPath.DaneThirdPartyDoh -> SecurityState.DaneViaThirdPartyDoh
+            HnsPageSecurityPath.DaneThirdPartyDoh -> SecurityState.ValidationFailed
             HnsPageSecurityPath.StatelessDane -> SecurityState.StatelessDane
             HnsPageSecurityPath.DaneIcannDoh -> SecurityState.DaneViaIcannDoh
             HnsPageSecurityPath.HnsAuthoritativeDoh -> SecurityState.HnsViaAuthoritativeDoh
             HnsPageSecurityPath.HnsAuthoritativeDns53 -> SecurityState.HnsViaAuthoritativeDns53
-            HnsPageSecurityPath.HnsThirdPartyDoh -> SecurityState.HnsViaThirdPartyDoh
+            HnsPageSecurityPath.HnsThirdPartyDoh -> SecurityState.ValidationFailed
             HnsPageSecurityPath.DaneP2pDnsRelay -> SecurityState.DaneViaP2pDnsRelay
             HnsPageSecurityPath.HnsP2pDnsRelay -> SecurityState.HnsViaP2pDnsRelay
         }

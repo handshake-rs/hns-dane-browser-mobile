@@ -410,17 +410,6 @@ impl TlsValidation {
             stateless_dane: StatelessDaneConfig::default(),
         }
     }
-
-    pub fn hns_compatibility(dnssec_secure: bool, tlsa_records: Vec<TlsaRecord>) -> Self {
-        Self {
-            mode: DomainTrustMode::HnsCompatibility,
-            dnssec_secure,
-            tlsa_records,
-            tlsa_source: None,
-            service_port: 443,
-            stateless_dane: StatelessDaneConfig::default(),
-        }
-    }
 }
 
 impl OriginResponse {
@@ -3460,7 +3449,7 @@ mod tests {
         );
         let mut request = request(server.address);
         request.scheme = "https".to_owned();
-        request.tls = TlsValidation::hns_compatibility(false, Vec::new());
+        request.tls = TlsValidation::default();
         request.tls.stateless_dane = StatelessDaneConfig {
             enabled: true,
             accepted_tree_roots: vec![[0x42; 32]],

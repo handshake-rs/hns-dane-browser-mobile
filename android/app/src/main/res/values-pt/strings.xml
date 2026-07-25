@@ -34,11 +34,8 @@
     <string name="security_syncing">Sincronizando</string>
     <string name="security_loading">Carregando</string>
     <string name="security_hns_verified">HNS verificado</string>
-    <string name="security_hns_compat">HNS via DoH</string>
     <string name="security_dane_verified">DANE verificado</string>
-    <string name="security_dane_compat">DANE via DoH</string>
     <string name="security_webpki">WebPKI</string>
-    <string name="security_hns_webpki">HNS + WebPKI</string>
     <string name="security_failed">Falha na validação</string>
     <string name="security_proof_unavailable">Prova indisponível</string>
     <string name="http_transport_warning">Não seguro: o tráfego HTTP não é criptografado</string>
@@ -124,7 +121,6 @@
     <string name="row_clear_history">Limpar histórico</string>
     <string name="row_clear_history_summary">Remova o histórico de navegação salvo deste dispositivo.</string>
     <string name="row_clear_resolver_cache">Limpar cache do resolvedor</string>
-    <string name="row_compatibility_doh_resolver">Resolvedor DoH de compatibilidade</string>
     <string name="row_cookies">Biscoitos</string>
     <string name="row_copy_diagnostic_bundle">Copiar pacote de diagnóstico</string>
     <string name="row_copy_diagnostic_bundle_summary">Copie detalhes de compilação, tempo de execução e núcleo nativo.</string>
@@ -246,11 +242,6 @@
     <string name="settings_homepage_reset_title">Redefinir página inicial?</string>
     <string name="settings_homepage_reset_message">Isso restaura a página inicial padrão do Denuo Web.</string>
     <string name="settings_homepage_reset">Redefinição da página inicial</string>
-    <string name="settings_doh_edit_title">Editar resolvedor DoH</string>
-    <string name="settings_doh_edit_message">Insira um endpoint HTTPS DNS sobre HTTPS. Deixe em branco para usar o padrão.</string>
-    <string name="settings_doh_error">Insira um URL HTTPS DoH válido</string>
-    <string name="settings_doh_saved">Resolvedor DoH salvo</string>
-    <string name="settings_doh_reset">Redefinição do resolvedor DoH</string>
     <string name="settings_resolver_cache_clear_title">Limpar cache do resolvedor?</string>
     <string name="settings_resolver_cache_clear_message">O aplicativo manterá cabeçalhos e pares %1$s sincronizados, mas os valores de recursos HNS armazenados em cache para esta rede serão removidos.</string>
     <string name="settings_resolver_cache_cleared">Cache do resolvedor %1$s limpo</string>
@@ -263,12 +254,9 @@
     <string name="settings_header_resync_started">A ressincronização do cabeçalho foi iniciada</string>
     <string name="settings_header_resync_failed_status">A redefinição do cabeçalho não foi concluída. Abra o diagnóstico para obter detalhes.</string>
     <string name="settings_header_resync_failed">A ressincronização do cabeçalho não foi iniciada</string>
-    <string name="settings_hns_mode_on">Sobre. As falhas de resolução delegada falham no fechamento.</string>
-    <string name="settings_hns_mode_off">Desligado. O fallback de compatibilidade pode ser usado após falha na resolução local ou direta.</string>
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">Sobre. A evidência de prova HNS transportada por certificado pode satisfazer o DANE quando válida.</string>
     <string name="settings_stateless_dane_off">Desligado. A prova HNS e a evidência TLSA usam o caminho do resolvedor ao vivo.</string>
-    <string name="settings_strict_hns_mode">Modo HNS estrito</string>
     <string name="settings_stateless_dane_certificates">Certificados DANE apátridas experimentais</string>
     <string name="settings_theme_dialog_title">Tema</string>
     <string name="settings_theme_set">Tema definido como %1$s.</string>
@@ -421,7 +409,6 @@
     <string name="trace_protocol_authoritative_udp53">UDP oficial 53</string>
     <string name="trace_protocol_authoritative_tcp53">TCP autoritativo 53</string>
     <string name="trace_protocol_authoritative_doh">DoH oficial</string>
-    <string name="trace_protocol_hns_doh">Compatibilidade HNS DoH</string>
     <string name="trace_protocol_icann_doh">DoH confiável da ICANN</string>
     <string name="trace_tlsa_present">presente</string>
     <string name="trace_tlsa_absent">ausente</string>
@@ -458,7 +445,6 @@
     <string name="trace_fix_dnssec_before_tlsa">Corrija primeiro o DNSSEC delegado. O TLSA/DANE não foi avaliado porque a resolução segura falhou antes da pesquisa do TLSA.</string>
     <string name="trace_fix_renew_cert">Renove o certificado HTTPS de origem. O gateway atingiu uma origem HTTPS, mas o TLS falhou porque o certificado já passou da janela de validade.</string>
     <string name="trace_fix_origin_address_missing">Sirva A/AAAA para o host solicitado do DNS delegado. Os dados HNS GLUE/SYNTH são usados ​​apenas para alcançar servidores de nomes, não como endereço de origem.</string>
-    <string name="trace_fix_compat_fallback_used">O fallback DoH de compatibilidade foi usado. Ative o modo Strict HNS para verificar se o site funciona totalmente sem DoH de terceiros.</string>
     <string name="trace_fix_no_obvious_hns">Nenhuma solução óbvia para esse rastreamento. Se o HTTPS falhar, inspecione o TLSA/DANE assim que o rastreamento do certificado estiver ativado.</string>
     <string name="trace_fix_icann_dnssec_bogus">Corrija a cadeia DNSSEC da ICANN: DS, DNSKEY, assinaturas e registros de negação devem ser validados.</string>
     <string name="trace_fix_icann_origin_address_missing">Publique um registro A ou AAAA validado por DNSSEC para este host.</string>

@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 
 - Replaced the iOS placeholder icon with the production HNS DANE Browser artwork used by Android and Google Play, and added release checks for the canonical icon and archived app identity.
 
+### Removed
+
+- Removed public recursive HNS DoH and HNS WebPKI fallback from the runtime. Android and iOS now one-way migrate old compatibility settings to strict HNS DNSSEC/DANE without converting explicit legacy compatibility consent into P2P relay consent, while retaining ordinary ICANN DoH/WebPKI, proof-anchored authoritative HNS DoH, and the optional P2P relay.
+
 ## 0.5.0 - 2026-07-16
 
 ### Added

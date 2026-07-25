@@ -22,8 +22,9 @@ The browser resolves in this order:
 3. If proof-anchored DoH metadata is present, try that owner-operated authoritative DoH (ADoH) endpoint first, using the HNS-proven glue IP as the connect address; no port 53 bootstrap is required. A `tlsa=3,1,1,...` field authenticates a self-signed HNS certificate from the verified proof without ICANN DNS or WebPKI.
 4. If no proof-anchored endpoint is present, the browser may query `_dns.ns1.crewball. SVCB` through authoritative port 53, require `alpn=h2` plus `dohpath`, and try the DNSSEC-validated endpoint it discovers.
 5. If owner ADoH is absent, malformed, unavailable, or fails authentication, query the authoritative nameserver directly over UDP/TCP 53.
-6. If both owner paths fail, Compatibility mode may try the user's configured third-party HNS DoH resolver. Strict HNS mode fails instead of making this final compatibility fallback.
-7. Validate every DNSKEY, A/AAAA, HTTPS, and TLSA answer against the HNS-proven DS regardless of transport.
+6. If direct authoritative paths fail, the optional P2P relay may transport the delegated query; its response still validates locally.
+7. If the enabled direct and relay paths fail, resolution fails closed. Public recursive HNS DoH is not used.
+8. Validate every DNSKEY, A/AAAA, HTTPS, and TLSA answer against the HNS-proven DS regardless of transport.
 ```
 
 The TXT/SVCB metadata only declares nameserver transport. It cannot contain or synthesize origin A/AAAA, HTTPS, or TLSA data.
@@ -43,7 +44,7 @@ Use this shape after the child DNSSEC zone and nameserver are ready:
 }
 ```
 
-Keep the serialized resource under the HNS 512-byte resource limit and keep the entire declaration in one TXT character-string of at most 255 bytes. The `tlsa` value is the browser's proof-bootstrap convention using standard TLSA `3/1/1` semantics: DANE-EE, SPKI, SHA-256. It is not a DNS TLSA RR. One additional `tlsa=3,1,1,...` field may be included during key rollover. Publish both old and new pins before changing the served key, wait for the HNS update and resolver caches to advance, switch the endpoint key, and remove the old pin in a later update. A malformed, unsupported, or excess pin rejects that ADoH declaration but does not suppress direct port 53 or Compatibility-mode fallback.
+Keep the serialized resource under the HNS 512-byte resource limit and keep the entire declaration in one TXT character-string of at most 255 bytes. The `tlsa` value is the browser's proof-bootstrap convention using standard TLSA `3/1/1` semantics: DANE-EE, SPKI, SHA-256. It is not a DNS TLSA RR. One additional `tlsa=3,1,1,...` field may be included during key rollover. Publish both old and new pins before changing the served key, wait for the HNS update and resolver caches to advance, switch the endpoint key, and remove the old pin in a later update. A malformed, unsupported, or excess pin rejects that ADoH declaration but does not suppress direct port 53 or the optional P2P relay; if neither validates, resolution fails closed.
 
 ## Authoritative Zone Shape
 
@@ -99,7 +100,7 @@ The `--resolve` flag mirrors the browser's separation of identity from routing: 
 
 ## Browser Expectations
 
-Test after the update confirms and the tree interval has passed. Use Compatibility mode to exercise the complete availability ladder, then repeat in Strict HNS mode to confirm only the final third-party fallback is disabled:
+Test after the update confirms and the tree interval has passed. Exercise direct authoritative DoH, direct port 53, and optional P2P relay separately; each unavailable-path case must fail closed without contacting a public recursive HNS resolver:
 
 - `https://crewball/`
 - Resolver trace `hnsProof`: `verified`
@@ -109,6 +110,6 @@ Test after the update confirms and the tree interval has passed. Use Compatibili
 - A proof-pinned endpoint is identified as `HNS-proof TLSA`; failure proceeds to authoritative UDP/TCP 53
 - Resolver trace `port53Interception`: `detected` only when a matching reply came from the unroutable TEST-NET sentinel; `not_detected` is not proof that the path is clean
 - Resolver trace `resolutionSource`: `authoritative_dns` for port 53, or `authoritative_doh` for the encrypted path
-- Status: `DANE via ADoH`, `DANE via DNS53`, or `DANE via 3rd DoH` must identify the path that supplied the validated origin TLSA record; certificate-carried proof is reported separately as `Stateless DANE`
+- Status: `DANE via ADoH`, `DANE via DNS53`, or `DANE via HNS P2P` must identify the path that supplied the validated origin TLSA record; certificate-carried proof is reported separately as `Stateless DANE`
 - DNSSEC: `secure`
 - TLS/DANE state: SPKI or certificate match from `_443._tcp.crewball. TLSA`

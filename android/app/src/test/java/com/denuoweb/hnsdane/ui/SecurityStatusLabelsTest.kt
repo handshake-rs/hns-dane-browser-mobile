@@ -21,12 +21,12 @@ class SecurityStatusLabelsTest {
             mapOf(
                 "security_dane_via_authoritative_doh" to "DANE via ADoH",
                 "security_dane_via_authoritative_dns53" to "DANE via DNS53",
-                "security_dane_via_third_party_doh" to "DANE via 3rd DoH",
+                "security_dane_via_p2p_dns_relay" to "DANE via P2P DNS relay",
                 "security_stateless_dane" to "Stateless DANE",
                 "security_dane_via_icann_doh" to "DANE via ICANN DoH",
                 "security_hns_via_authoritative_doh" to "HNS via ADoH",
                 "security_hns_via_authoritative_dns53" to "HNS via DNS53",
-                "security_hns_via_third_party_doh" to "HNS via 3rd DoH",
+                "security_hns_via_p2p_dns_relay" to "HNS via P2P DNS relay",
             ),
             labels.filterKeys { it in EXPLICIT_SECURITY_LABELS },
         )
@@ -50,12 +50,12 @@ class SecurityStatusLabelsTest {
         val EXPLICIT_SECURITY_LABELS = setOf(
             "security_dane_via_authoritative_doh",
             "security_dane_via_authoritative_dns53",
-            "security_dane_via_third_party_doh",
+            "security_dane_via_p2p_dns_relay",
             "security_stateless_dane",
             "security_dane_via_icann_doh",
             "security_hns_via_authoritative_doh",
             "security_hns_via_authoritative_dns53",
-            "security_hns_via_third_party_doh",
+            "security_hns_via_p2p_dns_relay",
         )
     }
 }

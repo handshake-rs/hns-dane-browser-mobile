@@ -77,7 +77,6 @@ const MAX_ALLOCATED_BYTES: usize = 8 * 1024 * 1024;
 const MAX_OUTPUT_BUFFER_BYTES: usize = 1024 * 1024;
 const MAX_ERROR_BYTES: usize = 4 * 1024;
 const MAX_PATH_BYTES: usize = 4 * 1024;
-const MAX_POLICY_ENDPOINT_BYTES: usize = 4 * 1024;
 const MAX_NAME_INPUT_BYTES: usize = 4 * 1024;
 const MAX_HOST_BYTES: usize = 253;
 const MAX_AUTH_FIELD_BYTES: usize = 4 * 1024;
@@ -142,11 +141,11 @@ impl HnsBrowserRuntimeOptions {
             data_dir: HnsBrowserSlice::empty(),
             sync_timeout_millis: DEFAULT_SYNC_TIMEOUT_MILLIS,
             resource_cache_limit_bytes: DEFAULT_RESOURCE_CACHE_LIMIT_BYTES as u64,
-            resolution_mode: HNS_BROWSER_RESOLUTION_COMPATIBILITY,
+            resolution_mode: HNS_BROWSER_RESOLUTION_STRICT,
             seed_peers: 1,
             stateless_dane_certificates: 0,
             experimental_p2p_dns_relay: 0,
-            legacy_hns_doh_compatibility: 1,
+            legacy_hns_doh_compatibility: 0,
             hns_doh_resolver: HnsBrowserSlice::empty(),
             reserved1: [0; 2],
         }
@@ -170,11 +169,11 @@ impl HnsBrowserPolicy {
     fn defaults() -> Self {
         Self {
             struct_size: size_u32::<Self>(),
-            resolution_mode: HNS_BROWSER_RESOLUTION_COMPATIBILITY,
+            resolution_mode: HNS_BROWSER_RESOLUTION_STRICT,
             hns_doh_resolver: HnsBrowserSlice::empty(),
             stateless_dane_certificates: 0,
             experimental_p2p_dns_relay: 0,
-            legacy_hns_doh_compatibility: 1,
+            legacy_hns_doh_compatibility: 0,
             reserved0: [0; 5],
             reserved1: 0,
         }
@@ -727,8 +726,9 @@ fn network_kind(value: u32) -> Result<NetworkKind, FfiFailure> {
 
 fn resolution_mode(value: u32) -> Result<ResolutionMode, FfiFailure> {
     match value {
-        HNS_BROWSER_RESOLUTION_COMPATIBILITY => Ok(ResolutionMode::Compatibility),
-        HNS_BROWSER_RESOLUTION_STRICT => Ok(ResolutionMode::Strict),
+        HNS_BROWSER_RESOLUTION_COMPATIBILITY | HNS_BROWSER_RESOLUTION_STRICT => {
+            Ok(ResolutionMode::Strict)
+        }
         _ => Err(FfiFailure::invalid("resolution mode value is unsupported")),
     }
 }
@@ -741,29 +741,21 @@ fn ffi_bool(value: u8) -> Result<bool, FfiFailure> {
     }
 }
 
-unsafe fn optional_policy_endpoint(slice: HnsBrowserSlice) -> Result<Option<String>, FfiFailure> {
-    // SAFETY: Propagates the caller's readable-slice contract.
-    let value = unsafe { input_str(slice, MAX_POLICY_ENDPOINT_BYTES) }?;
-    if value.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(value.to_owned()))
-    }
-}
-
 unsafe fn policy_from_fields(
     mode: u32,
-    endpoint: HnsBrowserSlice,
+    _endpoint: HnsBrowserSlice,
     stateless_dane_certificates: u8,
     experimental_p2p_dns_relay: u8,
     legacy_hns_doh_compatibility: u8,
 ) -> Result<RuntimePolicy, FfiFailure> {
     Ok(RuntimePolicy {
         resolution_mode: resolution_mode(mode)?,
-        // SAFETY: Propagates the caller's readable-slice contract.
-        hns_doh_resolver: unsafe { optional_policy_endpoint(endpoint) }?,
+        hns_doh_resolver: None,
         experimental_p2p_dns_relay: ffi_bool(experimental_p2p_dns_relay)?,
-        legacy_hns_doh_compatibility: ffi_bool(legacy_hns_doh_compatibility)?,
+        legacy_hns_doh_compatibility: {
+            ffi_bool(legacy_hns_doh_compatibility)?;
+            false
+        },
         stateless_dane_certificates: ffi_bool(stateless_dane_certificates)?,
     })
 }
@@ -2335,25 +2327,29 @@ mod tests {
     fn relay_policy_fields_are_independent_and_have_safe_defaults() {
         let options = HnsBrowserRuntimeOptions::defaults();
         assert_eq!(options.experimental_p2p_dns_relay, 0);
-        assert_eq!(options.legacy_hns_doh_compatibility, 1);
+        assert_eq!(options.resolution_mode, HNS_BROWSER_RESOLUTION_STRICT);
+        assert_eq!(options.legacy_hns_doh_compatibility, 0);
         let policy = HnsBrowserPolicy::defaults();
         assert_eq!(policy.experimental_p2p_dns_relay, 0);
-        assert_eq!(policy.legacy_hns_doh_compatibility, 1);
+        assert_eq!(policy.resolution_mode, HNS_BROWSER_RESOLUTION_STRICT);
+        assert_eq!(policy.legacy_hns_doh_compatibility, 0);
 
         // SAFETY: The empty endpoint has the documented null/zero representation.
         let runtime_policy = match unsafe {
             policy_from_fields(
-                HNS_BROWSER_RESOLUTION_STRICT,
+                HNS_BROWSER_RESOLUTION_COMPATIBILITY,
                 HnsBrowserSlice::empty(),
                 0,
                 1,
-                0,
+                1,
             )
         } {
             Ok(policy) => policy,
             Err(_) => panic!("valid independent relay controls"),
         };
         assert!(runtime_policy.experimental_p2p_dns_relay);
+        assert_eq!(runtime_policy.resolution_mode, ResolutionMode::Strict);
+        assert!(runtime_policy.hns_doh_resolver.is_none());
         assert!(!runtime_policy.legacy_hns_doh_compatibility);
 
         let mut invalid = HnsBrowserPolicy::defaults();

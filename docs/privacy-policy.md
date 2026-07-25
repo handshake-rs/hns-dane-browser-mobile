@@ -1,6 +1,6 @@
 # HNS DANE Browser Privacy Policy
 
-Last updated: 2026-07-18
+Last updated: 2026-07-25
 
 HNS DANE Browser is published by Denuo Web, LLC. For privacy questions or deletion requests, email <info@denuoweb.com> or use the developer contact listed in the app's store listing. Do not post personal information to the public project issue tracker.
 
@@ -18,7 +18,7 @@ The app may store the following data on the device:
 - Website data: cookies and other storage managed by Android WebView or Apple WebKit.
 - Downloads: files saved at your request and platform-specific local records needed to complete or present those downloads. Android records may include the URL, file name, MIME type, DownloadManager ID, and queued time; iOS saves completed files in the app's local Documents/Downloads directory until you export or remove the app.
 - HNS data: synced headers, peer records (including manually added relay-peer IP endpoints), verified resource values, resolver cache, and resolver diagnostics.
-- Settings: homepage, cookie preference, HNS P2P DNS relay and legacy DoH fallback preferences, Strict HNS mode, and related app preferences.
+- Settings: homepage, cookie preference, optional HNS P2P DNS relay, and related app preferences. Upgrades erase the former public recursive HNS DoH setting and force strict HNS trust. An explicit former compatibility preference is not treated as consent to the relay when no independent relay choice was saved.
 
 This local data is used only to provide browser functionality, diagnostics, and HNS resolution. It is not sold. It is not sent to a Denuo Web analytics or advertising service.
 
@@ -28,18 +28,17 @@ To provide browser functionality, HNS DANE Browser may connect to:
 
 - Websites and web services that you choose to open.
 - Handshake peers and DNS seed hosts for header sync, peer discovery, and proof retrieval.
-- Relay-capable Handshake peers for recursive HNS DNS queries after local proof validation and authoritative DNS attempts fail. New Android and iOS installs enable this experimental path by default. A manual relay peer must be entered as an IP-literal endpoint and is stored only after its live HSD handshake advertises the relay capability.
+- Relay-capable Handshake peers for recursive HNS DNS queries after local proof validation and authoritative DNS attempts fail. New Android and iOS installs enable this experimental path by default. Upgrades preserve an independent relay choice, but do not convert an explicit former public-DoH/compatibility choice into relay consent. A manual relay peer must be entered as an IP-literal endpoint and is stored only after its live HSD handshake advertises the relay capability.
 - Authoritative DNS nameservers for delegated HNS names.
 - Proof-bootstrapped or RFC 9461-discovered RFC 8484 authoritative DoH endpoints for delegated HNS names.
 - Security or reputation services exposed by the platform web engine. In particular, an installed Android WebView provider may check URLs with its Safe Browsing service and apply its own privacy policy. Apple WebKit and the operating system may apply their own browser-security protections. HNS DANE Browser does not operate those platform services.
 - The non-routable `192.0.2.1` TEST-NET DNS sentinel after delegated DNS failure; a matching reply confirms transparent outbound port 53 interception, while no reply is reported only as not detected.
 - Cloudflare's DNS-over-HTTPS service at `cloudflare-dns.com` (bootstrapped through the documented `1.1.1.1` addresses) for ordinary internet DNS resolution.
-- The legacy HNS DNS-over-HTTPS compatibility resolver at `zorro.hnsdoh.com` when compatibility mode is enabled and local or direct delegated resolution fails.
 - Platform download services and the destination you choose when you download or export a file.
 
-These network endpoints may receive technical information that is normal for network communication, such as your IP address, the requested host or URL, protocol metadata, and any data you submit to websites. Cloudflare and the operator of `zorro.hnsdoh.com` control their own resolver logging, retention, and privacy practices; Denuo Web does not operate those services. In particular, an HNS relay peer can observe the queried DNS name and record type together with your P2P connection and network address. An ordinary Handshake TCP connection is not query-confidential; encrypted peer transport should be preferred where available. The relay response is still validated locally through the app's Handshake proof, DNSSEC, TLSA, and DANE checks, and the peer's DNS authenticated-data bit is not trusted.
+These network endpoints may receive technical information that is normal for network communication, such as your IP address, the requested host or URL, protocol metadata, and any data you submit to websites. Cloudflare controls its own resolver logging, retention, and privacy practices; Denuo Web does not operate that service. In particular, an HNS relay peer can observe the queried DNS name and record type together with your P2P connection and network address. An ordinary Handshake TCP connection is not query-confidential; encrypted peer transport should be preferred where available. The relay response is still validated locally through the app's Handshake proof, DNSSEC, TLSA, and DANE checks, and the peer's DNS authenticated-data bit is not trusted.
 
-The legacy third-party HNS DNS-over-HTTPS compatibility fallback is independently enabled by default on new installs and remains available after the P2P relay path fails. Strict HNS mode disables that third-party fallback. Relay and legacy fallback controls are available in the app's runtime settings.
+Public recursive HNS DNS-over-HTTPS and HNS WebPKI fallback are prohibited. HNS uses direct proof-backed resolution, proof-anchored authoritative DoH where declared, and the optional P2P relay, with DNSSEC and DANE validation remaining local. Ordinary ICANN browsing continues to use the bounded Cloudflare DoH and WebPKI path described above.
 
 HTTPS, DNSSEC, and DANE are used where applicable. If you intentionally open a cleartext `http://` site, that site connection is not encrypted by HTTPS.
 

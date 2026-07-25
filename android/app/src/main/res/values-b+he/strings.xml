@@ -34,11 +34,8 @@
     <string name="security_syncing">מסנכרן</string>
     <string name="security_loading">טְעִינָה</string>
     <string name="security_hns_verified">HNS מאומת</string>
-    <string name="security_hns_compat">HNS דרך DoH</string>
     <string name="security_dane_verified">DANE אומת</string>
-    <string name="security_dane_compat">DANE דרך DoH</string>
     <string name="security_webpki">WebPKI</string>
-    <string name="security_hns_webpki">HNS + WebPKI</string>
     <string name="security_failed">האימות נכשל</string>
     <string name="security_proof_unavailable">הוכחה לא זמינה</string>
     <string name="http_transport_warning">לא מאובטח: תעבורת HTTP אינה מוצפנת</string>
@@ -124,7 +121,6 @@
     <string name="row_clear_history">נקה היסטוריה</string>
     <string name="row_clear_history_summary">הסר את היסטוריית הגלישה השמורה מהמכשיר הזה.</string>
     <string name="row_clear_resolver_cache">נקה את המטמון של הפותר</string>
-    <string name="row_compatibility_doh_resolver">פותר תאימות DoH</string>
     <string name="row_cookies">עוגיות</string>
     <string name="row_copy_diagnostic_bundle">העתק את חבילת האבחון</string>
     <string name="row_copy_diagnostic_bundle_summary">העתק בנייה, זמן ריצה ופרטי ליבה מקוריים.</string>
@@ -252,11 +248,6 @@
     <string name="settings_homepage_reset_title">לאפס את דף הבית?</string>
     <string name="settings_homepage_reset_message">פעולה זו משחזרת את ברירת המחדל של דף הבית של Denuo Web.</string>
     <string name="settings_homepage_reset">איפוס דף הבית</string>
-    <string name="settings_doh_edit_title">ערוך פותר DoH</string>
-    <string name="settings_doh_edit_message">הזן נקודת קצה HTTPS DNS-over-HTTPS. השאר ריק כדי להשתמש בברירת המחדל.</string>
-    <string name="settings_doh_error">הזן כתובת URL חוקית של HTTPS DoH</string>
-    <string name="settings_doh_saved">פותר DoH נשמר</string>
-    <string name="settings_doh_reset">איפוס פותר DoH</string>
     <string name="settings_resolver_cache_clear_title">לנקות את המטמון של הפותר?</string>
     <string name="settings_resolver_cache_clear_message">האפליקציה תשמור על כותרות ועמיתים של %1$s מסונכרנים, אך ערכי משאבי HNS שמורים עבור רשת זו יוסרו.</string>
     <string name="settings_resolver_cache_cleared">המטמון של פותר %1$s נוקה</string>
@@ -269,12 +260,9 @@
     <string name="settings_header_resync_started">סנכרון מחדש של כותרת התחיל</string>
     <string name="settings_header_resync_failed_status">איפוס הכותרת לא הושלם. פתח את האבחון לפרטים.</string>
     <string name="settings_header_resync_failed">סנכרון מחדש של כותרות לא התחיל</string>
-    <string name="settings_hns_mode_on">עַל. כשלי פתרון מואצל נכשל סגור.</string>
-    <string name="settings_hns_mode_off">כבוי. ניתן להשתמש בהחזר תאימות לאחר כשל בפתרון מקומי או ישיר.</string>
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">עַל. ראיות הוכחה ל-HNS הנישאות בתעודה עשויות לספק את DANE כשהן תקפות.</string>
     <string name="settings_stateless_dane_off">כבוי. הוכחת HNS ו-TLSA משתמשות בנתיב הפותר החי.</string>
-    <string name="settings_strict_hns_mode">מצב HNS קפדני</string>
     <string name="settings_stateless_dane_certificates">תעודות DANE חסרות אזרחות ניסיוניות</string>
     <string name="settings_theme_dialog_title">ערכת נושא</string>
     <string name="settings_theme_set">ערכת הנושא הוגדרה ל-%1$s.</string>
@@ -427,7 +415,6 @@
     <string name="trace_protocol_authoritative_udp53">UDP סמכותי 53</string>
     <string name="trace_protocol_authoritative_tcp53">TCP סמכותי 53</string>
     <string name="trace_protocol_authoritative_doh">DoH סמכותי</string>
-    <string name="trace_protocol_hns_doh">תאימות HNS DoH</string>
     <string name="trace_protocol_icann_doh">מהימן של ICANN DoH</string>
     <string name="trace_tlsa_present">לְהַצִיג</string>
     <string name="trace_tlsa_absent">נֶעדָר</string>
@@ -464,7 +451,6 @@
     <string name="trace_fix_dnssec_before_tlsa">תקן תחילה DNSSEC המואצל. TLSA/DANE לא הוערך מכיוון שפתרון מאובטח נכשל לפני בדיקת ה-TLSA.</string>
     <string name="trace_fix_renew_cert">חדש את אישור ה-HTTPS המקורי. השער הגיע למקור HTTPS, אך TLS נכשל מכיוון שהאישור עבר את חלון התוקף שלו.</string>
     <string name="trace_fix_origin_address_missing">שרת A/AAAA עבור המארח המבוקש מ-DNS מואצל. נתוני HNS GLUE/SYNTH משמשים רק כדי להגיע לשרתי שמות, לא ככתובת המקור.</string>
-    <string name="trace_fix_compat_fallback_used">נעשה שימוש ב-DoH fallback של תאימות. הפעל מצב HNS קפדני כדי לוודא אם האתר פועל במלואו ללא DoH של צד שלישי.</string>
     <string name="trace_fix_no_obvious_hns">אין תיקון ברור מהעקיבה הזו. אם HTTPS נכשל, בדוק את TLSA/DANE ברגע שמעקב אחר אישורים מופעל.</string>
     <string name="trace_fix_icann_dnssec_bogus">תקן את שרשרת DNSSEC של ICANN: יש לאמת רשומות DS, DNSKEY, חתימות והכחשה.</string>
     <string name="trace_fix_icann_origin_address_missing">פרסם רשומת A או AAAA מאומתת על ידי DNSSEC עבור המארח הזה.</string>

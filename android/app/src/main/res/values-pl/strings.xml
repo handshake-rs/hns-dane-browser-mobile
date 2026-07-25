@@ -34,11 +34,8 @@
 <string name="security_syncing">Synchronizowanie</string>
 <string name="security_loading">Ładowanie</string>
 <string name="security_hns_verified">Zweryfikowano HNS</string>
-<string name="security_hns_compat">HNS przez DoH</string>
 <string name="security_dane_verified">Zweryfikowano DANE</string>
-<string name="security_dane_compat">DANE przez DoH</string>
 <string name="security_webpki">WebPKI</string>
-<string name="security_hns_webpki">HNS + WebPKI</string>
 <string name="security_failed">Walidacja nie powiodła się</string>
 <string name="security_proof_unavailable">Dowód niedostępny</string>
 <string name="http_transport_warning">Niezabezpieczone: ruch HTTP nie jest szyfrowany</string>
@@ -124,7 +121,6 @@
 <string name="row_clear_history">Wyczyść historię</string>
 <string name="row_clear_history_summary">Usuń zapisaną historię przeglądania z tego urządzenia.</string>
 <string name="row_clear_resolver_cache">Wyczyść pamięć podręczną modułu rozpoznawania nazw</string>
-<string name="row_compatibility_doh_resolver">Zgodność z resolwerem DoH</string>
 <string name="row_cookies">Pliki cookie</string>
 <string name="row_copy_diagnostic_bundle">Skopiuj pakiet diagnostyczny</string>
 <string name="row_copy_diagnostic_bundle_summary">Skopiuj szczegóły kompilacji, środowiska wykonawczego i natywnego rdzenia.</string>
@@ -258,11 +254,6 @@
 <string name="settings_homepage_reset_title">Zresetować stronę główną?</string>
 <string name="settings_homepage_reset_message">Spowoduje to przywrócenie domyślnej strony głównej Denuo Web.</string>
 <string name="settings_homepage_reset">Reset strony głównej</string>
-<string name="settings_doh_edit_title">Edytuj narzędzie rozpoznawania nazw DoH</string>
-<string name="settings_doh_edit_message">Wprowadź punkt końcowy HTTPS DNS-over-HTTPS. Pozostaw puste, aby użyć wartości domyślnej.</string>
-<string name="settings_doh_error">Wprowadź prawidłowy HTTPS DoH URL</string>
-<string name="settings_doh_saved">Zapisano resolwer DoH</string>
-<string name="settings_doh_reset">Reset resolwera DoH</string>
 <string name="settings_resolver_cache_clear_title">Wyczyścić pamięć podręczną modułu rozpoznawania nazw?</string>
 <string name="settings_resolver_cache_clear_message">Aplikacja będzie przechowywać zsynchronizowane nagłówki i elementy równorzędne %1$s, ale buforowane wartości zasobów HNS dla tej sieci zostaną usunięte.</string>
 <string name="settings_resolver_cache_cleared">Pamięć podręczna modułu rozpoznawania nazw %1$s została wyczyszczona</string>
@@ -275,12 +266,9 @@
 <string name="settings_header_resync_started">Rozpoczęto ponowną synchronizację nagłówka</string>
 <string name="settings_header_resync_failed_status">Resetowanie nagłówka nie zostało zakończone. Otwórz diagnostykę, aby poznać szczegóły.</string>
 <string name="settings_header_resync_failed">Ponowna synchronizacja nagłówka nie została rozpoczęta</string>
-<string name="settings_hns_mode_on">Włączone. Delegowane niepowodzenia rozwiązywania problemów nie są zamykane.</string>
-<string name="settings_hns_mode_off">Wyłączone. Jeśli rozwiązanie lokalne lub bezpośrednie nie powiedzie się, można zastosować opcję powrotu do zgodności.</string>
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Włączone. Dowód HNS znajdujący się w certyfikacie może spełniać wymagania DANE, jeśli jest ważny.</string>
 <string name="settings_stateless_dane_off">Wyłączone. Dowód HNS i dowód TLSA wykorzystują ścieżkę aktywnego modułu rozpoznawania nazw.</string>
-<string name="settings_strict_hns_mode">Ścisły tryb HNS</string>
 <string name="settings_stateless_dane_certificates">Eksperymentalne bezstanowe certyfikaty DANE</string>
 <string name="settings_theme_dialog_title">Motyw</string>
 <string name="settings_theme_set">Motyw ustawiony na %1$s.</string>
@@ -433,7 +421,6 @@
 <string name="trace_protocol_authoritative_udp53">Autorytatywny UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Autorytatywny TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Autorytatywny DoH</string>
-<string name="trace_protocol_hns_doh">Kompatybilność HNS DoH</string>
 <string name="trace_protocol_icann_doh">Zaufany ICANN DoH</string>
 <string name="trace_tlsa_present">obecny</string>
 <string name="trace_tlsa_absent">nieobecny</string>
@@ -470,7 +457,6 @@
 <string name="trace_fix_dnssec_before_tlsa">Najpierw napraw delegowany DNSSEC. TLSA/DANE nie zostało ocenione, ponieważ bezpieczne rozwiązanie nie powiodło się przed wyszukiwaniem TLSA.</string>
 <string name="trace_fix_renew_cert">Odnów certyfikat pochodzenia HTTPS. Brama osiągnęła punkt początkowy HTTPS, ale protokół TLS nie powiódł się, ponieważ okres ważności certyfikatu minął.</string>
 <string name="trace_fix_origin_address_missing">Obsługuj A/AAAA dla żądanego hosta z delegowanego DNS. Dane HNS GLUE/SYNTH są wykorzystywane wyłącznie do dotarcia do serwerów nazw, a nie jako adres początkowy.</string>
-<string name="trace_fix_compat_fallback_used">Zastosowano rezerwę zgodności DoH. Włącz tryb Ścisły HNS, aby sprawdzić, czy witryna działa w pełni bez DoH innej firmy.</string>
 <string name="trace_fix_no_obvious_hns">Brak oczywistej poprawki w tym śladzie. Jeśli HTTPS ulegnie awarii, sprawdź TLSA/DANE po włączeniu śledzenia certyfikatów.</string>
 <string name="trace_fix_icann_dnssec_bogus">Napraw łańcuch ICANN DNSSEC: DS, DNSKEY, podpisy i rekordy odmowy muszą zostać zweryfikowane.</string>
 <string name="trace_fix_icann_origin_address_missing">Opublikuj rekord A lub AAAA z certyfikatem DNSSEC dla tego hosta.</string>
