@@ -5277,6 +5277,50 @@ mod tests {
     }
 
     #[test]
+    fn direct_authority_precedes_authenticated_doh_by_default() {
+        let pin = "36".repeat(32);
+        let delegation = HnsDelegation {
+            root_name: "denuoweb".to_owned(),
+            owner: DnsName::from_ascii("denuoweb").unwrap(),
+            records: vec![
+                ns_record("denuoweb", "ns1.denuoweb"),
+                glue4_record("ns1.denuoweb", [35, 212, 156, 128]),
+                ds_record("denuoweb"),
+                txt_record(
+                    "denuoweb",
+                    &format!(
+                        "hnsdns=1;ns=ns1.denuoweb.;transport=doh;doh=https://denuoweb:8443/dns-query;tlsa=3,1,1,{pin}"
+                    ),
+                ),
+            ],
+        };
+        let resolver = AuthoritativeDnssecResolver::new(
+            FailingPinnedDohTransport {
+                doh_calls: AtomicUsize::new(0),
+                udp_calls: AtomicUsize::new(0),
+                tcp_calls: AtomicUsize::new(0),
+            },
+            accepting_dnssec_verifier(),
+        );
+
+        let answer = resolver
+            .resolve_delegated(
+                &ResolutionRequest {
+                    qname: "denuoweb".to_owned(),
+                    qtype: RecordType::A.code(),
+                },
+                &delegation,
+            )
+            .unwrap();
+        assert!(answer.secure);
+
+        let (transport, _) = resolver.into_parts();
+        assert_eq!(transport.doh_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(transport.udp_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(transport.tcp_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
     fn pinned_authoritative_doh_failure_falls_back_to_port_53() {
         let pin = "36".repeat(32);
         let delegation = HnsDelegation {

@@ -21,6 +21,16 @@ from verify_cargo_git_policy import (  # noqa: E402
 
 
 class CargoGitPolicyTests(unittest.TestCase):
+    def test_reviewed_engine_package_set_is_explicit(self) -> None:
+        self.assertEqual(
+            ALLOWED_ENGINE_PACKAGES,
+            {
+                "hns-icann-dane",
+                "hns-namespace-resolution",
+                "hns-resolution-policy",
+            },
+        )
+
     def create_fixture(self) -> tuple[tempfile.TemporaryDirectory[str], Path]:
         temporary = tempfile.TemporaryDirectory()
         root = Path(temporary.name)

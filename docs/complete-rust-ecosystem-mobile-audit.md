@@ -25,7 +25,7 @@ It does not claim that the coordination-wide PDF is complete.
 | Explicit migration without turning old HNSDoH consent into relay consent | Implemented | Android and iOS erase legacy resolver/trust fields. Former resolver compatibility consent never enables relay consumption, and fresh installs remain off until explicit requester opt-in. |
 | P2P ODoH: Preferred/Required/Direct Allowed/Off | Not implemented in this checkout | No HIP #77 requester, HPKE/ODoH runtime, status model, or native control exists here. Do not represent the current direct relay as ODoH or query-confidential. |
 | HNSR: Off/Client/Endpoint | Not implemented in this checkout | No HIP #78 runtime or native control exists here. Mobile lifecycle, network-change, renewal, withdrawal, and stale-generation tests for HNSR remain required. |
-| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-icann-dane` and `hns-namespace-resolution` to exact `handshake-rs/hns-dane-engine` commit `127b9ad55852df00b4df40826517715048dc3571`; the lockfile records the same source. |
+| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `127b9ad55852df00b4df40826517715048dc3571`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), and live resolution follows the canonical direct-authority UDP/TCP → authenticated authoritative DoH → admitted relay order while unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
 | Browser authority state machine and generation-bound results | Partial | The local proxy has revocable generations and strict certificate admission, but this checkout does not expose the complete PDF state/evidence schema (`runtime session`, policy generation, registry fingerprint/profile, ODoH identities, and all explicit evidence states). |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. ODoH privacy policy, proxy/target separation, registry profile, and complete shared observability fields are unavailable because HIP #77 is absent. |
 | Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Exact-build physical Android and iOS device matrices, mobile network transitions, and the PDF’s ODoH/HNSR lifecycle cases remain release gates. |
@@ -72,7 +72,7 @@ TestFlight pass. Android instrumentation requires an installed SDK/NDK and a
 device or emulator. Store binaries and previously recorded hashes must be
 rebuilt after this source checkpoint before they can be release evidence.
 
-The two shared policy crates resolve from immutable
+The three shared engine crates resolve from immutable
 `handshake-rs/hns-dane-engine` commit
 `127b9ad55852df00b4df40826517715048dc3571`; a standalone checkout no longer
 depends on the coordination workspace layout.
@@ -97,8 +97,8 @@ The following source-level gates passed on Linux on 2026-07-25:
   --workspace --all-targets -- -D warnings` and `cargo +1.92.0 fmt
   --manifest-path rust/Cargo.toml --all -- --check`.
 - Locked/offline test suites for every changed mobile-workspace Rust package:
-  `hns-resolver` (65 tests), `hns-transport` (51), `android-ffi` (11),
-  `ios-ffi` (11), `hns-browser-runtime` (134), `hns-gateway` (50), and
+  `hns-resolver` (66 tests), `hns-transport` (51), `android-ffi` (11),
+  `ios-ffi` (11), `hns-browser-runtime` (135), `hns-gateway` (50), and
   `hns-loopback-proxy` (147). The Git-pinned `hns-icann-dane` contract also
   passed its 7 tests at the exact engine commit.
 - `cargo +1.92.0 build --locked --offline --manifest-path rust/Cargo.toml

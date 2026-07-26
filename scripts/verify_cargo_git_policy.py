@@ -21,6 +21,7 @@ ALLOWED_ENGINE_PACKAGES = frozenset(
     {
         "hns-icann-dane",
         "hns-namespace-resolution",
+        "hns-resolution-policy",
     }
 )
 ROOT_MANIFEST = Path("rust/Cargo.toml")
@@ -149,8 +150,8 @@ def validate_lockfiles(root: Path) -> None:
             # workspace crates. If one of those crates reaches the shared
             # engine transitively, Cargo must record the same exact canonical
             # package and revision there too. Only the root lock is required
-            # to contain both packages; every lock remains constrained to the
-            # same two names and immutable source above.
+            # to contain all reviewed packages; every lock remains constrained
+            # to the same three names and immutable source above.
             if relative_path == Path("rust/Cargo.lock"):
                 root_packages[name] += 1
 
@@ -184,7 +185,7 @@ def main() -> int:
         print(f"Cargo Git dependency policy failed: {error}", file=sys.stderr)
         return 1
     print(
-        "Cargo Git dependency policy permits only the two canonical "
+        "Cargo Git dependency policy permits only the three canonical "
         f"hns-dane-engine packages at {ENGINE_REVISION}."
     )
     return 0

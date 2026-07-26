@@ -41,6 +41,10 @@ use hns_p2p::{
     HeaderSyncSession, PeerConnection, PeerSource, SERVICE_NETWORK, SqlitePeerStore,
     StaticPeerSource, VersionPacket, is_allowed_peer_endpoint,
 };
+use hns_resolution_policy::{
+    DnsRelayRequesterPolicy, HnsrPolicy, ObliviousDnsPolicy, PolicyConfig, ProviderPolicy,
+    ResolutionTransport, TransportPlan, WireProfile,
+};
 use hns_resolver::{
     AuthoritativeDnssecResolver, AuthoritativeDohEndpoint, AuthoritativeDohTlsAuthentication,
     DelegatedResolver, DelegatingResolver, DnsEndpointPolicy, DnsInterceptionStatus, DnsTransport,
@@ -393,6 +397,38 @@ impl RuntimePolicy {
         self.hns_doh_resolver = None;
         self.legacy_hns_doh_compatibility = false;
         self
+    }
+
+    /// Map the stable mobile ABI policy into the canonical shared engine policy.
+    ///
+    /// Mobile currently implements only direct authoritative resolution,
+    /// authenticated authoritative DoH, and the experimental P2P DNS relay
+    /// requester fallback. Unsupported requester and provider roles stay
+    /// explicitly disabled rather than inheriting broader engine defaults.
+    #[must_use]
+    pub fn canonical_resolution_policy(&self) -> PolicyConfig {
+        PolicyConfig {
+            dns_relay_requester: if self.experimental_p2p_dns_relay {
+                DnsRelayRequesterPolicy::Auto
+            } else {
+                DnsRelayRequesterPolicy::Disabled
+            },
+            oblivious_dns: ObliviousDnsPolicy::Disabled,
+            hnsr: HnsrPolicy::disabled(),
+            authenticated_authoritative_doh: true,
+            providers: ProviderPolicy {
+                dns_relay: false,
+                odoh_proxy: false,
+                odoh_target: false,
+                market_gossip: false,
+            },
+            wire_profile: WireProfile::DenuoV1,
+            allow_legacy_regtest_compatibility: false,
+        }
+    }
+
+    fn canonical_transport_plan(&self) -> TransportPlan {
+        TransportPlan::for_policy(self.canonical_resolution_policy())
     }
 }
 
@@ -1802,6 +1838,7 @@ impl BrowserRuntime {
         let header_text = self.gateway_header_text(&request.headers)?;
         let parsed_headers = parse_gateway_headers(&header_text)
             .map_err(|error| RuntimeError::InvalidConfiguration(error.to_owned()))?;
+        let runtime_policy = parsed_headers.runtime_policy();
         let network = parsed_headers.network;
         let mode = GatewayResolutionMode::Strict;
         let input = GatewayHttpRequestInput {
@@ -1837,7 +1874,7 @@ impl BrowserRuntime {
             values,
             GatewayResolverContext {
                 network,
-                experimental_p2p_dns_relay: parsed_headers.experimental_p2p_dns_relay,
+                runtime_policy,
                 peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
                 relay: Some(self.inner.coordination.relay.clone()),
                 http: self.inner.transport.clone(),
@@ -2354,6 +2391,18 @@ struct ParsedGatewayHeaders {
     experimental_p2p_dns_relay: bool,
     stateless_dane_certificates: bool,
     network: NetworkKind,
+}
+
+impl ParsedGatewayHeaders {
+    fn runtime_policy(&self) -> RuntimePolicy {
+        RuntimePolicy {
+            resolution_mode: ResolutionMode::Strict,
+            hns_doh_resolver: None,
+            experimental_p2p_dns_relay: self.experimental_p2p_dns_relay,
+            legacy_hns_doh_compatibility: false,
+            stateless_dane_certificates: self.stateless_dane_certificates,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -6287,6 +6336,7 @@ fn gateway_http_response_with_transport(
         Ok(headers) => headers,
         Err(error) => return plain_response_for_request(&input, 400, "Bad Request", error),
     };
+    let runtime_policy = parsed_headers.runtime_policy();
     let network = parsed_headers.network;
     let mode = GatewayResolutionMode::Strict;
     let request = gateway_request(&input, parsed_headers.headers);
@@ -6337,7 +6387,7 @@ fn gateway_http_response_with_transport(
         values,
         GatewayResolverContext {
             network,
-            experimental_p2p_dns_relay: parsed_headers.experimental_p2p_dns_relay,
+            runtime_policy,
             peer_state,
             relay: None,
             http: transport.clone(),
@@ -6460,6 +6510,7 @@ fn gateway_http_response_body_to_file_with_transport(
             );
         }
     };
+    let runtime_policy = parsed_headers.runtime_policy();
     let network = parsed_headers.network;
     let mode = GatewayResolutionMode::Strict;
     let request = gateway_request(&input, parsed_headers.headers);
@@ -6513,7 +6564,7 @@ fn gateway_http_response_body_to_file_with_transport(
         values,
         GatewayResolverContext {
             network,
-            experimental_p2p_dns_relay: parsed_headers.experimental_p2p_dns_relay,
+            runtime_policy,
             peer_state,
             relay: None,
             http: transport.clone(),
@@ -6647,6 +6698,7 @@ fn gateway_http_upgrade_tunnel_with_transport(
             );
         }
     };
+    let runtime_policy = parsed_headers.runtime_policy();
     let network = parsed_headers.network;
     let mode = GatewayResolutionMode::Strict;
     let request = gateway_request(&input, parsed_headers.headers);
@@ -6706,7 +6758,7 @@ fn gateway_http_upgrade_tunnel_with_transport(
         values,
         GatewayResolverContext {
             network,
-            experimental_p2p_dns_relay: parsed_headers.experimental_p2p_dns_relay,
+            runtime_policy,
             peer_state,
             relay: None,
             http: transport.clone(),
@@ -6955,7 +7007,7 @@ fn android_gateway_resolver(
 ) -> AndroidGatewayResolver {
     let GatewayResolverContext {
         network,
-        experimental_p2p_dns_relay,
+        runtime_policy,
         peer_state,
         relay,
         http,
@@ -6964,12 +7016,15 @@ fn android_gateway_resolver(
     let authoritative_dns_transport =
         android_authoritative_dns_transport(dns_trace.clone(), endpoint_policy, http.clone());
     let proof_peer = Arc::new(Mutex::new(None));
+    // The constructor's default order is direct authoritative UDP, TCP on
+    // truncation/failure, then authenticated authoritative DoH. Keep that live
+    // ordering aligned with the canonical shared transport plan.
     let direct =
-        AuthoritativeDnssecResolver::new(authoritative_dns_transport, SystemDnssecVerifier)
-            .with_authoritative_doh_preferred();
+        AuthoritativeDnssecResolver::new(authoritative_dns_transport, SystemDnssecVerifier);
     let mut delegated = BoxedDelegatedResolver::new(direct);
+    let transport_plan = runtime_policy.canonical_transport_plan();
 
-    if experimental_p2p_dns_relay {
+    if transport_plan.contains(ResolutionTransport::HandshakeP2pDnsRelay) {
         let relay_transport = HnsP2pDnsTransport::new(
             &base,
             network,
@@ -7011,7 +7066,7 @@ fn android_gateway_resolver(
 
 struct GatewayResolverContext {
     network: NetworkKind,
-    experimental_p2p_dns_relay: bool,
+    runtime_policy: RuntimePolicy,
     peer_state: Option<Arc<Mutex<()>>>,
     relay: Option<SharedDnsRelayState>,
     http: TcpHttpTransport,
@@ -10660,6 +10715,65 @@ mod tests {
 
         assert!(matches!(error, RuntimeError::InvalidConfiguration(_)));
         cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn canonical_mobile_policy_maps_only_supported_roles() {
+        let disabled_runtime_policy = RuntimePolicy {
+            resolution_mode: ResolutionMode::Compatibility,
+            hns_doh_resolver: Some("https://resolver.example/dns-query".to_owned()),
+            experimental_p2p_dns_relay: false,
+            legacy_hns_doh_compatibility: true,
+            stateless_dane_certificates: true,
+        };
+        let disabled_policy = PolicyConfig {
+            dns_relay_requester: DnsRelayRequesterPolicy::Disabled,
+            oblivious_dns: ObliviousDnsPolicy::Disabled,
+            hnsr: HnsrPolicy::disabled(),
+            authenticated_authoritative_doh: true,
+            providers: ProviderPolicy {
+                dns_relay: false,
+                odoh_proxy: false,
+                odoh_target: false,
+                market_gossip: false,
+            },
+            wire_profile: WireProfile::DenuoV1,
+            allow_legacy_regtest_compatibility: false,
+        };
+
+        assert_eq!(
+            disabled_runtime_policy.canonical_resolution_policy(),
+            disabled_policy
+        );
+        assert_eq!(
+            disabled_runtime_policy
+                .canonical_transport_plan()
+                .as_slice(),
+            &[
+                ResolutionTransport::DirectAuthoritativeUdp,
+                ResolutionTransport::DirectAuthoritativeTcp,
+                ResolutionTransport::AuthenticatedAuthoritativeDoh,
+            ]
+        );
+
+        let mut enabled_runtime_policy = disabled_runtime_policy;
+        enabled_runtime_policy.experimental_p2p_dns_relay = true;
+        let mut enabled_policy = disabled_policy;
+        enabled_policy.dns_relay_requester = DnsRelayRequesterPolicy::Auto;
+
+        assert_eq!(
+            enabled_runtime_policy.canonical_resolution_policy(),
+            enabled_policy
+        );
+        assert_eq!(
+            enabled_runtime_policy.canonical_transport_plan().as_slice(),
+            &[
+                ResolutionTransport::DirectAuthoritativeUdp,
+                ResolutionTransport::DirectAuthoritativeTcp,
+                ResolutionTransport::AuthenticatedAuthoritativeDoh,
+                ResolutionTransport::HandshakeP2pDnsRelay,
+            ]
+        );
     }
 
     #[test]
