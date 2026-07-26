@@ -650,7 +650,7 @@ dependencies = [
 [[package]]
 name = "hns-icann-dane"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=127b9ad55852df00b4df40826517715048dc3571#127b9ad55852df00b4df40826517715048dc3571"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=2850ac1f50e361e2772e18f2e5ecbd7e77085afb#2850ac1f50e361e2772e18f2e5ecbd7e77085afb"
 
 [[package]]
 name = "hns-loopback-proxy"
@@ -672,7 +672,7 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=127b9ad55852df00b4df40826517715048dc3571#127b9ad55852df00b4df40826517715048dc3571"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=2850ac1f50e361e2772e18f2e5ecbd7e77085afb#2850ac1f50e361e2772e18f2e5ecbd7e77085afb"
 
 [[package]]
 name = "hns-p2p"
@@ -689,7 +689,7 @@ dependencies = [
 [[package]]
 name = "hns-resolution-policy"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=127b9ad55852df00b4df40826517715048dc3571#127b9ad55852df00b4df40826517715048dc3571"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=2850ac1f50e361e2772e18f2e5ecbd7e77085afb#2850ac1f50e361e2772e18f2e5ecbd7e77085afb"
 
 [[package]]
 name = "hns-resolver"

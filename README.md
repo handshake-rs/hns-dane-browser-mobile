@@ -11,7 +11,7 @@ and device-qualification work are tracked in
 
 ## Layout
 
-- `rust/`: Cargo workspace for consensus primitives, header chain, Urkel proof interfaces, resolver, DNSSEC, DANE, transport, gateway, cache, the shared browser runtime, the platform-neutral loopback proxy, Android JNI, and the stable Apple C ABI. It consumes `hns-icann-dane` and `hns-namespace-resolution` from immutable `handshake-rs/hns-dane-engine` commit `127b9ad55852df00b4df40826517715048dc3571`.
+- `rust/`: Cargo workspace for consensus primitives, header chain, Urkel proof interfaces, resolver, DNSSEC, DANE, transport, gateway, cache, the shared browser runtime, the platform-neutral loopback proxy, Android JNI, and the stable Apple C ABI. It consumes `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` from immutable `handshake-rs/hns-dane-engine` commit `2850ac1f50e361e2772e18f2e5ecbd7e77085afb`.
 - `rust/fuzz/`: `cargo-fuzz` parser harnesses for DNS, HNS resource values, P2P frames, Urkel proofs, TLSA records, and X.509 SPKI extraction.
 - `android/`: Kotlin Android browser shell with WebView, namespace-agnostic URL admission, whole-browser proxy lifecycle integration, and a thin JNI bridge.
 - `ios/`: Swift/UIKit WKWebView shell with whole-data-store proxy admission, lifecycle/certificate integration, and a generated Xcode project definition.
@@ -75,9 +75,9 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
   connectedDebugAndroidTest
 ```
 
-Cargo and platform builds fetch the two shared policy crates from immutable
+Cargo and platform builds fetch the three shared policy crates from immutable
 `handshake-rs/hns-dane-engine` commit
-`127b9ad55852df00b4df40826517715048dc3571`; no sibling coordination checkout
+`2850ac1f50e361e2772e18f2e5ecbd7e77085afb`; no sibling coordination checkout
 is required.
 
 The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.

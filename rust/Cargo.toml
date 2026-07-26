@@ -38,10 +38,10 @@ hns-core = { path = "crates/hns-core" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
-hns-icann-dane = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "127b9ad55852df00b4df40826517715048dc3571" }
+hns-icann-dane = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "2850ac1f50e361e2772e18f2e5ecbd7e77085afb" }
 hns-loopback-proxy = { path = "crates/hns-loopback-proxy" }
-hns-namespace-resolution = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "127b9ad55852df00b4df40826517715048dc3571" }
-hns-resolution-policy = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "127b9ad55852df00b4df40826517715048dc3571" }
+hns-namespace-resolution = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "2850ac1f50e361e2772e18f2e5ecbd7e77085afb" }
+hns-resolution-policy = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "2850ac1f50e361e2772e18f2e5ecbd7e77085afb" }
 h2 = "0.4"
 h3 = "0.0.8"
 h3-quinn = "0.0.10"
