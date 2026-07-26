@@ -519,7 +519,7 @@ class HnsWebViewGatewayInterceptorTest {
                 (
                     "HTTP/1.1 200 OK\r\n" +
                         metadata +
-                        "Content-Length: 6\r\n\r\nlegacy"
+                        "Content-Length: 6\r\n\r\nattack"
                     ).toByteArray(StandardCharsets.ISO_8859_1),
             )
             val dataDir =
@@ -539,7 +539,7 @@ class HnsWebViewGatewayInterceptorTest {
             requireNotNull(response)
             assertEquals(502, response.statusCode)
             assertEquals("Disabled HNS Trust Path", response.reason)
-            assertFalse(String(response.body).contains("legacy"))
+            assertFalse(String(response.body).contains("attack"))
             dataDir.deleteRecursively()
         }
     }

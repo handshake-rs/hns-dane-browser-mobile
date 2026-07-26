@@ -268,6 +268,10 @@ internal class BrowserProxyCoordinator(
         val compatible = compatibleInFlightConfig(normalized)
         val effective = compatible ?: normalized
         if (!sameProxyConfig(desiredConfig, effective)) {
+            // A queued load was admitted under the previous immutable policy
+            // generation. A settings change may reuse no part of that
+            // admission, even when the replacement proxy covers every host.
+            pendingNavigation = null
             desiredConfig = effective
             desiredRevision = nextMonotonicId(desiredRevision)
             failedRevision = null

@@ -145,12 +145,14 @@ def validate_lockfiles(root: Path) -> None:
                     f"{relative_path}: {name} must lock to "
                     f"{ENGINE_LOCK_SOURCE!r}, found {source!r}"
                 )
-            if relative_path != Path("rust/Cargo.lock"):
-                raise CargoGitPolicyError(
-                    f"{relative_path}: the engine Git exception is only "
-                    "expected in rust/Cargo.lock"
-                )
-            root_packages[name] += 1
+            # Standalone tools use their own lockfiles while consuming local
+            # workspace crates. If one of those crates reaches the shared
+            # engine transitively, Cargo must record the same exact canonical
+            # package and revision there too. Only the root lock is required
+            # to contain both packages; every lock remains constrained to the
+            # same two names and immutable source above.
+            if relative_path == Path("rust/Cargo.lock"):
+                root_packages[name] += 1
 
     for package, count in sorted(root_packages.items()):
         if count != 1:

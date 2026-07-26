@@ -47,13 +47,17 @@ class CargoGitPolicyTests(unittest.TestCase):
             f"version = 4\n\n{locked_packages}",
             encoding="utf-8",
         )
-        for relative_path in (
-            "rust/fuzz/Cargo.lock",
-            "tools/hns-header-snapshot-exporter/Cargo.lock",
-        ):
-            (root / relative_path).write_text(
-                "version = 4\n", encoding="utf-8"
-            )
+        (root / "rust/fuzz/Cargo.lock").write_text(
+            "version = 4\n", encoding="utf-8"
+        )
+        (root / "tools/hns-header-snapshot-exporter/Cargo.lock").write_text(
+            "version = 4\n\n"
+            "[[package]]\n"
+            'name = "hns-namespace-resolution"\n'
+            'version = "0.1.0"\n'
+            f'source = "{ENGINE_LOCK_SOURCE}"\n',
+            encoding="utf-8",
+        )
         return temporary, root
 
     def verify_fixture(self, root: Path) -> None:
@@ -100,6 +104,19 @@ class CargoGitPolicyTests(unittest.TestCase):
         temporary, root = self.create_fixture()
         with temporary:
             lockfile = root / "rust/Cargo.lock"
+            lockfile.write_text(
+                lockfile.read_text(encoding="utf-8").replace(
+                    ENGINE_REVISION, "0" * 40, 1
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(CargoGitPolicyError, "must lock to"):
+                self.verify_fixture(root)
+
+    def test_rejects_wrong_transitive_tool_revision(self) -> None:
+        temporary, root = self.create_fixture()
+        with temporary:
+            lockfile = root / "tools/hns-header-snapshot-exporter/Cargo.lock"
             lockfile.write_text(
                 lockfile.read_text(encoding="utf-8").replace(
                     ENGINE_REVISION, "0" * 40, 1

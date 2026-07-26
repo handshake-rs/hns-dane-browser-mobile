@@ -22,7 +22,7 @@ imply endorsement by the component authors.
 Generator schema: 2
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 7001a4117e71d63c36e4db3bd914282dd21f811cb00a7a836313a72a17e4ac8e
-  scripts/verify_cargo_git_policy.py = 218eaf1d70fc43159916bb4e07bce204ce2f2689393fbf8919237efb18294f93
+  scripts/verify_cargo_git_policy.py = 143eb550f458eb680a38f993a0aabd355a94b0df296ce78d306979c352c6694e
   rust/Cargo.toml = 104b2876ac182afa506314f6c5bb44262f46225f65b7ab37330635cbc5c0b3cf
   rust/Cargo.lock = 89c2bef6f273b1f84a0861fe2ff48b1567405d052d09149e44a9048ffa0f218c
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
