@@ -1154,20 +1154,26 @@ pub unsafe extern "C" fn hns_browser_runtime_set_policy(
                     "runtime handle is invalid or stale",
                 ));
             }
+            let previous_revision = entry.runtime.policy_revision();
             let revision = entry.runtime.set_policy(policy).map_err(|_| {
                 FfiFailure::new(
                     HNS_BROWSER_RESULT_RUNTIME_ERROR,
                     "unable to update runtime policy",
                 )
             })?;
-            // Revoke every published generation so no proxy continues under
-            // a policy snapshot the native shell believes replaced.
-            let owned = registry
-                .proxies
-                .values()
-                .filter(|proxy| proxy.runtime_handle == runtime)
-                .cloned()
-                .collect::<Vec<_>>();
+            // Revoke published generations only after a real normalized
+            // policy change. Reapplying the same ABI policy preserves the
+            // canonical generation and live platform bridge.
+            let owned = if revision == previous_revision {
+                Vec::new()
+            } else {
+                registry
+                    .proxies
+                    .values()
+                    .filter(|proxy| proxy.runtime_handle == runtime)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            };
             (revision, owned)
         };
         for proxy in owned {
@@ -2290,7 +2296,8 @@ mod tests {
         let data_dir = unique_data_dir("policy-revoke");
         let runtime = create_runtime(&data_dir);
         let proxy = start_icann_proxy(runtime);
-        let policy = HnsBrowserPolicy::defaults();
+        let mut policy = HnsBrowserPolicy::defaults();
+        policy.experimental_p2p_dns_relay = 1;
         let mut revision = 0;
         // SAFETY: Policy and output pointers are valid for this call.
         assert_eq!(
@@ -2310,11 +2317,44 @@ mod tests {
     }
 
     #[test]
+    fn unchanged_policy_preserves_revision_and_published_proxy() {
+        let _guard = test_guard();
+        let data_dir = unique_data_dir("policy-noop");
+        let runtime = create_runtime(&data_dir);
+        let proxy = start_icann_proxy(runtime);
+        let policy = HnsBrowserPolicy::defaults();
+        let mut revision = u64::MAX;
+        // SAFETY: Policy and output pointers are valid for this call.
+        assert_eq!(
+            unsafe { hns_browser_runtime_set_policy(runtime, &policy, &mut revision) },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert_eq!(revision, 0);
+        let mut endpoint = HnsBrowserProxyEndpoint::empty();
+        // SAFETY: Output points to one writable endpoint descriptor.
+        assert_eq!(
+            unsafe { hns_browser_proxy_endpoint(proxy, &mut endpoint) },
+            HNS_BROWSER_RESULT_OK
+        );
+        for buffer in [
+            endpoint.session_id,
+            endpoint.realm,
+            endpoint.username,
+            endpoint.password,
+        ] {
+            assert_eq!(hns_browser_buffer_free(buffer), HNS_BROWSER_RESULT_OK);
+        }
+        assert_eq!(hns_browser_proxy_destroy(proxy), HNS_BROWSER_RESULT_OK);
+        assert_eq!(hns_browser_runtime_destroy(runtime), HNS_BROWSER_RESULT_OK);
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
     fn concurrent_policy_and_proxy_publication_never_leave_old_revision_active() {
         let _guard = test_guard();
         let data_dir = unique_data_dir("policy-start-race");
         let runtime = create_runtime(&data_dir);
-        for _ in 0..12 {
+        for iteration in 0..12 {
             let barrier = Arc::new(Barrier::new(3));
             let start_barrier = Arc::clone(&barrier);
             let start = thread::spawn(move || {
@@ -2326,7 +2366,8 @@ mod tests {
             });
             let policy_barrier = Arc::clone(&barrier);
             let update = thread::spawn(move || {
-                let policy = HnsBrowserPolicy::defaults();
+                let mut policy = HnsBrowserPolicy::defaults();
+                policy.experimental_p2p_dns_relay = u8::from(iteration % 2 == 0);
                 let mut revision = 0;
                 policy_barrier.wait();
                 // SAFETY: Policy and output live for the complete call.

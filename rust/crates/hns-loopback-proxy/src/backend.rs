@@ -1,5 +1,6 @@
 //! Platform-neutral request boundary used by the loopback HTTP server.
 
+use std::any::Any;
 use std::fmt;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -169,6 +170,9 @@ pub struct ProxyResponseHead {
     pub status_code: u16,
     pub reason_phrase: String,
     pub headers: Vec<ProxyHeader>,
+    /// Opaque backend-local correlation used only for typed status delivery.
+    /// It is never serialized into the proxy response.
+    pub observation_id: Option<u64>,
 }
 
 impl fmt::Debug for ProxyResponseHead {
@@ -177,6 +181,7 @@ impl fmt::Debug for ProxyResponseHead {
             .debug_struct("ProxyResponseHead")
             .field("status_code", &self.status_code)
             .field("header_count", &self.headers.len())
+            .field("observation_id_present", &self.observation_id.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -222,6 +227,12 @@ impl fmt::Debug for ProxyResponseBody {
 pub struct ProxyResponse {
     pub head: ProxyResponseHead,
     pub body: ProxyResponseBody,
+    /// Opaque backend-issued authorization for publishing this exact result.
+    ///
+    /// The server returns this value to the same backend immediately before
+    /// flushing the response head. It is never serialized or interpreted by
+    /// the proxy.
+    pub publication: PublicationCapability,
 }
 
 /// One typed HTTP Upgrade response and its live origin connection. The proxy
@@ -234,6 +245,8 @@ pub struct ProxyResponse {
 pub struct ProxyTunnel {
     pub head: ProxyResponseHead,
     pub stream: Box<dyn ProxyTunnelIo>,
+    /// Opaque backend-issued authorization for publishing this exact switch.
+    pub publication: PublicationCapability,
 }
 
 /// Result of opening an Upgrade route. Policy and resolution failures can be
@@ -277,6 +290,51 @@ impl fmt::Debug for ProxyResponse {
     }
 }
 
+/// Opaque authorization bound by a backend to one returned response or tunnel.
+///
+/// Stateful backends should store the exact admission identity for the work
+/// that produced the result. [`ProxyBackend::acquire_publication_permit`] is
+/// then responsible for validating that identity atomically with publication.
+pub struct PublicationCapability {
+    backend_state: Box<dyn Any + Send + Sync>,
+}
+
+impl PublicationCapability {
+    /// Creates a no-state capability for stateless backends.
+    pub fn stateless() -> Self {
+        Self::new(())
+    }
+
+    /// Wraps backend-private publication state without exposing it to the
+    /// platform-neutral server.
+    pub fn new<T>(backend_state: T) -> Self
+    where
+        T: Any + Send + Sync,
+    {
+        Self {
+            backend_state: Box::new(backend_state),
+        }
+    }
+
+    /// Recovers backend-private state when the capability is returned to the
+    /// backend that issued it.
+    pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
+        self.backend_state.downcast_ref()
+    }
+}
+
+impl Default for PublicationCapability {
+    fn default() -> Self {
+        Self::stateless()
+    }
+}
+
+impl fmt::Debug for PublicationCapability {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("PublicationCapability(<redacted>)")
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
 pub enum BackendError {
     #[error("backend operation was cancelled")]
@@ -301,6 +359,17 @@ pub enum BackendError {
     Internal,
 }
 
+/// RAII proof that a backend still authorizes response publication.
+///
+/// Stateful backends may hold a lifecycle lock inside this value. The server
+/// keeps it alive through the flushed response head (or HTTP 101 switch) so a
+/// concurrent revocation cannot commit between validation and publication.
+/// Response bodies and upgraded streams must remain cancellation-aware and,
+/// when authority-bound, revalidate their own I/O.
+pub trait PublicationPermit {}
+
+impl PublicationPermit for () {}
+
 pub trait ProxyBackend: Send + Sync + 'static {
     /// Executes one admitted request. Implementations must observe
     /// `cancellation` and bound every network/storage wait so proxy shutdown
@@ -315,14 +384,35 @@ pub trait ProxyBackend: Send + Sync + 'static {
     /// Opens one admitted HTTP Upgrade tunnel. Implementations must apply the
     /// same resolution, address, TLS, and DANE policy as [`Self::execute`],
     /// observe `cancellation`, and satisfy the bounded-I/O contract documented
-    /// on [`ProxyTunnel`]. The default fails closed for compatibility with
-    /// backends that only implement request/response traffic.
+    /// on [`ProxyTunnel`]. The default returns a bounded, stateless 501
+    /// response for backends that only implement request/response traffic.
     fn open_tunnel(
         &self,
         _request: ProxyRequest,
         _cancellation: &CancellationToken,
     ) -> Result<ProxyTunnelOpen, BackendError> {
-        Err(BackendError::UnsupportedUpgrade)
+        Ok(ProxyTunnelOpen::Response(ProxyResponse {
+            head: ProxyResponseHead {
+                status_code: 501,
+                reason_phrase: "Upgrade Not Implemented".to_owned(),
+                headers: Vec::new(),
+                observation_id: None,
+            },
+            body: ProxyResponseBody::empty(),
+            publication: PublicationCapability::stateless(),
+        }))
+    }
+
+    /// Acquires an authorization held across response publication.
+    ///
+    /// Stateless backends use the default no-op permit. Stateful backends
+    /// return an RAII guard that prevents lifecycle invalidation until the
+    /// response head or protocol switch has been flushed.
+    fn acquire_publication_permit(
+        &self,
+        _capability: &PublicationCapability,
+    ) -> Result<Box<dyn PublicationPermit + '_>, BackendError> {
+        Ok(Box::new(()))
     }
 }
 

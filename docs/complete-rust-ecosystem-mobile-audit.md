@@ -1,6 +1,6 @@
 # Complete Rust Handshake Ecosystem: Mobile Delta Audit
 
-Last audited: 2026-07-25
+Last audited: 2026-07-26
 
 This audit maps this checkout only to `Complete Rust Handshake Ecosystem.pdf`
 (57 pages, SHA-256
@@ -25,9 +25,9 @@ It does not claim that the coordination-wide PDF is complete.
 | Explicit migration without turning old HNSDoH consent into relay consent | Implemented | Android and iOS erase legacy resolver/trust fields. Former resolver compatibility consent never enables relay consumption, and fresh installs remain off until explicit requester opt-in. |
 | P2P ODoH: Preferred/Required/Direct Allowed/Off | Not implemented in this checkout | No HIP #77 requester, HPKE/ODoH runtime, status model, or native control exists here. Do not represent the current direct relay as ODoH or query-confidential. |
 | HNSR: Off/Client/Endpoint | Not implemented in this checkout | No HIP #78 runtime or native control exists here. Mobile lifecycle, network-change, renewal, withdrawal, and stale-generation tests for HNSR remain required. |
-| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `2850ac1f50e361e2772e18f2e5ecbd7e77085afb`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), and live resolution follows the canonical direct-authority UDP/TCP → authenticated authoritative DoH → admitted relay order while unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
-| Browser authority state machine and generation-bound results | Partial | The local proxy has revocable generations and strict certificate admission, but this checkout does not expose the complete PDF state/evidence schema (`runtime session`, policy generation, registry fingerprint/profile, ODoH identities, and all explicit evidence states). |
-| Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. ODoH privacy policy, proxy/target separation, registry profile, and complete shared observability fields are unavailable because HIP #77 is absent. |
+| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `a03648ec85a115362ebc2ab24bb9ea0f1be127fc`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), and live resolution follows the canonical direct-authority UDP/TCP → authenticated authoritative DoH → admitted relay order while unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
+| Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
+| Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
 | Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Exact-build physical Android and iOS device matrices, mobile network transitions, and the PDF’s ODoH/HNSR lifecycle cases remain release gates. |
 
 ## Security Invariants for the Current Feature Set
@@ -58,10 +58,37 @@ It does not claim that the coordination-wide PDF is complete.
   indeterminate outcomes remain strict.
 - A successful divergent-root selection is persisted before its response is
   exposed. If sticky-state persistence fails, proxy, direct, file-backed, and
-  tunnel paths withhold the success.
+  tunnel paths withhold the success. Once the binding revision changes,
+  poisoned best-effort cache reclamation cannot suppress the already committed
+  response.
 - Traces retain all resolver attempts in partitioned HNS, ICANN, and diagnostic
   root evidence. Top-level namespace and trust fields remain attributable only
   to the selected immutable plan.
+- A successfully bound listener is not proof of authority readiness. Fresh or
+  stale local state leaves the listener degraded and non-admitting until
+  a current non-genesis header on every network, proof storage, a policy
+  transport, and the active bridge are factual; requests retry readiness
+  without replacing the platform endpoint.
+- One authority stamp is minted at whole-request entry before DNS or
+  classification and carried unchanged through origin transport, status, and
+  the result publication capability. Sticky namespace binding and response or
+  HTTP 101 head flush occur under the same exact permit and canonical lifecycle
+  lock used by replacement and revocation. Same-generation recovery cannot
+  revive a stale result; unstamped generated backend/JNI errors are suppressed.
+  File output is staged and atomically renamed only at final authorization. The
+  permit is released before potentially blocking body/tunnel work, and stop
+  signals cancellation before waiting on revocation.
+- Canonical status uses `decision_fingerprint` from the retained namespace
+  decision, the exact selected HNS qname/type transport event, and no HNS chain
+  anchor for ICANN. Each request retains its exact plan independently of the
+  shared cache. Typed root failures survive classification and status
+  construction, so bogus/indeterminate DNSSEC cannot become authenticated TLSA
+  absence; generic WebPKI/transport errors do not fabricate trust evidence.
+  Verifier-native certificate-association failure remains typed through
+  HTTP/1.1, HTTP/2, HTTP/3, and TLS Upgrade, while origin-SNI stays unavailable
+  unless separately proved.
+  Cached/unrepresentable evidence and legacy relay transport without negotiated
+  registry identity are explicit unavailable states.
 
 ## Qualification Boundaries
 
@@ -72,9 +99,9 @@ TestFlight pass. Android instrumentation requires an installed SDK/NDK and a
 device or emulator. Store binaries and previously recorded hashes must be
 rebuilt after this source checkpoint before they can be release evidence.
 
-The three shared engine crates resolve from immutable
+The five shared engine crates resolve from immutable
 `handshake-rs/hns-dane-engine` commit
-`2850ac1f50e361e2772e18f2e5ecbd7e77085afb`; a standalone checkout no longer
+`a03648ec85a115362ebc2ab24bb9ea0f1be127fc`; a standalone checkout no longer
 depends on the coordination workspace layout.
 
 The source covers normal navigation, same- and cross-origin redirects through
@@ -91,25 +118,25 @@ WebKit network-process behavior.
 
 ## Checkpoint Verification
 
-The following source-level gates passed on Linux on 2026-07-25:
+The canonical-engine adoption gates passed on Linux on 2026-07-26:
 
-- `cargo +1.92.0 clippy --locked --offline --manifest-path rust/Cargo.toml
+- `cargo +1.92.0 clippy --locked --manifest-path rust/Cargo.toml
   --workspace --all-targets -- -D warnings` and `cargo +1.92.0 fmt
   --manifest-path rust/Cargo.toml --all -- --check`.
-- Locked/offline test suites for every changed mobile-workspace Rust package:
-  `hns-resolver` (66 tests), `hns-transport` (51), `android-ffi` (11),
-  `ios-ffi` (11), `hns-mobile-platform-runtime` (135), `hns-gateway` (50), and
-  `hns-loopback-proxy` (147). The Git-pinned `hns-icann-dane` contract also
-  passed its 7 tests at the exact engine commit.
-- `cargo +1.92.0 build --locked --offline --manifest-path rust/Cargo.toml
-  --workspace --release` — optimized portable workspace build.
-- `CARGO_NET_OFFLINE=true ./scripts/check-ios-abi.sh` — locked `ios-ffi`
-  tests/build, C and C++ header compilation, and exact archive/exported-symbol
-  checks.
-- `./scripts/check-version-consistency.sh`,
-  `./scripts/check-runtime-boundaries.sh`, generated-third-party-notice
-  verification, all 19 portable iOS screenshot-tool tests, and
+- `cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml --workspace`,
+  including the changed mobile-workspace packages:
+  `hns-resolver` (66 tests), `hns-transport` (56), `android-ffi` (11),
+  `ios-ffi` (12), `hns-mobile-platform-runtime` (154), `hns-gateway` (50), and
+  `hns-loopback-proxy` (149).
+- The seven focused immutable-Git-policy tests, exact policy verifier, runtime
+  boundary checker, generated-third-party-notice verification, and
   `git diff --check`.
+
+The preceding 2026-07-25 checkpoint also passed the locked/offline optimized
+workspace build, C/C++ Apple ABI and exact exported-symbol checks, version
+consistency, and all 19 portable iOS screenshot-tool tests. Those historical
+results are retained as supporting evidence, not represented as fresh
+2026-07-26 executions.
 
 The consolidated `./scripts/check.sh` was not rerun because it would duplicate
 the expensive Rust suites above. This checkpoint therefore does not claim a

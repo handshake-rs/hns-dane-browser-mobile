@@ -8,11 +8,11 @@ dependencies are retained conservatively. Workspace-owned HNS DANE Browser crate
 test-only, lint, platform build-tool, fuzz, and snapshot-exporter dependencies are excluded.
 
 Shipped Rust target closure counts:
-  aarch64-linux-android: 172 third-party components
-  x86_64-linux-android: 172 third-party components
-  aarch64-apple-ios: 161 third-party components
-  aarch64-apple-ios-sim: 161 third-party components
-  x86_64-apple-ios: 161 third-party components
+  aarch64-linux-android: 175 third-party components
+  x86_64-linux-android: 175 third-party components
+  aarch64-apple-ios: 164 third-party components
+  aarch64-apple-ios-sim: 164 third-party components
+  x86_64-apple-ios: 164 third-party components
 
 License expressions are the declarations in the verified package metadata. The reproduced
 texts come from checksum-verified Cargo registry packages, the exact-revision canonical
@@ -22,9 +22,9 @@ imply endorsement by the component authors.
 Generator schema: 2
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 7001a4117e71d63c36e4db3bd914282dd21f811cb00a7a836313a72a17e4ac8e
-  scripts/verify_cargo_git_policy.py = 090422ba45de731b1545781ef3eca632e29e5670fab6257e1e7e6ec11f5518e3
-  rust/Cargo.toml = 143ddc02c0440ee0c88a33957c8e4a5a68b2362283ea549464374d0e528ccfef
-  rust/Cargo.lock = 5f48ca6ed2b438cbec11543ec771446f32c0adbd1f9f356864949de1b968f5e1
+  scripts/verify_cargo_git_policy.py = 65e8486133a1abdb5fb0ce63989b194800e141a9098f2c2dc032b4326efb98bc
+  rust/Cargo.toml = f4587dbafc49e696682d423139491b14c62997bcd29dbffbc20b74a39647506a
+  rust/Cargo.lock = 955dea52e8d9d187c201f264021921886d2f96b95fb448c5cb7996eccccaa0d4
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
@@ -36,7 +36,7 @@ Generated input SHA-256:
   rust/crates/hns-dnssec/Cargo.toml = 06c0ed11d5b80a3ff2f1780e9642e9986b13ecf1f34755cf1cd1d94b6a043cf0
   rust/crates/hns-gateway/Cargo.toml = 7da94da767d3633a7c151faea18aad4c023de9070cd8155f76d33af4cb535231
   rust/crates/hns-loopback-proxy/Cargo.toml = da48eea5d1c1c56d5722974946017b5a06b6b5891358b1f8d6c8362e2dff2145
-  rust/crates/hns-mobile-platform-runtime/Cargo.toml = 80c75a3c89f6a9489a7f7e64ab88ff361ac99d756692813b4eaa3c860078084f
+  rust/crates/hns-mobile-platform-runtime/Cargo.toml = ffaeca8d74058d17d24addcb260c2bf0eedb910bf32c31603b1cab8f8b2e1881
   rust/crates/hns-p2p/Cargo.toml = cdb80d118d0a68dba48c5bb71f9ce69e09e3807b904318693dab0096a8af04e9
   rust/crates/hns-resolver/Cargo.toml = 49abf4892555a38b6d02bff84c3fc07f88e380ec00ffe8e843faaf774bff26d8
   rust/crates/hns-sync/Cargo.toml = e573dd5bb30b3a6f89a00cb01929b268849e5d54b7c4b9cebad6dc937d8fa2e3
@@ -86,7 +86,7 @@ ANDROID RUNTIME COMPONENTS (40)
   org.jetbrains:annotations:23.0.0 | Apache-2.0
   org.jspecify:jspecify:1.0.0 | Apache-2.0
 
-RUST COMPONENTS (172)
+RUST COMPONENTS (175)
   asn1-rs 0.7.2 | MIT OR Apache-2.0
   asn1-rs-derive 0.6.0 | MIT OR Apache-2.0
   asn1-rs-impl 0.2.0 | MIT/Apache-2.0
@@ -145,6 +145,8 @@ RUST COMPONENTS (172)
   hashlink 0.11.1 | MIT OR Apache-2.0
   hex 0.4.3 | MIT OR Apache-2.0
   hmac 0.12.1 | MIT OR Apache-2.0
+  hns-browser-observability 0.1.0 | MIT OR Apache-2.0
+  hns-browser-runtime 0.1.0 | MIT OR Apache-2.0
   hns-icann-dane 0.1.0 | MIT OR Apache-2.0
   hns-namespace-resolution 0.1.0 | MIT OR Apache-2.0
   hns-resolution-policy 0.1.0 | MIT OR Apache-2.0
@@ -223,11 +225,12 @@ RUST COMPONENTS (172)
   stable_deref_trait 1.2.1 | MIT OR Apache-2.0
   subtle 2.6.1 | BSD-3-Clause
   syn 2.0.118 | MIT OR Apache-2.0
+  syn 3.0.3 | MIT OR Apache-2.0
   synstructure 0.13.2 | MIT
   thiserror 1.0.69 | MIT OR Apache-2.0
-  thiserror 2.0.18 | MIT OR Apache-2.0
+  thiserror 2.0.19 | MIT OR Apache-2.0
   thiserror-impl 1.0.69 | MIT OR Apache-2.0
-  thiserror-impl 2.0.18 | MIT OR Apache-2.0
+  thiserror-impl 2.0.19 | MIT OR Apache-2.0
   time 0.3.51 | MIT OR Apache-2.0
   time-core 0.1.9 | MIT OR Apache-2.0
   time-macros 0.2.30 | MIT OR Apache-2.0
@@ -1423,10 +1426,11 @@ Applies to:
   - Rust crate serde_core 1.0.228
   - Rust crate serde_derive 1.0.228
   - Rust crate syn 2.0.118
+  - Rust crate syn 3.0.3
   - Rust crate thiserror 1.0.69
-  - Rust crate thiserror 2.0.18
+  - Rust crate thiserror 2.0.19
   - Rust crate thiserror-impl 1.0.69
-  - Rust crate thiserror-impl 2.0.18
+  - Rust crate thiserror-impl 2.0.19
   - Rust crate unicode-ident 1.0.24
 Source file names:
   - LICENSE-MIT
@@ -2528,6 +2532,8 @@ Applies to:
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0
   - org.jetbrains:annotations:23.0.0
   - org.jspecify:jspecify:1.0.0
+  - Rust crate hns-browser-observability 0.1.0
+  - Rust crate hns-browser-runtime 0.1.0
   - Rust crate hns-icann-dane 0.1.0
   - Rust crate hns-namespace-resolution 0.1.0
   - Rust crate hns-resolution-policy 0.1.0
@@ -4362,10 +4368,11 @@ Applies to:
   - Rust crate serde_core 1.0.228
   - Rust crate serde_derive 1.0.228
   - Rust crate syn 2.0.118
+  - Rust crate syn 3.0.3
   - Rust crate thiserror 1.0.69
-  - Rust crate thiserror 2.0.18
+  - Rust crate thiserror 2.0.19
   - Rust crate thiserror-impl 1.0.69
-  - Rust crate thiserror-impl 2.0.18
+  - Rust crate thiserror-impl 2.0.19
   - Rust crate unicode-ident 1.0.24
 Source file names:
   - LICENSE-APACHE
@@ -8610,6 +8617,8 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: f9165598d16dd8f69f8b1ff9a0e2871821b9f7e6c0bece512dfd4de11e613ae5
 Applies to:
+  - Rust crate hns-browser-observability 0.1.0
+  - Rust crate hns-browser-runtime 0.1.0
   - Rust crate hns-icann-dane 0.1.0
   - Rust crate hns-namespace-resolution 0.1.0
   - Rust crate hns-resolution-policy 0.1.0

@@ -2438,21 +2438,53 @@ fn execute_backend<W: Write + ?Sized>(
                     elapsed: started.elapsed(),
                 },
             );
-            if !cancellation.is_cancelled() {
-                let (status, reason) = backend_error_status(error);
-                observe_proxy_generated_response(context, host, method, status, likely_main_frame);
-                let _result = write_error_response(stream, status, reason, &[]);
-            }
             return;
         }
     };
     if cancellation.is_cancelled() {
         return;
     }
+    let publication_permit = match catch_unwind(AssertUnwindSafe(|| {
+        context
+            .backend
+            .acquire_publication_permit(&response.publication)
+    }))
+    .unwrap_or(Err(BackendError::Internal))
+    {
+        Ok(permit) => permit,
+        Err(error) => {
+            observe_request(
+                context,
+                host,
+                method,
+                RequestPhase::BackendFailed {
+                    kind: backend_failure_kind(error),
+                    elapsed: started.elapsed(),
+                },
+            );
+            return;
+        }
+    };
     let status = response.head.status_code;
-    match write_backend_response(stream, request_method, response, cancellation, |metadata| {
-        observe_response_metadata(context, host, method, status, likely_main_frame, metadata);
-    }) {
+    let observation_id = response.head.observation_id;
+    match write_backend_response(
+        stream,
+        request_method,
+        response,
+        cancellation,
+        publication_permit,
+        |metadata| {
+            observe_response_metadata(
+                context,
+                host,
+                method,
+                status,
+                likely_main_frame,
+                observation_id,
+                metadata,
+            );
+        },
+    ) {
         Ok(()) => observe_request(
             context,
             host,
@@ -2464,10 +2496,6 @@ fn execute_backend<W: Write + ?Sized>(
         ),
         Err(WriteBackendError::InvalidBeforeHead) => {
             observe_invalid_response(context, host, method, started.elapsed());
-            if !cancellation.is_cancelled() {
-                observe_proxy_generated_response(context, host, method, 502, likely_main_frame);
-                let _result = write_error_response(stream, 502, "Invalid Upstream Response", &[]);
-            }
         }
         Err(WriteBackendError::InvalidAfterHead) => {
             observe_invalid_response(context, host, method, started.elapsed());
@@ -2503,30 +2531,60 @@ fn execute_backend_tunnel<S: ClientIo + ?Sized>(
                     elapsed: started.elapsed(),
                 },
             );
-            if !cancellation.is_cancelled() {
-                let (status, reason) = backend_error_status(error);
-                let _result = write_error_response(client, status, reason, &[]);
-            }
             return;
         }
     };
     if cancellation.is_cancelled() {
         return;
     }
+    let publication_permit = match catch_unwind(AssertUnwindSafe(|| {
+        let capability = match &opened {
+            ProxyTunnelOpen::Tunnel(tunnel) => &tunnel.publication,
+            ProxyTunnelOpen::Response(response) => &response.publication,
+        };
+        context.backend.acquire_publication_permit(capability)
+    }))
+    .unwrap_or(Err(BackendError::Internal))
+    {
+        Ok(permit) => permit,
+        Err(error) => {
+            observe_request(
+                context,
+                host,
+                method,
+                RequestPhase::BackendFailed {
+                    kind: backend_failure_kind(error),
+                    elapsed: started.elapsed(),
+                },
+            );
+            return;
+        }
+    };
     let ProxyTunnel {
         head,
         stream: mut origin,
+        publication: _publication,
     } = match opened {
         ProxyTunnelOpen::Tunnel(tunnel) => tunnel,
         ProxyTunnelOpen::Response(response) => {
             let status = response.head.status_code;
+            let observation_id = response.head.observation_id;
             match write_backend_response(
                 client,
                 &request_method,
                 response,
                 cancellation,
+                publication_permit,
                 |metadata| {
-                    observe_response_metadata(context, host, method, status, false, metadata);
+                    observe_response_metadata(
+                        context,
+                        host,
+                        method,
+                        status,
+                        false,
+                        observation_id,
+                        metadata,
+                    );
                 },
             ) {
                 Ok(()) => observe_request(
@@ -2540,10 +2598,6 @@ fn execute_backend_tunnel<S: ClientIo + ?Sized>(
                 ),
                 Err(WriteBackendError::InvalidBeforeHead) => {
                     observe_invalid_response(context, host, method, started.elapsed());
-                    if !cancellation.is_cancelled() {
-                        let _result =
-                            write_error_response(client, 502, "Invalid Upstream Response", &[]);
-                    }
                 }
                 Err(WriteBackendError::InvalidAfterHead) => {
                     observe_invalid_response(context, host, method, started.elapsed());
@@ -2580,10 +2634,19 @@ fn execute_backend_tunnel<S: ClientIo + ?Sized>(
                 return;
             }
         };
-    observe_response_metadata(context, host, method, 101, false, sanitized.metadata());
     if client.write_all(encoded.as_bytes()).is_err() || client.flush().is_err() {
         return;
     }
+    drop(publication_permit);
+    observe_response_metadata(
+        context,
+        host,
+        method,
+        101,
+        false,
+        head.observation_id,
+        sanitized.metadata(),
+    );
 
     match pump_tunnel(client, origin.as_mut(), cancellation) {
         TunnelPumpOutcome::Completed => observe_request(
@@ -2701,13 +2764,18 @@ fn write_backend_response<W, F>(
     request_method: &str,
     response: ProxyResponse,
     cancellation: &CancellationToken,
+    publication_permit: Box<dyn crate::PublicationPermit + '_>,
     observe_metadata: F,
 ) -> Result<(), WriteBackendError>
 where
     W: Write + ?Sized,
     F: FnOnce(&crate::InternalResponseMetadata),
 {
-    let ProxyResponse { head, body } = response;
+    let ProxyResponse {
+        head,
+        body,
+        publication: _publication,
+    } = response;
     let header_pairs: Vec<_> = head
         .headers
         .into_iter()
@@ -2725,14 +2793,16 @@ where
     )
     .map_err(|_error| WriteBackendError::InvalidBeforeHead)?;
     let body_allowed = encoded.body_allowed();
-    observe_metadata(headers.metadata());
     stream
         .write_all(encoded.as_bytes())
         .map_err(|_error| WriteBackendError::Io)?;
-    if !body_allowed {
-        return Ok(());
+    stream.flush().map_err(|_error| WriteBackendError::Io)?;
+    drop(publication_permit);
+    if body_allowed {
+        write_response_body(stream, body, cancellation)?;
     }
-    write_response_body(stream, body, cancellation)
+    observe_metadata(headers.metadata());
+    Ok(())
 }
 
 fn write_response_body<W: Write + ?Sized>(
@@ -3076,6 +3146,7 @@ fn request_error_status(error: &Http1Error) -> (u16, &'static str) {
     }
 }
 
+#[cfg(test)]
 fn backend_error_status(error: BackendError) -> (u16, &'static str) {
     match error {
         BackendError::Cancelled => (503, "Proxy Request Cancelled"),
@@ -3237,6 +3308,7 @@ fn observe_response_metadata(
     method: ObservedMethod,
     status_code: u16,
     likely_main_frame: bool,
+    observation_id: Option<u64>,
     metadata: &crate::InternalResponseMetadata,
 ) {
     let Ok(host) = ObservedHost::new(host) else {
@@ -3248,6 +3320,7 @@ fn observe_response_metadata(
         method,
         status_code,
         likely_main_frame,
+        observation_id,
         metadata.clone(),
     );
     let _result = catch_unwind(AssertUnwindSafe(|| {
@@ -3271,6 +3344,7 @@ fn observe_proxy_generated_response(
         method,
         status_code,
         true,
+        None,
         &crate::InternalResponseMetadata::default(),
     );
 }
@@ -3360,8 +3434,10 @@ mod tests {
                     status_code: 200,
                     reason_phrase: "OK".to_owned(),
                     headers,
+                    observation_id: None,
                 },
                 body,
+                publication: Default::default(),
             }
         }
     }
@@ -3430,6 +3506,7 @@ mod tests {
                         ProxyHeader::new("X-Origin-Hop", "secret"),
                         ProxyHeader::new("X-HNS-Security-Path", "secret"),
                     ],
+                    observation_id: None,
                 },
                 initial_origin_bytes: initial_origin_bytes.into(),
             }
@@ -3476,6 +3553,7 @@ mod tests {
                 stream: Box::new(EchoTunnelStream {
                     pending: self.initial_origin_bytes.iter().copied().collect(),
                 }),
+                publication: Default::default(),
             }))
         }
     }
@@ -3533,8 +3611,10 @@ mod tests {
                         ProxyHeader::new("Content-Type", "text/plain"),
                         ProxyHeader::new("X-HNS-Security-Path", "verified-non-inclusion"),
                     ],
+                    observation_id: None,
                 },
                 body: ProxyResponseBody::Bytes(b"verified non-inclusion".to_vec()),
+                publication: Default::default(),
             }))
         }
     }
@@ -3559,6 +3639,7 @@ mod tests {
                     status_code: 200,
                     reason_phrase: "OK".to_owned(),
                     headers: vec![],
+                    observation_id: None,
                 },
                 body: ProxyResponseBody::Stream {
                     expected_len: 1,
@@ -3567,6 +3648,7 @@ mod tests {
                         read_started,
                     }),
                 },
+                publication: Default::default(),
             })
         }
     }
@@ -4451,7 +4533,7 @@ mod tests {
             "GET http://welcome/ HTTP/1.1\r\nHost: welcome\r\n{}\r\n",
             auth_header(&proxy)
         );
-        assert_eq!(response_status(&send_raw(&proxy, admitted.as_bytes())), 500);
+        assert!(send_raw(&proxy, admitted.as_bytes()).is_empty());
         assert!(proxy.local_certificate_pin("welcome").is_none());
 
         let limited = format!(
@@ -4669,7 +4751,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_response_head_reports_only_the_proxy_generated_main_frame_error() {
+    fn invalid_response_head_is_suppressed_without_an_authorized_fallback() {
         let backend = Arc::new(RecordingBackend::new(ResponsePlan::Fixed {
             headers: vec![
                 ProxyHeader::new("X-HNS-TLS-Policy", "dane"),
@@ -4690,20 +4772,17 @@ mod tests {
             auth_header(&proxy)
         );
 
-        assert_eq!(response_status(&send_raw(&proxy, request.as_bytes())), 502);
+        assert!(send_raw(&proxy, request.as_bytes()).is_empty());
         let observations = observations
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        assert_eq!(observations.len(), 1);
-        assert_eq!(observations[0].status_code(), 502);
-        assert!(observations[0].is_likely_main_frame());
-        assert!(observations[0].metadata().is_empty());
+        assert!(observations.is_empty());
         drop(observations);
         proxy.stop();
     }
 
     #[test]
-    fn backend_failure_reports_the_proxy_generated_main_frame_status() {
+    fn backend_failure_cannot_publish_an_unstamped_generated_response() {
         let observations = Arc::new(Mutex::new(Vec::new()));
         let sink = Arc::clone(&observations);
         let observer = Arc::new(move |observation: &ProxyResponseMetadataObservation| {
@@ -4723,14 +4802,11 @@ mod tests {
             auth_header(&proxy)
         );
 
-        assert_eq!(response_status(&send_raw(&proxy, request.as_bytes())), 500);
+        assert!(send_raw(&proxy, request.as_bytes()).is_empty());
         let observations = observations
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        assert_eq!(observations.len(), 1);
-        assert_eq!(observations[0].status_code(), 500);
-        assert!(observations[0].is_likely_main_frame());
-        assert!(observations[0].metadata().is_empty());
+        assert!(observations.is_empty());
         drop(observations);
         proxy.stop();
     }
@@ -5164,10 +5240,12 @@ mod tests {
         let backend = Arc::new(EchoTunnelBackend::websocket(b"origin"));
         let observations = Arc::new(Mutex::new(Vec::new()));
         let sink = Arc::clone(&observations);
+        let (observed_tx, observed_rx) = mpsc::channel();
         let metadata_observer = Arc::new(move |observation: &ProxyResponseMetadataObservation| {
             sink.lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .push(observation.clone());
+            let _result = observed_tx.send(());
         });
         let proxy = RunningProxy::start_with_metadata_observer(
             test_config(),
@@ -5195,6 +5273,7 @@ mod tests {
         assert!(!response_text.contains("keep-alive"));
         assert!(!response_text.contains("X-Origin-Hop"));
         assert!(!response_text.contains("X-HNS-"));
+        observed_rx.recv_timeout(TEST_TIMEOUT).unwrap();
         {
             let observations = observations
                 .lock()
@@ -5332,6 +5411,7 @@ mod tests {
                 ProxyHeader::new("Upgrade", "websocket"),
                 ProxyHeader::new("X-HNS-Security-Path", "must-not-observe"),
             ],
+            observation_id: None,
         }));
         let observations = Arc::new(Mutex::new(Vec::new()));
         let sink = Arc::clone(&observations);
@@ -5603,6 +5683,72 @@ mod tests {
             ),
             Err(WriteBackendError::InvalidAfterHead)
         );
+    }
+
+    #[test]
+    fn publication_permit_is_released_before_a_response_body_read_can_block() {
+        struct ReleasePermit(Option<mpsc::Sender<()>>);
+
+        impl crate::PublicationPermit for ReleasePermit {}
+
+        impl Drop for ReleasePermit {
+            fn drop(&mut self) {
+                if let Some(sender) = self.0.take() {
+                    let _result = sender.send(());
+                }
+            }
+        }
+
+        struct PermitAwareReader {
+            released: Option<mpsc::Receiver<()>>,
+            bytes: Cursor<Vec<u8>>,
+        }
+
+        impl Read for PermitAwareReader {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                if let Some(released) = self.released.take() {
+                    released.recv_timeout(TEST_TIMEOUT).map_err(|error| {
+                        io::Error::new(
+                            io::ErrorKind::TimedOut,
+                            format!("response-head permit remained held during body read: {error}"),
+                        )
+                    })?;
+                }
+                self.bytes.read(buffer)
+            }
+        }
+
+        let (released_tx, released_rx) = mpsc::channel();
+        let response = ProxyResponse {
+            head: ProxyResponseHead {
+                status_code: 200,
+                reason_phrase: "OK".to_owned(),
+                headers: vec![ProxyHeader::new("Content-Type", "text/plain")],
+                observation_id: None,
+            },
+            body: ProxyResponseBody::Stream {
+                expected_len: 2,
+                reader: Box::new(PermitAwareReader {
+                    released: Some(released_rx),
+                    bytes: Cursor::new(b"ok".to_vec()),
+                }),
+            },
+            publication: Default::default(),
+        };
+        let mut output = Vec::new();
+
+        write_backend_response(
+            &mut output,
+            "GET",
+            response,
+            &CancellationToken::new(),
+            Box::new(ReleasePermit(Some(released_tx))),
+            |_| {},
+        )
+        .unwrap();
+
+        assert!(output.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        assert!(output.ends_with(b"\r\n\r\nok"));
     }
 
     #[test]

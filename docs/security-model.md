@@ -222,14 +222,69 @@ does not by itself change peer score or start a cooldown. See
 - No unbounded or panic-prone X.509 parsing for DANE SPKI selector matching.
 - No QUIC downgrade without an explicit policy event.
 - No local gateway listener beyond loopback and no fixed browser proxy port in normal app startup. Android and iOS intentionally apply the authenticated Rust proxy to their browser data store/WebView without failover to a direct DNS-named origin route. Neither platform keeps a browser proxy listener after its owning foreground browser lifecycle is revoked.
+- No proxy session split between the platform token and canonical authority
+  runtime. Both identities are derived from the same checked nonzero random
+  bytes, while the existing URL-safe token representation remains unchanged.
+- No request admission merely because a loopback listener bound successfully.
+  A fresh listener may be visible while the canonical authority is degraded,
+  but a current non-genesis header on every network, proof storage, a
+  policy-permitted resolution transport, and the exact active browser-bridge
+  generation must all be factual before an operation receives an authority
+  stamp. A genesis-only regtest state is not browser-ready.
+- No policy-generation churn for a normalized no-op, and no stale listener may
+  clear or revoke a newer generation. Replacement revokes the prior authority
+  before the new listener is published; stop and drop compare against their
+  exact generation.
+- No origin operation may mint authority after maintenance, DNS, or namespace
+  classification. One stamp is minted at whole-request entry and carried
+  unchanged through the selected transport, status, response, file, or tunnel
+  result. A same-generation `Degraded` to `Active` recovery cannot remint or
+  revive work admitted before the degradation.
+- No response or HTTP 101 head may cross a concurrent replacement or revocation
+  between its final exact-stamp check and publication. Each result carries an
+  opaque publication capability bound to that exact stamp. A successful
+  result's pending sticky namespace binding is committed only after this permit
+  is acquired, and the same canonical lifecycle lock remains held through the
+  head flush. Stop requests cancellation before waiting on that lock, and
+  response-body/tunnel work remains cancellation and exact-stamp checked after
+  the permit is released. A backend error or invalid response head cannot cause
+  the server to synthesize an unstamped fallback head.
+- No direct file response may write origin bytes to its public target before
+  final exact-stamp authorization. Bytes remain in an RAII-cleaned,
+  same-directory staging file and are renamed into place only while the
+  canonical publication guard is held. Android raw/JNI wrappers propagate
+  post-parse runtime errors as no result; they cannot replace a rejected
+  admitted response with fresh unstamped 500 bytes or a file body.
 - No vendored IANA/root-zone list may authoritatively select a namespace. Every canonical complete hostname must be resolved independently through HNS and ICANN, with HNS-only, ICANN-only, convergent, divergent, neither, and indeterminate outcomes handled explicitly before any origin connection.
 - No successful response may expose a newly selected divergent namespace until
   its sticky selection has been durably recorded. Persistence failure withholds
-  the response.
+  the response. Once persistence increments the binding revision, stale
+  in-memory plans are unreachable; best-effort reclamation of those plans
+  cannot turn the committed selection into an unpublished response.
 - No dual-root trace may collapse unselected-root attempts into the selected
   namespace attribution. All DNS attempts remain available as partitioned HNS,
   ICANN, or diagnostic root evidence while top-level trust fields describe only
   the selected plan.
+- No canonical schema-v2 status may use a cache/configuration fingerprint in
+  place of `decision_fingerprint` for the retained `NamespaceDecision`, attach
+  an HNS chain anchor to an ICANN-selected result, or infer HNS transport from
+  an unrelated qname/type or the ICANN half of a dual-root trace.
+- No canonical failure status may discard a typed HNS or ICANN `RootFailure`.
+  DNSSEC bogus must remain bogus, indeterminate must remain indeterminate, and
+  neither may be represented as authenticated TLSA absence or ordinary
+  namespace nonexistence. A post-selection failure retains the selected
+  decision and fingerprint when that decision exists.
+- No status may re-read a same-origin shared cache entry in place of the exact
+  plan retained by its request. Concurrent cache replacement cannot change one
+  request's root-failure kind. A generic transport or WebPKI failure that lacks
+  typed trust evidence remains unavailable rather than fabricating DANE or
+  origin-SNI failure. A certificate-association mismatch is marked by the
+  verifier and carried through HTTP/1.1, HTTP/2, HTTP/3, and TLS Upgrade as the
+  typed DANE failure; that marker alone does not claim origin-SNI failure.
+- No legacy P2P relay status may invent a registry fingerprint or protocol
+  version that was not retained from negotiation. A successful path whose
+  exact evidence is unavailable or unrepresentable is reported explicitly as
+  canonical-status unavailable.
 - No origin fetch unless the gateway resolution name matches the requested origin host.
 - No intercepted HNS redirect should be followed unless the target has the same scheme, host, and effective port and the redirect chain stays under the configured bound.
 - No main-frame HNS gateway 4xx/5xx response should leave the toolbar in verified state.

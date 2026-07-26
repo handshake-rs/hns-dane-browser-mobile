@@ -22,7 +22,7 @@ dependencies = [
  "nom",
  "num-traits",
  "rusticata-macros",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
  "time",
 ]
 
@@ -34,7 +34,7 @@ checksum = "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -46,7 +46,7 @@ checksum = "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -249,7 +249,7 @@ checksum = "1ac70aa55017e108007fbaf5aa0f54b021c98f92ff8af59d42eda9da96e3dd4f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -391,7 +391,7 @@ checksum = "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -559,9 +559,115 @@ dependencies = [
 ]
 
 [[package]]
+name = "hns-browser-observability"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
+dependencies = [
+ "hns-browser-runtime",
+ "hns-icann-dane",
+ "hns-namespace-resolution",
+ "hns-resolution-policy",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-browser-runtime"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
+
+[[package]]
+name = "hns-cache"
+version = "0.5.0"
+
+[[package]]
+name = "hns-chain"
+version = "0.5.0"
+dependencies = [
+ "hns-core",
+ "rusqlite",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-core"
+version = "0.5.0"
+dependencies = [
+ "blake2",
+ "hex",
+ "num-bigint",
+ "num-traits",
+ "serde",
+ "sha3",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-dane"
+version = "0.5.0"
+dependencies = [
+ "hns-core",
+ "hns-dnssec",
+ "hns-urkel",
+ "sha2",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-dnssec"
+version = "0.5.0"
+dependencies = [
+ "hns-core",
+ "num-bigint",
+ "num-traits",
+ "p256",
+ "ring",
+ "sha1",
+ "sha2",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-gateway"
+version = "0.5.0"
+dependencies = [
+ "hns-core",
+ "hns-dane",
+ "hns-icann-dane",
+ "hns-namespace-resolution",
+ "hns-resolver",
+ "hns-transport",
+ "subtle",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-icann-dane"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
+
+[[package]]
+name = "hns-loopback-proxy"
+version = "0.5.0"
+dependencies = [
+ "base64",
+ "hns-core",
+ "hns-resolver",
+ "httparse",
+ "idna",
+ "rcgen",
+ "ring",
+ "rustls",
+ "subtle",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
 name = "hns-mobile-platform-runtime"
 version = "0.5.0"
 dependencies = [
+ "hns-browser-observability",
+ "hns-browser-runtime",
  "hns-chain",
  "hns-core",
  "hns-dane",
@@ -579,100 +685,13 @@ dependencies = [
  "httparse",
  "rusqlite",
  "sha2",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "hns-cache"
-version = "0.5.0"
-
-[[package]]
-name = "hns-chain"
-version = "0.5.0"
-dependencies = [
- "hns-core",
- "rusqlite",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "hns-core"
-version = "0.5.0"
-dependencies = [
- "blake2",
- "hex",
- "num-bigint",
- "num-traits",
- "serde",
- "sha3",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "hns-dane"
-version = "0.5.0"
-dependencies = [
- "hns-core",
- "hns-dnssec",
- "hns-urkel",
- "sha2",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "hns-dnssec"
-version = "0.5.0"
-dependencies = [
- "hns-core",
- "num-bigint",
- "num-traits",
- "p256",
- "ring",
- "sha1",
- "sha2",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "hns-gateway"
-version = "0.5.0"
-dependencies = [
- "hns-core",
- "hns-dane",
- "hns-icann-dane",
- "hns-namespace-resolution",
- "hns-resolver",
- "hns-transport",
- "subtle",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "hns-icann-dane"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=2850ac1f50e361e2772e18f2e5ecbd7e77085afb#2850ac1f50e361e2772e18f2e5ecbd7e77085afb"
-
-[[package]]
-name = "hns-loopback-proxy"
-version = "0.5.0"
-dependencies = [
- "base64",
- "hns-core",
- "hns-resolver",
- "httparse",
- "idna",
- "rcgen",
- "ring",
- "rustls",
- "subtle",
- "thiserror 2.0.18",
- "zeroize",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=2850ac1f50e361e2772e18f2e5ecbd7e77085afb#2850ac1f50e361e2772e18f2e5ecbd7e77085afb"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
 
 [[package]]
 name = "hns-p2p"
@@ -683,13 +702,13 @@ dependencies = [
  "hns-core",
  "hns-urkel",
  "rusqlite",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "hns-resolution-policy"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=2850ac1f50e361e2772e18f2e5ecbd7e77085afb#2850ac1f50e361e2772e18f2e5ecbd7e77085afb"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
 
 [[package]]
 name = "hns-resolver"
@@ -701,7 +720,7 @@ dependencies = [
  "hns-dnssec",
  "hns-namespace-resolution",
  "rusqlite",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -713,7 +732,7 @@ dependencies = [
  "hns-p2p",
  "hns-resolver",
  "hns-urkel",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -731,7 +750,7 @@ dependencies = [
  "rcgen",
  "rustls",
  "sha2",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
  "tokio",
  "tokio-rustls",
  "webpki-roots",
@@ -742,7 +761,7 @@ name = "hns-urkel"
 version = "0.5.0"
 dependencies = [
  "hns-core",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -928,7 +947,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264"
 dependencies = [
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1155,7 +1174,7 @@ dependencies = [
  "rustc-hash",
  "rustls",
  "socket2",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
  "tokio",
  "tracing",
  "web-time",
@@ -1176,7 +1195,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
  "tinyvec",
  "tracing",
  "web-time",
@@ -1291,7 +1310,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c"
 dependencies = [
  "hashbrown 0.16.1",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1414,7 +1433,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1523,6 +1542,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "synstructure"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1530,7 +1560,7 @@ checksum = "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -1544,11 +1574,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.18"
+version = "2.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
+checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
 dependencies = [
- "thiserror-impl 2.0.18",
+ "thiserror-impl 2.0.19",
 ]
 
 [[package]]
@@ -1559,18 +1589,18 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.18"
+version = "2.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
+checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -1777,7 +1807,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "wasm-bindgen-shared",
 ]
 
@@ -1998,7 +2028,7 @@ dependencies = [
  "oid-registry",
  "ring",
  "rusticata-macros",
- "thiserror 2.0.18",
+ "thiserror 2.0.19",
  "time",
 ]
 
@@ -2031,7 +2061,7 @@ checksum = "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -2052,7 +2082,7 @@ checksum = "1ae7f38b72ec2a254e2b87ef277cf2cd4fb97cbebf944faa6f33354da0867930"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -2072,7 +2102,7 @@ checksum = "11532158c46691caf0f2593ea8358fed6bbf68a0315e80aae9bd41fbade684a1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
  "synstructure",
 ]
 
@@ -2112,5 +2142,5 @@ checksum = "625dc425cab0dca6dc3c3319506e6593dcb08a9f387ea3b284dbd52a92c40555"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.118",
 ]

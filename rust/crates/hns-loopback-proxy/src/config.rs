@@ -12,6 +12,7 @@ const SESSION_ID_RANDOM_BYTES: usize = 16;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub struct ProxySessionId {
+    bytes: [u8; SESSION_ID_RANDOM_BYTES],
     token: String,
 }
 
@@ -21,9 +22,27 @@ impl ProxySessionId {
         SystemRandom::new()
             .fill(&mut bytes)
             .map_err(|_| SessionIdGenerationError)?;
+        Self::from_bytes(bytes)
+    }
+
+    /// Construct a checked session identity from the exact opaque bytes used
+    /// by the canonical browser authority runtime.
+    pub fn from_bytes(
+        bytes: [u8; SESSION_ID_RANDOM_BYTES],
+    ) -> Result<Self, SessionIdGenerationError> {
+        if bytes == [0; SESSION_ID_RANDOM_BYTES] {
+            return Err(SessionIdGenerationError);
+        }
         Ok(Self {
+            bytes,
             token: URL_SAFE_NO_PAD.encode(bytes),
         })
+    }
+
+    /// Return the exact opaque session bytes without changing the stable
+    /// base64url token exposed at the native boundary.
+    pub const fn as_bytes(&self) -> &[u8; SESSION_ID_RANDOM_BYTES] {
+        &self.bytes
     }
 
     /// Explicitly exposes the opaque token for platform boundary serialization.
@@ -410,8 +429,23 @@ mod tests {
         let second = ProxySessionId::generate().unwrap();
 
         assert_ne!(first, second);
+        assert_ne!(first.as_bytes(), &[0; SESSION_ID_RANDOM_BYTES]);
+        assert_eq!(URL_SAFE_NO_PAD.encode(first.as_bytes()), first.as_str());
         assert!(!first.as_str().is_empty());
         assert!(!format!("{first:?}").contains(first.as_str()));
+    }
+
+    #[test]
+    fn session_bytes_are_checked_and_preserve_the_platform_token() {
+        let bytes = [0x5a; SESSION_ID_RANDOM_BYTES];
+        let session = ProxySessionId::from_bytes(bytes).unwrap();
+
+        assert_eq!(session.as_bytes(), &bytes);
+        assert_eq!(session.as_str(), URL_SAFE_NO_PAD.encode(bytes));
+        assert_eq!(
+            ProxySessionId::from_bytes([0; SESSION_ID_RANDOM_BYTES]),
+            Err(SessionIdGenerationError)
+        );
     }
 
     #[test]

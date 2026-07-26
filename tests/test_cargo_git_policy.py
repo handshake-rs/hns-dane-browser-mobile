@@ -25,6 +25,8 @@ class CargoGitPolicyTests(unittest.TestCase):
         self.assertEqual(
             ALLOWED_ENGINE_PACKAGES,
             {
+                "hns-browser-observability",
+                "hns-browser-runtime",
                 "hns-icann-dane",
                 "hns-namespace-resolution",
                 "hns-resolution-policy",

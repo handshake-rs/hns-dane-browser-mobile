@@ -326,7 +326,7 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=2850ac1f50e361e2772e18f2e5ecbd7e77085afb#2850ac1f50e361e2772e18f2e5ecbd7e77085afb"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
 
 [[package]]
 name = "hns-p2p"

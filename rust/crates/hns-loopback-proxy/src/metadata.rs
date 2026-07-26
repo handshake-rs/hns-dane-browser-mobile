@@ -24,6 +24,7 @@ pub struct ProxyResponseMetadataObservation {
     method: ObservedMethod,
     status_code: u16,
     likely_main_frame: bool,
+    observation_id: Option<u64>,
     metadata: InternalResponseMetadata,
 }
 
@@ -34,6 +35,7 @@ impl ProxyResponseMetadataObservation {
         method: ObservedMethod,
         status_code: u16,
         likely_main_frame: bool,
+        observation_id: Option<u64>,
         metadata: InternalResponseMetadata,
     ) -> Self {
         Self {
@@ -42,6 +44,7 @@ impl ProxyResponseMetadataObservation {
             method,
             status_code,
             likely_main_frame,
+            observation_id,
             metadata,
         }
     }
@@ -74,6 +77,12 @@ impl ProxyResponseMetadataObservation {
         self.likely_main_frame
     }
 
+    /// Opaque backend-local typed-status correlation. This value is never
+    /// serialized to the browser or native platform ABI.
+    pub fn observation_id(&self) -> Option<u64> {
+        self.observation_id
+    }
+
     /// Returns allowlisted internal metadata removed from the browser-facing
     /// response head.
     pub fn metadata(&self) -> &InternalResponseMetadata {
@@ -90,6 +99,7 @@ impl fmt::Debug for ProxyResponseMetadataObservation {
             .field("method", &self.method)
             .field("status_code", &self.status_code)
             .field("likely_main_frame", &self.likely_main_frame)
+            .field("observation_id_present", &self.observation_id.is_some())
             .field("metadata", &self.metadata)
             .finish()
     }
@@ -142,6 +152,7 @@ mod tests {
             ObservedMethod::Get,
             200,
             true,
+            Some(9),
             headers.metadata().clone(),
         );
 
@@ -150,6 +161,7 @@ mod tests {
         assert_eq!(observation.method(), ObservedMethod::Get);
         assert_eq!(observation.status_code(), 200);
         assert!(observation.is_likely_main_frame());
+        assert_eq!(observation.observation_id(), Some(9));
         assert_eq!(
             observation.metadata().get("X-HNS-Security-Path"),
             Some("dane")

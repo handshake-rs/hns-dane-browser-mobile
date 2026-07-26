@@ -11,7 +11,8 @@ use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, Server
 use rustls::client::{Resumption, WebPkiServerVerifier};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{
-    ClientConfig, ClientConnection, DigitallySignedStruct, RootCertStore, SignatureScheme,
+    ClientConfig, ClientConnection, DigitallySignedStruct, OtherError, RootCertStore,
+    SignatureScheme,
 };
 use rustls::{Error as RustlsError, StreamOwned};
 use sha2::{Digest, Sha256};
@@ -147,6 +148,10 @@ pub enum TransportError {
     #[error("origin I/O error: {0}")]
     Io(String),
 }
+
+#[derive(Debug, Error)]
+#[error("DANE certificate association did not match")]
+struct DaneCertificateAssociationError;
 
 pub trait OriginTransport {
     fn fetch(&self, request: &OriginRequest) -> Result<OriginResponse, TransportError>;
@@ -519,7 +524,9 @@ impl TcpHttpTransport {
                 let connection =
                     ClientConnection::new(Arc::new(config), server_name).map_err(tls_error)?;
                 let mut tls_stream = StreamOwned::new(connection, stream);
-                let (mut head, _) = self.send_http11_stream(&mut tls_stream, request, &mut body)?;
+                let (mut head, _) = self
+                    .send_http11_stream(&mut tls_stream, request, &mut body)
+                    .map_err(|error| verifier.classify_handshake_error(&request.host, error))?;
                 let (dane_decision, tls_inspection) = verifier.finish_handshake(&request.host)?;
                 head.dane_decision = dane_decision;
                 head.tls_inspection = tls_inspection;
@@ -692,7 +699,9 @@ impl TcpHttpTransport {
         let connection = ClientConnection::new(Arc::new(config), server_name).map_err(tls_error)?;
         let mut tls_stream = StreamOwned::new(connection, stream);
 
-        let (mut head, reusable) = self.send_tls_http11(&mut tls_stream, request, body)?;
+        let (mut head, reusable) = self
+            .send_tls_http11(&mut tls_stream, request, body)
+            .map_err(|error| verifier.classify_handshake_error(&request.host, error))?;
         let (dane_decision, tls_inspection) = verifier.finish_handshake(&request.host)?;
         head.dane_decision = dane_decision.clone();
         head.tls_inspection = tls_inspection.clone();
@@ -764,7 +773,7 @@ impl TcpHttpTransport {
         let tls_stream = connector
             .connect(server_name, stream)
             .await
-            .map_err(io_error)?;
+            .map_err(|error| verifier.classify_handshake_error(&request.host, io_error(error)))?;
         if tls_stream.get_ref().1.alpn_protocol() != Some(b"h2".as_slice()) {
             return Err(TransportError::UnsupportedTransport);
         }
@@ -877,7 +886,7 @@ impl TcpHttpTransport {
         verifier.begin_handshake(&request.host);
         let connection = http3_timeout(self.connect_timeout, "connect", connecting)
             .await?
-            .map_err(quic_error)?;
+            .map_err(|error| verifier.classify_handshake_error(&request.host, quic_error(error)))?;
         let close_connection = connection.clone();
         let quic = h3_quinn::Connection::new(connection);
         let (mut driver, mut sender) = http3_timeout(
@@ -1025,7 +1034,9 @@ impl TcpHttpTransport {
         verifier.begin_handshake(&request.host);
         let connection = ClientConnection::new(Arc::new(config), server_name).map_err(tls_error)?;
         let mut tls_stream = StreamOwned::new(connection, stream);
-        let response_head = self.send_http11_upgrade(&mut tls_stream, request)?;
+        let response_head = self
+            .send_http11_upgrade(&mut tls_stream, request)
+            .map_err(|error| verifier.classify_handshake_error(&request.host, error))?;
         tls_stream
             .sock
             .set_read_timeout(Some(TUNNEL_IO_TIMEOUT))
@@ -1383,6 +1394,12 @@ struct HandshakeCapture {
     server_name: String,
     decision: Option<DaneDecision>,
     inspection: Option<TlsCertificateInspection>,
+    failure: Option<HandshakeFailure>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HandshakeFailure {
+    DaneCertificateAssociation,
 }
 
 impl DaneServerCertVerifier {
@@ -1420,10 +1437,13 @@ impl DaneServerCertVerifier {
             .lock()
             .map_err(|_| TransportError::Tls("TLS handshake lock is poisoned".to_owned()))?
             .remove(&std::thread::current().id());
-        if let Some(capture) = capture
-            && let Some(decision) = capture.decision
-        {
-            return Ok((decision, capture.inspection));
+        if let Some(capture) = capture {
+            if capture.failure == Some(HandshakeFailure::DaneCertificateAssociation) {
+                return Err(TransportError::DaneFailed);
+            }
+            if let Some(decision) = capture.decision {
+                return Ok((decision, capture.inspection));
+            }
         }
 
         let key = server_name.to_ascii_lowercase();
@@ -1442,6 +1462,33 @@ impl DaneServerCertVerifier {
             })?,
             cached.inspection,
         ))
+    }
+
+    fn record_dane_certificate_failure(&self, server_name: &str) {
+        if let Ok(mut handshakes) = self.handshakes.lock() {
+            let capture = handshakes.entry(std::thread::current().id()).or_default();
+            if capture.server_name.is_empty() {
+                capture.server_name = server_name.to_ascii_lowercase();
+            }
+            capture.failure = Some(HandshakeFailure::DaneCertificateAssociation);
+        }
+    }
+
+    fn classify_handshake_error(&self, server_name: &str, error: TransportError) -> TransportError {
+        let capture = self
+            .handshakes
+            .lock()
+            .ok()
+            .and_then(|mut handshakes| handshakes.remove(&std::thread::current().id()));
+        let recorded_dane_failure = capture.is_some_and(|capture| {
+            capture.server_name.eq_ignore_ascii_case(server_name)
+                && capture.failure == Some(HandshakeFailure::DaneCertificateAssociation)
+        });
+        if recorded_dane_failure || error == TransportError::DaneFailed {
+            TransportError::DaneFailed
+        } else {
+            error
+        }
     }
 
     fn store_capture(
@@ -1540,9 +1587,12 @@ impl ServerCertVerifier for DaneServerCertVerifier {
             });
 
         match decision {
-            Ok(DaneDecision::Failed) => Err(RustlsError::General(
-                "DANE certificate association did not match".to_owned(),
-            )),
+            Ok(DaneDecision::Failed) => {
+                self.record_dane_certificate_failure(&server_name.to_str());
+                Err(RustlsError::Other(OtherError(Arc::new(
+                    DaneCertificateAssociationError,
+                ))))
+            }
             Ok(decision) => {
                 let inspection =
                     tls_certificate_inspection(end_entity, intermediates, webpki_status)?;
@@ -2713,11 +2763,34 @@ fn controlled_deadline_error() -> TransportError {
 }
 
 fn io_error(error: std::io::Error) -> TransportError {
-    TransportError::Io(error.to_string())
+    if error
+        .get_ref()
+        .and_then(|source| source.downcast_ref::<RustlsError>())
+        .is_some_and(rustls_error_is_dane_failure)
+    {
+        TransportError::DaneFailed
+    } else {
+        TransportError::Io(error.to_string())
+    }
 }
 
 fn tls_error(error: RustlsError) -> TransportError {
-    TransportError::Tls(error.to_string())
+    if rustls_error_is_dane_failure(&error) {
+        TransportError::DaneFailed
+    } else {
+        TransportError::Tls(error.to_string())
+    }
+}
+
+fn rustls_error_is_dane_failure(error: &RustlsError) -> bool {
+    matches!(
+        error,
+        RustlsError::Other(other)
+            if other
+                .0
+                .downcast_ref::<DaneCertificateAssociationError>()
+                .is_some()
+    )
 }
 
 fn h2_error(error: h2::Error) -> TransportError {
@@ -3645,6 +3718,44 @@ mod tests {
     }
 
     #[test]
+    fn mismatched_tlsa_is_typed_dane_failure_for_http11() {
+        let server = TlsTestServer::start();
+        let transport = TcpHttpTransport::new(
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            TransportLimits::default(),
+        );
+        let mut request = request(server.address);
+        request.scheme = "https".to_owned();
+        request.tls = TlsValidation::hns_strict(true, vec![mismatched_tlsa(&server.cert_der)]);
+
+        assert_eq!(transport.fetch(&request), Err(TransportError::DaneFailed));
+    }
+
+    #[test]
+    fn mismatched_tlsa_is_typed_dane_failure_for_controlled_http11() {
+        let server = TlsTestServer::start();
+        let transport = TcpHttpTransport::new(
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            TransportLimits::default(),
+        );
+        let mut request = request(server.address);
+        request.scheme = "https".to_owned();
+        request.tls = TlsValidation::hns_strict(true, vec![mismatched_tlsa(&server.cert_der)]);
+
+        assert_eq!(
+            transport.fetch_http11_with_control(
+                &request,
+                Instant::now() + Duration::from_secs(1),
+                Duration::from_millis(10),
+                || false,
+            ),
+            Err(TransportError::DaneFailed)
+        );
+    }
+
+    #[test]
     fn fetches_https_http2_with_dnssec_tlsa_match() {
         let server = TlsTestServer::start_h2();
         let transport = TcpHttpTransport::new(
@@ -3668,6 +3779,22 @@ mod tests {
         let request_text = server.request();
         assert!(request_text.starts_with("GET https://example.com:"));
         assert!(request_text.ends_with("/path?q=1"));
+    }
+
+    #[test]
+    fn mismatched_tlsa_is_typed_dane_failure_for_http2() {
+        let server = TlsTestServer::start_h2();
+        let transport = TcpHttpTransport::new(
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            TransportLimits::default(),
+        );
+        let mut request = request(server.address);
+        request.scheme = "https".to_owned();
+        request.protocol = OriginProtocol::Http2;
+        request.tls = TlsValidation::hns_strict(true, vec![mismatched_tlsa(&server.cert_der)]);
+
+        assert_eq!(transport.fetch(&request), Err(TransportError::DaneFailed));
     }
 
     #[test]
@@ -3754,6 +3881,22 @@ mod tests {
     }
 
     #[test]
+    fn mismatched_tlsa_is_typed_dane_failure_for_http3() {
+        let server = TlsTestServer::start_h3();
+        let transport = TcpHttpTransport::new(
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+            TransportLimits::default(),
+        );
+        let mut request = request(server.address);
+        request.scheme = "https".to_owned();
+        request.protocol = OriginProtocol::Http3;
+        request.tls = TlsValidation::hns_strict(true, vec![mismatched_tlsa(&server.cert_der)]);
+
+        assert_eq!(transport.fetch(&request), Err(TransportError::DaneFailed));
+    }
+
+    #[test]
     fn accepts_http3_head_content_length_without_response_data() {
         let server = TlsTestServer::start_h3();
         let transport = TcpHttpTransport::new(
@@ -3825,6 +3968,28 @@ mod tests {
             matches!(error, TransportError::Io(_) | TransportError::Tls(_)),
             "{error:?}",
         );
+    }
+
+    #[test]
+    fn mismatched_tlsa_is_typed_dane_failure_for_tls_upgrade_tunnel() {
+        let server = TlsTestServer::start();
+        let transport = TcpHttpTransport::new(
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            TransportLimits::default(),
+        );
+        let mut request = request(server.address);
+        request.scheme = "wss".to_owned();
+        request.tls = TlsValidation::hns_strict(true, vec![mismatched_tlsa(&server.cert_der)]);
+        request.headers.extend([
+            ("Connection".to_owned(), "Upgrade".to_owned()),
+            ("Upgrade".to_owned(), "websocket".to_owned()),
+        ]);
+
+        match transport.open_tunnel(&request) {
+            Err(error) => assert_eq!(error, TransportError::DaneFailed),
+            Ok(_) => panic!("mismatched TLSA unexpectedly opened a TLS tunnel"),
+        }
     }
 
     #[test]
@@ -3986,6 +4151,12 @@ mod tests {
             matching: TlsaMatching::Exact,
             association_data: hns_dane::extract_spki_der(cert_der).unwrap(),
         }
+    }
+
+    fn mismatched_tlsa(cert_der: &[u8]) -> TlsaRecord {
+        let mut record = tlsa_spki_exact(cert_der);
+        record.association_data[0] ^= 0xff;
+        record
     }
 
     struct TestServer {
@@ -4188,7 +4359,9 @@ mod tests {
                     let listener = tokio::net::TcpListener::from_std(listener).unwrap();
                     let (stream, _) = listener.accept().await.unwrap();
                     let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(config));
-                    let stream = acceptor.accept(stream).await.unwrap();
+                    let Ok(stream) = acceptor.accept(stream).await else {
+                        return;
+                    };
                     let mut connection = h2::server::handshake(stream).await.unwrap();
                     if let Some(request) = connection.accept().await {
                         let (request, mut respond) = request.unwrap();
@@ -4258,7 +4431,9 @@ mod tests {
                     .unwrap();
                     address_tx.send(endpoint.local_addr().unwrap()).unwrap();
                     let connecting = endpoint.accept().await.unwrap();
-                    let connection = connecting.await.unwrap();
+                    let Ok(connection) = connecting.await else {
+                        return;
+                    };
                     let quic = h3_quinn::Connection::new(connection);
                     let mut connection = h3::server::builder().build(quic).await.unwrap();
                     if let Some(request) = connection.accept().await.unwrap() {

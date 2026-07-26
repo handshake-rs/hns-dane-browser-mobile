@@ -9,6 +9,15 @@
     deny(clippy::expect_used, clippy::panic, clippy::unwrap_used)
 )]
 
+use hns_browser_observability::{
+    BrowserStatus as CanonicalBrowserStatus, IcannTlsAction as CanonicalIcannTlsAction,
+    ProviderReadiness as CanonicalProviderReadiness, RateLimitState as CanonicalRateLimitState,
+    StatusInput as CanonicalStatusInput, TransportIdentities as CanonicalTransportIdentities,
+};
+use hns_browser_runtime::{
+    AuthorityState, BrowserRuntime as CanonicalAuthorityRuntime,
+    RuntimeSessionId as CanonicalRuntimeSessionId, RuntimeStamp,
+};
 use hns_chain::{DifficultyPolicy, HeaderChain, SqliteHeaderStore, mainnet_sync_checkpoints};
 use hns_core::dns::{
     DnsEncodeConfig, DnsFlags, DnsHeader, DnsMessage, DnsName, DnsQuestion, RecordType,
@@ -22,23 +31,26 @@ use hns_dane::{
 };
 use hns_dnssec::RrsigRecord;
 use hns_gateway::{Gateway, GatewayConfig, GatewayError, GatewayRequest};
-use hns_icann_dane::{DnssecQueryMode, ResolverAuthentication, TlsaOwner};
+use hns_icann_dane::{
+    BrowserTlsDecision, DnssecQueryMode, IcannDnssecStatus, ResolverAuthentication, TlsaOwner,
+};
 use hns_loopback_proxy::{
     BackendError as ProxyBackendError, CancellationToken as ProxyCancellationToken, HostScope,
     HostScopeError, IcannNetwork, IcannNetworkError, InternalResponseMetadata, NoopProxyObserver,
     NormalizedHost, ProxyBackend, ProxyConfig, ProxyError, ProxyHeader, ProxyInstanceId,
     ProxyRequest as LoopbackProxyRequest, ProxyRequestBody, ProxyResponse, ProxyResponseBody,
     ProxyResponseHead, ProxyResponseMetadataObservation, ProxyResponseMetadataObserver,
-    ProxySessionId, ProxyTunnel, ProxyTunnelIo, ProxyTunnelOpen, RunningProxy,
-    SessionIdGenerationError,
+    ProxySessionId, ProxyTunnel, ProxyTunnelIo, ProxyTunnelOpen, PublicationCapability,
+    PublicationPermit, RunningProxy, SessionIdGenerationError,
 };
 use hns_namespace_resolution::{
     AbsenceKind, AliasKind, AliasStep, ApplicationProtocol, CanonicalHost, CanonicalTlsa,
-    DecisionCacheKey, DefaultPrecedence, EvidenceProvenance, Freshness, HnsNetwork,
-    IcannChainState, Namespace, NamespaceDecision, OriginPlanInput, OriginQuery, OriginScheme,
-    OutcomeKind, ProtocolCapabilities, RootFailure, RootFailureKind, RootLookup, SelectionPolicy,
-    SelectionReason, ServiceBinding, ServiceBindingInput, ServiceParameter, ServiceTransport,
-    TlsTrustPolicy, ValidatedAbsence, ValidatedOriginPlan, decide_namespace,
+    ClassificationError, DecisionCacheKey, DefaultPrecedence, EvidenceProvenance, Freshness,
+    HnsNetwork, IcannChainState, Namespace, NamespaceDecision, OriginPlanInput, OriginQuery,
+    OriginScheme, OutcomeKind, ProtocolCapabilities, RootFailure, RootFailureKind, RootLookup,
+    SelectionPolicy, SelectionReason, ServiceBinding, ServiceBindingInput, ServiceParameter,
+    ServiceTransport, TlsTrustPolicy, ValidatedAbsence, ValidatedOriginPlan, decide_namespace,
+    decision_fingerprint,
 };
 use hns_p2p::{
     DnsRelayClient, DnsRelayClientError, DnsSeedPeerSource, EXPERIMENTAL_DNS_RELAY_SERVICE,
@@ -46,8 +58,10 @@ use hns_p2p::{
     StaticPeerSource, VersionPacket, is_allowed_peer_endpoint,
 };
 use hns_resolution_policy::{
-    DnsRelayRequesterPolicy, HnsrPolicy, ObliviousDnsPolicy, PolicyConfig, ProviderPolicy,
-    ResolutionTransport, TransportPlan, WireProfile,
+    ChainAnchor as CanonicalChainAnchor, DnsRelayRequesterPolicy,
+    EvidenceState as CanonicalEvidenceState, HnsrPolicy, Network as CanonicalNetwork,
+    ObliviousDnsPolicy, PolicyConfig, PolicySnapshot, ProviderPolicy, ResolutionTransport,
+    TransportPlan, ValidationEvidence as CanonicalValidationEvidence, WireProfile,
 };
 use hns_resolver::{
     AuthoritativeDnssecResolver, AuthoritativeDohEndpoint, AuthoritativeDohTlsAuthentication,
@@ -66,21 +80,23 @@ pub use hns_transport::DEFAULT_MAX_REQUEST_BODY_BYTES;
 #[cfg(test)]
 use hns_transport::TransportLimits;
 use hns_transport::{
-    OriginProtocol, OriginRequest, OriginResponse, OriginResponseHead, OriginTransport, ReadWrite,
-    TcpHttpTransport, TlsCertificateInspection, TlsValidation, TlsaRecordSource, TlsaTransport,
-    TransportError,
+    OriginProtocol, OriginRequest, OriginResponse, OriginResponseHead, OriginTransport,
+    OriginTunnel, ReadWrite, TcpHttpTransport, TlsCertificateInspection, TlsValidation,
+    TlsaRecordSource, TlsaTransport, TransportError,
 };
 use hns_urkel::UrkelProofVerifier;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
-use std::io::{ErrorKind, Read, Write};
+use std::io::{Error, ErrorKind, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, UdpSocket};
 use std::num::NonZeroU16;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, OnceLock, RwLock, RwLockReadGuard, TryLockError, Weak};
+use std::sync::{
+    Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock, RwLockReadGuard, TryLockError, Weak,
+};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
@@ -240,6 +256,7 @@ const HNS_RESOLVER_POLICY_HEADER: &str = "X-HNS-Resolver-Policy";
 const TUNNEL_COPY_BUFFER_BYTES: usize = 16 * 1024;
 const PROXY_MAINTENANCE_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const MAX_PROXY_UPGRADE_HEADERS: usize = 256;
+const MAX_PENDING_CANONICAL_STATUSES: usize = 256;
 const DOH_DNS_ID: u16 = 0;
 static SHARED_HTTP_TRANSPORT: OnceLock<TcpHttpTransport> = OnceLock::new();
 static SHARED_DIRECT_NAMESPACE_PLANS: OnceLock<SharedNamespacePlans> = OnceLock::new();
@@ -280,6 +297,7 @@ fn test_icann_authenticated_absence(base: &Path, host: &str) -> bool {
         .is_some_and(|hosts| hosts.contains(&host.trim_end_matches('.').to_ascii_lowercase()))
 }
 
+#[derive(Clone, Copy)]
 pub struct GatewayHttpRequestInput<'a> {
     pub data_dir: &'a str,
     pub method: &'a str,
@@ -472,6 +490,17 @@ pub enum RuntimeError {
     Operation(String),
     #[error("runtime synchronization state is poisoned: {0}")]
     Synchronization(&'static str),
+    #[error("admitted browser work was suppressed before publication: {0}")]
+    PublicationSuppressed(String),
+}
+
+impl RuntimeError {
+    fn suppress_after_admission(self) -> Self {
+        match self {
+            Self::PublicationSuppressed(_) => self,
+            error => Self::PublicationSuppressed(error.to_string()),
+        }
+    }
 }
 
 /// Failure to start one authenticated, immutable-scope browser proxy
@@ -484,6 +513,8 @@ pub enum BrowserProxyError {
     Session(#[from] SessionIdGenerationError),
     #[error("browser proxy generation counter is exhausted")]
     GenerationExhausted,
+    #[error("canonical browser authority is unavailable")]
+    Authority(#[from] RuntimeError),
     #[error("unable to start the browser proxy")]
     Start(#[from] ProxyError),
 }
@@ -516,6 +547,36 @@ pub enum BrowserProxySecurityPath {
     HnsThirdPartyDoh,
 }
 
+/// Why one successful response could not be represented by the shared,
+/// checked schema-v2 browser status.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CanonicalStatusUnavailableReason {
+    /// The legacy P2P DNS-relay client does not retain the exact negotiated
+    /// registry fingerprint and protocol version required by schema v2.
+    P2pRegistryIdentityUnavailable,
+    /// The successful legacy DNS path has no honest shared transport variant.
+    TransportNotRepresentable,
+    /// Required typed namespace or trust evidence was no longer retained.
+    EvidenceUnavailable,
+    /// Shared schema validation rejected the assembled typed evidence.
+    SchemaValidationRejected,
+}
+
+/// Platform-local availability of the shared, name-free browser status.
+///
+/// This Rust-only diagnostic does not change the Android JNI or iOS C ABI.
+#[non_exhaustive]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CanonicalStatusAvailability {
+    /// No qualifying stamped origin response has been published yet.
+    Pending,
+    /// A checked schema-v2 status constructed from typed origin evidence.
+    Available(Box<CanonicalBrowserStatus>),
+    /// A successful response was intentionally not misrepresented.
+    Unavailable(CanonicalStatusUnavailableReason),
+}
+
 /// Bounded, typed security status observed before the loopback proxy removes
 /// internal runtime metadata from the browser-visible response.
 ///
@@ -531,6 +592,7 @@ pub struct BrowserProxyStatus {
     resolver_policy: Option<BrowserProxyResolverPolicy>,
     security_path: Option<BrowserProxySecurityPath>,
     resolution_trace_json: Option<String>,
+    canonical_status: CanonicalStatusAvailability,
 }
 
 impl BrowserProxyStatus {
@@ -567,6 +629,27 @@ impl BrowserProxyStatus {
     pub fn resolution_trace_json(&self) -> Option<&str> {
         self.resolution_trace_json.as_deref()
     }
+
+    /// Returns the shared schema-v2 status only when the exact response had
+    /// sufficient typed evidence to satisfy every canonical invariant.
+    pub fn canonical_status(&self) -> Option<&CanonicalBrowserStatus> {
+        match &self.canonical_status {
+            CanonicalStatusAvailability::Available(status) => Some(status),
+            CanonicalStatusAvailability::Pending | CanonicalStatusAvailability::Unavailable(_) => {
+                None
+            }
+        }
+    }
+
+    /// Explains an intentional canonical-status omission for this response.
+    pub fn canonical_status_unavailable_reason(&self) -> Option<CanonicalStatusUnavailableReason> {
+        match &self.canonical_status {
+            CanonicalStatusAvailability::Unavailable(reason) => Some(*reason),
+            CanonicalStatusAvailability::Pending | CanonicalStatusAvailability::Available(_) => {
+                None
+            }
+        }
+    }
 }
 
 impl std::fmt::Debug for BrowserProxyStatus {
@@ -588,6 +671,7 @@ impl std::fmt::Debug for BrowserProxyStatus {
                 "resolution_trace_bytes",
                 &self.resolution_trace_json.as_ref().map(String::len),
             )
+            .field("canonical_status", &self.canonical_status)
             .finish()
     }
 }
@@ -672,6 +756,7 @@ fn browser_proxy_status_from_metadata(
     status_code: u16,
     likely_main_frame: bool,
     metadata: &InternalResponseMetadata,
+    canonical_status: CanonicalStatusAvailability,
 ) -> BrowserProxyStatus {
     BrowserProxyStatus {
         generation,
@@ -686,21 +771,47 @@ fn browser_proxy_status_from_metadata(
         resolution_trace_json: bounded_browser_proxy_resolution_trace(
             metadata.get(HNS_RESOLUTION_TRACE_HEADER),
         ),
+        canonical_status,
     }
 }
 
 struct RuntimeProxyStatusMetadataObserver {
+    runtime: BrowserRuntime,
+    authority_binding: RuntimeAuthorityBinding,
     observer: Arc<dyn BrowserProxyStatusObserver>,
 }
 
 impl ProxyResponseMetadataObserver for RuntimeProxyStatusMetadataObserver {
     fn observe(&self, observation: &ProxyResponseMetadataObservation) {
+        if !self
+            .runtime
+            .authority_binding_is_current(self.authority_binding)
+        {
+            return;
+        }
+        let canonical_status = match observation
+            .observation_id()
+            .and_then(|id| self.runtime.inner.canonical_statuses.take(id))
+        {
+            Some(pending)
+                if self.runtime.publish_latest_canonical_status(
+                    self.authority_binding,
+                    pending.stamp,
+                    pending.availability.clone(),
+                ) =>
+            {
+                pending.availability
+            }
+            Some(_) => return,
+            None => CanonicalStatusAvailability::Pending,
+        };
         let status = browser_proxy_status_from_metadata(
             observation.generation(),
             observation.host().as_str(),
             observation.status_code(),
             observation.is_likely_main_frame(),
             observation.metadata(),
+            canonical_status,
         );
         self.observer.observe_status(&status);
     }
@@ -710,6 +821,8 @@ impl ProxyResponseMetadataObserver for RuntimeProxyStatusMetadataObserver {
 /// persistent stores, policy, and origin transport.
 pub struct BrowserProxy {
     running: RunningProxy,
+    runtime: BrowserRuntime,
+    authority_generation: u64,
 }
 
 impl BrowserProxy {
@@ -759,6 +872,9 @@ impl BrowserProxy {
     }
 
     pub fn stop(&self) {
+        self.running.request_stop();
+        self.runtime
+            .revoke_proxy_generation(self.authority_generation);
         self.running.stop();
     }
 
@@ -766,6 +882,8 @@ impl BrowserProxy {
     /// sockets, and cancels backend work without waiting for worker joins.
     pub fn request_stop(&self) {
         self.running.request_stop();
+        self.runtime
+            .revoke_proxy_generation(self.authority_generation);
     }
 
     pub fn is_stopped(&self) -> bool {
@@ -774,6 +892,14 @@ impl BrowserProxy {
 
     pub fn is_stop_requested(&self) -> bool {
         self.running.is_stop_requested()
+    }
+}
+
+impl Drop for BrowserProxy {
+    fn drop(&mut self) {
+        self.running.request_stop();
+        self.runtime
+            .revoke_proxy_generation(self.authority_generation);
     }
 }
 
@@ -799,6 +925,7 @@ pub struct BrowserRuntime {
 #[derive(Clone)]
 pub struct RuntimeProxyBackend {
     runtime: BrowserRuntime,
+    authority_binding: Option<RuntimeAuthorityBinding>,
 }
 
 /// Explicit-address TCP dialer used only by the public-IP compatibility path.
@@ -1048,6 +1175,231 @@ impl std::fmt::Debug for RuntimeProxyBackend {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct RuntimeAuthorityBinding {
+    runtime_generation: u64,
+    policy_generation: u64,
+    proxy_generation: u64,
+}
+
+struct PendingCanonicalStatus {
+    id: u64,
+    stamp: RuntimeStamp,
+    availability: CanonicalStatusAvailability,
+}
+
+struct CanonicalStatusRegistry {
+    next_id: AtomicU64,
+    pending: Mutex<VecDeque<PendingCanonicalStatus>>,
+}
+
+impl Default for CanonicalStatusRegistry {
+    fn default() -> Self {
+        Self {
+            next_id: AtomicU64::new(0),
+            pending: Mutex::new(VecDeque::new()),
+        }
+    }
+}
+
+impl CanonicalStatusRegistry {
+    fn insert(
+        &self,
+        stamp: RuntimeStamp,
+        availability: CanonicalStatusAvailability,
+    ) -> Result<u64, RuntimeError> {
+        let id = self
+            .next_id
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                current.checked_add(1)
+            })
+            .map_err(|_| {
+                RuntimeError::Operation("canonical status identifier is exhausted".to_owned())
+            })?
+            + 1;
+        let mut pending = self
+            .pending
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("canonical status registry"))?;
+        if pending.len() == MAX_PENDING_CANONICAL_STATUSES {
+            pending.pop_front();
+        }
+        pending.push_back(PendingCanonicalStatus {
+            id,
+            stamp,
+            availability,
+        });
+        Ok(id)
+    }
+
+    fn take(&self, id: u64) -> Option<PendingCanonicalStatus> {
+        let mut pending = self.pending.lock().ok()?;
+        let index = pending.iter().position(|entry| entry.id == id)?;
+        pending.remove(index)
+    }
+
+    fn clear(&self) {
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.clear();
+        }
+    }
+}
+
+#[derive(Clone)]
+struct MobileOriginTransport {
+    inner: TcpHttpTransport,
+    authority: Option<BoundOriginAuthority>,
+}
+
+#[derive(Clone)]
+struct BoundOriginAuthority {
+    runtime: BrowserRuntime,
+    binding: RuntimeAuthorityBinding,
+    stamp: RuntimeStamp,
+}
+
+impl MobileOriginTransport {
+    fn unbound(inner: TcpHttpTransport) -> Self {
+        Self {
+            inner,
+            authority: None,
+        }
+    }
+
+    fn bound(
+        inner: TcpHttpTransport,
+        runtime: BrowserRuntime,
+        binding: RuntimeAuthorityBinding,
+        stamp: RuntimeStamp,
+    ) -> Self {
+        Self {
+            inner,
+            authority: Some(BoundOriginAuthority {
+                runtime,
+                binding,
+                stamp,
+            }),
+        }
+    }
+
+    fn resolver_transport(&self) -> TcpHttpTransport {
+        self.inner.clone()
+    }
+
+    fn authorize_bound_work(&self) -> Result<(), TransportError> {
+        let Some(authority) = &self.authority else {
+            return Ok(());
+        };
+        if !authority
+            .runtime
+            .authority_binding_is_current(authority.binding)
+            || !authority
+                .runtime
+                .authority_admits(authority.binding, authority.stamp)
+        {
+            return Err(TransportError::InvalidRequest);
+        }
+        Ok(())
+    }
+}
+
+impl OriginTransport for MobileOriginTransport {
+    fn fetch(&self, request: &OriginRequest) -> Result<OriginResponse, TransportError> {
+        self.authorize_bound_work()?;
+        let response = self.inner.fetch(request)?;
+        self.authorize_bound_work()?;
+        Ok(response)
+    }
+
+    fn open_tunnel(&self, request: &OriginRequest) -> Result<OriginTunnel, TransportError> {
+        self.authorize_bound_work()?;
+        let mut tunnel = self.inner.open_tunnel(request)?;
+        self.authorize_bound_work()?;
+        if let Some(authority) = &self.authority {
+            tunnel.stream = Box::new(AuthorityBoundTunnel {
+                inner: tunnel.stream,
+                authority: authority.clone(),
+                stamp: authority.stamp,
+            });
+        }
+        Ok(tunnel)
+    }
+
+    fn fetch_to_writer(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+    ) -> Result<OriginResponseHead, TransportError> {
+        self.authorize_bound_work()?;
+        // Keep download bytes private until origin I/O and the post-I/O
+        // authority check both succeed. TcpHttpTransport enforces the bounded
+        // response size before this buffer can be published.
+        let mut staged = Vec::new();
+        let response = self.inner.fetch_to_writer(request, &mut staged)?;
+        self.authorize_bound_work()?;
+        if let Some(authority) = &self.authority {
+            authority.runtime.with_authorized_publication(
+                authority.binding,
+                authority.stamp,
+                || {
+                    body.write_all(&staged)
+                        .map_err(|error| TransportError::Io(error.to_string()))
+                },
+            )?;
+        } else {
+            body.write_all(&staged)
+                .map_err(|error| TransportError::Io(error.to_string()))?;
+        }
+        Ok(response)
+    }
+}
+
+struct AuthorityBoundTunnel {
+    inner: Box<dyn ReadWrite>,
+    authority: BoundOriginAuthority,
+    stamp: RuntimeStamp,
+}
+
+impl AuthorityBoundTunnel {
+    fn authorize(&self) -> std::io::Result<()> {
+        if self
+            .authority
+            .runtime
+            .authority_binding_is_current(self.authority.binding)
+            && self
+                .authority
+                .runtime
+                .authority_admits(self.authority.binding, self.stamp)
+        {
+            Ok(())
+        } else {
+            Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "browser authority generation revoked",
+            ))
+        }
+    }
+}
+
+impl Read for AuthorityBoundTunnel {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.authorize()?;
+        self.inner.read(buffer)
+    }
+}
+
+impl Write for AuthorityBoundTunnel {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.authorize()?;
+        self.inner.write(buffer)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.authorize()?;
+        self.inner.flush()
+    }
+}
+
 struct RuntimeInner {
     configuration: RuntimeConfiguration,
     policy: RwLock<RuntimePolicy>,
@@ -1055,8 +1407,14 @@ struct RuntimeInner {
     transport: TcpHttpTransport,
     coordination: Arc<RuntimeCoordination>,
     policy_revision: AtomicU64,
-    proxy_session: OnceLock<ProxySessionId>,
+    proxy_session: ProxySessionId,
     proxy_generation: AtomicU64,
+    active_proxy_generation: AtomicU64,
+    pending_proxy_generation: AtomicU64,
+    staged_body_generation: AtomicU64,
+    canonical_authority: Mutex<CanonicalAuthorityRuntime>,
+    canonical_statuses: CanonicalStatusRegistry,
+    latest_canonical_status: RwLock<CanonicalStatusAvailability>,
     namespace_plans: SharedNamespacePlans,
     operation: Mutex<()>,
 }
@@ -1140,6 +1498,14 @@ impl BrowserRuntime {
             RuntimeError::Operation(format!("create runtime directory: {error}"))
         })?;
         let coordination = runtime_coordination(&base)?;
+        let proxy_session = ProxySessionId::generate()
+            .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        let canonical_session = CanonicalRuntimeSessionId::new(*proxy_session.as_bytes())
+            .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        let mut canonical_authority = CanonicalAuthorityRuntime::new(canonical_session);
+        canonical_authority
+            .transition(AuthorityState::LocalStateOpened)
+            .map_err(|error| RuntimeError::Operation(error.to_string()))?;
 
         configuration.initial_policy = policy.clone();
         Ok(Self {
@@ -1150,8 +1516,14 @@ impl BrowserRuntime {
                 transport: TcpHttpTransport::default(),
                 coordination,
                 policy_revision: AtomicU64::new(0),
-                proxy_session: OnceLock::new(),
+                proxy_session,
                 proxy_generation: AtomicU64::new(0),
+                active_proxy_generation: AtomicU64::new(0),
+                pending_proxy_generation: AtomicU64::new(0),
+                staged_body_generation: AtomicU64::new(0),
+                canonical_authority: Mutex::new(canonical_authority),
+                canonical_statuses: CanonicalStatusRegistry::default(),
+                latest_canonical_status: RwLock::new(CanonicalStatusAvailability::Pending),
                 namespace_plans: Arc::new(Mutex::new(HashMap::new())),
                 operation: Mutex::new(()),
             }),
@@ -1199,8 +1571,36 @@ impl BrowserRuntime {
             .policy
             .write()
             .map_err(|_| RuntimeError::Synchronization("policy lock"))?;
+        if *current == policy {
+            return Ok(self.inner.policy_revision.load(Ordering::Acquire));
+        }
+        let mut authority = self
+            .inner
+            .canonical_authority
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("canonical authority lock"))?;
+        authority
+            .ensure_policy_change_capacity()
+            .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        let revision = self
+            .inner
+            .policy_revision
+            .load(Ordering::Acquire)
+            .checked_add(1)
+            .ok_or_else(|| {
+                RuntimeError::Operation("policy revision counter exhausted".to_owned())
+            })?;
         *current = policy;
-        let revision = self.inner.policy_revision.fetch_add(1, Ordering::AcqRel) + 1;
+        self.inner
+            .policy_revision
+            .store(revision, Ordering::Release);
+        authority
+            .policy_changed()
+            .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        self.inner.canonical_statuses.clear();
+        if let Ok(mut status) = self.inner.latest_canonical_status.write() {
+            *status = CanonicalStatusAvailability::Pending;
+        }
         Ok(revision)
     }
 
@@ -1225,11 +1625,546 @@ impl BrowserRuntime {
         self.inner.policy_revision.load(Ordering::Acquire)
     }
 
+    /// Returns the engine-issued policy snapshot corresponding to the stable
+    /// mobile ABI policy. Generation one represents the initially opened
+    /// policy; every committed mobile policy revision advances it exactly once.
+    pub fn canonical_policy_snapshot(&self) -> Result<PolicySnapshot, RuntimeError> {
+        let (policy, revision) = self.policy_snapshot()?;
+        let generation = revision.checked_add(1).ok_or_else(|| {
+            RuntimeError::Operation("policy revision counter exhausted".to_owned())
+        })?;
+        PolicySnapshot::new(generation, policy.canonical_resolution_policy())
+            .map_err(|error| RuntimeError::Operation(error.to_string()))
+    }
+
+    /// Returns the latest fully checked shared status. `None` means callers
+    /// should inspect [`Self::canonical_status_availability`] for the explicit
+    /// pending or unsupported reason.
+    pub fn latest_canonical_status(&self) -> Result<Option<CanonicalBrowserStatus>, RuntimeError> {
+        self.inner
+            .latest_canonical_status
+            .read()
+            .map(|status| match &*status {
+                CanonicalStatusAvailability::Available(status) => Some(status.as_ref().clone()),
+                CanonicalStatusAvailability::Pending
+                | CanonicalStatusAvailability::Unavailable(_) => None,
+            })
+            .map_err(|_| RuntimeError::Synchronization("canonical status lock"))
+    }
+
+    /// Returns the platform-local reason a checked shared status is absent.
+    pub fn canonical_status_availability(
+        &self,
+    ) -> Result<CanonicalStatusAvailability, RuntimeError> {
+        self.inner
+            .latest_canonical_status
+            .read()
+            .map(|status| status.clone())
+            .map_err(|_| RuntimeError::Synchronization("canonical status lock"))
+    }
+
+    fn publish_latest_canonical_status(
+        &self,
+        binding: RuntimeAuthorityBinding,
+        stamp: RuntimeStamp,
+        availability: CanonicalStatusAvailability,
+    ) -> bool {
+        let Ok(authority) = self.inner.canonical_authority.lock() else {
+            return false;
+        };
+        if !self.authority_admits_locked(binding, stamp, &authority) {
+            return false;
+        }
+        let Ok(mut latest) = self.inner.latest_canonical_status.write() else {
+            return false;
+        };
+        *latest = availability;
+        true
+    }
+
+    fn ensure_authority_active(
+        &self,
+        proxy_generation: u64,
+    ) -> Result<RuntimeAuthorityBinding, RuntimeError> {
+        self.prepare_authority(proxy_generation, true)
+    }
+
+    fn begin_proxy_generation(
+        &self,
+        proxy_generation: u64,
+    ) -> Result<RuntimeAuthorityBinding, RuntimeError> {
+        {
+            let mut authority = self
+                .inner
+                .canonical_authority
+                .lock()
+                .map_err(|_| RuntimeError::Synchronization("canonical authority lock"))?;
+            // Invalidate the old listener while holding the same lock as a
+            // response publication permit. A replacement can therefore
+            // revoke either before publication begins or after it finishes,
+            // never between the final check and a response byte.
+            self.inner
+                .active_proxy_generation
+                .store(0, Ordering::Release);
+            self.inner
+                .pending_proxy_generation
+                .store(proxy_generation, Ordering::Release);
+            if authority.authority_state() == AuthorityState::Active {
+                authority
+                    .transition(AuthorityState::Revoked)
+                    .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+            }
+        }
+        self.inner.canonical_statuses.clear();
+        if let Ok(mut status) = self.inner.latest_canonical_status.write() {
+            *status = CanonicalStatusAvailability::Pending;
+        }
+        match self.prepare_authority(proxy_generation, false) {
+            Ok(binding) => Ok(binding),
+            Err(readiness_error) => {
+                // A fresh install may open its authenticated listener before
+                // the first header sync completes. Retain a non-admitting
+                // degraded listener generation and let each later request
+                // retry the factual readiness transition.
+                let policy = self.canonical_policy_snapshot()?;
+                let authority = self
+                    .inner
+                    .canonical_authority
+                    .lock()
+                    .map_err(|_| RuntimeError::Synchronization("canonical authority lock"))?;
+                let snapshot = authority.snapshot();
+                if snapshot.authority_state() != AuthorityState::Degraded
+                    || snapshot.generation() != policy.generation()
+                {
+                    return Err(readiness_error);
+                }
+                Ok(RuntimeAuthorityBinding {
+                    runtime_generation: snapshot.generation(),
+                    policy_generation: policy.generation(),
+                    proxy_generation,
+                })
+            }
+        }
+    }
+
+    fn complete_proxy_bridge(&self, binding: RuntimeAuthorityBinding) -> Result<(), RuntimeError> {
+        {
+            let authority = self
+                .inner
+                .canonical_authority
+                .lock()
+                .map_err(|_| RuntimeError::Synchronization("canonical authority lock"))?;
+            if self.inner.pending_proxy_generation.load(Ordering::Acquire)
+                != binding.proxy_generation
+                || authority.snapshot().generation() != binding.runtime_generation
+            {
+                return Err(RuntimeError::Operation(
+                    "browser proxy generation changed before bridge activation".to_owned(),
+                ));
+            }
+            // Listener startup has succeeded. Publish the active bridge
+            // generation while the lifecycle lock excludes publication.
+            self.inner
+                .active_proxy_generation
+                .store(binding.proxy_generation, Ordering::Release);
+            self.inner
+                .pending_proxy_generation
+                .store(0, Ordering::Release);
+        }
+        // The listener is now real and may become the active platform bridge.
+        // Authority remains non-admitting if sync/proof/transport readiness is
+        // not yet factual; requests retry the transition after sync advances.
+        match self.prepare_authority(binding.proxy_generation, true) {
+            Ok(current) if current == binding => Ok(()),
+            Ok(_) => Err(RuntimeError::Operation(
+                "browser authority binding changed during bridge activation".to_owned(),
+            )),
+            Err(error) => {
+                let authority = self
+                    .inner
+                    .canonical_authority
+                    .lock()
+                    .map_err(|_| RuntimeError::Synchronization("canonical authority lock"))?;
+                if authority.authority_state() == AuthorityState::Degraded
+                    && authority.snapshot().generation() == binding.runtime_generation
+                {
+                    Ok(())
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    }
+
+    fn prepare_authority(
+        &self,
+        proxy_generation: u64,
+        activate_bridge: bool,
+    ) -> Result<RuntimeAuthorityBinding, RuntimeError> {
+        let policy = self.canonical_policy_snapshot()?;
+        let readiness = self.verify_authority_prerequisites(&policy);
+        let mut authority = self
+            .inner
+            .canonical_authority
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("canonical authority lock"))?;
+        if let Err(error) = readiness {
+            Self::transition_authority_to_degraded(&mut authority)?;
+            return Err(error);
+        }
+        if matches!(
+            authority.authority_state(),
+            AuthorityState::LocalStateOpened | AuthorityState::Degraded | AuthorityState::Revoked
+        ) {
+            authority
+                .transition(AuthorityState::HeaderSyncing)
+                .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        }
+        for (current, next) in [
+            (AuthorityState::HeaderSyncing, AuthorityState::HeaderCurrent),
+            (AuthorityState::HeaderCurrent, AuthorityState::ProofReady),
+            (
+                AuthorityState::ProofReady,
+                AuthorityState::ResolutionTransportReady,
+            ),
+        ] {
+            if authority.authority_state() == current {
+                authority
+                    .transition(next)
+                    .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+            }
+        }
+        if activate_bridge
+            && authority.authority_state() == AuthorityState::ResolutionTransportReady
+        {
+            authority
+                .transition(AuthorityState::BrowserBridgeReady)
+                .and_then(|_| authority.transition(AuthorityState::Active))
+                .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        }
+        if activate_bridge && authority.authority_state() != AuthorityState::Active {
+            return Err(RuntimeError::Operation(
+                "canonical browser authority did not reach active".to_owned(),
+            ));
+        }
+        if !activate_bridge
+            && authority.authority_state() != AuthorityState::ResolutionTransportReady
+        {
+            return Err(RuntimeError::Operation(
+                "canonical browser authority did not reach transport readiness".to_owned(),
+            ));
+        }
+        let snapshot = authority.snapshot();
+        if snapshot.generation() != policy.generation() {
+            return Err(RuntimeError::Operation(
+                "canonical runtime and policy generations diverged".to_owned(),
+            ));
+        }
+        Ok(RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: policy.generation(),
+            proxy_generation,
+        })
+    }
+
+    fn verify_authority_prerequisites(&self, policy: &PolicySnapshot) -> Result<(), RuntimeError> {
+        let base = network_base_path(&self.inner.data_dir, self.inner.configuration.network);
+        let currentness = local_chain_currentness(&base, self.inner.configuration.network)
+            .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        let headers_current = match self.inner.configuration.network {
+            NetworkKind::Regtest => {
+                currentness.best_height.is_some_and(|height| height > 0)
+                    && currentness.stale != Some(true)
+            }
+            NetworkKind::Mainnet | NetworkKind::Testnet => {
+                currentness.best_height.is_some_and(|height| height > 0)
+                    && currentness.stale == Some(false)
+            }
+        };
+        if !headers_current {
+            return Err(RuntimeError::Operation(
+                "validated Handshake headers are not current".to_owned(),
+            ));
+        }
+        SqliteResourceValueProvider::open(base.join("resources.sqlite"))
+            .map_err(|error| RuntimeError::Operation(format!("open proof service: {error}")))?;
+        let plan = TransportPlan::for_policy(policy.config());
+        if !plan.as_slice().iter().any(|transport| {
+            matches!(
+                transport,
+                ResolutionTransport::DirectAuthoritativeUdp
+                    | ResolutionTransport::DirectAuthoritativeTcp
+                    | ResolutionTransport::AuthenticatedAuthoritativeDoh
+                    | ResolutionTransport::HandshakeP2pOdoh
+                    | ResolutionTransport::HandshakeP2pDnsRelay
+            )
+        }) {
+            return Err(RuntimeError::Operation(
+                "no policy-permitted DNS transport is configured".to_owned(),
+            ));
+        }
+        // Verify the local direct-DNS adapter can create a socket without
+        // contacting an external resolver or authority.
+        UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))
+            .map_err(|error| RuntimeError::Operation(format!("open DNS transport: {error}")))?;
+        Ok(())
+    }
+
+    fn transition_authority_to_degraded(
+        authority: &mut CanonicalAuthorityRuntime,
+    ) -> Result<(), RuntimeError> {
+        if authority.authority_state() == AuthorityState::Revoked {
+            authority
+                .transition(AuthorityState::HeaderSyncing)
+                .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        }
+        if !matches!(
+            authority.authority_state(),
+            AuthorityState::Degraded | AuthorityState::Stopped
+        ) {
+            authority
+                .transition(AuthorityState::Degraded)
+                .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        }
+        Ok(())
+    }
+
+    fn fail_pending_proxy_generation(&self, generation: u64) {
+        if self
+            .inner
+            .pending_proxy_generation
+            .compare_exchange(generation, 0, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+            && let Ok(mut authority) = self.inner.canonical_authority.lock()
+        {
+            let _result = Self::transition_authority_to_degraded(&mut authority);
+        }
+    }
+
+    fn revoke_proxy_generation(&self, generation: u64) {
+        let Ok(mut authority) = self.inner.canonical_authority.lock() else {
+            return;
+        };
+        if self
+            .inner
+            .active_proxy_generation
+            .compare_exchange(generation, 0, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        if authority.authority_state() == AuthorityState::Degraded {
+            let _result = authority.transition(AuthorityState::HeaderSyncing);
+        }
+        if !matches!(
+            authority.authority_state(),
+            AuthorityState::Revoked | AuthorityState::Stopped
+        ) {
+            let _result = authority.transition(AuthorityState::Revoked);
+        }
+        drop(authority);
+        self.inner.canonical_statuses.clear();
+        if let Ok(mut status) = self.inner.latest_canonical_status.write() {
+            *status = CanonicalStatusAvailability::Pending;
+        }
+    }
+
+    fn authority_binding_is_current(&self, binding: RuntimeAuthorityBinding) -> bool {
+        if binding.proxy_generation != 0
+            && self.inner.active_proxy_generation.load(Ordering::Acquire)
+                != binding.proxy_generation
+        {
+            return false;
+        }
+        let Ok(policy) = self.canonical_policy_snapshot() else {
+            return false;
+        };
+        if policy.generation() != binding.policy_generation {
+            return false;
+        }
+        if self.verify_authority_prerequisites(&policy).is_err() {
+            if let Ok(mut authority) = self.inner.canonical_authority.lock() {
+                let _result = Self::transition_authority_to_degraded(&mut authority);
+            }
+            self.inner.canonical_statuses.clear();
+            if let Ok(mut status) = self.inner.latest_canonical_status.write() {
+                *status = CanonicalStatusAvailability::Pending;
+            }
+            return false;
+        }
+        let Ok(authority) = self.inner.canonical_authority.lock() else {
+            return false;
+        };
+        let snapshot = authority.snapshot();
+        snapshot.generation() == binding.runtime_generation
+            && binding.policy_generation == binding.runtime_generation
+            && snapshot.authority_state() == AuthorityState::Active
+    }
+
+    fn admit_authority_work(
+        &self,
+        binding: RuntimeAuthorityBinding,
+    ) -> Result<RuntimeStamp, RuntimeError> {
+        if binding.proxy_generation != 0
+            && self.inner.active_proxy_generation.load(Ordering::Acquire)
+                != binding.proxy_generation
+        {
+            return Err(RuntimeError::Operation(
+                "browser proxy generation is stale".to_owned(),
+            ));
+        }
+        let current = self.prepare_authority(binding.proxy_generation, true)?;
+        if current != binding {
+            return Err(RuntimeError::Operation(
+                "browser authority generation is stale".to_owned(),
+            ));
+        }
+        let mut authority = self
+            .inner
+            .canonical_authority
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("canonical authority lock"))?;
+        let snapshot = authority.snapshot();
+        if snapshot.generation() != binding.runtime_generation
+            || binding.policy_generation != binding.runtime_generation
+            || snapshot.authority_state() != AuthorityState::Active
+        {
+            return Err(RuntimeError::Operation(
+                "browser authority generation is stale".to_owned(),
+            ));
+        }
+        authority
+            .admit_event()
+            .map_err(|error| RuntimeError::Operation(error.to_string()))
+    }
+
+    fn authority_admits(&self, binding: RuntimeAuthorityBinding, stamp: RuntimeStamp) -> bool {
+        let Ok(authority) = self.inner.canonical_authority.lock() else {
+            return false;
+        };
+        self.authority_admits_locked(binding, stamp, &authority)
+    }
+
+    fn authorized_publication_guard(
+        &self,
+        binding: RuntimeAuthorityBinding,
+        stamp: RuntimeStamp,
+    ) -> Result<MutexGuard<'_, CanonicalAuthorityRuntime>, RuntimeError> {
+        // Prerequisites and policy/bridge identity must be checked before the
+        // exact stamp. Reversing this order permits a same-generation
+        // Degraded -> Active transition to make two individually true checks
+        // authorize stale work.
+        if !self.authority_binding_is_current(binding) {
+            return Err(RuntimeError::PublicationSuppressed(
+                "browser authority changed before result publication".to_owned(),
+            ));
+        }
+        let authority = self
+            .inner
+            .canonical_authority
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("canonical authority lock"))?;
+        if !self.authority_admits_locked(binding, stamp, &authority) {
+            return Err(RuntimeError::PublicationSuppressed(
+                "browser authority changed before result publication".to_owned(),
+            ));
+        }
+        Ok(authority)
+    }
+
+    fn with_authorized_publication(
+        &self,
+        binding: RuntimeAuthorityBinding,
+        stamp: RuntimeStamp,
+        publish: impl FnOnce() -> Result<(), TransportError>,
+    ) -> Result<(), TransportError> {
+        let _authority = self
+            .authorized_publication_guard(binding, stamp)
+            .map_err(|_| TransportError::InvalidRequest)?;
+        publish()
+    }
+
+    fn publish_gateway_http_response(
+        &self,
+        prepared: PreparedGatewayHttpResponse,
+        binding: RuntimeAuthorityBinding,
+        stamp: RuntimeStamp,
+    ) -> Result<Vec<u8>, RuntimeError> {
+        let _authority = self.authorized_publication_guard(binding, stamp)?;
+        if let Some(selection) = prepared.selection {
+            selection.record().map_err(|error| {
+                RuntimeError::Operation(format!("persist namespace binding: {error}"))
+            })?;
+        }
+        Ok(prepared.encoded_http)
+    }
+
+    fn publish_gateway_file_response(
+        &self,
+        prepared: PreparedGatewayFileResponse,
+        staged: StagedBodyPublication,
+        target: &Path,
+        binding: RuntimeAuthorityBinding,
+        stamp: RuntimeStamp,
+    ) -> Result<Vec<u8>, RuntimeError> {
+        let _authority = self.authorized_publication_guard(binding, stamp)?;
+        if let Some(selection) = prepared.selection {
+            selection.record().map_err(|error| {
+                RuntimeError::Operation(format!("persist namespace binding: {error}"))
+            })?;
+        }
+        staged.commit(target)?;
+        Ok(prepared.encoded_head)
+    }
+
+    fn observe_gateway_authority_failure(&self, error: &GatewayError) {
+        let authority_dependency_failed = matches!(
+            error,
+            GatewayError::Resolver(
+                ResolverError::LocalChainNotCurrent
+                    | ResolverError::CachePoisoned
+                    | ResolverError::Storage(_)
+            )
+        );
+        if !authority_dependency_failed {
+            return;
+        }
+        if let Ok(mut authority) = self.inner.canonical_authority.lock() {
+            let _result = Self::transition_authority_to_degraded(&mut authority);
+        }
+        self.inner.canonical_statuses.clear();
+        if let Ok(mut status) = self.inner.latest_canonical_status.write() {
+            *status = CanonicalStatusAvailability::Pending;
+        }
+    }
+
+    fn authority_admits_locked(
+        &self,
+        binding: RuntimeAuthorityBinding,
+        stamp: RuntimeStamp,
+        authority: &CanonicalAuthorityRuntime,
+    ) -> bool {
+        (binding.proxy_generation == 0
+            || self.inner.active_proxy_generation.load(Ordering::Acquire)
+                == binding.proxy_generation)
+            && binding.policy_generation == binding.runtime_generation
+            && authority.snapshot().generation() == binding.runtime_generation
+            && authority.admits(stamp)
+    }
+
     /// Returns a proxy backend that shares this runtime's policy, persistent
     /// stores, resolver coordination, and origin transport state.
     pub fn proxy_backend(&self) -> RuntimeProxyBackend {
         RuntimeProxyBackend {
             runtime: self.clone(),
+            authority_binding: None,
+        }
+    }
+
+    fn proxy_backend_for(&self, authority_binding: RuntimeAuthorityBinding) -> RuntimeProxyBackend {
+        RuntimeProxyBackend {
+            runtime: self.clone(),
+            authority_binding: Some(authority_binding),
         }
     }
 
@@ -1256,21 +2191,38 @@ impl BrowserRuntime {
             })
             .map_err(|_| BrowserProxyError::GenerationExhausted)?
             + 1;
-        let session = if let Some(session) = self.inner.proxy_session.get() {
-            session.clone()
-        } else {
-            let generated = ProxySessionId::generate()?;
-            self.inner.proxy_session.get_or_init(|| generated).clone()
-        };
+        let authority_binding = self.begin_proxy_generation(generation)?;
+        let session = self.inner.proxy_session.clone();
         let instance = ProxyInstanceId::new(session, generation);
-        let metadata_observer = RuntimeProxyStatusMetadataObserver { observer };
-        let running = RunningProxy::start_with_metadata_observer(
+        let metadata_observer = RuntimeProxyStatusMetadataObserver {
+            runtime: self.clone(),
+            authority_binding,
+            observer,
+        };
+        let running = match RunningProxy::start_with_metadata_observer(
             ProxyConfig::new(instance, scope),
-            Arc::new(self.proxy_backend()),
+            Arc::new(self.proxy_backend_for(authority_binding)),
             Arc::new(NoopProxyObserver),
             Arc::new(metadata_observer),
-        )?;
-        Ok(BrowserProxy { running })
+        ) {
+            Ok(running) => running,
+            Err(error) => {
+                self.fail_pending_proxy_generation(generation);
+                return Err(BrowserProxyError::Start(error));
+            }
+        };
+        if let Err(error) = self.complete_proxy_bridge(authority_binding) {
+            running.request_stop();
+            running.stop();
+            self.fail_pending_proxy_generation(generation);
+            self.revoke_proxy_generation(generation);
+            return Err(BrowserProxyError::Authority(error));
+        }
+        Ok(BrowserProxy {
+            running,
+            runtime: self.clone(),
+            authority_generation: generation,
+        })
     }
 
     /// Starts a whole-browser proxy for engines whose proxy match rules cannot
@@ -1305,22 +2257,39 @@ impl BrowserRuntime {
             })
             .map_err(|_| BrowserProxyError::GenerationExhausted)?
             + 1;
-        let session = if let Some(session) = self.inner.proxy_session.get() {
-            session.clone()
-        } else {
-            let generated = ProxySessionId::generate()?;
-            self.inner.proxy_session.get_or_init(|| generated).clone()
-        };
+        let authority_binding = self.begin_proxy_generation(generation)?;
+        let session = self.inner.proxy_session.clone();
         let instance = ProxyInstanceId::new(session, generation);
-        let metadata_observer = RuntimeProxyStatusMetadataObserver { observer };
-        let running = RunningProxy::start_with_metadata_observer_and_icann_network(
+        let metadata_observer = RuntimeProxyStatusMetadataObserver {
+            runtime: self.clone(),
+            authority_binding,
+            observer,
+        };
+        let running = match RunningProxy::start_with_metadata_observer_and_icann_network(
             ProxyConfig::whole_browser(instance, hns_scope),
-            Arc::new(self.proxy_backend()),
+            Arc::new(self.proxy_backend_for(authority_binding)),
             Arc::new(NoopProxyObserver),
             Arc::new(metadata_observer),
             Arc::new(WholeBrowserIcannNetwork),
-        )?;
-        Ok(BrowserProxy { running })
+        ) {
+            Ok(running) => running,
+            Err(error) => {
+                self.fail_pending_proxy_generation(generation);
+                return Err(BrowserProxyError::Start(error));
+            }
+        };
+        if let Err(error) = self.complete_proxy_bridge(authority_binding) {
+            running.request_stop();
+            running.stop();
+            self.fail_pending_proxy_generation(generation);
+            self.revoke_proxy_generation(generation);
+            return Err(BrowserProxyError::Authority(error));
+        }
+        Ok(BrowserProxy {
+            running,
+            runtime: self.clone(),
+            authority_generation: generation,
+        })
     }
 
     pub fn start_whole_browser_proxy_with_policy_and_observer(
@@ -1533,28 +2502,40 @@ impl BrowserRuntime {
         request: GatewayHttpRequest,
     ) -> Result<GatewayHttpResponse, RuntimeError> {
         self.validate_gateway_request(&request)?;
-        let _maintenance = self
-            .inner
-            .coordination
-            .maintenance
-            .read()
-            .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
-        let header_text = self.gateway_header_text(&request.headers)?;
-        let encoded_http = gateway_http_response_with_transport(
-            GatewayHttpRequestInput {
-                data_dir: &self.inner.data_dir,
-                method: &request.method,
-                scheme: &request.scheme,
-                host: &request.host,
-                port: request.port,
-                path_and_query: &request.path_and_query,
-                header_text: &header_text,
-                body: &request.body,
-            },
-            self.inner.transport.clone(),
-            Some(Arc::clone(&self.inner.coordination.peer_state)),
-        );
-        Ok(GatewayHttpResponse { encoded_http })
+        let authority_binding = self.ensure_authority_active(0)?;
+        let authority_stamp = self.admit_authority_work(authority_binding)?;
+        (|| {
+            let _maintenance = self
+                .inner
+                .coordination
+                .maintenance
+                .read()
+                .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+            let header_text = self.gateway_header_text(&request.headers)?;
+            let prepared = prepare_gateway_http_response_with_transport(
+                GatewayHttpRequestInput {
+                    data_dir: &self.inner.data_dir,
+                    method: &request.method,
+                    scheme: &request.scheme,
+                    host: &request.host,
+                    port: request.port,
+                    path_and_query: &request.path_and_query,
+                    header_text: &header_text,
+                    body: &request.body,
+                },
+                MobileOriginTransport::bound(
+                    self.inner.transport.clone(),
+                    self.clone(),
+                    authority_binding,
+                    authority_stamp,
+                ),
+                Some(Arc::clone(&self.inner.coordination.peer_state)),
+            );
+            let encoded_http =
+                self.publish_gateway_http_response(prepared, authority_binding, authority_stamp)?;
+            Ok(GatewayHttpResponse { encoded_http })
+        })()
+        .map_err(RuntimeError::suppress_after_admission)
     }
 
     pub fn gateway_request_body_to_file(
@@ -1563,64 +2544,74 @@ impl BrowserRuntime {
         body_path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, RuntimeError> {
         self.validate_gateway_request(&request)?;
-        let _maintenance = self
-            .inner
-            .coordination
-            .maintenance
-            .read()
-            .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
-        let header_text = self.gateway_header_text(&request.headers)?;
-        gateway_http_response_body_to_file_with_transport(
-            GatewayHttpRequestInput {
-                data_dir: &self.inner.data_dir,
-                method: &request.method,
-                scheme: &request.scheme,
-                host: &request.host,
-                port: request.port,
-                path_and_query: &request.path_and_query,
-                header_text: &header_text,
-                body: &request.body,
-            },
-            body_path.as_ref(),
-            self.inner.transport.clone(),
-            Some(Arc::clone(&self.inner.coordination.peer_state)),
-        )
-        .map_err(RuntimeError::Operation)
+        let authority_binding = self.ensure_authority_active(0)?;
+        let authority_stamp = self.admit_authority_work(authority_binding)?;
+        (|| {
+            let _maintenance = self
+                .inner
+                .coordination
+                .maintenance
+                .read()
+                .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+            let header_text = self.gateway_header_text(&request.headers)?;
+            let sequence = self
+                .inner
+                .staged_body_generation
+                .fetch_add(1, Ordering::AcqRel)
+                .wrapping_add(1);
+            let staged = StagedBodyPublication::create(body_path.as_ref(), sequence)?;
+            let response = prepare_gateway_http_response_body_to_file_with_transport(
+                GatewayHttpRequestInput {
+                    data_dir: &self.inner.data_dir,
+                    method: &request.method,
+                    scheme: &request.scheme,
+                    host: &request.host,
+                    port: request.port,
+                    path_and_query: &request.path_and_query,
+                    header_text: &header_text,
+                    body: &request.body,
+                },
+                &staged.path,
+                MobileOriginTransport::bound(
+                    self.inner.transport.clone(),
+                    self.clone(),
+                    authority_binding,
+                    authority_stamp,
+                ),
+                Some(Arc::clone(&self.inner.coordination.peer_state)),
+            )
+            .map_err(RuntimeError::Operation)?;
+            self.publish_gateway_file_response(
+                response,
+                staged,
+                body_path.as_ref(),
+                authority_binding,
+                authority_stamp,
+            )
+        })()
+        .map_err(RuntimeError::suppress_after_admission)
     }
 
     pub fn raw_gateway_request(
         &self,
         request: RawGatewayHttpRequest,
         policy: RuntimePolicy,
-    ) -> GatewayHttpResponse {
+    ) -> Result<GatewayHttpResponse, RuntimeError> {
         let address = raw_gateway_request_address(&request);
         let request = match prepare_raw_gateway_request(request) {
             Ok(request) => request,
             Err(rejection) => {
-                return GatewayHttpResponse {
+                return Ok(GatewayHttpResponse {
                     encoded_http: plain_response_with_address(
                         rejection.status,
                         rejection.reason,
                         rejection.detail,
                         Some(&address),
                     ),
-                };
+                });
             }
         };
-        match self.with_policy_operation(policy, move |runtime| runtime.gateway_request(request)) {
-            Ok(response) => response,
-            Err(error) => {
-                let (status, reason, detail) = raw_gateway_runtime_error_parts(error);
-                GatewayHttpResponse {
-                    encoded_http: plain_response_with_address(
-                        status,
-                        reason,
-                        &detail,
-                        Some(&address),
-                    ),
-                }
-            }
-        }
+        self.with_policy_operation(policy, move |runtime| runtime.gateway_request(request))
     }
 
     pub fn raw_gateway_request_body_to_file(
@@ -1644,22 +2635,9 @@ impl BrowserRuntime {
                 .map_err(RuntimeError::Operation);
             }
         };
-        match self.with_policy_operation(policy, move |runtime| {
+        self.with_policy_operation(policy, move |runtime| {
             runtime.gateway_request_body_to_file(request, body_path)
-        }) {
-            Ok(head) => Ok(head),
-            Err(error) => {
-                let (status, reason, detail) = raw_gateway_runtime_error_parts(error);
-                plain_response_to_file_with_address(
-                    status,
-                    reason,
-                    &detail,
-                    Some(&address),
-                    body_path,
-                )
-                .map_err(RuntimeError::Operation)
-            }
-        }
+        })
     }
 
     fn validate_gateway_request(&self, request: &GatewayHttpRequest) -> Result<(), RuntimeError> {
@@ -1778,16 +2756,6 @@ fn parse_untrusted_gateway_headers(
     Ok(headers)
 }
 
-fn raw_gateway_runtime_error_parts(error: RuntimeError) -> (u16, &'static str, String) {
-    match error {
-        RuntimeError::InvalidConfiguration(detail) => (400, "Bad Request", detail),
-        RuntimeError::Operation(detail) => (500, "Gateway Runtime Error", detail),
-        error @ RuntimeError::Synchronization(_) => {
-            (500, "Gateway Runtime Error", error.to_string())
-        }
-    }
-}
-
 fn raw_gateway_request_address(request: &RawGatewayHttpRequest) -> String {
     let scheme = request.scheme.to_ascii_lowercase();
     let port = match (scheme.as_str(), request.port) {
@@ -1803,7 +2771,7 @@ fn raw_gateway_request_address(request: &RawGatewayHttpRequest) -> String {
 }
 
 struct PreparedRuntimeGateway {
-    gateway: Gateway<AndroidGatewayResolver, TcpHttpTransport>,
+    gateway: Gateway<AndroidGatewayResolver, MobileOriginTransport>,
     request: GatewayRequest,
     network: NetworkKind,
     mode: GatewayResolutionMode,
@@ -1811,9 +2779,691 @@ struct PreparedRuntimeGateway {
     dns_trace: DnsTraceRecorder,
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
+    request_plan: SharedRequestNamespacePlan,
+    authority_binding: RuntimeAuthorityBinding,
+    authority_stamp: RuntimeStamp,
+}
+
+#[derive(Clone)]
+struct NamespacePublicationSelection {
+    origin: NamespaceOriginContext,
+    plans: SharedNamespacePlans,
+    dns_trace: DnsTraceRecorder,
+}
+
+impl NamespacePublicationSelection {
+    fn record(&self) -> Result<(), ResolverError> {
+        record_successful_namespace_selection(&self.origin, &self.plans, &self.dns_trace)
+    }
+}
+
+struct PreparedGatewayHttpResponse {
+    encoded_http: Vec<u8>,
+    selection: Option<NamespacePublicationSelection>,
+}
+
+impl PreparedGatewayHttpResponse {
+    fn without_selection(encoded_http: Vec<u8>) -> Self {
+        Self {
+            encoded_http,
+            selection: None,
+        }
+    }
+}
+
+struct PreparedGatewayFileResponse {
+    encoded_head: Vec<u8>,
+    selection: Option<NamespacePublicationSelection>,
+}
+
+impl PreparedGatewayFileResponse {
+    fn without_selection(encoded_head: Vec<u8>) -> Self {
+        Self {
+            encoded_head,
+            selection: None,
+        }
+    }
+}
+
+struct StagedBodyPublication {
+    path: PathBuf,
+    committed: bool,
+}
+
+impl StagedBodyPublication {
+    fn create(target: &Path, sequence: u64) -> Result<Self, RuntimeError> {
+        let parent = target.parent().unwrap_or_else(|| Path::new("."));
+        fs::create_dir_all(parent).map_err(|error| {
+            RuntimeError::Operation(format!("create response directory: {error}"))
+        })?;
+        let file_name = target
+            .file_name()
+            .map(|name| name.to_string_lossy())
+            .unwrap_or_else(|| "body".into());
+        for offset in 0..64_u64 {
+            let candidate = parent.join(format!(
+                ".{file_name}.hns-stage-{:016x}.tmp",
+                sequence.wrapping_add(offset)
+            ));
+            match fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&candidate)
+            {
+                Ok(file) => {
+                    drop(file);
+                    return Ok(Self {
+                        path: candidate,
+                        committed: false,
+                    });
+                }
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+                Err(error) => {
+                    return Err(RuntimeError::Operation(format!(
+                        "create staged response body: {error}"
+                    )));
+                }
+            }
+        }
+        Err(RuntimeError::Operation(
+            "allocate staged response body path".to_owned(),
+        ))
+    }
+
+    fn commit(mut self, target: &Path) -> Result<(), RuntimeError> {
+        fs::rename(&self.path, target)
+            .map_err(|error| RuntimeError::Operation(format!("publish response body: {error}")))?;
+        self.committed = true;
+        Ok(())
+    }
+}
+
+impl Drop for StagedBodyPublication {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _result = fs::remove_file(&self.path);
+        }
+    }
+}
+
+struct RuntimePublicationPermit<'a> {
+    _authority: MutexGuard<'a, CanonicalAuthorityRuntime>,
+}
+
+impl PublicationPermit for RuntimePublicationPermit<'_> {}
+
+#[derive(Clone)]
+struct RuntimePublicationAuthorization {
+    binding: RuntimeAuthorityBinding,
+    stamp: Option<RuntimeStamp>,
+    selection: Option<NamespacePublicationSelection>,
+}
+
+fn runtime_publication_capability(
+    binding: RuntimeAuthorityBinding,
+    stamp: Option<RuntimeStamp>,
+) -> PublicationCapability {
+    PublicationCapability::new(RuntimePublicationAuthorization {
+        binding,
+        stamp,
+        selection: None,
+    })
+}
+
+fn runtime_success_publication_capability(
+    prepared: &PreparedRuntimeGateway,
+) -> PublicationCapability {
+    PublicationCapability::new(RuntimePublicationAuthorization {
+        binding: prepared.authority_binding,
+        stamp: Some(prepared.authority_stamp),
+        selection: Some(NamespacePublicationSelection {
+            origin: prepared.origin.clone(),
+            plans: Arc::clone(&prepared.plans),
+            dns_trace: prepared.dns_trace.clone(),
+        }),
+    })
+}
+
+struct CanonicalOriginResult<'a> {
+    resolution_secure: bool,
+    origin_request: &'a OriginRequest,
+    dane_decision: &'a DaneDecision,
+    tls_inspection_present: bool,
+}
+
+struct CanonicalStatusContext<'a> {
+    network: NetworkKind,
+    origin: &'a NamespaceOriginContext,
+    request_plan: &'a SharedRequestNamespacePlan,
+    dns_trace: &'a DnsTraceRecorder,
+    authority_binding: RuntimeAuthorityBinding,
+}
+
+impl<'a> From<&'a PreparedRuntimeGateway> for CanonicalStatusContext<'a> {
+    fn from(prepared: &'a PreparedRuntimeGateway) -> Self {
+        Self {
+            network: prepared.network,
+            origin: &prepared.origin,
+            request_plan: &prepared.request_plan,
+            dns_trace: &prepared.dns_trace,
+            authority_binding: prepared.authority_binding,
+        }
+    }
+}
+
+fn canonical_network(network: NetworkKind) -> CanonicalNetwork {
+    match network {
+        NetworkKind::Mainnet => CanonicalNetwork::Mainnet,
+        NetworkKind::Testnet => CanonicalNetwork::Testnet,
+        NetworkKind::Regtest => CanonicalNetwork::Regtest,
+    }
+}
+
+fn canonical_hns_network_matches(network: NetworkKind, evidence: HnsNetwork) -> bool {
+    matches!(
+        (network, evidence),
+        (NetworkKind::Mainnet, HnsNetwork::Mainnet)
+            | (NetworkKind::Testnet, HnsNetwork::Testnet)
+            | (NetworkKind::Regtest, HnsNetwork::Regtest)
+    )
+}
+
+fn canonical_hns_actual_transport(
+    result: &CanonicalOriginResult<'_>,
+    selected_plan: &ValidatedOriginPlan,
+    dns_trace: &DnsTraceRecorder,
+) -> Result<ResolutionTransport, CanonicalStatusUnavailableReason> {
+    let events = dns_trace.snapshot();
+    let protocol = if matches!(result.dane_decision, DaneDecision::Matched(_)) {
+        let owner = TlsaOwner::derive(
+            &result.origin_request.host,
+            result.origin_request.tls.service_port,
+            result.origin_request.tls.service_transport,
+        )
+        .map_err(|_| CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        successful_hns_dns_path(&events, owner.resolver_name(), &[RecordType::Tlsa])
+    } else {
+        successful_hns_dns_path(
+            &events,
+            selected_plan.endpoint_target().as_str(),
+            &[RecordType::A, RecordType::Aaaa],
+        )
+    }
+    .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+
+    match protocol {
+        "udp53" => Ok(ResolutionTransport::DirectAuthoritativeUdp),
+        "tcp53" => Ok(ResolutionTransport::DirectAuthoritativeTcp),
+        "authoritative_doh" => Ok(ResolutionTransport::AuthenticatedAuthoritativeDoh),
+        "p2p_dns_relay" => Ok(ResolutionTransport::HandshakeP2pDnsRelay),
+        "hns_doh" => Err(CanonicalStatusUnavailableReason::TransportNotRepresentable),
+        _ => Err(CanonicalStatusUnavailableReason::EvidenceUnavailable),
+    }
+}
+
+fn successful_hns_dns_path<'a>(
+    events: &'a [DnsTraceEvent],
+    qname: &str,
+    qtypes: &[RecordType],
+) -> Option<&'a str> {
+    let qname = qname.trim_end_matches('.');
+    events
+        .iter()
+        .rev()
+        .find(|event| {
+            matches!(
+                event.protocol,
+                "udp53" | "tcp53" | "authoritative_doh" | "p2p_dns_relay" | "hns_doh"
+            ) && event.status == "ok"
+                && event
+                    .question_type
+                    .is_some_and(|code| qtypes.iter().any(|qtype| qtype.code() == code))
+                && event
+                    .question_name
+                    .as_deref()
+                    .is_some_and(|name| name.trim_end_matches('.').eq_ignore_ascii_case(qname))
+        })
+        .map(|event| event.protocol)
+}
+
+fn canonical_icann_root_failure_evidence(
+    failure: RootFailureKind,
+) -> Result<
+    (Option<IcannDnssecStatus>, CanonicalValidationEvidence),
+    CanonicalStatusUnavailableReason,
+> {
+    let mut evidence = CanonicalValidationEvidence::not_attempted();
+    let dnssec_status = match failure {
+        RootFailureKind::BogusDnssec => {
+            evidence.dnssec = CanonicalEvidenceState::Failed;
+            Some(IcannDnssecStatus::Bogus)
+        }
+        RootFailureKind::IndeterminateDnssec => {
+            evidence.dnssec = CanonicalEvidenceState::Unavailable;
+            evidence.tlsa = CanonicalEvidenceState::Unavailable;
+            evidence.dane = CanonicalEvidenceState::Unavailable;
+            Some(IcannDnssecStatus::Indeterminate)
+        }
+        RootFailureKind::Timeout
+        | RootFailureKind::Transport
+        | RootFailureKind::UnauthenticatedResolver
+        | RootFailureKind::MalformedResponse
+        | RootFailureKind::Unsupported
+        | RootFailureKind::Cancelled
+        | RootFailureKind::Internal
+        | RootFailureKind::StaleEvidence => None,
+        RootFailureKind::StaleHnsAnchor => {
+            return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+        }
+    };
+    Ok((dnssec_status, evidence))
 }
 
 impl BrowserRuntime {
+    fn canonical_status_for_origin_success(
+        &self,
+        context: CanonicalStatusContext<'_>,
+        result: CanonicalOriginResult<'_>,
+        stamp: RuntimeStamp,
+    ) -> CanonicalStatusAvailability {
+        match self.try_canonical_status_for_origin_success(context, result, stamp) {
+            Ok(status) => CanonicalStatusAvailability::Available(Box::new(status)),
+            Err(reason) => CanonicalStatusAvailability::Unavailable(reason),
+        }
+    }
+
+    fn canonical_status_for_gateway_failure(
+        &self,
+        context: CanonicalStatusContext<'_>,
+        error: &GatewayError,
+        stamp: RuntimeStamp,
+    ) -> CanonicalStatusAvailability {
+        match self.try_canonical_status_for_gateway_failure(context, error, stamp) {
+            Ok(status) => CanonicalStatusAvailability::Available(Box::new(status)),
+            Err(reason) => CanonicalStatusAvailability::Unavailable(reason),
+        }
+    }
+
+    fn try_canonical_status_for_gateway_failure(
+        &self,
+        context: CanonicalStatusContext<'_>,
+        error: &GatewayError,
+        stamp: RuntimeStamp,
+    ) -> Result<CanonicalBrowserStatus, CanonicalStatusUnavailableReason> {
+        let cached = context
+            .request_plan
+            .lock()
+            .map_err(|_| CanonicalStatusUnavailableReason::EvidenceUnavailable)?
+            .as_ref()
+            .cloned()
+            .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        let metadata = context
+            .dns_trace
+            .namespace_snapshot()
+            .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        if metadata != cached.metadata || cached.expires_at_unix <= now_unix_seconds() {
+            return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+        }
+
+        let hns_root_failure = cached.hns_root_failure.as_ref().map(RootFailure::kind);
+        let icann_root_failure = cached.icann_root_failure.as_ref().map(RootFailure::kind);
+        let mut evidence = CanonicalValidationEvidence::not_attempted();
+        let mut actual_transport = ResolutionTransport::Unavailable;
+        let mut namespace_outcome = None;
+        let mut selected_namespace = None;
+        let mut selection_reason = None;
+        let mut decision_fingerprint_value = None;
+        let mut icann_tls_action = None;
+        let mut icann_dnssec_status = None;
+
+        if hns_root_failure.is_some() || icann_root_failure.is_some() {
+            if cached.decision.is_some()
+                || metadata.outcome.is_some()
+                || metadata.selected.is_some()
+                || metadata.selection_reason.is_some()
+                || metadata.fingerprint.is_some()
+            {
+                return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+            }
+            if let Some(failure) = icann_root_failure {
+                let (dnssec_status, failure_evidence) =
+                    canonical_icann_root_failure_evidence(failure)?;
+                actual_transport = ResolutionTransport::ValidatingIcannDoh;
+                evidence = failure_evidence;
+                icann_tls_action = Some(CanonicalIcannTlsAction::FailClosed);
+                icann_dnssec_status = dnssec_status;
+            }
+        } else {
+            let decision = cached
+                .decision
+                .as_ref()
+                .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+            if !decision.is_fresh_at(now_unix_seconds())
+                || metadata.outcome != Some(decision.kind())
+                || metadata.selected != decision.selected_namespace()
+                || metadata.selection_reason != decision.selection_reason()
+            {
+                return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+            }
+            namespace_outcome = Some(decision.kind());
+            selected_namespace = decision.selected_namespace();
+            selection_reason = decision.selection_reason();
+            decision_fingerprint_value = Some(*decision_fingerprint(decision).as_bytes());
+
+            match selected_namespace {
+                None if decision.kind() == OutcomeKind::Neither => {}
+                Some(Namespace::Icann) => {
+                    let selected_plan = decision
+                        .selected_plan()
+                        .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+                    let EvidenceProvenance::IcannDoh { chain_state } = selected_plan.provenance()
+                    else {
+                        return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                    };
+                    actual_transport = ResolutionTransport::ValidatingIcannDoh;
+                    evidence.dnssec = CanonicalEvidenceState::Verified;
+                    icann_dnssec_status = Some(match chain_state {
+                        IcannChainState::Secure => IcannDnssecStatus::Secure,
+                        IcannChainState::ProvenInsecure => IcannDnssecStatus::InsecureDelegation,
+                    });
+                    if context.origin.key.scheme == "http" || context.origin.key.scheme == "ws" {
+                        return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                    }
+                    if selected_plan.tls_policy() != TlsTrustPolicy::Dane
+                        || !matches!(error, GatewayError::Transport(TransportError::DaneFailed))
+                    {
+                        // The legacy gateway error surface does not retain
+                        // enough typed handshake evidence to distinguish a
+                        // WebPKI certificate failure from ordinary I/O or HTTP
+                        // framing errors. Do not invent DANE or SNI failure
+                        // states merely to satisfy a schema predicate.
+                        return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                    }
+                    icann_tls_action = Some(CanonicalIcannTlsAction::FailClosed);
+                    evidence.tlsa = CanonicalEvidenceState::Verified;
+                    evidence.dane = CanonicalEvidenceState::Failed;
+                    // An association mismatch proves the DANE check failed,
+                    // not that the requested SNI was different. The legacy
+                    // transport result does not retain independent SNI-match
+                    // evidence, so report that field honestly.
+                    evidence.origin_sni = CanonicalEvidenceState::Unavailable;
+                }
+                Some(Namespace::Hns) | None => {
+                    return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                }
+            }
+        }
+
+        let policy = self
+            .canonical_policy_snapshot()
+            .map_err(|_| CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        if policy.generation() != context.authority_binding.policy_generation {
+            return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+        }
+        let authority = self
+            .inner
+            .canonical_authority
+            .lock()
+            .map_err(|_| CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        if !self.authority_admits_locked(context.authority_binding, stamp, &authority) {
+            return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+        }
+        CanonicalBrowserStatus::new(CanonicalStatusInput {
+            runtime: authority.snapshot(),
+            network: canonical_network(context.network),
+            policy,
+            chain_anchor: None,
+            actual_transport,
+            identities: CanonicalTransportIdentities::default(),
+            registry_profile: policy.config().wire_profile,
+            registry_fingerprint: [0; 32],
+            protocol_version: 0,
+            provider_readiness: CanonicalProviderReadiness::from_policy(policy),
+            rate_limits: CanonicalRateLimitState::default(),
+            evidence,
+            namespace_outcome,
+            hns_root_failure,
+            icann_root_failure,
+            selected_namespace,
+            selection_reason,
+            decision_fingerprint: decision_fingerprint_value,
+            icann_tls_action,
+            icann_dnssec_status,
+            degraded_reason: None,
+            revocation_reason: None,
+            unsupported_evidence: Vec::new(),
+        })
+        .map_err(|_| CanonicalStatusUnavailableReason::SchemaValidationRejected)
+    }
+
+    fn try_canonical_status_for_origin_success(
+        &self,
+        context: CanonicalStatusContext<'_>,
+        result: CanonicalOriginResult<'_>,
+        stamp: RuntimeStamp,
+    ) -> Result<CanonicalBrowserStatus, CanonicalStatusUnavailableReason> {
+        let cached = context
+            .request_plan
+            .lock()
+            .map_err(|_| CanonicalStatusUnavailableReason::EvidenceUnavailable)?
+            .as_ref()
+            .cloned()
+            .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        let decision = cached
+            .decision
+            .as_ref()
+            .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        let metadata = context
+            .dns_trace
+            .namespace_snapshot()
+            .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        if !decision.is_fresh_at(now_unix_seconds())
+            || metadata != cached.metadata
+            || metadata.outcome != Some(decision.kind())
+            || metadata.selected != decision.selected_namespace()
+            || metadata.selection_reason != decision.selection_reason()
+            || cached.state_fingerprint.as_deref()
+                != result.origin_request.tls.namespace_fingerprint.as_deref()
+        {
+            return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+        }
+        let selected = decision
+            .selected_namespace()
+            .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        let selected_plan = decision
+            .selected_plan()
+            .ok_or(CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        let actual_transport = match selected {
+            Namespace::Icann => ResolutionTransport::ValidatingIcannDoh,
+            Namespace::Hns => {
+                canonical_hns_actual_transport(&result, selected_plan, context.dns_trace)?
+            }
+        };
+        if actual_transport == ResolutionTransport::HandshakeP2pDnsRelay {
+            // The legacy relay records a peer and retry count but not the
+            // exact negotiated registry fingerprint/protocol version required
+            // by schema v2. Static local constants are not negotiated identity.
+            return Err(CanonicalStatusUnavailableReason::P2pRegistryIdentityUnavailable);
+        }
+
+        let not_attempted = CanonicalEvidenceState::NotAttempted;
+        let verified = CanonicalEvidenceState::Verified;
+        let unavailable = CanonicalEvidenceState::Unavailable;
+        let mut evidence = CanonicalValidationEvidence::not_attempted();
+        let mut chain_anchor = None;
+        let mut icann_tls_action = None;
+        let mut icann_dnssec_status = None;
+        let uses_tls = matches!(
+            result.origin_request.scheme.to_ascii_lowercase().as_str(),
+            "https" | "wss"
+        );
+
+        match (selected, selected_plan.provenance()) {
+            (
+                Namespace::Hns,
+                EvidenceProvenance::Hns {
+                    network,
+                    tree_root,
+                    height,
+                },
+            ) if canonical_hns_network_matches(context.network, *network) => {
+                chain_anchor = Some(CanonicalChainAnchor {
+                    height: *height,
+                    tree_root: *tree_root,
+                });
+                evidence.hns_proof = verified;
+                evidence.chain_current = verified;
+                if uses_tls {
+                    if !result.resolution_secure
+                        || !result.tls_inspection_present
+                        || result.origin_request.tls.browser_tls_decision.is_some()
+                        || !result.origin_request.tls.dnssec_secure
+                        || result.origin_request.tls.tlsa_records.is_empty()
+                        || result.origin_request.tls.tlsa_source
+                            != Some(TlsaRecordSource::NativeTlsa)
+                        || !matches!(result.dane_decision, DaneDecision::Matched(_))
+                    {
+                        return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                    }
+                    evidence.dnssec = verified;
+                    evidence.tlsa = verified;
+                    evidence.dane = verified;
+                    evidence.origin_sni = verified;
+                } else {
+                    if !matches!(result.dane_decision, DaneDecision::NoTlsa) {
+                        return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                    }
+                    evidence.dnssec = if result.resolution_secure {
+                        verified
+                    } else {
+                        not_attempted
+                    };
+                    evidence.tlsa = not_attempted;
+                    evidence.dane = not_attempted;
+                    evidence.origin_sni = not_attempted;
+                }
+            }
+            (Namespace::Icann, EvidenceProvenance::IcannDoh { chain_state }) => {
+                evidence.dnssec = verified;
+                if uses_tls && !result.tls_inspection_present {
+                    return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                }
+                match (
+                    selected_plan.tls_policy(),
+                    result.origin_request.tls.browser_tls_decision,
+                    result.dane_decision,
+                    chain_state,
+                ) {
+                    (
+                        TlsTrustPolicy::Dane,
+                        Some(BrowserTlsDecision::EnforceDane { record_count }),
+                        DaneDecision::Matched(_),
+                        IcannChainState::Secure,
+                    ) if uses_tls
+                        && result.origin_request.tls.dnssec_secure
+                        && record_count.get() == result.origin_request.tls.tlsa_records.len()
+                        && result.origin_request.tls.tlsa_source
+                            == Some(TlsaRecordSource::NativeTlsa) =>
+                    {
+                        evidence.tlsa = verified;
+                        evidence.dane = verified;
+                        evidence.origin_sni = verified;
+                        icann_tls_action = Some(CanonicalIcannTlsAction::EnforceDane);
+                        icann_dnssec_status = Some(IcannDnssecStatus::Secure);
+                    }
+                    (
+                        TlsTrustPolicy::WebPkiAuthenticatedAbsence,
+                        Some(BrowserTlsDecision::WebPkiAuthenticatedAbsence),
+                        DaneDecision::WebPkiFallback,
+                        IcannChainState::Secure,
+                    ) if uses_tls
+                        && result.origin_request.tls.dnssec_secure
+                        && result.origin_request.tls.tlsa_records.is_empty() =>
+                    {
+                        evidence.tlsa = unavailable;
+                        evidence.dane = not_attempted;
+                        evidence.origin_sni = verified;
+                        icann_tls_action =
+                            Some(CanonicalIcannTlsAction::WebPkiAuthenticatedAbsence);
+                        icann_dnssec_status = Some(IcannDnssecStatus::Secure);
+                    }
+                    (
+                        TlsTrustPolicy::WebPkiInsecureDelegation,
+                        Some(BrowserTlsDecision::WebPkiInsecureDelegation),
+                        DaneDecision::WebPkiFallback,
+                        IcannChainState::ProvenInsecure,
+                    ) if uses_tls
+                        && !result.origin_request.tls.dnssec_secure
+                        && result.origin_request.tls.tlsa_records.is_empty() =>
+                    {
+                        evidence.tlsa = unavailable;
+                        evidence.dane = not_attempted;
+                        evidence.origin_sni = verified;
+                        icann_tls_action = Some(CanonicalIcannTlsAction::WebPkiInsecureDelegation);
+                        icann_dnssec_status = Some(IcannDnssecStatus::InsecureDelegation);
+                    }
+                    (TlsTrustPolicy::Cleartext, None, DaneDecision::NoTlsa, chain_state)
+                        if !uses_tls =>
+                    {
+                        evidence.tlsa = not_attempted;
+                        evidence.dane = not_attempted;
+                        evidence.origin_sni = not_attempted;
+                        icann_dnssec_status = Some(match chain_state {
+                            IcannChainState::Secure => IcannDnssecStatus::Secure,
+                            IcannChainState::ProvenInsecure => {
+                                IcannDnssecStatus::InsecureDelegation
+                            }
+                        });
+                    }
+                    _ => return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable),
+                }
+            }
+            _ => return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable),
+        }
+
+        let policy = self
+            .canonical_policy_snapshot()
+            .map_err(|_| CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        if policy.generation() != context.authority_binding.policy_generation {
+            return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+        }
+        let authority = self
+            .inner
+            .canonical_authority
+            .lock()
+            .map_err(|_| CanonicalStatusUnavailableReason::EvidenceUnavailable)?;
+        if !self.authority_admits_locked(context.authority_binding, stamp, &authority) {
+            return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+        }
+        let runtime = authority.snapshot();
+        CanonicalBrowserStatus::new(CanonicalStatusInput {
+            runtime,
+            network: canonical_network(context.network),
+            policy,
+            chain_anchor,
+            actual_transport,
+            identities: CanonicalTransportIdentities::default(),
+            registry_profile: policy.config().wire_profile,
+            registry_fingerprint: [0; 32],
+            protocol_version: 0,
+            provider_readiness: CanonicalProviderReadiness::from_policy(policy),
+            rate_limits: CanonicalRateLimitState::default(),
+            evidence,
+            namespace_outcome: Some(decision.kind()),
+            hns_root_failure: None,
+            icann_root_failure: None,
+            selected_namespace: Some(selected),
+            selection_reason: decision.selection_reason(),
+            decision_fingerprint: Some(*decision_fingerprint(decision).as_bytes()),
+            icann_tls_action,
+            icann_dnssec_status,
+            degraded_reason: None,
+            revocation_reason: None,
+            unsupported_evidence: Vec::new(),
+        })
+        .map_err(|_| CanonicalStatusUnavailableReason::SchemaValidationRejected)
+    }
+
     fn acquire_proxy_maintenance<'a>(
         &'a self,
         cancellation: &ProxyCancellationToken,
@@ -1837,6 +3487,8 @@ impl BrowserRuntime {
     fn prepare_proxy_gateway(
         &self,
         request: &GatewayHttpRequest,
+        authority_binding: RuntimeAuthorityBinding,
+        authority_stamp: RuntimeStamp,
     ) -> Result<PreparedRuntimeGateway, RuntimeError> {
         self.validate_gateway_request(request)?;
         let header_text = self.gateway_header_text(&request.headers)?;
@@ -1887,8 +3539,15 @@ impl BrowserRuntime {
             origin.clone(),
             Arc::clone(&self.inner.namespace_plans),
         );
+        let request_plan = resolver.retained_request_plan();
         let stateless_dane =
             stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
+        let origin_transport = MobileOriginTransport::bound(
+            self.inner.transport.clone(),
+            self.clone(),
+            authority_binding,
+            authority_stamp,
+        );
         let gateway = Gateway::new(
             GatewayConfig {
                 stateless_dane,
@@ -1899,7 +3558,7 @@ impl BrowserRuntime {
                 ..GatewayConfig::default()
             },
             resolver,
-            self.inner.transport.clone(),
+            origin_transport,
         )
         .map_err(|error| RuntimeError::Operation(format!("create gateway: {error}")))?;
         Ok(PreparedRuntimeGateway {
@@ -1911,6 +3570,9 @@ impl BrowserRuntime {
             dns_trace,
             origin,
             plans: Arc::clone(&self.inner.namespace_plans),
+            request_plan,
+            authority_binding,
+            authority_stamp,
         })
     }
 }
@@ -1924,11 +3586,22 @@ impl ProxyBackend for RuntimeProxyBackend {
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
         }
+        let authority_binding = match self.authority_binding {
+            Some(binding) => binding,
+            None => self
+                .runtime
+                .ensure_authority_active(0)
+                .map_err(runtime_error_to_proxy_backend)?,
+        };
         let request = gateway_request_from_proxy(request);
+        let authority_stamp = self
+            .runtime
+            .admit_authority_work(authority_binding)
+            .map_err(runtime_error_to_proxy_backend)?;
         let _maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
         let prepared = self
             .runtime
-            .prepare_proxy_gateway(&request)
+            .prepare_proxy_gateway(&request, authority_binding, authority_stamp)
             .map_err(runtime_error_to_proxy_backend)?;
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
@@ -1939,7 +3612,7 @@ impl ProxyBackend for RuntimeProxyBackend {
                 if cancellation.is_cancelled() {
                     return Err(ProxyBackendError::Cancelled);
                 }
-                return Ok(proxy_error_response_from_gateway(
+                let mut response = proxy_error_response_from_gateway(
                     &self.runtime,
                     &request,
                     prepared.network,
@@ -1947,19 +3620,47 @@ impl ProxyBackend for RuntimeProxyBackend {
                     &error,
                     &prepared.fallback_marker,
                     &prepared.dns_trace,
-                ));
+                );
+                let canonical_status = self.runtime.canonical_status_for_gateway_failure(
+                    CanonicalStatusContext::from(&prepared),
+                    &error,
+                    prepared.authority_stamp,
+                );
+                let observation_id = self
+                    .runtime
+                    .inner
+                    .canonical_statuses
+                    .insert(prepared.authority_stamp, canonical_status)
+                    .map_err(runtime_error_to_proxy_backend)?;
+                response.head.observation_id = Some(observation_id);
+                self.runtime.observe_gateway_authority_failure(&error);
+                response.publication = runtime_publication_capability(
+                    prepared.authority_binding,
+                    Some(prepared.authority_stamp),
+                );
+                return Ok(response);
             }
         };
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
         }
-        record_successful_namespace_selection(
-            &prepared.origin,
-            &prepared.plans,
-            &prepared.dns_trace,
-        )
-        .map_err(|_| ProxyBackendError::Internal)?;
-        proxy_response_from_gateway(
+        if !self
+            .runtime
+            .authority_admits(prepared.authority_binding, prepared.authority_stamp)
+        {
+            return Err(ProxyBackendError::PolicyDenied);
+        }
+        let canonical_status = self.runtime.canonical_status_for_origin_success(
+            CanonicalStatusContext::from(&prepared),
+            CanonicalOriginResult {
+                resolution_secure: response.resolution.secure,
+                origin_request: &response.origin_request,
+                dane_decision: &response.origin.dane_decision,
+                tls_inspection_present: response.origin.tls_inspection.is_some(),
+            },
+            prepared.authority_stamp,
+        );
+        let mut proxy_response = proxy_response_from_gateway(
             &self.runtime,
             &request,
             prepared.network,
@@ -1967,7 +3668,16 @@ impl ProxyBackend for RuntimeProxyBackend {
             response,
             &prepared.fallback_marker,
             &prepared.dns_trace,
-        )
+        )?;
+        let observation_id = self
+            .runtime
+            .inner
+            .canonical_statuses
+            .insert(prepared.authority_stamp, canonical_status)
+            .map_err(runtime_error_to_proxy_backend)?;
+        proxy_response.head.observation_id = Some(observation_id);
+        proxy_response.publication = runtime_success_publication_capability(&prepared);
+        Ok(proxy_response)
     }
 
     fn open_tunnel(
@@ -1978,11 +3688,22 @@ impl ProxyBackend for RuntimeProxyBackend {
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
         }
+        let authority_binding = match self.authority_binding {
+            Some(binding) => binding,
+            None => self
+                .runtime
+                .ensure_authority_active(0)
+                .map_err(runtime_error_to_proxy_backend)?,
+        };
         let request = gateway_request_from_proxy(request);
+        let authority_stamp = self
+            .runtime
+            .admit_authority_work(authority_binding)
+            .map_err(runtime_error_to_proxy_backend)?;
         let _maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
         let prepared = self
             .runtime
-            .prepare_proxy_gateway(&request)
+            .prepare_proxy_gateway(&request, authority_binding, authority_stamp)
             .map_err(runtime_error_to_proxy_backend)?;
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
@@ -1993,29 +3714,55 @@ impl ProxyBackend for RuntimeProxyBackend {
                 if cancellation.is_cancelled() {
                     return Err(ProxyBackendError::Cancelled);
                 }
-                return Ok(ProxyTunnelOpen::Response(
-                    proxy_error_response_from_gateway(
-                        &self.runtime,
-                        &request,
-                        prepared.network,
-                        prepared.mode,
-                        &error,
-                        &prepared.fallback_marker,
-                        &prepared.dns_trace,
-                    ),
-                ));
+                let mut response = proxy_error_response_from_gateway(
+                    &self.runtime,
+                    &request,
+                    prepared.network,
+                    prepared.mode,
+                    &error,
+                    &prepared.fallback_marker,
+                    &prepared.dns_trace,
+                );
+                let canonical_status = self.runtime.canonical_status_for_gateway_failure(
+                    CanonicalStatusContext::from(&prepared),
+                    &error,
+                    prepared.authority_stamp,
+                );
+                let observation_id = self
+                    .runtime
+                    .inner
+                    .canonical_statuses
+                    .insert(prepared.authority_stamp, canonical_status)
+                    .map_err(runtime_error_to_proxy_backend)?;
+                response.head.observation_id = Some(observation_id);
+                self.runtime.observe_gateway_authority_failure(&error);
+                response.publication = runtime_publication_capability(
+                    prepared.authority_binding,
+                    Some(prepared.authority_stamp),
+                );
+                return Ok(ProxyTunnelOpen::Response(response));
             }
         };
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
         }
-        record_successful_namespace_selection(
-            &prepared.origin,
-            &prepared.plans,
-            &prepared.dns_trace,
-        )
-        .map_err(|_| ProxyBackendError::Internal)?;
-        proxy_tunnel_from_gateway(
+        if !self
+            .runtime
+            .authority_admits(prepared.authority_binding, prepared.authority_stamp)
+        {
+            return Err(ProxyBackendError::PolicyDenied);
+        }
+        let canonical_status = self.runtime.canonical_status_for_origin_success(
+            CanonicalStatusContext::from(&prepared),
+            CanonicalOriginResult {
+                resolution_secure: response.resolution.secure,
+                origin_request: &response.origin_request,
+                dane_decision: &response.origin.dane_decision,
+                tls_inspection_present: response.origin.tls_inspection.is_some(),
+            },
+            prepared.authority_stamp,
+        );
+        let mut proxy_tunnel = proxy_tunnel_from_gateway(
             &self.runtime,
             &request,
             prepared.network,
@@ -2023,8 +3770,56 @@ impl ProxyBackend for RuntimeProxyBackend {
             response,
             &prepared.fallback_marker,
             &prepared.dns_trace,
-        )
-        .map(ProxyTunnelOpen::Tunnel)
+        )?;
+        let observation_id = self
+            .runtime
+            .inner
+            .canonical_statuses
+            .insert(prepared.authority_stamp, canonical_status)
+            .map_err(runtime_error_to_proxy_backend)?;
+        proxy_tunnel.head.observation_id = Some(observation_id);
+        proxy_tunnel.publication = runtime_success_publication_capability(&prepared);
+        Ok(ProxyTunnelOpen::Tunnel(proxy_tunnel))
+    }
+
+    fn acquire_publication_permit(
+        &self,
+        capability: &PublicationCapability,
+    ) -> Result<Box<dyn PublicationPermit + '_>, ProxyBackendError> {
+        let authorization = capability
+            .downcast_ref::<RuntimePublicationAuthorization>()
+            .ok_or(ProxyBackendError::PolicyDenied)?;
+        if self
+            .authority_binding
+            .is_some_and(|binding| binding != authorization.binding)
+        {
+            return Err(ProxyBackendError::PolicyDenied);
+        }
+        let Some(stamp) = authorization.stamp else {
+            return Err(ProxyBackendError::PolicyDenied);
+        };
+        let authority = match self
+            .runtime
+            .authorized_publication_guard(authorization.binding, stamp)
+        {
+            Ok(authority) => authority,
+            Err(RuntimeError::Synchronization(_)) => return Err(ProxyBackendError::Internal),
+            Err(
+                RuntimeError::InvalidConfiguration(_)
+                | RuntimeError::Operation(_)
+                | RuntimeError::PublicationSuppressed(_),
+            ) => {
+                return Err(ProxyBackendError::PolicyDenied);
+            }
+        };
+        if let Some(selection) = &authorization.selection {
+            selection
+                .record()
+                .map_err(|_| ProxyBackendError::Internal)?;
+        }
+        Ok(Box::new(RuntimePublicationPermit {
+            _authority: authority,
+        }))
     }
 }
 
@@ -2094,8 +3889,10 @@ fn proxy_response_from_gateway(
             status_code: response.origin.status,
             reason_phrase: "OK".to_owned(),
             headers: proxy_headers(headers),
+            observation_id: None,
         },
         body: ProxyResponseBody::Bytes(response.origin.body),
+        publication: Default::default(),
     })
 }
 
@@ -2136,8 +3933,10 @@ fn proxy_error_response_from_gateway(
             status_code: status,
             reason_phrase: reason.to_owned(),
             headers: proxy_headers(headers),
+            observation_id: None,
         },
         body: ProxyResponseBody::Bytes(body),
+        publication: Default::default(),
     }
 }
 
@@ -2182,10 +3981,12 @@ fn proxy_tunnel_from_gateway(
             status_code: parsed.status_code,
             reason_phrase: "Switching Protocols".to_owned(),
             headers: proxy_headers(headers),
+            observation_id: None,
         },
         // A boxed transport trait object is itself a concrete Read + Write +
         // Send value and therefore satisfies the proxy tunnel trait.
         stream: Box::new(response.origin.stream),
+        publication: Default::default(),
     })
 }
 
@@ -2349,6 +4150,7 @@ fn parse_upgrade_response_head(
 fn runtime_error_to_proxy_backend(error: RuntimeError) -> ProxyBackendError {
     match error {
         RuntimeError::InvalidConfiguration(_) => ProxyBackendError::InvalidRequest,
+        RuntimeError::PublicationSuppressed(_) => ProxyBackendError::PolicyDenied,
         RuntimeError::Operation(_) | RuntimeError::Synchronization(_) => {
             ProxyBackendError::Internal
         }
@@ -3115,16 +4917,20 @@ fn record_successful_namespace_selection(
     if !persist_successful_namespace_binding(origin, selected)? {
         return Ok(());
     }
-    plans
-        .lock()
-        .map_err(|_| ResolverError::CachePoisoned)?
-        .retain(|key, _| {
+    // Persistence increments the binding revision, so every plan keyed by the
+    // old revision is unreachable by subsequent requests. This retain is
+    // bounded-memory reclamation only: once the durable sticky selection is
+    // committed, a poisoned cache must not turn commit into publication
+    // failure and leave a binding behind for a response that was suppressed.
+    if let Ok(mut plans) = plans.lock() {
+        plans.retain(|key, _| {
             namespace_binding_scheme(&key.scheme) != namespace_binding_scheme(&origin.key.scheme)
                 || key.host != origin.key.host
                 || key.port != origin.key.port
                 || key.network != origin.key.network
                 || key.profile != origin.key.profile
         });
+    }
     Ok(())
 }
 
@@ -3139,6 +4945,8 @@ enum NamespacePlanTerminal {
 struct CachedNamespacePlan {
     metadata: NamespaceResolutionMetadata,
     decision: Option<NamespaceDecision>,
+    hns_root_failure: Option<RootFailure>,
+    icann_root_failure: Option<RootFailure>,
     state_fingerprint: Option<String>,
     selected_answers: HashMap<ResolutionRequest, ResolutionAnswer>,
     hns_observation: Option<HnsProofObservation>,
@@ -3147,6 +4955,7 @@ struct CachedNamespacePlan {
 }
 
 type SharedNamespacePlans = Arc<Mutex<HashMap<NamespaceOriginKey, CachedNamespacePlan>>>;
+type SharedRequestNamespacePlan = Arc<Mutex<Option<CachedNamespacePlan>>>;
 
 struct AndroidGatewayResolver {
     hns: Box<dyn Resolver>,
@@ -3156,6 +4965,7 @@ struct AndroidGatewayResolver {
     hns_evidence: HnsProofEvidenceRecorder,
     icann_evidence: IcannEvidenceRecorder,
     build_lock: Mutex<()>,
+    request_plan: SharedRequestNamespacePlan,
     trace: DnsTraceRecorder,
 }
 
@@ -3177,8 +4987,21 @@ impl AndroidGatewayResolver {
             hns_evidence,
             icann_evidence,
             build_lock: Mutex::new(()),
+            request_plan: Arc::new(Mutex::new(None)),
             trace,
         }
+    }
+
+    fn retained_request_plan(&self) -> SharedRequestNamespacePlan {
+        Arc::clone(&self.request_plan)
+    }
+
+    fn finish_plan(&self, plan: CachedNamespacePlan) -> Result<CachedNamespacePlan, ResolverError> {
+        *self
+            .request_plan
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)? = Some(plan.clone());
+        namespace_plan_result(plan)
     }
 
     fn cached_plan(&self, origin: &NamespaceOriginContext) -> Option<CachedNamespacePlan> {
@@ -3205,7 +5028,7 @@ impl AndroidGatewayResolver {
         let origin = self.origin_for_query(query)?;
         if let Some(plan) = self.cached_plan(&origin) {
             self.trace.record_namespace(plan.metadata.clone());
-            return namespace_plan_result(plan);
+            return self.finish_plan(plan);
         }
         let _build = self
             .build_lock
@@ -3213,7 +5036,7 @@ impl AndroidGatewayResolver {
             .map_err(|_| ResolverError::CachePoisoned)?;
         if let Some(plan) = self.cached_plan(&origin) {
             self.trace.record_namespace(plan.metadata.clone());
-            return namespace_plan_result(plan);
+            return self.finish_plan(plan);
         }
         self.hns_evidence.begin()?;
         self.icann_evidence.begin()?;
@@ -3228,7 +5051,7 @@ impl AndroidGatewayResolver {
             plans.insert(origin.key, plan.clone());
         }
         self.trace.record_namespace(plan.metadata.clone());
-        namespace_plan_result(plan)
+        self.finish_plan(plan)
     }
 
     fn origin_for_query(
@@ -3356,6 +5179,8 @@ fn build_namespace_plan(
             CachedNamespacePlan {
                 metadata,
                 decision: Some(outcome),
+                hns_root_failure: None,
+                icann_root_failure: None,
                 state_fingerprint,
                 selected_answers,
                 hns_observation,
@@ -3363,22 +5188,46 @@ fn build_namespace_plan(
                 terminal: selected.is_none().then_some(NamespacePlanTerminal::Neither),
             }
         }
-        Err(_) => CachedNamespacePlan {
-            metadata: NamespaceResolutionMetadata {
-                outcome: None,
-                selected: None,
-                selection_reason: None,
-                hns_state,
-                icann_state,
-                fingerprint: None,
-            },
-            decision: None,
-            state_fingerprint: None,
-            selected_answers: HashMap::new(),
-            hns_observation,
-            expires_at_unix: now.saturating_add(1),
-            terminal: Some(NamespacePlanTerminal::Indeterminate),
-        },
+        Err(error) => {
+            let (hns_root_failure, icann_root_failure) = match error {
+                ClassificationError::RootFailed { hns, icann } => (hns, icann),
+                ClassificationError::StaleEvidence { namespace } => {
+                    let failure = RootFailure::new(
+                        namespace,
+                        query.clone(),
+                        RootFailureKind::StaleEvidence,
+                        None,
+                    );
+                    match namespace {
+                        Namespace::Hns => (Some(failure), None),
+                        Namespace::Icann => (None, Some(failure)),
+                    }
+                }
+                ClassificationError::RootPositionMismatch { .. }
+                | ClassificationError::QueryMismatch { .. }
+                | ClassificationError::SelectedNamespaceUnavailable { .. }
+                | ClassificationError::DivergenceRequiresSelection => (None, None),
+                _ => (None, None),
+            };
+            CachedNamespacePlan {
+                metadata: NamespaceResolutionMetadata {
+                    outcome: None,
+                    selected: None,
+                    selection_reason: None,
+                    hns_state,
+                    icann_state,
+                    fingerprint: None,
+                },
+                decision: None,
+                hns_root_failure,
+                icann_root_failure,
+                state_fingerprint: None,
+                selected_answers: HashMap::new(),
+                hns_observation,
+                expires_at_unix: now.saturating_add(1),
+                terminal: Some(NamespacePlanTerminal::Indeterminate),
+            }
+        }
     }
 }
 
@@ -3393,6 +5242,8 @@ fn invalid_cached_namespace_plan(now: u64) -> CachedNamespacePlan {
             fingerprint: None,
         },
         decision: None,
+        hns_root_failure: None,
+        icann_root_failure: None,
         state_fingerprint: None,
         selected_answers: HashMap::new(),
         hns_observation: None,
@@ -6328,17 +8179,47 @@ fn sync_once_with_options(
 }
 
 pub fn gateway_http_response(input: GatewayHttpRequestInput<'_>) -> Vec<u8> {
-    gateway_http_response_with_transport(input, shared_http_transport(), None)
+    gateway_http_response_with_transport(
+        input,
+        MobileOriginTransport::unbound(shared_http_transport()),
+        None,
+    )
 }
 
 fn gateway_http_response_with_transport(
     input: GatewayHttpRequestInput<'_>,
-    transport: TcpHttpTransport,
+    transport: MobileOriginTransport,
     peer_state: Option<Arc<Mutex<()>>>,
 ) -> Vec<u8> {
+    let prepared = prepare_gateway_http_response_with_transport(input, transport, peer_state);
+    if let Some(selection) = prepared.selection
+        && let Err(error) = selection.record()
+    {
+        return plain_response_for_request(
+            &input,
+            500,
+            "Namespace Binding Error",
+            &error.to_string(),
+        );
+    }
+    prepared.encoded_http
+}
+
+fn prepare_gateway_http_response_with_transport(
+    input: GatewayHttpRequestInput<'_>,
+    transport: MobileOriginTransport,
+    peer_state: Option<Arc<Mutex<()>>>,
+) -> PreparedGatewayHttpResponse {
     let parsed_headers = match parse_gateway_headers(input.header_text) {
         Ok(headers) => headers,
-        Err(error) => return plain_response_for_request(&input, 400, "Bad Request", error),
+        Err(error) => {
+            return PreparedGatewayHttpResponse::without_selection(plain_response_for_request(
+                &input,
+                400,
+                "Bad Request",
+                error,
+            ));
+        }
     };
     let runtime_policy = parsed_headers.runtime_policy();
     let network = parsed_headers.network;
@@ -6348,22 +8229,22 @@ fn gateway_http_response_with_transport(
 
     let base = network_base_path(input.data_dir, network);
     if let Err(error) = fs::create_dir_all(&base) {
-        return plain_response_for_request(
+        return PreparedGatewayHttpResponse::without_selection(plain_response_for_request(
             &input,
             500,
             "Gateway Storage Error",
             &format!("create gateway directory: {error}"),
-        );
+        ));
     }
     let values = match SqliteResourceValueProvider::open(base.join("resources.sqlite")) {
         Ok(values) => values,
         Err(error) => {
-            return plain_response_for_request(
+            return PreparedGatewayHttpResponse::without_selection(plain_response_for_request(
                 &input,
                 500,
                 "Gateway Storage Error",
                 &format!("open resource cache: {error}"),
-            );
+            ));
         }
     };
     let fallback_marker = FallbackMarker::default();
@@ -6377,12 +8258,12 @@ fn gateway_http_response_with_transport(
     ) {
         Ok(origin) => origin,
         Err(error) => {
-            return plain_response_for_request(
+            return PreparedGatewayHttpResponse::without_selection(plain_response_for_request(
                 &input,
                 400,
                 "Invalid Namespace Origin",
                 &error.to_string(),
-            );
+            ));
         }
     };
     let plans = shared_direct_namespace_plans();
@@ -6394,7 +8275,7 @@ fn gateway_http_response_with_transport(
             runtime_policy,
             peer_state,
             relay: None,
-            http: transport.clone(),
+            http: transport.resolver_transport(),
         },
         dns_trace.clone(),
         origin.clone(),
@@ -6415,25 +8296,17 @@ fn gateway_http_response_with_transport(
     ) {
         Ok(gateway) => gateway,
         Err(error) => {
-            return plain_response_for_request(
+            return PreparedGatewayHttpResponse::without_selection(plain_response_for_request(
                 &input,
                 500,
                 "Gateway Configuration Error",
                 &error.to_string(),
-            );
+            ));
         }
     };
 
     match gateway.handle(&request) {
         Ok(response) => {
-            if let Err(error) = record_successful_namespace_selection(&origin, &plans, &dns_trace) {
-                return plain_response_for_request(
-                    &input,
-                    500,
-                    "Namespace Binding Error",
-                    &error.to_string(),
-                );
-            }
             let resolver_policy = fallback_marker.used().then_some("hns-doh-compat");
             let security_path = security_path_name(
                 &input,
@@ -6457,12 +8330,19 @@ fn gateway_http_response_with_transport(
                 &fallback_marker,
                 &dns_trace,
             );
-            origin_response_with_resolver_policy_and_trace(
-                response.origin,
-                resolver_policy,
-                security_path,
-                &trace,
-            )
+            PreparedGatewayHttpResponse {
+                encoded_http: origin_response_with_resolver_policy_and_trace(
+                    response.origin,
+                    resolver_policy,
+                    security_path,
+                    &trace,
+                ),
+                selection: Some(NamespacePublicationSelection {
+                    origin,
+                    plans,
+                    dns_trace,
+                }),
+            }
         }
         Err(error) => {
             let selected = dns_trace
@@ -6479,7 +8359,9 @@ fn gateway_http_response_with_transport(
                 &fallback_marker,
                 &dns_trace,
             );
-            plain_response_for_request_with_trace(&input, status, reason, detail, &trace)
+            PreparedGatewayHttpResponse::without_selection(plain_response_for_request_with_trace(
+                &input, status, reason, detail, &trace,
+            ))
         }
     }
 }
@@ -6491,7 +8373,7 @@ pub fn gateway_http_response_body_to_file(
     gateway_http_response_body_to_file_with_transport(
         input,
         body_path,
-        shared_http_transport(),
+        MobileOriginTransport::unbound(shared_http_transport()),
         None,
     )
 }
@@ -6499,9 +8381,32 @@ pub fn gateway_http_response_body_to_file(
 fn gateway_http_response_body_to_file_with_transport(
     input: GatewayHttpRequestInput<'_>,
     body_path: &Path,
-    transport: TcpHttpTransport,
+    transport: MobileOriginTransport,
     peer_state: Option<Arc<Mutex<()>>>,
 ) -> Result<Vec<u8>, String> {
+    let prepared = prepare_gateway_http_response_body_to_file_with_transport(
+        input, body_path, transport, peer_state,
+    )?;
+    if let Some(selection) = prepared.selection
+        && let Err(error) = selection.record()
+    {
+        return plain_response_to_file_for_request(
+            &input,
+            500,
+            "Namespace Binding Error",
+            &error.to_string(),
+            body_path,
+        );
+    }
+    Ok(prepared.encoded_head)
+}
+
+fn prepare_gateway_http_response_body_to_file_with_transport(
+    input: GatewayHttpRequestInput<'_>,
+    body_path: &Path,
+    transport: MobileOriginTransport,
+    peer_state: Option<Arc<Mutex<()>>>,
+) -> Result<PreparedGatewayFileResponse, String> {
     let parsed_headers = match parse_gateway_headers(input.header_text) {
         Ok(headers) => headers,
         Err(error) => {
@@ -6511,7 +8416,8 @@ fn gateway_http_response_body_to_file_with_transport(
                 "Bad Request",
                 error,
                 body_path,
-            );
+            )
+            .map(PreparedGatewayFileResponse::without_selection);
         }
     };
     let runtime_policy = parsed_headers.runtime_policy();
@@ -6528,7 +8434,8 @@ fn gateway_http_response_body_to_file_with_transport(
             "Gateway Storage Error",
             &format!("create gateway directory: {error}"),
             body_path,
-        );
+        )
+        .map(PreparedGatewayFileResponse::without_selection);
     }
     let values = match SqliteResourceValueProvider::open(base.join("resources.sqlite")) {
         Ok(values) => values,
@@ -6539,7 +8446,8 @@ fn gateway_http_response_body_to_file_with_transport(
                 "Gateway Storage Error",
                 &format!("open resource cache: {error}"),
                 body_path,
-            );
+            )
+            .map(PreparedGatewayFileResponse::without_selection);
         }
     };
     let fallback_marker = FallbackMarker::default();
@@ -6559,7 +8467,8 @@ fn gateway_http_response_body_to_file_with_transport(
                 "Invalid Namespace Origin",
                 &error.to_string(),
                 body_path,
-            );
+            )
+            .map(PreparedGatewayFileResponse::without_selection);
         }
     };
     let plans = shared_direct_namespace_plans();
@@ -6571,7 +8480,7 @@ fn gateway_http_response_body_to_file_with_transport(
             runtime_policy,
             peer_state,
             relay: None,
-            http: transport.clone(),
+            http: transport.resolver_transport(),
         },
         dns_trace.clone(),
         origin.clone(),
@@ -6598,7 +8507,8 @@ fn gateway_http_response_body_to_file_with_transport(
                 "Gateway Configuration Error",
                 &error.to_string(),
                 body_path,
-            );
+            )
+            .map(PreparedGatewayFileResponse::without_selection);
         }
     };
 
@@ -6610,16 +8520,6 @@ fn gateway_http_response_body_to_file_with_transport(
         fs::File::create(body_path).map_err(|error| format!("create response body: {error}"))?;
     match gateway.handle_to_writer(&request, &mut body_file) {
         Ok(response) => {
-            if let Err(error) = record_successful_namespace_selection(&origin, &plans, &dns_trace) {
-                drop(body_file);
-                return plain_response_to_file_for_request(
-                    &input,
-                    500,
-                    "Namespace Binding Error",
-                    &error.to_string(),
-                    body_path,
-                );
-            }
             let resolver_policy = fallback_marker.used().then_some("hns-doh-compat");
             let security_path = security_path_name(
                 &input,
@@ -6643,12 +8543,19 @@ fn gateway_http_response_body_to_file_with_transport(
                 &fallback_marker,
                 &dns_trace,
             );
-            Ok(origin_response_head_with_resolver_policy_and_trace(
-                response.origin,
-                resolver_policy,
-                security_path,
-                &trace,
-            ))
+            Ok(PreparedGatewayFileResponse {
+                encoded_head: origin_response_head_with_resolver_policy_and_trace(
+                    response.origin,
+                    resolver_policy,
+                    security_path,
+                    &trace,
+                ),
+                selection: Some(NamespacePublicationSelection {
+                    origin,
+                    plans,
+                    dns_trace,
+                }),
+            })
         }
         Err(error) => {
             let selected = dns_trace
@@ -6668,6 +8575,7 @@ fn gateway_http_response_body_to_file_with_transport(
             plain_response_to_file_for_request_with_trace(
                 &input, status, reason, detail, body_path, &trace,
             )
+            .map(PreparedGatewayFileResponse::without_selection)
         }
     }
 }
@@ -6681,7 +8589,7 @@ pub fn gateway_http_upgrade_tunnel(
         input,
         client_input,
         client_output,
-        shared_http_transport(),
+        MobileOriginTransport::unbound(shared_http_transport()),
         None,
     )
 }
@@ -6690,7 +8598,7 @@ fn gateway_http_upgrade_tunnel_with_transport(
     input: GatewayHttpRequestInput<'_>,
     mut client_input: impl Read + Send + 'static,
     mut client_output: impl Write + Send + 'static,
-    transport: TcpHttpTransport,
+    transport: MobileOriginTransport,
     peer_state: Option<Arc<Mutex<()>>>,
 ) -> bool {
     let parsed_headers = match parse_gateway_headers(input.header_text) {
@@ -6765,7 +8673,7 @@ fn gateway_http_upgrade_tunnel_with_transport(
             runtime_policy,
             peer_state,
             relay: None,
-            http: transport.clone(),
+            http: transport.resolver_transport(),
         },
         dns_trace.clone(),
         origin.clone(),
@@ -10045,6 +11953,295 @@ mod tests {
         trace
     }
 
+    fn test_publication_selection(
+        base: &Path,
+        network: NetworkKind,
+        scheme: &str,
+        host: &str,
+        port: u16,
+        namespace: Namespace,
+    ) -> NamespacePublicationSelection {
+        NamespacePublicationSelection {
+            origin: namespace_origin_context(base.to_path_buf(), network, scheme, host, port, 0)
+                .unwrap(),
+            plans: Arc::new(Mutex::new(HashMap::new())),
+            dns_trace: trace_recorder_for_selection(namespace),
+        }
+    }
+
+    fn test_cleartext_origin_plan(
+        query: &OriginQuery,
+        namespace: Namespace,
+        endpoint_last_octet: u8,
+    ) -> ValidatedOriginPlan {
+        let host = query.host().clone();
+        let port = query.origin_port();
+        let service = ServiceBinding::new(ServiceBindingInput {
+            priority: None,
+            service_target: host.clone(),
+            mandatory_keys: Vec::new(),
+            advertised_alpn: Vec::new(),
+            selected_protocol: ApplicationProtocol::Http11,
+            effective_port: port,
+            transport: ServiceTransport::Tcp,
+            connection_hints: Vec::new(),
+            ech_config: None,
+            parameters: Vec::new(),
+        })
+        .unwrap();
+        let provenance = match namespace {
+            Namespace::Hns => EvidenceProvenance::Hns {
+                network: HnsNetwork::Regtest,
+                tree_root: [endpoint_last_octet; 32],
+                height: 1,
+            },
+            Namespace::Icann => EvidenceProvenance::IcannDoh {
+                chain_state: IcannChainState::Secure,
+            },
+        };
+        let now = now_unix_seconds();
+        ValidatedOriginPlan::new(OriginPlanInput {
+            namespace,
+            query: query.clone(),
+            alias_path: Vec::new(),
+            terminal_target: host.clone(),
+            endpoint_alias_path: Vec::new(),
+            endpoint_target: host,
+            endpoints: vec![SocketAddr::new(
+                IpAddr::V4(Ipv4Addr::new(192, 0, 2, endpoint_last_octet)),
+                port.get(),
+            )],
+            service,
+            tls_policy: TlsTrustPolicy::Cleartext,
+            tlsa_records: Vec::new(),
+            provenance,
+            freshness: Freshness::new(now, now.saturating_add(60)).unwrap(),
+        })
+        .unwrap()
+    }
+
+    fn test_dane_origin_plan(
+        query: &OriginQuery,
+        namespace: Namespace,
+        endpoint_last_octet: u8,
+    ) -> ValidatedOriginPlan {
+        let host = query.host().clone();
+        let port = query.origin_port();
+        let service = ServiceBinding::new(ServiceBindingInput {
+            priority: None,
+            service_target: host.clone(),
+            mandatory_keys: Vec::new(),
+            advertised_alpn: Vec::new(),
+            selected_protocol: ApplicationProtocol::Http11,
+            effective_port: port,
+            transport: ServiceTransport::Tcp,
+            connection_hints: Vec::new(),
+            ech_config: None,
+            parameters: Vec::new(),
+        })
+        .unwrap();
+        let provenance = match namespace {
+            Namespace::Hns => EvidenceProvenance::Hns {
+                network: HnsNetwork::Regtest,
+                tree_root: [endpoint_last_octet; 32],
+                height: 1,
+            },
+            Namespace::Icann => EvidenceProvenance::IcannDoh {
+                chain_state: IcannChainState::Secure,
+            },
+        };
+        let mut tlsa = vec![3, 1, 1];
+        tlsa.extend([endpoint_last_octet; 32]);
+        let now = now_unix_seconds();
+        ValidatedOriginPlan::new(OriginPlanInput {
+            namespace,
+            query: query.clone(),
+            alias_path: Vec::new(),
+            terminal_target: host.clone(),
+            endpoint_alias_path: Vec::new(),
+            endpoint_target: host,
+            endpoints: vec![SocketAddr::new(
+                IpAddr::V4(Ipv4Addr::new(192, 0, 2, endpoint_last_octet)),
+                port.get(),
+            )],
+            service,
+            tls_policy: TlsTrustPolicy::Dane,
+            tlsa_records: vec![CanonicalTlsa::new(tlsa).unwrap()],
+            provenance,
+            freshness: Freshness::new(now, now.saturating_add(60)).unwrap(),
+        })
+        .unwrap()
+    }
+
+    fn test_icann_webpki_origin_plan(
+        query: &OriginQuery,
+        chain_state: IcannChainState,
+        endpoint_last_octet: u8,
+    ) -> ValidatedOriginPlan {
+        let host = query.host().clone();
+        let port = query.origin_port();
+        let service = ServiceBinding::new(ServiceBindingInput {
+            priority: None,
+            service_target: host.clone(),
+            mandatory_keys: Vec::new(),
+            advertised_alpn: Vec::new(),
+            selected_protocol: ApplicationProtocol::Http11,
+            effective_port: port,
+            transport: ServiceTransport::Tcp,
+            connection_hints: Vec::new(),
+            ech_config: None,
+            parameters: Vec::new(),
+        })
+        .unwrap();
+        let tls_policy = match chain_state {
+            IcannChainState::Secure => TlsTrustPolicy::WebPkiAuthenticatedAbsence,
+            IcannChainState::ProvenInsecure => TlsTrustPolicy::WebPkiInsecureDelegation,
+        };
+        let now = now_unix_seconds();
+        ValidatedOriginPlan::new(OriginPlanInput {
+            namespace: Namespace::Icann,
+            query: query.clone(),
+            alias_path: Vec::new(),
+            terminal_target: host.clone(),
+            endpoint_alias_path: Vec::new(),
+            endpoint_target: host,
+            endpoints: vec![SocketAddr::new(
+                IpAddr::V4(Ipv4Addr::new(192, 0, 2, endpoint_last_octet)),
+                port.get(),
+            )],
+            service,
+            tls_policy,
+            tlsa_records: Vec::new(),
+            provenance: EvidenceProvenance::IcannDoh { chain_state },
+            freshness: Freshness::new(now, now.saturating_add(60)).unwrap(),
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn canonical_hns_transport_uses_only_the_exact_selected_root_question() {
+        let host = CanonicalHost::parse("origin.welcome").unwrap();
+        let query = OriginQuery::new(
+            host,
+            OriginScheme::Http,
+            Some(NonZeroU16::new(80).unwrap()),
+            ProtocolCapabilities::all(),
+        );
+        let selected_plan = test_cleartext_origin_plan(&query, Namespace::Hns, 51);
+        let tls = TlsValidation {
+            namespace_fingerprint: Some("selected-state".to_owned()),
+            ..TlsValidation::default()
+        };
+        let request = OriginRequest {
+            method: "GET".to_owned(),
+            scheme: "http".to_owned(),
+            host: query.host().as_str().to_owned(),
+            connect_host: Some("192.0.2.51".to_owned()),
+            port: 80,
+            path_and_query: "/".to_owned(),
+            protocol: OriginProtocol::Http11,
+            tls,
+            headers: Vec::new(),
+            body: Vec::new(),
+        };
+        let dane_decision = DaneDecision::NoTlsa;
+        let result = CanonicalOriginResult {
+            resolution_secure: true,
+            origin_request: &request,
+            dane_decision: &dane_decision,
+            tls_inspection_present: false,
+        };
+        let trace = DnsTraceRecorder::default();
+        trace.push(DnsTraceEvent {
+            protocol: "udp53",
+            server: "192.0.2.53:53".to_owned(),
+            question_name: Some("attacker.welcome".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "ok".to_owned(),
+            elapsed_ms: 1,
+            error: None,
+        });
+        trace.push(DnsTraceEvent {
+            protocol: "tcp53",
+            server: "192.0.2.54:53".to_owned(),
+            question_name: Some("origin.welcome".to_owned()),
+            question_type: Some(RecordType::Aaaa.code()),
+            status: "ok".to_owned(),
+            elapsed_ms: 2,
+            error: None,
+        });
+        // A later ICANN lookup for the same full hostname belongs to the other
+        // root and cannot overwrite the selected HNS transport.
+        trace.push(DnsTraceEvent {
+            protocol: "icann_doh",
+            server: "https://cloudflare-dns.com/dns-query via 1.1.1.1".to_owned(),
+            question_name: Some("origin.welcome".to_owned()),
+            question_type: Some(RecordType::Aaaa.code()),
+            status: "ok".to_owned(),
+            elapsed_ms: 3,
+            error: None,
+        });
+
+        assert_eq!(
+            canonical_hns_actual_transport(&result, &selected_plan, &trace),
+            Ok(ResolutionTransport::DirectAuthoritativeTcp)
+        );
+
+        let no_exact_hns = DnsTraceRecorder::default();
+        no_exact_hns.push(DnsTraceEvent {
+            protocol: "udp53",
+            server: "192.0.2.53:53".to_owned(),
+            question_name: Some("unrelated.welcome".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "ok".to_owned(),
+            elapsed_ms: 1,
+            error: None,
+        });
+        no_exact_hns.push(DnsTraceEvent {
+            protocol: "icann_doh",
+            server: "https://cloudflare-dns.com/dns-query via 1.1.1.1".to_owned(),
+            question_name: Some("origin.welcome".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "ok".to_owned(),
+            elapsed_ms: 2,
+            error: None,
+        });
+        assert_eq!(
+            canonical_hns_actual_transport(&result, &selected_plan, &no_exact_hns),
+            Err(CanonicalStatusUnavailableReason::EvidenceUnavailable)
+        );
+
+        let legacy_doh = DnsTraceRecorder::default();
+        legacy_doh.push(DnsTraceEvent {
+            protocol: "hns_doh",
+            server: "https://resolver.example/dns-query".to_owned(),
+            question_name: Some("origin.welcome".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "ok".to_owned(),
+            elapsed_ms: 1,
+            error: None,
+        });
+        assert_eq!(
+            canonical_hns_actual_transport(&result, &selected_plan, &legacy_doh),
+            Err(CanonicalStatusUnavailableReason::TransportNotRepresentable)
+        );
+
+        let legacy_p2p = DnsTraceRecorder::default();
+        legacy_p2p.push(DnsTraceEvent {
+            protocol: "p2p_dns_relay",
+            server: "203.0.113.80:12038".to_owned(),
+            question_name: Some("origin.welcome".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "ok".to_owned(),
+            elapsed_ms: 1,
+            error: None,
+        });
+        assert_eq!(
+            canonical_hns_actual_transport(&result, &selected_plan, &legacy_p2p),
+            Ok(ResolutionTransport::HandshakeP2pDnsRelay)
+        );
+    }
+
     #[test]
     fn version_is_stable() {
         assert_eq!(
@@ -10405,7 +12602,14 @@ mod tests {
             (HNS_RESOLUTION_TRACE_HEADER, r#"{"mode":"strict"}"#),
             ("X-HNS-Future-Metadata", "must-not-surface"),
         ]);
-        let status = browser_proxy_status_from_metadata(7, "welcome", 204, true, &metadata);
+        let status = browser_proxy_status_from_metadata(
+            7,
+            "welcome",
+            204,
+            true,
+            &metadata,
+            CanonicalStatusAvailability::Pending,
+        );
 
         assert_eq!(
             status,
@@ -10418,6 +12622,7 @@ mod tests {
                 resolver_policy: Some(BrowserProxyResolverPolicy::HnsDohCompatibility),
                 security_path: Some(BrowserProxySecurityPath::DaneAuthoritativeDoh),
                 resolution_trace_json: Some(r#"{"mode":"strict"}"#.to_owned()),
+                canonical_status: CanonicalStatusAvailability::Pending,
             }
         );
         assert_eq!(metadata.get("X-HNS-Future-Metadata"), None);
@@ -10427,7 +12632,14 @@ mod tests {
             (HNS_RESOLVER_POLICY_HEADER, "future-policy"),
             (HNS_SECURITY_PATH_HEADER, "future-path"),
         ]);
-        let status = browser_proxy_status_from_metadata(8, "welcome", 200, false, &unknown);
+        let status = browser_proxy_status_from_metadata(
+            8,
+            "welcome",
+            200,
+            false,
+            &unknown,
+            CanonicalStatusAvailability::Pending,
+        );
         assert_eq!(status.tls_policy, None);
         assert_eq!(status.resolver_policy, None);
         assert_eq!(status.security_path, None);
@@ -10510,6 +12722,7 @@ mod tests {
             resolver_policy: None,
             security_path: Some(BrowserProxySecurityPath::DaneAuthoritativeDoh),
             resolution_trace_json: Some(format!(r#"{{"url":"{secret}"}}"#)),
+            canonical_status: CanonicalStatusAvailability::Pending,
         };
 
         let debug = format!("{status:?}");
@@ -10525,6 +12738,15 @@ mod tests {
         let runtime =
             BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
                 .unwrap();
+        let canonical_session = runtime
+            .inner
+            .canonical_authority
+            .lock()
+            .unwrap()
+            .snapshot()
+            .session_bytes();
+        assert_eq!(runtime.inner.proxy_session.as_bytes(), &canonical_session);
+        assert_ne!(canonical_session, [0; 16]);
 
         let first = runtime.start_proxy("welcome").unwrap();
         assert_ne!(first.port(), 0);
@@ -10560,6 +12782,1319 @@ mod tests {
         second.stop();
         assert!(first.is_stopped());
         assert!(second.is_stopped());
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn fresh_proxy_listener_is_non_admitting_until_factual_readiness_recovers() {
+        let data_dir = temp_dir_path("browser-runtime-fresh-readiness");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+
+        assert_eq!(snapshot.authority_state(), AuthorityState::Degraded);
+        assert_eq!(
+            runtime
+                .inner
+                .active_proxy_generation
+                .load(Ordering::Acquire),
+            proxy.generation()
+        );
+        assert!(matches!(
+            runtime
+                .proxy_backend_for(binding)
+                .acquire_publication_permit(&runtime_publication_capability(binding, None)),
+            Err(ProxyBackendError::PolicyDenied)
+        ));
+
+        let base = data_dir.join("hns-regtest");
+        store_best_header_for_network_with_tree_root(
+            &base,
+            NetworkKind::Regtest,
+            Hash::new([41; 32]),
+        );
+        drop(SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap());
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+
+        assert!(runtime.authority_admits(binding, stamp));
+        assert_eq!(
+            runtime
+                .inner
+                .canonical_authority
+                .lock()
+                .unwrap()
+                .authority_state(),
+            AuthorityState::Active
+        );
+        proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn genesis_only_regtest_state_never_admits_browser_authority() {
+        let data_dir = temp_dir_path("browser-runtime-genesis-only-readiness");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let sync = runtime.sync_status().unwrap();
+        assert_eq!(sync.best_height, Some(0));
+        let base = data_dir.join("hns-regtest");
+        drop(SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap());
+
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+
+        assert_eq!(snapshot.authority_state(), AuthorityState::Degraded);
+        assert!(runtime.admit_authority_work(binding).is_err());
+        assert!(matches!(
+            runtime
+                .proxy_backend_for(binding)
+                .acquire_publication_permit(&runtime_publication_capability(binding, None)),
+            Err(ProxyBackendError::PolicyDenied)
+        ));
+
+        proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn stale_header_state_keeps_a_started_proxy_non_admitting() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-stale-readiness");
+        let base = data_dir.join("hns-regtest");
+        store_peer_height(&base, LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG + 2);
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+
+        assert_eq!(snapshot.authority_state(), AuthorityState::Degraded);
+        assert!(matches!(
+            runtime
+                .proxy_backend_for(binding)
+                .acquire_publication_permit(&runtime_publication_capability(binding, None)),
+            Err(ProxyBackendError::PolicyDenied)
+        ));
+        proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn replacement_revokes_old_work_and_old_drop_cannot_clear_the_new_generation() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-replacement-authority");
+        let first = runtime.start_proxy("welcome").unwrap();
+        let first_snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let first_binding = RuntimeAuthorityBinding {
+            runtime_generation: first_snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: first.generation(),
+        };
+        let first_stamp = runtime.admit_authority_work(first_binding).unwrap();
+        assert!(runtime.authority_admits(first_binding, first_stamp));
+
+        let second = runtime.start_proxy("welcome").unwrap();
+        assert!(!runtime.authority_admits(first_binding, first_stamp));
+        assert!(matches!(
+            runtime
+                .proxy_backend_for(first_binding)
+                .acquire_publication_permit(&runtime_publication_capability(
+                    first_binding,
+                    Some(first_stamp),
+                )),
+            Err(ProxyBackendError::PolicyDenied)
+        ));
+        drop(first);
+        assert_eq!(
+            runtime
+                .inner
+                .active_proxy_generation
+                .load(Ordering::Acquire),
+            second.generation()
+        );
+        let second_snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let second_binding = RuntimeAuthorityBinding {
+            runtime_generation: second_snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: second.generation(),
+        };
+        let second_stamp = runtime.admit_authority_work(second_binding).unwrap();
+        let second_capability = runtime_publication_capability(second_binding, Some(second_stamp));
+        drop(
+            runtime
+                .proxy_backend_for(second_binding)
+                .acquire_publication_permit(&second_capability)
+                .unwrap(),
+        );
+
+        second.stop();
+        assert_eq!(
+            runtime
+                .inner
+                .active_proxy_generation
+                .load(Ordering::Acquire),
+            0
+        );
+        assert_eq!(
+            runtime
+                .inner
+                .canonical_authority
+                .lock()
+                .unwrap()
+                .authority_state(),
+            AuthorityState::Revoked
+        );
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn stop_signals_cancellation_before_waiting_for_a_publication_permit() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-stop-publication-order");
+        let proxy = Arc::new(runtime.start_proxy("welcome").unwrap());
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+        let backend = runtime.proxy_backend_for(binding);
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+        let capability = runtime_publication_capability(binding, Some(stamp));
+        let permit = backend.acquire_publication_permit(&capability).unwrap();
+        let worker_proxy = Arc::clone(&proxy);
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (stopped_tx, stopped_rx) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            worker_proxy.stop();
+            stopped_tx.send(()).unwrap();
+        });
+
+        started_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !proxy.is_stop_requested() && Instant::now() < deadline {
+            thread::yield_now();
+        }
+        assert!(proxy.is_stop_requested());
+        assert!(stopped_rx.recv_timeout(Duration::from_millis(50)).is_err());
+
+        drop(permit);
+        stopped_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        worker.join().unwrap();
+        assert!(proxy.is_stopped());
+        assert_eq!(
+            runtime
+                .inner
+                .active_proxy_generation
+                .load(Ordering::Acquire),
+            0
+        );
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn authority_bound_tunnel_rejects_io_after_its_exact_generation_is_revoked() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-tunnel-revocation");
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+        let mut tunnel = AuthorityBoundTunnel {
+            inner: Box::new(std::io::Cursor::new(vec![7_u8])),
+            authority: BoundOriginAuthority {
+                runtime: runtime.clone(),
+                binding,
+                stamp,
+            },
+            stamp,
+        };
+        let mut byte = [0_u8; 1];
+        assert_eq!(tunnel.read(&mut byte).unwrap(), 1);
+        assert_eq!(byte, [7]);
+
+        proxy.stop();
+        assert_eq!(
+            tunnel.read(&mut byte).unwrap_err().kind(),
+            ErrorKind::PermissionDenied
+        );
+        assert_eq!(
+            tunnel.write(b"x").unwrap_err().kind(),
+            ErrorKind::PermissionDenied
+        );
+        assert_eq!(
+            tunnel.flush().unwrap_err().kind(),
+            ErrorKind::PermissionDenied
+        );
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn replacement_cannot_cross_an_in_flight_publication_head() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-replace-publication-order");
+        let first = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: first.generation(),
+        };
+        let backend = runtime.proxy_backend_for(binding);
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+        let capability = runtime_publication_capability(binding, Some(stamp));
+        let permit = backend.acquire_publication_permit(&capability).unwrap();
+        let replacement_runtime = runtime.clone();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (replacement_tx, replacement_rx) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            replacement_tx
+                .send(replacement_runtime.start_proxy("welcome"))
+                .unwrap();
+        });
+
+        started_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(
+            replacement_rx
+                .recv_timeout(Duration::from_millis(50))
+                .is_err()
+        );
+        assert_eq!(
+            runtime
+                .inner
+                .active_proxy_generation
+                .load(Ordering::Acquire),
+            first.generation()
+        );
+
+        drop(permit);
+        let second = replacement_rx
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap()
+            .unwrap();
+        worker.join().unwrap();
+        assert_eq!(second.generation(), first.generation() + 1);
+        assert_eq!(
+            runtime
+                .inner
+                .active_proxy_generation
+                .load(Ordering::Acquire),
+            second.generation()
+        );
+        first.stop();
+        second.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn resolution_degrade_recover_cannot_publish_the_stale_response_or_tunnel_head() {
+        #[derive(Clone, Copy, Eq, PartialEq)]
+        enum OutputKind {
+            Response,
+            FailureResponse,
+            Tunnel,
+        }
+
+        struct PausedStampedBackend {
+            runtime: BrowserRuntime,
+            binding: RuntimeAuthorityBinding,
+            permit_backend: RuntimeProxyBackend,
+            output: OutputKind,
+            admitted: Mutex<Option<std::sync::mpsc::Sender<RuntimeStamp>>>,
+            resume: Mutex<std::sync::mpsc::Receiver<()>>,
+        }
+
+        impl PausedStampedBackend {
+            fn admit_then_pause(&self) -> Result<RuntimeStamp, ProxyBackendError> {
+                let stamp = self
+                    .runtime
+                    .admit_authority_work(self.binding)
+                    .map_err(runtime_error_to_proxy_backend)?;
+                if let Some(sender) = self.admitted.lock().unwrap().take() {
+                    sender
+                        .send(stamp)
+                        .map_err(|_| ProxyBackendError::Internal)?;
+                }
+                self.resume
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(2))
+                    .map_err(|_| ProxyBackendError::Internal)?;
+                Ok(stamp)
+            }
+        }
+
+        impl ProxyBackend for PausedStampedBackend {
+            fn execute(
+                &self,
+                _request: LoopbackProxyRequest,
+                _cancellation: &ProxyCancellationToken,
+            ) -> Result<ProxyResponse, ProxyBackendError> {
+                if self.output == OutputKind::Tunnel {
+                    return Err(ProxyBackendError::Internal);
+                }
+                let stamp = self.admit_then_pause()?;
+                let (status_code, reason_phrase) = match self.output {
+                    OutputKind::Response => (200, "OK"),
+                    OutputKind::FailureResponse => (502, "Fail Closed"),
+                    OutputKind::Tunnel => unreachable!(),
+                };
+                Ok(ProxyResponse {
+                    head: ProxyResponseHead {
+                        status_code,
+                        reason_phrase: reason_phrase.to_owned(),
+                        headers: Vec::new(),
+                        observation_id: None,
+                    },
+                    body: ProxyResponseBody::Bytes(b"stale".to_vec()),
+                    publication: runtime_publication_capability(self.binding, Some(stamp)),
+                })
+            }
+
+            fn open_tunnel(
+                &self,
+                _request: LoopbackProxyRequest,
+                _cancellation: &ProxyCancellationToken,
+            ) -> Result<ProxyTunnelOpen, ProxyBackendError> {
+                if self.output != OutputKind::Tunnel {
+                    return Err(ProxyBackendError::Internal);
+                }
+                let stamp = self.admit_then_pause()?;
+                Ok(ProxyTunnelOpen::Tunnel(ProxyTunnel {
+                    head: ProxyResponseHead {
+                        status_code: 101,
+                        reason_phrase: "Switching Protocols".to_owned(),
+                        headers: vec![
+                            ProxyHeader::new("Connection", "Upgrade"),
+                            ProxyHeader::new("Upgrade", "websocket"),
+                        ],
+                        observation_id: None,
+                    },
+                    stream: Box::new(std::io::Cursor::new(Vec::<u8>::new())),
+                    publication: runtime_publication_capability(self.binding, Some(stamp)),
+                }))
+            }
+
+            fn acquire_publication_permit(
+                &self,
+                capability: &PublicationCapability,
+            ) -> Result<Box<dyn PublicationPermit + '_>, ProxyBackendError> {
+                self.permit_backend.acquire_publication_permit(capability)
+            }
+        }
+
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-resolution-invalidation");
+        let authority_proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: authority_proxy.generation(),
+        };
+
+        for output in [
+            OutputKind::Response,
+            OutputKind::FailureResponse,
+            OutputKind::Tunnel,
+        ] {
+            let (admitted_tx, admitted_rx) = std::sync::mpsc::channel();
+            let (resume_tx, resume_rx) = std::sync::mpsc::channel();
+            let backend = Arc::new(PausedStampedBackend {
+                runtime: runtime.clone(),
+                binding,
+                permit_backend: runtime.proxy_backend_for(binding),
+                output,
+                admitted: Mutex::new(Some(admitted_tx)),
+                resume: Mutex::new(resume_rx),
+            });
+            let proxy = RunningProxy::start(
+                ProxyConfig::new(
+                    ProxyInstanceId::new(ProxySessionId::generate().unwrap(), 1),
+                    hns_loopback_proxy::HostScope::new("welcome").unwrap(),
+                ),
+                backend,
+                Arc::new(NoopProxyObserver),
+            )
+            .unwrap();
+            let mut client = TcpStream::connect(proxy.endpoint().address()).unwrap();
+            client
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let request = match output {
+                OutputKind::Response | OutputKind::FailureResponse => format!(
+                    "GET http://welcome/ HTTP/1.1\r\nHost: welcome\r\nProxy-Authorization: {}\r\n\r\n",
+                    proxy.endpoint().authorization_header_value(),
+                ),
+                OutputKind::Tunnel => format!(
+                    "GET ws://welcome/socket HTTP/1.1\r\nHost: welcome\r\nProxy-Authorization: {}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: key\r\nSec-WebSocket-Version: 13\r\n\r\n",
+                    proxy.endpoint().authorization_header_value(),
+                ),
+            };
+            client.write_all(request.as_bytes()).unwrap();
+            client.flush().unwrap();
+            let stale_stamp = admitted_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+
+            {
+                let mut authority = runtime.inner.canonical_authority.lock().unwrap();
+                BrowserRuntime::transition_authority_to_degraded(&mut authority).unwrap();
+            }
+            let recovered_stamp = runtime.admit_authority_work(binding).unwrap();
+            assert_eq!(stale_stamp.generation(), recovered_stamp.generation());
+            assert!(!runtime.authority_admits(binding, stale_stamp));
+            assert!(runtime.authority_admits(binding, recovered_stamp));
+            resume_tx.send(()).unwrap();
+
+            let mut published = Vec::new();
+            client.read_to_end(&mut published).unwrap();
+            assert!(
+                published.is_empty(),
+                "stale response or switch head crossed exact-stamp publication"
+            );
+            proxy.stop();
+        }
+
+        authority_proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn direct_response_degrade_recover_rejects_stale_bytes_and_sticky_binding() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-direct-response-aba");
+        let binding = runtime.ensure_authority_active(0).unwrap();
+        let stale_stamp = runtime.admit_authority_work(binding).unwrap();
+        let base = data_dir.join("hns-regtest");
+        let selection = test_publication_selection(
+            &base,
+            NetworkKind::Regtest,
+            "https",
+            "origin.example",
+            443,
+            Namespace::Hns,
+        );
+
+        {
+            let mut authority = runtime.inner.canonical_authority.lock().unwrap();
+            BrowserRuntime::transition_authority_to_degraded(&mut authority).unwrap();
+        }
+        let fresh_stamp = runtime.admit_authority_work(binding).unwrap();
+        assert_eq!(stale_stamp.generation(), fresh_stamp.generation());
+
+        let stale = runtime.publish_gateway_http_response(
+            PreparedGatewayHttpResponse {
+                encoded_http: b"stale response".to_vec(),
+                selection: Some(selection.clone()),
+            },
+            binding,
+            stale_stamp,
+        );
+        assert!(matches!(stale, Err(RuntimeError::PublicationSuppressed(_))));
+        assert_eq!(
+            load_namespace_binding(&base, "https", "origin.example", 443, 2).unwrap(),
+            NamespaceBindingSnapshot::default()
+        );
+
+        let published = runtime
+            .publish_gateway_http_response(
+                PreparedGatewayHttpResponse {
+                    encoded_http: b"fresh response".to_vec(),
+                    selection: Some(selection),
+                },
+                binding,
+                fresh_stamp,
+            )
+            .unwrap();
+        assert_eq!(published, b"fresh response");
+        assert_eq!(
+            load_namespace_binding(&base, "https", "origin.example", 443, 2)
+                .unwrap()
+                .sticky_binding,
+            Some(Namespace::Hns)
+        );
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn file_response_degrade_recover_never_exposes_staged_stale_bytes() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-file-response-aba");
+        let binding = runtime.ensure_authority_active(0).unwrap();
+        let stale_stamp = runtime.admit_authority_work(binding).unwrap();
+        let base = data_dir.join("hns-regtest");
+        let target = data_dir.join("download.bin");
+        fs::write(&target, b"previous body").unwrap();
+        let stale_stage = StagedBodyPublication::create(&target, 1).unwrap();
+        fs::write(&stale_stage.path, b"stale body").unwrap();
+        let selection = test_publication_selection(
+            &base,
+            NetworkKind::Regtest,
+            "https",
+            "download.example",
+            443,
+            Namespace::Icann,
+        );
+
+        {
+            let mut authority = runtime.inner.canonical_authority.lock().unwrap();
+            BrowserRuntime::transition_authority_to_degraded(&mut authority).unwrap();
+        }
+        let fresh_stamp = runtime.admit_authority_work(binding).unwrap();
+        let stale_path = stale_stage.path.clone();
+        let stale = runtime.publish_gateway_file_response(
+            PreparedGatewayFileResponse {
+                encoded_head: b"stale head".to_vec(),
+                selection: Some(selection.clone()),
+            },
+            stale_stage,
+            &target,
+            binding,
+            stale_stamp,
+        );
+        assert!(matches!(stale, Err(RuntimeError::PublicationSuppressed(_))));
+        assert_eq!(fs::read(&target).unwrap(), b"previous body");
+        assert!(!stale_path.exists());
+        assert_eq!(
+            load_namespace_binding(&base, "https", "download.example", 443, 2).unwrap(),
+            NamespaceBindingSnapshot::default()
+        );
+
+        let fresh_stage = StagedBodyPublication::create(&target, 2).unwrap();
+        fs::write(&fresh_stage.path, b"fresh body").unwrap();
+        let head = runtime
+            .publish_gateway_file_response(
+                PreparedGatewayFileResponse {
+                    encoded_head: b"fresh head".to_vec(),
+                    selection: Some(selection),
+                },
+                fresh_stage,
+                &target,
+                binding,
+                fresh_stamp,
+            )
+            .unwrap();
+        assert_eq!(head, b"fresh head");
+        assert_eq!(fs::read(&target).unwrap(), b"fresh body");
+        assert_eq!(
+            load_namespace_binding(&base, "https", "download.example", 443, 2)
+                .unwrap()
+                .sticky_binding,
+            Some(Namespace::Icann)
+        );
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn sticky_selection_commit_and_head_share_the_exact_publication_permit() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-sticky-publication-permit");
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+        let stale_stamp = runtime.admit_authority_work(binding).unwrap();
+        let base = data_dir.join("hns-regtest");
+        let selection = test_publication_selection(
+            &base,
+            NetworkKind::Regtest,
+            "https",
+            "permit.example",
+            443,
+            Namespace::Hns,
+        );
+        {
+            let mut authority = runtime.inner.canonical_authority.lock().unwrap();
+            BrowserRuntime::transition_authority_to_degraded(&mut authority).unwrap();
+        }
+        let fresh_stamp = runtime.admit_authority_work(binding).unwrap();
+        let backend = runtime.proxy_backend_for(binding);
+        let stale_capability = PublicationCapability::new(RuntimePublicationAuthorization {
+            binding,
+            stamp: Some(stale_stamp),
+            selection: Some(selection.clone()),
+        });
+        assert!(matches!(
+            backend.acquire_publication_permit(&stale_capability),
+            Err(ProxyBackendError::PolicyDenied)
+        ));
+        assert_eq!(
+            load_namespace_binding(&base, "https", "permit.example", 443, 2).unwrap(),
+            NamespaceBindingSnapshot::default()
+        );
+
+        let fresh_capability = PublicationCapability::new(RuntimePublicationAuthorization {
+            binding,
+            stamp: Some(fresh_stamp),
+            selection: Some(selection),
+        });
+        let permit = backend
+            .acquire_publication_permit(&fresh_capability)
+            .unwrap();
+        assert_eq!(
+            load_namespace_binding(&base, "https", "permit.example", 443, 2)
+                .unwrap()
+                .sticky_binding,
+            Some(Namespace::Hns)
+        );
+
+        let worker_runtime = runtime.clone();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (degraded_tx, degraded_rx) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            let mut authority = worker_runtime.inner.canonical_authority.lock().unwrap();
+            BrowserRuntime::transition_authority_to_degraded(&mut authority).unwrap();
+            degraded_tx.send(()).unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(
+            degraded_rx.recv_timeout(Duration::from_millis(50)).is_err(),
+            "revocation crossed the sticky-commit/head publication permit"
+        );
+        drop(permit);
+        degraded_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        worker.join().unwrap();
+        proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn canonical_status_v2_uses_the_selected_icann_plan_without_an_hns_anchor() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-canonical-icann-status");
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+        let base = data_dir.join("hns-regtest");
+        let origin = namespace_origin_context(
+            base,
+            NetworkKind::Regtest,
+            "http",
+            "origin.example",
+            80,
+            runtime.policy_revision(),
+        )
+        .unwrap();
+        let query = OriginQuery::new(
+            CanonicalHost::parse("origin.example").unwrap(),
+            OriginScheme::Http,
+            Some(NonZeroU16::new(80).unwrap()),
+            ProtocolCapabilities::all(),
+        );
+        let now = now_unix_seconds();
+        let freshness = Freshness::new(now, now.saturating_add(60)).unwrap();
+        let hns_absence = ValidatedAbsence::new(
+            Namespace::Hns,
+            query.clone(),
+            AbsenceKind::HnsCurrentUrkelNonInclusion,
+            EvidenceProvenance::Hns {
+                network: HnsNetwork::Regtest,
+                tree_root: [42; 32],
+                height: 1,
+            },
+            freshness,
+        )
+        .unwrap();
+        let decision = decide_namespace(
+            &query,
+            RootLookup::Absent(hns_absence),
+            RootLookup::Present(test_cleartext_origin_plan(&query, Namespace::Icann, 52)),
+            SelectionPolicy::new(
+                DefaultPrecedence::PreferIcann,
+                namespace_policy_revision(&origin),
+            ),
+            now,
+        )
+        .unwrap();
+        let state_fingerprint = "33".repeat(32);
+        let metadata = NamespaceResolutionMetadata {
+            outcome: Some(decision.kind()),
+            selected: decision.selected_namespace(),
+            selection_reason: decision.selection_reason(),
+            hns_state: NamespaceRootState::AuthenticatedAbsent,
+            icann_state: NamespaceRootState::Present,
+            fingerprint: Some(state_fingerprint.clone()),
+        };
+        let request_plan: SharedRequestNamespacePlan =
+            Arc::new(Mutex::new(Some(CachedNamespacePlan {
+                metadata: metadata.clone(),
+                decision: Some(decision.clone()),
+                hns_root_failure: None,
+                icann_root_failure: None,
+                state_fingerprint: Some(state_fingerprint.clone()),
+                selected_answers: HashMap::new(),
+                hns_observation: None,
+                expires_at_unix: decision.expires_at_unix(),
+                terminal: None,
+            })));
+        let dns_trace = DnsTraceRecorder::default();
+        dns_trace.record_namespace(metadata);
+        let tls = TlsValidation {
+            namespace_fingerprint: Some(state_fingerprint),
+            ..TlsValidation::default()
+        };
+        let request = OriginRequest {
+            method: "GET".to_owned(),
+            scheme: "http".to_owned(),
+            host: "origin.example".to_owned(),
+            connect_host: Some("192.0.2.52".to_owned()),
+            port: 80,
+            path_and_query: "/".to_owned(),
+            protocol: OriginProtocol::Http11,
+            tls,
+            headers: Vec::new(),
+            body: Vec::new(),
+        };
+        let dane_decision = DaneDecision::NoTlsa;
+
+        let availability = runtime.canonical_status_for_origin_success(
+            CanonicalStatusContext {
+                network: NetworkKind::Regtest,
+                origin: &origin,
+                request_plan: &request_plan,
+                dns_trace: &dns_trace,
+                authority_binding: binding,
+            },
+            CanonicalOriginResult {
+                resolution_secure: true,
+                origin_request: &request,
+                dane_decision: &dane_decision,
+                tls_inspection_present: false,
+            },
+            stamp,
+        );
+
+        let CanonicalStatusAvailability::Available(status) = availability else {
+            panic!("typed ICANN cleartext evidence must produce canonical schema-v2 status");
+        };
+        assert_eq!(status.schema_version(), 2);
+        assert_eq!(status.selected_namespace(), Some(Namespace::Icann));
+        assert_eq!(
+            status.actual_transport(),
+            ResolutionTransport::ValidatingIcannDoh
+        );
+        assert_eq!(status.chain_anchor(), None);
+        assert_eq!(status.icann_tls_action(), None);
+        assert_eq!(
+            status.icann_dnssec_status(),
+            Some(IcannDnssecStatus::Secure)
+        );
+        assert_eq!(
+            status.decision_fingerprint(),
+            Some(*decision_fingerprint(&decision).as_bytes())
+        );
+        proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn canonical_status_v2_keeps_root_failures_typed_and_bogus_distinct_from_absence() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-canonical-root-failures");
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+        let base = data_dir.join("hns-regtest");
+        let origin = namespace_origin_context(
+            base,
+            NetworkKind::Regtest,
+            "https",
+            "origin.example",
+            443,
+            runtime.policy_revision(),
+        )
+        .unwrap();
+        let query = OriginQuery::new(
+            CanonicalHost::parse("origin.example").unwrap(),
+            OriginScheme::Https,
+            Some(NonZeroU16::new(443).unwrap()),
+            ProtocolCapabilities::all(),
+        );
+
+        let status_for = |hns_failure: Option<RootFailureKind>,
+                          icann_failure: Option<RootFailureKind>| {
+            let metadata = NamespaceResolutionMetadata {
+                outcome: None,
+                selected: None,
+                selection_reason: None,
+                hns_state: if hns_failure.is_some() {
+                    NamespaceRootState::Failed
+                } else {
+                    NamespaceRootState::AuthenticatedAbsent
+                },
+                icann_state: if icann_failure.is_some() {
+                    NamespaceRootState::Failed
+                } else {
+                    NamespaceRootState::AuthenticatedAbsent
+                },
+                fingerprint: None,
+            };
+            let request_plan: SharedRequestNamespacePlan =
+                Arc::new(Mutex::new(Some(CachedNamespacePlan {
+                    metadata: metadata.clone(),
+                    decision: None,
+                    hns_root_failure: hns_failure
+                        .map(|kind| RootFailure::new(Namespace::Hns, query.clone(), kind, None)),
+                    icann_root_failure: icann_failure
+                        .map(|kind| RootFailure::new(Namespace::Icann, query.clone(), kind, None)),
+                    state_fingerprint: None,
+                    selected_answers: HashMap::new(),
+                    hns_observation: None,
+                    expires_at_unix: now_unix_seconds().saturating_add(60),
+                    terminal: Some(NamespacePlanTerminal::Indeterminate),
+                })));
+            let dns_trace = DnsTraceRecorder::default();
+            dns_trace.record_namespace(metadata);
+            runtime.canonical_status_for_gateway_failure(
+                CanonicalStatusContext {
+                    network: NetworkKind::Regtest,
+                    origin: &origin,
+                    request_plan: &request_plan,
+                    dns_trace: &dns_trace,
+                    authority_binding: binding,
+                },
+                &GatewayError::Resolver(ResolverError::NamespaceIndeterminate),
+                stamp,
+            )
+        };
+
+        let CanonicalStatusAvailability::Available(bogus) =
+            status_for(None, Some(RootFailureKind::BogusDnssec))
+        else {
+            panic!("bogus ICANN DNSSEC must be a checked fail-closed status");
+        };
+        assert_eq!(bogus.namespace_outcome(), None);
+        assert_eq!(bogus.selected_namespace(), None);
+        assert_eq!(
+            bogus.icann_root_failure(),
+            Some(RootFailureKind::BogusDnssec)
+        );
+        assert_eq!(
+            bogus.actual_transport(),
+            ResolutionTransport::ValidatingIcannDoh
+        );
+        assert_eq!(
+            bogus.icann_tls_action(),
+            Some(CanonicalIcannTlsAction::FailClosed)
+        );
+        assert_eq!(bogus.icann_dnssec_status(), Some(IcannDnssecStatus::Bogus));
+        assert_eq!(bogus.evidence().dnssec, CanonicalEvidenceState::Failed);
+
+        let CanonicalStatusAvailability::Available(indeterminate) =
+            status_for(None, Some(RootFailureKind::IndeterminateDnssec))
+        else {
+            panic!("indeterminate ICANN DNSSEC must be a checked fail-closed status");
+        };
+        assert_eq!(
+            indeterminate.icann_dnssec_status(),
+            Some(IcannDnssecStatus::Indeterminate)
+        );
+        assert_eq!(
+            indeterminate.evidence().dnssec,
+            CanonicalEvidenceState::Unavailable
+        );
+        assert_eq!(
+            indeterminate.evidence().tlsa,
+            CanonicalEvidenceState::Unavailable
+        );
+
+        let CanonicalStatusAvailability::Available(hns_failure) =
+            status_for(Some(RootFailureKind::StaleHnsAnchor), None)
+        else {
+            panic!("HNS-only root failure must be a checked status");
+        };
+        assert_eq!(
+            hns_failure.hns_root_failure(),
+            Some(RootFailureKind::StaleHnsAnchor)
+        );
+        assert_eq!(
+            hns_failure.actual_transport(),
+            ResolutionTransport::Unavailable
+        );
+        assert_eq!(hns_failure.icann_tls_action(), None);
+        assert_eq!(
+            hns_failure.evidence(),
+            CanonicalValidationEvidence::not_attempted()
+        );
+
+        proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn canonical_failure_status_uses_the_request_plan_after_shared_cache_overwrite() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-exact-failure-plan");
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+        let base = data_dir.join("hns-regtest");
+        let origin = namespace_origin_context(
+            base,
+            NetworkKind::Regtest,
+            "https",
+            "race.example",
+            443,
+            runtime.policy_revision(),
+        )
+        .unwrap();
+        let query = OriginQuery::new(
+            CanonicalHost::parse("race.example").unwrap(),
+            OriginScheme::Https,
+            Some(NonZeroU16::new(443).unwrap()),
+            ProtocolCapabilities::all(),
+        );
+        let metadata = NamespaceResolutionMetadata {
+            outcome: None,
+            selected: None,
+            selection_reason: None,
+            hns_state: NamespaceRootState::AuthenticatedAbsent,
+            icann_state: NamespaceRootState::Failed,
+            fingerprint: None,
+        };
+        let failure_plan = |kind| CachedNamespacePlan {
+            metadata: metadata.clone(),
+            decision: None,
+            hns_root_failure: None,
+            icann_root_failure: Some(RootFailure::new(
+                Namespace::Icann,
+                query.clone(),
+                kind,
+                None,
+            )),
+            state_fingerprint: None,
+            selected_answers: HashMap::new(),
+            hns_observation: None,
+            expires_at_unix: now_unix_seconds().saturating_add(60),
+            terminal: Some(NamespacePlanTerminal::Indeterminate),
+        };
+        let request_a = failure_plan(RootFailureKind::BogusDnssec);
+        let shared_cache: SharedNamespacePlans = Arc::new(Mutex::new(HashMap::from([(
+            origin.key.clone(),
+            request_a.clone(),
+        )])));
+        let request_plan: SharedRequestNamespacePlan = Arc::new(Mutex::new(Some(request_a)));
+        shared_cache
+            .lock()
+            .unwrap()
+            .insert(origin.key.clone(), failure_plan(RootFailureKind::Timeout));
+        assert_eq!(
+            shared_cache
+                .lock()
+                .unwrap()
+                .get(&origin.key)
+                .and_then(|plan| plan.icann_root_failure.as_ref())
+                .map(RootFailure::kind),
+            Some(RootFailureKind::Timeout)
+        );
+        let dns_trace = DnsTraceRecorder::default();
+        dns_trace.record_namespace(metadata);
+
+        let CanonicalStatusAvailability::Available(status) = runtime
+            .canonical_status_for_gateway_failure(
+                CanonicalStatusContext {
+                    network: NetworkKind::Regtest,
+                    origin: &origin,
+                    request_plan: &request_plan,
+                    dns_trace: &dns_trace,
+                    authority_binding: binding,
+                },
+                &GatewayError::Resolver(ResolverError::NamespaceIndeterminate),
+                stamp,
+            )
+        else {
+            panic!("request-local bogus failure must remain representable");
+        };
+        assert_eq!(
+            status.icann_root_failure(),
+            Some(RootFailureKind::BogusDnssec)
+        );
+        assert_eq!(status.icann_dnssec_status(), Some(IcannDnssecStatus::Bogus));
+        proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn canonical_status_v2_retains_icann_decision_on_post_selection_dane_failure() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-canonical-dane-failure");
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+        let base = data_dir.join("hns-regtest");
+        let origin = namespace_origin_context(
+            base,
+            NetworkKind::Regtest,
+            "https",
+            "origin.example",
+            443,
+            runtime.policy_revision(),
+        )
+        .unwrap();
+        let query = OriginQuery::new(
+            CanonicalHost::parse("origin.example").unwrap(),
+            OriginScheme::Https,
+            Some(NonZeroU16::new(443).unwrap()),
+            ProtocolCapabilities::all(),
+        );
+        let now = now_unix_seconds();
+        let hns_absence = ValidatedAbsence::new(
+            Namespace::Hns,
+            query.clone(),
+            AbsenceKind::HnsCurrentUrkelNonInclusion,
+            EvidenceProvenance::Hns {
+                network: HnsNetwork::Regtest,
+                tree_root: [62; 32],
+                height: 1,
+            },
+            Freshness::new(now, now.saturating_add(60)).unwrap(),
+        )
+        .unwrap();
+        let decision = decide_namespace(
+            &query,
+            RootLookup::Absent(hns_absence),
+            RootLookup::Present(test_dane_origin_plan(&query, Namespace::Icann, 63)),
+            SelectionPolicy::new(
+                DefaultPrecedence::PreferIcann,
+                namespace_policy_revision(&origin),
+            ),
+            now,
+        )
+        .unwrap();
+        let metadata = NamespaceResolutionMetadata {
+            outcome: Some(decision.kind()),
+            selected: decision.selected_namespace(),
+            selection_reason: decision.selection_reason(),
+            hns_state: NamespaceRootState::AuthenticatedAbsent,
+            icann_state: NamespaceRootState::Present,
+            fingerprint: Some("44".repeat(32)),
+        };
+        let request_plan: SharedRequestNamespacePlan =
+            Arc::new(Mutex::new(Some(CachedNamespacePlan {
+                metadata: metadata.clone(),
+                decision: Some(decision.clone()),
+                hns_root_failure: None,
+                icann_root_failure: None,
+                state_fingerprint: metadata.fingerprint.clone(),
+                selected_answers: HashMap::new(),
+                hns_observation: None,
+                expires_at_unix: decision.expires_at_unix(),
+                terminal: None,
+            })));
+        let dns_trace = DnsTraceRecorder::default();
+        dns_trace.record_namespace(metadata);
+
+        let availability = runtime.canonical_status_for_gateway_failure(
+            CanonicalStatusContext {
+                network: NetworkKind::Regtest,
+                origin: &origin,
+                request_plan: &request_plan,
+                dns_trace: &dns_trace,
+                authority_binding: binding,
+            },
+            &GatewayError::Transport(TransportError::DaneFailed),
+            stamp,
+        );
+
+        let CanonicalStatusAvailability::Available(status) = availability else {
+            panic!("post-selection ICANN DANE failure must be checked schema-v2 status");
+        };
+        assert_eq!(status.namespace_outcome(), Some(OutcomeKind::IcannOnly));
+        assert_eq!(status.selected_namespace(), Some(Namespace::Icann));
+        assert_eq!(status.selection_reason(), decision.selection_reason());
+        assert_eq!(
+            status.decision_fingerprint(),
+            Some(*decision_fingerprint(&decision).as_bytes())
+        );
+        assert_eq!(status.icann_root_failure(), None);
+        assert_eq!(
+            status.icann_tls_action(),
+            Some(CanonicalIcannTlsAction::FailClosed)
+        );
+        assert_eq!(
+            status.icann_dnssec_status(),
+            Some(IcannDnssecStatus::Secure)
+        );
+        assert_eq!(status.evidence().tlsa, CanonicalEvidenceState::Verified);
+        assert_eq!(status.evidence().dane, CanonicalEvidenceState::Failed);
+        assert_eq!(
+            status.evidence().origin_sni,
+            CanonicalEvidenceState::Unavailable
+        );
+
+        for error in [
+            GatewayError::Transport(TransportError::Io("connection reset".to_owned())),
+            GatewayError::Transport(TransportError::MalformedResponse),
+            GatewayError::Transport(TransportError::ResponseTooLarge),
+        ] {
+            assert_eq!(
+                runtime.canonical_status_for_gateway_failure(
+                    CanonicalStatusContext {
+                        network: NetworkKind::Regtest,
+                        origin: &origin,
+                        request_plan: &request_plan,
+                        dns_trace: &dns_trace,
+                        authority_binding: binding,
+                    },
+                    &error,
+                    stamp,
+                ),
+                CanonicalStatusAvailability::Unavailable(
+                    CanonicalStatusUnavailableReason::EvidenceUnavailable
+                ),
+                "ordinary transport failure must not fabricate DANE or origin-SNI evidence"
+            );
+        }
+
+        proxy.stop();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn canonical_status_v2_does_not_invent_webpki_failure_evidence() {
+        let (data_dir, runtime) =
+            runtime_with_current_regtest_state("browser-runtime-canonical-webpki-failure");
+        let proxy = runtime.start_proxy("welcome").unwrap();
+        let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+        let binding = RuntimeAuthorityBinding {
+            runtime_generation: snapshot.generation(),
+            policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+            proxy_generation: proxy.generation(),
+        };
+        let stamp = runtime.admit_authority_work(binding).unwrap();
+        let base = data_dir.join("hns-regtest");
+        let origin = namespace_origin_context(
+            base,
+            NetworkKind::Regtest,
+            "https",
+            "webpki.example",
+            443,
+            runtime.policy_revision(),
+        )
+        .unwrap();
+        let query = OriginQuery::new(
+            CanonicalHost::parse("webpki.example").unwrap(),
+            OriginScheme::Https,
+            Some(NonZeroU16::new(443).unwrap()),
+            ProtocolCapabilities::all(),
+        );
+        let now = now_unix_seconds();
+        let hns_absence = ValidatedAbsence::new(
+            Namespace::Hns,
+            query.clone(),
+            AbsenceKind::HnsCurrentUrkelNonInclusion,
+            EvidenceProvenance::Hns {
+                network: HnsNetwork::Regtest,
+                tree_root: [64; 32],
+                height: 1,
+            },
+            Freshness::new(now, now.saturating_add(60)).unwrap(),
+        )
+        .unwrap();
+        let decision = decide_namespace(
+            &query,
+            RootLookup::Absent(hns_absence),
+            RootLookup::Present(test_icann_webpki_origin_plan(
+                &query,
+                IcannChainState::Secure,
+                65,
+            )),
+            SelectionPolicy::new(
+                DefaultPrecedence::PreferIcann,
+                namespace_policy_revision(&origin),
+            ),
+            now,
+        )
+        .unwrap();
+        let metadata = NamespaceResolutionMetadata {
+            outcome: Some(decision.kind()),
+            selected: decision.selected_namespace(),
+            selection_reason: decision.selection_reason(),
+            hns_state: NamespaceRootState::AuthenticatedAbsent,
+            icann_state: NamespaceRootState::Present,
+            fingerprint: Some("55".repeat(32)),
+        };
+        let request_plan: SharedRequestNamespacePlan =
+            Arc::new(Mutex::new(Some(CachedNamespacePlan {
+                metadata: metadata.clone(),
+                decision: Some(decision),
+                hns_root_failure: None,
+                icann_root_failure: None,
+                state_fingerprint: metadata.fingerprint.clone(),
+                selected_answers: HashMap::new(),
+                hns_observation: None,
+                expires_at_unix: now.saturating_add(60),
+                terminal: None,
+            })));
+        let dns_trace = DnsTraceRecorder::default();
+        dns_trace.record_namespace(metadata);
+
+        for error in [
+            GatewayError::Transport(TransportError::Tls("certificate rejected".to_owned())),
+            GatewayError::Transport(TransportError::DaneFailed),
+        ] {
+            assert_eq!(
+                runtime.canonical_status_for_gateway_failure(
+                    CanonicalStatusContext {
+                        network: NetworkKind::Regtest,
+                        origin: &origin,
+                        request_plan: &request_plan,
+                        dns_trace: &dns_trace,
+                        authority_binding: binding,
+                    },
+                    &error,
+                    stamp,
+                ),
+                CanonicalStatusAvailability::Unavailable(
+                    CanonicalStatusUnavailableReason::EvidenceUnavailable
+                )
+            );
+        }
+        proxy.stop();
         cleanup_dir(&data_dir);
     }
 
@@ -10815,6 +14350,7 @@ mod tests {
         let runtime =
             BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Mainnet))
                 .unwrap();
+        let before = runtime.inner.canonical_authority.lock().unwrap().snapshot();
 
         runtime
             .with_policy_operation(
@@ -10830,6 +14366,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(runtime.policy_revision(), 0);
+        assert_eq!(
+            runtime.inner.canonical_authority.lock().unwrap().snapshot(),
+            before
+        );
         cleanup_dir(&data_dir);
     }
 
@@ -10883,6 +14423,7 @@ mod tests {
 
         let invalid_port = runtime
             .raw_gateway_request(request(-1, "", Vec::new()), RuntimePolicy::compatibility())
+            .unwrap()
             .into_bytes();
         assert!(invalid_port.starts_with(b"HTTP/1.1 400 Bad Request\r\n"));
 
@@ -10891,6 +14432,7 @@ mod tests {
                 request(443, "", vec![0; DEFAULT_MAX_REQUEST_BODY_BYTES + 1]),
                 RuntimePolicy::compatibility(),
             )
+            .unwrap()
             .into_bytes();
         assert!(oversized.starts_with(b"HTTP/1.1 413 Origin Request Too Large\r\n"));
 
@@ -10935,15 +14477,51 @@ mod tests {
     }
 
     #[test]
-    fn raw_gateway_runtime_errors_map_to_browser_500() {
-        assert_eq!(
-            raw_gateway_runtime_error_parts(RuntimeError::Operation("failed".to_owned())).0,
-            500
+    fn raw_gateway_runtime_failures_are_propagated_without_output() {
+        let data_dir = temp_dir_path("browser-runtime-raw-failure-propagation");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let request = RawGatewayHttpRequest {
+            method: "GET".to_owned(),
+            scheme: "https".to_owned(),
+            host: "welcome".to_owned(),
+            port: 443,
+            path_and_query: "/".to_owned(),
+            header_text: String::new(),
+            body: Vec::new(),
+        };
+        assert!(
+            runtime
+                .raw_gateway_request(request.clone(), RuntimePolicy::compatibility())
+                .is_err()
         );
-        assert_eq!(
-            raw_gateway_runtime_error_parts(RuntimeError::Synchronization("test")).0,
-            500
+
+        let target = data_dir.join("raw-failure.body");
+        fs::write(&target, b"previous").unwrap();
+        assert!(
+            runtime
+                .raw_gateway_request_body_to_file(request, RuntimePolicy::compatibility(), &target,)
+                .is_err()
         );
+        assert_eq!(fs::read(&target).unwrap(), b"previous");
+        cleanup_dir(&data_dir);
+    }
+
+    fn runtime_with_current_regtest_state(label: &str) -> (PathBuf, BrowserRuntime) {
+        let data_dir = temp_dir_path(label);
+        let base = data_dir.join("hns-regtest");
+        std::fs::create_dir_all(&base).unwrap();
+        store_best_header_for_network_with_tree_root(
+            &base,
+            NetworkKind::Regtest,
+            Hash::new([42; 32]),
+        );
+        drop(SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap());
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        (data_dir, runtime)
     }
 
     fn runtime_with_cached_loopback_name(label: &str) -> (PathBuf, BrowserRuntime) {
@@ -11083,6 +14661,17 @@ mod tests {
                 .resolution_trace_json
                 .as_deref()
                 .is_some_and(|trace| trace.contains(r#""mode":"strict""#))
+        );
+        assert_eq!(status.canonical_status(), None);
+        assert_eq!(
+            status.canonical_status_unavailable_reason(),
+            Some(CanonicalStatusUnavailableReason::EvidenceUnavailable)
+        );
+        assert_eq!(
+            runtime.canonical_status_availability().unwrap(),
+            CanonicalStatusAvailability::Unavailable(
+                CanonicalStatusUnavailableReason::EvidenceUnavailable
+            )
         );
 
         proxy.stop();
@@ -14262,6 +17851,53 @@ mod tests {
         }
     }
 
+    #[test]
+    fn dual_root_plan_retains_each_typed_root_failure() {
+        let base = temp_dir_path("dual-root-retained-failures");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: "origin.example".to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base: base.clone(),
+            network: NetworkKind::Regtest,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let hns = TestResolver::error(|| ResolverError::DnssecFailed);
+        let icann = TestResolver::error(|| ResolverError::DnsTransport("timed out".to_owned()));
+
+        let cached = build_namespace_plan(
+            &hns,
+            &icann,
+            &origin,
+            &HnsProofEvidenceRecorder::default(),
+            &IcannEvidenceRecorder::default(),
+        );
+
+        assert_eq!(
+            cached.hns_root_failure.as_ref().map(RootFailure::kind),
+            Some(RootFailureKind::BogusDnssec)
+        );
+        assert_eq!(
+            cached.icann_root_failure.as_ref().map(RootFailure::kind),
+            Some(RootFailureKind::Timeout)
+        );
+        assert!(cached.decision.is_none());
+        assert_eq!(cached.metadata.outcome, None);
+        assert_eq!(cached.metadata.selected, None);
+        assert!(matches!(
+            cached.terminal,
+            Some(NamespacePlanTerminal::Indeterminate)
+        ));
+        cleanup_dir(&base);
+    }
+
     impl Resolver for RequestMapResolver {
         fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
             self.requests.lock().unwrap().push(request.clone());
@@ -14721,6 +18357,44 @@ mod tests {
 
         assert!(matches!(error, ResolverError::Storage(_)));
         fs::remove_file(base).unwrap();
+    }
+
+    #[test]
+    fn successful_namespace_selection_survives_poisoned_plan_cache_after_commit() {
+        let base = temp_dir_path("namespace-binding-poisoned-plan-cache");
+        fs::create_dir_all(&base).unwrap();
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: "origin.example".to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base: base.clone(),
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let plans = Arc::new(Mutex::new(HashMap::new()));
+        let poisoned_plans = Arc::clone(&plans);
+        assert!(
+            std::panic::catch_unwind(move || {
+                let _guard = poisoned_plans.lock().unwrap();
+                panic!("poison namespace plan cache");
+            })
+            .is_err()
+        );
+        let trace = trace_recorder_for_selection(Namespace::Icann);
+
+        record_successful_namespace_selection(&origin, &plans, &trace).unwrap();
+
+        let binding = load_namespace_binding(&base, "https", "origin.example", 443, 0).unwrap();
+        assert_eq!(binding.sticky_binding, Some(Namespace::Icann));
+        assert_eq!(binding.revision, 1);
+        cleanup_dir(&base);
     }
 
     #[test]

@@ -13,12 +13,14 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
-ENGINE_REVISION = "2850ac1f50e361e2772e18f2e5ecbd7e77085afb"
+ENGINE_REVISION = "a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
 ENGINE_LOCK_SOURCE = (
     f"git+{ENGINE_GIT_URL}?rev={ENGINE_REVISION}#{ENGINE_REVISION}"
 )
 ALLOWED_ENGINE_PACKAGES = frozenset(
     {
+        "hns-browser-observability",
+        "hns-browser-runtime",
         "hns-icann-dane",
         "hns-namespace-resolution",
         "hns-resolution-policy",
@@ -151,7 +153,7 @@ def validate_lockfiles(root: Path) -> None:
             # engine transitively, Cargo must record the same exact canonical
             # package and revision there too. Only the root lock is required
             # to contain all reviewed packages; every lock remains constrained
-            # to the same three names and immutable source above.
+            # to the same five names and immutable source above.
             if relative_path == Path("rust/Cargo.lock"):
                 root_packages[name] += 1
 
@@ -185,7 +187,7 @@ def main() -> int:
         print(f"Cargo Git dependency policy failed: {error}", file=sys.stderr)
         return 1
     print(
-        "Cargo Git dependency policy permits only the three canonical "
+        "Cargo Git dependency policy permits only the five canonical "
         f"hns-dane-engine packages at {ENGINE_REVISION}."
     )
     return 0
