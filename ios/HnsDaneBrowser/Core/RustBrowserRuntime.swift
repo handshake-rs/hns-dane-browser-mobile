@@ -67,9 +67,7 @@ final class RustBrowserRuntime: BrowserRuntime {
 
     func classifyNavigation(_ rawValue: String) throws -> BrowserDestination {
         try BrowserNavigationParser(
-            canonicalizeHost: rustCanonicalHost,
-            classifyCanonicalHost: classifyName,
-            hnsRootForCanonicalHost: hnsRoot
+            canonicalizeHost: rustCanonicalHost
         ).parse(rawValue)
     }
 
@@ -265,16 +263,6 @@ final class RustBrowserRuntime: BrowserRuntime {
         case HNS_BROWSER_NAME_SEARCH: return .search
         default: throw RustBridgeError.invalidOutput("unknown name class \(nameClass)")
         }
-    }
-
-    private func hnsRoot(_ host: String) throws -> String {
-        var output = HnsBrowserBuffer()
-        let result = RustBridge.withUTF8Slice(host) { slice in
-            hns_browser_hns_root(slice, &output)
-        }
-        defer { RustBridge.free(output) }
-        try RustBridge.check(result, operation: "HNS root derivation")
-        return try RustBridge.string(copying: output)
     }
 
     private func rustCanonicalHost(_ host: String) throws -> String {
@@ -520,8 +508,9 @@ final class RustBrowserProxySession: BrowserProxySession {
               returnedHost == host else {
             return nil
         }
-        if let trace = try? RustBridge.string(copying: status.resolution_trace_json),
-           !trace.isEmpty {
+        let trace = (try? RustBridge.string(copying: status.resolution_trace_json))
+            .flatMap { $0.isEmpty ? nil : $0 }
+        if let trace {
             latestResolutionTraceJSON = trace
         }
 
@@ -530,7 +519,8 @@ final class RustBrowserProxySession: BrowserProxySession {
             tlsPolicy: status.tls_policy,
             resolverPolicy: status.resolver_policy,
             securityPath: status.security_path,
-            allowsWebPkiFallback: allowsWebPkiFallback
+            allowsWebPkiFallback: allowsWebPkiFallback,
+            resolutionTraceJSON: trace
         )
     }
 
@@ -539,51 +529,102 @@ final class RustBrowserProxySession: BrowserProxySession {
         tlsPolicy: UInt32,
         resolverPolicy: UInt32,
         securityPath: UInt32,
-        allowsWebPkiFallback: Bool = false
+        allowsWebPkiFallback: Bool = false,
+        resolutionTraceJSON: String? = nil
     ) -> BrowserSecuritySummary {
-        if httpStatus >= 400 {
-            return BrowserSecuritySummary(
-                level: .blocked,
-                detail: "The Rust proxy rejected the HNS response"
+        let selectedNamespace = Self.selectedNamespace(from: resolutionTraceJSON)
+        let namespaceDetail = Self.namespaceChoiceDetail(from: resolutionTraceJSON)
+        func result(_ level: BrowserSecurityLevel, _ detail: String) -> BrowserSecuritySummary {
+            BrowserSecuritySummary(
+                level: level,
+                detail: namespaceDetail.map { "\(detail) · \($0)" } ?? detail
             )
+        }
+        if httpStatus >= 400 {
+            return result(.blocked, "The Rust proxy rejected the dual-root response")
         }
         if resolverPolicy == HNS_BROWSER_RESOLVER_POLICY_HNS_DOH_COMPATIBILITY ||
             securityPath == HNS_BROWSER_SECURITY_PATH_DANE_THIRD_PARTY_DOH ||
             securityPath == HNS_BROWSER_SECURITY_PATH_HNS_THIRD_PARTY_DOH {
-            return BrowserSecuritySummary(
-                level: .blocked,
-                detail: "Unsupported legacy HNS resolver status"
-            )
+            return result(.blocked, "Unsupported legacy HNS resolver status")
         }
         if tlsPolicy == HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK {
-            if allowsWebPkiFallback {
-                return BrowserSecuritySummary(
-                    level: .webPKI,
-                    detail: "WebPKI verified · no secure TLSA (authenticated absence or insecure delegation) · validating ICANN DoH"
+            // The trusted trace, not a Swift hostname classifier, authorizes
+            // ICANN WebPKI fallback. Legacy callers may pass the old flag, but
+            // it cannot override a missing or HNS-selected decision.
+            if selectedNamespace == "icann" {
+                return result(
+                    .webPKI,
+                    "WebPKI verified · no secure TLSA (authenticated absence or insecure delegation) · validating ICANN DoH"
                 )
             }
-            return BrowserSecuritySummary(
-                level: .blocked,
-                detail: "Unsupported legacy HNS WebPKI status"
-            )
+            _ = allowsWebPkiFallback
+            return result(.blocked, "WebPKI fallback was not authorized by the selected namespace")
         }
         if tlsPolicy == HNS_BROWSER_TLS_POLICY_UNKNOWN,
            securityPath != HNS_BROWSER_SECURITY_PATH_UNKNOWN {
-            return BrowserSecuritySummary(
-                level: .insecure,
-                detail: "Rust HNS resolution · \(Self.securityPathLabel(securityPath)) · plain HTTP"
+            return result(
+                .insecure,
+                "Rust namespace resolution · \(Self.securityPathLabel(securityPath)) · plain HTTP"
             )
         }
         if tlsPolicy == HNS_BROWSER_TLS_POLICY_DANE {
-            return BrowserSecuritySummary(
-                level: .handshakeDANE,
-                detail: "DANE verified · \(Self.securityPathLabel(securityPath))"
-            )
+            return result(.handshakeDANE, "DANE verified · \(Self.securityPathLabel(securityPath))")
         }
-        return BrowserSecuritySummary(
-            level: .blocked,
-            detail: "Unknown HNS transport policy"
-        )
+        return result(.blocked, "Unknown Rust transport policy")
+    }
+
+    private static func namespaceObject(from traceJSON: String?) -> [String: Any]? {
+        guard let traceJSON,
+              let data = traceJSON.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return object["namespaceResolution"] as? [String: Any]
+    }
+
+    private static func selectedNamespace(from traceJSON: String?) -> String? {
+        if let selected = namespaceObject(from: traceJSON)?["selected"] as? String {
+            return selected
+        }
+        guard let traceJSON,
+              let data = traceJSON.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return object["selectedNamespace"] as? String ?? object["nameClass"] as? String
+    }
+
+    private static func namespaceChoiceDetail(from traceJSON: String?) -> String? {
+        guard let resolution = namespaceObject(from: traceJSON),
+              let outcome = resolution["outcome"] as? String else {
+            return nil
+        }
+        let selected = resolution["selected"] as? String
+        let reason = resolution["reason"] as? String
+        let selectedLabel = selected == "hns" ? "HNS" : selected == "icann" ? "ICANN" : nil
+        let reasonLabel: String?
+        switch reason {
+        case "explicitPin": reasonLabel = "explicit pin"
+        case "stickyBinding": reasonLabel = "saved successful binding"
+        case "icannDefault": reasonLabel = "ICANN default"
+        case "onlyAvailableRoot": reasonLabel = "only available root"
+        case "convergentDefault": reasonLabel = "convergent roots"
+        default: reasonLabel = nil
+        }
+        switch outcome {
+        case "bothDivergent":
+            guard let selectedLabel else { return "Both roots differ; selection unavailable" }
+            return "Both roots differ; using \(selectedLabel)" +
+                (reasonLabel.map { " (\($0))" } ?? "")
+        case "bothConvergent":
+            return selectedLabel.map { "Both roots agree; using \($0)" } ?? "Both roots agree"
+        case "hnsOnly": return "HNS only"
+        case "icannOnly": return "ICANN only"
+        case "neither": return "Absent from both roots"
+        case "indeterminate": return "Dual-root validation failed"
+        default: return nil
+        }
     }
 
     deinit {

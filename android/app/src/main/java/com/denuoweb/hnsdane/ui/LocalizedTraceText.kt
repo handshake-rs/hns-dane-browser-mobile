@@ -2,8 +2,6 @@ package com.denuoweb.hnsdane.ui
 
 import android.content.Context
 import com.denuoweb.hnsdane.R
-import com.denuoweb.hnsdane.core.HnsHostPolicy
-import com.denuoweb.hnsdane.net.NativeBridge
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -31,13 +29,34 @@ internal object LocalizedTraceText {
     fun jsonArrayText(context: Context, array: JSONArray?): String =
         array?.join(", ") ?: context.getString(R.string.common_unknown)
 
-    fun namespace(context: Context, trace: JSONObject?): String =
-        when (fieldText(trace, "nameClass", "")) {
+    fun namespace(context: Context, trace: JSONObject?): String {
+        val resolution = trace?.optJSONObject("namespaceResolution")
+        val selected = fieldText(resolution, "selected", fieldText(trace, "nameClass", ""))
+        val selectedLabel = when (selected) {
             "icann" -> context.getString(R.string.trace_namespace_icann_dns)
             "hns" -> context.getString(R.string.trace_namespace_handshake)
             "search" -> context.getString(R.string.trace_namespace_search)
             else -> context.getString(R.string.common_unknown)
         }
+        val reason = when (fieldText(resolution, "reason", "")) {
+            "explicitPin" -> "explicit pin"
+            "stickyBinding" -> "saved successful binding"
+            "icannDefault" -> "ICANN default"
+            "onlyAvailableRoot" -> "only available root"
+            "convergentDefault" -> "convergent roots"
+            else -> null
+        }
+        return when (fieldText(resolution, "outcome", "")) {
+            "bothDivergent" ->
+                "Both roots differ · using $selectedLabel" + (reason?.let { " ($it)" } ?: "")
+            "bothConvergent" -> "Both roots agree · using $selectedLabel"
+            "hnsOnly" -> "HNS only · using $selectedLabel"
+            "icannOnly" -> "ICANN only · using $selectedLabel"
+            "neither" -> "Absent from both roots"
+            "indeterminate" -> "Dual-root validation failed"
+            else -> selectedLabel
+        }
+    }
 
     fun resolutionSource(context: Context, trace: JSONObject?): String =
         when (val source = fieldText(trace, "resolutionSource", "")) {
@@ -138,13 +157,8 @@ internal object LocalizedTraceText {
         }
 
     fun isIcann(trace: JSONObject?): Boolean {
-        if (trace == null) {
-            return false
-        }
-        if (fieldText(trace, "nameClass", "") == "icann") {
-            return true
-        }
-        return HnsHostPolicy.isNativeGatewayHost(fieldText(trace, "host", ""), NativeBridge)
+        val resolution = trace?.optJSONObject("namespaceResolution")
+        return fieldText(resolution, "selected", fieldText(trace, "nameClass", "")) == "icann"
     }
 
     private fun statusValue(context: Context, value: String): String =

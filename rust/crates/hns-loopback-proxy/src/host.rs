@@ -1,7 +1,6 @@
 use std::net::IpAddr;
 use std::str::FromStr;
 
-use hns_resolver::{NameClass, classify_name};
 use thiserror::Error;
 
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -38,14 +37,6 @@ impl NormalizedHost {
 
     pub fn as_str(&self) -> &str {
         &self.ascii
-    }
-
-    pub fn class(&self) -> NameClass {
-        classify_name(&self.ascii)
-    }
-
-    pub fn is_hns(&self) -> bool {
-        self.class() == NameClass::Hns
     }
 }
 
@@ -91,7 +82,6 @@ pub struct HostScope {
 impl HostScope {
     pub fn new(root: impl AsRef<str>) -> Result<Self, HostScopeError> {
         let root = NormalizedHost::parse(root.as_ref())?;
-        ensure_hns(&root)?;
         Ok(Self { root })
     }
 
@@ -104,13 +94,14 @@ impl HostScope {
     }
 
     pub fn allows_normalized(&self, candidate: &NormalizedHost) -> bool {
-        candidate.is_hns() && is_equal_or_subdomain(candidate.as_str(), self.root.as_str())
+        is_equal_or_subdomain(candidate.as_str(), self.root.as_str())
     }
 
-    /// Returns the canonical target only when it is an HNS name inside this immutable scope.
+    /// Returns the canonical target only when it is inside this immutable
+    /// syntactic DNS scope. Namespace selection is deliberately left to the
+    /// authenticated resolver plan retained by the proxy backend.
     pub fn authorize(&self, candidate: &str) -> Result<NormalizedHost, HostScopeError> {
         let candidate = NormalizedHost::parse(candidate)?;
-        ensure_hns(&candidate)?;
         if !self.allows_normalized(&candidate) {
             return Err(HostScopeError::OutOfScope);
         }
@@ -142,14 +133,6 @@ pub enum HostScopeError {
     NotHns,
     #[error("host is outside the immutable HNS proxy scope")]
     OutOfScope,
-}
-
-fn ensure_hns(host: &NormalizedHost) -> Result<(), HostScopeError> {
-    if host.is_hns() {
-        Ok(())
-    } else {
-        Err(HostScopeError::NotHns)
-    }
 }
 
 fn is_equal_or_subdomain(candidate: &str, root: &str) -> bool {
@@ -291,26 +274,6 @@ mod tests {
     }
 
     #[test]
-    fn classification_is_delegated_to_the_resolver_policy() {
-        assert_eq!(
-            NormalizedHost::parse("welcome").unwrap().class(),
-            NameClass::Hns
-        );
-        assert_eq!(
-            NormalizedHost::parse("www.welcome").unwrap().class(),
-            NameClass::Hns
-        );
-        assert_eq!(
-            NormalizedHost::parse("example.com").unwrap().class(),
-            NameClass::Icann
-        );
-        assert_eq!(
-            NormalizedHost::parse("service.localhost").unwrap().class(),
-            NameClass::Icann
-        );
-    }
-
-    #[test]
     fn scope_accepts_only_the_exact_root_and_label_boundary_subdomains() {
         let scope = HostScope::new("Welcome.").unwrap();
 
@@ -331,9 +294,9 @@ mod tests {
     }
 
     #[test]
-    fn scope_construction_fails_closed_for_non_hns_names() {
-        assert_eq!(HostScope::new("example.com"), Err(HostScopeError::NotHns));
-        assert_eq!(HostScope::new("localhost"), Err(HostScopeError::NotHns));
+    fn scope_is_syntactic_and_accepts_any_canonical_dns_root() {
+        assert!(HostScope::new("example.com").is_ok());
+        assert!(HostScope::new("localhost").is_ok());
         assert_eq!(
             HostScope::new("127.0.0.1"),
             Err(HostScopeError::InvalidHost(
@@ -343,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn authorize_preserves_invalid_out_of_namespace_and_out_of_scope_failures() {
+    fn authorize_preserves_invalid_and_out_of_scope_failures() {
         let scope = HostScope::new("welcome").unwrap();
 
         assert_eq!(
@@ -352,7 +315,10 @@ mod tests {
                 HostNormalizationError::SurroundingWhitespace
             ))
         );
-        assert_eq!(scope.authorize("example.com"), Err(HostScopeError::NotHns));
+        assert_eq!(
+            scope.authorize("example.com"),
+            Err(HostScopeError::OutOfScope)
+        );
         assert_eq!(scope.authorize("other"), Err(HostScopeError::OutOfScope));
     }
 }

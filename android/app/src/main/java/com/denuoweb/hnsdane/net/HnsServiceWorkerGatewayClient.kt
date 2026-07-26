@@ -3,7 +3,6 @@ package com.denuoweb.hnsdane.net
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import androidx.webkit.ServiceWorkerClientCompat
-import com.denuoweb.hnsdane.core.BrowserNamespaceClass
 import com.denuoweb.hnsdane.core.BrowserNamespacePolicy
 import com.denuoweb.hnsdane.core.HnsHostPolicy
 import com.denuoweb.hnsdane.core.NativeGatewayHostDecision
@@ -75,14 +74,10 @@ internal fun serviceWorkerProxyRoute(
 ): BrowserProxyRoute? {
     if (!isHttpScheme(scheme)) return null
     val requestHost = host.orEmpty()
-    return when (namespacePolicy.classifyHost(requestHost)) {
-        BrowserNamespaceClass.Icann,
-        BrowserNamespaceClass.NativeGateway,
-        -> BrowserProxyRoute.CompatibilityInterceptor
-        BrowserNamespaceClass.Hns -> routeForHnsHost(requestHost)
-        BrowserNamespaceClass.Invalid,
-        BrowserNamespaceClass.Unavailable,
-        -> BrowserProxyRoute.Block
+    return when (HnsHostPolicy.nativeGatewayDecision(requestHost, namespacePolicy)) {
+        NativeGatewayHostDecision.Required -> routeForHnsHost(requestHost)
+        NativeGatewayHostDecision.Direct -> null
+        NativeGatewayHostDecision.Block -> BrowserProxyRoute.Block
     }
 }
 

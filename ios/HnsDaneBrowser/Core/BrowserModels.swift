@@ -261,10 +261,12 @@ enum BrowserGatewayEventStore {
 enum BrowserHostKind: Equatable, Sendable {
     case handshake
     case icann
+    case nativeGateway
     case search
 }
 
 enum BrowserProxyScope: Equatable, Sendable {
+    case wholeBrowser
     case icann
     case handshakeRoot(String)
 }

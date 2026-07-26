@@ -43,7 +43,7 @@ enum class HandshakeNetwork(
 internal object HnsResolutionPreferences {
     const val DEFAULT_HANDSHAKE_NETWORK = "mainnet"
     const val DEFAULT_STRICT_HNS_MODE = true
-    const val DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY = true
+    const val DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY = false
     const val DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY = false
 
     private const val PREFS = "hns_resolution_preferences"
@@ -106,8 +106,8 @@ internal object HnsResolutionPreferences {
      * HNS WebPKI compatibility controls. An explicit legacy compatibility choice
      * is never reinterpreted as consent to the P2P relay: when no independent
      * relay preference exists, that migration starts with relay fallback off.
-     * Fresh installs have no legacy preference and retain the relay-on requester
-     * default.
+     * Fresh installs have no legacy preference and keep relay consumption off
+     * until the user explicitly opts in.
      */
     fun migrateProhibitedHnsFallbackSettings(context: Context) {
         val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

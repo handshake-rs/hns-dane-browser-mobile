@@ -28,8 +28,8 @@ enum class NativeGatewayHostDecision {
  * Android routing helpers around the shared Rust namespace decision.
  *
  * This object deliberately contains no IANA list, special-use suffix list, or
- * independent HNS classification algorithm. An unavailable or malformed Rust
- * result is kept distinct so production callers can fail closed.
+ * independent namespace classifier. Rust supplies syntax/IP admission, and an
+ * unavailable or malformed Rust result remains fail-closed.
  */
 object HnsHostPolicy {
     fun nativeGatewayDecision(
@@ -38,18 +38,25 @@ object HnsHostPolicy {
     ): NativeGatewayHostDecision =
         when (namespacePolicy.classifyHost(host)) {
             BrowserNamespaceClass.Hns,
-            BrowserNamespaceClass.Icann,
             BrowserNamespaceClass.NativeGateway,
             -> NativeGatewayHostDecision.Required
+            BrowserNamespaceClass.Icann ->
+                if (isCanonicalIpLiteral(host)) {
+                    NativeGatewayHostDecision.Direct
+                } else {
+                    // A legacy suffix classifier cannot bypass dual-root DNS.
+                    NativeGatewayHostDecision.Required
+                }
             BrowserNamespaceClass.Invalid,
             BrowserNamespaceClass.Unavailable,
             -> NativeGatewayHostDecision.Block
         }
 
+    /** A shell cannot determine the selected root before authenticated dual resolution. */
     fun requiresHnsResolution(
-        host: String,
-        namespacePolicy: BrowserNamespacePolicy,
-    ): Boolean = namespacePolicy.classifyHost(host) == BrowserNamespaceClass.Hns
+        @Suppress("UNUSED_PARAMETER") host: String,
+        @Suppress("UNUSED_PARAMETER") namespacePolicy: BrowserNamespacePolicy,
+    ): Boolean = false
 
     fun requiresNativeGatewayResolution(
         host: String,
@@ -59,5 +66,6 @@ object HnsHostPolicy {
     fun isNativeGatewayHost(
         host: String,
         namespacePolicy: BrowserNamespacePolicy,
-    ): Boolean = namespacePolicy.classifyHost(host) == BrowserNamespaceClass.NativeGateway
+    ): Boolean = nativeGatewayDecision(host, namespacePolicy) == NativeGatewayHostDecision.Required
+
 }

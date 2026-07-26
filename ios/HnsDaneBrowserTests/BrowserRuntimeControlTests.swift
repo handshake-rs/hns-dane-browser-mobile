@@ -110,13 +110,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
     }
 
-    func testPolicyDefaultsMatchAndroidStrictTrustDefaults() {
+    func testPolicyDefaultsRequireRequesterRelayOptIn() {
         let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
 
         XCTAssertEqual(policy.resolutionMode, .strict)
         XCTAssertNil(policy.hnsDohResolver)
         XCTAssertFalse(policy.statelessDANECertificates)
-        XCTAssertTrue(policy.experimentalP2PDNSRelay)
+        XCTAssertFalse(policy.experimentalP2PDNSRelay)
         XCTAssertFalse(policy.legacyHNSDoHCompatibility)
     }
 

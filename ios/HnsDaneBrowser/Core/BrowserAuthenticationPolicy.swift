@@ -47,43 +47,25 @@ struct BrowserAuthenticationPolicy {
             guard let canonicalHost = runtime.canonicalHost(context.host) else {
                 return .cancel
             }
-            switch runtime.classifyHost(canonicalHost) {
-            case .icann:
-                // Public IP literals have no DNS TLSA owner and stay in the bounded opaque
-                // CONNECT path, where WebKit remains the WebPKI verifier.
-                if Self.isIPAddressLiteral(canonicalHost) {
-                    return .performDefaultHandling
-                }
-                // The whole-browser Rust proxy admits DNS-named ICANN subresources under
-                // either an ICANN main frame or an active HNS root scope. In both cases the
-                // exact live-generation certificate pin proves this challenge came from that
-                // proxy after its Rust resolver/TLS policy completed.
-                guard activeScope != nil,
-                      let liveProxy,
-                      let leafCertificateDER,
-                      !leafCertificateDER.isEmpty,
-                      liveProxy.matchesLocalCertificate(
-                        host: canonicalHost,
-                        leafCertificateDER: leafCertificateDER
-                      ) else {
-                    return .cancel
-                }
-                return .useServerTrust
-            case .search:
-                return .cancel
-            case .handshake:
-                guard case .handshakeRoot = activeScope,
-                      let liveProxy,
-                      let leafCertificateDER,
-                      !leafCertificateDER.isEmpty,
-                      liveProxy.matchesLocalCertificate(
-                        host: canonicalHost,
-                        leafCertificateDER: leafCertificateDER
-                      ) else {
-                    return .cancel
-                }
-                return .useServerTrust
+            // IP literals have no DNS TLSA owner and stay in the bounded
+            // opaque CONNECT path, where WebKit remains the WebPKI verifier.
+            if Self.isIPAddressLiteral(canonicalHost) {
+                return .performDefaultHandling
             }
+            // Namespace selection is never inferred in Swift. The exact
+            // live-generation host certificate pin proves this challenge came
+            // from the retained Rust proxy after its dual-root policy.
+            guard activeScope != nil,
+                  let liveProxy,
+                  let leafCertificateDER,
+                  !leafCertificateDER.isEmpty,
+                  liveProxy.matchesLocalCertificate(
+                    host: canonicalHost,
+                    leafCertificateDER: leafCertificateDER
+                  ) else {
+                return .cancel
+            }
+            return .useServerTrust
 
         case .origin:
             // Never offer loopback proxy credentials to an origin challenge. ICANN and ordinary

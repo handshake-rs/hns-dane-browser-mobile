@@ -74,14 +74,14 @@ class HnsServiceWorkerGatewayClientTest {
     }
 
     @Test
-    fun everyIcannHostUsesTheGatewayRoute() {
+    fun everyDnsHostUsesTheCoordinatorGatewayRoute() {
         assertEquals(
             BrowserProxyRoute.CompatibilityInterceptor,
             serviceWorkerProxyRoute(
                 "https",
                 "example.com",
                 namespacePolicy,
-            ) { BrowserProxyRoute.Block },
+            ) { BrowserProxyRoute.CompatibilityInterceptor },
         )
     }
 
@@ -132,7 +132,7 @@ class HnsServiceWorkerGatewayClientTest {
     }
 
     @Test
-    fun unavailableSharedPolicyNeverFallsThroughToDirectNetworking() {
+    fun unavailableRustAdmissionCannotBypassTheRetainedProxy() {
         val unavailable = FixedBrowserNamespacePolicy(emptyMap(), BrowserNamespaceClass.Unavailable)
 
         assertEquals(

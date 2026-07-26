@@ -1,5 +1,6 @@
 package com.denuoweb.hnsdane.net
 
+import com.denuoweb.hnsdane.core.isCanonicalIpLiteral
 import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.Locale
@@ -152,20 +153,9 @@ internal class BrowserProxyCoordinator(
         require((config == null) == (canonicalTargetHost == null)) {
             "HNS proxy configuration and target host must either both be present or both be absent"
         }
-        if (canonicalTargetHost != null && statusContext != null) {
-            activeBinding?.let { binding ->
-                activeBinding = null
-                unpublish(binding)
-                retire(binding.proxy)
-            }
-            statusContext = null
-        }
+        if (canonicalTargetHost != null) statusContext = null
         val effectiveConfig = updateDesiredConfig(config, retryFailedStart = true)
-        if (effectiveConfig != null) {
-            require(scopeContainsHost(effectiveConfig.scopeHost, requireNotNull(canonicalTargetHost))) {
-                "HNS navigation target must be inside its proxy scope"
-            }
-        }
+        if (effectiveConfig != null) requireNotNull(canonicalTargetHost)
         pendingNavigation = PendingNavigation(canonicalTargetHost, load)
         reconcile()
     }
@@ -208,7 +198,7 @@ internal class BrowserProxyCoordinator(
         val canonicalHost = canonicalBrowserProxyHost(host) ?: return BrowserProxyRoute.Block
         val snapshot = routingSnapshot
         if (snapshot.binding?.covers(canonicalHost) == true) return BrowserProxyRoute.Proxy
-        if (snapshot.compatibilityScope?.let { scopeContainsHost(it, canonicalHost) } == true) {
+        if (snapshot.compatibilityScope != null && !isCanonicalIpLiteral(canonicalHost)) {
             return BrowserProxyRoute.CompatibilityInterceptor
         }
         return BrowserProxyRoute.Block
@@ -225,7 +215,7 @@ internal class BrowserProxyCoordinator(
 
     override fun matchesLocalCertificate(host: String, certificateDer: ByteArray): Boolean {
         val canonicalHost = canonicalBrowserProxyHost(host) ?: return false
-        if (certificateDer.isEmpty()) return false
+        if (certificateDer.isEmpty() || isCanonicalIpLiteral(canonicalHost)) return false
         val binding = publishedBinding ?: return false
         if (!publishedAvailable || !binding.covers(canonicalHost)) return false
         val matches = binding.proxy.matchesLocalCertificate(canonicalHost, certificateDer)
@@ -286,12 +276,7 @@ internal class BrowserProxyCoordinator(
             failedRevision = null
             publishCompatibilityScope(null)
         }
-        pendingNavigation?.let { pending ->
-            val targetHost = pending.targetHost
-            if (targetHost == null || !scopeContainsHost(effective.scopeHost, targetHost)) {
-                pendingNavigation = null
-            }
-        }
+        if (pendingNavigation?.targetHost == null) pendingNavigation = null
         revokeIncompatibleBindings()
         return effective
     }
@@ -303,9 +288,7 @@ internal class BrowserProxyCoordinator(
             startOperation?.config,
             desiredConfig,
         )
-        return configs.firstOrNull { existing ->
-            sameProxySettings(existing, requested) && scopeContainsHost(existing.scopeHost, requested.scopeHost)
-        }
+        return configs.firstOrNull { existing -> sameProxySettings(existing, requested) }
     }
 
     private fun revokeIncompatibleBindings() {
@@ -763,11 +746,10 @@ internal class BrowserProxyCoordinator(
             desiredConfig?.let { binding.isCompatibleWith(it) } == true
 
     private fun Binding.isCompatibleWith(config: RustBrowserProxyConfig?): Boolean =
-        config != null &&
-            sameProxySettings(this.config, config) &&
-            scopeContainsHost(this.config.scopeHost, config.scopeHost)
+        config != null && sameProxySettings(this.config, config)
 
-    private fun Binding.covers(host: String): Boolean = scopeContainsHost(proxy.scopeHost, host)
+    private fun Binding.covers(host: String): Boolean =
+        canonicalBrowserProxyHost(host) != null
 }
 
 private fun RustBrowserProxyConfig.normalized(): RustBrowserProxyConfig {
@@ -806,7 +788,8 @@ private fun sameProxySettings(first: RustBrowserProxyConfig, second: RustBrowser
         first.legacyHnsDohCompatibility == second.legacyHnsDohCompatibility
 
 internal fun canonicalBrowserProxyHost(host: String): String? {
-    val canonical = host.trim().trimEnd('.').lowercase(Locale.US)
+    val canonical = host.trim().removePrefix("[").removeSuffix("]").trimEnd('.').lowercase(Locale.US)
+    if (isCanonicalIpLiteral(canonical)) return canonical
     if (canonical.isEmpty() || canonical.length > 253 || !canonical.all(Char::isAscii)) return null
     if (canonical.split('.').any { label ->
             label.isEmpty() ||
@@ -820,9 +803,6 @@ internal fun canonicalBrowserProxyHost(host: String): String? {
     }
     return canonical
 }
-
-private fun scopeContainsHost(scope: String, host: String): Boolean =
-    host == scope || host.endsWith(".$scope")
 
 private fun Char.isAscii(): Boolean = code in 0..0x7f
 

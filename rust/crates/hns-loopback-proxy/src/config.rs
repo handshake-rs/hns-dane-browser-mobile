@@ -300,9 +300,9 @@ impl ProxyConfig {
         }
     }
 
-    /// Creates a whole-browser generation. `None` is an explicit deny-all HNS
-    /// policy for an ICANN top-level page; `Some` admits only that immutable
-    /// HNS root and its subdomains.
+    /// Creates a whole-browser generation. The optional syntactic scope is
+    /// retained for ABI compatibility and diagnostics; whole-browser DNS
+    /// admission does not use it as a namespace classifier.
     pub fn whole_browser(instance: ProxyInstanceId, hns_scope: Option<HostScope>) -> Self {
         Self {
             instance,

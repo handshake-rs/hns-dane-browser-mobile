@@ -18,6 +18,9 @@ use hns_dnssec::{
     validate_nsec_name_error, validate_nsec_no_data, validate_nsec3_name_error,
     validate_nsec3_no_data, validate_rrset_signature, validate_signed_rrset,
 };
+use hns_namespace_resolution::{
+    Namespace, NamespaceDecision, OriginQuery, OutcomeKind, SelectionReason,
+};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeSet, HashMap};
 use std::io::{Read, Write};
@@ -70,6 +73,35 @@ pub struct ResolutionAnswer {
     pub name: DnsName,
     pub records: Vec<ResourceRecord>,
     pub secure: bool,
+}
+
+/// Bounded dual-root decision metadata retained by a resolver generation.
+/// The selected root is the authority for every derived DNS operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NamespaceResolutionMetadata {
+    pub outcome: Option<OutcomeKind>,
+    pub selected: Option<Namespace>,
+    pub selection_reason: Option<SelectionReason>,
+    pub hns_state: NamespaceRootState,
+    pub icann_state: NamespaceRootState,
+    pub fingerprint: Option<String>,
+}
+
+/// One complete, retained dual-root decision and the selected root's raw DNS
+/// material for diagnostics. Gateways must consume `decision.selected_plan()`
+/// directly and must not issue follow-up resolver queries after this boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedNamespaceResolution {
+    pub decision: NamespaceDecision,
+    pub state_fingerprint: String,
+    pub resolution: ResolutionAnswer,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NamespaceRootState {
+    Present,
+    AuthenticatedAbsent,
+    Failed,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -134,10 +166,32 @@ pub enum ResolverError {
     CachePoisoned,
     #[error("resolver storage error: {0}")]
     Storage(String),
+    #[error("dual-root namespace resolution is indeterminate")]
+    NamespaceIndeterminate,
+    #[error("the complete hostname is absent from both namespaces")]
+    NamespaceNeither,
+    #[error("dual-root origin plan is invalid")]
+    InvalidNamespacePlan,
 }
 
 pub trait Resolver {
     fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError>;
+
+    /// Prepares one complete origin-bound namespace decision. Browser
+    /// resolvers override this; legacy single-root adapters return `None`.
+    fn prepare_namespace_resolution(
+        &self,
+        _query: &OriginQuery,
+    ) -> Result<Option<PreparedNamespaceResolution>, ResolverError> {
+        Ok(None)
+    }
+
+    /// Returns the authenticated decision retained for this complete origin.
+    /// Plain resolvers return `None`; browser gateways require a populated
+    /// value and fail closed otherwise.
+    fn namespace_resolution(&self, _host: &str) -> Option<NamespaceResolutionMetadata> {
+        None
+    }
 }
 
 pub trait DelegatedResolver {
@@ -550,6 +604,10 @@ where
             NameClass::Icann => self.icann.resolve(request),
             NameClass::Search => Err(ResolverError::UnsupportedBackend),
         }
+    }
+
+    fn namespace_resolution(&self, _host: &str) -> Option<NamespaceResolutionMetadata> {
+        None
     }
 }
 
@@ -1244,9 +1302,19 @@ where
 
         let has_secure_delegation =
             has_owner_record(&delegation_records, &root_owner, RecordType::Ds);
-        let mut delegated = self
+        let mut delegated = match self
             .delegated_resolver
-            .resolve_delegated(request, &delegation)?;
+            .resolve_delegated(request, &delegation)
+        {
+            Ok(answer) => answer,
+            Err(ResolverError::NameNotFound) if !has_secure_delegation => {
+                // An unsigned delegated child cannot authenticate NXDOMAIN.
+                // Preserve it as a DNSSEC failure so callers never confuse
+                // untrusted denial with whole-host HNS absence.
+                return Err(ResolverError::DnssecFailed);
+            }
+            Err(error) => return Err(error),
+        };
         if !has_secure_delegation {
             delegated.secure = false;
             return Ok(delegated);
@@ -4053,6 +4121,8 @@ mod tests {
         delegations: Arc<Mutex<Vec<HnsDelegation>>>,
     }
 
+    struct NameNotFoundDelegatedResolver;
+
     struct ScriptedDnsTransport {
         responses: DnsResponseMap,
         server_responses: ServerDnsResponseMap,
@@ -4230,6 +4300,16 @@ mod tests {
                 )],
                 secure: true,
             })
+        }
+    }
+
+    impl DelegatedResolver for NameNotFoundDelegatedResolver {
+        fn resolve_delegated(
+            &self,
+            _request: &ResolutionRequest,
+            _delegation: &HnsDelegation,
+        ) -> Result<ResolutionAnswer, ResolverError> {
+            Err(ResolverError::NameNotFound)
         }
     }
 
@@ -5690,6 +5770,60 @@ mod tests {
 
         assert!(!answer.secure);
         assert_eq!(answer.records.len(), 1);
+    }
+
+    #[test]
+    fn delegating_resolver_preserves_secure_child_nxdomain() {
+        let root_name = "welcome".to_owned();
+        let resolver = DelegatingResolver::new(
+            StaticProofProvider {
+                proven: ProvenNameRecords {
+                    root_name: root_name.clone(),
+                    name_hash: NameHash::from_name(&root_name).unwrap(),
+                    records: vec![ns_record("welcome", "ns1.welcome"), ds_record("welcome")],
+                    secure: true,
+                    exists: true,
+                },
+            },
+            NameNotFoundDelegatedResolver,
+        );
+
+        assert_eq!(
+            resolver
+                .resolve(&ResolutionRequest {
+                    qname: "missing.welcome".to_owned(),
+                    qtype: RecordType::A.code(),
+                })
+                .unwrap_err(),
+            ResolverError::NameNotFound,
+        );
+    }
+
+    #[test]
+    fn delegating_resolver_rejects_unsigned_child_nxdomain() {
+        let root_name = "welcome".to_owned();
+        let resolver = DelegatingResolver::new(
+            StaticProofProvider {
+                proven: ProvenNameRecords {
+                    root_name: root_name.clone(),
+                    name_hash: NameHash::from_name(&root_name).unwrap(),
+                    records: vec![ns_record("welcome", "ns1.welcome")],
+                    secure: true,
+                    exists: true,
+                },
+            },
+            NameNotFoundDelegatedResolver,
+        );
+
+        assert_eq!(
+            resolver
+                .resolve(&ResolutionRequest {
+                    qname: "missing.welcome".to_owned(),
+                    qtype: RecordType::A.code(),
+                })
+                .unwrap_err(),
+            ResolverError::DnssecFailed,
+        );
     }
 
     #[test]

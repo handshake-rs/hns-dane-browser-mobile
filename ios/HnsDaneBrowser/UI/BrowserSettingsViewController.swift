@@ -496,14 +496,14 @@ final class BrowserSettingsViewController: UITableViewController {
             return "\(handshakeNetwork.title). \(handshakeNetwork.summary)"
         case .statelessDANECertificates:
             if policy.statelessDANECertificates {
-                return "On. Certificate-carried HNS proof evidence may satisfy DANE when valid."
+                return "On. Legacy certificate-carried evidence cannot be combined with retained dual-root plans; prepared browser requests fail closed."
             }
-            return "Off. HNS proof and TLSA evidence use the live resolver path."
+            return "Off. Browser requests use the retained dual-root DNSSEC and TLSA plan."
         case .experimentalP2PDNSRelay:
             if policy.experimentalP2PDNSRelay {
-                return "On by default. Delegated DNS may use relay-capable Handshake peers; DNSSEC validation remains local."
+                return "On by explicit request. Delegated DNS may use relay-capable Handshake peers; DNSSEC validation remains local."
             }
-            return "Off. Peer DNS relay messages are not used."
+            return "Off by default. Peer DNS relay messages are not requested."
         case .addHNSRelayPeer:
             return relayPeerSummary
         case .clearResolverCache:

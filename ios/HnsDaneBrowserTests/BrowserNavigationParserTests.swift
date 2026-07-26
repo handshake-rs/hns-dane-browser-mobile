@@ -2,37 +2,30 @@ import XCTest
 @testable import HnsDaneBrowser
 
 final class BrowserNavigationParserTests: XCTestCase {
-    func testExplicitURLPreservesPathAndClassifiesExtractedHost() throws {
-        var classified: [String] = []
+    func testExplicitURLPreservesPathAndRoutesDNSHostToWholeBrowserGateway() throws {
         let parser = BrowserNavigationParser(
-            canonicalizeHost: { $0.lowercased() },
-            classifyCanonicalHost: {
-                classified.append($0)
-                return .icann
-            },
-            hnsRootForCanonicalHost: { _ in XCTFail("ICANN must not derive HNS root"); return "" }
+            canonicalizeHost: { $0.lowercased() }
         )
 
         let destination = try parser.parse("https://WWW.Example.COM/docs/page?q=1")
 
         XCTAssertEqual(destination.url.absoluteString, "https://WWW.Example.COM/docs/page?q=1")
         XCTAssertEqual(destination.canonicalHost, "www.example.com")
-        XCTAssertEqual(destination.proxyScope, .icann)
-        XCTAssertEqual(classified, ["www.example.com"])
+        XCTAssertEqual(destination.hostKind, .nativeGateway)
+        XCTAssertEqual(destination.proxyScope, .wholeBrowser)
     }
 
-    func testBareHostAndPathDefaultsToHTTPSAndUsesRustDerivedRoot() throws {
+    func testBareHandshakeLookingHostUsesTheSameWholeBrowserGateway() throws {
         let parser = BrowserNavigationParser(
-            canonicalizeHost: { $0.lowercased() },
-            classifyCanonicalHost: { _ in .handshake },
-            hnsRootForCanonicalHost: { _ in "woodburn" }
+            canonicalizeHost: { $0.lowercased() }
         )
 
         let destination = try parser.parse("Nathan.Woodburn/docs")
 
         XCTAssertEqual(destination.url.absoluteString, "https://Nathan.Woodburn/docs")
         XCTAssertEqual(destination.canonicalHost, "nathan.woodburn")
-        XCTAssertEqual(destination.proxyScope, .handshakeRoot("woodburn"))
+        XCTAssertEqual(destination.hostKind, .nativeGateway)
+        XCTAssertEqual(destination.proxyScope, .wholeBrowser)
     }
 
     func testCanonicalRustHostDrivesUnicodeScopeAndStatusIdentity() throws {
@@ -41,14 +34,6 @@ final class BrowserNavigationParserTests: XCTestCase {
             canonicalizeHost: {
                 extractedHost = $0
                 return "xn--bcher-kva"
-            },
-            classifyCanonicalHost: { host in
-                XCTAssertEqual(host, "xn--bcher-kva")
-                return .handshake
-            },
-            hnsRootForCanonicalHost: { host in
-                XCTAssertEqual(host, "xn--bcher-kva")
-                return host
             }
         )
 
@@ -56,14 +41,22 @@ final class BrowserNavigationParserTests: XCTestCase {
 
         XCTAssertNotNil(extractedHost)
         XCTAssertEqual(destination.canonicalHost, "xn--bcher-kva")
-        XCTAssertEqual(destination.proxyScope, .handshakeRoot("xn--bcher-kva"))
+        XCTAssertEqual(destination.hostKind, .nativeGateway)
+        XCTAssertEqual(destination.proxyScope, .wholeBrowser)
+    }
+
+    func testPublicIPAddressUsesBoundedWholeBrowserTunnelWithoutDNSClassification() throws {
+        let parser = BrowserNavigationParser(canonicalizeHost: { $0 })
+
+        let destination = try parser.parse("https://192.0.2.1/")
+
+        XCTAssertEqual(destination.hostKind, .icann)
+        XCTAssertEqual(destination.proxyScope, .wholeBrowser)
     }
 
     func testSearchTextAndUnsupportedSchemesFailClosed() {
         let parser = BrowserNavigationParser(
-            canonicalizeHost: { $0 },
-            classifyCanonicalHost: { _ in .search },
-            hnsRootForCanonicalHost: { _ in "" }
+            canonicalizeHost: { $0 }
         )
 
         XCTAssertThrowsError(try parser.parse("two words"))

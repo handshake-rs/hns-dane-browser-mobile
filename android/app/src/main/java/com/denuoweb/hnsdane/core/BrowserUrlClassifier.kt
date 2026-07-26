@@ -95,10 +95,19 @@ class BrowserUrlClassifier(
     }
 
     private fun targetKindForHost(host: String): BrowserTargetKind {
+        // The Rust result is syntax/IP admission only. A legacy HNS/ICANN
+        // name class can never select a root here: every non-IP DNS name
+        // still enters the retained dual-root gateway.
         return when (namespacePolicy.classifyHost(host)) {
-            BrowserNamespaceClass.Hns -> BrowserTargetKind.HnsName
-            BrowserNamespaceClass.Icann -> BrowserTargetKind.ExactUrl
-            BrowserNamespaceClass.NativeGateway -> BrowserTargetKind.NativeGateway
+            BrowserNamespaceClass.Hns,
+            BrowserNamespaceClass.NativeGateway,
+            -> BrowserTargetKind.NativeGateway
+            BrowserNamespaceClass.Icann ->
+                if (isCanonicalIpLiteral(host)) {
+                    BrowserTargetKind.ExactUrl
+                } else {
+                    BrowserTargetKind.NativeGateway
+                }
             BrowserNamespaceClass.Invalid,
             BrowserNamespaceClass.Unavailable,
             -> BrowserTargetKind.Blocked

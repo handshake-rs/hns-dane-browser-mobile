@@ -64,10 +64,10 @@ class HnsResolutionPreferencesInstrumentationTest {
     }
 
     @Test
-    fun freshInstallRetainsRelayRequesterDefault() {
+    fun freshInstallRequiresRelayRequesterOptIn() {
         HnsResolutionPreferences.migrateProhibitedHnsFallbackSettings(context)
 
         assertFalse(preferences.contains("experimental_p2p_dns_relay"))
-        assertTrue(HnsResolutionPreferences.experimentalP2pDnsRelay(context))
+        assertFalse(HnsResolutionPreferences.experimentalP2pDnsRelay(context))
     }
 }

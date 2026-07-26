@@ -1,27 +1,32 @@
 package com.denuoweb.hnsdane.ui
 
-import com.denuoweb.hnsdane.core.HnsHostPolicy
-import com.denuoweb.hnsdane.net.NativeBridge
 import org.json.JSONObject
 
 internal object HnsResolutionTraceFormat {
     fun isIcann(trace: JSONObject?): Boolean {
-        if (trace == null) {
-            return false
-        }
-        if (fieldText(trace, "nameClass", "") == "icann") {
-            return true
-        }
-        return HnsHostPolicy.isNativeGatewayHost(fieldText(trace, "host", ""), NativeBridge)
+        val resolution = trace?.optJSONObject("namespaceResolution")
+        return fieldText(resolution, "selected", fieldText(trace, "nameClass", "")) == "icann"
     }
 
-    fun namespace(trace: JSONObject?): String =
-        when (fieldText(trace, "nameClass", "")) {
+    fun namespace(trace: JSONObject?): String {
+        val resolution = trace?.optJSONObject("namespaceResolution")
+        val selected = fieldText(resolution, "selected", fieldText(trace, "nameClass", ""))
+        val label = when (selected) {
             "icann" -> "ICANN DNS"
             "hns" -> "Handshake"
             "search" -> "search"
             else -> "unknown"
         }
+        return when (fieldText(resolution, "outcome", "")) {
+            "bothDivergent" -> "both roots differ; using $label"
+            "bothConvergent" -> "both roots agree; using $label"
+            "hnsOnly" -> "HNS only; using $label"
+            "icannOnly" -> "ICANN only; using $label"
+            "neither" -> "absent from both roots"
+            "indeterminate" -> "dual-root validation failed"
+            else -> label
+        }
+    }
 
     fun resolutionSource(trace: JSONObject?): String =
         when (val source = fieldText(trace, "resolutionSource", "")) {

@@ -39,7 +39,6 @@ use crate::tls::{TlsStream, accept_local_tls};
 use hns_core::network_policy::{
     is_browser_blocked_port, is_browser_special_use_host, is_publicly_routable,
 };
-use hns_resolver::{NameClass, classify_name};
 use std::collections::HashSet;
 use std::fmt;
 use std::io::{self, Read, Write};
@@ -565,6 +564,19 @@ fn handle_client(
             return;
         }
     };
+    if is_browser_blocked_port(target.authority().port()) {
+        reject_routed_request(
+            &mut stream,
+            context,
+            admitted_host.as_str(),
+            method,
+            403,
+            "Destination Port Denied",
+            RequestRejectionReason::InvalidRequest,
+            false,
+        );
+        return;
+    }
     observe_request(
         context,
         admitted_host.as_str(),
@@ -599,19 +611,6 @@ fn handle_client(
             &head,
             &absolute,
             &icann_host,
-            method,
-            &cancellation,
-            context,
-        ),
-        (
-            AdmittedHost::Icann(IcannHost::Name(canonical_host)),
-            RequestTarget::Connect(authority),
-        ) => handle_connect(
-            stream,
-            &head,
-            authority,
-            canonical_host,
-            InterceptedConnectClass::Icann,
             method,
             &cancellation,
             context,
@@ -662,7 +661,6 @@ impl AdmittedHost {
 }
 
 enum IcannHost {
-    Name(crate::NormalizedHost),
     Address {
         address: std::net::IpAddr,
         text: String,
@@ -672,7 +670,6 @@ enum IcannHost {
 impl IcannHost {
     fn as_str(&self) -> &str {
         match self {
-            Self::Name(host) => host.as_str(),
             Self::Address { text, .. } => text,
         }
     }
@@ -701,7 +698,7 @@ fn admit_target_host(
     }
 
     if let Ok(address) = raw_host.parse::<std::net::IpAddr>() {
-        if classify_name(raw_host) != NameClass::Icann || !is_publicly_routable(address) {
+        if !is_publicly_routable(address) {
             return Err(RouteRejection::PrivateAddress);
         }
         return Ok(AdmittedHost::Icann(IcannHost::Address {
@@ -711,19 +708,13 @@ fn admit_target_host(
     }
     let host = crate::NormalizedHost::parse(raw_host)
         .map_err(|error| RouteRejection::Scope(HostScopeError::InvalidHost(error)))?;
-    match classify_name(host.as_str()) {
-        NameClass::Hns => context
-            .hns_scope
-            .as_ref()
-            .ok_or(RouteRejection::Scope(HostScopeError::OutOfScope))?
-            .authorize(host.as_str())
-            .map(AdmittedHost::Hns)
-            .map_err(RouteRejection::Scope),
-        NameClass::Icann if is_browser_special_use_host(host.as_str()) => {
-            Err(RouteRejection::SpecialUse)
-        }
-        NameClass::Icann => Ok(AdmittedHost::Icann(IcannHost::Name(host))),
-        NameClass::Search => Err(RouteRejection::InvalidClass),
+    if is_browser_special_use_host(host.as_str()) {
+        Err(RouteRejection::SpecialUse)
+    } else {
+        // Every syntactically valid DNS name enters the shared authenticated
+        // backend. The backend retains the complete dual-root plan; the
+        // loopback boundary must never route from a suffix/IANA classifier.
+        Ok(AdmittedHost::Hns(host))
     }
 }
 
@@ -963,13 +954,6 @@ fn dial_icann(
     }
     let addresses = match host {
         IcannHost::Address { address, .. } => vec![SocketAddr::new(*address, port)],
-        IcannHost::Name(host) => catch_unwind(AssertUnwindSafe(|| {
-            context
-                .icann_network
-                .resolve(host.as_str(), port, cancellation)
-        }))
-        .unwrap_or(Err(IcannNetworkError::ResolutionFailed))
-        .map_err(icann_network_resolution_error)?,
     };
     if addresses.is_empty() || addresses.len() > MAX_RESOLVED_ADDRESSES {
         return Err(IcannRouteError::Resolution);
@@ -1015,15 +999,6 @@ fn dial_icann(
         }
     }
     Err(IcannRouteError::Connection)
-}
-
-fn icann_network_resolution_error(error: IcannNetworkError) -> IcannRouteError {
-    match error {
-        IcannNetworkError::Cancelled => IcannRouteError::Cancelled,
-        IcannNetworkError::ResolutionFailed | IcannNetworkError::ConnectionFailed => {
-            IcannRouteError::Resolution
-        }
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2153,18 +2128,16 @@ fn authorize_connected_target(
         return None;
     }
     match host_class {
+        InterceptedConnectClass::Hns if context.routing_mode == ProxyRoutingMode::WholeBrowser => {
+            (!is_browser_special_use_host(host.as_str())).then_some(host)
+        }
         InterceptedConnectClass::Hns => context
             .hns_scope
             .as_ref()?
             .authorize(host.as_str())
             .ok()
             .filter(|authorized| *authorized == host),
-        InterceptedConnectClass::Icann
-            if classify_name(host.as_str()) == NameClass::Icann
-                && !is_browser_special_use_host(host.as_str()) =>
-        {
-            Some(host)
-        }
+        InterceptedConnectClass::Icann if !is_browser_special_use_host(host.as_str()) => Some(host),
         InterceptedConnectClass::Icann => None,
     }
 }
@@ -5633,12 +5606,12 @@ mod tests {
     }
 
     #[test]
-    fn whole_browser_never_resolves_or_dials_out_of_scope_hns() {
+    fn whole_browser_scope_is_not_a_namespace_classifier() {
         let network = Arc::new(CountingIcannNetwork::new(
             vec!["1.1.1.1:443".parse().unwrap()],
             Vec::new(),
         ));
-        let backend = Arc::new(RecordingBackend::new(ResponsePlan::plain("unused")));
+        let backend = Arc::new(RecordingBackend::new(ResponsePlan::plain("dual-root")));
         let proxy = start_proxy_with_icann_network(
             whole_browser_config(Some("welcome")),
             backend.clone(),
@@ -5646,35 +5619,39 @@ mod tests {
         );
         for host in ["other", "sub.other"] {
             let request = format!(
-                "CONNECT {host}:443 HTTP/1.1\r\nHost: {host}:443\r\n{}\r\n",
+                "GET http://{host}/ HTTP/1.1\r\nHost: {host}\r\n{}\r\n",
                 auth_header(&proxy)
             );
-            assert_eq!(response_status(&send_raw(&proxy, request.as_bytes())), 403);
+            assert_eq!(response_status(&send_raw(&proxy, request.as_bytes())), 200);
         }
         assert_eq!(network.resolve_calls(), 0);
         assert_eq!(network.connect_calls(), 0);
-        assert_eq!(backend.request_count(), 0);
+        assert_eq!(backend.request_count(), 2);
         proxy.stop();
 
         let deny_all_network = Arc::new(CountingIcannNetwork::new(
             vec!["1.1.1.1:443".parse().unwrap()],
             Vec::new(),
         ));
+        let whole_browser_backend =
+            Arc::new(RecordingBackend::new(ResponsePlan::plain("dual-root")));
         let deny_all = start_proxy_with_icann_network(
             whole_browser_config(None),
-            Arc::new(UnusedBackend),
+            whole_browser_backend.clone(),
             deny_all_network.clone(),
         );
         let request = format!(
-            "CONNECT welcome:443 HTTP/1.1\r\nHost: welcome:443\r\n{}\r\n",
+            "GET http://welcome/ HTTP/1.1\r\nHost: welcome\r\n{}\r\n",
             auth_header(&deny_all)
         );
         assert_eq!(
             response_status(&send_raw(&deny_all, request.as_bytes())),
-            403
+            200
         );
         assert_eq!(deny_all_network.resolve_calls(), 0);
         assert_eq!(deny_all_network.connect_calls(), 0);
+        assert_eq!(whole_browser_backend.request_count(), 1);
+        deny_all.stop();
     }
 
     #[test]
@@ -5756,7 +5733,7 @@ mod tests {
     }
 
     #[test]
-    fn whole_browser_forwards_icann_http_with_bounded_canonical_framing() {
+    fn whole_browser_forwards_public_ip_http_with_bounded_canonical_framing() {
         let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: keep-alive\r\nX-Test: yes\r\n\r\nhello".to_vec();
         let network = Arc::new(CountingIcannNetwork::new(
             vec!["1.1.1.1:80".parse().unwrap()],
@@ -5768,7 +5745,7 @@ mod tests {
             network.clone(),
         );
         let request = format!(
-            "GET http://example.com/path?q=1 HTTP/1.1\r\nHost: example.com\r\n{}X-HNS-Forged: no\r\nProxy-Future: no\r\n\r\n",
+            "GET http://1.1.1.1/path?q=1 HTTP/1.1\r\nHost: 1.1.1.1\r\n{}X-HNS-Forged: no\r\nProxy-Future: no\r\n\r\n",
             auth_header(&proxy)
         );
         let response = send_raw(&proxy, request.as_bytes());
@@ -5779,15 +5756,15 @@ mod tests {
         assert!(head.contains("Connection: close\r\n"));
         let forwarded = String::from_utf8(network.written()).unwrap();
         assert!(forwarded.starts_with("GET /path?q=1 HTTP/1.1\r\n"));
-        assert!(forwarded.contains("Host: example.com\r\n"));
+        assert!(forwarded.contains("Host: 1.1.1.1\r\n"));
         assert!(!forwarded.to_ascii_lowercase().contains("proxy-"));
         assert!(!forwarded.to_ascii_lowercase().contains("x-hns-"));
-        assert_eq!(network.resolve_calls(), 1);
+        assert_eq!(network.resolve_calls(), 0);
         assert_eq!(network.connect_calls(), 1);
     }
 
     #[test]
-    fn whole_browser_streams_large_and_chunked_icann_bodies_without_total_cap() {
+    fn whole_browser_streams_large_and_chunked_public_ip_bodies_without_total_cap() {
         let large_len = 8 * 1024 * 1024 + 17;
         let mut fixed =
             format!("HTTP/1.1 200 OK\r\nContent-Length: {large_len}\r\n\r\n").into_bytes();
@@ -5804,7 +5781,7 @@ mod tests {
         );
         for (path, expected_len) in [("large", large_len), ("chunked", 9)] {
             let request = format!(
-                "GET http://example.com/{path} HTTP/1.1\r\nHost: example.com\r\n{}\r\n",
+                "GET http://1.1.1.1/{path} HTTP/1.1\r\nHost: 1.1.1.1\r\n{}\r\n",
                 auth_header(&proxy)
             );
             let response = send_raw(&proxy, request.as_bytes());
@@ -5819,7 +5796,7 @@ mod tests {
     }
 
     #[test]
-    fn whole_browser_icann_response_framing_handles_head_bodyless_close_and_invalid_lengths() {
+    fn whole_browser_public_ip_response_framing_handles_head_bodyless_close_and_invalid_lengths() {
         let responses = vec![
             b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n".to_vec(),
             b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n".to_vec(),
@@ -5849,7 +5826,7 @@ mod tests {
         ];
         for (method, path, status, body_len) in cases {
             let request = format!(
-                "{method} http://example.com/{path} HTTP/1.1\r\nHost: example.com\r\n{}\r\n",
+                "{method} http://1.1.1.1/{path} HTTP/1.1\r\nHost: 1.1.1.1\r\n{}\r\n",
                 auth_header(&proxy)
             );
             let response = send_raw(&proxy, request.as_bytes());
@@ -5881,21 +5858,21 @@ mod tests {
             network.clone(),
         );
         let websocket = format!(
-            "GET ws://example.com/socket HTTP/1.1\r\nHost: example.com\r\n{}Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: key\r\nSec-WebSocket-Version: 13\r\n\r\n",
+            "GET ws://1.1.1.1/socket HTTP/1.1\r\nHost: 1.1.1.1\r\n{}Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: key\r\nSec-WebSocket-Version: 13\r\n\r\n",
             auth_header(&proxy)
         );
         assert_eq!(
             response_status(&send_raw(&proxy, websocket.as_bytes())),
             101
         );
-        assert_eq!(network.resolve_calls(), 1);
+        assert_eq!(network.resolve_calls(), 0);
 
         let ip = format!(
             "GET http://1.1.1.1/ HTTP/1.1\r\nHost: 1.1.1.1\r\n{}\r\n",
             auth_header(&proxy)
         );
         assert_eq!(response_status(&send_raw(&proxy, ip.as_bytes())), 204);
-        assert_eq!(network.resolve_calls(), 1, "public IP literal bypasses DNS");
+        assert_eq!(network.resolve_calls(), 0, "public IP literal bypasses DNS");
         let ipv6 = format!(
             "GET http://[2606:4700:4700::1111]/ HTTP/1.1\r\nHost: [2606:4700:4700::1111]\r\n{}\r\n",
             auth_header(&proxy)
@@ -5903,7 +5880,7 @@ mod tests {
         assert_eq!(response_status(&send_raw(&proxy, ipv6.as_bytes())), 204);
         assert_eq!(
             network.resolve_calls(),
-            1,
+            0,
             "public IPv6 literal bypasses DNS"
         );
         assert_eq!(network.connect_calls(), 3);
@@ -5916,7 +5893,7 @@ mod tests {
             response_status(&send_raw(&proxy, legacy_ipv4.as_bytes())),
             400
         );
-        assert_eq!(network.resolve_calls(), 1);
+        assert_eq!(network.resolve_calls(), 0);
         assert_eq!(network.connect_calls(), 3);
     }
 
@@ -5954,7 +5931,7 @@ mod tests {
         let worker_proxy = Arc::clone(&proxy);
         let client = thread::spawn(move || {
             let request = format!(
-                "GET http://example.com/idle HTTP/1.1\r\nHost: example.com\r\n{}\r\n",
+                "GET http://1.1.1.1/idle HTTP/1.1\r\nHost: 1.1.1.1\r\n{}\r\n",
                 auth_header(&worker_proxy)
             );
             send_raw(&worker_proxy, request.as_bytes())

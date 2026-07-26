@@ -65,6 +65,7 @@ class HnsResolverTraceActivity : ComponentActivity() {
         return buildString {
             appendLine(getString(R.string.trace_field_url, url.ifBlank { trace.optString("url", getString(R.string.common_unknown)) }))
             appendLine(getString(R.string.trace_field_host, trace.optString("host", getString(R.string.common_unknown))))
+            appendLine(getString(R.string.trace_field_namespace, LocalizedTraceText.namespace(this@HnsResolverTraceActivity, trace)))
             appendLine(getString(R.string.trace_field_root, trace.optString("root", getString(R.string.common_unknown))))
             appendLine(getString(R.string.trace_field_mode, trace.optString("mode", getString(R.string.common_unknown))))
             appendLine(getString(R.string.trace_field_hns_proof, trace.optString("hnsProof", getString(R.string.common_unknown))))

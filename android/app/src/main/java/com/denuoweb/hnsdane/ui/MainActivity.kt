@@ -88,6 +88,7 @@ import java.io.Closeable
 import java.net.URI
 import java.util.Locale
 import java.util.concurrent.Executors
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
     private val classifier = BrowserUrlClassifier(NativeBridge)
@@ -367,7 +368,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         gatewayInterceptionEnabled = false
-        reloadHnsPageOnNextStart = currentHnsHostForUrl(activeMainFrameUrl) != null
+        reloadHnsPageOnNextStart = currentNativeGatewayHostForUrl(activeMainFrameUrl) != null
         if (::webView.isInitialized) {
             webView.stopLoading()
         }
@@ -739,7 +740,8 @@ class MainActivity : ComponentActivity() {
         refreshPageProgress()
         refreshTransportWarning()
         val config = proxyConfigForTarget(target)
-        proxyCoordinator.navigate(config, config?.scopeHost) {
+        val targetHost = config?.let { target.displayHost }
+        proxyCoordinator.navigate(config, targetHost) {
             if (activityDestroyed || pendingMainFrameUrl?.mainFrameMatchKey() != target.url.mainFrameMatchKey()) {
                 return@navigate
             }
@@ -863,7 +865,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setSecurityState(state: SecurityState) {
-        securityLabel.text = when (state) {
+        val baseLabel = when (state) {
             SecurityState.Syncing -> getString(R.string.security_syncing)
             SecurityState.Loading -> getString(R.string.security_loading)
             SecurityState.HnsVerified -> getString(R.string.security_hns_verified)
@@ -880,6 +882,26 @@ class MainActivity : ComponentActivity() {
             SecurityState.ValidationFailed -> getString(R.string.security_failed)
             SecurityState.ProofUnavailable -> getString(R.string.security_proof_unavailable)
         }
+        val resolution = mainFrameHnsTraceJson
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?.optJSONObject("namespaceResolution")
+        val selected = resolution?.optString("selected")?.takeIf { it.isNotBlank() }
+        val selectedLabel = when (selected) {
+            "hns" -> "HNS"
+            "icann" -> "ICANN"
+            else -> null
+        }
+        val namespaceBadge = when (resolution?.optString("outcome")) {
+            "bothDivergent" -> selectedLabel?.let { "↯ $it" }
+            "bothConvergent" -> selectedLabel?.let { "≡ $it" }
+            "hnsOnly", "icannOnly" -> selectedLabel
+            else -> null
+        }
+        securityLabel.text = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
+        securityLabel.contentDescription = mainFrameHnsTraceJson
+            ?.let { LocalizedTraceText.namespace(this, runCatching { JSONObject(it) }.getOrNull()) }
+            ?.let { "$baseLabel. $it" }
+            ?: baseLabel
     }
 
     private inner class BrowserClient : WebViewClient() {
@@ -978,7 +1000,7 @@ class MainActivity : ComponentActivity() {
                     BrowserProxyRoute.CompatibilityInterceptor -> Unit
                 }
             }
-            if (target.kind == BrowserTargetKind.ExactUrl && proxyAvailable) {
+            if (target.kind in NATIVE_GATEWAY_TARGET_KINDS && proxyAvailable) {
                 return null
             }
             val isMainFrame = request.isForMainFrame || isActiveMainFrameRequest(requestUrl)
@@ -1319,7 +1341,10 @@ class MainActivity : ComponentActivity() {
         return RustBrowserProxyConfig(
             dataDir = filesDir.absolutePath,
             network = HnsResolutionPreferences.handshakeNetworkId(this),
-            scopeHost = host,
+            // The override is process-wide and long-lived. This value is an
+            // opaque lifecycle identity only; Rust admits and classifies each
+            // complete DNS host independently.
+            scopeHost = WHOLE_BROWSER_PROXY_SCOPE,
             strictHnsMode = HnsResolutionPreferences.strictHnsMode(this),
             dohResolverUrl = HnsResolutionPreferences.dohResolverUrl(this),
             statelessDaneCertificates = HnsResolutionPreferences.statelessDaneCertificates(this),
@@ -1328,9 +1353,9 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun currentHnsHostForUrl(url: String?): String? =
+    private fun currentNativeGatewayHostForUrl(url: String?): String? =
         url?.let(classifier::classify)
-            ?.takeIf { it.kind == BrowserTargetKind.HnsName }
+            ?.takeIf { it.kind in NATIVE_GATEWAY_TARGET_KINDS }
             ?.displayHost
 
     private fun isActiveMainFrameRequest(url: String): Boolean {
@@ -1357,6 +1382,7 @@ class MainActivity : ComponentActivity() {
         private const val MENU_POPUP_WIDTH_DP = MENU_ICON_BUTTON_SIZE_DP * 3
         private const val MENU_ROW_HEIGHT_DP = 55
         private const val MAX_DOWNLOAD_FILE_NAME_CHARS = 120
+        private const val WHOLE_BROWSER_PROXY_SCOPE = "whole-browser.invalid"
         private val UNSAFE_DOWNLOAD_FILE_CHARS = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
         private val WEB_NAVIGATION_SCHEMES = setOf("http", "https")
         private val SUBFRAME_ALLOWED_SCHEMES = setOf("http", "https", "about", "data", "blob")

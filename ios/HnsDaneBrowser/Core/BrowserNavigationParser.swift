@@ -2,8 +2,6 @@ import Foundation
 
 struct BrowserNavigationParser {
     let canonicalizeHost: (String) throws -> String
-    let classifyCanonicalHost: (String) throws -> BrowserHostKind
-    let hnsRootForCanonicalHost: (String) throws -> String
 
     func parse(_ rawValue: String) throws -> BrowserDestination {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28,16 +26,16 @@ struct BrowserNavigationParser {
         }
 
         let canonicalHost = try canonicalizeHost(extractedHost)
-        let hostKind = try classifyCanonicalHost(canonicalHost)
-        let scope: BrowserProxyScope
-        switch hostKind {
-        case .handshake:
-            scope = .handshakeRoot(try hnsRootForCanonicalHost(canonicalHost))
-        case .icann:
-            scope = .icann
-        case .search:
-            throw BrowserCoreError.invalidAddress("The address host is invalid.")
-        }
+        // URL parsing is intentionally namespace-agnostic. All canonical DNS
+        // names share one retained whole-browser proxy; that Rust generation
+        // resolves the complete origin through HNS and ICANN and owns the
+        // authenticated selection plan. Public IP literals remain the
+        // proxy's bounded opaque-address path.
+        let hostKind: BrowserHostKind =
+            BrowserAuthenticationPolicy.isIPAddressLiteral(canonicalHost)
+            ? .icann
+            : .nativeGateway
+        let scope: BrowserProxyScope = .wholeBrowser
 
         components.scheme = scheme
         guard let url = components.url else {

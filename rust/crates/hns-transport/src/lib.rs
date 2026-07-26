@@ -63,6 +63,10 @@ pub struct OriginRequest {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TlsValidation {
+    /// Opaque digest of the authenticated root-selection plan. It separates
+    /// connection, verifier, resumption, and Alt-Svc state for the same host
+    /// when namespace policy or root evidence changes.
+    pub namespace_fingerprint: Option<String>,
     pub mode: DomainTrustMode,
     pub dnssec_secure: bool,
     pub tlsa_records: Vec<TlsaRecord>,
@@ -344,6 +348,7 @@ struct AltSvcKey {
     scheme: String,
     host: String,
     port: u16,
+    namespace_fingerprint: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -392,6 +397,7 @@ impl Default for TcpHttpTransport {
 impl Default for TlsValidation {
     fn default() -> Self {
         Self {
+            namespace_fingerprint: None,
             mode: DomainTrustMode::IcannWebPki,
             dnssec_secure: false,
             tlsa_records: Vec::new(),
@@ -407,6 +413,7 @@ impl Default for TlsValidation {
 impl TlsValidation {
     pub fn hns_strict(dnssec_secure: bool, tlsa_records: Vec<TlsaRecord>) -> Self {
         Self {
+            namespace_fingerprint: None,
             mode: DomainTrustMode::HnsStrict,
             dnssec_secure,
             tlsa_records,
@@ -1147,13 +1154,18 @@ impl TcpHttpTransport {
         if !request.scheme.eq_ignore_ascii_case("https")
             || request.protocol == OriginProtocol::Http3
             || !is_safe_retry_method(&request.method)
+            || request.tls.namespace_fingerprint.is_some()
         {
+            // A fingerprint marks a retained dual-root namespace plan. Its
+            // application protocol, transport, service port, and TLSA owner
+            // are immutable until that plan expires and is rebuilt.
             return request.clone();
         }
         let key = AltSvcKey {
             scheme: "https".to_owned(),
             host: request.host.to_ascii_lowercase(),
             port: request.port,
+            namespace_fingerprint: request.tls.namespace_fingerprint.clone(),
         };
         let now = Instant::now();
         let Some(endpoint) = self.state.lock().ok().and_then(|mut state| {
@@ -1187,13 +1199,16 @@ impl TcpHttpTransport {
     }
 
     fn record_alt_svc(&self, request: &OriginRequest, headers: &[(String, String)]) {
-        if !request.scheme.eq_ignore_ascii_case("https") {
+        if !request.scheme.eq_ignore_ascii_case("https")
+            || request.tls.namespace_fingerprint.is_some()
+        {
             return;
         }
         let key = AltSvcKey {
             scheme: "https".to_owned(),
             host: request.host.to_ascii_lowercase(),
             port: request.port,
+            namespace_fingerprint: request.tls.namespace_fingerprint.clone(),
         };
         let values = headers
             .iter()
@@ -1242,6 +1257,7 @@ impl TcpHttpTransport {
             scheme: "https".to_owned(),
             host: request.host.to_ascii_lowercase(),
             port: request.port,
+            namespace_fingerprint: request.tls.namespace_fingerprint.clone(),
         };
         if let Ok(mut state) = self.state.lock() {
             let now = Instant::now();
@@ -2571,7 +2587,8 @@ fn protocol_rank(protocol: OriginProtocol) -> u8 {
 
 fn tls_validation_key(tls: &TlsValidation) -> String {
     let mut out = format!(
-        "mode={:?};secure={};port={};transport={:?};browser={:?};records={}",
+        "namespace={};mode={:?};secure={};port={};transport={:?};browser={:?};records={}",
+        tls.namespace_fingerprint.as_deref().unwrap_or("none"),
         tls.mode,
         tls.dnssec_secure,
         tls.service_port,
@@ -3158,6 +3175,32 @@ mod tests {
         assert_eq!(
             transport.promoted_request(&request).protocol,
             OriginProtocol::Http3
+        );
+    }
+
+    #[test]
+    fn retained_namespace_plan_never_accepts_alt_svc_protocol_mutation() {
+        let transport = TcpHttpTransport::default();
+        let mut request = request(SocketAddr::from((Ipv4Addr::LOCALHOST, 443)));
+        request.scheme = "https".to_owned();
+        request.tls.namespace_fingerprint = Some("selected-root-plan".to_owned());
+        request.tls.service_transport = TlsaTransport::Tcp;
+
+        transport.record_alt_svc(
+            &request,
+            &[
+                ("Alt-Svc".to_owned(), "h2=\":443\"; ma=60".to_owned()),
+                ("Alt-Svc".to_owned(), "h3=\":443\"; ma=60".to_owned()),
+            ],
+        );
+
+        let promoted = transport.promoted_request(&request);
+        assert_eq!(promoted.protocol, OriginProtocol::Http11);
+        assert_eq!(promoted.port, request.port);
+        assert_eq!(promoted.tls.service_port, request.tls.service_port);
+        assert_eq!(
+            promoted.tls.service_transport,
+            request.tls.service_transport
         );
     }
 

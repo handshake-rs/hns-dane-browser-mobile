@@ -12,7 +12,7 @@ The proof-backed path does not trust a single peer, public recursive HNS resolve
 - DNSSEC validation failure: fail closed.
 - TLSA exists but DANE validation fails: fail closed.
 - ICANN TLSA is derived only after HTTPS/SVCB service-port and protocol selection: TCP uses `_port._tcp.host.`, while HTTP/3 uses `_port._udp.host.`. A DNSSEC-secure TLSA RRset is enforced. Authenticated absence and a proven insecure delegation may select WebPKI; bogus or indeterminate DNSSEC, malformed TLSA, timeout, and resolver errors fail closed instead of becoming absence.
-- Experimental stateless DANE certificate evidence is off by default. When enabled, certificate evidence can only supply HNS TLSA policy after its Urkel proof matches a recent locally synced tree root and its direct-zone DNSSEC chain validates from the HNS-proven DS RRset. Missing certificate evidence falls back to the normal live proof/resolver path; malformed or invalid supported certificate evidence fails closed when it is used.
+- Experimental stateless DANE certificate evidence is off by default and retained only as legacy research code. It cannot be combined with the immutable dual-root prepared-plan boundary without adding a second resolution authority. Enabling it on a prepared browser request therefore fails closed before an origin response is exposed; it never falls back to a post-selection live resolver.
 - Sync stale: block HNS secure state and show a sync-specific browser error.
 - Sync attempts that make no progress must distinguish up-to-date peers from all-peer failure.
 - Sync catch-up must continue while persisted `bestPeerHeight` or the estimated mainnet tip is greater than local `bestHeight`, regardless of whether the latest native tick accepted headers.
@@ -43,7 +43,7 @@ Applied WebView controls:
 - Main-frame navigation allows only HTTP(S) in WebView plus `about:blank`; recognized external schemes are opened through Android `ACTION_VIEW`, and unsupported schemes are blocked before they can mutate browser state.
 - Service Worker interception uses the same native HNS/ICANN gateway policy as normal WebView request interception, with Service Worker file/content access disabled where supported. WebView exposes neither worker request bodies nor their local TLS challenge; bodyless GET/HEAD is supported and body-bearing requests fail closed.
 - Renderer hangs and renderer-process exits are handled explicitly so a bad page can be terminated or closed without crashing the whole browser process.
-- Cleartext network policy is denied except for the explicit loopback gateway allowance in Android Network Security Config. The gateway binds only to randomized `127.0.0.1` ports while the browser needs proxy support, admits public ICANN plus the optional active HNS host/subdomain scope, rejects other HNS roots and private/special targets, closes when the main browser activity leaves the foreground, and applies bounded active-client and request admission limits.
+- Cleartext network policy is denied except for the explicit loopback gateway allowance in Android Network Security Config. The gateway binds only to randomized `127.0.0.1` ports while the browser needs proxy support, admits every canonical DNS hostname to the shared dual-root preparation boundary, rejects private/special targets, closes when the main browser activity leaves the foreground, and applies bounded active-client and request admission limits.
 - App asset loads should use HTTPS-style app-asset origins or native interception instead of broad `file://` access.
 
 ## Android Platform Checklist
@@ -55,7 +55,7 @@ The app follows the Android security checklist as a platform baseline:
 - App backup and device-transfer extraction are disabled for files, databases, shared preferences, root storage, and external app data. Browser history, download records, diagnostics, resolver cache, and sync/cache state remain app-local unless the user explicitly exports or shares data.
 - Normal browsing does not enable `file://` or `content://` WebView access. User-initiated downloads use Android DownloadManager into public Downloads, but the system-visible download description does not include the full URL.
 - Network Security Config denies cleartext by default and allows cleartext only for the loopback gateway. The gateway binds randomized `127.0.0.1` ports only while browser proxy support is needed.
-- WebView JavaScript is enabled for browser compatibility, but no `addJavascriptInterface` or `WebMessageListener` bridge is exposed to untrusted content. Allowed WebSockets remain Chromium-native and traverse the Rust proxy; a document-start policy rejects cross-scope HNS targets before network admission.
+- WebView JavaScript is enabled for browser compatibility, but no `addJavascriptInterface` or `WebMessageListener` bridge is exposed to untrusted content. WebSockets remain Chromium-native and traverse the same Rust proxy; the document-start marker performs no hostname classification, and Rust applies the retained per-origin namespace decision before network admission.
 - Gateway diagnostic persistence is bounded and stores sanitized stage, host, status, and reason fields only; URL paths, query strings, headers, and bodies are not persisted in default diagnostics.
 - Release builds are non-debuggable, minified, resource-shrunk, and require upload-signing configuration before Play release bundle verification can pass.
 
@@ -75,8 +75,8 @@ The app follows the Android privacy checklist as a platform baseline:
 
 The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authenticated HTTP CONNECT proxy configuration. `allowFailover` is false and the match/exclusion lists are empty, so ordinary ICANN and HNS WebKit traffic share the Rust admission boundary. An absent, stopped, or rejecting proxy is an error; Swift has no route that clears the profile to direct networking.
 
-- Main-frame classification and HNS-root extraction come from Rust. Crossing between ICANN and HNS or between HNS roots revokes the current WebView, credentials, status, and certificate authority before the old proxy is stopped and joined; only then is a fresh immutable generation installed.
-- Subframes and subresources do not rotate or widen the admitted HNS scope. An out-of-scope HNS request is rejected inside Rust before HNS resolution or any origin dial.
+- Swift performs namespace-agnostic URL parsing. Every canonical DNS main frame, redirect, subresource, Service Worker request, download, and WebSocket shares the no-failover proxy, while Rust prepares and retains an exact per-origin dual-root plan.
+- Cross-origin traffic does not rotate or widen a suffix scope because no suffix scope is authoritative. Policy or lifecycle changes revoke the current WebView, credentials, status, and certificate authority before the old proxy is stopped and joined.
 - DNS-named ICANN HTTPS/WSS CONNECT terminates locally and reaches the same Rust resolver/TLSA/DANE gateway as Android. Secure TLSA is enforced; authenticated absence or insecure delegation retains WebPKI in Rust. Canonical public IP literals have no TLSA owner and remain bounded opaque CONNECT with WebKit WebPKI. ICANN HTTP uses the bounded Rust forwarder.
 - Swift may answer proxy authentication only for the exact live proxy handle, endpoint, and realm. It may accept an expected local HNS or DNS-named ICANN server-trust challenge only after Rust separately confirms the exact live generation, canonical host, and complete leaf certificate DER. Public IP-literal trust remains under WebKit's default handling.
 - Proxy credentials, certificate state, trace data, and Rust-owned buffers are memory-only and bounded. Lifecycle revocation becomes visible before any blocking worker join.
@@ -86,16 +86,17 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 ## Experimental P2P DNS relay trust boundary
 
 The P2P DNS relay is an untrusted transport beneath the existing proof-backed
-delegated resolver. Android new installs enable it by default, while preserving
-an explicit preference already chosen by an existing installation. An explicit
-legacy compatibility preference is revoked and does not enable the relay when no
-independent relay preference exists. The relay is
+delegated resolver. Mobile relay consumption is off by default and requires
+explicit requester opt-in, while preserving an independent preference already
+chosen by an existing installation. A legacy compatibility preference is
+revoked and never becomes relay consent. The relay is
 considered only after current locally validated headers and a matching Urkel
 proof have produced an acceptable HNS NS/DS delegation, proof-declared
 authoritative DoH has not succeeded, and direct authoritative UDP/TCP 53 has
 failed or has been classified as intercepted. There is no later public recursive
-HNS DoH or HNS WebPKI fallback. The `hsd` relay responder is never enabled
-implicitly; an operator must opt in to serving queries.
+HNS DoH or HNS WebPKI fallback. The mobile browser does not become an output
+node. Opaque relayer capacity is a separate default-on/opt-out network role;
+serving as an output node remains explicit operator opt-in.
 
 The peer necessarily learns the qname, qtype, client P2P connection, and source
 network address. The ordinary Handshake TCP listener is plaintext; no query
@@ -167,7 +168,9 @@ does not by itself change peer score or start a cooldown. See
 - No HNS origin connect address should be selected from NS glue or another owner name unless that owner is reached through a DNSSEC-validated CNAME chain from the requested origin owner.
 - No HNS origin connect address should be inferred from GLUE, SYNTH, `hnsdns=1`, or DNS-server SVCB data. These records only bootstrap nameserver transport; origin A/AAAA selection still requires DNSSEC-secure delegated answers.
 - No HNS origin request that starts from root delegation records should be treated as complete until a secure delegated A/AAAA lookup has been attempted.
-- No dotted HNS host should be routed to Chromium DNS when its final label is treated as an HNS root by browser policy.
+- No canonical DNS host should be routed to Chromium DNS before the retained
+  Rust planner resolves the complete hostname through both HNS and ICANN and
+  selects an authenticated namespace plan.
 - No out-of-zone HNS nameserver address should be used unless it comes from a separate verified HNS root proof for that nameserver owner.
 - No HNS gateway request should fall back to origin-host system DNS when secure resolution produces no A/AAAA connect address.
 - No reserved non-HNS single-label name should be routed into the HNS proxy path or shown as HNS browser state.
@@ -181,8 +184,13 @@ does not by itself change peer score or start a cooldown. See
 - No delegated HNS DNS answer should be treated as secure unless it comes from HNS-proven nameserver glue or synth addresses and validates against the HNS-proven DS RRset.
 - No authoritative DoH endpoint should be used unless its declaration identifies an HNS-proven NS address and the endpoint uses RFC 8484 HTTPS transport with DNS wire messages. A distinct SVCB/URI target name is authenticated by WebPKI while the connection remains pinned to HNS-proven glue.
 - No delegated NXDOMAIN response should be treated as malformed solely because its RCODE is NXDOMAIN; it must either validate as secure NSEC/NSEC3 name-error denial or fail closed.
+- No NXDOMAIN response carrying positive Answer-section records, including a
+  CNAME, should be accepted as name absence.
 - No empty delegated HNS DNS answer should be treated as secure unless an NSEC or NSEC3 no-data proof validates under the delegated zone DNSKEY.
 - No delegated CNAME chain should be followed outside the HNS-proven delegated zone or beyond the bounded CNAME-chain limit.
+- Repeated copies of one logical CNAME owner/class/target across retained
+  A/AAAA/HTTPS observations are one alias assertion; distinct targets for that
+  logical owner remain ambiguous and fail closed.
 - No child referral below a delegated HNS zone should be followed as secure unless the HNS-proven parent DS validates the parent DNSKEY, the child DS RRset validates under that parent DNSKEY, and the child answer validates under a DS-matched self-signed child DNSKEY.
 - No empty child-zone answer below a delegated HNS zone should be treated as secure unless the parent DNSKEY chain, child DS RRset, child DNSKEY RRset, and child NSEC/NSEC3 no-data proof all validate.
 - No DNSSEC signature should depend on mixed-case RDATA owner names or signer names.
@@ -193,6 +201,8 @@ does not by itself change peer score or start a cooldown. See
 - No malformed ECDSA or Ed25519 DNSSEC public key or signature should be treated as validated.
 - No HTTPS/SVCB ALPN value should cause the gateway to select an origin protocol that the configured transport does not support; if SVCB disables default ALPN and no supported protocol remains, fail closed.
 - No NSEC denial proof should be accepted unless the NSEC RRset signature validates first.
+- No authenticated negative result should outlive its SOA or participating
+  NSEC/NSEC3 RRSIG expiry, even when another denial record has a longer TTL.
 - No NSEC name error should be accepted unless the queried name is covered and the applicable wildcard under the closest encloser is also denied.
 - No NSEC3 denial proof should be accepted unless every participating NSEC3 RRset signature validates first.
 - No NSEC3 name error should be accepted unless the closest encloser matches, the next closer is covered, and the applicable wildcard is also denied.
@@ -200,13 +210,26 @@ does not by itself change peer score or start a cooldown. See
 - No NSEC3 hash algorithm other than SHA-1 should be accepted until a safe transition mechanism is implemented.
 - No TLSA downgrade without an explicit policy event.
 - No TLSA record should influence HTTPS trust unless its exact `_port._tcp.host` resolver result is DNSSEC-secure.
+- Unsigned TLSA bytes may be ignored only when the selected ICANN delegation is
+  independently proven insecure; the same bytes under secure, bogus, or
+  indeterminate DNSSEC cannot become WebPKI fallback.
 - No HNS-strict HTTPS connection should proceed without a DNSSEC-secure TLSA match.
 - No HNS HTTPS connection may select WebPKI in place of a DNSSEC-secure TLSA match.
+- No HNS address presence with missing required TLSA may be reclassified as
+  authenticated HNS absence; it is a root failure that prevents silent ICANN
+  selection.
 - No public recursive HNS DoH endpoint may be selected by settings, persisted policy, raw gateway metadata, JNI, the Apple C ABI, or the resolver plan.
 - No unbounded or panic-prone X.509 parsing for DANE SPKI selector matching.
 - No QUIC downgrade without an explicit policy event.
 - No local gateway listener beyond loopback and no fixed browser proxy port in normal app startup. Android and iOS intentionally apply the authenticated Rust proxy to their browser data store/WebView without failover to a direct DNS-named origin route. Neither platform keeps a browser proxy listener after its owning foreground browser lifecycle is revoked.
-- No dotted host under the vendored IANA root-zone TLD snapshot should be routed into HNS resolution; normal ICANN destinations such as `discord.gg` must stay on the WebView/ICANN path.
+- No vendored IANA/root-zone list may authoritatively select a namespace. Every canonical complete hostname must be resolved independently through HNS and ICANN, with HNS-only, ICANN-only, convergent, divergent, neither, and indeterminate outcomes handled explicitly before any origin connection.
+- No successful response may expose a newly selected divergent namespace until
+  its sticky selection has been durably recorded. Persistence failure withholds
+  the response.
+- No dual-root trace may collapse unselected-root attempts into the selected
+  namespace attribution. All DNS attempts remain available as partitioned HNS,
+  ICANN, or diagnostic root evidence while top-level trust fields describe only
+  the selected plan.
 - No origin fetch unless the gateway resolution name matches the requested origin host.
 - No intercepted HNS redirect should be followed unless the target has the same scheme, host, and effective port and the redirect chain stays under the configured bound.
 - No main-frame HNS gateway 4xx/5xx response should leave the toolbar in verified state.
@@ -225,4 +248,4 @@ does not by itself change peer score or start a cooldown. See
 - No main-frame non-HTTP(S) URL should be passed through to WebView except `about:blank`; external schemes require explicit Android intent handling and unsupported schemes are blocked.
 - No mixed-content downgrade should be allowed inside the WebView.
 - No production build should enable WebView debugging.
-- Browser proxy listeners bind randomized `127.0.0.1` ports only while their owning browser lifecycle is active. Android and iOS apply no-failover browser-wide proxy routing: the optional immutable HNS scope reaches the native persistent-runtime gateway and all other HNS roots fail closed, while ICANN traffic can use only the validating resolver and explicit public-address path. Both modes enforce authentication, bounded concurrency/framing, header sanitization, streamed responses, exact live certificate authorization, and joined teardown.
+- Browser proxy listeners bind randomized `127.0.0.1` ports only while their owning browser lifecycle is active. Android and iOS apply no-failover browser-wide proxy routing: every canonical DNS hostname reaches the native persistent-runtime dual-root gateway, while public IP literals use only the explicit bounded address path. The proxy enforces authentication, bounded concurrency/framing, header sanitization, streamed responses, exact live certificate authorization, and joined teardown.

@@ -19,7 +19,8 @@ The resolution order is:
 2. locally verified current Handshake root state and name proof;
 3. proof-declared authoritative DoH;
 4. direct authoritative UDP/TCP DNS;
-5. the optional HNS P2P recursive relay (enabled by default for new installs).
+5. the optional HNS P2P recursive relay (requester consumption is off by
+   default and requires explicit opt-in).
 
 A successful authoritative DoH exchange suppresses direct DNS and P2P relay.
 A successful direct authoritative exchange suppresses the relay. The P2P path
@@ -54,6 +55,10 @@ The Rust requester uses a relay-only version handshake with
 untrusted DNS transport, not advertising that it can serve headers, proofs, or
 relay requests on that connection. This does not relax the requirement that the
 remote peer's current handshake advertise the relay capability.
+
+Requester consent is distinct from network service roles. The browser does not
+become an output node. Opaque relayer capacity is default-on/opt-out in the
+companion network role, while output-node serving is explicit opt-in.
 
 The remote version height observed by an automatic relay connection or a manual
 static-relay capability probe is not authenticated as a sync target. Those paths

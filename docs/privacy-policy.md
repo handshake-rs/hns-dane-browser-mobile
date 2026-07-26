@@ -18,7 +18,7 @@ The app may store the following data on the device:
 - Website data: cookies and other storage managed by Android WebView or Apple WebKit.
 - Downloads: files saved at your request and platform-specific local records needed to complete or present those downloads. Android records may include the URL, file name, MIME type, DownloadManager ID, and queued time; iOS saves completed files in the app's local Documents/Downloads directory until you export or remove the app.
 - HNS data: synced headers, peer records (including manually added relay-peer IP endpoints), verified resource values, resolver cache, and resolver diagnostics.
-- Settings: homepage, cookie preference, optional HNS P2P DNS relay, and related app preferences. Upgrades erase the former public recursive HNS DoH setting and force strict HNS trust. An explicit former compatibility preference is not treated as consent to the relay when no independent relay choice was saved.
+- Settings: homepage, cookie preference, optional HNS P2P DNS relay requester, and related app preferences. Relay consumption is off by default and requires explicit opt-in. Upgrades erase the former public recursive HNS DoH setting and force strict HNS trust; a former compatibility preference is never treated as relay consent.
 
 This local data is used only to provide browser functionality, diagnostics, and HNS resolution. It is not sold. It is not sent to a Denuo Web analytics or advertising service.
 
@@ -28,7 +28,7 @@ To provide browser functionality, HNS DANE Browser may connect to:
 
 - Websites and web services that you choose to open.
 - Handshake peers and DNS seed hosts for header sync, peer discovery, and proof retrieval.
-- Relay-capable Handshake peers for recursive HNS DNS queries after local proof validation and authoritative DNS attempts fail. New Android and iOS installs enable this experimental path by default. Upgrades preserve an independent relay choice, but do not convert an explicit former public-DoH/compatibility choice into relay consent. A manual relay peer must be entered as an IP-literal endpoint and is stored only after its live HSD handshake advertises the relay capability.
+- Relay-capable Handshake peers for recursive HNS DNS queries after local proof validation and authoritative DNS attempts fail, but only after the user opts into requester consumption. Upgrades preserve an independent relay choice and never convert a former public-DoH/compatibility choice into consent. A manual relay peer must be entered as an IP-literal endpoint and is stored only after its live HSD handshake advertises the relay capability. The browser does not become an output node.
 - Authoritative DNS nameservers for delegated HNS names.
 - Proof-bootstrapped or RFC 9461-discovered RFC 8484 authoritative DoH endpoints for delegated HNS names.
 - Security or reputation services exposed by the platform web engine. In particular, an installed Android WebView provider may check URLs with its Safe Browsing service and apply its own privacy policy. Apple WebKit and the operating system may apply their own browser-security protections. HNS DANE Browser does not operate those platform services.
@@ -38,7 +38,7 @@ To provide browser functionality, HNS DANE Browser may connect to:
 
 These network endpoints may receive technical information that is normal for network communication, such as your IP address, the requested host or URL, protocol metadata, and any data you submit to websites. Cloudflare controls its own resolver logging, retention, and privacy practices; Denuo Web does not operate that service. In particular, an HNS relay peer can observe the queried DNS name and record type together with your P2P connection and network address. An ordinary Handshake TCP connection is not query-confidential; encrypted peer transport should be preferred where available. The relay response is still validated locally through the app's Handshake proof, DNSSEC, TLSA, and DANE checks, and the peer's DNS authenticated-data bit is not trusted.
 
-Public recursive HNS DNS-over-HTTPS and HNS WebPKI fallback are prohibited. HNS uses direct proof-backed resolution, proof-anchored authoritative DoH where declared, and the optional P2P relay, with DNSSEC and DANE validation remaining local. Ordinary ICANN browsing continues to use the bounded Cloudflare DoH and WebPKI path described above.
+Public recursive HNS DNS-over-HTTPS and HNS WebPKI fallback are prohibited. HNS uses direct proof-backed resolution, proof-anchored authoritative DoH where declared, and the optional P2P relay, with DNSSEC and DANE validation remaining local. Every complete DNS hostname is also resolved through bounded validating ICANN DoH for dual-root classification; ICANN WebPKI is allowed only after authenticated TLSA denial or a proven unsigned zone.
 
 HTTPS, DNSSEC, and DANE are used where applicable. If you intentionally open a cleartext `http://` site, that site connection is not encrypted by HTTPS.
 

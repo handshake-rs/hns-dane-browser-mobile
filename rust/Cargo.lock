@@ -565,15 +565,18 @@ dependencies = [
  "hns-chain",
  "hns-core",
  "hns-dane",
+ "hns-dnssec",
  "hns-gateway",
  "hns-icann-dane",
  "hns-loopback-proxy",
+ "hns-namespace-resolution",
  "hns-p2p",
  "hns-resolver",
  "hns-sync",
  "hns-transport",
  "hns-urkel",
  "httparse",
+ "rusqlite",
  "sha2",
  "thiserror 2.0.18",
 ]
@@ -636,6 +639,7 @@ dependencies = [
  "hns-core",
  "hns-dane",
  "hns-icann-dane",
+ "hns-namespace-resolution",
  "hns-resolver",
  "hns-transport",
  "subtle",
@@ -664,6 +668,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "hns-namespace-resolution"
+version = "0.1.0"
+
+[[package]]
 name = "hns-p2p"
 version = "0.5.0"
 dependencies = [
@@ -683,6 +691,7 @@ dependencies = [
  "hns-core",
  "hns-dane",
  "hns-dnssec",
+ "hns-namespace-resolution",
  "rusqlite",
  "thiserror 2.0.18",
 ]

@@ -26,8 +26,8 @@ No physical-device pass is currently claimed. Before final App Review, arrange a
 - Confirm DNSSEC bogus/indeterminate responses, malformed TLSA, resolver timeout/error, and DANE mismatch fail closed rather than becoming WebPKI.
 - Confirm canonical public IP-literal HTTPS retains the bounded opaque CONNECT/WebKit WebPKI path without target DNS.
 - Confirm ordinary ICANN HTTP uses Rust's bounded direct forwarder.
-- Confirm the active HNS root and its subdomains use Rust HNS resolution, DNSSEC, DANE, and local CONNECT termination.
-- Confirm another HNS root, malformed host, special-use name, loopback/private/link-local address, and browser-blocked port fail before any system resolver or outbound socket is called.
+- Confirm HNS-only complete hosts use Rust HNS resolution, DNSSEC, DANE, and local CONNECT termination.
+- Confirm a complete host that exists in both roots reports convergent or divergent state and the selected namespace; malformed hosts, special-use names, loopback/private/link-local addresses, and browser-blocked ports must fail before any system resolver or outbound socket is called.
 - Confirm an absent, stopped, or authentication-rejecting loopback proxy never causes WebKit to connect directly.
 - Confirm no HNS DNS, HTTP/3, QUIC, or fallback traffic leaves the device outside the Rust-selected transports.
 - Confirm proxy credentials never appear in origin request headers, logs, diagnostic JSON, or crash reports.
@@ -41,7 +41,7 @@ For each case below, record that WebKit delivered the server-trust challenge, th
 - a new subdomain that requires a separate generated local certificate;
 - Service Worker install, activation, controlled fetch, and fetch after rotation;
 - `wss://` and HTTP Upgrade;
-- same-origin and rejected cross-scope redirects;
+- same-origin and cross-origin redirects, with each destination receiving its own retained namespace plan;
 - back-forward cache restoration;
 - renderer and WebKit network-process restart.
 
@@ -60,7 +60,7 @@ Presenting an unrelated certificate, another host's certificate, or a stopped ge
 
 - Repeat the Android parity cases for GET, POST, uploads, range requests, redirects, cookies, JavaScript fetch/XHR, Service Workers, WebSockets, downloads, HTTP/1.1, HTTP/2, HTTP/3 origin transport, IPv4, and IPv6.
 - Exercise `https://denuoweb/` for proof-anchored authoritative DoH and a second HNS origin whose direct authoritative path is unavailable; verify that the second origin uses the independently enabled P2P relay or fails closed, and compare bounded security traces with Android.
-- Verify the strict HNS trust invariant, absence of public recursive HNS DoH and HNS WebPKI fallback, explicit relay opt-out, legacy-policy migration, stateless DANE, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
+- Verify the strict HNS trust invariant, absence of public recursive HNS DoH and HNS WebPKI fallback, explicit requester opt-in for relay consumption, legacy-policy migration, stateless-DANE fail-closed behavior, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
 
 ## Apple References
 

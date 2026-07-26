@@ -231,11 +231,11 @@ class BrowserProxyCoordinatorTest {
         assertEquals(listOf("alpha"), proxy.discardedHosts)
         assertTrue(fixture.availability.last())
         assertEquals(BrowserProxyRoute.Proxy, fixture.coordinator.routeForHnsHost("sub.alpha"))
-        assertEquals(BrowserProxyRoute.Block, fixture.coordinator.routeForHnsHost("other"))
+        assertEquals(BrowserProxyRoute.Proxy, fixture.coordinator.routeForHnsHost("other"))
     }
 
     @Test
-    fun activeRootScopeIsReusedForSubdomainAndOldStatusIsDiscardedFirst() {
+    fun activeWholeBrowserProxyIsReusedForAnotherDnsHostAndOldStatusIsDiscardedFirst() {
         val fixture = Fixture()
         val proxy = fixture.activate("alpha")
         fixture.loads.clear()
@@ -253,33 +253,22 @@ class BrowserProxyCoordinatorTest {
     }
 
     @Test
-    fun scopeRotationRevokesClearsJoinsThenStartsReplacement() {
+    fun hostChangeReusesTheImmutableWholeBrowserProxyGeneration() {
         val fixture = Fixture()
         val first = fixture.activate("alpha")
         fixture.loads.clear()
-        val second = fixture.proxy("beta", port = 43211)
-        fixture.factory.results += second
 
         fixture.coordinator.navigate(fixture.config("beta"), "beta") {
             fixture.loads += "beta"
         }
 
-        assertEquals(1, first.stopCalls)
-        assertFalse(fixture.coordinator.isProxyAvailable)
-        assertEquals(1, fixture.overrideController.clearCalls)
-        assertEquals(1, fixture.worker.size)
-        assertTrue(fixture.factory.startedConfigs.none { it.scopeHost == "beta" })
-
-        fixture.overrideController.completeClear()
-        assertEquals(1, fixture.worker.size)
-        fixture.worker.runNext()
-        assertEquals(1, first.joinCalls)
-        assertTrue(fixture.factory.startedConfigs.none { it.scopeHost == "beta" })
-
-        fixture.worker.runNext()
-        assertEquals("beta", fixture.factory.startedConfigs.last().scopeHost)
-        fixture.overrideController.completeApply(true)
         assertEquals(listOf("beta"), fixture.loads)
+        assertEquals(listOf("beta"), first.discardedHosts.takeLast(1))
+        assertEquals(0, first.stopCalls)
+        assertEquals(0, first.joinCalls)
+        assertEquals(0, fixture.overrideController.clearCalls)
+        assertEquals(0, fixture.worker.size)
+        assertEquals(1, fixture.factory.startedConfigs.size)
         assertTrue(fixture.coordinator.isProxyAvailable)
     }
 
@@ -296,7 +285,7 @@ class BrowserProxyCoordinatorTest {
         }
         fixture.worker.runNext()
 
-        fixture.coordinator.navigate(fixture.config("beta"), "beta") {
+        fixture.coordinator.navigate(fixture.config("beta", strict = true), "beta") {
             fixture.loads += "beta"
         }
         assertEquals(1, first.stopCalls)
@@ -321,7 +310,9 @@ class BrowserProxyCoordinatorTest {
         fixture.activate("alpha")
         fixture.loads.clear()
         fixture.factory.results += fixture.proxy("beta", port = 43211)
-        fixture.coordinator.navigate(fixture.config("beta"), "beta") { fixture.loads += "beta" }
+        fixture.coordinator.navigate(fixture.config("beta", strict = true), "beta") {
+            fixture.loads += "beta"
+        }
         fixture.overrideController.completeClear()
         fixture.worker.runNext()
         fixture.worker.runNext()
@@ -329,7 +320,9 @@ class BrowserProxyCoordinatorTest {
         assertEquals(listOf("beta"), fixture.loads)
 
         fixture.factory.results += fixture.proxy("gamma", port = 43212)
-        fixture.coordinator.navigate(fixture.config("gamma"), "gamma") { fixture.loads += "gamma" }
+        fixture.coordinator.navigate(fixture.config("gamma", strict = false), "gamma") {
+            fixture.loads += "gamma"
+        }
         assertEquals(2, fixture.overrideController.clearCalls)
 
         fixture.overrideController.repeatPreviousClear()
@@ -359,23 +352,19 @@ class BrowserProxyCoordinatorTest {
     }
 
     @Test
-    fun overlappingSameScopeNavigationRotatesGenerationBeforeLoadingAgain() {
+    fun overlappingNavigationReusesWholeBrowserGenerationAndDiscardsOldStatus() {
         val fixture = Fixture()
         val first = fixture.activate("alpha", completeNavigation = false)
-        val second = fixture.proxy("alpha", port = 43211)
-        fixture.factory.results += second
 
         fixture.coordinator.navigate(fixture.config("alpha"), "alpha") {
             fixture.loads += "second"
         }
 
-        assertEquals(1, first.stopCalls)
-        assertEquals(1, fixture.overrideController.clearCalls)
-        fixture.overrideController.completeClear()
-        fixture.worker.runNext()
-        fixture.worker.runNext()
-        fixture.overrideController.completeApply(true)
         assertEquals(listOf("alpha", "second"), fixture.loads)
+        assertEquals(listOf("alpha", "alpha"), first.discardedHosts)
+        assertEquals(0, first.stopCalls)
+        assertEquals(0, fixture.overrideController.clearCalls)
+        assertEquals(1, fixture.overrideController.applyCalls.size)
     }
 
     @Test
@@ -394,7 +383,10 @@ class BrowserProxyCoordinatorTest {
             BrowserProxyRoute.CompatibilityInterceptor,
             fixture.coordinator.routeForHnsHost("sub.alpha"),
         )
-        assertEquals(BrowserProxyRoute.Block, fixture.coordinator.routeForHnsHost("other"))
+        assertEquals(
+            BrowserProxyRoute.CompatibilityInterceptor,
+            fixture.coordinator.routeForHnsHost("other"),
+        )
         assertTrue(fixture.overrideController.applyCalls.isEmpty())
 
         val replacement = fixture.proxy("alpha")

@@ -8,15 +8,15 @@
 use hns_chain::{DifficultyPolicy, HeaderChain, SqliteHeaderStore, mainnet_sync_checkpoints};
 use hns_core::dns::{
     DnsEncodeConfig, DnsFlags, DnsHeader, DnsMessage, DnsName, DnsQuestion, RecordType,
-    ResourceRecord,
+    ResourceRecord, SVCB_PARAM_MANDATORY, SVCB_PARAM_NO_DEFAULT_ALPN, SvcbRecord,
 };
 pub use hns_core::network::NetworkKind;
-use hns_core::network_policy::browser_special_use_suffixes;
 use hns_core::{BlockHeader, HEADER_SIZE, Height, NameHash};
 use hns_dane::{
     DaneDecision, MAX_STATELESS_DANE_ROOTS, StatelessDaneConfig, TlsaMatching, TlsaRecord,
     TlsaSelector, TlsaUsage,
 };
+use hns_dnssec::RrsigRecord;
 use hns_gateway::{Gateway, GatewayConfig, GatewayError, GatewayRequest};
 use hns_icann_dane::{DnssecQueryMode, ResolverAuthentication, TlsaOwner};
 use hns_loopback_proxy::{
@@ -28,6 +28,14 @@ use hns_loopback_proxy::{
     ProxySessionId, ProxyTunnel, ProxyTunnelIo, ProxyTunnelOpen, RunningProxy,
     SessionIdGenerationError,
 };
+use hns_namespace_resolution::{
+    AbsenceKind, AliasKind, AliasStep, ApplicationProtocol, CanonicalHost, CanonicalTlsa,
+    DecisionCacheKey, DefaultPrecedence, EvidenceProvenance, Freshness, HnsNetwork,
+    IcannChainState, Namespace, NamespaceDecision, OriginPlanInput, OriginQuery, OriginScheme,
+    OutcomeKind, ProtocolCapabilities, RootFailure, RootFailureKind, RootLookup, SelectionPolicy,
+    SelectionReason, ServiceBinding, ServiceBindingInput, ServiceParameter, ServiceTransport,
+    TlsTrustPolicy, ValidatedAbsence, ValidatedOriginPlan, decide_namespace,
+};
 use hns_p2p::{
     DnsRelayClient, DnsRelayClientError, DnsSeedPeerSource, EXPERIMENTAL_DNS_RELAY_SERVICE,
     HeaderSyncSession, PeerConnection, PeerSource, SERVICE_NETWORK, SqlitePeerStore,
@@ -35,28 +43,33 @@ use hns_p2p::{
 };
 use hns_resolver::{
     AuthoritativeDnssecResolver, AuthoritativeDohEndpoint, AuthoritativeDohTlsAuthentication,
-    CompositeResolver, DelegatedResolver, DelegatingResolver, DnsEndpointPolicy,
-    DnsInterceptionStatus, DnsTransport, HnsDelegation, HnsProofProvider, HnsResourceValueProvider,
-    NameClass, ProvenNameRecords, ResolutionAnswer, ResolutionRequest, Resolver, ResolverError,
+    DelegatedResolver, DelegatingResolver, DnsEndpointPolicy, DnsInterceptionStatus, DnsTransport,
+    HnsDelegation, HnsProofProvider, HnsResourceValueProvider, NameClass,
+    NamespaceResolutionMetadata, NamespaceRootState, PreparedNamespaceResolution,
+    ProvenNameRecords, ResolutionAnswer, ResolutionRequest, Resolver, ResolverError,
     ResourceValueAnchor, SqliteResourceValueProvider, SystemDnssecVerifier, UdpTcpDnsTransport,
-    browser_icann_tld_snapshot, classify_name, hns_root_label,
+    classify_name, hns_root_label,
 };
 use hns_sync::{
     HeaderSyncCoordinator, HeaderSyncRunner, HeaderSyncRunnerConfig, ProofScheduler, SyncError,
     TcpHeaderPeerConnector,
 };
 pub use hns_transport::DEFAULT_MAX_REQUEST_BODY_BYTES;
+#[cfg(test)]
+use hns_transport::TransportLimits;
 use hns_transport::{
     OriginProtocol, OriginRequest, OriginResponse, OriginResponseHead, OriginTransport, ReadWrite,
     TcpHttpTransport, TlsCertificateInspection, TlsValidation, TlsaRecordSource, TlsaTransport,
-    TransportError, TransportLimits,
+    TransportError,
 };
 use hns_urkel::UrkelProofVerifier;
+use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, UdpSocket};
+use std::num::NonZeroU16;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock, RwLock, RwLockReadGuard, TryLockError, Weak};
@@ -69,8 +82,10 @@ pub const MAX_GATEWAY_HEADER_TEXT_BYTES: usize = 64 * 1024;
 pub const MAX_BROWSER_PROXY_RESOLUTION_TRACE_JSON_BYTES: usize = 64 * 1024;
 const MAX_STATIC_RELAY_PEER_ENDPOINT_BYTES: usize = 320;
 
-/// Shared browser-facing classification; native shells must not duplicate
-/// the resolver's generated ICANN and special-use namespace policy.
+/// Legacy diagnostic classification retained for compatibility.
+///
+/// Browser routing must use [`classify_browser_host`] and the retained
+/// full-host dual-root decision instead of this suffix-list result.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BrowserNameClass {
@@ -79,15 +94,15 @@ pub enum BrowserNameClass {
     Search = 2,
 }
 
-/// Browser-shell routing class derived entirely from the shared namespace
-/// policy. ICANN gateway admission is automatic and no hostname exception is
-/// represented here.
+/// Browser-shell admission class. It distinguishes syntax/IP handling only;
+/// Rust resolves every DNS hostname through both namespaces before routing.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BrowserHostClass {
     Hns = 0,
     Icann = 1,
-    Search = 2,
+    NativeGateway = 2,
+    Search = 3,
 }
 
 pub fn classify_browser_name(input: &str) -> BrowserNameClass {
@@ -99,124 +114,31 @@ pub fn classify_browser_name(input: &str) -> BrowserNameClass {
 }
 
 pub fn classify_browser_host(input: &str) -> BrowserHostClass {
-    match classify_browser_name(input) {
-        BrowserNameClass::Hns => BrowserHostClass::Hns,
-        BrowserNameClass::Icann => BrowserHostClass::Icann,
-        BrowserNameClass::Search => BrowserHostClass::Search,
+    let Some(host) = canonical_browser_host(input) else {
+        return BrowserHostClass::Search;
+    };
+    if host.parse::<IpAddr>().is_ok() {
+        BrowserHostClass::Icann
+    } else {
+        // DNS names are namespace-agnostic until the complete host has been
+        // resolved through both roots and one retained plan is selected.
+        BrowserHostClass::NativeGateway
     }
 }
 
-/// Returns the Android document-start policy used to keep WebSockets native
-/// while rejecting cross-scope HNS targets. Rust emits the complete policy so
-/// the Android shell cannot drift from the resolver's IANA and special-use
-/// namespace snapshots.
+/// Returns the Android document-start marker for the process-wide proxy.
+///
+/// JavaScript performs no namespace classification: WebSockets use the same
+/// authenticated retained proxy and Rust dual-root decision as other traffic.
 pub fn browser_websocket_scope_policy_script() -> &'static str {
-    static SCRIPT: OnceLock<String> = OnceLock::new();
-    SCRIPT.get_or_init(|| {
-        let icann_tlds = browser_icann_tld_snapshot()
-            .lines()
-            .map(|value| format!("'{value}'"))
-            .collect::<Vec<_>>()
-            .join(",");
-        let special_use_suffixes = browser_special_use_suffixes()
-            .iter()
-            .map(|value| format!("'{value}'"))
-            .collect::<Vec<_>>()
-            .join(",");
-
-        let mut script = String::with_capacity(icann_tlds.len() + special_use_suffixes.len() + 3_200);
-        script.push_str(
-            r#"(function() {
+    r#"(function() {
   'use strict';
   if (window.__hnsProxyWebSocketPolicyInstalled) return;
   window.__hnsProxyWebSocketPolicyInstalled = true;
-  window.__hnsRustNamespacePolicyVersion = 1;
-
-  var NativeWebSocket = window.WebSocket;
-  if (!NativeWebSocket) return;
-  var icannTlds = new Set(["#,
-        );
-        script.push_str(&icann_tlds);
-        script.push_str(
-            r#"]);
-  var specialUseSuffixes = new Set(["#,
-        );
-        script.push_str(&special_use_suffixes);
-        script.push_str(
-            r#"]);
-
-  function normalizeHost(host) {
-    return String(host || '').replace(/^\[/, '').replace(/\]$/, '').replace(/\.+$/, '').toLowerCase();
-  }
-
-  function isIpLiteral(host) {
-    if (!host) return false;
-    if (host.indexOf(':') !== -1) return /^[0-9a-f:.]+$/i.test(host);
-    var parts = host.split('.');
-    if (parts.length !== 4) return false;
-    return parts.every(function(part) {
-      if (!/^[0-9]{1,3}$/.test(part)) return false;
-      var value = Number(part);
-      return value >= 0 && value <= 255;
-    });
-  }
-
-  function isValidDnsHost(host) {
-    if (!host || host.length > 253) return false;
-    return host.split('.').every(function(label) {
-      return label.length > 0 &&
-        label.length <= 63 &&
-        label.charAt(0) !== '-' &&
-        label.charAt(label.length - 1) !== '-' &&
-        /^[a-z0-9-]+$/i.test(label);
-    });
-  }
-
-  function requiresHnsResolution(host) {
-    host = normalizeHost(host);
-    if (!isValidDnsHost(host) || isIpLiteral(host)) return false;
-    var labels = host.split('.');
-    var suffix = labels[labels.length - 1];
-    if (specialUseSuffixes.has(suffix)) return false;
-    if (labels.length === 1) return true;
-    return !icannTlds.has(suffix);
-  }
-
-  function inPageScope(targetHost, pageHost) {
-    return targetHost === pageHost || targetHost.endsWith('.' + pageHost);
-  }
-
-  function ProxyScopedWebSocket(url, protocols) {
-    if (!(this instanceof ProxyScopedWebSocket)) {
-      throw new TypeError("Failed to construct 'WebSocket': Please use the 'new' operator.");
-    }
-    var pageUrl;
-    var targetUrl;
-    try {
-      pageUrl = new URL(window.location.href);
-      targetUrl = new URL(url, window.location.href);
-    } catch (error) {
-      return protocols === undefined ? new NativeWebSocket(url) : new NativeWebSocket(url, protocols);
-    }
-    var pageHost = normalizeHost(pageUrl.hostname);
-    var targetHost = normalizeHost(targetUrl.hostname);
-    if (requiresHnsResolution(targetHost) &&
-        (!requiresHnsResolution(pageHost) || !inPageScope(targetHost, pageHost))) {
-      throw new DOMException('HNS WebSocket target is outside the active proxy scope.', 'SecurityError');
-    }
-    return protocols === undefined ? new NativeWebSocket(url) : new NativeWebSocket(url, protocols);
-  }
-
-  ProxyScopedWebSocket.prototype = NativeWebSocket.prototype;
-  ProxyScopedWebSocket.CONNECTING = NativeWebSocket.CONNECTING;
-  ProxyScopedWebSocket.OPEN = NativeWebSocket.OPEN;
-  ProxyScopedWebSocket.CLOSING = NativeWebSocket.CLOSING;
-  ProxyScopedWebSocket.CLOSED = NativeWebSocket.CLOSED;
-  window.WebSocket = ProxyScopedWebSocket;
-})();"#,
-        );
-        script
-    })
+  window.__hnsRustNamespacePolicyVersion = 2;
+  // Namespace routing is enforced by the process-wide authenticated proxy.
+  // JavaScript cannot safely or synchronously reproduce dual-root DNS.
+})();"#
 }
 
 /// Canonicalizes a DNS host or strict IP literal for proxy status identity.
@@ -237,7 +159,7 @@ pub fn canonical_browser_host(input: &str) -> Option<String> {
         .map(|host| host.to_string())
 }
 
-/// Returns the canonical HNS root label only for an HNS-classified input.
+/// Legacy diagnostic helper. It is not an authoritative browser route.
 pub fn browser_hns_root_label(input: &str) -> Option<String> {
     (classify_name(input) == NameClass::Hns)
         .then(|| hns_root_label(input).ok())
@@ -253,6 +175,7 @@ const DNSSEC_DO_FLAG: u32 = 0x8000;
 const DEFAULT_DNS_UDP_PAYLOAD: usize = 1232;
 const DEFAULT_GATEWAY_PROOF_PEERS: usize = 8;
 const DEFAULT_GATEWAY_PROOF_TIMEOUT: Duration = Duration::from_secs(3);
+const NAMESPACE_EVIDENCE_MAX_TTL_SECONDS: u64 = 30;
 const DNS_INTERCEPTION_PROBE_TIMEOUT: Duration = Duration::from_millis(350);
 const DNS_INTERCEPTION_PROBE_ID: u16 = 0x484a;
 const DNS_INTERCEPTION_PROBE_NAME: &str = "hns-dns-interception-probe.invalid";
@@ -280,14 +203,19 @@ const ICANN_DOH_BOOTSTRAP_ADDRESSES: &[IpAddr] = &[
     IpAddr::V4(Ipv4Addr::new(1, 0, 0, 1)),
     IpAddr::V6(Ipv6Addr::new(0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 0x1001)),
 ];
+#[cfg(test)]
 const WHOLE_BROWSER_DOH_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WHOLE_BROWSER_DOH_READ_TIMEOUT: Duration = Duration::from_secs(5);
-const WHOLE_BROWSER_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(6);
+#[cfg(test)]
 const WHOLE_BROWSER_DOH_IO_POLL: Duration = Duration::from_millis(25);
 const WHOLE_BROWSER_TCP_READ_POLL: Duration = Duration::from_millis(25);
+#[cfg(test)]
 const WHOLE_BROWSER_DOH_MAX_REQUEST_BODY_BYTES: usize = DEFAULT_DNS_UDP_PAYLOAD;
+#[cfg(test)]
 const WHOLE_BROWSER_DOH_MAX_RESPONSE_HEADER_BYTES: usize = 16 * 1024;
+#[cfg(test)]
 const WHOLE_BROWSER_DOH_MAX_RESPONSE_BODY_BYTES: usize = u16::MAX as usize;
+#[cfg(test)]
 const MAX_WHOLE_BROWSER_CNAME_CHAIN: usize = 8;
 const HNS_GATEWAY_STRICT_MODE_HEADER: &str = "X-HNS-Browser-Strict-Mode";
 const HNS_GATEWAY_DOH_RESOLVER_HEADER: &str = "X-HNS-Browser-DoH-Resolver";
@@ -306,11 +234,42 @@ const PROXY_MAINTENANCE_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const MAX_PROXY_UPGRADE_HEADERS: usize = 256;
 const DOH_DNS_ID: u16 = 0;
 static SHARED_HTTP_TRANSPORT: OnceLock<TcpHttpTransport> = OnceLock::new();
+static SHARED_DIRECT_NAMESPACE_PLANS: OnceLock<SharedNamespacePlans> = OnceLock::new();
+#[cfg(test)]
+static TEST_ICANN_AUTHENTICATED_ABSENCE: OnceLock<Mutex<HashMap<PathBuf, HashSet<String>>>> =
+    OnceLock::new();
 
 fn shared_http_transport() -> TcpHttpTransport {
     SHARED_HTTP_TRANSPORT
         .get_or_init(TcpHttpTransport::default)
         .clone()
+}
+
+fn shared_direct_namespace_plans() -> SharedNamespacePlans {
+    Arc::clone(SHARED_DIRECT_NAMESPACE_PLANS.get_or_init(|| Arc::new(Mutex::new(HashMap::new()))))
+}
+
+#[cfg(test)]
+fn register_test_icann_authenticated_absence(base: &Path, host: &str) {
+    if let Ok(mut fixtures) = TEST_ICANN_AUTHENTICATED_ABSENCE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+    {
+        fixtures
+            .entry(base.to_path_buf())
+            .or_default()
+            .insert(host.trim_end_matches('.').to_ascii_lowercase());
+    }
+}
+
+#[cfg(test)]
+fn test_icann_authenticated_absence(base: &Path, host: &str) -> bool {
+    TEST_ICANN_AUTHENTICATED_ABSENCE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .ok()
+        .and_then(|fixtures| fixtures.get(base).cloned())
+        .is_some_and(|hosts| hosts.contains(&host.trim_end_matches('.').to_ascii_lowercase()))
 }
 
 pub struct GatewayHttpRequestInput<'a> {
@@ -802,53 +761,25 @@ pub struct RuntimeProxyBackend {
     runtime: BrowserRuntime,
 }
 
-/// Bounded ICANN DoH resolver and explicit-address TCP dialer used by the
-/// whole-browser proxy. It deliberately has no hostname-based TCP path.
+/// Explicit-address TCP dialer used only by the public-IP compatibility path.
+///
+/// DNS-name resolution is deliberately unavailable here: every DNS hostname
+/// must enter the retained dual-root backend, so an accidental legacy ICANN
+/// route fails closed instead of bypassing namespace comparison.
 #[derive(Clone, Copy, Debug, Default)]
 struct WholeBrowserIcannNetwork;
 
 impl IcannNetwork for WholeBrowserIcannNetwork {
     fn resolve(
         &self,
-        host: &str,
-        port: u16,
+        _host: &str,
+        _port: u16,
         cancellation: &ProxyCancellationToken,
     ) -> Result<Vec<SocketAddr>, IcannNetworkError> {
         if cancellation.is_cancelled() {
             return Err(IcannNetworkError::Cancelled);
         }
-        if classify_name(host) != NameClass::Icann {
-            return Err(IcannNetworkError::ResolutionFailed);
-        }
-        let qname = DnsName::from_ascii(host).map_err(|_| IcannNetworkError::ResolutionFailed)?;
-        let now = Instant::now();
-        let deadline = now
-            .checked_add(WHOLE_BROWSER_RESOLUTION_TIMEOUT)
-            .unwrap_or(now);
-        let mut addresses = Vec::new();
-        let mut successful_query = false;
-        for record_type in [RecordType::A, RecordType::Aaaa] {
-            match resolve_whole_browser_icann_family(&qname, record_type, cancellation, deadline) {
-                Ok(resolved) => {
-                    successful_query = true;
-                    for address in resolved {
-                        let socket = SocketAddr::new(address, port);
-                        if !addresses.contains(&socket) {
-                            addresses.push(socket);
-                        }
-                    }
-                }
-                Err(IcannNetworkError::Cancelled) => return Err(IcannNetworkError::Cancelled),
-                Err(IcannNetworkError::ResolutionFailed | IcannNetworkError::ConnectionFailed) => {}
-            }
-        }
-        if cancellation.is_cancelled() {
-            return Err(IcannNetworkError::Cancelled);
-        }
-        if !successful_query || addresses.is_empty() {
-            return Err(IcannNetworkError::ResolutionFailed);
-        }
-        Ok(addresses)
+        Err(IcannNetworkError::ResolutionFailed)
     }
 
     fn connect(
@@ -878,6 +809,7 @@ impl IcannNetwork for WholeBrowserIcannNetwork {
     }
 }
 
+#[cfg(test)]
 fn resolve_whole_browser_icann_family(
     qname: &DnsName,
     record_type: RecordType,
@@ -915,6 +847,7 @@ fn resolve_whole_browser_icann_family(
     )
 }
 
+#[cfg(test)]
 fn resolve_whole_browser_icann_family_with_fetch<C, F>(
     qname: &DnsName,
     record_type: RecordType,
@@ -952,6 +885,7 @@ where
     Err(IcannNetworkError::ResolutionFailed)
 }
 
+#[cfg(test)]
 fn check_whole_browser_resolution_control<C>(
     is_cancelled: &C,
     deadline: Instant,
@@ -969,6 +903,7 @@ where
         .ok_or(IcannNetworkError::ResolutionFailed)
 }
 
+#[cfg(test)]
 const fn whole_browser_doh_transport_limits() -> TransportLimits {
     TransportLimits {
         max_request_body_bytes: WHOLE_BROWSER_DOH_MAX_REQUEST_BODY_BYTES,
@@ -977,6 +912,7 @@ const fn whole_browser_doh_transport_limits() -> TransportLimits {
     }
 }
 
+#[cfg(test)]
 fn whole_browser_doh_answer_from_body(
     qname: &DnsName,
     record_type: RecordType,
@@ -989,6 +925,7 @@ fn whole_browser_doh_answer_from_body(
     doh_answer_from_body(DOH_DNS_ID, qname, record_type, body)
 }
 
+#[cfg(test)]
 fn addresses_for_dns_owner(
     records: &[ResourceRecord],
     queried_owner: &DnsName,
@@ -1080,6 +1017,7 @@ struct RuntimeInner {
     policy_revision: AtomicU64,
     proxy_session: OnceLock<ProxySessionId>,
     proxy_generation: AtomicU64,
+    namespace_plans: SharedNamespacePlans,
     operation: Mutex<()>,
 }
 
@@ -1174,6 +1112,7 @@ impl BrowserRuntime {
                 policy_revision: AtomicU64::new(0),
                 proxy_session: OnceLock::new(),
                 proxy_generation: AtomicU64::new(0),
+                namespace_plans: Arc::new(Mutex::new(HashMap::new())),
                 operation: Mutex::new(()),
             }),
         })
@@ -1295,9 +1234,9 @@ impl BrowserRuntime {
     }
 
     /// Starts a whole-browser proxy for engines whose proxy match rules cannot
-    /// safely express the HNS namespace. `None` explicitly denies all HNS
-    /// targets while still routing ICANN traffic; `Some` admits exactly that
-    /// immutable HNS root and its subdomains.
+    /// safely express a dual-root decision. The optional scope is retained for
+    /// ABI compatibility but is not authoritative in whole-browser mode:
+    /// every canonical DNS hostname enters the retained Rust plan.
     pub fn start_whole_browser_proxy(
         &self,
         hns_scope_root: Option<&str>,
@@ -1308,10 +1247,10 @@ impl BrowserRuntime {
         )
     }
 
-    /// Starts a whole-browser generation with typed HNS/ICANN status
-    /// observation. DNS-named ICANN HTTPS is locally terminated and routed
-    /// through automatic DANE discovery; public IP literals retain bounded
-    /// opaque CONNECT and browser-engine WebPKI.
+    /// Starts a whole-browser generation with typed namespace status
+    /// observation. DNS-named HTTPS is locally terminated after dual-root
+    /// preparation and automatic DANE discovery; public IP literals retain
+    /// bounded opaque CONNECT and browser-engine WebPKI.
     pub fn start_whole_browser_proxy_with_observer(
         &self,
         hns_scope_root: Option<&str>,
@@ -1830,6 +1769,8 @@ struct PreparedRuntimeGateway {
     mode: GatewayResolutionMode,
     fallback_marker: FallbackMarker,
     dns_trace: DnsTraceRecorder,
+    origin: NamespaceOriginContext,
+    plans: SharedNamespacePlans,
 }
 
 impl BrowserRuntime {
@@ -1882,6 +1823,15 @@ impl BrowserRuntime {
             .map_err(|error| RuntimeError::Operation(format!("open resource cache: {error}")))?;
         let fallback_marker = FallbackMarker::default();
         let dns_trace = DnsTraceRecorder::default();
+        let origin = namespace_origin_context(
+            base.clone(),
+            network,
+            &request.scheme,
+            &request.host,
+            request.port,
+            self.inner.policy_revision.load(Ordering::Acquire),
+        )
+        .map_err(|error| RuntimeError::InvalidConfiguration(error.to_string()))?;
         let resolver = android_gateway_resolver(
             base.clone(),
             values,
@@ -1893,6 +1843,8 @@ impl BrowserRuntime {
                 http: self.inner.transport.clone(),
             },
             dns_trace.clone(),
+            origin.clone(),
+            Arc::clone(&self.inner.namespace_plans),
         );
         let stateless_dane =
             stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
@@ -1916,6 +1868,8 @@ impl BrowserRuntime {
             mode,
             fallback_marker,
             dns_trace,
+            origin,
+            plans: Arc::clone(&self.inner.namespace_plans),
         })
     }
 }
@@ -1958,6 +1912,12 @@ impl ProxyBackend for RuntimeProxyBackend {
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
         }
+        record_successful_namespace_selection(
+            &prepared.origin,
+            &prepared.plans,
+            &prepared.dns_trace,
+        )
+        .map_err(|_| ProxyBackendError::Internal)?;
         proxy_response_from_gateway(
             &self.runtime,
             &request,
@@ -2008,6 +1968,12 @@ impl ProxyBackend for RuntimeProxyBackend {
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
         }
+        record_successful_namespace_selection(
+            &prepared.origin,
+            &prepared.plans,
+            &prepared.dns_trace,
+        )
+        .map_err(|_| ProxyBackendError::Internal)?;
         proxy_tunnel_from_gateway(
             &self.runtime,
             &request,
@@ -2103,7 +2069,10 @@ fn proxy_error_response_from_gateway(
     dns_trace: &DnsTraceRecorder,
 ) -> ProxyResponse {
     let input = runtime_gateway_input(runtime, request);
-    let (status, reason, detail) = map_gateway_error_for_host(&request.host, error);
+    let selected = dns_trace
+        .namespace_snapshot()
+        .and_then(|metadata| metadata.selected);
+    let (status, reason, detail) = map_gateway_error_for_namespace(selected, error);
     let trace = resolution_trace_json(
         &input,
         network,
@@ -2562,6 +2531,76 @@ impl HnsDohEndpoint {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct HnsProofObservation {
+    anchor: ResourceValueAnchor,
+    exists: bool,
+    has_delegation: bool,
+    observed_at_unix: u64,
+    expires_at_unix: u64,
+}
+
+#[derive(Debug, Default)]
+struct HnsProofEvidenceState {
+    observations: HashMap<String, HnsProofObservation>,
+    conflicts: HashSet<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct HnsProofEvidenceRecorder {
+    state: Arc<Mutex<HnsProofEvidenceState>>,
+}
+
+impl HnsProofEvidenceRecorder {
+    fn begin(&self) -> Result<(), ResolverError> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        state.observations.clear();
+        state.conflicts.clear();
+        Ok(())
+    }
+
+    fn record(
+        &self,
+        root_name: &str,
+        observation: HnsProofObservation,
+    ) -> Result<(), ResolverError> {
+        let root_name = root_name.to_ascii_lowercase();
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        if let Some(previous) = state.observations.get_mut(&root_name) {
+            if previous.anchor != observation.anchor
+                || previous.exists != observation.exists
+                || previous.has_delegation != observation.has_delegation
+            {
+                state.conflicts.insert(root_name);
+                return Ok(());
+            }
+            previous.observed_at_unix = previous.observed_at_unix.max(observation.observed_at_unix);
+            previous.expires_at_unix = previous.expires_at_unix.min(observation.expires_at_unix);
+        } else {
+            state.observations.insert(root_name, observation);
+        }
+        Ok(())
+    }
+
+    fn observation(&self, root_name: &str) -> Result<Option<HnsProofObservation>, ResolverError> {
+        let root_name = root_name.to_ascii_lowercase();
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        if state.conflicts.contains(&root_name) {
+            return Err(ResolverError::ProofNameMismatch);
+        }
+        Ok(state.observations.get(&root_name).copied())
+    }
+}
+
 struct GatewayProofProvider {
     base: PathBuf,
     values: SqliteResourceValueProvider,
@@ -2571,6 +2610,7 @@ struct GatewayProofProvider {
     seed_on_empty: bool,
     peer_state: Option<Arc<Mutex<()>>>,
     proof_peer: Option<Arc<Mutex<Option<SocketAddr>>>>,
+    evidence: HnsProofEvidenceRecorder,
 }
 
 impl GatewayProofProvider {
@@ -2584,6 +2624,7 @@ impl GatewayProofProvider {
             seed_on_empty: true,
             peer_state: None,
             proof_peer: None,
+            evidence: HnsProofEvidenceRecorder::default(),
         }
     }
 
@@ -2597,6 +2638,11 @@ impl GatewayProofProvider {
         self
     }
 
+    fn with_evidence(mut self, evidence: HnsProofEvidenceRecorder) -> Self {
+        self.evidence = evidence;
+        self
+    }
+
     fn cached_records(
         &self,
         root_name: &str,
@@ -2606,13 +2652,36 @@ impl GatewayProofProvider {
         if verified.root_name != root_name || verified.name_hash != name_hash || !verified.secure {
             return Err(ResolverError::ProofNameMismatch);
         }
-        if !self.anchor_is_current_tip_canonical(verified.anchor)? {
+        let Some(anchor) = verified.anchor else {
+            return Err(ResolverError::ProofUnavailable);
+        };
+        if !self.anchor_is_current_tip_canonical(Some(anchor))? {
             return Err(ResolverError::ProofUnavailable);
         }
         if local_chain_is_stale_for_current_resolution(&self.base, self.network)? {
             return Err(ResolverError::LocalChainNotCurrent);
         }
-        ProvenNameRecords::from_verified_resource_value(verified)
+        let exists = verified.value.is_some();
+        let records = ProvenNameRecords::from_verified_resource_value(verified)?;
+        let root_owner =
+            DnsName::from_ascii(root_name).map_err(|_| ResolverError::ProofNameMismatch)?;
+        let has_delegation = records
+            .records
+            .iter()
+            .any(|record| record.name == root_owner && record.record_type == RecordType::Ns);
+        let observed_at_unix = now_unix_seconds();
+        self.evidence.record(
+            root_name,
+            HnsProofObservation {
+                anchor,
+                exists,
+                has_delegation,
+                observed_at_unix,
+                expires_at_unix: observed_at_unix
+                    .saturating_add(NAMESPACE_EVIDENCE_MAX_TTL_SECONDS),
+            },
+        )?;
+        Ok(records)
     }
 
     fn anchor_is_current_tip_canonical(
@@ -2746,16 +2815,1615 @@ impl HnsProofProvider for GatewayProofProvider {
     }
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct NamespaceOriginKey {
+    profile: PathBuf,
+    host: String,
+    scheme: String,
+    port: u16,
+    supported_protocols: ProtocolCapabilities,
+    network: u8,
+    policy_revision: u64,
+    binding_revision: u64,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct NamespaceBindingSnapshot {
+    explicit_pin: Option<Namespace>,
+    sticky_binding: Option<Namespace>,
+    revision: u64,
+}
+
+#[derive(Clone)]
+struct NamespaceOriginContext {
+    key: NamespaceOriginKey,
+    base: PathBuf,
+    network: NetworkKind,
+    binding: NamespaceBindingSnapshot,
+}
+
+fn namespace_origin_context(
+    base: PathBuf,
+    network: NetworkKind,
+    scheme: &str,
+    host: &str,
+    port: u16,
+    policy_revision: u64,
+) -> Result<NamespaceOriginContext, ResolverError> {
+    let host = CanonicalHost::parse(host).map_err(|_| ResolverError::InvalidNamespacePlan)?;
+    if !matches!(scheme, "http" | "https" | "ws" | "wss") || port == 0 {
+        return Err(ResolverError::InvalidNamespacePlan);
+    }
+    let network_id = match network {
+        NetworkKind::Mainnet => 0,
+        NetworkKind::Testnet => 1,
+        NetworkKind::Regtest => 2,
+    };
+    let binding = load_namespace_binding(
+        &base,
+        namespace_binding_scheme(scheme),
+        host.as_str(),
+        port,
+        network_id,
+    )?;
+    let profile = base.canonicalize().unwrap_or_else(|_| base.clone());
+    Ok(NamespaceOriginContext {
+        key: NamespaceOriginKey {
+            profile,
+            host: host.as_str().to_owned(),
+            scheme: scheme.to_owned(),
+            port,
+            supported_protocols: ProtocolCapabilities::all(),
+            network: network_id,
+            policy_revision,
+            binding_revision: binding.revision,
+        },
+        base,
+        network,
+        binding,
+    })
+}
+
+fn namespace_binding_scheme(scheme: &str) -> &str {
+    match scheme {
+        "ws" => "http",
+        "wss" => "https",
+        _ => scheme,
+    }
+}
+
+fn namespace_bindings_path(base: &Path) -> PathBuf {
+    base.join("namespace-bindings.sqlite")
+}
+
+fn open_namespace_bindings(base: &Path) -> Result<Connection, ResolverError> {
+    let connection = Connection::open(namespace_bindings_path(base))
+        .map_err(|error| ResolverError::Storage(error.to_string()))?;
+    connection
+        .execute_batch(
+            "
+            PRAGMA journal_mode = WAL;
+            PRAGMA synchronous = NORMAL;
+            CREATE TABLE IF NOT EXISTS origin_namespace_bindings (
+                scheme TEXT NOT NULL,
+                host TEXT NOT NULL,
+                port INTEGER NOT NULL,
+                network INTEGER NOT NULL,
+                explicit_pin INTEGER,
+                sticky_namespace INTEGER,
+                revision INTEGER NOT NULL DEFAULT 0,
+                updated_at_unix INTEGER NOT NULL,
+                PRIMARY KEY(scheme, host, port, network)
+            );
+            INSERT INTO origin_namespace_bindings(
+                scheme, host, port, network, explicit_pin, sticky_namespace,
+                revision, updated_at_unix
+            )
+            SELECT
+                CASE scheme WHEN 'ws' THEN 'http' ELSE 'https' END,
+                host, port, network, explicit_pin, sticky_namespace,
+                revision, updated_at_unix
+            FROM origin_namespace_bindings
+            WHERE scheme IN ('ws', 'wss')
+            ON CONFLICT(scheme, host, port, network) DO NOTHING;
+            DELETE FROM origin_namespace_bindings WHERE scheme IN ('ws', 'wss');
+            ",
+        )
+        .map_err(|error| ResolverError::Storage(error.to_string()))?;
+    Ok(connection)
+}
+
+fn load_namespace_binding(
+    base: &Path,
+    scheme: &str,
+    host: &str,
+    port: u16,
+    network: u8,
+) -> Result<NamespaceBindingSnapshot, ResolverError> {
+    open_namespace_bindings(base)?
+        .query_row(
+            "
+            SELECT explicit_pin, sticky_namespace, revision
+            FROM origin_namespace_bindings
+            WHERE scheme = ?1 AND host = ?2 AND port = ?3 AND network = ?4
+            ",
+            params![scheme, host, i64::from(port), i64::from(network)],
+            |row| {
+                let explicit_pin: Option<i64> = row.get(0)?;
+                let sticky_binding: Option<i64> = row.get(1)?;
+                let revision: i64 = row.get(2)?;
+                Ok((explicit_pin, sticky_binding, revision))
+            },
+        )
+        .optional()
+        .map_err(|error| ResolverError::Storage(error.to_string()))?
+        .map(|(explicit_pin, sticky_binding, revision)| {
+            Ok(NamespaceBindingSnapshot {
+                explicit_pin: stored_namespace(explicit_pin)?,
+                sticky_binding: stored_namespace(sticky_binding)?,
+                revision: u64::try_from(revision)
+                    .map_err(|error| ResolverError::Storage(error.to_string()))?,
+            })
+        })
+        .transpose()
+        .map(|snapshot| snapshot.unwrap_or_default())
+}
+
+fn stored_namespace(value: Option<i64>) -> Result<Option<Namespace>, ResolverError> {
+    match value {
+        None => Ok(None),
+        Some(1) => Ok(Some(Namespace::Hns)),
+        Some(2) => Ok(Some(Namespace::Icann)),
+        Some(_) => Err(ResolverError::Storage(
+            "invalid persisted namespace binding".to_owned(),
+        )),
+    }
+}
+
+fn namespace_storage_value(namespace: Namespace) -> i64 {
+    match namespace {
+        Namespace::Hns => 1,
+        Namespace::Icann => 2,
+    }
+}
+
+fn persist_successful_namespace_binding(
+    origin: &NamespaceOriginContext,
+    selected: Namespace,
+) -> Result<bool, ResolverError> {
+    let connection = open_namespace_bindings(&origin.base)?;
+    let binding_scheme = namespace_binding_scheme(&origin.key.scheme);
+    let changed = connection
+        .execute(
+            "
+            INSERT INTO origin_namespace_bindings(
+                scheme, host, port, network, explicit_pin, sticky_namespace,
+                revision, updated_at_unix
+            )
+            VALUES (?1, ?2, ?3, ?4, NULL, ?5, 1, unixepoch())
+            ON CONFLICT(scheme, host, port, network) DO UPDATE SET
+                sticky_namespace = excluded.sticky_namespace,
+                revision = origin_namespace_bindings.revision + 1,
+                updated_at_unix = excluded.updated_at_unix
+            WHERE origin_namespace_bindings.sticky_namespace IS NOT excluded.sticky_namespace
+            ",
+            params![
+                binding_scheme,
+                origin.key.host,
+                i64::from(origin.key.port),
+                i64::from(origin.key.network),
+                namespace_storage_value(selected),
+            ],
+        )
+        .map_err(|error| ResolverError::Storage(error.to_string()))?
+        != 0;
+    Ok(changed)
+}
+
+fn namespace_policy_revision(origin: &NamespaceOriginContext) -> u64 {
+    origin.key.policy_revision.rotate_left(17) ^ origin.key.binding_revision
+}
+
+fn namespace_decision_cache_key(
+    decision: &NamespaceDecision,
+    origin: &NamespaceOriginContext,
+    hns_observation: Option<HnsProofObservation>,
+) -> DecisionCacheKey {
+    let mut configuration = Sha256::new();
+    configuration.update(b"hns-mobile-dual-root-resolver-v1");
+    configuration.update(origin.key.profile.to_string_lossy().as_bytes());
+    configuration.update([origin.key.network]);
+    configuration.update(ICANN_DOH_HOST.as_bytes());
+    configuration.update(ICANN_DOH_PATH.as_bytes());
+    for address in ICANN_DOH_BOOTSTRAP_ADDRESSES {
+        configuration.update(address.to_string().as_bytes());
+    }
+    let resolver_configuration: [u8; 32] = configuration.finalize().into();
+
+    let trust_anchor_generation = hns_observation.map_or(0, |observation| {
+        let mut anchor = Sha256::new();
+        anchor.update(observation.anchor.tree_root.as_bytes());
+        anchor.update(observation.anchor.height.0.to_be_bytes());
+        let digest: [u8; 32] = anchor.finalize().into();
+        u64::from_be_bytes(digest[..8].try_into().unwrap_or([0; 8]))
+    });
+    DecisionCacheKey::new(decision, resolver_configuration, trust_anchor_generation)
+}
+
+fn record_successful_namespace_selection(
+    origin: &NamespaceOriginContext,
+    plans: &SharedNamespacePlans,
+    trace: &DnsTraceRecorder,
+) -> Result<(), ResolverError> {
+    let selected = trace
+        .namespace_snapshot()
+        .and_then(|metadata| metadata.selected)
+        .ok_or(ResolverError::InvalidNamespacePlan)?;
+    if !persist_successful_namespace_binding(origin, selected)? {
+        return Ok(());
+    }
+    plans
+        .lock()
+        .map_err(|_| ResolverError::CachePoisoned)?
+        .retain(|key, _| {
+            namespace_binding_scheme(&key.scheme) != namespace_binding_scheme(&origin.key.scheme)
+                || key.host != origin.key.host
+                || key.port != origin.key.port
+                || key.network != origin.key.network
+                || key.profile != origin.key.profile
+        });
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum NamespacePlanTerminal {
+    Neither,
+    Indeterminate,
+    Invalid,
+}
+
+#[derive(Clone)]
+struct CachedNamespacePlan {
+    metadata: NamespaceResolutionMetadata,
+    decision: Option<NamespaceDecision>,
+    state_fingerprint: Option<String>,
+    selected_answers: HashMap<ResolutionRequest, ResolutionAnswer>,
+    hns_observation: Option<HnsProofObservation>,
+    expires_at_unix: u64,
+    terminal: Option<NamespacePlanTerminal>,
+}
+
+type SharedNamespacePlans = Arc<Mutex<HashMap<NamespaceOriginKey, CachedNamespacePlan>>>;
+
 struct AndroidGatewayResolver {
-    inner: Box<dyn Resolver>,
+    hns: Box<dyn Resolver>,
+    icann: Box<dyn Resolver>,
+    origin: NamespaceOriginContext,
+    plans: SharedNamespacePlans,
+    hns_evidence: HnsProofEvidenceRecorder,
+    icann_evidence: IcannEvidenceRecorder,
+    build_lock: Mutex<()>,
+    trace: DnsTraceRecorder,
 }
 
 impl AndroidGatewayResolver {
-    fn new(inner: impl Resolver + 'static) -> Self {
+    fn new(
+        hns: impl Resolver + 'static,
+        icann: impl Resolver + 'static,
+        origin: NamespaceOriginContext,
+        plans: SharedNamespacePlans,
+        hns_evidence: HnsProofEvidenceRecorder,
+        icann_evidence: IcannEvidenceRecorder,
+        trace: DnsTraceRecorder,
+    ) -> Self {
         Self {
-            inner: Box::new(inner),
+            hns: Box::new(hns),
+            icann: Box::new(icann),
+            origin,
+            plans,
+            hns_evidence,
+            icann_evidence,
+            build_lock: Mutex::new(()),
+            trace,
         }
     }
+
+    fn cached_plan(&self, origin: &NamespaceOriginContext) -> Option<CachedNamespacePlan> {
+        let now = now_unix_seconds();
+        let plan = {
+            let mut plans = self.plans.lock().ok()?;
+            plans.retain(|_, plan| plan.expires_at_unix > now);
+            plans.get(&origin.key).cloned()
+        }?;
+        if let Some(observation) = plan.hns_observation
+            && (!hns_anchor_is_current(&origin.base, origin.network, observation.anchor).ok()?
+                || local_chain_is_stale_for_current_resolution(&origin.base, origin.network)
+                    .ok()?)
+        {
+            if let Ok(mut plans) = self.plans.lock() {
+                plans.remove(&origin.key);
+            }
+            return None;
+        }
+        Some(plan)
+    }
+
+    fn plan(&self, query: &OriginQuery) -> Result<CachedNamespacePlan, ResolverError> {
+        let origin = self.origin_for_query(query)?;
+        if let Some(plan) = self.cached_plan(&origin) {
+            self.trace.record_namespace(plan.metadata.clone());
+            return namespace_plan_result(plan);
+        }
+        let _build = self
+            .build_lock
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        if let Some(plan) = self.cached_plan(&origin) {
+            self.trace.record_namespace(plan.metadata.clone());
+            return namespace_plan_result(plan);
+        }
+        self.hns_evidence.begin()?;
+        self.icann_evidence.begin()?;
+        let plan = build_namespace_plan(
+            self.hns.as_ref(),
+            self.icann.as_ref(),
+            &origin,
+            &self.hns_evidence,
+            &self.icann_evidence,
+        );
+        if let Ok(mut plans) = self.plans.lock() {
+            plans.insert(origin.key, plan.clone());
+        }
+        self.trace.record_namespace(plan.metadata.clone());
+        namespace_plan_result(plan)
+    }
+
+    fn origin_for_query(
+        &self,
+        query: &OriginQuery,
+    ) -> Result<NamespaceOriginContext, ResolverError> {
+        let scheme = match query.scheme() {
+            OriginScheme::Http => "http",
+            OriginScheme::Https => "https",
+            OriginScheme::Ws => "ws",
+            OriginScheme::Wss => "wss",
+        };
+        if query.host().as_str() != self.origin.key.host
+            || scheme != self.origin.key.scheme
+            || query.origin_port().get() != self.origin.key.port
+        {
+            return Err(ResolverError::InvalidNamespacePlan);
+        }
+        let mut origin = self.origin.clone();
+        origin.key.supported_protocols = query.supported_protocols();
+        Ok(origin)
+    }
+}
+
+fn namespace_plan_result(plan: CachedNamespacePlan) -> Result<CachedNamespacePlan, ResolverError> {
+    match plan.terminal {
+        None => Ok(plan),
+        Some(NamespacePlanTerminal::Neither) => Err(ResolverError::NamespaceNeither),
+        Some(NamespacePlanTerminal::Indeterminate) => Err(ResolverError::NamespaceIndeterminate),
+        Some(NamespacePlanTerminal::Invalid) => Err(ResolverError::InvalidNamespacePlan),
+    }
+}
+
+struct RootPlanBuild {
+    lookup: RootLookup,
+    answers: HashMap<ResolutionRequest, ResolutionAnswer>,
+}
+
+fn build_namespace_plan(
+    hns: &dyn Resolver,
+    icann: &dyn Resolver,
+    origin: &NamespaceOriginContext,
+    hns_evidence: &HnsProofEvidenceRecorder,
+    icann_evidence: &IcannEvidenceRecorder,
+) -> CachedNamespacePlan {
+    let now = now_unix_seconds();
+    let host = match CanonicalHost::parse(&origin.key.host) {
+        Ok(host) => host,
+        Err(_) => return invalid_cached_namespace_plan(now),
+    };
+    let scheme = match origin.key.scheme.as_str() {
+        "http" => OriginScheme::Http,
+        "https" => OriginScheme::Https,
+        "ws" => OriginScheme::Ws,
+        "wss" => OriginScheme::Wss,
+        _ => return invalid_cached_namespace_plan(now),
+    };
+    let Some(port) = NonZeroU16::new(origin.key.port) else {
+        return invalid_cached_namespace_plan(now);
+    };
+    let query = OriginQuery::new(
+        host.clone(),
+        scheme,
+        Some(port),
+        origin.key.supported_protocols,
+    );
+    let hns_build = build_root_plan(
+        hns,
+        Namespace::Hns,
+        &query,
+        origin,
+        now,
+        hns_evidence,
+        icann_evidence,
+    );
+    let icann_build = build_root_plan(
+        icann,
+        Namespace::Icann,
+        &query,
+        origin,
+        now,
+        hns_evidence,
+        icann_evidence,
+    );
+    let hns_state = root_lookup_state(&hns_build.lookup);
+    let icann_state = root_lookup_state(&icann_build.lookup);
+    let hns_observation = hns_root_label(query.host().as_str())
+        .ok()
+        .and_then(|root| hns_evidence.observation(&root).ok().flatten());
+    let policy = SelectionPolicy::new(
+        DefaultPrecedence::PreferIcann,
+        namespace_policy_revision(origin),
+    )
+    .with_explicit_pin(origin.binding.explicit_pin)
+    .with_sticky_binding(origin.binding.sticky_binding);
+    let decision_now = now_unix_seconds();
+    match decide_namespace(
+        &query,
+        hns_build.lookup,
+        icann_build.lookup,
+        policy,
+        decision_now,
+    ) {
+        Ok(outcome) => {
+            let selected = outcome.selected_namespace();
+            let metadata = NamespaceResolutionMetadata {
+                outcome: Some(outcome.kind()),
+                selected,
+                selection_reason: outcome.selection_reason(),
+                hns_state,
+                icann_state,
+                fingerprint: selected.map(|_| {
+                    namespace_decision_cache_key(&outcome, origin, hns_observation)
+                        .fingerprint()
+                        .to_hex()
+                }),
+            };
+            let selected_answers = match selected {
+                Some(Namespace::Hns) => hns_build.answers,
+                Some(Namespace::Icann) => icann_build.answers,
+                None => HashMap::new(),
+            };
+            let expires_at_unix = outcome.expires_at_unix();
+            let state_fingerprint = metadata.fingerprint.clone();
+            CachedNamespacePlan {
+                metadata,
+                decision: Some(outcome),
+                state_fingerprint,
+                selected_answers,
+                hns_observation,
+                expires_at_unix,
+                terminal: selected.is_none().then_some(NamespacePlanTerminal::Neither),
+            }
+        }
+        Err(_) => CachedNamespacePlan {
+            metadata: NamespaceResolutionMetadata {
+                outcome: None,
+                selected: None,
+                selection_reason: None,
+                hns_state,
+                icann_state,
+                fingerprint: None,
+            },
+            decision: None,
+            state_fingerprint: None,
+            selected_answers: HashMap::new(),
+            hns_observation,
+            expires_at_unix: now.saturating_add(1),
+            terminal: Some(NamespacePlanTerminal::Indeterminate),
+        },
+    }
+}
+
+fn invalid_cached_namespace_plan(now: u64) -> CachedNamespacePlan {
+    CachedNamespacePlan {
+        metadata: NamespaceResolutionMetadata {
+            outcome: None,
+            selected: None,
+            selection_reason: None,
+            hns_state: NamespaceRootState::Failed,
+            icann_state: NamespaceRootState::Failed,
+            fingerprint: None,
+        },
+        decision: None,
+        state_fingerprint: None,
+        selected_answers: HashMap::new(),
+        hns_observation: None,
+        expires_at_unix: now.saturating_add(1),
+        terminal: Some(NamespacePlanTerminal::Invalid),
+    }
+}
+
+fn root_lookup_state(lookup: &RootLookup) -> NamespaceRootState {
+    match lookup {
+        RootLookup::Present(_) => NamespaceRootState::Present,
+        RootLookup::Absent(_) => NamespaceRootState::AuthenticatedAbsent,
+        RootLookup::Failed(_) => NamespaceRootState::Failed,
+    }
+}
+
+fn build_root_plan(
+    resolver: &dyn Resolver,
+    namespace: Namespace,
+    query: &OriginQuery,
+    origin: &NamespaceOriginContext,
+    now: u64,
+    hns_evidence: &HnsProofEvidenceRecorder,
+    icann_evidence: &IcannEvidenceRecorder,
+) -> RootPlanBuild {
+    match build_present_root_plan(
+        resolver,
+        namespace,
+        query,
+        origin,
+        now,
+        hns_evidence,
+        icann_evidence,
+    ) {
+        Ok(build) => build,
+        Err((failure, answers)) => RootPlanBuild {
+            lookup: RootLookup::Failed(failure),
+            answers,
+        },
+    }
+}
+
+fn build_present_root_plan(
+    resolver: &dyn Resolver,
+    namespace: Namespace,
+    query: &OriginQuery,
+    origin: &NamespaceOriginContext,
+    now: u64,
+    hns_evidence: &HnsProofEvidenceRecorder,
+    icann_evidence: &IcannEvidenceRecorder,
+) -> Result<RootPlanBuild, (RootFailure, HashMap<ResolutionRequest, ResolutionAnswer>)> {
+    let mut answers = HashMap::new();
+    let mut origin_requests = Vec::new();
+    let mut origin_name_errors = Vec::new();
+    let mut origin_record_types = vec![RecordType::A, RecordType::Aaaa];
+    if query.scheme().uses_tls() {
+        origin_record_types.push(RecordType::Https);
+    }
+    for record_type in origin_record_types {
+        let request = ResolutionRequest {
+            qname: origin.key.host.clone(),
+            qtype: record_type.code(),
+        };
+        origin_requests.push(request.clone());
+        match resolver.resolve(&request) {
+            Ok(answer) => {
+                answers.insert(request, answer);
+            }
+            Err(ResolverError::NameNotFound) => {
+                origin_name_errors.push(request);
+                // NXDOMAIN is whole-name evidence. Stop querying other RR
+                // families; any earlier family-specific NODATA or positive
+                // answer will make the collected evidence inconsistent below.
+                break;
+            }
+            Err(error) => {
+                return Err((root_failure(namespace, query.clone(), &error), answers));
+            }
+        }
+    }
+    if !origin_name_errors.is_empty() {
+        if origin_name_errors.len() != origin_requests.len()
+            || answers.values().any(|answer| !answer.records.is_empty())
+        {
+            return Err((
+                RootFailure::new(
+                    namespace,
+                    query.clone(),
+                    RootFailureKind::MalformedResponse,
+                    None,
+                ),
+                answers,
+            ));
+        }
+        let absence = validated_name_absence(
+            namespace,
+            query.clone(),
+            origin,
+            &origin_name_errors,
+            hns_evidence,
+            icann_evidence,
+        )
+        .map_err(|_| {
+            (
+                RootFailure::new(namespace, query.clone(), RootFailureKind::Internal, None),
+                answers.clone(),
+            )
+        })?;
+        return Ok(RootPlanBuild {
+            lookup: RootLookup::Absent(absence),
+            answers,
+        });
+    }
+
+    let (mut alias_path, cname_terminal, _) = root_aliases_and_addresses(query.host(), &answers)
+        .map_err(|kind| {
+            (
+                RootFailure::new(namespace, query.clone(), kind, None),
+                answers.clone(),
+            )
+        })?;
+    let (https_aliases, terminal_target) = if query.scheme().uses_tls() {
+        root_https_alias_path(resolver, &cname_terminal, &mut answers).map_err(|error| {
+            (
+                root_failure(namespace, query.clone(), &error),
+                answers.clone(),
+            )
+        })?
+    } else {
+        (Vec::new(), cname_terminal)
+    };
+    alias_path.extend(https_aliases);
+    let service = root_service_binding(query, &terminal_target, &answers).map_err(|_| {
+        (
+            RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
+            answers.clone(),
+        )
+    })?;
+    let mut endpoint_requests = Vec::new();
+    let mut endpoint_name_errors = Vec::new();
+    if service.service_target() == query.host() {
+        endpoint_requests.extend(origin_requests.iter().filter_map(|request| {
+            matches!(
+                RecordType::from_code(request.qtype),
+                RecordType::A | RecordType::Aaaa
+            )
+            .then_some(request.clone())
+        }));
+    } else {
+        for record_type in [RecordType::A, RecordType::Aaaa] {
+            let request = ResolutionRequest {
+                qname: service.service_target().as_str().to_owned(),
+                qtype: record_type.code(),
+            };
+            endpoint_requests.push(request.clone());
+            match resolver.resolve(&request) {
+                Ok(answer) => {
+                    answers.insert(request, answer);
+                }
+                Err(ResolverError::NameNotFound) => {
+                    endpoint_name_errors.push(request);
+                    break;
+                }
+                Err(error) => {
+                    return Err((root_failure(namespace, query.clone(), &error), answers));
+                }
+            }
+        }
+        if !endpoint_name_errors.is_empty() && endpoint_name_errors.len() != endpoint_requests.len()
+        {
+            return Err((
+                RootFailure::new(
+                    namespace,
+                    query.clone(),
+                    RootFailureKind::MalformedResponse,
+                    None,
+                ),
+                answers,
+            ));
+        }
+    }
+    let (endpoint_alias_path, endpoint_target, addresses) =
+        root_aliases_and_addresses(service.service_target(), &answers).map_err(|kind| {
+            (
+                RootFailure::new(namespace, query.clone(), kind, None),
+                answers.clone(),
+            )
+        })?;
+    if addresses.is_empty() {
+        let absence = validated_no_endpoint_absence(
+            namespace,
+            query.clone(),
+            origin,
+            &endpoint_requests,
+            &answers,
+            hns_evidence,
+            icann_evidence,
+        )
+        .map_err(|_| {
+            (
+                RootFailure::new(
+                    namespace,
+                    query.clone(),
+                    RootFailureKind::IndeterminateDnssec,
+                    None,
+                ),
+                answers.clone(),
+            )
+        })?;
+        return Ok(RootPlanBuild {
+            lookup: RootLookup::Absent(absence),
+            answers,
+        });
+    }
+
+    let mut tlsa_records = Vec::new();
+    let mut tls_policy = TlsTrustPolicy::Cleartext;
+    if query.scheme().uses_tls() {
+        let transport = match service.transport() {
+            ServiceTransport::Tcp => TlsaTransport::Tcp,
+            ServiceTransport::Udp => TlsaTransport::Udp,
+        };
+        let tlsa_request =
+            root_tlsa_resolution_request(query, &service, transport).map_err(|_| {
+                (
+                    RootFailure::new(
+                        namespace,
+                        query.clone(),
+                        RootFailureKind::MalformedResponse,
+                        None,
+                    ),
+                    answers.clone(),
+                )
+            })?;
+        let tlsa_answer = match resolver.resolve(&tlsa_request) {
+            Ok(answer) => answer,
+            Err(ResolverError::NameNotFound) => {
+                let secure = match namespace {
+                    Namespace::Icann => icann_evidence
+                        .observation(&tlsa_request)
+                        .ok()
+                        .flatten()
+                        .filter(|observation| observation.kind == IcannResponseKind::NxDomain)
+                        .map(|observation| observation.secure),
+                    Namespace::Hns => hns_observation_for_query(query, hns_evidence, true)
+                        .ok()
+                        // DelegatingResolver only preserves NameNotFound after
+                        // validating the child's denial. Requiring a proven
+                        // root delegation keeps native/root and unsigned
+                        // negatives fail-closed.
+                        .filter(|observation| observation.has_delegation)
+                        .map(|_| true),
+                }
+                .ok_or_else(|| {
+                    (
+                        RootFailure::new(
+                            namespace,
+                            query.clone(),
+                            RootFailureKind::IndeterminateDnssec,
+                            None,
+                        ),
+                        answers.clone(),
+                    )
+                })?;
+                ResolutionAnswer {
+                    name: DnsName::from_ascii(&tlsa_request.qname).map_err(|_| {
+                        (
+                            RootFailure::new(
+                                namespace,
+                                query.clone(),
+                                RootFailureKind::MalformedResponse,
+                                None,
+                            ),
+                            answers.clone(),
+                        )
+                    })?,
+                    records: Vec::new(),
+                    secure,
+                }
+            }
+            Err(error) => {
+                return Err((root_failure(namespace, query.clone(), &error), answers));
+            }
+        };
+        let secure_tlsa = tlsa_answer.secure;
+        if secure_tlsa {
+            for record in tlsa_answer
+                .records
+                .iter()
+                .filter(|record| record.record_type == RecordType::Tlsa)
+            {
+                TlsaRecord::parse_rdata(&record.rdata).map_err(|_| {
+                    (
+                        RootFailure::new(
+                            namespace,
+                            query.clone(),
+                            RootFailureKind::MalformedResponse,
+                            None,
+                        ),
+                        answers.clone(),
+                    )
+                })?;
+                tlsa_records.push(CanonicalTlsa::new(record.rdata.clone()).map_err(|_| {
+                    (
+                        RootFailure::new(
+                            namespace,
+                            query.clone(),
+                            RootFailureKind::MalformedResponse,
+                            None,
+                        ),
+                        answers.clone(),
+                    )
+                })?);
+            }
+        }
+        if tlsa_records.is_empty() {
+            validate_tlsa_absence(
+                namespace,
+                query,
+                origin,
+                &tlsa_request,
+                &tlsa_answer,
+                hns_evidence,
+                icann_evidence,
+            )
+            .map_err(|kind| {
+                (
+                    RootFailure::new(namespace, query.clone(), kind, None),
+                    answers.clone(),
+                )
+            })?;
+        }
+        answers.insert(tlsa_request, tlsa_answer);
+        tls_policy = match (namespace, secure_tlsa, tlsa_records.is_empty()) {
+            (Namespace::Hns, true, false) | (Namespace::Icann, true, false) => TlsTrustPolicy::Dane,
+            (Namespace::Icann, true, true) => TlsTrustPolicy::WebPkiAuthenticatedAbsence,
+            (Namespace::Icann, false, _) => TlsTrustPolicy::WebPkiInsecureDelegation,
+            (Namespace::Hns, _, _) => {
+                // Secure address evidence proves namespace presence. If the
+                // mandatory HNS TLSA policy cannot be built, classify that
+                // root as failed instead of converting the existing hostname
+                // into authenticated absence and silently selecting ICANN.
+                return Err((
+                    RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
+                    answers,
+                ));
+            }
+        };
+    }
+
+    let provenance = root_provenance(
+        namespace,
+        answers.values().all(|answer| answer.secure),
+        origin,
+        query,
+        hns_evidence,
+    )
+    .map_err(|kind| {
+        (
+            RootFailure::new(namespace, query.clone(), kind, None),
+            answers.clone(),
+        )
+    })?;
+    let freshness = root_freshness(
+        namespace,
+        &answers,
+        now,
+        query,
+        hns_evidence,
+        icann_evidence,
+    )
+    .map_err(|_| {
+        (
+            RootFailure::new(namespace, query.clone(), RootFailureKind::Internal, None),
+            answers.clone(),
+        )
+    })?;
+    let endpoints = addresses
+        .into_iter()
+        .map(|address| SocketAddr::new(address, service.effective_port().get()))
+        .collect();
+    let plan = ValidatedOriginPlan::new(OriginPlanInput {
+        namespace,
+        query: query.clone(),
+        alias_path,
+        terminal_target,
+        endpoint_alias_path,
+        endpoint_target,
+        endpoints,
+        service,
+        tls_policy,
+        tlsa_records,
+        provenance,
+        freshness,
+    })
+    .map_err(|_| {
+        (
+            RootFailure::new(namespace, query.clone(), RootFailureKind::Internal, None),
+            answers.clone(),
+        )
+    })?;
+    Ok(RootPlanBuild {
+        lookup: RootLookup::Present(plan),
+        answers,
+    })
+}
+
+fn root_failure(namespace: Namespace, query: OriginQuery, error: &ResolverError) -> RootFailure {
+    let kind = match error {
+        ResolverError::DnsTransport(message)
+            if message.contains("timeout") || message.contains("timed out") =>
+        {
+            RootFailureKind::Timeout
+        }
+        ResolverError::DnsTransport(_) => RootFailureKind::Transport,
+        ResolverError::LocalChainNotCurrent => RootFailureKind::StaleHnsAnchor,
+        ResolverError::DnssecFailed | ResolverError::RelayDnssecFailed => {
+            RootFailureKind::BogusDnssec
+        }
+        ResolverError::InvalidDnsResponse
+        | ResolverError::DnsResponseCode(_)
+        | ResolverError::ProofNameMismatch
+        | ResolverError::InvalidResource(_) => RootFailureKind::MalformedResponse,
+        ResolverError::UnsupportedBackend => RootFailureKind::Unsupported,
+        _ => RootFailureKind::Internal,
+    };
+    RootFailure::new(namespace, query, kind, None)
+}
+
+fn validated_name_absence(
+    namespace: Namespace,
+    query: OriginQuery,
+    origin: &NamespaceOriginContext,
+    requests: &[ResolutionRequest],
+    hns_evidence: &HnsProofEvidenceRecorder,
+    icann_evidence: &IcannEvidenceRecorder,
+) -> Result<ValidatedAbsence, ()> {
+    let (kind, provenance, freshness) = match namespace {
+        Namespace::Hns => {
+            let observation = hns_observation_for_query_any(&query, hns_evidence)?;
+            let kind = if observation.exists {
+                AbsenceKind::DnssecAuthenticatedNxDomain
+            } else {
+                AbsenceKind::HnsCurrentUrkelNonInclusion
+            };
+            let freshness = if observation.exists {
+                // The delegated resolver authenticated NXDOMAIN, but its
+                // current untyped error cannot retain the denial RRset's TTL
+                // and RRSIG expiry. Keep this absence deliberately ephemeral
+                // and never beyond the current HNS anchor observation.
+                let observed_at_unix = now_unix_seconds();
+                Freshness::new(
+                    observed_at_unix,
+                    observation
+                        .expires_at_unix
+                        .min(observed_at_unix.saturating_add(1)),
+                )
+                .map_err(|_| ())?
+            } else {
+                hns_observation_freshness(observation)?
+            };
+            (kind, hns_provenance(origin.network, observation), freshness)
+        }
+        Namespace::Icann => {
+            let observation = consistent_icann_observation(
+                requests,
+                icann_evidence,
+                IcannResponseKind::NxDomain,
+            )?;
+            (
+                if observation.secure {
+                    AbsenceKind::DnssecAuthenticatedNxDomain
+                } else {
+                    AbsenceKind::IcannInsecureNxDomain
+                },
+                icann_provenance(observation.secure),
+                icann_observation_freshness(observation)?,
+            )
+        }
+    };
+    ValidatedAbsence::new(namespace, query, kind, provenance, freshness).map_err(|_| ())
+}
+
+fn validated_no_endpoint_absence(
+    namespace: Namespace,
+    query: OriginQuery,
+    origin: &NamespaceOriginContext,
+    requests: &[ResolutionRequest],
+    answers: &HashMap<ResolutionRequest, ResolutionAnswer>,
+    hns_evidence: &HnsProofEvidenceRecorder,
+    icann_evidence: &IcannEvidenceRecorder,
+) -> Result<ValidatedAbsence, ()> {
+    let (kind, provenance, freshness) = match namespace {
+        Namespace::Hns => {
+            if requests
+                .iter()
+                .any(|request| answers.get(request).is_some_and(|answer| !answer.secure))
+            {
+                return Err(());
+            }
+            let observation = hns_observation_for_query(&query, hns_evidence, true)?;
+            (
+                AbsenceKind::DnssecAuthenticatedNoUsableEndpoint,
+                hns_provenance(origin.network, observation),
+                hns_observation_freshness(observation)?,
+            )
+        }
+        Namespace::Icann => {
+            let observation = consistent_icann_negative_observation(requests, icann_evidence)?;
+            (
+                if observation.secure {
+                    AbsenceKind::DnssecAuthenticatedNoUsableEndpoint
+                } else {
+                    AbsenceKind::IcannInsecureNoUsableEndpoint
+                },
+                icann_provenance(observation.secure),
+                icann_observation_freshness(observation)?,
+            )
+        }
+    };
+    ValidatedAbsence::new(namespace, query, kind, provenance, freshness).map_err(|_| ())
+}
+
+fn validate_tlsa_absence(
+    namespace: Namespace,
+    query: &OriginQuery,
+    _origin: &NamespaceOriginContext,
+    request: &ResolutionRequest,
+    answer: &ResolutionAnswer,
+    hns_evidence: &HnsProofEvidenceRecorder,
+    icann_evidence: &IcannEvidenceRecorder,
+) -> Result<(), RootFailureKind> {
+    let has_tlsa = answer
+        .records
+        .iter()
+        .any(|record| record.record_type == RecordType::Tlsa);
+    match namespace {
+        Namespace::Icann => {
+            let now = now_unix_seconds();
+            let observation = icann_evidence
+                .observation(request)
+                .map_err(|_| RootFailureKind::Internal)?
+                .filter(|observation| {
+                    observation.secure == answer.secure
+                        && observation.observed_at_unix <= now
+                        && observation.expires_at_unix > now
+                })
+                .ok_or(RootFailureKind::IndeterminateDnssec)?;
+            if answer.secure {
+                (!has_tlsa
+                    && matches!(
+                        observation.kind,
+                        IcannResponseKind::NoData | IcannResponseKind::NxDomain
+                    ))
+                .then_some(())
+                .ok_or(RootFailureKind::MalformedResponse)
+            } else {
+                let response_kind_matches = if has_tlsa {
+                    observation.kind == IcannResponseKind::Answer
+                } else {
+                    matches!(
+                        observation.kind,
+                        IcannResponseKind::NoData | IcannResponseKind::NxDomain
+                    )
+                };
+                response_kind_matches
+                    .then_some(())
+                    .ok_or(RootFailureKind::MalformedResponse)
+            }
+        }
+        Namespace::Hns => {
+            if has_tlsa {
+                return Err(RootFailureKind::MalformedResponse);
+            }
+            hns_observation_for_query(query, hns_evidence, true)
+                .map_err(|_| RootFailureKind::StaleHnsAnchor)?;
+            if answer.secure {
+                Ok(())
+            } else {
+                Err(RootFailureKind::IndeterminateDnssec)
+            }
+        }
+    }
+}
+
+fn root_provenance(
+    namespace: Namespace,
+    secure: bool,
+    origin: &NamespaceOriginContext,
+    query: &OriginQuery,
+    hns_evidence: &HnsProofEvidenceRecorder,
+) -> Result<EvidenceProvenance, RootFailureKind> {
+    match namespace {
+        Namespace::Icann => Ok(icann_provenance(secure)),
+        Namespace::Hns => {
+            let observation = hns_observation_for_query(query, hns_evidence, true)
+                .map_err(|_| RootFailureKind::StaleHnsAnchor)?;
+            Ok(hns_provenance(origin.network, observation))
+        }
+    }
+}
+
+fn hns_observation_for_query(
+    query: &OriginQuery,
+    evidence: &HnsProofEvidenceRecorder,
+    expected_exists: bool,
+) -> Result<HnsProofObservation, ()> {
+    let observation = hns_observation_for_query_any(query, evidence)?;
+    (observation.exists == expected_exists)
+        .then_some(observation)
+        .ok_or(())
+}
+
+fn hns_observation_for_query_any(
+    query: &OriginQuery,
+    evidence: &HnsProofEvidenceRecorder,
+) -> Result<HnsProofObservation, ()> {
+    let root_name = hns_root_label(query.host().as_str()).map_err(|_| ())?;
+    evidence
+        .observation(&root_name)
+        .map_err(|_| ())?
+        .filter(|observation| observation.expires_at_unix > now_unix_seconds())
+        .ok_or(())
+}
+
+fn hns_provenance(network: NetworkKind, observation: HnsProofObservation) -> EvidenceProvenance {
+    EvidenceProvenance::Hns {
+        network: match network {
+            NetworkKind::Mainnet => HnsNetwork::Mainnet,
+            NetworkKind::Testnet => HnsNetwork::Testnet,
+            NetworkKind::Regtest => HnsNetwork::Regtest,
+        },
+        tree_root: observation.anchor.tree_root.into_bytes(),
+        height: observation.anchor.height.0,
+    }
+}
+
+fn icann_provenance(secure: bool) -> EvidenceProvenance {
+    EvidenceProvenance::IcannDoh {
+        chain_state: if secure {
+            IcannChainState::Secure
+        } else {
+            IcannChainState::ProvenInsecure
+        },
+    }
+}
+
+fn consistent_icann_observation(
+    requests: &[ResolutionRequest],
+    evidence: &IcannEvidenceRecorder,
+    expected_kind: IcannResponseKind,
+) -> Result<IcannResponseObservation, ()> {
+    let mut observations = requests
+        .iter()
+        .map(|request| evidence.observation(request).map_err(|_| ()))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .ok_or(())?
+        .into_iter();
+    let mut combined = observations.next().ok_or(())?;
+    if combined.kind != expected_kind {
+        return Err(());
+    }
+    for observation in observations {
+        if observation.kind != expected_kind || observation.secure != combined.secure {
+            return Err(());
+        }
+        combined.observed_at_unix = combined.observed_at_unix.max(observation.observed_at_unix);
+        combined.expires_at_unix = combined.expires_at_unix.min(observation.expires_at_unix);
+    }
+    if combined.expires_at_unix <= combined.observed_at_unix
+        || combined.expires_at_unix <= now_unix_seconds()
+    {
+        return Err(());
+    }
+    Ok(combined)
+}
+
+fn consistent_icann_negative_observation(
+    requests: &[ResolutionRequest],
+    evidence: &IcannEvidenceRecorder,
+) -> Result<IcannResponseObservation, ()> {
+    let mut observations = requests
+        .iter()
+        .map(|request| evidence.observation(request).map_err(|_| ()))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .ok_or(())?
+        .into_iter();
+    let mut combined = observations.next().ok_or(())?;
+    if !matches!(
+        combined.kind,
+        IcannResponseKind::NoData | IcannResponseKind::NxDomain
+    ) {
+        return Err(());
+    }
+    for observation in observations {
+        if !matches!(
+            observation.kind,
+            IcannResponseKind::NoData | IcannResponseKind::NxDomain
+        ) || observation.secure != combined.secure
+        {
+            return Err(());
+        }
+        combined.observed_at_unix = combined.observed_at_unix.max(observation.observed_at_unix);
+        combined.expires_at_unix = combined.expires_at_unix.min(observation.expires_at_unix);
+    }
+    if combined.expires_at_unix <= combined.observed_at_unix
+        || combined.expires_at_unix <= now_unix_seconds()
+    {
+        return Err(());
+    }
+    Ok(combined)
+}
+
+fn hns_observation_freshness(observation: HnsProofObservation) -> Result<Freshness, ()> {
+    let now = now_unix_seconds();
+    let observed_at_unix = if observation.has_delegation {
+        now
+    } else {
+        observation.observed_at_unix
+    };
+    let expires_at_unix = if observation.has_delegation {
+        observation.expires_at_unix.min(now.saturating_add(1))
+    } else {
+        observation.expires_at_unix
+    };
+    Freshness::new(observed_at_unix, expires_at_unix).map_err(|_| ())
+}
+
+fn icann_observation_freshness(observation: IcannResponseObservation) -> Result<Freshness, ()> {
+    Freshness::new(observation.observed_at_unix, observation.expires_at_unix).map_err(|_| ())
+}
+
+fn root_freshness(
+    namespace: Namespace,
+    answers: &HashMap<ResolutionRequest, ResolutionAnswer>,
+    now: u64,
+    query: &OriginQuery,
+    hns_evidence: &HnsProofEvidenceRecorder,
+    icann_evidence: &IcannEvidenceRecorder,
+) -> Result<Freshness, ()> {
+    let ttl = answers
+        .values()
+        .flat_map(|answer| answer.records.iter().map(|record| record.ttl))
+        .filter(|ttl| *ttl != 0)
+        .min()
+        .map(|ttl| u64::from(ttl).min(NAMESPACE_EVIDENCE_MAX_TTL_SECONDS));
+    match namespace {
+        Namespace::Icann => icann_plan_freshness(answers, icann_evidence, now),
+        Namespace::Hns => {
+            let observation = hns_observation_for_query(query, hns_evidence, true)?;
+            let observation_freshness = hns_observation_freshness(observation)?;
+            let expires_at_unix = ttl
+                .map(|ttl| now.saturating_add(ttl))
+                .unwrap_or(observation_freshness.expires_at_unix())
+                .min(observation_freshness.expires_at_unix());
+            Freshness::new(observation_freshness.observed_at_unix(), expires_at_unix)
+                .map_err(|_| ())
+        }
+    }
+}
+
+fn icann_plan_freshness(
+    answers: &HashMap<ResolutionRequest, ResolutionAnswer>,
+    evidence: &IcannEvidenceRecorder,
+    now: u64,
+) -> Result<Freshness, ()> {
+    let mut observations = answers
+        .iter()
+        .map(|(request, answer)| {
+            let observation = evidence.observation(request).map_err(|_| ())?.ok_or(())?;
+            let contains_requested_rrset = answer
+                .records
+                .iter()
+                .any(|record| record.record_type.code() == request.qtype);
+            let kind_matches = if contains_requested_rrset {
+                observation.kind == IcannResponseKind::Answer
+            } else {
+                matches!(
+                    observation.kind,
+                    IcannResponseKind::NoData | IcannResponseKind::NxDomain
+                )
+            };
+            if !kind_matches
+                || observation.secure != answer.secure
+                || observation.observed_at_unix > now
+                || observation.expires_at_unix <= now
+            {
+                return Err(());
+            }
+            Ok(observation)
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter();
+    let mut combined = observations.next().ok_or(())?;
+    for observation in observations {
+        combined.observed_at_unix = combined.observed_at_unix.max(observation.observed_at_unix);
+        combined.expires_at_unix = combined.expires_at_unix.min(observation.expires_at_unix);
+    }
+    Freshness::new(combined.observed_at_unix, combined.expires_at_unix).map_err(|_| ())
+}
+
+fn hns_anchor_is_current(
+    base: &Path,
+    network: NetworkKind,
+    anchor: ResourceValueAnchor,
+) -> Result<bool, ResolverError> {
+    let store = SqliteHeaderStore::open(base.join("headers.sqlite"))
+        .map_err(|error| ResolverError::Storage(format!("open header store: {error}")))?;
+    let chain = chain_for_network(store, network);
+    let best = chain
+        .best_header()
+        .map_err(|error| ResolverError::Storage(format!("read best header: {error}")))?;
+    Ok(best.is_some_and(|best| {
+        best.height == anchor.height && best.header.tree_root == anchor.tree_root
+    }))
+}
+
+fn root_tlsa_resolution_request(
+    query: &OriginQuery,
+    service: &ServiceBinding,
+    transport: TlsaTransport,
+) -> Result<ResolutionRequest, ()> {
+    let owner = TlsaOwner::derive(
+        query.host().as_str(),
+        service.effective_port().get(),
+        transport,
+    )
+    .map_err(|_| ())?;
+    Ok(ResolutionRequest {
+        qname: owner.resolver_name().to_owned(),
+        qtype: RecordType::Tlsa.code(),
+    })
+}
+
+fn root_aliases_and_addresses(
+    origin: &CanonicalHost,
+    answers: &HashMap<ResolutionRequest, ResolutionAnswer>,
+) -> Result<(Vec<AliasStep>, CanonicalHost, Vec<IpAddr>), RootFailureKind> {
+    let records = answers
+        .values()
+        .flat_map(|answer| answer.records.iter())
+        .collect::<Vec<_>>();
+    let mut current =
+        DnsName::from_ascii(origin.as_str()).map_err(|_| RootFailureKind::MalformedResponse)?;
+    let mut aliases = Vec::new();
+    let mut seen = BTreeSet::new();
+    seen.insert(current.to_string());
+    for _ in 0..=8 {
+        let mut cnames = Vec::new();
+        for record in records
+            .iter()
+            .filter(|record| record.name == current && record.record_type == RecordType::Cname)
+        {
+            let (target, end) = DnsName::parse_wire(&record.rdata, 0)
+                .map_err(|_| RootFailureKind::MalformedResponse)?;
+            if end != record.rdata.len() {
+                return Err(RootFailureKind::MalformedResponse);
+            }
+            let logical_record = (record.name.clone(), record.class, target);
+            if !cnames.contains(&logical_record) {
+                cnames.push(logical_record);
+            }
+        }
+        if cnames.is_empty() {
+            break;
+        }
+        if cnames.len() != 1 {
+            return Err(RootFailureKind::MalformedResponse);
+        }
+        let (_, _, target) = cnames.pop().ok_or(RootFailureKind::MalformedResponse)?;
+        if !seen.insert(target.to_string()) {
+            return Err(RootFailureKind::MalformedResponse);
+        }
+        aliases.push(
+            AliasStep::new(
+                AliasKind::Cname,
+                CanonicalHost::parse(&current.to_string())
+                    .map_err(|_| RootFailureKind::MalformedResponse)?,
+                CanonicalHost::parse(&target.to_string())
+                    .map_err(|_| RootFailureKind::MalformedResponse)?,
+            )
+            .map_err(|_| RootFailureKind::MalformedResponse)?,
+        );
+        current = target;
+    }
+    let mut addresses = records
+        .iter()
+        .filter(|record| record.name == current)
+        .filter_map(|record| match record.record_type {
+            RecordType::A if record.rdata.len() == 4 => Some(IpAddr::V4(Ipv4Addr::new(
+                record.rdata[0],
+                record.rdata[1],
+                record.rdata[2],
+                record.rdata[3],
+            ))),
+            RecordType::Aaaa if record.rdata.len() == 16 => {
+                let mut bytes = [0u8; 16];
+                bytes.copy_from_slice(&record.rdata);
+                Some(IpAddr::V6(Ipv6Addr::from(bytes)))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    addresses.sort_unstable();
+    addresses.dedup();
+    let terminal = CanonicalHost::parse(&current.to_string())
+        .map_err(|_| RootFailureKind::MalformedResponse)?;
+    Ok((aliases, terminal, addresses))
+}
+
+fn root_https_alias_path(
+    resolver: &dyn Resolver,
+    start: &CanonicalHost,
+    answers: &mut HashMap<ResolutionRequest, ResolutionAnswer>,
+) -> Result<(Vec<AliasStep>, CanonicalHost), ResolverError> {
+    let mut current = start.clone();
+    let mut aliases = Vec::new();
+    let mut seen = BTreeSet::from([current.as_str().to_owned()]);
+    for depth in 0..=8 {
+        let owner =
+            DnsName::from_ascii(current.as_str()).map_err(|_| ResolverError::InvalidDnsResponse)?;
+        let mut records = answers
+            .values()
+            .flat_map(|answer| answer.records.iter())
+            .filter(|record| record.name == owner && record.record_type == RecordType::Https)
+            .cloned()
+            .collect::<Vec<_>>();
+        if records.is_empty() && depth != 0 {
+            let request = ResolutionRequest {
+                qname: current.as_str().to_owned(),
+                qtype: RecordType::Https.code(),
+            };
+            if !answers.contains_key(&request) {
+                answers.insert(request.clone(), resolver.resolve(&request)?);
+            }
+            records = answers
+                .values()
+                .flat_map(|answer| answer.records.iter())
+                .filter(|record| record.name == owner && record.record_type == RecordType::Https)
+                .cloned()
+                .collect();
+        }
+        let parsed = records
+            .iter()
+            .map(SvcbRecord::from_record)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| ResolverError::InvalidDnsResponse)?;
+        let alias_mode = parsed
+            .iter()
+            .filter(|record| record.is_alias_mode())
+            .collect::<Vec<_>>();
+        if alias_mode.is_empty() {
+            return Ok((aliases, current));
+        }
+        if alias_mode.len() != 1
+            || parsed.iter().any(|record| !record.is_alias_mode())
+            || !alias_mode[0].params.is_empty()
+            || alias_mode[0].target_name == DnsName::root()
+        {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        let target = CanonicalHost::parse(&alias_mode[0].target_name.to_string())
+            .map_err(|_| ResolverError::InvalidDnsResponse)?;
+        if !seen.insert(target.as_str().to_owned()) {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        aliases.push(
+            AliasStep::new(AliasKind::Https, current, target.clone())
+                .map_err(|_| ResolverError::InvalidDnsResponse)?,
+        );
+        current = target;
+    }
+    Err(ResolverError::InvalidDnsResponse)
+}
+
+fn root_service_binding(
+    query: &OriginQuery,
+    terminal_target: &CanonicalHost,
+    answers: &HashMap<ResolutionRequest, ResolutionAnswer>,
+) -> Result<ServiceBinding, ()> {
+    let mut priority = None;
+    let mut service_target = terminal_target.clone();
+    let mut mandatory_keys = Vec::new();
+    let mut advertised_alpn = Vec::new();
+    let mut selected_protocol = ApplicationProtocol::Http11;
+    let mut effective_port = query.origin_port();
+    let mut transport = ServiceTransport::Tcp;
+    let mut parameters = Vec::new();
+    let ech_config = None;
+
+    if query.scheme().uses_tls() {
+        let owner = DnsName::from_ascii(terminal_target.as_str()).map_err(|_| ())?;
+        let mut candidates = answers
+            .values()
+            .flat_map(|answer| answer.records.iter())
+            .filter(|record| record.name == owner && record.record_type == RecordType::Https)
+            .map(SvcbRecord::from_record)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| ())?;
+        if candidates.iter().any(SvcbRecord::is_alias_mode) {
+            return Err(());
+        }
+        candidates.sort_by_key(|candidate| candidate.svc_priority);
+        if candidates.len() > 1
+            && candidates[0].svc_priority == candidates[1].svc_priority
+            && candidates[0] != candidates[1]
+        {
+            return Err(());
+        }
+        let selected = candidates.into_iter().next();
+        if let Some(selected) = selected {
+            priority = Some(selected.svc_priority);
+            service_target = if selected.target_name == DnsName::root() {
+                terminal_target.clone()
+            } else {
+                CanonicalHost::parse(&selected.target_name.to_string()).map_err(|_| ())?
+            };
+            advertised_alpn = selected.alpn_ids().map_err(|_| ())?;
+            if query
+                .supported_protocols()
+                .supports(ApplicationProtocol::Http3)
+                && advertised_alpn
+                    .iter()
+                    .any(|id| id == b"h3" || id.starts_with(b"h3-"))
+            {
+                selected_protocol = ApplicationProtocol::Http3;
+                transport = ServiceTransport::Udp;
+            } else if query
+                .supported_protocols()
+                .supports(ApplicationProtocol::Http2)
+                && advertised_alpn.iter().any(|id| id == b"h2")
+            {
+                selected_protocol = ApplicationProtocol::Http2;
+            } else if query
+                .supported_protocols()
+                .supports(ApplicationProtocol::Http11)
+                && (advertised_alpn.iter().any(|id| id == b"http/1.1")
+                    || selected.param(SVCB_PARAM_NO_DEFAULT_ALPN).is_none())
+            {
+                selected_protocol = ApplicationProtocol::Http11;
+            } else {
+                return Err(());
+            }
+            if let Some(port) = selected.port().map_err(|_| ())? {
+                effective_port = NonZeroU16::new(port).ok_or(())?;
+            }
+            if let Some(value) = selected.param(SVCB_PARAM_MANDATORY) {
+                if value.len() % 2 != 0 {
+                    return Err(());
+                }
+                mandatory_keys = value
+                    .chunks_exact(2)
+                    .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+                    .collect();
+            }
+            for parameter in selected.params {
+                if parameter.key == 5 {
+                    // The retained native transport has no ECH application
+                    // hook. Treat advertised ECH as unsupported rather than
+                    // silently producing a plan that cannot be executed.
+                    return Err(());
+                }
+                parameters
+                    .push(ServiceParameter::new(parameter.key, parameter.value).map_err(|_| ())?);
+            }
+        }
+    }
+    ServiceBinding::new(ServiceBindingInput {
+        priority,
+        service_target,
+        mandatory_keys,
+        advertised_alpn,
+        selected_protocol,
+        effective_port,
+        transport,
+        connection_hints: Vec::new(),
+        ech_config,
+        parameters,
+    })
+    .map_err(|_| ())
 }
 
 struct BoxedDelegatedResolver {
@@ -2784,6 +4452,7 @@ impl DelegatedResolver for BoxedDelegatedResolver {
 struct DnsTraceRecorder {
     events: Arc<Mutex<Vec<DnsTraceEvent>>>,
     relay: Arc<Mutex<Option<DnsRelayTraceMetadata>>>,
+    namespace: Arc<Mutex<Option<NamespaceResolutionMetadata>>>,
 }
 
 impl DnsTraceRecorder {
@@ -2808,6 +4477,19 @@ impl DnsTraceRecorder {
 
     fn relay_snapshot(&self) -> Option<DnsRelayTraceMetadata> {
         self.relay.lock().ok().and_then(|relay| relay.clone())
+    }
+
+    fn record_namespace(&self, metadata: NamespaceResolutionMetadata) {
+        if let Ok(mut namespace) = self.namespace.lock() {
+            *namespace = Some(metadata);
+        }
+    }
+
+    fn namespace_snapshot(&self) -> Option<NamespaceResolutionMetadata> {
+        self.namespace
+            .lock()
+            .ok()
+            .and_then(|namespace| namespace.clone())
     }
 }
 
@@ -3606,6 +5288,7 @@ fn doh_response_matches_query(response: &OriginResponse, query: &[u8]) -> bool {
     };
     answer.header.flags.is_response()
         && answer.header.flags.opcode() == 0
+        && !answer.header.flags.truncated()
         && matches!(
             answer.header.flags.rcode(),
             DNS_RCODE_NOERROR | DNS_RCODE_NXDOMAIN
@@ -3651,8 +5334,74 @@ fn dns_trace_error_status(error: &ResolverError) -> &'static str {
 }
 
 impl Resolver for AndroidGatewayResolver {
-    fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
-        self.inner.resolve(request)
+    fn resolve(&self, _request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+        // This adapter is an origin-plan resolver, not a general recursive
+        // resolver. The gateway must consume the prepared selected plan and
+        // cannot issue follow-up DNS after that boundary.
+        Err(ResolverError::InvalidNamespacePlan)
+    }
+
+    fn prepare_namespace_resolution(
+        &self,
+        query: &OriginQuery,
+    ) -> Result<Option<PreparedNamespaceResolution>, ResolverError> {
+        if query.host().as_str() != self.origin.key.host {
+            return Ok(None);
+        }
+        let plan = self.plan(query)?;
+        let decision = plan
+            .decision
+            .clone()
+            .ok_or(ResolverError::InvalidNamespacePlan)?;
+        let selected_plan = decision
+            .selected_plan()
+            .ok_or(ResolverError::NamespaceNeither)?;
+        let mut requests = plan.selected_answers.keys().collect::<Vec<_>>();
+        requests.sort_by(|left, right| {
+            left.qname
+                .cmp(&right.qname)
+                .then(left.qtype.cmp(&right.qtype))
+        });
+        let mut records = Vec::new();
+        for request in requests {
+            if let Some(answer) = plan.selected_answers.get(request) {
+                for record in &answer.records {
+                    if !records.contains(record) {
+                        records.push(record.clone());
+                    }
+                }
+            }
+        }
+        let secure = match selected_plan.provenance() {
+            EvidenceProvenance::Hns { .. }
+            | EvidenceProvenance::IcannDoh {
+                chain_state: IcannChainState::Secure,
+            } => true,
+            EvidenceProvenance::IcannDoh {
+                chain_state: IcannChainState::ProvenInsecure,
+            } => false,
+        };
+        let name = DnsName::from_ascii(selected_plan.origin_host().as_str())
+            .map_err(|_| ResolverError::InvalidNamespacePlan)?;
+        Ok(Some(PreparedNamespaceResolution {
+            decision,
+            state_fingerprint: plan
+                .state_fingerprint
+                .ok_or(ResolverError::InvalidNamespacePlan)?,
+            resolution: ResolutionAnswer {
+                name,
+                records,
+                secure,
+            },
+        }))
+    }
+
+    fn namespace_resolution(&self, host: &str) -> Option<NamespaceResolutionMetadata> {
+        let normalized = NormalizedHost::parse(host).ok()?.to_string();
+        if normalized != self.origin.key.host {
+            return None;
+        }
+        self.trace.namespace_snapshot()
     }
 }
 
@@ -3857,41 +5606,337 @@ fn relay_dnssec_result(
     })
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IcannResponseKind {
+    Answer,
+    NoData,
+    NxDomain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct IcannResponseObservation {
+    kind: IcannResponseKind,
+    secure: bool,
+    observed_at_unix: u64,
+    expires_at_unix: u64,
+}
+
+#[derive(Clone, Debug, Default)]
+struct IcannEvidenceRecorder {
+    observations: Arc<Mutex<HashMap<ResolutionRequest, IcannResponseObservation>>>,
+}
+
+impl IcannEvidenceRecorder {
+    fn begin(&self) -> Result<(), ResolverError> {
+        self.observations
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .clear();
+        Ok(())
+    }
+
+    fn record_response(
+        &self,
+        request: &ResolutionRequest,
+        message: &DnsMessage,
+    ) -> Result<(), ResolverError> {
+        let observed_at_unix = now_unix_seconds();
+        let kind = if message.header.flags.rcode() == DNS_RCODE_NXDOMAIN {
+            IcannResponseKind::NxDomain
+        } else if !message
+            .answers
+            .iter()
+            .any(|record| record.record_type.code() == request.qtype)
+        {
+            IcannResponseKind::NoData
+        } else {
+            IcannResponseKind::Answer
+        };
+        let ttl = match kind {
+            IcannResponseKind::Answer => message
+                .answers
+                .iter()
+                .map(|record| record.ttl)
+                .filter(|ttl| *ttl != 0)
+                .min(),
+            IcannResponseKind::NoData | IcannResponseKind::NxDomain => {
+                dns_negative_ttl(&message.authorities)
+            }
+        };
+        let Some(ttl) = ttl else {
+            return Ok(());
+        };
+        let secure = message.header.flags.bits() & DNS_AUTHENTIC_DATA_FLAG != 0;
+        let ttl = u64::from(ttl).clamp(1, NAMESPACE_EVIDENCE_MAX_TTL_SECONDS);
+        let mut expires_at_unix = observed_at_unix.saturating_add(ttl);
+        if secure {
+            let signature_expiry = match kind {
+                IcannResponseKind::Answer => positive_rrsig_expiry(&message.answers),
+                IcannResponseKind::NoData | IcannResponseKind::NxDomain => {
+                    denial_rrsig_expiry(&message.authorities)
+                }
+            };
+            let Some(signature_expiry) = signature_expiry else {
+                return Ok(());
+            };
+            expires_at_unix = expires_at_unix.min(signature_expiry);
+            if expires_at_unix <= observed_at_unix {
+                return Ok(());
+            }
+        }
+        self.observations
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .insert(
+                request.clone(),
+                IcannResponseObservation {
+                    kind,
+                    secure,
+                    observed_at_unix,
+                    expires_at_unix,
+                },
+            );
+        Ok(())
+    }
+
+    fn observation(
+        &self,
+        request: &ResolutionRequest,
+    ) -> Result<Option<IcannResponseObservation>, ResolverError> {
+        Ok(self
+            .observations
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .get(request)
+            .copied())
+    }
+
+    #[cfg(test)]
+    fn record_authenticated_absence(
+        &self,
+        request: &ResolutionRequest,
+    ) -> Result<(), ResolverError> {
+        let observed_at_unix = now_unix_seconds();
+        self.observations
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .insert(
+                request.clone(),
+                IcannResponseObservation {
+                    kind: IcannResponseKind::NxDomain,
+                    secure: true,
+                    observed_at_unix,
+                    expires_at_unix: observed_at_unix
+                        .saturating_add(NAMESPACE_EVIDENCE_MAX_TTL_SECONDS),
+                },
+            );
+        Ok(())
+    }
+}
+
+fn dns_negative_ttl(authorities: &[ResourceRecord]) -> Option<u32> {
+    authorities
+        .iter()
+        .filter(|record| record.record_type == RecordType::Soa)
+        .filter_map(|record| {
+            let (_, cursor) = DnsName::parse_wire(&record.rdata, 0).ok()?;
+            let (_, cursor) = DnsName::parse_wire(&record.rdata, cursor).ok()?;
+            let minimum = record
+                .rdata
+                .get(cursor.checked_add(16)?..cursor.checked_add(20)?)?;
+            if cursor.checked_add(20)? != record.rdata.len() {
+                return None;
+            }
+            Some(record.ttl.min(u32::from_be_bytes([
+                minimum[0], minimum[1], minimum[2], minimum[3],
+            ])))
+        })
+        .filter(|ttl| *ttl != 0)
+        .min()
+}
+
+fn denial_rrsig_expiry(authorities: &[ResourceRecord]) -> Option<u64> {
+    let mut rrsets = authorities
+        .iter()
+        .filter(|record| {
+            record.class == DNS_CLASS_IN
+                && matches!(
+                    record.record_type,
+                    RecordType::Soa | RecordType::Nsec | RecordType::Nsec3
+                )
+        })
+        .map(|record| (record.name.clone(), record.record_type))
+        .collect::<Vec<_>>();
+    rrsets.sort_by(|left, right| {
+        left.0
+            .to_string()
+            .cmp(&right.0.to_string())
+            .then_with(|| left.1.code().cmp(&right.1.code()))
+    });
+    rrsets.dedup();
+    if !rrsets
+        .iter()
+        .any(|(_, record_type)| *record_type == RecordType::Soa)
+        || !rrsets
+            .iter()
+            .any(|(_, record_type)| matches!(record_type, RecordType::Nsec | RecordType::Nsec3))
+    {
+        return None;
+    }
+
+    let signatures = authorities
+        .iter()
+        .filter(|record| record.class == DNS_CLASS_IN && record.record_type == RecordType::Rrsig)
+        .filter_map(|record| {
+            RrsigRecord::parse_rdata(&record.rdata)
+                .ok()
+                .map(|signature| {
+                    (
+                        record.name.clone(),
+                        signature.type_covered,
+                        signature.signature_expiration.0,
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    if rrsets.iter().any(|(owner, record_type)| {
+        !signatures
+            .iter()
+            .any(|(signer, covered, _)| signer == owner && covered == record_type)
+    }) {
+        return None;
+    }
+    signatures
+        .iter()
+        .filter(|(owner, covered, _)| {
+            rrsets
+                .iter()
+                .any(|(rrset_owner, record_type)| rrset_owner == owner && record_type == covered)
+        })
+        .map(|(_, _, expiry)| *expiry)
+        .min()
+}
+
+fn positive_rrsig_expiry(answers: &[ResourceRecord]) -> Option<u64> {
+    let mut rrsets = answers
+        .iter()
+        .filter(|record| record.class == DNS_CLASS_IN && record.record_type != RecordType::Rrsig)
+        .map(|record| (record.name.clone(), record.record_type))
+        .collect::<Vec<_>>();
+    rrsets.sort_by(|left, right| {
+        left.0
+            .to_string()
+            .cmp(&right.0.to_string())
+            .then_with(|| left.1.code().cmp(&right.1.code()))
+    });
+    rrsets.dedup();
+    if rrsets.is_empty() {
+        return None;
+    }
+
+    let signatures = answers
+        .iter()
+        .filter(|record| record.class == DNS_CLASS_IN && record.record_type == RecordType::Rrsig)
+        .filter_map(|record| {
+            RrsigRecord::parse_rdata(&record.rdata)
+                .ok()
+                .map(|signature| {
+                    (
+                        record.name.clone(),
+                        signature.type_covered,
+                        signature.signature_expiration.0,
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    if rrsets.iter().any(|(owner, record_type)| {
+        !signatures
+            .iter()
+            .any(|(signer, covered, _)| signer == owner && covered == record_type)
+    }) {
+        return None;
+    }
+    signatures
+        .iter()
+        .filter(|(owner, covered, _)| {
+            rrsets
+                .iter()
+                .any(|(rrset_owner, record_type)| rrset_owner == owner && record_type == covered)
+        })
+        .map(|(_, _, expiry)| *expiry)
+        .min()
+}
+
 #[derive(Clone, Debug)]
 struct IcannDohResolver {
     endpoint: HnsDohEndpoint,
     trace: DnsTraceRecorder,
     http: TcpHttpTransport,
+    evidence: IcannEvidenceRecorder,
+    #[cfg(test)]
+    fixture_key: PathBuf,
 }
 
 impl IcannDohResolver {
-    fn new(trace: DnsTraceRecorder, http: TcpHttpTransport) -> Self {
+    fn new(
+        trace: DnsTraceRecorder,
+        http: TcpHttpTransport,
+        evidence: IcannEvidenceRecorder,
+        fixture_key: PathBuf,
+    ) -> Self {
+        #[cfg(not(test))]
+        let _ = fixture_key;
         Self {
             endpoint: default_icann_doh_endpoint(),
             trace,
             http,
+            evidence,
+            #[cfg(test)]
+            fixture_key,
         }
     }
 }
 
 impl Resolver for IcannDohResolver {
     fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+        #[cfg(test)]
+        if test_icann_authenticated_absence(&self.fixture_key, &request.qname) {
+            self.evidence.record_authenticated_absence(request)?;
+            return Err(ResolverError::NameNotFound);
+        }
         let qname =
             DnsName::from_ascii(&request.qname).map_err(|_| ResolverError::UnsupportedBackend)?;
         let qtype = RecordType::from_code(request.qtype);
         let id = DOH_DNS_ID;
         let query = build_doh_query(id, &qname, qtype)?;
-        let started = Instant::now();
-        let response = fetch_doh_message(&self.http, &self.endpoint, query.clone());
-        self.trace.push(doh_trace_event(
-            "icann_doh",
-            self.endpoint.display(),
-            &query,
-            elapsed_millis(started),
-            &response,
-        ));
-        let response = response.map_err(|error| {
-            ResolverError::DnsTransport(format!("ICANN DoH resolver failed: {error}"))
+        let mut response = None;
+        let mut last_error = None;
+        for bootstrap in ICANN_DOH_BOOTSTRAP_ADDRESSES {
+            let started = Instant::now();
+            let attempt =
+                fetch_doh_message_at(&self.http, &self.endpoint, *bootstrap, query.clone());
+            self.trace.push(doh_trace_event(
+                "icann_doh",
+                format!("{} via {bootstrap}", self.endpoint.display()),
+                &query,
+                elapsed_millis(started),
+                &attempt,
+            ));
+            match attempt {
+                Ok(answer) => {
+                    response = Some(answer);
+                    break;
+                }
+                Err(error) => last_error = Some(error),
+            }
+        }
+        let response = response.ok_or_else(|| {
+            ResolverError::DnsTransport(format!(
+                "ICANN DoH resolver failed through every pinned bootstrap address: {}",
+                last_error
+                    .map(|error| error.to_string())
+                    .unwrap_or_else(|| "no bootstrap address configured".to_owned())
+            ))
         })?;
         if !doh_http_status_success(response.status) {
             return Err(ResolverError::DnsTransport(format!(
@@ -3903,7 +5948,13 @@ impl Resolver for IcannDohResolver {
             return Err(ResolverError::InvalidDnsResponse);
         }
 
-        doh_answer_from_body(id, &qname, qtype, &response.body)
+        let answer = doh_answer_from_body(id, &qname, qtype, &response.body);
+        if matches!(answer, Ok(_) | Err(ResolverError::NameNotFound)) {
+            let message =
+                DnsMessage::parse(&response.body).map_err(|_| ResolverError::InvalidDnsResponse)?;
+            self.evidence.record_response(request, &message)?;
+        }
+        answer
     }
 }
 
@@ -3925,14 +5976,20 @@ fn delegated_p2p_fallback_allowed(error: &ResolverError) -> bool {
     )
 }
 
-fn fetch_doh_message(
+fn fetch_doh_message_at(
     http: &TcpHttpTransport,
     endpoint: &HnsDohEndpoint,
+    connect_address: IpAddr,
     body: Vec<u8>,
 ) -> Result<OriginResponse, TransportError> {
-    http.fetch(&doh_origin_request(endpoint, None, body))
+    http.fetch(&doh_origin_request(
+        endpoint,
+        Some(connect_address.to_string()),
+        body,
+    ))
 }
 
+#[cfg(test)]
 fn fetch_doh_message_at_with_control<F>(
     http: &TcpHttpTransport,
     endpoint: &HnsDohEndpoint,
@@ -4094,6 +6151,7 @@ fn doh_answer_from_body(
     if message.header.id != id
         || !message.header.flags.is_response()
         || message.header.flags.opcode() != 0
+        || message.header.flags.truncated()
         || message.questions.len() != 1
         || message.questions[0].name != *qname
         || message.questions[0].record_type != qtype
@@ -4103,6 +6161,19 @@ fn doh_answer_from_body(
     }
     if !matches!(rcode, DNS_RCODE_NOERROR | DNS_RCODE_NXDOMAIN) {
         return Err(ResolverError::DnsResponseCode(rcode));
+    }
+    if rcode == DNS_RCODE_NXDOMAIN {
+        if !message.answers.is_empty() {
+            // This simple validating-DoH boundary does not retain an
+            // Answer-section alias chain when returning typed name absence.
+            // Reject CNAME+NXDOMAIN instead of caching the denial under only
+            // the (potentially much longer) SOA freshness bound.
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        // The DoH channel is authenticated and the validating resolver is
+        // configured to return failures for bogus DNSSEC. Preserve NXDOMAIN
+        // as typed absence instead of an empty positive answer.
+        return Err(ResolverError::NameNotFound);
     }
 
     Ok(ResolutionAnswer {
@@ -4242,6 +6313,25 @@ fn gateway_http_response_with_transport(
         }
     };
     let fallback_marker = FallbackMarker::default();
+    let origin = match namespace_origin_context(
+        base.clone(),
+        network,
+        input.scheme,
+        input.host,
+        input.port,
+        0,
+    ) {
+        Ok(origin) => origin,
+        Err(error) => {
+            return plain_response_for_request(
+                &input,
+                400,
+                "Invalid Namespace Origin",
+                &error.to_string(),
+            );
+        }
+    };
+    let plans = shared_direct_namespace_plans();
     let resolver = android_gateway_resolver(
         base.clone(),
         values,
@@ -4253,6 +6343,8 @@ fn gateway_http_response_with_transport(
             http: transport.clone(),
         },
         dns_trace.clone(),
+        origin.clone(),
+        Arc::clone(&plans),
     );
     let stateless_dane = stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
     let gateway = match Gateway::new(
@@ -4280,6 +6372,14 @@ fn gateway_http_response_with_transport(
 
     match gateway.handle(&request) {
         Ok(response) => {
+            if let Err(error) = record_successful_namespace_selection(&origin, &plans, &dns_trace) {
+                return plain_response_for_request(
+                    &input,
+                    500,
+                    "Namespace Binding Error",
+                    &error.to_string(),
+                );
+            }
             let resolver_policy = fallback_marker.used().then_some("hns-doh-compat");
             let security_path = security_path_name(
                 &input,
@@ -4311,7 +6411,10 @@ fn gateway_http_response_with_transport(
             )
         }
         Err(error) => {
-            let (status, reason, detail) = map_gateway_error_for_host(input.host, &error);
+            let selected = dns_trace
+                .namespace_snapshot()
+                .and_then(|metadata| metadata.selected);
+            let (status, reason, detail) = map_gateway_error_for_namespace(selected, &error);
             let trace = resolution_trace_json(
                 &input,
                 network,
@@ -4385,6 +6488,26 @@ fn gateway_http_response_body_to_file_with_transport(
         }
     };
     let fallback_marker = FallbackMarker::default();
+    let origin = match namespace_origin_context(
+        base.clone(),
+        network,
+        input.scheme,
+        input.host,
+        input.port,
+        0,
+    ) {
+        Ok(origin) => origin,
+        Err(error) => {
+            return plain_response_to_file_for_request(
+                &input,
+                400,
+                "Invalid Namespace Origin",
+                &error.to_string(),
+                body_path,
+            );
+        }
+    };
+    let plans = shared_direct_namespace_plans();
     let resolver = android_gateway_resolver(
         base.clone(),
         values,
@@ -4396,6 +6519,8 @@ fn gateway_http_response_body_to_file_with_transport(
             http: transport.clone(),
         },
         dns_trace.clone(),
+        origin.clone(),
+        Arc::clone(&plans),
     );
     let stateless_dane = stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
     let gateway = match Gateway::new(
@@ -4430,6 +6555,16 @@ fn gateway_http_response_body_to_file_with_transport(
         fs::File::create(body_path).map_err(|error| format!("create response body: {error}"))?;
     match gateway.handle_to_writer(&request, &mut body_file) {
         Ok(response) => {
+            if let Err(error) = record_successful_namespace_selection(&origin, &plans, &dns_trace) {
+                drop(body_file);
+                return plain_response_to_file_for_request(
+                    &input,
+                    500,
+                    "Namespace Binding Error",
+                    &error.to_string(),
+                    body_path,
+                );
+            }
             let resolver_policy = fallback_marker.used().then_some("hns-doh-compat");
             let security_path = security_path_name(
                 &input,
@@ -4461,7 +6596,10 @@ fn gateway_http_response_body_to_file_with_transport(
             ))
         }
         Err(error) => {
-            let (status, reason, detail) = map_gateway_error_for_host(input.host, &error);
+            let selected = dns_trace
+                .namespace_snapshot()
+                .and_then(|metadata| metadata.selected);
+            let (status, reason, detail) = map_gateway_error_for_namespace(selected, &error);
             let trace = resolution_trace_json(
                 &input,
                 network,
@@ -4541,6 +6679,28 @@ fn gateway_http_upgrade_tunnel_with_transport(
         }
     };
     let fallback_marker = FallbackMarker::default();
+    let origin = match namespace_origin_context(
+        base.clone(),
+        network,
+        input.scheme,
+        input.host,
+        input.port,
+        0,
+    ) {
+        Ok(origin) => origin,
+        Err(error) => {
+            return write_tunnel_response(
+                &mut client_output,
+                &plain_response_for_request(
+                    &input,
+                    400,
+                    "Invalid Namespace Origin",
+                    &error.to_string(),
+                ),
+            );
+        }
+    };
+    let plans = shared_direct_namespace_plans();
     let resolver = android_gateway_resolver(
         base.clone(),
         values,
@@ -4552,6 +6712,8 @@ fn gateway_http_upgrade_tunnel_with_transport(
             http: transport.clone(),
         },
         dns_trace.clone(),
+        origin.clone(),
+        Arc::clone(&plans),
     );
     let stateless_dane = stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
     let gateway = match Gateway::new(
@@ -4582,6 +6744,17 @@ fn gateway_http_upgrade_tunnel_with_transport(
 
     match gateway.handle_tunnel(&request) {
         Ok(response) => {
+            if let Err(error) = record_successful_namespace_selection(&origin, &plans, &dns_trace) {
+                return write_tunnel_response(
+                    &mut client_output,
+                    &plain_response_for_request(
+                        &input,
+                        500,
+                        "Namespace Binding Error",
+                        &error.to_string(),
+                    ),
+                );
+            }
             let resolver_policy = fallback_marker.used().then_some("hns-doh-compat");
             let trace = resolution_trace_json(
                 &input,
@@ -4621,7 +6794,10 @@ fn gateway_http_upgrade_tunnel_with_transport(
             result.is_ok()
         }
         Err(error) => {
-            let (status, reason, detail) = map_gateway_error_for_host(input.host, &error);
+            let selected = dns_trace
+                .namespace_snapshot()
+                .and_then(|metadata| metadata.selected);
+            let (status, reason, detail) = map_gateway_error_for_namespace(selected, &error);
             let trace = resolution_trace_json(
                 &input,
                 network,
@@ -4774,6 +6950,8 @@ fn android_gateway_resolver(
     values: SqliteResourceValueProvider,
     context: GatewayResolverContext,
     dns_trace: DnsTraceRecorder,
+    origin: NamespaceOriginContext,
+    plans: SharedNamespacePlans,
 ) -> AndroidGatewayResolver {
     let GatewayResolverContext {
         network,
@@ -4811,12 +6989,24 @@ fn android_gateway_resolver(
             BoxedDelegatedResolver::new(P2pFallbackDelegatedResolver::new(delegated, relay));
     }
 
+    let hns_evidence = HnsProofEvidenceRecorder::default();
+    let icann_evidence = IcannEvidenceRecorder::default();
+    let fixture_key = base.clone();
     let proof_provider = GatewayProofProvider::new(base, values, network)
         .with_peer_state(peer_state)
-        .with_proof_peer(proof_peer);
+        .with_proof_peer(proof_peer)
+        .with_evidence(hns_evidence.clone());
     let primary = DelegatingResolver::new(proof_provider, delegated);
-    let icann = IcannDohResolver::new(dns_trace, http);
-    AndroidGatewayResolver::new(CompositeResolver::new(primary, icann))
+    let icann = IcannDohResolver::new(dns_trace.clone(), http, icann_evidence.clone(), fixture_key);
+    AndroidGatewayResolver::new(
+        primary,
+        icann,
+        origin,
+        plans,
+        hns_evidence,
+        icann_evidence,
+        dns_trace,
+    )
 }
 
 struct GatewayResolverContext {
@@ -5052,8 +7242,41 @@ fn resolution_trace_json(
     fallback_marker: &FallbackMarker,
     dns_trace: &DnsTraceRecorder,
 ) -> String {
-    let dns_events = dns_trace.snapshot();
-    let name_class = classify_name(input.host);
+    let namespace_resolution = dns_trace.namespace_snapshot();
+    let selected_namespace = namespace_resolution
+        .as_ref()
+        .and_then(|metadata| metadata.selected);
+    let all_dns_events = dns_trace.snapshot();
+    let dns_events = all_dns_events
+        .iter()
+        .filter(|event| match selected_namespace {
+            Some(Namespace::Icann) => event.protocol == "icann_doh",
+            Some(Namespace::Hns) => event.protocol != "icann_doh",
+            None => true,
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let hns_dns_events = all_dns_events
+        .iter()
+        .filter(|event| dns_trace_event_root(event) == "hns")
+        .cloned()
+        .collect::<Vec<_>>();
+    let icann_dns_events = all_dns_events
+        .iter()
+        .filter(|event| dns_trace_event_root(event) == "icann")
+        .cloned()
+        .collect::<Vec<_>>();
+    let diagnostic_dns_events = all_dns_events
+        .iter()
+        .filter(|event| dns_trace_event_root(event) == "diagnostic")
+        .cloned()
+        .collect::<Vec<_>>();
+    let name_class = match selected_namespace {
+        Some(Namespace::Hns) => "hns",
+        Some(Namespace::Icann) => "icann",
+        None => "unresolved",
+    };
+    let namespace_resolution_json = namespace_resolution_trace_json(namespace_resolution.as_ref());
     let resource_types = resolution
         .map(|answer| {
             answer
@@ -5090,7 +7313,13 @@ fn resolution_trace_json(
                     .any(|record| matches!(record.record_type, RecordType::A | RecordType::Aaaa))
             })
             .unwrap_or(false);
-    let hns_proof = hns_proof_trace_status(input, network, name_class, resolution, error);
+    let hns_proof = hns_proof_trace_status(
+        input,
+        network,
+        namespace_resolution.as_ref(),
+        resolution,
+        error,
+    );
     let fallback_reason = fallback_marker.reason().unwrap_or("none");
     let fallback_type = if fallback_marker.used() {
         r#""HNS_DOH""#
@@ -5106,12 +7335,22 @@ fn resolution_trace_json(
         .map(|error| format!(r#""{}""#, json_escape(&error.to_string())))
         .unwrap_or_else(|| "null".to_owned());
     let authoritative_dns = authoritative_dns_trace_json(&dns_events);
-    let p2p_dns_relay = p2p_dns_relay_trace_json(dns_trace.relay_snapshot());
-    let port53_interception = dns_protocol_status(&dns_events, "dns_interception_probe");
-    let dns_attempts = dns_trace_attempts_json(&dns_events);
+    let p2p_dns_relay = p2p_dns_relay_trace_json(
+        (selected_namespace != Some(Namespace::Icann))
+            .then(|| dns_trace.relay_snapshot())
+            .flatten(),
+    );
+    let port53_interception = dns_protocol_status(&all_dns_events, "dns_interception_probe");
+    let dns_attempts = dns_trace_attempts_json(&all_dns_events);
+    let root_evidence = root_dns_evidence_trace_json(
+        &hns_dns_events,
+        &icann_dns_events,
+        &diagnostic_dns_events,
+        dns_trace.relay_snapshot(),
+    );
     let resolution_source = resolution_source_name(
         input.host,
-        name_class,
+        selected_namespace,
         resolution,
         authoritative_dns_used,
         error,
@@ -5126,11 +7365,16 @@ fn resolution_trace_json(
     let local_chain_stale = optional_bool_json(local_currentness.and_then(|value| value.stale));
 
     format!(
-        r#"{{"host":"{}","url":"{}","nameClass":"{}","root":"{}","network":"{}","mode":"{}","hnsProof":"{}","localBestHeight":{},"targetHeight":{},"estimatedTargetHeight":{},"localChainStale":{},"delegation":{},"resolutionSource":"{}","resourceRecords":[{}],"nameserverCandidates":{},"authoritativeDns":{},"p2pDnsRelay":{},"port53Interception":"{}","dnssec":"{}","originAddress":"{}","tls":{},"fallback":{{"used":{},"type":{},"reason":{}}},"dnsAttempts":[{}],"finalError":{}}}"#,
+        r#"{{"host":"{}","url":"{}","nameClass":"{}","namespaceResolution":{},"root":"{}","network":"{}","mode":"{}","hnsProof":"{}","localBestHeight":{},"targetHeight":{},"estimatedTargetHeight":{},"localChainStale":{},"delegation":{},"resolutionSource":"{}","resourceRecords":[{}],"nameserverCandidates":{},"authoritativeDns":{},"p2pDnsRelay":{},"port53Interception":"{}","dnssec":"{}","originAddress":"{}","tls":{},"fallback":{{"used":{},"type":{},"reason":{}}},"rootEvidence":{},"dnsAttempts":[{}],"finalError":{}}}"#,
         json_escape(input.host),
         json_escape(&gateway_request_address(input)),
-        name_class_trace_name(name_class),
-        json_escape(&hns_trace_root(input.host)),
+        name_class,
+        namespace_resolution_json,
+        if selected_namespace == Some(Namespace::Hns) {
+            json_escape(&hns_trace_root(input.host))
+        } else {
+            String::new()
+        },
         network.as_str(),
         mode.as_str(),
         hns_proof,
@@ -5151,28 +7395,80 @@ fn resolution_trace_json(
         fallback_marker.used(),
         fallback_type,
         fallback_reason_json,
+        root_evidence,
         dns_attempts,
         final_error,
     )
 }
 
-fn name_class_trace_name(name_class: NameClass) -> &'static str {
-    match name_class {
-        NameClass::Hns => "hns",
-        NameClass::Icann => "icann",
-        NameClass::Search => "search",
+fn namespace_resolution_trace_json(metadata: Option<&NamespaceResolutionMetadata>) -> String {
+    let Some(metadata) = metadata else {
+        return r#"{"outcome":"indeterminate","selected":null,"reason":"unavailable","hnsState":"failed","icannState":"failed","fingerprint":null}"#
+            .to_owned();
+    };
+    let outcome = match metadata.outcome {
+        Some(OutcomeKind::HnsOnly) => "hnsOnly",
+        Some(OutcomeKind::IcannOnly) => "icannOnly",
+        Some(OutcomeKind::BothConvergent) => "bothConvergent",
+        Some(OutcomeKind::BothDivergent) => "bothDivergent",
+        Some(OutcomeKind::Neither) => "neither",
+        None => "indeterminate",
+    };
+    let selected = metadata
+        .selected
+        .map(|namespace| {
+            format!(
+                r#""{}""#,
+                match namespace {
+                    Namespace::Hns => "hns",
+                    Namespace::Icann => "icann",
+                }
+            )
+        })
+        .unwrap_or_else(|| "null".to_owned());
+    let reason = match (metadata.outcome, metadata.selection_reason) {
+        (_, Some(SelectionReason::ExplicitPin)) => "explicitPin",
+        (_, Some(SelectionReason::StickyBinding)) => "stickyBinding",
+        (Some(OutcomeKind::BothConvergent), Some(SelectionReason::IcannDefault)) => {
+            "convergentDefault"
+        }
+        (_, Some(SelectionReason::IcannDefault)) => "icannDefault",
+        (_, Some(SelectionReason::SingleRoot)) => "onlyAvailableRoot",
+        _ => "unavailable",
+    };
+    let fingerprint = metadata
+        .fingerprint
+        .as_ref()
+        .map(|fingerprint| format!(r#""{}""#, json_escape(fingerprint)))
+        .unwrap_or_else(|| "null".to_owned());
+    format!(
+        r#"{{"outcome":"{}","selected":{},"reason":"{}","hnsState":"{}","icannState":"{}","fingerprint":{}}}"#,
+        outcome,
+        selected,
+        reason,
+        namespace_root_state_name(metadata.hns_state),
+        namespace_root_state_name(metadata.icann_state),
+        fingerprint,
+    )
+}
+
+fn namespace_root_state_name(state: NamespaceRootState) -> &'static str {
+    match state {
+        NamespaceRootState::Present => "present",
+        NamespaceRootState::AuthenticatedAbsent => "authenticatedAbsent",
+        NamespaceRootState::Failed => "failed",
     }
 }
 
 fn resolution_source_name(
     host: &str,
-    name_class: NameClass,
+    selected_namespace: Option<Namespace>,
     resolution: Option<&ResolutionAnswer>,
     authoritative_dns_used: bool,
     error: Option<&GatewayError>,
     dns_events: &[DnsTraceEvent],
 ) -> &'static str {
-    if name_class == NameClass::Icann {
+    if selected_namespace == Some(Namespace::Icann) {
         if dns_events.iter().any(|event| event.protocol == "icann_doh")
             || matches!(
                 error,
@@ -5188,7 +7484,7 @@ fn resolution_source_name(
         return "unknown";
     }
 
-    if resolution.is_some() {
+    if selected_namespace == Some(Namespace::Hns) && resolution.is_some() {
         match successful_dns_path_for_types(dns_events, host, &[RecordType::A, RecordType::Aaaa]) {
             Some("authoritative_doh") => return "authoritative_doh",
             Some("udp53" | "tcp53") => return "authoritative_dns",
@@ -5229,12 +7525,16 @@ fn resolution_source_name(
 fn hns_proof_trace_status(
     input: &GatewayHttpRequestInput<'_>,
     network: NetworkKind,
-    name_class: NameClass,
+    namespace: Option<&NamespaceResolutionMetadata>,
     resolution: Option<&ResolutionAnswer>,
     error: Option<&GatewayError>,
 ) -> &'static str {
-    if name_class != NameClass::Hns {
-        return "not_applicable";
+    if let Some(namespace) = namespace {
+        match namespace.hns_state {
+            NamespaceRootState::Present => return "verified",
+            NamespaceRootState::AuthenticatedAbsent => return "not_found",
+            NamespaceRootState::Failed => {}
+        }
     }
 
     match (resolution, error) {
@@ -5330,6 +7630,24 @@ fn p2p_dns_relay_trace_json(metadata: Option<DnsRelayTraceMetadata>) -> String {
     format!(
         r#"{{"attempted":true,"peer":{},"serviceAdvertised":{},"retryCount":{},"error":{}}}"#,
         peer, advertised, metadata.retries, error,
+    )
+}
+
+fn root_dns_evidence_trace_json(
+    hns_events: &[DnsTraceEvent],
+    icann_events: &[DnsTraceEvent],
+    diagnostic_events: &[DnsTraceEvent],
+    relay: Option<DnsRelayTraceMetadata>,
+) -> String {
+    format!(
+        r#"{{"hns":{{"dnsAttempts":[{}],"nameserverCandidates":{},"authoritativeDns":{},"p2pDnsRelay":{}}},"icann":{{"dnsAttempts":[{}],"doh":"{}"}},"diagnostic":{{"dnsAttempts":[{}]}}}}"#,
+        dns_trace_attempts_json(hns_events),
+        nameserver_candidates_json(hns_events),
+        authoritative_dns_trace_json(hns_events),
+        p2p_dns_relay_trace_json(relay),
+        dns_trace_attempts_json(icann_events),
+        dns_protocol_status(icann_events, "icann_doh"),
+        dns_trace_attempts_json(diagnostic_events),
     )
 }
 
@@ -5531,6 +7849,15 @@ fn tlsa_blocked_by(error: Option<&GatewayError>) -> Option<&'static str> {
         Some(GatewayError::Resolver(ResolverError::UnsupportedBackend)) => {
             Some("resolver_backend_unsupported")
         }
+        Some(GatewayError::Resolver(ResolverError::NamespaceIndeterminate)) => {
+            Some("dual_root_namespace_indeterminate")
+        }
+        Some(GatewayError::Resolver(ResolverError::NamespaceNeither)) => {
+            Some("dual_root_namespace_absent")
+        }
+        Some(GatewayError::Resolver(ResolverError::InvalidNamespacePlan)) => {
+            Some("dual_root_namespace_plan_invalid")
+        }
         Some(GatewayError::Resolver(ResolverError::CachePoisoned))
         | Some(GatewayError::Resolver(ResolverError::Storage(_))) => {
             Some("resolver_storage_failed")
@@ -5727,7 +8054,8 @@ fn dns_trace_attempts_json(events: &[DnsTraceEvent]) -> String {
                 .map(|record_type| record_type.to_string())
                 .unwrap_or_else(|| "null".to_owned());
             format!(
-                r#"{{"protocol":"{}","server":"{}","questionName":{},"questionType":{},"status":"{}","elapsedMs":{},"error":{}}}"#,
+                r#"{{"root":"{}","protocol":"{}","server":"{}","questionName":{},"questionType":{},"status":"{}","elapsedMs":{},"error":{}}}"#,
+                dns_trace_event_root(event),
                 event.protocol,
                 json_escape(&event.server),
                 question_name,
@@ -5739,6 +8067,14 @@ fn dns_trace_attempts_json(events: &[DnsTraceEvent]) -> String {
         })
         .collect::<Vec<_>>()
         .join(",")
+}
+
+fn dns_trace_event_root(event: &DnsTraceEvent) -> &'static str {
+    match event.protocol {
+        "icann_doh" => "icann",
+        "authoritative_doh" | "udp53" | "tcp53" | "p2p_dns_relay" | "hns_doh" => "hns",
+        _ => "diagnostic",
+    }
 }
 
 fn successful_dns_path<'a>(
@@ -6243,11 +8579,11 @@ fn hns_tls_policy_header(decision: &DaneDecision) -> Option<&'static str> {
     }
 }
 
-fn map_gateway_error_for_host(
-    host: &str,
+fn map_gateway_error_for_namespace(
+    selected: Option<Namespace>,
     error: &GatewayError,
 ) -> (u16, &'static str, &'static str) {
-    if classify_name(host) == NameClass::Icann {
+    if selected == Some(Namespace::Icann) {
         match error {
             GatewayError::Resolver(ResolverError::DnsTransport(_)) => (
                 502,
@@ -6391,6 +8727,21 @@ fn map_gateway_error(error: &GatewayError) -> (u16, &'static str, &'static str) 
             404,
             "HNS Name Not Found",
             "A verified HNS non-inclusion proof says this name does not exist.",
+        ),
+        GatewayError::Resolver(ResolverError::NamespaceNeither) => (
+            404,
+            "Name Not Found",
+            "The complete hostname is authentically absent from both HNS and ICANN.",
+        ),
+        GatewayError::Resolver(ResolverError::NamespaceIndeterminate) => (
+            503,
+            "Namespace Resolution Indeterminate",
+            "At least one namespace did not produce authenticated presence or absence.",
+        ),
+        GatewayError::Resolver(ResolverError::InvalidNamespacePlan) => (
+            502,
+            "Invalid Namespace Plan",
+            "The selected namespace produced an internally inconsistent origin plan.",
         ),
         GatewayError::Resolver(ResolverError::LocalChainNotCurrent) => (
             503,
@@ -7611,6 +9962,30 @@ mod tests {
     use std::net::{Shutdown, TcpListener, TcpStream};
     use std::thread;
 
+    fn trace_recorder_for_selection(namespace: Namespace) -> DnsTraceRecorder {
+        let trace = DnsTraceRecorder::default();
+        trace.record_namespace(NamespaceResolutionMetadata {
+            outcome: Some(match namespace {
+                Namespace::Hns => OutcomeKind::HnsOnly,
+                Namespace::Icann => OutcomeKind::IcannOnly,
+            }),
+            selected: Some(namespace),
+            selection_reason: Some(SelectionReason::SingleRoot),
+            hns_state: if namespace == Namespace::Hns {
+                NamespaceRootState::Present
+            } else {
+                NamespaceRootState::AuthenticatedAbsent
+            },
+            icann_state: if namespace == Namespace::Icann {
+                NamespaceRootState::Present
+            } else {
+                NamespaceRootState::AuthenticatedAbsent
+            },
+            fingerprint: Some("11".repeat(32)),
+        });
+        trace
+    }
+
     #[test]
     fn version_is_stable() {
         assert_eq!(
@@ -7630,12 +10005,17 @@ mod tests {
         assert_eq!(classify_browser_name("  "), BrowserNameClass::Search);
         assert_eq!(
             classify_browser_host("TLSA.EXAMPLE.COM."),
-            BrowserHostClass::Icann
+            BrowserHostClass::NativeGateway
         );
         assert_eq!(
             classify_browser_host("example.com"),
-            BrowserHostClass::Icann
+            BrowserHostClass::NativeGateway
         );
+        assert_eq!(
+            classify_browser_host("sub.welcome"),
+            BrowserHostClass::NativeGateway
+        );
+        assert_eq!(classify_browser_host("127.0.0.1"), BrowserHostClass::Icann);
         assert_eq!(
             browser_hns_root_label("sub.welcome"),
             Some("welcome".to_owned())
@@ -7647,12 +10027,11 @@ mod tests {
     fn websocket_scope_script_is_emitted_from_shared_namespace_snapshots() {
         let script = browser_websocket_scope_policy_script();
 
-        assert!(script.contains("window.__hnsRustNamespacePolicyVersion = 1"));
-        assert!(script.contains("var icannTlds = new Set(['aaa','aarp'"));
-        assert!(script.contains("'com'"));
-        assert!(script.contains("var specialUseSuffixes = new Set(['alt','arpa'"));
-        assert!(script.contains("requiresHnsResolution(targetHost)"));
-        assert!(script.contains("window.WebSocket = ProxyScopedWebSocket"));
+        assert!(script.contains("window.__hnsRustNamespacePolicyVersion = 2"));
+        assert!(script.contains("process-wide authenticated proxy"));
+        assert!(!script.contains("icannTlds"));
+        assert!(!script.contains("requiresHnsResolution"));
+        assert!(!script.contains("window.WebSocket ="));
         assert!(!script.contains("hnsWebSocketBridge"));
         assert!(!script.contains("postMessage"));
     }
@@ -7678,14 +10057,19 @@ mod tests {
     }
 
     #[test]
-    fn whole_browser_doh_bootstrap_separates_webpki_identity_from_connect_address() {
+    fn every_icann_doh_bootstrap_separates_webpki_identity_from_connect_address() {
         let endpoint = default_icann_doh_endpoint();
-        let request = doh_origin_request(&endpoint, Some("1.1.1.1".to_owned()), vec![1, 2, 3]);
-        assert_eq!(request.host, ICANN_DOH_HOST);
-        assert_eq!(request.connect_host.as_deref(), Some("1.1.1.1"));
-        assert_eq!(request.tls.mode, hns_dane::DomainTrustMode::IcannWebPki);
-        assert_eq!(request.scheme, "https");
-        assert_eq!(request.path_and_query, ICANN_DOH_PATH);
+        for bootstrap in ICANN_DOH_BOOTSTRAP_ADDRESSES {
+            let request = doh_origin_request(&endpoint, Some(bootstrap.to_string()), vec![1, 2, 3]);
+            assert_eq!(request.host, ICANN_DOH_HOST);
+            assert_eq!(
+                request.connect_host.as_deref(),
+                Some(bootstrap.to_string().as_str())
+            );
+            assert_eq!(request.tls.mode, hns_dane::DomainTrustMode::IcannWebPki);
+            assert_eq!(request.scheme, "https");
+            assert_eq!(request.path_and_query, ICANN_DOH_PATH);
+        }
     }
 
     #[test]
@@ -7825,6 +10209,18 @@ mod tests {
         assert_eq!(
             addresses_for_dns_owner(&answer.records, &qname, &RecordType::A),
             Ok(vec!["1.1.1.1".parse().unwrap()])
+        );
+    }
+
+    #[test]
+    fn legacy_whole_browser_icann_network_cannot_bypass_dual_root_dns() {
+        assert_eq!(
+            WholeBrowserIcannNetwork.resolve(
+                "dane-test.denuoweb.com",
+                443,
+                &ProxyCancellationToken::new(),
+            ),
+            Err(IcannNetworkError::ResolutionFailed),
         );
     }
 
@@ -8109,16 +10505,14 @@ mod tests {
     }
 
     #[test]
-    fn browser_runtime_proxy_rejects_non_hns_scope_before_binding() {
+    fn browser_runtime_proxy_accepts_any_canonical_dns_scope_before_binding() {
         let data_dir = temp_dir_path("browser-runtime-proxy-scope");
         let runtime =
             BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
                 .unwrap();
 
-        assert!(matches!(
-            runtime.start_proxy("example.com"),
-            Err(BrowserProxyError::Scope(HostScopeError::NotHns))
-        ));
+        let proxy = runtime.start_proxy("example.com").unwrap();
+        proxy.stop();
         cleanup_dir(&data_dir);
     }
 
@@ -8147,10 +10541,10 @@ mod tests {
         ));
         icann_only.stop();
         scoped.stop();
-        assert!(matches!(
-            runtime.start_whole_browser_proxy(Some("example.com")),
-            Err(BrowserProxyError::Scope(HostScopeError::NotHns))
-        ));
+        let icann_scoped = runtime
+            .start_whole_browser_proxy(Some("example.com"))
+            .unwrap();
+        icann_scoped.stop();
         cleanup_dir(&data_dir);
     }
 
@@ -8449,11 +10843,16 @@ mod tests {
                 VerifiedResourceValue::inclusion(
                     root_name.clone(),
                     name_hash,
-                    owner_glue4_resource(&root_name, [127, 0, 0, 1]),
+                    owner_dual_stack_glue_resource(
+                        &root_name,
+                        [127, 0, 0, 1],
+                        Ipv6Addr::LOCALHOST.octets(),
+                    ),
                 )
                 .with_anchor(anchor_root, anchor_height),
             )
             .unwrap();
+        register_test_icann_authenticated_absence(&base, &root_name);
         drop(resources);
         let runtime = BrowserRuntime::open(
             RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest).with_initial_policy(
@@ -9897,6 +12296,7 @@ mod tests {
 
     #[test]
     fn resolution_trace_reports_hns_resource_source() {
+        let dns_trace = trace_recorder_for_selection(Namespace::Hns);
         let trace = resolution_trace_json(
             &GatewayHttpRequestInput {
                 data_dir: "/tmp",
@@ -9918,7 +12318,7 @@ mod tests {
             TlsTraceInput::default(),
             None,
             &FallbackMarker::default(),
-            &DnsTraceRecorder::default(),
+            &dns_trace,
         );
 
         assert!(trace.contains(r#""resolutionSource":"hns_resource""#));
@@ -9961,7 +12361,7 @@ mod tests {
 
     #[test]
     fn resolution_trace_reports_authoritative_doh_source() {
-        let dns_trace = DnsTraceRecorder::default();
+        let dns_trace = trace_recorder_for_selection(Namespace::Hns);
         dns_trace.push(DnsTraceEvent {
             protocol: "authoritative_doh",
             server: "https://ns1.crewball/dns-query via 203.0.113.53".to_owned(),
@@ -10052,7 +12452,7 @@ mod tests {
 
     #[test]
     fn resolution_trace_source_uses_exact_address_question_not_other_doh_success() {
-        let dns_trace = DnsTraceRecorder::default();
+        let dns_trace = trace_recorder_for_selection(Namespace::Hns);
         dns_trace.push(DnsTraceEvent {
             protocol: "tcp53",
             server: "203.0.113.53:53".to_owned(),
@@ -10099,11 +12499,26 @@ mod tests {
     }
 
     #[test]
-    fn resolution_trace_reports_icann_doh_source_without_hns_proof() {
-        let dns_trace = DnsTraceRecorder::default();
+    fn resolution_trace_reports_icann_selection_and_retains_partitioned_hns_evidence() {
+        let dns_trace = trace_recorder_for_selection(Namespace::Icann);
+        dns_trace.push(DnsTraceEvent {
+            protocol: "udp53",
+            server: "192.0.2.53:53".to_owned(),
+            question_name: Some("tlsa.example.com".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "ok".to_owned(),
+            elapsed_ms: 11,
+            error: None,
+        });
+        dns_trace.record_relay(DnsRelayTraceMetadata {
+            peer: Some("203.0.113.80:12038".parse().unwrap()),
+            retries: 0,
+            service_advertised: Some(true),
+            error: None,
+        });
         dns_trace.push(DnsTraceEvent {
             protocol: "icann_doh",
-            server: "https://cloudflare-dns.com/dns-query".to_owned(),
+            server: "https://cloudflare-dns.com/dns-query via 1.1.1.1".to_owned(),
             question_name: Some("tlsa.example.com".to_owned()),
             question_type: Some(RecordType::A.code()),
             status: "ok".to_owned(),
@@ -10135,10 +12550,20 @@ mod tests {
         );
 
         assert!(trace.contains(r#""nameClass":"icann""#));
-        assert!(trace.contains(r#""hnsProof":"not_applicable""#));
+        assert!(trace.contains(r#""hnsProof":"not_found""#));
         assert!(trace.contains(r#""resolutionSource":"trusted_icann_doh""#));
-        assert!(trace.contains(r#""protocol":"icann_doh""#));
         assert!(!trace.contains(r#""resolutionSource":"authoritative_doh""#));
+        assert!(
+            trace.contains(
+                r#""rootEvidence":{"hns":{"dnsAttempts":[{"root":"hns","protocol":"udp53""#
+            )
+        );
+        assert!(
+            trace.contains(r#""icann":{"dnsAttempts":[{"root":"icann","protocol":"icann_doh""#)
+        );
+        assert!(trace.contains("192.0.2.53:53"));
+        assert!(trace.contains("203.0.113.80:12038"));
+        assert!(trace.contains(r#""p2pDnsRelay":{"attempted":true,"peer":"203.0.113.80:12038""#));
     }
 
     #[test]
@@ -10157,6 +12582,15 @@ mod tests {
             ))
             .unwrap();
 
+        let dns_trace = DnsTraceRecorder::default();
+        dns_trace.record_namespace(NamespaceResolutionMetadata {
+            outcome: None,
+            selected: None,
+            selection_reason: None,
+            hns_state: NamespaceRootState::Present,
+            icann_state: NamespaceRootState::Failed,
+            fingerprint: None,
+        });
         let trace = resolution_trace_json(
             &GatewayHttpRequestInput {
                 data_dir: path.to_str().unwrap(),
@@ -10176,10 +12610,11 @@ mod tests {
                 "operation timed out".to_owned(),
             ))),
             &FallbackMarker::default(),
-            &DnsTraceRecorder::default(),
+            &dns_trace,
         );
 
-        assert!(trace.contains(r#""root":"welcome""#));
+        assert!(trace.contains(r#""root":"""#));
+        assert!(trace.contains(r#""nameClass":"unresolved""#));
         assert!(trace.contains(r#""hnsProof":"verified""#));
         cleanup_dir(&path);
     }
@@ -10928,6 +13363,71 @@ mod tests {
     }
 
     #[test]
+    fn doh_response_parser_rejects_cname_nxdomain_but_preserves_pure_nxdomain() {
+        let qname = DnsName::from_ascii("alias.example.com").unwrap();
+        let mut cname = cname_record("alias.example.com", "missing.example.com");
+        cname.ttl = 5;
+        let mut soa_rdata = Vec::new();
+        DnsName::from_ascii("ns.example.com")
+            .unwrap()
+            .encode_wire(&mut soa_rdata)
+            .unwrap();
+        DnsName::from_ascii("hostmaster.example.com")
+            .unwrap()
+            .encode_wire(&mut soa_rdata)
+            .unwrap();
+        for value in [1_u32, 60, 60, 300, 90] {
+            soa_rdata.extend(value.to_be_bytes());
+        }
+        let mut message = DnsMessage {
+            header: DnsHeader {
+                id: DOH_DNS_ID,
+                flags: DnsFlags::new(0x81a3),
+                question_count: 1,
+                answer_count: 1,
+                authority_count: 1,
+                additional_count: 0,
+            },
+            questions: vec![DnsQuestion {
+                name: qname.clone(),
+                record_type: RecordType::A,
+                class: DNS_CLASS_IN,
+            }],
+            answers: vec![cname],
+            authorities: vec![ResourceRecord {
+                name: DnsName::from_ascii("example.com").unwrap(),
+                record_type: RecordType::Soa,
+                class: DNS_CLASS_IN,
+                ttl: 90,
+                rdata: soa_rdata,
+            }],
+            additionals: Vec::new(),
+        };
+        let cname_nxdomain = message
+            .encode(&DnsEncodeConfig {
+                max_message_len: 4096,
+            })
+            .unwrap();
+
+        assert_eq!(
+            doh_answer_from_body(DOH_DNS_ID, &qname, RecordType::A, &cname_nxdomain).unwrap_err(),
+            ResolverError::InvalidDnsResponse,
+        );
+
+        message.answers.clear();
+        message.header.answer_count = 0;
+        let pure_nxdomain = message
+            .encode(&DnsEncodeConfig {
+                max_message_len: 4096,
+            })
+            .unwrap();
+        assert_eq!(
+            doh_answer_from_body(DOH_DNS_ID, &qname, RecordType::A, &pure_nxdomain).unwrap_err(),
+            ResolverError::NameNotFound,
+        );
+    }
+
+    #[test]
     fn doh_http_status_allows_any_successful_2xx() {
         assert!(!doh_http_status_success(199));
         assert!(doh_http_status_success(200));
@@ -11047,6 +13547,7 @@ mod tests {
     #[test]
     fn gateway_response_fails_closed_without_resolver_backend() {
         let path = temp_dir_path("gateway-empty");
+        register_test_icann_authenticated_absence(&path.join("hns"), "welcome");
         let response = gateway_http_response(GatewayHttpRequestInput {
             data_dir: path.to_str().unwrap(),
             method: "GET",
@@ -11059,7 +13560,8 @@ mod tests {
         });
         let text = String::from_utf8(response).unwrap();
 
-        assert!(text.starts_with("HTTP/1.1 503 HNS Proof Unavailable\r\n"));
+        assert!(text.starts_with("HTTP/1.1 503 Namespace Resolution Indeterminate\r\n"));
+        assert!(text.contains("At least one namespace did not produce authenticated presence"));
         assert!(text.contains("Connection: close\r\n"));
         cleanup_dir(&path);
     }
@@ -11167,11 +13669,22 @@ mod tests {
             ),
         );
         assert_eq!(
-            map_gateway_error_for_host("tlsa.example.com", &GatewayError::NoResolvedAddress),
+            map_gateway_error_for_namespace(
+                Some(Namespace::Icann),
+                &GatewayError::NoResolvedAddress,
+            ),
             (
                 502,
                 "ICANN Origin Address Missing",
                 "Secure ICANN DNS resolution did not produce an origin A or AAAA address.",
+            ),
+        );
+        assert_eq!(
+            map_gateway_error_for_namespace(Some(Namespace::Hns), &GatewayError::NoResolvedAddress,),
+            (
+                502,
+                "HNS Origin Address Missing",
+                "Secure HNS resolution did not produce an origin A or AAAA address.",
             ),
         );
         assert_eq!(
@@ -11248,11 +13761,16 @@ mod tests {
                 VerifiedResourceValue::inclusion(
                     root_name.clone(),
                     name_hash,
-                    owner_glue4_resource(&root_name, [127, 0, 0, 1]),
+                    owner_dual_stack_glue_resource(
+                        &root_name,
+                        [127, 0, 0, 1],
+                        Ipv6Addr::LOCALHOST.octets(),
+                    ),
                 )
                 .with_anchor(anchor_root, anchor_height),
             )
             .unwrap();
+        register_test_icann_authenticated_absence(&base, &root_name);
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -11293,7 +13811,7 @@ mod tests {
         });
         let text = String::from_utf8(response).unwrap();
 
-        assert!(text.starts_with("HTTP/1.1 200 OK\r\n"));
+        assert!(text.starts_with("HTTP/1.1 200 OK\r\n"), "{text}");
         assert!(text.ends_with("\r\n\r\nok"));
         server.join().unwrap();
         cleanup_dir(&path);
@@ -11320,6 +13838,7 @@ mod tests {
                 .with_anchor(proof_root, heights[0]),
             )
             .unwrap();
+        register_test_icann_authenticated_absence(&base, &root_name);
 
         let response = gateway_http_response(GatewayHttpRequestInput {
             data_dir: path.to_str().unwrap(),
@@ -11333,7 +13852,8 @@ mod tests {
         });
         let text = String::from_utf8(response).unwrap();
 
-        assert!(text.starts_with("HTTP/1.1 503 HNS Proof Unavailable\r\n"));
+        assert!(text.starts_with("HTTP/1.1 503 Namespace Resolution Indeterminate\r\n"));
+        assert!(text.contains("At least one namespace did not produce authenticated presence"));
         cleanup_dir(&path);
     }
 
@@ -11353,11 +13873,16 @@ mod tests {
                 VerifiedResourceValue::inclusion(
                     root_name.clone(),
                     name_hash,
-                    owner_glue4_resource(&root_name, [127, 0, 0, 1]),
+                    owner_dual_stack_glue_resource(
+                        &root_name,
+                        [127, 0, 0, 1],
+                        Ipv6Addr::LOCALHOST.octets(),
+                    ),
                 )
                 .with_anchor(anchor_root, anchor_height),
             )
             .unwrap();
+        register_test_icann_authenticated_absence(&base, &root_name);
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -11416,11 +13941,16 @@ mod tests {
 
         let root_name = "welcome".to_owned();
         let name_hash = NameHash::from_name(&root_name).unwrap();
-        let value = owner_glue4_resource(&root_name, [127, 0, 0, 1]);
+        let value = owner_dual_stack_glue_resource(
+            &root_name,
+            [127, 0, 0, 1],
+            Ipv6Addr::LOCALHOST.octets(),
+        );
         let name_state_value = name_state_value(&root_name, &value);
         let proof_root = urkel_value_root(name_hash.as_hash(), &name_state_value);
         let proof_height =
             store_best_header_for_network_with_tree_root(&base, NetworkKind::Regtest, proof_root);
+        register_test_icann_authenticated_absence(&base, &root_name);
         let remote_height = Height(proof_height.0 + 10);
 
         let proof_payload = urkel_exists_payload(&name_state_value);
@@ -11530,6 +14060,12 @@ mod tests {
         answer: ResolutionAnswer,
     }
 
+    struct RequestMapResolver {
+        answers: HashMap<ResolutionRequest, ResolutionAnswer>,
+        name_not_found: HashSet<ResolutionRequest>,
+        requests: Arc<Mutex<Vec<ResolutionRequest>>>,
+    }
+
     #[derive(Clone, Default)]
     struct TestRelayDnssecFeedback {
         attempt_peers: Arc<Mutex<std::collections::VecDeque<Vec<SocketAddr>>>>,
@@ -11608,6 +14144,19 @@ mod tests {
         }
     }
 
+    impl Resolver for RequestMapResolver {
+        fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+            self.requests.lock().unwrap().push(request.clone());
+            if self.name_not_found.contains(request) {
+                return Err(ResolverError::NameNotFound);
+            }
+            self.answers
+                .get(request)
+                .cloned()
+                .ok_or(ResolverError::ProofUnavailable)
+        }
+    }
+
     impl DelegatedResolver for TestDelegatedResolver {
         fn resolve_delegated(
             &self,
@@ -11673,6 +14222,1035 @@ mod tests {
             ttl: 20,
             rdata: address.to_vec(),
         }
+    }
+
+    fn address_record_v6_for(owner: &str, address: Ipv6Addr) -> ResourceRecord {
+        ResourceRecord {
+            name: DnsName::from_ascii(owner).unwrap(),
+            record_type: RecordType::Aaaa,
+            class: DNS_CLASS_IN,
+            ttl: 20,
+            rdata: address.octets().to_vec(),
+        }
+    }
+
+    fn cname_record(owner: &str, target: &str) -> ResourceRecord {
+        let mut rdata = Vec::new();
+        DnsName::from_ascii(target)
+            .unwrap()
+            .encode_wire(&mut rdata)
+            .unwrap();
+        ResourceRecord {
+            name: DnsName::from_ascii(owner).unwrap(),
+            record_type: RecordType::Cname,
+            class: DNS_CLASS_IN,
+            ttl: 20,
+            rdata,
+        }
+    }
+
+    fn resolution_answer(
+        owner: &str,
+        records: Vec<ResourceRecord>,
+        secure: bool,
+    ) -> ResolutionAnswer {
+        ResolutionAnswer {
+            name: DnsName::from_ascii(owner).unwrap(),
+            records,
+            secure,
+        }
+    }
+
+    #[test]
+    fn identical_cname_evidence_across_address_families_is_deduplicated() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let target = "edge.example";
+        let duplicate_cname = cname_record(origin.as_str(), target);
+        let answers = HashMap::from([
+            (
+                ResolutionRequest {
+                    qname: origin.as_str().to_owned(),
+                    qtype: RecordType::A.code(),
+                },
+                resolution_answer(
+                    origin.as_str(),
+                    vec![
+                        duplicate_cname.clone(),
+                        address_record(target, [192, 0, 2, 10]),
+                    ],
+                    true,
+                ),
+            ),
+            (
+                ResolutionRequest {
+                    qname: origin.as_str().to_owned(),
+                    qtype: RecordType::Aaaa.code(),
+                },
+                resolution_answer(
+                    origin.as_str(),
+                    vec![
+                        duplicate_cname,
+                        address_record_v6_for(target, "2001:db8::10".parse().unwrap()),
+                    ],
+                    true,
+                ),
+            ),
+        ]);
+
+        let (aliases, terminal, addresses) = root_aliases_and_addresses(&origin, &answers).unwrap();
+
+        assert_eq!(aliases.len(), 1);
+        assert_eq!(terminal.as_str(), target);
+        assert_eq!(
+            addresses,
+            vec![
+                IpAddr::V4(Ipv4Addr::new(192, 0, 2, 10)),
+                IpAddr::V6("2001:db8::10".parse().unwrap()),
+            ]
+        );
+
+        let conflicting = HashMap::from([
+            (
+                ResolutionRequest {
+                    qname: origin.as_str().to_owned(),
+                    qtype: RecordType::A.code(),
+                },
+                resolution_answer(
+                    origin.as_str(),
+                    vec![cname_record(origin.as_str(), "a.example")],
+                    true,
+                ),
+            ),
+            (
+                ResolutionRequest {
+                    qname: origin.as_str().to_owned(),
+                    qtype: RecordType::Aaaa.code(),
+                },
+                resolution_answer(
+                    origin.as_str(),
+                    vec![cname_record(origin.as_str(), "b.example")],
+                    true,
+                ),
+            ),
+        ]);
+        assert_eq!(
+            root_aliases_and_addresses(&origin, &conflicting),
+            Err(RootFailureKind::MalformedResponse)
+        );
+    }
+
+    #[test]
+    fn same_a_but_different_aaaa_is_dual_root_divergence() {
+        let now = now_unix_seconds();
+        let host = "origin.com";
+        let a_request = ResolutionRequest {
+            qname: host.to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        let aaaa_request = ResolutionRequest {
+            qname: host.to_owned(),
+            qtype: RecordType::Aaaa.code(),
+        };
+        let common_a = address_record(host, [192, 0, 2, 10]);
+        let hns_v6 = "2001:db8::1".parse::<Ipv6Addr>().unwrap();
+        let icann_v6 = "2001:db8::2".parse::<Ipv6Addr>().unwrap();
+        let hns_requests = Arc::new(Mutex::new(Vec::new()));
+        let icann_requests = Arc::new(Mutex::new(Vec::new()));
+        let hns = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    a_request.clone(),
+                    resolution_answer(host, vec![common_a.clone()], true),
+                ),
+                (
+                    aaaa_request.clone(),
+                    resolution_answer(host, vec![address_record_v6_for(host, hns_v6)], true),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::clone(&hns_requests),
+        };
+        let icann = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    a_request.clone(),
+                    resolution_answer(host, vec![common_a], true),
+                ),
+                (
+                    aaaa_request.clone(),
+                    resolution_answer(host, vec![address_record_v6_for(host, icann_v6)], true),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::clone(&icann_requests),
+        };
+        let hns_evidence = HnsProofEvidenceRecorder::default();
+        hns_evidence
+            .record(
+                "com",
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: Hash::new([7; 32]),
+                        height: Height(42),
+                    },
+                    exists: true,
+                    has_delegation: false,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            )
+            .unwrap();
+        let icann_evidence = IcannEvidenceRecorder::default();
+        {
+            let mut observations = icann_evidence.observations.lock().unwrap();
+            for request in [&a_request, &aaaa_request] {
+                observations.insert(
+                    request.clone(),
+                    IcannResponseObservation {
+                        kind: IcannResponseKind::Answer,
+                        secure: true,
+                        observed_at_unix: now,
+                        expires_at_unix: now.saturating_add(60),
+                    },
+                );
+            }
+        }
+        let base = temp_dir_path("dual-root-aaaa-divergence");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: host.to_owned(),
+                scheme: "http".to_owned(),
+                port: 80,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+
+        let cached = build_namespace_plan(&hns, &icann, &origin, &hns_evidence, &icann_evidence);
+        let decision = cached.decision.unwrap_or_else(|| {
+            panic!(
+                "dual-root plan failed: HNS={:?}, ICANN={:?}",
+                cached.metadata.hns_state, cached.metadata.icann_state
+            )
+        });
+
+        assert_eq!(decision.kind(), OutcomeKind::BothDivergent);
+        assert_eq!(decision.selected_namespace(), Some(Namespace::Icann));
+        let selected = decision.selected_plan().unwrap();
+        assert!(
+            selected
+                .endpoints()
+                .iter()
+                .any(|endpoint| endpoint.ip() == IpAddr::V6(icann_v6))
+        );
+        assert!(
+            !selected
+                .endpoints()
+                .iter()
+                .any(|endpoint| endpoint.ip() == IpAddr::V6(hns_v6))
+        );
+        assert_eq!(
+            *hns_requests.lock().unwrap(),
+            vec![a_request.clone(), aaaa_request.clone()]
+        );
+        assert_eq!(
+            *icann_requests.lock().unwrap(),
+            vec![a_request, aaaa_request]
+        );
+    }
+
+    #[test]
+    fn page_and_websocket_share_sticky_namespace_selection() {
+        let base = temp_dir_path("page-websocket-sticky");
+        fs::create_dir_all(&base).unwrap();
+        let page = namespace_origin_context(
+            base.clone(),
+            NetworkKind::Mainnet,
+            "https",
+            "origin.example",
+            443,
+            7,
+        )
+        .unwrap();
+        assert!(persist_successful_namespace_binding(&page, Namespace::Hns).unwrap());
+
+        let websocket = namespace_origin_context(
+            base.clone(),
+            NetworkKind::Mainnet,
+            "wss",
+            "origin.example",
+            443,
+            7,
+        )
+        .unwrap();
+        assert_eq!(websocket.key.scheme, "wss");
+        assert_eq!(websocket.binding.sticky_binding, Some(Namespace::Hns));
+
+        let query = OriginQuery::new(
+            CanonicalHost::parse("origin.example").unwrap(),
+            OriginScheme::Wss,
+            None,
+            ProtocolCapabilities::new(true, false, false).unwrap(),
+        );
+        let test_plan = |namespace, endpoint_last_octet| {
+            let host = query.host().clone();
+            let service = ServiceBinding::new(ServiceBindingInput {
+                priority: None,
+                service_target: host.clone(),
+                mandatory_keys: Vec::new(),
+                advertised_alpn: Vec::new(),
+                selected_protocol: ApplicationProtocol::Http11,
+                effective_port: NonZeroU16::new(443).unwrap(),
+                transport: ServiceTransport::Tcp,
+                connection_hints: Vec::new(),
+                ech_config: None,
+                parameters: Vec::new(),
+            })
+            .unwrap();
+            let provenance = match namespace {
+                Namespace::Hns => EvidenceProvenance::Hns {
+                    network: HnsNetwork::Mainnet,
+                    tree_root: [endpoint_last_octet; 32],
+                    height: 45,
+                },
+                Namespace::Icann => EvidenceProvenance::IcannDoh {
+                    chain_state: IcannChainState::Secure,
+                },
+            };
+            ValidatedOriginPlan::new(OriginPlanInput {
+                namespace,
+                query: query.clone(),
+                alias_path: Vec::new(),
+                terminal_target: host.clone(),
+                endpoint_alias_path: Vec::new(),
+                endpoint_target: host,
+                endpoints: vec![SocketAddr::new(
+                    IpAddr::V4(Ipv4Addr::new(192, 0, 2, endpoint_last_octet)),
+                    443,
+                )],
+                service,
+                tls_policy: TlsTrustPolicy::Dane,
+                tlsa_records: vec![
+                    CanonicalTlsa::new({
+                        let mut record = vec![3, 1, 1];
+                        record.extend([endpoint_last_octet; 32]);
+                        record
+                    })
+                    .unwrap(),
+                ],
+                provenance,
+                freshness: Freshness::new(
+                    now_unix_seconds(),
+                    now_unix_seconds().saturating_add(60),
+                )
+                .unwrap(),
+            })
+            .unwrap()
+        };
+        let policy = SelectionPolicy::new(
+            DefaultPrecedence::PreferIcann,
+            namespace_policy_revision(&websocket),
+        )
+        .with_explicit_pin(websocket.binding.explicit_pin)
+        .with_sticky_binding(websocket.binding.sticky_binding);
+        let decision = decide_namespace(
+            &query,
+            RootLookup::Present(test_plan(Namespace::Hns, 60)),
+            RootLookup::Present(test_plan(Namespace::Icann, 61)),
+            policy,
+            now_unix_seconds(),
+        )
+        .unwrap();
+
+        assert_eq!(decision.selected_namespace(), Some(Namespace::Hns));
+        assert_eq!(
+            decision.selection_reason(),
+            Some(SelectionReason::StickyBinding)
+        );
+        assert_eq!(decision.query().scheme(), OriginScheme::Wss);
+        cleanup_dir(&base);
+    }
+
+    #[test]
+    fn successful_namespace_selection_surfaces_durable_binding_failure() {
+        let base = temp_dir_path("namespace-binding-storage-failure");
+        fs::write(&base, b"not a directory").unwrap();
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: "origin.example".to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base: base.clone(),
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let plans = Arc::new(Mutex::new(HashMap::new()));
+        let trace = trace_recorder_for_selection(Namespace::Icann);
+
+        let error = record_successful_namespace_selection(&origin, &plans, &trace).unwrap_err();
+
+        assert!(matches!(error, ResolverError::Storage(_)));
+        fs::remove_file(base).unwrap();
+    }
+
+    #[test]
+    fn secure_delegated_child_nxdomain_is_ephemeral_hns_absence() {
+        let now = now_unix_seconds();
+        let host = CanonicalHost::parse("missing.welcome").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Http,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let base = temp_dir_path("secure-child-nxdomain");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: host.as_str().to_owned(),
+                scheme: "http".to_owned(),
+                port: 80,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let evidence = HnsProofEvidenceRecorder::default();
+        evidence
+            .record(
+                "welcome",
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: Hash::new([9; 32]),
+                        height: Height(43),
+                    },
+                    exists: true,
+                    has_delegation: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            )
+            .unwrap();
+        let requests = [ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::A.code(),
+        }];
+
+        let absence = validated_name_absence(
+            Namespace::Hns,
+            query,
+            &origin,
+            &requests,
+            &evidence,
+            &IcannEvidenceRecorder::default(),
+        )
+        .unwrap();
+
+        assert_eq!(absence.kind(), AbsenceKind::DnssecAuthenticatedNxDomain);
+        assert!(absence.freshness().expires_at_unix() <= now.saturating_add(2));
+        assert!(absence.freshness().expires_at_unix() <= now.saturating_add(60));
+    }
+
+    #[test]
+    fn hns_address_presence_without_required_tlsa_is_a_root_failure() {
+        let now = now_unix_seconds();
+        let host = CanonicalHost::parse("origin.welcome").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let base = temp_dir_path("delegated-hns-tlsa-nxdomain");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: host.as_str().to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let a_request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        let aaaa_request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Aaaa.code(),
+        };
+        let https_request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let tlsa_request = ResolutionRequest {
+            qname: "_443._tcp.origin.welcome".to_owned(),
+            qtype: RecordType::Tlsa.code(),
+        };
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    a_request,
+                    resolution_answer(
+                        host.as_str(),
+                        vec![address_record(host.as_str(), [192, 0, 2, 50])],
+                        true,
+                    ),
+                ),
+                (
+                    aaaa_request,
+                    resolution_answer(host.as_str(), Vec::new(), true),
+                ),
+                (
+                    https_request,
+                    resolution_answer(host.as_str(), Vec::new(), true),
+                ),
+            ]),
+            name_not_found: HashSet::from([tlsa_request]),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        let delegated_evidence = HnsProofEvidenceRecorder::default();
+        delegated_evidence
+            .record(
+                "welcome",
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: Hash::new([11; 32]),
+                        height: Height(45),
+                    },
+                    exists: true,
+                    has_delegation: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            )
+            .unwrap();
+        let delegated = match build_present_root_plan(
+            &resolver,
+            Namespace::Hns,
+            &query,
+            &origin,
+            now,
+            &delegated_evidence,
+            &IcannEvidenceRecorder::default(),
+        ) {
+            Ok(_) => panic!("secure HNS address presence without TLSA must fail classification"),
+            Err(error) => error,
+        };
+        assert_eq!(delegated.0.kind(), RootFailureKind::Unsupported);
+
+        let native_evidence = HnsProofEvidenceRecorder::default();
+        native_evidence
+            .record(
+                "welcome",
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: Hash::new([11; 32]),
+                        height: Height(45),
+                    },
+                    exists: true,
+                    has_delegation: false,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            )
+            .unwrap();
+        let native = match build_present_root_plan(
+            &resolver,
+            Namespace::Hns,
+            &query,
+            &origin,
+            now,
+            &native_evidence,
+            &IcannEvidenceRecorder::default(),
+        ) {
+            Ok(_) => panic!("native HNS TLSA NXDOMAIN must fail closed"),
+            Err(error) => error,
+        };
+        assert_eq!(native.0.kind(), RootFailureKind::IndeterminateDnssec);
+    }
+
+    #[test]
+    fn unsigned_icann_tlsa_bytes_are_ignored_under_proven_insecure_delegation() {
+        let now = now_unix_seconds();
+        let host = CanonicalHost::parse("origin.example").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let base = temp_dir_path("icann-insecure-tlsa");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: host.as_str().to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let a_request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        let aaaa_request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Aaaa.code(),
+        };
+        let https_request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let tlsa_request = ResolutionRequest {
+            qname: "_443._tcp.origin.example".to_owned(),
+            qtype: RecordType::Tlsa.code(),
+        };
+        let mut unsigned_tlsa = vec![3, 1, 1];
+        unsigned_tlsa.extend([7; 32]);
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    a_request.clone(),
+                    resolution_answer(
+                        host.as_str(),
+                        vec![address_record(host.as_str(), [192, 0, 2, 70])],
+                        false,
+                    ),
+                ),
+                (
+                    aaaa_request.clone(),
+                    resolution_answer(host.as_str(), Vec::new(), false),
+                ),
+                (
+                    https_request.clone(),
+                    resolution_answer(host.as_str(), Vec::new(), false),
+                ),
+                (
+                    tlsa_request.clone(),
+                    resolution_answer(
+                        &tlsa_request.qname,
+                        vec![ResourceRecord {
+                            name: DnsName::from_ascii(&tlsa_request.qname).unwrap(),
+                            record_type: RecordType::Tlsa,
+                            class: DNS_CLASS_IN,
+                            ttl: 60,
+                            rdata: unsigned_tlsa,
+                        }],
+                        false,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        let evidence = IcannEvidenceRecorder::default();
+        for (request, kind) in [
+            (&a_request, IcannResponseKind::Answer),
+            (&aaaa_request, IcannResponseKind::NoData),
+            (&https_request, IcannResponseKind::NoData),
+            (&tlsa_request, IcannResponseKind::Answer),
+        ] {
+            evidence.observations.lock().unwrap().insert(
+                request.clone(),
+                IcannResponseObservation {
+                    kind,
+                    secure: false,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            );
+        }
+
+        let build = build_present_root_plan(
+            &resolver,
+            Namespace::Icann,
+            &query,
+            &origin,
+            now,
+            &HnsProofEvidenceRecorder::default(),
+            &evidence,
+        )
+        .unwrap();
+        let RootLookup::Present(plan) = build.lookup else {
+            panic!("proven-insecure ICANN delegation must retain a WebPKI plan");
+        };
+
+        assert_eq!(plan.tls_policy(), TlsTrustPolicy::WebPkiInsecureDelegation);
+        assert!(plan.tlsa_records().is_empty());
+        assert_eq!(
+            plan.provenance(),
+            &EvidenceProvenance::IcannDoh {
+                chain_state: IcannChainState::ProvenInsecure,
+            }
+        );
+    }
+
+    #[test]
+    fn icann_plan_freshness_uses_short_tlsa_denial_before_long_positive_ttls() {
+        let now = now_unix_seconds();
+        let host = "origin.example";
+        let requests = [
+            (host, RecordType::A, IcannResponseKind::Answer, 600),
+            (host, RecordType::Aaaa, IcannResponseKind::NoData, 500),
+            (host, RecordType::Https, IcannResponseKind::NoData, 400),
+            (
+                "_443._tcp.origin.example",
+                RecordType::Tlsa,
+                IcannResponseKind::NoData,
+                5,
+            ),
+        ];
+        let evidence = IcannEvidenceRecorder::default();
+        let mut answers = HashMap::new();
+        for (owner, record_type, kind, lifetime) in requests {
+            let request = ResolutionRequest {
+                qname: owner.to_owned(),
+                qtype: record_type.code(),
+            };
+            let records = if record_type == RecordType::A {
+                vec![address_record(host, [192, 0, 2, 20])]
+            } else {
+                Vec::new()
+            };
+            answers.insert(request.clone(), resolution_answer(owner, records, true));
+            evidence.observations.lock().unwrap().insert(
+                request,
+                IcannResponseObservation {
+                    kind,
+                    secure: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(lifetime),
+                },
+            );
+        }
+
+        let freshness = icann_plan_freshness(&answers, &evidence, now).unwrap();
+
+        assert_eq!(freshness.observed_at_unix(), now);
+        assert_eq!(freshness.expires_at_unix(), now + 5);
+    }
+
+    #[test]
+    fn delegated_hns_plan_cannot_outlive_unretained_dnssec_evidence() {
+        let now = now_unix_seconds();
+        let host = CanonicalHost::parse("origin.welcome").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Http,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        let answers = HashMap::from([(
+            request,
+            resolution_answer(
+                host.as_str(),
+                vec![ResourceRecord {
+                    ttl: 3_600,
+                    ..address_record(host.as_str(), [192, 0, 2, 40])
+                }],
+                true,
+            ),
+        )]);
+        let evidence = HnsProofEvidenceRecorder::default();
+        evidence
+            .record(
+                "welcome",
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: Hash::new([10; 32]),
+                        height: Height(44),
+                    },
+                    exists: true,
+                    has_delegation: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(3_600),
+                },
+            )
+            .unwrap();
+
+        let freshness = root_freshness(
+            Namespace::Hns,
+            &answers,
+            now,
+            &query,
+            &evidence,
+            &IcannEvidenceRecorder::default(),
+        )
+        .unwrap();
+
+        assert!(freshness.expires_at_unix() <= now.saturating_add(2));
+        assert!(freshness.expires_at_unix() < now.saturating_add(3_600));
+    }
+
+    #[test]
+    fn secure_positive_icann_observation_is_capped_by_rrsig_expiry() {
+        let now = now_unix_seconds();
+        let signature_expiry = now.saturating_add(30);
+        let owner = DnsName::from_ascii("origin.example").unwrap();
+        let request = ResolutionRequest {
+            qname: owner.to_string(),
+            qtype: RecordType::A.code(),
+        };
+        let mut rrsig_rdata = Vec::new();
+        rrsig_rdata.extend(RecordType::A.code().to_be_bytes());
+        rrsig_rdata.extend([13, 2]);
+        rrsig_rdata.extend(300_u32.to_be_bytes());
+        rrsig_rdata.extend(u32::try_from(signature_expiry).unwrap().to_be_bytes());
+        rrsig_rdata.extend(u32::try_from(now.saturating_sub(1)).unwrap().to_be_bytes());
+        rrsig_rdata.extend(1_u16.to_be_bytes());
+        DnsName::from_ascii("example")
+            .unwrap()
+            .encode_wire(&mut rrsig_rdata)
+            .unwrap();
+        rrsig_rdata.push(1);
+        let message = DnsMessage {
+            header: DnsHeader {
+                id: DOH_DNS_ID,
+                flags: DnsFlags::new(0x81a0),
+                question_count: 1,
+                answer_count: 2,
+                authority_count: 0,
+                additional_count: 0,
+            },
+            questions: vec![DnsQuestion {
+                name: owner.clone(),
+                record_type: RecordType::A,
+                class: DNS_CLASS_IN,
+            }],
+            answers: vec![
+                ResourceRecord {
+                    name: owner.clone(),
+                    record_type: RecordType::A,
+                    class: DNS_CLASS_IN,
+                    ttl: 300,
+                    rdata: vec![192, 0, 2, 30],
+                },
+                ResourceRecord {
+                    name: owner,
+                    record_type: RecordType::Rrsig,
+                    class: DNS_CLASS_IN,
+                    ttl: 300,
+                    rdata: rrsig_rdata,
+                },
+            ],
+            authorities: Vec::new(),
+            additionals: Vec::new(),
+        };
+        let evidence = IcannEvidenceRecorder::default();
+
+        evidence.record_response(&request, &message).unwrap();
+        let observation = evidence.observation(&request).unwrap().unwrap();
+
+        assert_eq!(observation.kind, IcannResponseKind::Answer);
+        assert!(observation.secure);
+        assert_eq!(observation.expires_at_unix, signature_expiry);
+    }
+
+    #[test]
+    fn secure_negative_icann_observation_is_capped_by_soa_and_denial_signatures() {
+        let now = now_unix_seconds();
+        let soa_signature_expiry = now.saturating_add(7);
+        let denial_signature_expiry = now.saturating_add(60);
+        let zone = DnsName::from_ascii("example").unwrap();
+        let owner = DnsName::from_ascii("origin.example").unwrap();
+        let request = ResolutionRequest {
+            qname: owner.to_string(),
+            qtype: RecordType::A.code(),
+        };
+        let rrsig = |record_owner: DnsName, covered: RecordType, expiry: u64| {
+            let mut rdata = Vec::new();
+            rdata.extend(covered.code().to_be_bytes());
+            rdata.extend([13, 2]);
+            rdata.extend(300_u32.to_be_bytes());
+            rdata.extend(u32::try_from(expiry).unwrap().to_be_bytes());
+            rdata.extend(u32::try_from(now.saturating_sub(1)).unwrap().to_be_bytes());
+            rdata.extend(1_u16.to_be_bytes());
+            zone.encode_wire(&mut rdata).unwrap();
+            rdata.push(1);
+            ResourceRecord {
+                name: record_owner,
+                record_type: RecordType::Rrsig,
+                class: DNS_CLASS_IN,
+                ttl: 300,
+                rdata,
+            }
+        };
+        let mut soa_rdata = Vec::new();
+        DnsName::from_ascii("ns.example")
+            .unwrap()
+            .encode_wire(&mut soa_rdata)
+            .unwrap();
+        DnsName::from_ascii("hostmaster.example")
+            .unwrap()
+            .encode_wire(&mut soa_rdata)
+            .unwrap();
+        for value in [1_u32, 60, 60, 300, 300] {
+            soa_rdata.extend(value.to_be_bytes());
+        }
+        let mut nsec_rdata = Vec::new();
+        DnsName::from_ascii("zzz.example")
+            .unwrap()
+            .encode_wire(&mut nsec_rdata)
+            .unwrap();
+        nsec_rdata.extend([0, 1, 0x40]);
+        let message = DnsMessage {
+            header: DnsHeader {
+                id: DOH_DNS_ID,
+                flags: DnsFlags::new(0x81a0),
+                question_count: 1,
+                answer_count: 0,
+                authority_count: 4,
+                additional_count: 0,
+            },
+            questions: vec![DnsQuestion {
+                name: owner.clone(),
+                record_type: RecordType::A,
+                class: DNS_CLASS_IN,
+            }],
+            answers: Vec::new(),
+            authorities: vec![
+                ResourceRecord {
+                    name: zone.clone(),
+                    record_type: RecordType::Soa,
+                    class: DNS_CLASS_IN,
+                    ttl: 300,
+                    rdata: soa_rdata,
+                },
+                rrsig(zone.clone(), RecordType::Soa, soa_signature_expiry),
+                ResourceRecord {
+                    name: owner.clone(),
+                    record_type: RecordType::Nsec,
+                    class: DNS_CLASS_IN,
+                    ttl: 300,
+                    rdata: nsec_rdata,
+                },
+                rrsig(owner, RecordType::Nsec, denial_signature_expiry),
+            ],
+            additionals: Vec::new(),
+        };
+        let evidence = IcannEvidenceRecorder::default();
+
+        evidence.record_response(&request, &message).unwrap();
+        let observation = evidence.observation(&request).unwrap().unwrap();
+
+        assert_eq!(observation.kind, IcannResponseKind::NoData);
+        assert!(observation.secure);
+        assert_eq!(observation.expires_at_unix, soa_signature_expiry);
+    }
+
+    #[test]
+    fn service_mode_target_does_not_change_navigation_tlsa_owner() {
+        let query = OriginQuery::new(
+            CanonicalHost::parse("origin.example").unwrap(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let effective_port = NonZeroU16::new(9443).unwrap();
+        let service = ServiceBinding::new(ServiceBindingInput {
+            priority: Some(1),
+            service_target: CanonicalHost::parse("service.cdn.example").unwrap(),
+            mandatory_keys: Vec::new(),
+            advertised_alpn: Vec::new(),
+            selected_protocol: ApplicationProtocol::Http11,
+            effective_port,
+            transport: ServiceTransport::Tcp,
+            connection_hints: Vec::new(),
+            ech_config: None,
+            parameters: vec![
+                ServiceParameter::new(
+                    hns_core::dns::SVCB_PARAM_PORT,
+                    effective_port.get().to_be_bytes().to_vec(),
+                )
+                .unwrap(),
+            ],
+        })
+        .unwrap();
+
+        let request = root_tlsa_resolution_request(&query, &service, TlsaTransport::Tcp).unwrap();
+        assert_eq!(request.qname, "_9443._tcp.origin.example");
+        assert!(!request.qname.contains("service.cdn.example"));
+    }
+
+    #[test]
+    fn wss_h3_and_h1_advertisement_retains_http11_tcp_tlsa_owner() {
+        let host = CanonicalHost::parse("socket.example").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Wss,
+            None,
+            ProtocolCapabilities::new(true, false, false).unwrap(),
+        );
+        let mut alpn = Vec::new();
+        alpn.push(2);
+        alpn.extend(b"h3");
+        alpn.push(8);
+        alpn.extend(b"http/1.1");
+        let mut rdata = Vec::new();
+        rdata.extend(1_u16.to_be_bytes());
+        DnsName::root().encode_wire(&mut rdata).unwrap();
+        rdata.extend(hns_core::dns::SVCB_PARAM_ALPN.to_be_bytes());
+        rdata.extend(u16::try_from(alpn.len()).unwrap().to_be_bytes());
+        rdata.extend(alpn);
+        let request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let answers = HashMap::from([(
+            request,
+            resolution_answer(
+                host.as_str(),
+                vec![ResourceRecord {
+                    name: DnsName::from_ascii(host.as_str()).unwrap(),
+                    record_type: RecordType::Https,
+                    class: DNS_CLASS_IN,
+                    ttl: 60,
+                    rdata,
+                }],
+                true,
+            ),
+        )]);
+
+        let service = root_service_binding(&query, &host, &answers).unwrap();
+        let tlsa = root_tlsa_resolution_request(&query, &service, TlsaTransport::Tcp).unwrap();
+
+        assert_eq!(service.selected_protocol(), ApplicationProtocol::Http11);
+        assert_eq!(service.transport(), ServiceTransport::Tcp);
+        assert_eq!(tlsa.qname, "_443._tcp.socket.example");
     }
 
     fn store_best_header_with_tree_root(base: &std::path::Path, tree_root: Hash) -> Height {
@@ -11770,6 +15348,17 @@ mod tests {
             .encode_wire(&mut value)
             .unwrap();
         value.extend(address);
+        value
+    }
+
+    fn owner_dual_stack_glue_resource(owner: &str, ipv4: [u8; 4], ipv6: [u8; 16]) -> Vec<u8> {
+        let mut value = owner_glue4_resource(owner, ipv4);
+        value.push(3);
+        DnsName::from_ascii(owner)
+            .unwrap()
+            .encode_wire(&mut value)
+            .unwrap();
+        value.extend(ipv6);
         value
     }
 

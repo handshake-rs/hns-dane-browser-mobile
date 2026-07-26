@@ -17,7 +17,7 @@ use hns_browser_runtime::{
     classify_browser_name, core_version, diagnostics_json,
 };
 use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -658,10 +658,27 @@ impl ProxyEntry {
     }
 }
 
+struct ProxyStartReservation {
+    runtime_handle: HnsBrowserRuntimeHandle,
+}
+
+impl Drop for ProxyStartReservation {
+    fn drop(&mut self) {
+        let mut registry = match handle_registry().lock() {
+            Ok(registry) => registry,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        registry
+            .starting_proxy_runtimes
+            .remove(&self.runtime_handle);
+    }
+}
+
 #[derive(Default)]
 struct HandleRegistry {
     runtimes: HashMap<HnsBrowserRuntimeHandle, Arc<RuntimeEntry>>,
     proxies: HashMap<HnsBrowserProxyHandle, Arc<ProxyEntry>>,
+    starting_proxy_runtimes: HashSet<HnsBrowserRuntimeHandle>,
 }
 
 static HANDLES: OnceLock<Mutex<HandleRegistry>> = OnceLock::new();
@@ -1415,30 +1432,51 @@ pub unsafe extern "C" fn hns_browser_proxy_start(
         require_output(out_proxy)?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_proxy, 0) };
+        // SAFETY: This unsafe export carries the caller's readable-slice contract.
+        let scope = unsafe { optional_scope(hns_scope_root) }?;
         let runtime_entry = runtime_entry(runtime)?;
-        {
-            let registry = handle_registry()
+        let _start_reservation = {
+            let mut registry = handle_registry()
                 .lock()
                 .map_err(|_| FfiFailure::internal())?;
-            if registry.proxies.len() >= MAX_PROXY_HANDLES {
+            if !registry
+                .runtimes
+                .get(&runtime)
+                .is_some_and(|current| Arc::ptr_eq(current, &runtime_entry))
+            {
+                return Err(FfiFailure::new(
+                    HNS_BROWSER_RESULT_NOT_FOUND,
+                    "runtime was destroyed before starting the proxy",
+                ));
+            }
+            if registry
+                .proxies
+                .len()
+                .saturating_add(registry.starting_proxy_runtimes.len())
+                >= MAX_PROXY_HANDLES
+            {
                 return Err(FfiFailure::new(
                     HNS_BROWSER_RESULT_RESOURCE_EXHAUSTED,
                     "proxy handle registry is full",
                 ));
             }
-            if registry.proxies.values().any(|proxy| {
-                proxy.runtime_handle == runtime
-                    && proxy.active.load(Ordering::Acquire)
-                    && !proxy.proxy.is_stopped()
-            }) {
+            if registry.starting_proxy_runtimes.contains(&runtime)
+                || registry.proxies.values().any(|proxy| {
+                    proxy.runtime_handle == runtime
+                        && proxy.active.load(Ordering::Acquire)
+                        && !proxy.proxy.is_stopped()
+                })
+            {
                 return Err(FfiFailure::new(
                     HNS_BROWSER_RESULT_PROXY_ERROR,
-                    "runtime already owns an active proxy generation",
+                    "runtime already owns an active or starting proxy generation",
                 ));
             }
-        }
-        // SAFETY: This unsafe export carries the caller's readable-slice contract.
-        let scope = unsafe { optional_scope(hns_scope_root) }?;
+            registry.starting_proxy_runtimes.insert(runtime);
+            ProxyStartReservation {
+                runtime_handle: runtime,
+            }
+        };
         let mailbox = Arc::new(MainFrameStatusMailbox::default());
         let observer: Arc<dyn BrowserProxyStatusObserver> = mailbox.clone();
         let policy_revision = runtime_entry.runtime.policy_revision();

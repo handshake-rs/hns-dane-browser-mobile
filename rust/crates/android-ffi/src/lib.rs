@@ -20,6 +20,7 @@ const MAX_BROWSER_NAMESPACE_INPUT_BYTES: usize = 1_024;
 const ANDROID_BROWSER_NAMESPACE_INVALID: jint = 0;
 const ANDROID_BROWSER_NAMESPACE_HNS: jint = 1;
 const ANDROID_BROWSER_NAMESPACE_ICANN: jint = 2;
+const ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY: jint = 3;
 const PROXY_ENDPOINT_BUNDLE_MAGIC: &[u8; 4] = b"HNSP";
 const PROXY_ENDPOINT_BUNDLE_VERSION: u8 = 1;
 const PROXY_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNSS";
@@ -492,17 +493,16 @@ fn android_browser_namespace_code(input: &str) -> jint {
     match classify_browser_host(input) {
         BrowserHostClass::Hns => ANDROID_BROWSER_NAMESPACE_HNS,
         BrowserHostClass::Icann => ANDROID_BROWSER_NAMESPACE_ICANN,
+        BrowserHostClass::NativeGateway => ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY,
         BrowserHostClass::Search => ANDROID_BROWSER_NAMESPACE_INVALID,
     }
 }
 
 fn android_proxy_hns_scope(input: &str) -> Option<Option<String>> {
-    let canonical = canonical_browser_host(input)?;
-    match classify_browser_host(&canonical) {
-        BrowserHostClass::Hns => Some(Some(canonical)),
-        BrowserHostClass::Icann => Some(None),
-        BrowserHostClass::Search => None,
-    }
+    // The Java value is an opaque whole-browser lifecycle identity. Complete
+    // DNS names are classified by the retained Rust resolver plan per origin;
+    // no shell-provided suffix scope is authoritative.
+    canonical_browser_host(input).map(|_| None)
 }
 
 #[unsafe(no_mangle)]
@@ -1144,26 +1144,27 @@ mod tests {
     }
 
     #[test]
-    fn browser_namespace_jni_codes_follow_the_shared_rust_policy() {
+    fn browser_namespace_jni_routes_every_dns_name_to_the_dual_root_gateway() {
         assert_eq!(
             android_browser_namespace_code("welcome"),
-            ANDROID_BROWSER_NAMESPACE_HNS
+            ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY
         );
         assert_eq!(
             android_browser_namespace_code("sub.welcome"),
-            ANDROID_BROWSER_NAMESPACE_HNS
+            ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY
         );
         assert_eq!(
             android_browser_namespace_code("TLSA.EXAMPLE.COM."),
-            ANDROID_BROWSER_NAMESPACE_ICANN
+            ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY
         );
-        for host in [
-            "example.com",
-            "home.arpa",
-            "printer.local",
-            "127.0.0.1",
-            "::1",
-        ] {
+        for host in ["example.com", "home.arpa", "printer.local"] {
+            assert_eq!(
+                android_browser_namespace_code(host),
+                ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY,
+                "{host}"
+            );
+        }
+        for host in ["127.0.0.1", "::1"] {
             assert_eq!(
                 android_browser_namespace_code(host),
                 ANDROID_BROWSER_NAMESPACE_ICANN,
@@ -1184,11 +1185,8 @@ mod tests {
     }
 
     #[test]
-    fn proxy_scope_admits_all_public_icann_but_only_the_selected_hns_scope() {
-        assert_eq!(
-            android_proxy_hns_scope("Sub.Welcome."),
-            Some(Some("sub.welcome".to_owned()))
-        );
+    fn proxy_scope_is_only_a_validated_whole_browser_lifecycle_identity() {
+        assert_eq!(android_proxy_hns_scope("Sub.Welcome."), Some(None));
         assert_eq!(android_proxy_hns_scope("example.com"), Some(None));
         assert_eq!(android_proxy_hns_scope("two words"), None);
     }
@@ -1196,10 +1194,9 @@ mod tests {
     #[test]
     fn websocket_policy_jni_payload_is_the_shared_runtime_script() {
         let script = browser_websocket_scope_policy_script();
-        assert!(script.contains("window.__hnsRustNamespacePolicyVersion = 1"));
-        assert!(script.contains("'com'"));
-        assert!(script.contains("'localhost'"));
-        assert!(script.contains("requiresHnsResolution(targetHost)"));
+        assert!(script.contains("window.__hnsRustNamespacePolicyVersion = 2"));
+        assert!(!script.contains("requiresHnsResolution"));
+        assert!(!script.contains("icannTlds"));
     }
 
     #[test]

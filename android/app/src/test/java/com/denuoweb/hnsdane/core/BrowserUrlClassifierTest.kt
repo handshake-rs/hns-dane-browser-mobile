@@ -7,10 +7,10 @@ class BrowserUrlClassifierTest {
     private val classifier = BrowserUrlClassifier(TEST_BROWSER_NAMESPACE_POLICY)
 
     @Test
-    fun singleLabelDefaultsToHnsHttpsGateway() {
+    fun singleLabelUsesDualRootGateway() {
         val target = classifier.classify("welcome")
 
-        assertEquals(BrowserTargetKind.HnsName, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://welcome/", target.url)
         assertEquals("welcome", target.displayHost)
     }
@@ -19,15 +19,15 @@ class BrowserUrlClassifierTest {
     fun hnsPathPreservesSuffix() {
         val target = classifier.classify("welcome/path?q=1#top")
 
-        assertEquals(BrowserTargetKind.HnsName, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://welcome/path?q=1#top", target.url)
     }
 
     @Test
-    fun dottedHnsHostUsesHnsModeWhenTldIsNotCommonIcann() {
+    fun dottedHostDoesNotUseItsRightmostLabelAsNamespaceAuthority() {
         val target = classifier.classify("welcome.2d/path?q=1")
 
-        assertEquals(BrowserTargetKind.HnsName, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://welcome.2d/path?q=1", target.url)
         assertEquals("welcome.2d", target.displayHost)
     }
@@ -36,7 +36,7 @@ class BrowserUrlClassifierTest {
     fun explicitHnsHttpUrlUsesHnsMode() {
         val target = classifier.classify("http://welcome/path")
 
-        assertEquals(BrowserTargetKind.HnsName, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("http://welcome/path", target.url)
         assertEquals("welcome", target.displayHost)
     }
@@ -45,7 +45,7 @@ class BrowserUrlClassifierTest {
     fun explicitHnsHttpsUrlUsesHnsModeForFailClosedUi() {
         val target = classifier.classify("https://welcome/path")
 
-        assertEquals(BrowserTargetKind.HnsName, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://welcome/path", target.url)
         assertEquals("welcome", target.displayHost)
     }
@@ -54,7 +54,7 @@ class BrowserUrlClassifierTest {
     fun emojiHnsNameDefaultsToPunycodeHnsHttpsGateway() {
         val target = classifier.classify("🤝")
 
-        assertEquals(BrowserTargetKind.HnsName, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://xn--5p9h/", target.url)
         assertEquals("xn--5p9h", target.displayHost)
     }
@@ -63,24 +63,24 @@ class BrowserUrlClassifierTest {
     fun explicitEmojiHnsUrlUsesPunycodeHnsMode() {
         val target = classifier.classify("https://🤝")
 
-        assertEquals(BrowserTargetKind.HnsName, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://xn--5p9h", target.url)
         assertEquals("xn--5p9h", target.displayHost)
     }
 
     @Test
-    fun dottedHostUsesNormalWebMode() {
+    fun dottedHostUsesDualRootGateway() {
         val target = classifier.classify("example.com")
 
-        assertEquals(BrowserTargetKind.ExactUrl, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://example.com/", target.url)
     }
 
     @Test
-    fun icannDaneHostUsesOrdinaryIcannClassification() {
+    fun icannDaneHostUsesDualRootGateway() {
         val target = classifier.classify("tlsa.example.com")
 
-        assertEquals(BrowserTargetKind.ExactUrl, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://tlsa.example.com/", target.url)
         assertEquals("tlsa.example.com", target.displayHost)
     }
@@ -89,7 +89,7 @@ class BrowserUrlClassifierTest {
     fun discordGgUsesNormalWebMode() {
         val target = classifier.classify("discord.gg")
 
-        assertEquals(BrowserTargetKind.ExactUrl, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://discord.gg/", target.url)
         assertEquals("discord.gg", target.displayHost)
     }
@@ -105,7 +105,7 @@ class BrowserUrlClassifierTest {
         )) {
             val target = classifier.classify(host)
 
-            assertEquals(host, BrowserTargetKind.ExactUrl, target.kind)
+            assertEquals(host, BrowserTargetKind.NativeGateway, target.kind)
             assertEquals("https://$host/", target.url)
         }
     }
@@ -116,11 +116,19 @@ class BrowserUrlClassifierTest {
             "https://appassets.androidplatform.net/assets/example.txt",
         )
 
-        assertEquals(BrowserTargetKind.ExactUrl, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals(
             "https://appassets.androidplatform.net/assets/example.txt",
             target.url,
         )
+    }
+
+    @Test
+    fun publicIpLiteralUsesBoundedOpaqueAddressPath() {
+        val target = classifier.classify("https://192.0.2.1/path")
+
+        assertEquals(BrowserTargetKind.ExactUrl, target.kind)
+        assertEquals("192.0.2.1", target.displayHost)
     }
 
     @Test
@@ -150,7 +158,7 @@ class BrowserUrlClassifierTest {
     fun explicitDottedHnsUrlUsesHnsModeWhenTldIsNotCommonIcann() {
         val target = classifier.classify("https://welcome.2d/path")
 
-        assertEquals(BrowserTargetKind.HnsName, target.kind)
+        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
         assertEquals("https://welcome.2d/path", target.url)
         assertEquals("welcome.2d", target.displayHost)
     }
@@ -163,7 +171,7 @@ class BrowserUrlClassifierTest {
         )) {
             val target = classifier.classify(host)
 
-            assertEquals(host, BrowserTargetKind.ExactUrl, target.kind)
+            assertEquals(host, BrowserTargetKind.NativeGateway, target.kind)
             assertEquals("https://$host/", target.url)
         }
     }
@@ -178,7 +186,7 @@ class BrowserUrlClassifierTest {
     }
 
     @Test
-    fun unavailableSharedPolicyFailsClosedInsteadOfUsingNormalWebMode() {
+    fun unavailableRustAdmissionFailsClosed() {
         val classifier = BrowserUrlClassifier(
             FixedBrowserNamespacePolicy(emptyMap(), BrowserNamespaceClass.Unavailable),
         )

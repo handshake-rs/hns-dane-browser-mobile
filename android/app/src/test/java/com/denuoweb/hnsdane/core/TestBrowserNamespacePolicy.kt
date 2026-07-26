@@ -35,6 +35,7 @@ internal val TEST_BROWSER_NAMESPACE_POLICY: BrowserNamespacePolicy =
                     "foo.localhost",
                     "foo.onion",
                     "foo.test",
+                    "192.0.2.1",
                 ).forEach { put(it, BrowserNamespaceClass.Icann) }
             },
         defaultClass = BrowserNamespaceClass.Hns,

@@ -13,7 +13,7 @@ This checklist maps HNS DANE Browser to current Google Play update requirements 
 | 64-bit / 16 KiB native code | Historical pass; rebuild required | Earlier `arm64-v8a` and `x86_64` libraries passed 16 KiB alignment, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, and APK ZIP-alignment gates. Repeat them on the rebuilt checkpoint artifacts. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
-| Privacy policy | Repository updated; hosted reconciliation required | Keep `https://denuoweb.com/work/hns-dane-browser/privacy` as the canonical URL, but publish the revised policy that discloses the default P2P DNS relay, its observable query/network metadata, manual peer endpoints, the upgrade-consent migration, and the prohibition on public recursive HNS DoH/HNS WebPKI fallback before submitting `0.5.0`. |
+| Privacy policy | Repository updated; hosted reconciliation required | Keep `https://denuoweb.com/work/hns-dane-browser/privacy` as the canonical URL, but publish the revised policy that discloses the opt-in P2P DNS relay requester, its observable query/network metadata, manual peer endpoints, the upgrade-consent migration, and the prohibition on public recursive HNS DoH/HNS WebPKI fallback before submitting `0.5.0`. |
 | Data safety form | Live reconciliation required | The current `No data collected / No data shared` posture is consistent with Google's open-web, on-device, and user-initiated-transfer exclusions. Confirm current WebView-provider Safe Browsing guidance before resubmission. |
 | Ads declaration | Ready | Declare “No ads.” Donations do not unlock features. |
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
@@ -108,7 +108,7 @@ Use an active, publicly accessible, non-PDF URL. Current hosted URL:
 
 <https://denuoweb.com/work/hns-dane-browser/privacy>
 
-On 2026-07-14 the route rendered the policy accepted for the historical `0.4.1` audit after the site application loaded. That copy predates the `0.5.0` default P2P DNS relay behavior and must be replaced with the revised 2026-07-16 repository policy before submission. Change the existing Play listing from its older `/hns-dane-browser/privacy/` URL to this canonical route, and keep the live Data safety answers consistent with the updated policy and actual app behavior.
+On 2026-07-14 the route rendered the policy accepted for the historical `0.4.1` audit after the site application loaded. That copy predates the `0.5.0` relay requester and dual-root behavior and must be replaced with the current repository policy before submission. Change the existing Play listing from its older `/hns-dane-browser/privacy/` URL to this canonical route, and keep the live Data safety answers consistent with the updated policy and actual app behavior.
 
 ### Content Rating
 
@@ -128,7 +128,7 @@ The app is already public at `0.3.1` (`versionCode 22`), so closed-testing eligi
 
 1. Regenerate the third-party notices and release notes after any version or dependency change.
 2. Rebuild and verify `dist/play-store/hns-dane-browser-v0.5.0-play-upload-signed.aab` from the exact candidate commit; the automated gate covers 16 KiB alignment, required ABIs, native hardening/symbols, R8 mapping, notices, and upload signing. Do not reuse the earlier artifact with the same filename.
-3. Compare the configured upload-certificate fingerprint with Play Console. Install the exact signed `0.5.0` APK on the connected device, verify the code 40 upgrade and cold launch, and exercise strict-policy migration, default relay, manual-peer validation, and fail-closed behavior when direct/relay resolution is unavailable. The corresponding signed update smoke for `0.4.1` is historical evidence only.
+3. Compare the configured upload-certificate fingerprint with Play Console. Install the exact signed `0.5.0` APK on the connected device, verify the code 40 upgrade and cold launch, and exercise strict-policy migration, default-off requester relay consumption, explicit requester opt-in, manual-peer validation, and fail-closed behavior when direct/relay resolution is unavailable. The corresponding signed update smoke for `0.4.1` is historical evidence only.
 4. Upload to an internal/closed track for validation if desired. For API upload, use the Console's actual track ID; `alpha` is the standard closed-testing API track.
 5. Reconcile the live privacy policy, Data safety answers, listing copy, screenshots, and release notes, then submit the update to production.
 

@@ -319,7 +319,7 @@ final class BrowserProxyCoordinator: NSObject {
             do {
                 let hnsRoot: String?
                 switch scope {
-                case .icann:
+                case .wholeBrowser, .icann:
                     hnsRoot = nil
                 case .handshakeRoot(let root):
                     hnsRoot = root
@@ -509,7 +509,7 @@ final class BrowserProxyCoordinator: NSObject {
                     detail: "The destination host is invalid"
                 )
             )
-        case .handshake:
+        case .nativeGateway, .handshake:
             let summary = nativeSummary ?? BrowserSecuritySummary(
                     level: .blocked,
                     detail: "No exact Rust proxy security result was available"

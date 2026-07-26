@@ -14,13 +14,14 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class SharedBrowserNamespacePolicyInstrumentationTest {
     @Test
-    fun jniClassificationUsesSharedRustRoutingPolicy() {
+    fun jniRoutesEveryDnsHostToSharedDualRootGateway() {
         assertTrue(NativeBridge.isLoaded)
-        assertEquals(BrowserNamespaceClass.Hns, NativeBridge.classifyHost("welcome"))
-        assertEquals(BrowserNamespaceClass.Hns, NativeBridge.classifyHost("sub.welcome"))
-        assertEquals(BrowserNamespaceClass.Icann, NativeBridge.classifyHost("example.com"))
-        assertEquals(BrowserNamespaceClass.Icann, NativeBridge.classifyHost("printer.local"))
-        assertEquals(BrowserNamespaceClass.Icann, NativeBridge.classifyHost("example.com."))
+        assertEquals(BrowserNamespaceClass.NativeGateway, NativeBridge.classifyHost("welcome"))
+        assertEquals(BrowserNamespaceClass.NativeGateway, NativeBridge.classifyHost("sub.welcome"))
+        assertEquals(BrowserNamespaceClass.NativeGateway, NativeBridge.classifyHost("example.com"))
+        assertEquals(BrowserNamespaceClass.NativeGateway, NativeBridge.classifyHost("printer.local"))
+        assertEquals(BrowserNamespaceClass.NativeGateway, NativeBridge.classifyHost("example.com."))
+        assertEquals(BrowserNamespaceClass.Icann, NativeBridge.classifyHost("192.0.2.1"))
         assertEquals(BrowserNamespaceClass.Invalid, NativeBridge.classifyHost("two words"))
         assertEquals(
             NativeGatewayHostDecision.Required,
@@ -34,10 +35,10 @@ class SharedBrowserNamespacePolicyInstrumentationTest {
 
         assertNotNull(script)
         requireNotNull(script)
-        assertTrue(script.contains("window.__hnsRustNamespacePolicyVersion = 1"))
-        assertTrue(script.contains("requiresHnsResolution(targetHost)"))
-        assertTrue(script.contains("'com'"))
-        assertTrue(script.contains("'localhost'"))
+        assertTrue(script.contains("window.__hnsRustNamespacePolicyVersion = 2"))
+        assertTrue(script.contains("process-wide authenticated proxy"))
+        assertFalse(script.contains("requiresHnsResolution"))
+        assertFalse(script.contains("icannTlds"))
         assertFalse(script.contains("hnsWebSocketBridge"))
         assertFalse(script.contains("postMessage"))
     }

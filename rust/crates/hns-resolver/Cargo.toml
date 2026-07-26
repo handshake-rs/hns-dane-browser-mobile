@@ -10,5 +10,6 @@ hns-cache.workspace = true
 hns-core.workspace = true
 hns-dane.workspace = true
 hns-dnssec.workspace = true
+hns-namespace-resolution.workspace = true
 rusqlite.workspace = true
 thiserror.workspace = true
