@@ -25,7 +25,7 @@ It does not claim that the coordination-wide PDF is complete.
 | Explicit migration without turning old HNSDoH consent into relay consent | Implemented | Android and iOS erase legacy resolver/trust fields. Former resolver compatibility consent never enables relay consumption, and fresh installs remain off until explicit requester opt-in. |
 | P2P ODoH: Preferred/Required/Direct Allowed/Off | Not implemented in this checkout | No HIP #77 requester, HPKE/ODoH runtime, status model, or native control exists here. Do not represent the current direct relay as ODoH or query-confidential. |
 | HNSR: Off/Client/Endpoint | Not implemented in this checkout | No HIP #78 runtime or native control exists here. Mobile lifecycle, network-change, renewal, withdrawal, and stale-generation tests for HNSR remain required. |
-| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `a03648ec85a115362ebc2ab24bb9ea0f1be127fc`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), and live resolution follows the canonical direct-authority UDP/TCP → authenticated authoritative DoH → admitted relay order while unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
+| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), and live resolution follows the canonical direct-authority UDP/TCP → authenticated authoritative DoH → admitted relay order while unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
 | Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
 | Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Exact-build physical Android and iOS device matrices, mobile network transitions, and the PDF’s ODoH/HNSR lifecycle cases remain release gates. |
@@ -36,6 +36,16 @@ It does not claim that the coordination-wide PDF is complete.
   authoritative DNS or the optional direct P2P relay.
 - Relay answers are untrusted DNS input and still require local DNSSEC, exact
   TLSA, and DANE validation.
+- When a delegated UDP answer fails DNSSEC, a matching response to the bounded
+  TEST-NET canary confirms transparent port 53 interception. That cached result
+  suppresses TCP and remaining direct nameservers. Resolution tries
+  proof-authenticated authoritative DoH, then the policy-admitted P2P requester
+  only under explicit opt-in; failure of all admitted alternatives remains
+  typed and fail-closed.
+- Each selected HTTPS/SVCB record produces ordered HTTP/3, HTTP/2, and RFC 9460
+  implicit-or-explicit HTTP/1.1 candidates with transport-derived TLSA owners.
+  HNS advances only after secure TLSA absence for the current candidate;
+  insecure, bogus, and malformed TLSA evidence is terminal.
 - An unavailable direct/relay path fails closed. It cannot reopen a public
   recursive HNS DoH or HNS WebPKI path through persisted settings, internal
   headers, JNI, or the Apple C ABI.
@@ -101,7 +111,7 @@ rebuilt after this source checkpoint before they can be release evidence.
 
 The five shared engine crates resolve from immutable
 `handshake-rs/hns-dane-engine` commit
-`a03648ec85a115362ebc2ab24bb9ea0f1be127fc`; a standalone checkout no longer
+`fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159`; a standalone checkout no longer
 depends on the coordination workspace layout.
 
 The source covers normal navigation, same- and cross-origin redirects through
@@ -118,19 +128,24 @@ WebKit network-process behavior.
 
 ## Checkpoint Verification
 
-The canonical-engine adoption gates passed on Linux on 2026-07-26:
+Post-fix validation against engine revision
+`fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159` passed on Linux on 2026-07-26:
 
-- `cargo +1.92.0 clippy --locked --manifest-path rust/Cargo.toml
-  --workspace --all-targets -- -D warnings` and `cargo +1.92.0 fmt
-  --manifest-path rust/Cargo.toml --all -- --check`.
-- `cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml --workspace`,
-  including the changed mobile-workspace packages:
-  `hns-resolver` (66 tests), `hns-transport` (56), `android-ffi` (11),
-  `ios-ffi` (12), `hns-mobile-platform-runtime` (154), `hns-gateway` (50), and
-  `hns-loopback-proxy` (149).
-- The seven focused immutable-Git-policy tests, exact policy verifier, runtime
-  boundary checker, generated-third-party-notice verification, and
-  `git diff --check`.
+- The affected library suites passed: `hns-dnssec` (60 tests),
+  `hns-resolver` (67), `hns-gateway` (50), and
+  `hns-mobile-platform-runtime` (160).
+- Strict all-target Clippy passed for those four packages, and
+  `cargo check --workspace --all-targets`, `cargo fmt --all -- --check`, and
+  `git diff --check` passed.
+- The seven immutable-Git-policy tests, exact repository policy verifier,
+  runtime-boundary checker, generated-third-party-notice verification, and
+  supply-chain verifier passed, and no prior engine revision remains in tracked
+  source or lockfiles.
+
+The broader canonical-engine adoption checkpoint earlier on 2026-07-26 also
+passed the locked workspace test and Clippy suites, runtime boundary checker,
+and generated-third-party-notice verification. Its supporting package counts
+preceded the five new mobile runtime regressions and one resolver regression.
 
 The preceding 2026-07-25 checkpoint also passed the locked/offline optimized
 workspace build, C/C++ Apple ABI and exact exported-symbol checks, version

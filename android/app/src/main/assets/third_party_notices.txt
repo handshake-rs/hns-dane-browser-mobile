@@ -22,9 +22,9 @@ imply endorsement by the component authors.
 Generator schema: 2
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 7001a4117e71d63c36e4db3bd914282dd21f811cb00a7a836313a72a17e4ac8e
-  scripts/verify_cargo_git_policy.py = 65e8486133a1abdb5fb0ce63989b194800e141a9098f2c2dc032b4326efb98bc
-  rust/Cargo.toml = f4587dbafc49e696682d423139491b14c62997bcd29dbffbc20b74a39647506a
-  rust/Cargo.lock = 955dea52e8d9d187c201f264021921886d2f96b95fb448c5cb7996eccccaa0d4
+  scripts/verify_cargo_git_policy.py = bb6bf0cbe968ad4d371789c6c3a6d123701dd502b13de4f4693c9b89a85194da
+  rust/Cargo.toml = 4ec38e9b00bdf9e5fd5c3e44a819a24804f7719db12a7e3c8b73ae8be05bca57
+  rust/Cargo.lock = a6ccf12a2acb147c75f417044696cd9d050ad46de9eeb1252176eef1219b0a8a
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d

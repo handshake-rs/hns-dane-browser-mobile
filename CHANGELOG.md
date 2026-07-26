@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.
 
 - Replaced the iOS placeholder icon with the production HNS DANE Browser artwork used by Android and Google Play, and added release checks for the canonical icon and archived app identity.
 - Removed the one-host ICANN native-gateway exception. Android now applies its authenticated loopback proxy across the WebView so main frames, redirects, subresources, native WebSockets, and supported downloads share the automatic policy; Service Worker/bodyless fallback requests use the same Rust gateway. iOS uses the same policy through its no-failover whole-data-store proxy and exact live local-certificate authorization.
+- Corrected mobile handling of transparent port 53 interception. A DNSSEC failure now runs the existing bounded TEST-NET canary before TCP or another authoritative server is trusted; confirmed interception is cached, direct DNS is suppressed, resolution tries proof-authenticated authoritative DoH and then the P2P requester only when explicitly enabled, and failure of all admitted alternatives remains typed and fail-closed.
+- Corrected delegated NXDOMAIN validation so each covering NSEC RRset is verified only with its own owner/class RRSIG, including multi-owner denial responses.
+- Made mobile HTTPS/SVCB planning retain ordered HTTP/3, HTTP/2, and RFC 9460 implicit HTTP/1.1 candidates from one selected service record. HNS protocol fallback occurs only after securely authenticated TLSA absence for the current UDP/TCP owner; insecure, bogus, or malformed TLSA evidence is terminal.
 
 ### Removed
 

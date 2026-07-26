@@ -561,7 +561,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-observability"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159#fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159"
 dependencies = [
  "hns-browser-runtime",
  "hns-icann-dane",
@@ -573,7 +573,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-runtime"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159#fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159"
 
 [[package]]
 name = "hns-cache"
@@ -643,7 +643,7 @@ dependencies = [
 [[package]]
 name = "hns-icann-dane"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159#fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159"
 
 [[package]]
 name = "hns-loopback-proxy"
@@ -691,7 +691,7 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159#fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159"
 
 [[package]]
 name = "hns-p2p"
@@ -708,7 +708,7 @@ dependencies = [
 [[package]]
 name = "hns-resolution-policy"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=a03648ec85a115362ebc2ab24bb9ea0f1be127fc#a03648ec85a115362ebc2ab24bb9ea0f1be127fc"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159#fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159"
 
 [[package]]
 name = "hns-resolver"

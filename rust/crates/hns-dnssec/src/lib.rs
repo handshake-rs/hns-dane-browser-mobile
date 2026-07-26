@@ -759,16 +759,7 @@ pub fn validate_nsec_no_data(
 pub fn validate_nsec_name_range(
     input: NsecNameRangeValidationInput<'_>,
 ) -> Result<DnssecStatus, DnssecError> {
-    let signature_status = validate_rrset_signature(
-        input.signer_name,
-        input.dnskey_rrset,
-        input.nsec_rrset,
-        input.nsec_rrsig_rrset,
-        input.now,
-    )?;
-    if signature_status != DnssecStatus::Secure {
-        return Ok(signature_status);
-    }
+    let mut deferred_error = None;
 
     for record in input
         .nsec_rrset
@@ -777,11 +768,48 @@ pub fn validate_nsec_name_range(
     {
         let nsec = NsecRecord::from_record(record)?;
         if nsec_covers_name(&record.name, &nsec.next_domain_name, input.query_name) {
-            return Ok(DnssecStatus::Secure);
+            let owner_nsec_rrset = input
+                .nsec_rrset
+                .iter()
+                .filter(|candidate| {
+                    candidate.record_type == RecordType::Nsec
+                        && candidate.name == record.name
+                        && candidate.class == record.class
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            let owner_rrsig_rrset = input
+                .nsec_rrsig_rrset
+                .iter()
+                .filter(|candidate| {
+                    candidate.record_type == RecordType::Rrsig
+                        && candidate.name == record.name
+                        && candidate.class == record.class
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+
+            match validate_rrset_signature(
+                input.signer_name,
+                input.dnskey_rrset,
+                &owner_nsec_rrset,
+                &owner_rrsig_rrset,
+                input.now,
+            ) {
+                Ok(DnssecStatus::Secure) => return Ok(DnssecStatus::Secure),
+                Ok(_) => {}
+                Err(error) => {
+                    deferred_error.get_or_insert(error);
+                }
+            }
         }
     }
 
-    Ok(DnssecStatus::Bogus)
+    if let Some(error) = deferred_error {
+        Err(error)
+    } else {
+        Ok(DnssecStatus::Bogus)
+    }
 }
 
 pub fn validate_nsec_name_error(
@@ -2782,6 +2810,67 @@ mod tests {
             })
             .unwrap(),
             DnssecStatus::Bogus,
+        );
+    }
+
+    #[test]
+    fn validates_nsec_name_error_with_multi_owner_proof_set() {
+        let zone = DnsName::from_ascii("denuoweb").unwrap();
+        let query = DnsName::from_ascii("_8443._tcp.denuoweb").unwrap();
+        let (dnskey, signing_key) = ecdsa_dnskey();
+        let dnskey_rrset = vec![record(
+            zone.clone(),
+            RecordType::Dnskey,
+            dnskey.rdata().to_vec(),
+        )];
+
+        let query_covering_owner = DnsName::from_ascii("_443._tcp.denuoweb").unwrap();
+        let query_covering_rrset = vec![nsec_record(
+            query_covering_owner.clone(),
+            &DnsName::from_ascii("ns1.denuoweb").unwrap(),
+            &[RecordType::Rrsig, RecordType::Nsec],
+        )];
+        let query_covering_rrsig = signed_rrsig_record_for_signer(
+            &query_covering_owner,
+            &zone,
+            &query_covering_rrset,
+            &dnskey,
+            &signing_key,
+        );
+
+        let wildcard_covering_rrset = vec![nsec_record(
+            zone.clone(),
+            &query_covering_owner,
+            &[RecordType::Rrsig, RecordType::Nsec],
+        )];
+        let wildcard_covering_rrsig = signed_rrsig_record_for_signer(
+            &zone,
+            &zone,
+            &wildcard_covering_rrset,
+            &dnskey,
+            &signing_key,
+        );
+
+        let nsec_rrset = vec![
+            query_covering_rrset[0].clone(),
+            wildcard_covering_rrset[0].clone(),
+        ];
+        let nsec_rrsig_rrset = vec![query_covering_rrsig, wildcard_covering_rrsig];
+
+        assert_eq!(
+            validate_nsec_name_error(NsecNameErrorValidationInput {
+                signer_name: &zone,
+                dnskey_rrset: &dnskey_rrset,
+                query_name: &query,
+                closest_encloser: &zone,
+                covering_nsec_rrset: &nsec_rrset,
+                covering_nsec_rrsig_rrset: &nsec_rrsig_rrset,
+                wildcard_nsec_rrset: &nsec_rrset,
+                wildcard_nsec_rrsig_rrset: &nsec_rrsig_rrset,
+                now: DnssecTime(1_500),
+            })
+            .unwrap(),
+            DnssecStatus::Secure,
         );
     }
 

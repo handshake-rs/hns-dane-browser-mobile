@@ -142,6 +142,8 @@ pub enum ResolverError {
     LocalChainNotCurrent,
     #[error("DNSSEC validation failed")]
     DnssecFailed,
+    #[error("direct DNS validation failed while port 53 interception was confirmed")]
+    Port53InterceptionDetected,
     #[error("DNSSEC validation of an HNS P2P relay response failed")]
     RelayDnssecFailed,
     #[error("HNS resource payload is invalid: {0}")]
@@ -338,6 +340,13 @@ pub trait DnsTransport {
     }
 
     fn probe_dns_interception(&self) -> DnsInterceptionStatus {
+        DnsInterceptionStatus::NotTested
+    }
+
+    /// Returns the last interception probe result without initiating network
+    /// activity. Transports that cache probe state override this so subsequent
+    /// resolutions can avoid a port-53 path already proven to be intercepted.
+    fn cached_dns_interception_status(&self) -> DnsInterceptionStatus {
         DnsInterceptionStatus::NotTested
     }
 
@@ -1169,6 +1178,9 @@ where
                 qtype,
                 &ds_rrset,
             );
+        } else if self.transport.cached_dns_interception_status() == DnsInterceptionStatus::Detected
+        {
+            last_error = Some(ResolverError::Port53InterceptionDetected);
         } else {
             for server in servers {
                 match resolve_delegated_from_server(
@@ -1181,6 +1193,10 @@ where
                     &ds_rrset,
                 ) {
                     Ok(answer) => return Ok(answer),
+                    Err(ResolverError::Port53InterceptionDetected) => {
+                        last_error = Some(ResolverError::Port53InterceptionDetected);
+                        break;
+                    }
                     Err(error) => last_error = Some(error),
                 }
             }
@@ -2472,6 +2488,9 @@ where
     T: DnsTransport,
     V: DelegatedDnssecVerifier,
 {
+    if transport.cached_dns_interception_status() == DnsInterceptionStatus::Detected {
+        return Err(ResolverError::Port53InterceptionDetected);
+    }
     match resolve_delegated_from_server_target(
         transport,
         verifier,
@@ -2483,7 +2502,9 @@ where
         ds_rrset,
     ) {
         Err(ResolverError::DnssecFailed) => {
-            transport.probe_dns_interception();
+            if transport.probe_dns_interception() == DnsInterceptionStatus::Detected {
+                return Err(ResolverError::Port53InterceptionDetected);
+            }
             resolve_delegated_from_server_target(
                 transport,
                 verifier,
@@ -4141,6 +4162,14 @@ mod tests {
         tcp_calls: AtomicUsize,
     }
 
+    struct InterceptedPort53ThenPinnedDohTransport {
+        doh_calls: Arc<AtomicUsize>,
+        udp_calls: Arc<AtomicUsize>,
+        tcp_calls: Arc<AtomicUsize>,
+        probe_calls: Arc<AtomicUsize>,
+        interception_status: Arc<Mutex<DnsInterceptionStatus>>,
+    }
+
     struct TcpRepairDnsTransport {
         requests: DnsRequestLog,
     }
@@ -4486,6 +4515,71 @@ mod tests {
             Err(ResolverError::DnsTransport(
                 "HNS proof TLSA validation failed".to_owned(),
             ))
+        }
+    }
+
+    impl DnsTransport for InterceptedPort53ThenPinnedDohTransport {
+        fn endpoint_policy(&self) -> DnsEndpointPolicy {
+            DnsEndpointPolicy::permissive()
+        }
+
+        fn exchange_udp(
+            &self,
+            _server: SocketAddr,
+            query: &[u8],
+        ) -> Result<Vec<u8>, ResolverError> {
+            self.udp_calls.fetch_add(1, Ordering::SeqCst);
+            let query = DnsMessage::parse(query).unwrap();
+            let question = query.questions[0].clone();
+            Ok(dns_response(
+                &query,
+                tcp_repair_fixture(&question, false),
+                false,
+            ))
+        }
+
+        fn exchange_tcp(
+            &self,
+            _server: SocketAddr,
+            _query: &[u8],
+        ) -> Result<Vec<u8>, ResolverError> {
+            self.tcp_calls.fetch_add(1, Ordering::SeqCst);
+            Err(ResolverError::DnsTransport(
+                "TCP must be suppressed after confirmed interception".to_owned(),
+            ))
+        }
+
+        fn exchange_doh(
+            &self,
+            endpoint: &AuthoritativeDohEndpoint,
+            query: &[u8],
+        ) -> Result<Vec<u8>, ResolverError> {
+            assert!(matches!(
+                &endpoint.tls_authentication,
+                AuthoritativeDohTlsAuthentication::HnsProofTlsa(_)
+            ));
+            self.doh_calls.fetch_add(1, Ordering::SeqCst);
+            let query = DnsMessage::parse(query).unwrap();
+            let question = query.questions[0].clone();
+            Ok(dns_response(
+                &query,
+                tcp_repair_fixture(&question, true),
+                false,
+            ))
+        }
+
+        fn probe_dns_interception(&self) -> DnsInterceptionStatus {
+            let mut status = self.interception_status.lock().unwrap();
+            if *status != DnsInterceptionStatus::NotTested {
+                return *status;
+            }
+            self.probe_calls.fetch_add(1, Ordering::SeqCst);
+            *status = DnsInterceptionStatus::Detected;
+            DnsInterceptionStatus::Detected
+        }
+
+        fn cached_dns_interception_status(&self) -> DnsInterceptionStatus {
+            *self.interception_status.lock().unwrap()
         }
     }
 
@@ -5318,6 +5412,85 @@ mod tests {
         assert_eq!(transport.doh_calls.load(Ordering::SeqCst), 0);
         assert_eq!(transport.udp_calls.load(Ordering::SeqCst), 2);
         assert_eq!(transport.tcp_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn confirmed_port53_interception_switches_to_pinned_doh_and_stays_off_direct_dns() {
+        let pin = "36".repeat(32);
+        let delegation = HnsDelegation {
+            root_name: "denuoweb".to_owned(),
+            owner: DnsName::from_ascii("denuoweb").unwrap(),
+            records: vec![
+                ns_record("denuoweb", "ns1.denuoweb"),
+                ns_record("denuoweb", "ns2.denuoweb"),
+                glue4_record("ns1.denuoweb", [35, 212, 156, 128]),
+                glue4_record("ns2.denuoweb", [35, 212, 156, 129]),
+                ds_record("denuoweb"),
+                txt_record(
+                    "denuoweb",
+                    &format!(
+                        "hnsdns=1;ns=ns1.denuoweb.;transport=doh;doh=https://denuoweb:8443/dns-query;tlsa=3,1,1,{pin}"
+                    ),
+                ),
+            ],
+        };
+        let udp_calls = Arc::new(AtomicUsize::new(0));
+        let tcp_calls = Arc::new(AtomicUsize::new(0));
+        let doh_calls = Arc::new(AtomicUsize::new(0));
+        let probe_calls = Arc::new(AtomicUsize::new(0));
+        let interception_status = Arc::new(Mutex::new(DnsInterceptionStatus::NotTested));
+        let resolver = AuthoritativeDnssecResolver::new(
+            InterceptedPort53ThenPinnedDohTransport {
+                doh_calls: Arc::clone(&doh_calls),
+                udp_calls: Arc::clone(&udp_calls),
+                tcp_calls: Arc::clone(&tcp_calls),
+                probe_calls: Arc::clone(&probe_calls),
+                interception_status: Arc::clone(&interception_status),
+            },
+            accepting_dnssec_verifier(),
+        );
+        let request = ResolutionRequest {
+            qname: "denuoweb".to_owned(),
+            qtype: RecordType::A.code(),
+        };
+
+        let first = resolver.resolve_delegated(&request, &delegation).unwrap();
+        assert!(first.secure);
+        assert_eq!(udp_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(tcp_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(probe_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(doh_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            *interception_status.lock().unwrap(),
+            DnsInterceptionStatus::Detected
+        );
+
+        let second = resolver.resolve_delegated(&request, &delegation).unwrap();
+        assert!(second.secure);
+        assert_eq!(
+            udp_calls.load(Ordering::SeqCst),
+            2,
+            "cached detection must suppress all later direct DNS"
+        );
+        assert_eq!(tcp_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(probe_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(doh_calls.load(Ordering::SeqCst), 4);
+
+        let mut without_authenticated_doh = delegation.clone();
+        without_authenticated_doh
+            .records
+            .retain(|record| record.record_type != RecordType::Txt);
+        assert_eq!(
+            resolver
+                .resolve_delegated(&request, &without_authenticated_doh)
+                .unwrap_err(),
+            ResolverError::Port53InterceptionDetected,
+            "interception must remain a typed failure, never authenticated absence"
+        );
+        assert_eq!(udp_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(tcp_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(probe_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(doh_calls.load(Ordering::SeqCst), 4);
     }
 
     #[test]

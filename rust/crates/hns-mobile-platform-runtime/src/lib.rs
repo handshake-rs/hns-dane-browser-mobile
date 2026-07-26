@@ -5376,7 +5376,13 @@ fn build_present_root_plan(
         (Vec::new(), cname_terminal)
     };
     alias_path.extend(https_aliases);
-    let service = root_service_binding(query, &terminal_target, &answers).map_err(|_| {
+    let services = root_service_bindings(query, &terminal_target, &answers).map_err(|_| {
+        (
+            RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
+            answers.clone(),
+        )
+    })?;
+    let endpoint_service = services.first().ok_or_else(|| {
         (
             RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
             answers.clone(),
@@ -5384,7 +5390,7 @@ fn build_present_root_plan(
     })?;
     let mut endpoint_requests = Vec::new();
     let mut endpoint_name_errors = Vec::new();
-    if service.service_target() == query.host() {
+    if endpoint_service.service_target() == query.host() {
         endpoint_requests.extend(origin_requests.iter().filter_map(|request| {
             matches!(
                 RecordType::from_code(request.qtype),
@@ -5395,7 +5401,7 @@ fn build_present_root_plan(
     } else {
         for record_type in [RecordType::A, RecordType::Aaaa] {
             let request = ResolutionRequest {
-                qname: service.service_target().as_str().to_owned(),
+                qname: endpoint_service.service_target().as_str().to_owned(),
                 qtype: record_type.code(),
             };
             endpoint_requests.push(request.clone());
@@ -5426,12 +5432,14 @@ fn build_present_root_plan(
         }
     }
     let (endpoint_alias_path, endpoint_target, addresses) =
-        root_aliases_and_addresses(service.service_target(), &answers).map_err(|kind| {
-            (
-                RootFailure::new(namespace, query.clone(), kind, None),
-                answers.clone(),
-            )
-        })?;
+        root_aliases_and_addresses(endpoint_service.service_target(), &answers).map_err(
+            |kind| {
+                (
+                    RootFailure::new(namespace, query.clone(), kind, None),
+                    answers.clone(),
+                )
+            },
+        )?;
     if addresses.is_empty() {
         let absence = validated_no_endpoint_absence(
             namespace,
@@ -5459,57 +5467,101 @@ fn build_present_root_plan(
         });
     }
 
-    let mut tlsa_records = Vec::new();
-    let mut tls_policy = TlsTrustPolicy::Cleartext;
-    if query.scheme().uses_tls() {
-        let transport = match service.transport() {
-            ServiceTransport::Tcp => TlsaTransport::Tcp,
-            ServiceTransport::Udp => TlsaTransport::Udp,
-        };
-        let tlsa_request =
-            root_tlsa_resolution_request(query, &service, transport).map_err(|_| {
-                (
-                    RootFailure::new(
-                        namespace,
-                        query.clone(),
-                        RootFailureKind::MalformedResponse,
-                        None,
-                    ),
-                    answers.clone(),
-                )
-            })?;
-        let tlsa_answer = match resolver.resolve(&tlsa_request) {
-            Ok(answer) => answer,
-            Err(ResolverError::NameNotFound) => {
-                let secure = match namespace {
-                    Namespace::Icann => icann_evidence
-                        .observation(&tlsa_request)
-                        .ok()
-                        .flatten()
-                        .filter(|observation| observation.kind == IcannResponseKind::NxDomain)
-                        .map(|observation| observation.secure),
-                    Namespace::Hns => hns_observation_for_query(query, hns_evidence, true)
-                        .ok()
-                        // DelegatingResolver only preserves NameNotFound after
-                        // validating the child's denial. Requiring a proven
-                        // root delegation keeps native/root and unsigned
-                        // negatives fail-closed.
-                        .filter(|observation| observation.has_delegation)
-                        .map(|_| true),
-                }
-                .ok_or_else(|| {
+    let (service, tlsa_records, tls_policy) = if query.scheme().uses_tls() {
+        let mut selected = None;
+        for service in services {
+            let transport = match service.transport() {
+                ServiceTransport::Tcp => TlsaTransport::Tcp,
+                ServiceTransport::Udp => TlsaTransport::Udp,
+            };
+            let tlsa_request =
+                root_tlsa_resolution_request(query, &service, transport).map_err(|_| {
                     (
                         RootFailure::new(
                             namespace,
                             query.clone(),
-                            RootFailureKind::IndeterminateDnssec,
+                            RootFailureKind::MalformedResponse,
                             None,
                         ),
                         answers.clone(),
                     )
                 })?;
-                ResolutionAnswer {
-                    name: DnsName::from_ascii(&tlsa_request.qname).map_err(|_| {
+            let tlsa_answer = if let Some(answer) = answers.get(&tlsa_request).cloned() {
+                answer
+            } else {
+                match resolver.resolve(&tlsa_request) {
+                    Ok(answer) => answer,
+                    Err(ResolverError::NameNotFound) => {
+                        let secure = match namespace {
+                            Namespace::Icann => icann_evidence
+                                .observation(&tlsa_request)
+                                .ok()
+                                .flatten()
+                                .filter(|observation| {
+                                    observation.kind == IcannResponseKind::NxDomain
+                                })
+                                .map(|observation| observation.secure),
+                            Namespace::Hns => {
+                                hns_observation_for_query(query, hns_evidence, true)
+                                    .ok()
+                                    // DelegatingResolver only preserves
+                                    // NameNotFound after validating the
+                                    // child's denial. Requiring a proven root
+                                    // delegation keeps native/root and
+                                    // unsigned negatives fail-closed.
+                                    .filter(|observation| observation.has_delegation)
+                                    .map(|_| true)
+                            }
+                        }
+                        .ok_or_else(|| {
+                            (
+                                RootFailure::new(
+                                    namespace,
+                                    query.clone(),
+                                    RootFailureKind::IndeterminateDnssec,
+                                    None,
+                                ),
+                                answers.clone(),
+                            )
+                        })?;
+                        ResolutionAnswer {
+                            name: DnsName::from_ascii(&tlsa_request.qname).map_err(|_| {
+                                (
+                                    RootFailure::new(
+                                        namespace,
+                                        query.clone(),
+                                        RootFailureKind::MalformedResponse,
+                                        None,
+                                    ),
+                                    answers.clone(),
+                                )
+                            })?,
+                            records: Vec::new(),
+                            secure,
+                        }
+                    }
+                    Err(error) => {
+                        return Err((root_failure(namespace, query.clone(), &error), answers));
+                    }
+                }
+            };
+            let secure_tlsa = tlsa_answer.secure;
+            answers.insert(tlsa_request.clone(), tlsa_answer.clone());
+            if namespace == Namespace::Hns && !secure_tlsa {
+                return Err((
+                    root_failure(namespace, query.clone(), &ResolverError::DnssecFailed),
+                    answers,
+                ));
+            }
+
+            let mut candidate_tlsa_records = Vec::new();
+            if secure_tlsa {
+                for record in tlsa_answer
+                    .records
+                    .iter()
+                    .filter(|record| record.record_type == RecordType::Tlsa)
+                {
+                    TlsaRecord::parse_rdata(&record.rdata).map_err(|_| {
                         (
                             RootFailure::new(
                                 namespace,
@@ -5519,80 +5571,82 @@ fn build_present_root_plan(
                             ),
                             answers.clone(),
                         )
-                    })?,
-                    records: Vec::new(),
-                    secure,
+                    })?;
+                    candidate_tlsa_records.push(CanonicalTlsa::new(record.rdata.clone()).map_err(
+                        |_| {
+                            (
+                                RootFailure::new(
+                                    namespace,
+                                    query.clone(),
+                                    RootFailureKind::MalformedResponse,
+                                    None,
+                                ),
+                                answers.clone(),
+                            )
+                        },
+                    )?);
                 }
             }
-            Err(error) => {
-                return Err((root_failure(namespace, query.clone(), &error), answers));
-            }
-        };
-        let secure_tlsa = tlsa_answer.secure;
-        if secure_tlsa {
-            for record in tlsa_answer
-                .records
-                .iter()
-                .filter(|record| record.record_type == RecordType::Tlsa)
-            {
-                TlsaRecord::parse_rdata(&record.rdata).map_err(|_| {
+            if candidate_tlsa_records.is_empty() {
+                validate_tlsa_absence(
+                    namespace,
+                    query,
+                    origin,
+                    &tlsa_request,
+                    &tlsa_answer,
+                    hns_evidence,
+                    icann_evidence,
+                )
+                .map_err(|kind| {
                     (
-                        RootFailure::new(
-                            namespace,
-                            query.clone(),
-                            RootFailureKind::MalformedResponse,
-                            None,
-                        ),
+                        RootFailure::new(namespace, query.clone(), kind, None),
                         answers.clone(),
                     )
                 })?;
-                tlsa_records.push(CanonicalTlsa::new(record.rdata.clone()).map_err(|_| {
-                    (
-                        RootFailure::new(
-                            namespace,
-                            query.clone(),
-                            RootFailureKind::MalformedResponse,
-                            None,
-                        ),
-                        answers.clone(),
-                    )
-                })?);
             }
+
+            let candidate_policy = match (namespace, secure_tlsa, candidate_tlsa_records.is_empty())
+            {
+                (Namespace::Hns, true, false) | (Namespace::Icann, true, false) => {
+                    TlsTrustPolicy::Dane
+                }
+                (Namespace::Hns, true, true) => {
+                    // A securely authenticated HNS TLSA absence is the only
+                    // condition that permits trying the next protocol
+                    // advertised by this same HTTPS/SVCB service.
+                    continue;
+                }
+                (Namespace::Icann, true, true) => TlsTrustPolicy::WebPkiAuthenticatedAbsence,
+                (Namespace::Icann, false, _) => TlsTrustPolicy::WebPkiInsecureDelegation,
+                (Namespace::Hns, false, _) => {
+                    return Err((
+                        root_failure(namespace, query.clone(), &ResolverError::DnssecFailed),
+                        answers,
+                    ));
+                }
+            };
+            selected = Some((service, candidate_tlsa_records, candidate_policy));
+            break;
         }
-        if tlsa_records.is_empty() {
-            validate_tlsa_absence(
-                namespace,
-                query,
-                origin,
-                &tlsa_request,
-                &tlsa_answer,
-                hns_evidence,
-                icann_evidence,
+        selected.ok_or_else(|| {
+            (
+                // Secure address evidence proves namespace presence. If every
+                // advertised protocol has authenticated TLSA absence, fail
+                // the HNS root instead of converting it into namespace
+                // absence and silently selecting ICANN.
+                RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
+                answers.clone(),
             )
-            .map_err(|kind| {
-                (
-                    RootFailure::new(namespace, query.clone(), kind, None),
-                    answers.clone(),
-                )
-            })?;
-        }
-        answers.insert(tlsa_request, tlsa_answer);
-        tls_policy = match (namespace, secure_tlsa, tlsa_records.is_empty()) {
-            (Namespace::Hns, true, false) | (Namespace::Icann, true, false) => TlsTrustPolicy::Dane,
-            (Namespace::Icann, true, true) => TlsTrustPolicy::WebPkiAuthenticatedAbsence,
-            (Namespace::Icann, false, _) => TlsTrustPolicy::WebPkiInsecureDelegation,
-            (Namespace::Hns, _, _) => {
-                // Secure address evidence proves namespace presence. If the
-                // mandatory HNS TLSA policy cannot be built, classify that
-                // root as failed instead of converting the existing hostname
-                // into authenticated absence and silently selecting ICANN.
-                return Err((
-                    RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
-                    answers,
-                ));
-            }
-        };
-    }
+        })?
+    } else {
+        let service = services.into_iter().next().ok_or_else(|| {
+            (
+                RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
+                answers.clone(),
+            )
+        })?;
+        (service, Vec::new(), TlsTrustPolicy::Cleartext)
+    };
 
     let provenance = root_provenance(
         namespace,
@@ -5659,6 +5713,7 @@ fn root_failure(namespace: Namespace, query: OriginQuery, error: &ResolverError)
             RootFailureKind::Timeout
         }
         ResolverError::DnsTransport(_) => RootFailureKind::Transport,
+        ResolverError::Port53InterceptionDetected => RootFailureKind::Transport,
         ResolverError::LocalChainNotCurrent => RootFailureKind::StaleHnsAnchor,
         ResolverError::DnssecFailed | ResolverError::RelayDnssecFailed => {
             RootFailureKind::BogusDnssec
@@ -6223,20 +6278,19 @@ fn root_https_alias_path(
     Err(ResolverError::InvalidDnsResponse)
 }
 
-fn root_service_binding(
+fn root_service_bindings(
     query: &OriginQuery,
     terminal_target: &CanonicalHost,
     answers: &HashMap<ResolutionRequest, ResolutionAnswer>,
-) -> Result<ServiceBinding, ()> {
+) -> Result<Vec<ServiceBinding>, ()> {
     let mut priority = None;
     let mut service_target = terminal_target.clone();
     let mut mandatory_keys = Vec::new();
     let mut advertised_alpn = Vec::new();
-    let mut selected_protocol = ApplicationProtocol::Http11;
     let mut effective_port = query.origin_port();
-    let mut transport = ServiceTransport::Tcp;
     let mut parameters = Vec::new();
     let ech_config = None;
+    let mut selected_protocols = vec![ApplicationProtocol::Http11];
 
     if query.scheme().uses_tls() {
         let owner = DnsName::from_ascii(terminal_target.as_str()).map_err(|_| ())?;
@@ -6266,29 +6320,12 @@ fn root_service_binding(
                 CanonicalHost::parse(&selected.target_name.to_string()).map_err(|_| ())?
             };
             advertised_alpn = selected.alpn_ids().map_err(|_| ())?;
-            if query
-                .supported_protocols()
-                .supports(ApplicationProtocol::Http3)
-                && advertised_alpn
-                    .iter()
-                    .any(|id| id == b"h3" || id.starts_with(b"h3-"))
-            {
-                selected_protocol = ApplicationProtocol::Http3;
-                transport = ServiceTransport::Udp;
-            } else if query
-                .supported_protocols()
-                .supports(ApplicationProtocol::Http2)
-                && advertised_alpn.iter().any(|id| id == b"h2")
-            {
-                selected_protocol = ApplicationProtocol::Http2;
-            } else if query
-                .supported_protocols()
-                .supports(ApplicationProtocol::Http11)
-                && (advertised_alpn.iter().any(|id| id == b"http/1.1")
-                    || selected.param(SVCB_PARAM_NO_DEFAULT_ALPN).is_none())
-            {
-                selected_protocol = ApplicationProtocol::Http11;
-            } else {
+            selected_protocols = application_protocol_candidates(
+                query.supported_protocols(),
+                &advertised_alpn,
+                selected.param(SVCB_PARAM_NO_DEFAULT_ALPN).is_some(),
+            );
+            if selected_protocols.is_empty() {
                 return Err(());
             }
             if let Some(port) = selected.port().map_err(|_| ())? {
@@ -6315,19 +6352,55 @@ fn root_service_binding(
             }
         }
     }
-    ServiceBinding::new(ServiceBindingInput {
-        priority,
-        service_target,
-        mandatory_keys,
-        advertised_alpn,
-        selected_protocol,
-        effective_port,
-        transport,
-        connection_hints: Vec::new(),
-        ech_config,
-        parameters,
-    })
-    .map_err(|_| ())
+    selected_protocols
+        .into_iter()
+        .map(|selected_protocol| {
+            let transport = if selected_protocol == ApplicationProtocol::Http3 {
+                ServiceTransport::Udp
+            } else {
+                ServiceTransport::Tcp
+            };
+            ServiceBinding::new(ServiceBindingInput {
+                priority,
+                service_target: service_target.clone(),
+                mandatory_keys: mandatory_keys.clone(),
+                advertised_alpn: advertised_alpn.clone(),
+                selected_protocol,
+                effective_port,
+                transport,
+                connection_hints: Vec::new(),
+                ech_config: ech_config.clone(),
+                parameters: parameters.clone(),
+            })
+            .map_err(|_| ())
+        })
+        .collect()
+}
+
+fn application_protocol_candidates(
+    capabilities: ProtocolCapabilities,
+    alpn: &[Vec<u8>],
+    no_default_alpn: bool,
+) -> Vec<ApplicationProtocol> {
+    let mut protocols = Vec::new();
+    if capabilities.supports(ApplicationProtocol::Http3)
+        && alpn
+            .iter()
+            .any(|identifier| identifier == b"h3" || identifier.starts_with(b"h3-"))
+    {
+        protocols.push(ApplicationProtocol::Http3);
+    }
+    if capabilities.supports(ApplicationProtocol::Http2)
+        && alpn.iter().any(|identifier| identifier == b"h2")
+    {
+        protocols.push(ApplicationProtocol::Http2);
+    }
+    if capabilities.supports(ApplicationProtocol::Http11)
+        && (alpn.iter().any(|identifier| identifier == b"http/1.1") || !no_default_alpn)
+    {
+        protocols.push(ApplicationProtocol::Http11);
+    }
+    protocols
 }
 
 struct BoxedDelegatedResolver {
@@ -6579,6 +6652,14 @@ impl DnsTransport for AndroidAuthoritativeDnsTransport {
             *probe = Some(status);
         }
         status
+    }
+
+    fn cached_dns_interception_status(&self) -> DnsInterceptionStatus {
+        self.interception_probe
+            .lock()
+            .ok()
+            .and_then(|probe| *probe)
+            .unwrap_or(DnsInterceptionStatus::NotTested)
     }
 }
 
@@ -7232,6 +7313,7 @@ fn dns_trace_error_status(error: &ResolverError) -> &'static str {
         ResolverError::DnsTransport(_) => "transport_error",
         ResolverError::DnsResponseCode(_) => "response_code",
         ResolverError::InvalidDnsResponse => "invalid_response",
+        ResolverError::Port53InterceptionDetected => "port53_intercepted",
         ResolverError::DnssecFailed | ResolverError::RelayDnssecFailed => "dnssec_failed",
         _ => "error",
     }
@@ -7876,6 +7958,7 @@ fn delegated_p2p_fallback_allowed(error: &ResolverError) -> bool {
         ResolverError::DnsTransport(_)
             | ResolverError::DnsResponseCode(_)
             | ResolverError::InvalidDnsResponse
+            | ResolverError::Port53InterceptionDetected
             | ResolverError::DnssecFailed
     )
 }
@@ -9478,6 +9561,9 @@ fn resolution_source_name(
         Some(GatewayError::Resolver(ResolverError::DnsTransport(_)))
             | Some(GatewayError::Resolver(ResolverError::DnsResponseCode(_)))
             | Some(GatewayError::Resolver(ResolverError::InvalidDnsResponse))
+            | Some(GatewayError::Resolver(
+                ResolverError::Port53InterceptionDetected
+            ))
             | Some(GatewayError::Resolver(ResolverError::DnssecFailed))
     ) {
         return "authoritative_dns";
@@ -9797,6 +9883,9 @@ fn tlsa_blocked_by(error: Option<&GatewayError>) -> Option<&'static str> {
         }
         Some(GatewayError::Resolver(ResolverError::InvalidDnsResponse)) => {
             Some("authoritative_nameserver_invalid_response")
+        }
+        Some(GatewayError::Resolver(ResolverError::Port53InterceptionDetected)) => {
+            Some("port53_interception_detected")
         }
         Some(GatewayError::Resolver(ResolverError::DnssecFailed)) => {
             Some("delegated_dnssec_validation_failed")
@@ -10729,6 +10818,11 @@ fn map_gateway_error(error: &GatewayError) -> (u16, &'static str, &'static str) 
             403,
             "HNS Nameserver Port Blocked",
             "Native gateway policy blocked an unsafe delegated authoritative DoH port.",
+        ),
+        GatewayError::Resolver(ResolverError::Port53InterceptionDetected) => (
+            502,
+            "Port 53 DNS Interception Detected",
+            "Direct delegated DNS was intercepted and no authenticated authoritative DoH resolution succeeded.",
         ),
         GatewayError::Resolver(ResolverError::DnsTransport(_)) => (
             502,
@@ -16503,6 +16597,55 @@ mod tests {
     }
 
     #[test]
+    fn port53_interception_is_transport_failure_not_bogus_dnssec() {
+        let query = OriginQuery::new(
+            CanonicalHost::parse("namecity").unwrap(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        assert_eq!(
+            root_failure(
+                Namespace::Hns,
+                query,
+                &ResolverError::Port53InterceptionDetected,
+            )
+            .kind(),
+            RootFailureKind::Transport,
+        );
+
+        let error = GatewayError::Resolver(ResolverError::Port53InterceptionDetected);
+        assert_eq!(dnssec_trace_status(None, Some(&error)), "unknown");
+        assert_eq!(
+            tlsa_blocked_by(Some(&error)),
+            Some("port53_interception_detected")
+        );
+
+        let trace = resolution_trace_json(
+            &GatewayHttpRequestInput {
+                data_dir: "/tmp",
+                method: "GET",
+                scheme: "https",
+                host: "namecity",
+                port: 443,
+                path_and_query: "/",
+                header_text: "",
+                body: &[],
+            },
+            NetworkKind::Mainnet,
+            GatewayResolutionMode::Strict,
+            None,
+            TlsTraceInput::default(),
+            Some(&error),
+            &FallbackMarker::default(),
+            &DnsTraceRecorder::default(),
+        );
+        assert!(trace.contains(r#""dnssec":"unknown""#));
+        assert!(!trace.contains(r#""dnssec":"bogus""#));
+        assert!(trace.contains(r#""tlsaBlockedBy":"port53_interception_detected""#));
+    }
+
+    #[test]
     fn resolution_trace_marks_expired_origin_certificate() {
         let trace = resolution_trace_json(
             &GatewayHttpRequestInput {
@@ -16553,6 +16696,17 @@ mod tests {
 
         assert_eq!(
             relay
+                .resolve_delegated(&request, &test_delegation("relaytest"))
+                .unwrap(),
+            answer,
+        );
+
+        let intercepted = P2pFallbackDelegatedResolver::new(
+            TestDelegatedResolver::error(|| ResolverError::Port53InterceptionDetected),
+            TestDelegatedResolver::answer(answer.clone()),
+        );
+        assert_eq!(
+            intercepted
                 .resolve_delegated(&request, &test_delegation("relaytest"))
                 .unwrap(),
             answer,
@@ -17978,6 +18132,36 @@ mod tests {
         }
     }
 
+    fn https_alpn_record(owner: &str, protocols: &[&[u8]]) -> ResourceRecord {
+        let mut alpn = Vec::new();
+        for protocol in protocols {
+            alpn.push(u8::try_from(protocol.len()).unwrap());
+            alpn.extend_from_slice(protocol);
+        }
+        let mut rdata = vec![0, 1, 0, 0, 1];
+        rdata.extend(u16::try_from(alpn.len()).unwrap().to_be_bytes());
+        rdata.extend(alpn);
+        ResourceRecord {
+            name: DnsName::from_ascii(owner).unwrap(),
+            record_type: RecordType::Https,
+            class: DNS_CLASS_IN,
+            ttl: 20,
+            rdata,
+        }
+    }
+
+    fn tlsa_record(owner: &str, digest: u8) -> ResourceRecord {
+        let mut rdata = vec![3, 1, 1];
+        rdata.extend([digest; 32]);
+        ResourceRecord {
+            name: DnsName::from_ascii(owner).unwrap(),
+            record_type: RecordType::Tlsa,
+            class: DNS_CLASS_IN,
+            ttl: 20,
+            rdata,
+        }
+    }
+
     fn address_record_v6_for(owner: &str, address: Ipv6Addr) -> ResourceRecord {
         ResourceRecord {
             name: DnsName::from_ascii(owner).unwrap(),
@@ -18586,6 +18770,586 @@ mod tests {
     }
 
     #[test]
+    fn hns_https_h3_h2_raw_alpn_uses_tcp_tlsa_fallback() {
+        let now = now_unix_seconds();
+        let host = "denuoweb";
+        let udp_tlsa_owner = format!("_443._udp.{host}");
+        let tcp_tlsa_owner = format!("_443._tcp.{host}");
+        let query = OriginQuery::new(
+            CanonicalHost::parse(host).unwrap(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: temp_dir_path("hns-protocol-tlsa-fallback"),
+                host: host.to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base: temp_dir_path("hns-protocol-tlsa-fallback-base"),
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let evidence = HnsProofEvidenceRecorder::default();
+        evidence
+            .record(
+                host,
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: Hash::new([59; 32]),
+                        height: Height(1_009),
+                    },
+                    exists: true,
+                    has_delegation: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            )
+            .unwrap();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: host.to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(host, vec![address_record(host, [35, 212, 156, 128])], true),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: host.to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(host, Vec::new(), true),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: host.to_owned(),
+                        qtype: RecordType::Https.code(),
+                    },
+                    resolution_answer(
+                        host,
+                        vec![https_alpn_record(
+                            host,
+                            &[b"h3".as_slice(), b"h2".as_slice()],
+                        )],
+                        true,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: udp_tlsa_owner.clone(),
+                        qtype: RecordType::Tlsa.code(),
+                    },
+                    resolution_answer(&udp_tlsa_owner, Vec::new(), true),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: tcp_tlsa_owner.clone(),
+                        qtype: RecordType::Tlsa.code(),
+                    },
+                    resolution_answer(
+                        &tcp_tlsa_owner,
+                        vec![tlsa_record(&tcp_tlsa_owner, 0x36)],
+                        true,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::clone(&requests),
+        };
+
+        let build = build_present_root_plan(
+            &resolver,
+            Namespace::Hns,
+            &query,
+            &origin,
+            now,
+            &evidence,
+            &IcannEvidenceRecorder::default(),
+        )
+        .unwrap();
+        let RootLookup::Present(plan) = build.lookup else {
+            panic!("secure TCP TLSA must select the advertised HTTP/2 candidate");
+        };
+
+        assert_eq!(
+            plan.service().selected_protocol(),
+            ApplicationProtocol::Http2
+        );
+        assert_eq!(plan.service().transport(), ServiceTransport::Tcp);
+        assert_eq!(plan.tls_policy(), TlsTrustPolicy::Dane);
+        assert_eq!(plan.tlsa_records().len(), 1);
+        let requests = requests.lock().unwrap();
+        assert!(requests.iter().any(|request| {
+            request.qname == udp_tlsa_owner && request.qtype == RecordType::Tlsa.code()
+        }));
+        assert!(requests.iter().any(|request| {
+            request.qname == tcp_tlsa_owner && request.qtype == RecordType::Tlsa.code()
+        }));
+    }
+
+    #[test]
+    fn hns_https_secure_udp_tlsa_retains_http3() {
+        let now = now_unix_seconds();
+        let host = "denuoweb";
+        let udp_tlsa_owner = format!("_443._udp.{host}");
+        let tcp_tlsa_owner = format!("_443._tcp.{host}");
+        let query = OriginQuery::new(
+            CanonicalHost::parse(host).unwrap(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: temp_dir_path("hns-http3-udp-tlsa"),
+                host: host.to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base: temp_dir_path("hns-http3-udp-tlsa-base"),
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let evidence = HnsProofEvidenceRecorder::default();
+        evidence
+            .record(
+                host,
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: Hash::new([60; 32]),
+                        height: Height(1_010),
+                    },
+                    exists: true,
+                    has_delegation: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            )
+            .unwrap();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: host.to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(host, vec![address_record(host, [35, 212, 156, 128])], true),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: host.to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(host, Vec::new(), true),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: host.to_owned(),
+                        qtype: RecordType::Https.code(),
+                    },
+                    resolution_answer(
+                        host,
+                        vec![https_alpn_record(
+                            host,
+                            &[b"h3".as_slice(), b"h2".as_slice()],
+                        )],
+                        true,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: udp_tlsa_owner.clone(),
+                        qtype: RecordType::Tlsa.code(),
+                    },
+                    resolution_answer(
+                        &udp_tlsa_owner,
+                        vec![tlsa_record(&udp_tlsa_owner, 0x36)],
+                        true,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::clone(&requests),
+        };
+
+        let build = build_present_root_plan(
+            &resolver,
+            Namespace::Hns,
+            &query,
+            &origin,
+            now,
+            &evidence,
+            &IcannEvidenceRecorder::default(),
+        )
+        .unwrap();
+        let RootLookup::Present(plan) = build.lookup else {
+            panic!("secure UDP TLSA must retain the preferred HTTP/3 candidate");
+        };
+
+        assert_eq!(
+            plan.service().selected_protocol(),
+            ApplicationProtocol::Http3
+        );
+        assert_eq!(plan.service().transport(), ServiceTransport::Udp);
+        assert_eq!(plan.tls_policy(), TlsTrustPolicy::Dane);
+        let requests = requests.lock().unwrap();
+        assert!(requests.iter().any(|request| {
+            request.qname == udp_tlsa_owner && request.qtype == RecordType::Tlsa.code()
+        }));
+        assert!(!requests.iter().any(|request| {
+            request.qname == tcp_tlsa_owner && request.qtype == RecordType::Tlsa.code()
+        }));
+    }
+
+    #[test]
+    fn icann_secure_udp_tlsa_absence_retains_http3_webpki_plan() {
+        let now = now_unix_seconds();
+        let host = "origin.example";
+        let udp_tlsa_owner = format!("_443._udp.{host}");
+        let tcp_tlsa_owner = format!("_443._tcp.{host}");
+        let query = OriginQuery::new(
+            CanonicalHost::parse(host).unwrap(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: temp_dir_path("icann-http3-udp-tlsa-absence"),
+                host: host.to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base: temp_dir_path("icann-http3-udp-tlsa-absence-base"),
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let a_request = ResolutionRequest {
+            qname: host.to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        let aaaa_request = ResolutionRequest {
+            qname: host.to_owned(),
+            qtype: RecordType::Aaaa.code(),
+        };
+        let https_request = ResolutionRequest {
+            qname: host.to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let udp_tlsa_request = ResolutionRequest {
+            qname: udp_tlsa_owner.clone(),
+            qtype: RecordType::Tlsa.code(),
+        };
+        let tcp_tlsa_request = ResolutionRequest {
+            qname: tcp_tlsa_owner.clone(),
+            qtype: RecordType::Tlsa.code(),
+        };
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    a_request.clone(),
+                    resolution_answer(host, vec![address_record(host, [192, 0, 2, 80])], true),
+                ),
+                (
+                    aaaa_request.clone(),
+                    resolution_answer(host, Vec::new(), true),
+                ),
+                (
+                    https_request.clone(),
+                    resolution_answer(
+                        host,
+                        vec![https_alpn_record(
+                            host,
+                            &[b"h3".as_slice(), b"h2".as_slice()],
+                        )],
+                        true,
+                    ),
+                ),
+                (
+                    udp_tlsa_request.clone(),
+                    resolution_answer(&udp_tlsa_owner, Vec::new(), true),
+                ),
+                (
+                    tcp_tlsa_request.clone(),
+                    resolution_answer(
+                        &tcp_tlsa_owner,
+                        vec![tlsa_record(&tcp_tlsa_owner, 0x36)],
+                        true,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::clone(&requests),
+        };
+        let evidence = IcannEvidenceRecorder::default();
+        for (request, kind) in [
+            (a_request, IcannResponseKind::Answer),
+            (aaaa_request, IcannResponseKind::NoData),
+            (https_request, IcannResponseKind::Answer),
+            (udp_tlsa_request, IcannResponseKind::NoData),
+        ] {
+            evidence.observations.lock().unwrap().insert(
+                request,
+                IcannResponseObservation {
+                    kind,
+                    secure: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            );
+        }
+
+        let build = build_present_root_plan(
+            &resolver,
+            Namespace::Icann,
+            &query,
+            &origin,
+            now,
+            &HnsProofEvidenceRecorder::default(),
+            &evidence,
+        )
+        .unwrap();
+        let RootLookup::Present(plan) = build.lookup else {
+            panic!("secure ICANN TLSA absence must retain the preferred WebPKI plan");
+        };
+
+        assert_eq!(
+            plan.service().selected_protocol(),
+            ApplicationProtocol::Http3
+        );
+        assert_eq!(plan.service().transport(), ServiceTransport::Udp);
+        assert_eq!(
+            plan.tls_policy(),
+            TlsTrustPolicy::WebPkiAuthenticatedAbsence
+        );
+        let requests = requests.lock().unwrap();
+        assert!(requests.contains(&ResolutionRequest {
+            qname: udp_tlsa_owner,
+            qtype: RecordType::Tlsa.code(),
+        }));
+        assert!(!requests.contains(&tcp_tlsa_request));
+    }
+
+    #[test]
+    fn hns_https_insecure_udp_tlsa_is_terminal_before_any_tcp_candidate() {
+        let now = now_unix_seconds();
+        let host = "denuoweb";
+        let udp_tlsa_owner = format!("_443._udp.{host}");
+        let tcp_tlsa_owner = format!("_443._tcp.{host}");
+        for (case, udp_records, tcp_records) in [
+            ("empty-udp-securely-absent-tcp", Vec::new(), Vec::new()),
+            (
+                "unsigned-udp-securely-present-tcp",
+                vec![tlsa_record(&udp_tlsa_owner, 0x35)],
+                vec![tlsa_record(&tcp_tlsa_owner, 0x36)],
+            ),
+        ] {
+            let query = OriginQuery::new(
+                CanonicalHost::parse(host).unwrap(),
+                OriginScheme::Https,
+                None,
+                ProtocolCapabilities::all(),
+            );
+            let origin = NamespaceOriginContext {
+                key: NamespaceOriginKey {
+                    profile: temp_dir_path(&format!("hns-insecure-udp-{case}")),
+                    host: host.to_owned(),
+                    scheme: "https".to_owned(),
+                    port: 443,
+                    supported_protocols: ProtocolCapabilities::all(),
+                    network: 0,
+                    policy_revision: 0,
+                    binding_revision: 0,
+                },
+                base: temp_dir_path(&format!("hns-insecure-udp-base-{case}")),
+                network: NetworkKind::Mainnet,
+                binding: NamespaceBindingSnapshot::default(),
+            };
+            let evidence = HnsProofEvidenceRecorder::default();
+            evidence
+                .record(
+                    host,
+                    HnsProofObservation {
+                        anchor: ResourceValueAnchor {
+                            tree_root: Hash::new([61; 32]),
+                            height: Height(1_011),
+                        },
+                        exists: true,
+                        has_delegation: true,
+                        observed_at_unix: now,
+                        expires_at_unix: now.saturating_add(60),
+                    },
+                )
+                .unwrap();
+            let requests = Arc::new(Mutex::new(Vec::new()));
+            let resolver = RequestMapResolver {
+                answers: HashMap::from([
+                    (
+                        ResolutionRequest {
+                            qname: host.to_owned(),
+                            qtype: RecordType::A.code(),
+                        },
+                        resolution_answer(
+                            host,
+                            vec![address_record(host, [35, 212, 156, 128])],
+                            true,
+                        ),
+                    ),
+                    (
+                        ResolutionRequest {
+                            qname: host.to_owned(),
+                            qtype: RecordType::Aaaa.code(),
+                        },
+                        resolution_answer(host, Vec::new(), true),
+                    ),
+                    (
+                        ResolutionRequest {
+                            qname: host.to_owned(),
+                            qtype: RecordType::Https.code(),
+                        },
+                        resolution_answer(
+                            host,
+                            vec![https_alpn_record(
+                                host,
+                                &[b"h3".as_slice(), b"h2".as_slice()],
+                            )],
+                            true,
+                        ),
+                    ),
+                    (
+                        ResolutionRequest {
+                            qname: udp_tlsa_owner.clone(),
+                            qtype: RecordType::Tlsa.code(),
+                        },
+                        resolution_answer(&udp_tlsa_owner, udp_records, false),
+                    ),
+                    (
+                        ResolutionRequest {
+                            qname: tcp_tlsa_owner.clone(),
+                            qtype: RecordType::Tlsa.code(),
+                        },
+                        resolution_answer(&tcp_tlsa_owner, tcp_records, true),
+                    ),
+                ]),
+                name_not_found: HashSet::new(),
+                requests: Arc::clone(&requests),
+            };
+
+            let error = match build_present_root_plan(
+                &resolver,
+                Namespace::Hns,
+                &query,
+                &origin,
+                now,
+                &evidence,
+                &IcannEvidenceRecorder::default(),
+            ) {
+                Ok(_) => panic!("insecure UDP TLSA evidence must fail closed"),
+                Err(error) => error,
+            };
+
+            assert_eq!(error.0.kind(), RootFailureKind::BogusDnssec, "{case}");
+            let requests = requests.lock().unwrap();
+            assert!(requests.iter().any(|request| {
+                request.qname == udp_tlsa_owner && request.qtype == RecordType::Tlsa.code()
+            }));
+            assert!(
+                !requests.iter().any(|request| {
+                    request.qname == tcp_tlsa_owner && request.qtype == RecordType::Tlsa.code()
+                }),
+                "{case}"
+            );
+        }
+    }
+
+    #[test]
+    fn protocol_candidates_apply_rfc9460_http11_default() {
+        assert_eq!(
+            application_protocol_candidates(
+                ProtocolCapabilities::all(),
+                &[b"h3".to_vec(), b"h2".to_vec()],
+                false,
+            ),
+            vec![
+                ApplicationProtocol::Http3,
+                ApplicationProtocol::Http2,
+                ApplicationProtocol::Http11
+            ]
+        );
+        assert_eq!(
+            application_protocol_candidates(ProtocolCapabilities::all(), &[], false),
+            vec![ApplicationProtocol::Http11]
+        );
+        assert!(application_protocol_candidates(ProtocolCapabilities::all(), &[], true).is_empty());
+        assert_eq!(
+            application_protocol_candidates(
+                ProtocolCapabilities::all(),
+                &[b"http/1.1".to_vec()],
+                true,
+            ),
+            vec![ApplicationProtocol::Http11]
+        );
+
+        let host = CanonicalHost::parse("origin.example").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let answers = HashMap::from([(
+            request,
+            resolution_answer(
+                host.as_str(),
+                vec![https_alpn_record(
+                    host.as_str(),
+                    &[b"h3".as_slice(), b"h2".as_slice()],
+                )],
+                true,
+            ),
+        )]);
+        let services = root_service_bindings(&query, &host, &answers).unwrap();
+        assert_eq!(
+            services
+                .iter()
+                .map(ServiceBinding::selected_protocol)
+                .collect::<Vec<_>>(),
+            vec![
+                ApplicationProtocol::Http3,
+                ApplicationProtocol::Http2,
+                ApplicationProtocol::Http11
+            ]
+        );
+        assert_eq!(
+            services[2].advertised_alpn(),
+            &[b"h3".to_vec(), b"h2".to_vec()]
+        );
+    }
+
+    #[test]
     fn unsigned_icann_tlsa_bytes_are_ignored_under_proven_insecure_delegation() {
         let now = now_unix_seconds();
         let host = CanonicalHost::parse("origin.example").unwrap();
@@ -19037,8 +19801,10 @@ mod tests {
             ),
         )]);
 
-        let service = root_service_binding(&query, &host, &answers).unwrap();
-        let tlsa = root_tlsa_resolution_request(&query, &service, TlsaTransport::Tcp).unwrap();
+        let services = root_service_bindings(&query, &host, &answers).unwrap();
+        assert_eq!(services.len(), 1);
+        let service = &services[0];
+        let tlsa = root_tlsa_resolution_request(&query, service, TlsaTransport::Tcp).unwrap();
 
         assert_eq!(service.selected_protocol(), ApplicationProtocol::Http11);
         assert_eq!(service.transport(), ServiceTransport::Tcp);
