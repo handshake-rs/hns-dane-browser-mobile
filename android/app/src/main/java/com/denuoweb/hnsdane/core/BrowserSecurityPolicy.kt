@@ -9,11 +9,23 @@ object BrowserSecurityPolicy {
         mainFrameHnsTlsPolicy: HnsPageTlsPolicy? = null,
         mainFrameHnsResolverPolicy: HnsPageResolverPolicy? = null,
         mainFrameHnsSecurityPath: HnsPageSecurityPath? = null,
+        isOpaqueIpLiteral: Boolean = false,
     ): SecurityState {
         if (targetKind == BrowserTargetKind.Blocked) {
             return SecurityState.ValidationFailed
         }
-        if (targetKind != BrowserTargetKind.HnsName && targetKind != BrowserTargetKind.NativeGateway) {
+        if (targetKind == BrowserTargetKind.ExactUrl && isOpaqueIpLiteral) {
+            return if (proxyAvailable) {
+                SecurityState.WebPkiOnly
+            } else {
+                SecurityState.ValidationFailed
+            }
+        }
+        if (
+            targetKind != BrowserTargetKind.HnsName &&
+            targetKind != BrowserTargetKind.ExactUrl &&
+            targetKind != BrowserTargetKind.NativeGateway
+        ) {
             return SecurityState.WebPkiOnly
         }
         if (mainFrameHnsStatusCode?.let { it in 400..599 } == true) {
@@ -38,12 +50,18 @@ object BrowserSecurityPolicy {
                 return SecurityState.DaneVerified
             }
             if (mainFrameHnsTlsPolicy == HnsPageTlsPolicy.WebPkiFallback) {
-                if (targetKind == BrowserTargetKind.NativeGateway) {
+                if (
+                    targetKind == BrowserTargetKind.ExactUrl ||
+                    targetKind == BrowserTargetKind.NativeGateway
+                ) {
                     return SecurityState.WebPkiOnly
                 }
                 return SecurityState.ValidationFailed
             }
-            if (targetKind == BrowserTargetKind.NativeGateway) {
+            if (
+                targetKind == BrowserTargetKind.ExactUrl ||
+                targetKind == BrowserTargetKind.NativeGateway
+            ) {
                 return SecurityState.WebPkiOnly
             }
             return SecurityState.HnsVerified
@@ -51,7 +69,10 @@ object BrowserSecurityPolicy {
         if (!proxyAvailable && targetKind == BrowserTargetKind.HnsName) {
             return SecurityState.ProofUnavailable
         }
-        if (targetKind == BrowserTargetKind.NativeGateway) {
+        if (
+            targetKind == BrowserTargetKind.ExactUrl ||
+            targetKind == BrowserTargetKind.NativeGateway
+        ) {
             return SecurityState.Loading
         }
         if (

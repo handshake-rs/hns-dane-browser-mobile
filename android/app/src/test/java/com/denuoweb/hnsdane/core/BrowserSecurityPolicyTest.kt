@@ -5,15 +5,40 @@ import org.junit.Test
 
 class BrowserSecurityPolicyTest {
     @Test
-    fun normalWebTargetsUseWebPkiEvenWhenProxyIsUnavailable() {
+    fun normalWebTargetsStayPendingUntilRustReportsTheTlsDecision() {
         assertEquals(
-            SecurityState.WebPkiOnly,
+            SecurityState.Loading,
             BrowserSecurityPolicy.state(
                 targetKind = BrowserTargetKind.ExactUrl,
                 proxyAvailable = false,
                 syncStatusJson = null,
             ),
         )
+    }
+
+    @Test
+    fun publicIpLiteralUsesWebPkiOnlyInsideTheLiveOpaqueProxyPath() {
+        assertEquals(
+            SecurityState.WebPkiOnly,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.ExactUrl,
+                proxyAvailable = true,
+                syncStatusJson = null,
+                isOpaqueIpLiteral = true,
+            ),
+        )
+        assertEquals(
+            SecurityState.ValidationFailed,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.ExactUrl,
+                proxyAvailable = false,
+                syncStatusJson = null,
+                isOpaqueIpLiteral = true,
+            ),
+        )
+        assertEquals(true, isCanonicalIpLiteral("1.1.1.1"))
+        assertEquals(true, isCanonicalIpLiteral("2001:db8::1"))
+        assertEquals(false, isCanonicalIpLiteral("example.com"))
     }
 
     @Test
@@ -108,11 +133,11 @@ class BrowserSecurityPolicyTest {
     }
 
     @Test
-    fun nativeGatewayIcannDaneHostCanShowDaneVerified() {
+    fun icannDaneHostCanShowDaneVerified() {
         assertEquals(
             SecurityState.DaneVerified,
             BrowserSecurityPolicy.state(
-                targetKind = BrowserTargetKind.NativeGateway,
+                targetKind = BrowserTargetKind.ExactUrl,
                 proxyAvailable = false,
                 syncStatusJson = """{"status":"idle"}""",
                 mainFrameHnsStatusCode = 200,
@@ -122,11 +147,11 @@ class BrowserSecurityPolicyTest {
     }
 
     @Test
-    fun nativeGatewayIcannWebPkiFallbackShowsWebPkiOnly() {
+    fun icannAuthenticatedAbsenceShowsWebPkiOnly() {
         assertEquals(
             SecurityState.WebPkiOnly,
             BrowserSecurityPolicy.state(
-                targetKind = BrowserTargetKind.NativeGateway,
+                targetKind = BrowserTargetKind.ExactUrl,
                 proxyAvailable = false,
                 syncStatusJson = """{"status":"idle"}""",
                 mainFrameHnsStatusCode = 200,

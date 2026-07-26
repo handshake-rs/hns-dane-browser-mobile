@@ -14,9 +14,9 @@ This audit treats the repository as a candidate update to an existing public Goo
 | Manifest exposure | Ready | The only app-defined exported entry point is `LauncherActivity`. Browser, settings, diagnostics, HNS inspector, history, download, and other app activities are non-exported, and the app declares no service. Merged dependency components remain subject to their own signature/permission guards. |
 | Backup / transfer | Ready | App backup and device-transfer extraction are disabled for local browsing data, WebView state, download records, diagnostics, resolver cache, and HNS sync/cache state. |
 | Cleartext policy | Ready | Cleartext is disabled globally with a loopback-only exception for the local gateway. User-selected HTTP and direct DNS/HNS traffic are accurately disclosed, but ordinary open-web and user-initiated transfers are outside Google Play's Data safety collection/sharing scope. |
-| WebView hardening | Ready | Mixed content is blocked, Safe Browsing is enabled, file/content access is disabled, native JavaScript bridges are removed, WebView debugging follows `BuildConfig.DEBUG`, and loopback proxying is limited to active HNS host/subdomain scope. |
+| WebView hardening | Ready | Mixed content is blocked, Safe Browsing is enabled, file/content access is disabled, native JavaScript bridges are removed, WebView debugging follows `BuildConfig.DEBUG`, and browser-wide loopback proxying admits public ICANN while retaining the active HNS host/subdomain scope and rejecting other HNS roots. |
 | Privacy controls | Improved | Settings can clear cookies plus WebView origin storage, and the diagnostics UI can clear the bounded gateway event log. The repository and in-app disclosures now describe WebView-provider Safe Browsing and these local retention controls. |
-| Build supply chain | Portable source gates pass; platform builds pending | The consolidated locked Rust, Apple C ABI, supply-chain, store-metadata, and boundary gates pass against this checkpoint. Android Gradle configuration is blocked on this Linux host because no Android SDK/NDK is configured, and Swift/XCTest requires macOS/Xcode. The earlier 192-test Android, lint, signed-build, and relay-tier results predate these source changes. Hosted path-policy, cold-cache Android, Apple, and required-result jobs remain pending for the exact commit. |
+| Build supply chain | Portable source gates pass; platform builds pending | Locked/offline changed-package Rust tests, full workspace warning-denied Clippy and release build, Rust formatting, Apple C ABI/header/symbol checks, runtime/version boundaries, generated notices, and portable screenshot-tool tests pass against this checkpoint. The consolidated `check.sh` was not rerun, so it supplies no fresh cargo-deny, fuzz, exporter, or store-metadata evidence. Android Gradle configuration is blocked on this Linux host because no Android SDK/NDK is configured, and Swift/XCTest requires macOS/Xcode. Hosted path-policy, cold-cache Android, Apple, and required-result jobs remain pending for the exact commit. |
 | 16 KiB / native symbols | Historical pass; rebuild required | Earlier JNI libraries passed PT_LOAD alignment, hardening, stripping, Build ID, matching FULL debug metadata, path sanitization, and signed-APK ZIP alignment. Rebuild and repeat those checks because the current Rust source differs. |
 | Release-device acceptance | Pending for the next build | Install the exact signed APK and exercise cold launch, upgrade migration of former fallback settings, first-run relay-on behavior, verified manual-peer persistence, fail-closed direct/relay failure, and ordinary HNS/DNSSEC/DANE plus ICANN/WebPKI browsing. Historical only: the signed `0.4.1` APK upgraded and cold-launched successfully on the Pixel 9 after its shared-runtime device matrix passed. |
 | Data collection posture | Repository review updated; live-form reconciliation required | No ads, analytics SDKs, developer accounts, sensitive permissions, advertising ID access, or developer telemetry endpoint was found. The policy now records that a relay peer receives the DNS name/type and source network address needed for the request. Retain the live `No collected / No shared` posture only after reconciling the current Play definitions and WebView-provider Safe Browsing guidance. |
@@ -32,7 +32,7 @@ This audit treats the repository as a candidate update to an existing public Goo
 - Added deterministic in-app notices for the complete locked Android release-runtime and shipping Rust dependency inventories, with full license text and a CI-safe integrity check.
 - Reworked release native packaging so AGP strips the installed libraries and embeds matching FULL debug metadata, while deterministic prefix maps keep checkout, home, Cargo, Rustup, and NDK paths out of both artifacts.
 - Added an automated release-bundle gate for exact ABI inventory, 16 KiB bundle and ELF alignment, ELF architecture/type/bounds, native hardening, stripping, matching Build IDs and symbols, local-path rejection, R8 mapping, third-party notices, and upload signing.
-- Hardened the loopback gateway so WebView proxy override is refused without reverse-bypass host scoping, non-HNS proxy traffic fails closed, and active HNS host/subdomain scope is enforced at the server.
+- Hardened the loopback gateway and moved Android to authenticated whole-WebView proxy routing. Public ICANN is admitted through the validating Rust path, the active HNS host/subdomain scope is enforced, other HNS roots fail closed, and private/special targets are rejected before dialing.
 - Added proof-pinned authoritative DoH bootstrap for single-label HNS endpoint names, with authoritative DoH preferred when declared and direct authoritative UDP/TCP 53 next. The browser exposes successful authoritative paths explicitly and strips internal provenance headers before content reaches Chromium or the page.
 - Added an untrusted optional HNS P2P DNS relay after local proof and authoritative transport attempts; relayed answers still pass local DNSSEC, TLSA, and DANE validation.
 - Removed public recursive HNS DoH and HNS WebPKI fallback from production runtime wiring, forced both FFI boundaries to strict policy, and added one-way Android/iOS settings migrations.
@@ -50,10 +50,13 @@ This audit treats the repository as a candidate update to an existing public Goo
 
 ## Candidate Verification Status
 
-- `0.5.0` / code 40 portable source checks: passed `./scripts/check.sh`,
-  optimized locked/offline Rust workspace build, store-metadata validation,
-  version/boundary/supply-chain/notices checks, Android resource XML parsing,
-  and portable iOS simulator-selector tests on 2026-07-25.
+- `0.5.0` / code 40 portable source checks: passed locked/offline changed-package
+  Rust tests (383 total), full warning-denied workspace Clippy, optimized
+  locked/offline workspace build, Rust formatting, Apple C ABI/header/symbol
+  checks, version/runtime-boundary/generated-notice checks, and all 19 portable
+  screenshot-tool tests on 2026-07-25. The consolidated `check.sh` was not
+  rerun; no fresh cargo-deny, fuzz, exporter, store-metadata, Android-resource,
+  or iOS simulator-selector pass is claimed.
 - `0.5.0` / code 40 Android unit tests and lint: not run; Gradle stopped at
   configuration with `SDK location not found` because this host has no
   configured Android SDK/NDK.

@@ -311,7 +311,7 @@ final class BrowserViewController: UIViewController {
             updateSecuritySummary(
                 BrowserSecuritySummary(
                     level: .webPKI,
-                    detail: "System WebPKI · Rust proxy"
+                    detail: "Automatic ICANN trust · Rust proxy"
                 )
             )
             updateSyncSummary(
@@ -346,13 +346,13 @@ final class BrowserViewController: UIViewController {
             ? "One browser for Handshake and the open web"
             : "Browse beyond traditional DNS"
         let summary = isWebPKI
-            ? "Ordinary HTTPS stays protected by system WebPKI while traffic moves through the app's bounded Rust proxy."
+            ? "Ordinary HTTPS gets automatic DNSSEC/TLSA discovery, with WebPKI only when the validating resolver proves it is appropriate."
             : "Resolve Handshake names locally, validate DNSSEC and DANE, and inspect the proof behind each result."
-        let badge = isWebPKI ? "System WebPKI" : "DANE certificate verified"
+        let badge = isWebPKI ? "Automatic DANE / WebPKI" : "DANE certificate verified"
         let badgeIcon = isWebPKI ? "●" : "✓"
-        let firstTitle = isWebPKI ? "Normal HTTPS trust" : "Local HNS proofs"
+        let firstTitle = isWebPKI ? "Automatic TLSA policy" : "Local HNS proofs"
         let firstBody = isWebPKI
-            ? "WebKit keeps its native certificate validation for ordinary internet sites."
+            ? "Secure TLSA is enforced; authenticated absence or an insecure delegation retains WebPKI."
             : "Name results are anchored to the locally verified Handshake header chain."
         let secondTitle = isWebPKI ? "Private-address blocking" : "DNSSEC + DANE"
         let secondBody = isWebPKI
@@ -360,7 +360,7 @@ final class BrowserViewController: UIViewController {
             : "Delegated records and certificate policy are validated before a page is trusted."
         let thirdTitle = isWebPKI ? "Clear security labels" : "Resolver transparency"
         let thirdBody = isWebPKI
-            ? "The browser distinguishes WebPKI, DANE, fallback, and insecure paths."
+            ? "The browser distinguishes DANE, validated WebPKI, blocked, and insecure paths."
             : "Proof details expose the name hash, tree root, block height, and record types."
 
         return """

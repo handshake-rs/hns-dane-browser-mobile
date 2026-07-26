@@ -7,10 +7,12 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Made the iOS settings menu mirror Android's canonical seven-section hierarchy, row order, summaries, defaults, conditional current-page action, and native equivalents for homepage, privacy data, history, downloads, themes, language, Handshake networks, relay peers, diagnostics, legal information, resolver traces, and header resync.
+- Added automatic ICANN DANE on Android and iOS at the shared Rust gateway boundary, consuming the standalone `hns-icann-dane` contract from `hns-dane-engine`. DNS-named HTTPS/WSS now derives the TLSA owner from the selected service port and TCP/UDP transport, enforces secure TLSA when present, and permits WebPKI only after authenticated validating ICANN DoH establishes TLSA absence or an insecure delegation. Bogus/indeterminate DNSSEC, malformed TLSA or TLSA CNAME chains, invalid owner derivation, resolver errors, and timeouts fail closed.
 
 ### Fixed
 
 - Replaced the iOS placeholder icon with the production HNS DANE Browser artwork used by Android and Google Play, and added release checks for the canonical icon and archived app identity.
+- Removed the one-host ICANN native-gateway exception. Android now applies its authenticated loopback proxy across the WebView so main frames, redirects, subresources, native WebSockets, and supported downloads share the automatic policy; Service Worker/bodyless fallback requests use the same Rust gateway. iOS uses the same policy through its no-failover whole-data-store proxy and exact live local-certificate authorization.
 
 ### Removed
 

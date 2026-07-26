@@ -566,6 +566,7 @@ dependencies = [
  "hns-core",
  "hns-dane",
  "hns-gateway",
+ "hns-icann-dane",
  "hns-loopback-proxy",
  "hns-p2p",
  "hns-resolver",
@@ -634,11 +635,16 @@ version = "0.5.0"
 dependencies = [
  "hns-core",
  "hns-dane",
+ "hns-icann-dane",
  "hns-resolver",
  "hns-transport",
  "subtle",
  "thiserror 2.0.18",
 ]
+
+[[package]]
+name = "hns-icann-dane"
+version = "0.1.0"
 
 [[package]]
 name = "hns-loopback-proxy"
@@ -702,6 +708,7 @@ dependencies = [
  "h3",
  "h3-quinn",
  "hns-dane",
+ "hns-icann-dane",
  "http",
  "quinn",
  "rcgen",

@@ -37,8 +37,9 @@ The submission capture runs the normal app and Rust runtime in the Release
 simulator configuration. It never sets `HNS_APP_STORE_SCREENSHOT_SCENE`, never
 injects page HTML, and never forces a security result. The submission workflow
 accepts the intended HNS screenshot only when the live response is DANE
-verified, and accepts the public product page only when the app reports its
-system WebPKI path. `manifest.json` records the exact visible labels.
+verified, and accepts the public product page only when the app reports either
+an ICANN DANE result or the narrowly gated validating-DoH/WebPKI result.
+`manifest.json` records the exact visible labels.
 
 The capture fails instead of producing an artifact when:
 
@@ -48,7 +49,8 @@ The capture fails instead of producing an artifact when:
 - runtime preparation for the WebPKI launch does not finish within 120 seconds;
 - the HNS page does not finish within 180 seconds;
 - either final address differs from its exact requested submission URL;
-- the HNS page is not DANE verified or the public page is not system WebPKI;
+- the HNS page is not DANE verified or the public page reports neither ICANN
+  DANE nor validated WebPKI;
 - Proof Details does not open within 60 seconds;
 - Proof Details does not identify the same `denuoweb` HNS navigation;
 - the public WebPKI page does not finish within 90 seconds;
@@ -74,8 +76,8 @@ matrix in `docs/ios-device-validation.md`.
    `live-production-runtime`, `capture.configuration` is `Release`,
    `capture.fixtureEnvironmentInjected` is `false`, and the commit is the
    intended release commit. Confirm the recorded HNS label starts with
-   `DANE verified` and the public-page label reports system WebPKI, matching
-   what is visibly shown.
+   `DANE verified` and the public-page label reports either `DANE verified` or
+   `WebPKI verified · no secure TLSA`, matching what is visibly shown.
 3. Put the downloaded artifact contents below
    `build/app-store-live-screenshots/`, then run:
 
@@ -83,6 +85,10 @@ matrix in `docs/ios-device-validation.md`.
    ./scripts/stage-ios-app-store-screenshots.sh
    python3 dist/app-store/validate.py
    ```
+
+The committed screenshot package predates automatic ICANN DANE and must be
+recaptured before it can be used as evidence for a release containing this
+change.
 
    The staging script verifies every digest, replaces
    `dist/app-store/screenshots/en-US/` with only the four live JPEGs, and writes

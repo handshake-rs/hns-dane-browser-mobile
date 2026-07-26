@@ -319,10 +319,19 @@ def validate_live_provenance(document: Any) -> dict[str, Any]:
             "hnsNavigation.securityLabel must prove a successful DANE response"
         )
 
-    expected_webpki_security = "System WebPKI via the Rust whole-browser proxy"
-    if document["webPKINavigation"]["securityLabel"] != expected_webpki_security:
+    icann_security = document["webPKINavigation"]["securityLabel"]
+    accepted_icann_prefixes = (
+        "DANE verified · ",
+        "WebPKI verified · no secure TLSA ",
+    )
+    if not any(
+        icann_security.startswith(prefix)
+        and icann_security[len(prefix) :].strip()
+        for prefix in accepted_icann_prefixes
+    ):
         raise ScreenshotToolError(
-            "webPKINavigation.securityLabel must prove the system WebPKI response"
+            "webPKINavigation.securityLabel must prove automatic ICANN DANE "
+            "or validating-DoH-gated WebPKI"
         )
 
     hns_runtime_status = document["hnsNavigation"].get(

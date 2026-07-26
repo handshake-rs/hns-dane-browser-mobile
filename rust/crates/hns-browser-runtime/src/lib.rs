@@ -18,6 +18,7 @@ use hns_dane::{
     TlsaSelector, TlsaUsage,
 };
 use hns_gateway::{Gateway, GatewayConfig, GatewayError, GatewayRequest};
+use hns_icann_dane::{DnssecQueryMode, ResolverAuthentication, TlsaOwner};
 use hns_loopback_proxy::{
     BackendError as ProxyBackendError, CancellationToken as ProxyCancellationToken, HostScope,
     HostScopeError, IcannNetwork, IcannNetworkError, InternalResponseMetadata, NoopProxyObserver,
@@ -47,8 +48,8 @@ use hns_sync::{
 pub use hns_transport::DEFAULT_MAX_REQUEST_BODY_BYTES;
 use hns_transport::{
     OriginProtocol, OriginRequest, OriginResponse, OriginResponseHead, OriginTransport, ReadWrite,
-    TcpHttpTransport, TlsCertificateInspection, TlsValidation, TlsaRecordSource, TransportError,
-    TransportLimits,
+    TcpHttpTransport, TlsCertificateInspection, TlsValidation, TlsaRecordSource, TlsaTransport,
+    TransportError, TransportLimits,
 };
 use hns_urkel::UrkelProofVerifier;
 use sha2::{Digest, Sha256};
@@ -78,15 +79,15 @@ pub enum BrowserNameClass {
     Search = 2,
 }
 
-/// Browser-shell routing class. This extends namespace classification with
-/// the shared ICANN compatibility origin that must use the native gateway.
+/// Browser-shell routing class derived entirely from the shared namespace
+/// policy. ICANN gateway admission is automatic and no hostname exception is
+/// represented here.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BrowserHostClass {
     Hns = 0,
     Icann = 1,
-    NativeGateway = 2,
-    Search = 3,
+    Search = 2,
 }
 
 pub fn classify_browser_name(input: &str) -> BrowserNameClass {
@@ -98,17 +99,12 @@ pub fn classify_browser_name(input: &str) -> BrowserNameClass {
 }
 
 pub fn classify_browser_host(input: &str) -> BrowserHostClass {
-    if canonical_browser_host(input).as_deref() == Some(ICANN_NATIVE_GATEWAY_HOST) {
-        return BrowserHostClass::NativeGateway;
-    }
     match classify_browser_name(input) {
         BrowserNameClass::Hns => BrowserHostClass::Hns,
         BrowserNameClass::Icann => BrowserHostClass::Icann,
         BrowserNameClass::Search => BrowserHostClass::Search,
     }
 }
-
-const ICANN_NATIVE_GATEWAY_HOST: &str = "dane-test.denuoweb.com";
 
 /// Returns the Android document-start policy used to keep WebSockets native
 /// while rejecting cross-scope HNS targets. Rust emits the complete policy so
@@ -1312,9 +1308,10 @@ impl BrowserRuntime {
         )
     }
 
-    /// Starts a whole-browser generation with typed HNS status observation.
-    /// ICANN HTTPS remains an opaque CONNECT tunnel and therefore retains the
-    /// browser engine's WebPKI verification.
+    /// Starts a whole-browser generation with typed HNS/ICANN status
+    /// observation. DNS-named ICANN HTTPS is locally terminated and routed
+    /// through automatic DANE discovery; public IP literals retain bounded
+    /// opaque CONNECT and browser-engine WebPKI.
     pub fn start_whole_browser_proxy_with_observer(
         &self,
         hns_scope_root: Option<&str>,
@@ -1904,6 +1901,8 @@ impl BrowserRuntime {
                 stateless_dane,
                 allow_non_public_origin_addresses: network == NetworkKind::Regtest || cfg!(test),
                 allow_unsafe_origin_ports: network == NetworkKind::Regtest,
+                icann_resolver_authentication: ResolverAuthentication::Authenticated,
+                icann_dnssec_query_mode: DnssecQueryMode::Validate,
                 ..GatewayConfig::default()
             },
             resolver,
@@ -2056,6 +2055,7 @@ fn proxy_response_from_gateway(
     let security_path = security_path_name(
         &input,
         response.origin_request.port,
+        response.origin_request.tls.service_transport,
         &response.origin.dane_decision,
         &dns_trace.snapshot(),
     );
@@ -4260,6 +4260,8 @@ fn gateway_http_response_with_transport(
             stateless_dane,
             allow_non_public_origin_addresses: network == NetworkKind::Regtest || cfg!(test),
             allow_unsafe_origin_ports: network == NetworkKind::Regtest,
+            icann_resolver_authentication: ResolverAuthentication::Authenticated,
+            icann_dnssec_query_mode: DnssecQueryMode::Validate,
             ..GatewayConfig::default()
         },
         resolver,
@@ -4282,6 +4284,7 @@ fn gateway_http_response_with_transport(
             let security_path = security_path_name(
                 &input,
                 response.origin_request.port,
+                response.origin_request.tls.service_transport,
                 &response.origin.dane_decision,
                 &dns_trace.snapshot(),
             );
@@ -4400,6 +4403,8 @@ fn gateway_http_response_body_to_file_with_transport(
             stateless_dane,
             allow_non_public_origin_addresses: network == NetworkKind::Regtest || cfg!(test),
             allow_unsafe_origin_ports: network == NetworkKind::Regtest,
+            icann_resolver_authentication: ResolverAuthentication::Authenticated,
+            icann_dnssec_query_mode: DnssecQueryMode::Validate,
             ..GatewayConfig::default()
         },
         resolver,
@@ -4429,6 +4434,7 @@ fn gateway_http_response_body_to_file_with_transport(
             let security_path = security_path_name(
                 &input,
                 response.origin_request.port,
+                response.origin_request.tls.service_transport,
                 &response.origin.dane_decision,
                 &dns_trace.snapshot(),
             );
@@ -4553,6 +4559,8 @@ fn gateway_http_upgrade_tunnel_with_transport(
             stateless_dane,
             allow_non_public_origin_addresses: network == NetworkKind::Regtest || cfg!(test),
             allow_unsafe_origin_ports: network == NetworkKind::Regtest,
+            icann_resolver_authentication: ResolverAuthentication::Authenticated,
+            icann_dnssec_query_mode: DnssecQueryMode::Validate,
             ..GatewayConfig::default()
         },
         resolver,
@@ -5346,6 +5354,9 @@ fn tls_trace_json(
         tls_validation
             .map(|tls| tls.service_port)
             .unwrap_or(input.port),
+        tls_validation
+            .map(|tls| tls.service_transport)
+            .unwrap_or(TlsaTransport::Tcp),
     );
     let stateless_dane = matches!(dane_decision, Some(DaneDecision::StatelessMatched(_)));
     let tlsa_evaluated = tls_validation.is_some();
@@ -5450,8 +5461,10 @@ fn sha256_hex(value: &[u8]) -> String {
     hex_lower(&Sha256::digest(value))
 }
 
-fn tlsa_owner_name(host: &str, port: u16) -> String {
-    format!("_{}._tcp.{}", port, host.trim_end_matches('.'))
+fn tlsa_owner_name(host: &str, port: u16, transport: TlsaTransport) -> String {
+    TlsaOwner::derive(host, port, transport)
+        .map(|owner| owner.resolver_name().to_owned())
+        .unwrap_or_else(|_| "<invalid-tlsa-owner>".to_owned())
 }
 
 fn tlsa_status_name(tls_validation: Option<&TlsValidation>) -> &'static str {
@@ -5761,13 +5774,14 @@ fn successful_dns_path_for_types<'a>(
 fn security_path_name(
     input: &GatewayHttpRequestInput<'_>,
     effective_port: u16,
+    service_transport: TlsaTransport,
     decision: &DaneDecision,
     events: &[DnsTraceEvent],
 ) -> Option<&'static str> {
     match decision {
         DaneDecision::StatelessMatched(_) => return Some("stateless-dane"),
         DaneDecision::Matched(_) => {
-            let owner = tlsa_owner_name(input.host, effective_port);
+            let owner = tlsa_owner_name(input.host, effective_port, service_transport);
             return match successful_dns_path(events, &owner, RecordType::Tlsa) {
                 Some("authoritative_doh") => Some("dane-authoritative-doh"),
                 Some("udp53" | "tcp53") => Some("dane-authoritative-dns53"),
@@ -7615,8 +7629,8 @@ mod tests {
         );
         assert_eq!(classify_browser_name("  "), BrowserNameClass::Search);
         assert_eq!(
-            classify_browser_host("DANE-TEST.DENUOWEB.COM."),
-            BrowserHostClass::NativeGateway
+            classify_browser_host("TLSA.EXAMPLE.COM."),
+            BrowserHostClass::Icann
         );
         assert_eq!(
             classify_browser_host("example.com"),
@@ -9784,6 +9798,7 @@ mod tests {
             security_path_name(
                 &input,
                 8443,
+                TlsaTransport::Tcp,
                 &DaneDecision::Matched(TlsaUsage::DaneEe),
                 &events,
             ),
@@ -9817,6 +9832,7 @@ mod tests {
             security_path_name(
                 &input,
                 input.port,
+                TlsaTransport::Tcp,
                 &DaneDecision::Matched(TlsaUsage::DaneEe),
                 &events,
             ),
@@ -9826,6 +9842,7 @@ mod tests {
             security_path_name(
                 &input,
                 input.port,
+                TlsaTransport::Tcp,
                 &DaneDecision::StatelessMatched(TlsaUsage::DaneEe),
                 &events,
             ),
@@ -9867,7 +9884,13 @@ mod tests {
         ];
 
         assert_eq!(
-            security_path_name(&input, input.port, &DaneDecision::NoTlsa, &events),
+            security_path_name(
+                &input,
+                input.port,
+                TlsaTransport::Tcp,
+                &DaneDecision::NoTlsa,
+                &events,
+            ),
             Some("hns-authoritative-dns53"),
         );
     }
@@ -10081,7 +10104,7 @@ mod tests {
         dns_trace.push(DnsTraceEvent {
             protocol: "icann_doh",
             server: "https://cloudflare-dns.com/dns-query".to_owned(),
-            question_name: Some("dane-test.denuoweb.com".to_owned()),
+            question_name: Some("tlsa.example.com".to_owned()),
             question_type: Some(RecordType::A.code()),
             status: "ok".to_owned(),
             elapsed_ms: 42,
@@ -10092,7 +10115,7 @@ mod tests {
                 data_dir: "/tmp",
                 method: "GET",
                 scheme: "https",
-                host: "dane-test.denuoweb.com",
+                host: "tlsa.example.com",
                 port: 443,
                 path_and_query: "/",
                 header_text: "",
@@ -10101,11 +10124,8 @@ mod tests {
             NetworkKind::Mainnet,
             GatewayResolutionMode::Strict,
             Some(&ResolutionAnswer {
-                name: DnsName::from_ascii("dane-test.denuoweb.com").unwrap(),
-                records: vec![address_record(
-                    "dane-test.denuoweb.com",
-                    [35, 212, 156, 128],
-                )],
+                name: DnsName::from_ascii("tlsa.example.com").unwrap(),
+                records: vec![address_record("tlsa.example.com", [35, 212, 156, 128])],
                 secure: true,
             }),
             TlsTraceInput::default(),
@@ -11007,7 +11027,7 @@ mod tests {
 
     #[test]
     fn doh_query_requests_authentic_data_and_dnssec_records() {
-        let qname = DnsName::from_ascii("dane-test.denuoweb.com").unwrap();
+        let qname = DnsName::from_ascii("tlsa.example.com").unwrap();
         let query = build_doh_query(0x1234, &qname, RecordType::A).unwrap();
         let message = DnsMessage::parse(&query).unwrap();
 
@@ -11147,7 +11167,7 @@ mod tests {
             ),
         );
         assert_eq!(
-            map_gateway_error_for_host("dane-test.denuoweb.com", &GatewayError::NoResolvedAddress),
+            map_gateway_error_for_host("tlsa.example.com", &GatewayError::NoResolvedAddress),
             (
                 502,
                 "ICANN Origin Address Missing",

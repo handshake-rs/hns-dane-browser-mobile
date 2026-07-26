@@ -5,7 +5,51 @@ import XCTest
 final class BrowserAuthenticationPolicyTests: XCTestCase {
     private let policy = BrowserAuthenticationPolicy()
 
-    func testIcannTrustAlwaysUsesWebKitDefault() {
+    func testNamedIcannTrustRequiresExactLiveGenerationCertificate() {
+        let runtime = FakeRuntime(hostKind: .icann)
+        let proxy = FakeProxy()
+        proxy.certificateMatches = true
+        let context = BrowserAuthenticationContext(
+            kind: .serverTrust(leafCertificateDER: Data([1, 2, 3])),
+            host: "example.com",
+            port: 443,
+            realm: nil
+        )
+
+        XCTAssertEqual(
+            policy.evaluate(
+                context,
+                runtime: runtime,
+                liveProxy: proxy,
+                activeScope: .icann
+            ),
+            .useServerTrust
+        )
+    }
+
+    func testNamedIcannSubresourceTrustUsesExactPinUnderActiveHnsScope() {
+        let runtime = FakeRuntime(hostKind: .icann)
+        let proxy = FakeProxy()
+        proxy.certificateMatches = true
+        let context = BrowserAuthenticationContext(
+            kind: .serverTrust(leafCertificateDER: Data([1, 2, 3])),
+            host: "cdn.example.com",
+            port: 443,
+            realm: nil
+        )
+
+        XCTAssertEqual(
+            policy.evaluate(
+                context,
+                runtime: runtime,
+                liveProxy: proxy,
+                activeScope: .handshakeRoot("welcome")
+            ),
+            .useServerTrust
+        )
+    }
+
+    func testNamedIcannTrustWithoutExactPinFailsClosed() {
         let runtime = FakeRuntime(hostKind: .icann)
         let context = BrowserAuthenticationContext(
             kind: .serverTrust(leafCertificateDER: Data([1, 2, 3])),
@@ -15,7 +59,22 @@ final class BrowserAuthenticationPolicyTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            policy.evaluate(context, runtime: runtime, liveProxy: nil, activeScope: nil),
+            policy.evaluate(context, runtime: runtime, liveProxy: nil, activeScope: .icann),
+            .cancel
+        )
+    }
+
+    func testPublicIpLiteralTrustUsesWebKitDefault() {
+        let runtime = FakeRuntime(hostKind: .icann)
+        let context = BrowserAuthenticationContext(
+            kind: .serverTrust(leafCertificateDER: Data([1, 2, 3])),
+            host: "1.1.1.1",
+            port: 443,
+            realm: nil
+        )
+
+        XCTAssertEqual(
+            policy.evaluate(context, runtime: runtime, liveProxy: nil, activeScope: .icann),
             .performDefaultHandling
         )
     }
@@ -191,5 +250,8 @@ final class FakeProxy: BrowserProxySession {
         certificateMatches
     }
 
-    func takeMainFrameSecurityStatus(host: String) -> BrowserSecuritySummary? { nil }
+    func takeMainFrameSecurityStatus(
+        host: String,
+        allowsWebPkiFallback: Bool
+    ) -> BrowserSecuritySummary? { nil }
 }

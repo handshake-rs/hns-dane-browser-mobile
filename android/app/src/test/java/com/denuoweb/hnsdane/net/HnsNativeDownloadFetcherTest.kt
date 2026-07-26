@@ -187,7 +187,7 @@ class HnsNativeDownloadFetcherTest {
     }
 
     @Test
-    fun fetchAllowsWebPkiForTheExplicitIcannNativeGatewayHost() {
+    fun fetchAllowsWebPkiForAuthenticatedIcannTlsaAbsence() {
         val dataDir = createTempDirectory("icann-download-webpki").toFile()
         val bridge = QueueGatewayBridge(
             GatewayResponse.file(
@@ -201,7 +201,7 @@ class HnsNativeDownloadFetcherTest {
         val fetcher = HnsNativeDownloadFetcher(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
 
         val response = fetcher.fetch(
-            "https://dane-test.denuoweb.com/file.bin",
+            "https://example.com/file.bin",
             null,
         )
 

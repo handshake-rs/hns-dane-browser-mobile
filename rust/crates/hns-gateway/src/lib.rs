@@ -5,6 +5,10 @@ use hns_core::dns::{
 };
 use hns_core::network_policy::{is_browser_blocked_port, is_publicly_routable};
 use hns_dane::{DaneError, DomainTrustMode, StatelessDaneConfig, TlsaRecord};
+use hns_icann_dane::{
+    BrowserTlsDecision, DnssecQueryMode, IcannDnssecStatus, ResolverAuthentication, TlsaDenial,
+    TlsaOwner, TlsaTransport, ValidatingDohEvidence, decide_browser_tls,
+};
 use hns_resolver::{
     NameClass, ResolutionAnswer, ResolutionRequest, Resolver, ResolverError, classify_name,
 };
@@ -28,10 +32,13 @@ pub struct GatewayConfig {
     pub require_secure_resolution: bool,
     pub supported_origin_protocols: Vec<OriginProtocol>,
     pub stateless_dane: StatelessDaneConfig,
+    pub icann_resolver_authentication: ResolverAuthentication,
+    pub icann_dnssec_query_mode: DnssecQueryMode,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedTlsaRecords {
+    pub browser_tls_decision: Option<BrowserTlsDecision>,
     pub secure: bool,
     pub records: Vec<TlsaRecord>,
     pub source: Option<TlsaRecordSource>,
@@ -114,6 +121,8 @@ impl Default for GatewayConfig {
                 OriginProtocol::Http3,
             ],
             stateless_dane: StatelessDaneConfig::default(),
+            icann_resolver_authentication: ResolverAuthentication::Unauthenticated,
+            icann_dnssec_query_mode: DnssecQueryMode::DnssecRecordsNotRequested,
         }
     }
 }
@@ -138,6 +147,11 @@ impl std::fmt::Debug for GatewayConfig {
                 &self.supported_origin_protocols,
             )
             .field("stateless_dane", &self.stateless_dane)
+            .field(
+                "icann_resolver_authentication",
+                &self.icann_resolver_authentication,
+            )
+            .field("icann_dnssec_query_mode", &self.icann_dnssec_query_mode)
             .finish()
     }
 }
@@ -255,7 +269,8 @@ where
         self.validate_origin_port(request.origin.port)?;
 
         let resolution = self.resolver.resolve(&request.resolution)?;
-        if !resolution.secure {
+        let name_class = classify_name(&request.origin.host);
+        if !resolution.secure && name_class != NameClass::Icann {
             return Err(GatewayError::InsecureResolution);
         }
 
@@ -288,16 +303,26 @@ where
                     .resolve_https_service_policy(&mut origin_request, supported_origin_protocols)
                 {
                     Ok(()) => {}
-                    Err(error) if optional_https_service_policy_error(&error) => {}
+                    Err(error)
+                        if name_class != NameClass::Icann
+                            && optional_https_service_policy_error(&error) => {}
                     Err(error) => return Err(error),
                 }
             }
             origin_request.tls.service_port = origin_request.port;
-            let resolved_tlsa =
-                self.resolve_tlsa_records(&origin_request.host, origin_request.port)?;
+            origin_request.tls.service_transport = match origin_request.protocol {
+                OriginProtocol::Http11 | OriginProtocol::Http2 => TlsaTransport::Tcp,
+                OriginProtocol::Http3 => TlsaTransport::Udp,
+            };
+            let resolved_tlsa = self.resolve_tlsa_records(
+                &origin_request.host,
+                origin_request.port,
+                origin_request.tls.service_transport,
+            )?;
             origin_request.tls.dnssec_secure = resolved_tlsa.secure;
             origin_request.tls.tlsa_records = resolved_tlsa.records;
             origin_request.tls.tlsa_source = resolved_tlsa.source;
+            origin_request.tls.browser_tls_decision = resolved_tlsa.browser_tls_decision;
         }
         self.validate_origin_port(origin_request.port)?;
 
@@ -327,33 +352,77 @@ where
         &self,
         host: &str,
         port: u16,
+        transport: TlsaTransport,
     ) -> Result<ResolvedTlsaRecords, GatewayError> {
-        let Some(request) = tlsa_resolution_request(host, port) else {
-            return Ok(ResolvedTlsaRecords {
-                secure: false,
-                records: Vec::new(),
-                source: None,
-            });
-        };
+        let request = tlsa_resolution_request(host, port, transport)?;
 
-        self.resolve_native_tlsa_records(&request)
+        self.resolve_native_tlsa_records(&request, classify_name(host) == NameClass::Icann)
     }
 
     fn resolve_native_tlsa_records(
         &self,
         request: &ResolutionRequest,
+        allow_insecure_webpki_fallback: bool,
     ) -> Result<ResolvedTlsaRecords, GatewayError> {
         let answer = self.resolver.resolve(request)?;
+        // A validating resolver returns AD=0 for a provably insecure
+        // delegation and a DNS error (normally SERVFAIL) for bogus DNSSEC.
+        // Ignore all unsigned TLSA bytes for ICANN and retain WebPKI; never
+        // turn a resolver error into an empty TLSA answer.
+        if !answer.secure && allow_insecure_webpki_fallback {
+            let browser_tls_decision =
+                self.decide_icann_browser_tls(&answer, 0, TlsaDenial::None)?;
+            return Ok(ResolvedTlsaRecords {
+                browser_tls_decision: Some(browser_tls_decision),
+                secure: false,
+                records: Vec::new(),
+                source: None,
+            });
+        }
         let records = tlsa_records(&answer.records, &request.qname)?;
         if self.config.require_secure_resolution && !answer.secure && !records.is_empty() {
             return Err(GatewayError::InsecureResolution);
         }
 
+        let browser_tls_decision = allow_insecure_webpki_fallback
+            .then(|| {
+                self.decide_icann_browser_tls(
+                    &answer,
+                    records.len(),
+                    if records.is_empty() {
+                        TlsaDenial::Authenticated
+                    } else {
+                        TlsaDenial::None
+                    },
+                )
+            })
+            .transpose()?;
         Ok(ResolvedTlsaRecords {
+            browser_tls_decision,
             secure: answer.secure,
             source: (!records.is_empty()).then_some(TlsaRecordSource::NativeTlsa),
             records,
         })
+    }
+
+    fn decide_icann_browser_tls(
+        &self,
+        answer: &ResolutionAnswer,
+        tlsa_record_count: usize,
+        denial: TlsaDenial,
+    ) -> Result<BrowserTlsDecision, GatewayError> {
+        decide_browser_tls(ValidatingDohEvidence {
+            resolver_authentication: self.config.icann_resolver_authentication,
+            query_mode: self.config.icann_dnssec_query_mode,
+            dnssec: if answer.secure {
+                IcannDnssecStatus::Secure
+            } else {
+                IcannDnssecStatus::InsecureDelegation
+            },
+            tlsa_record_count,
+            denial,
+        })
+        .map_err(|_error| GatewayError::InsecureResolution)
     }
 
     fn resolve_origin_address(
@@ -366,7 +435,7 @@ where
                 qtype: qtype.code(),
             };
             let answer = self.resolver.resolve(&request)?;
-            if !answer.secure {
+            if !answer.secure && classify_name(&origin.host) != NameClass::Icann {
                 return Err(GatewayError::InsecureResolution);
             }
             if let Some(address) = first_resolved_address(&answer.records, &origin.host) {
@@ -386,6 +455,9 @@ where
             qname: normalize_host(&request.host),
             qtype: RecordType::Https.code(),
         })?;
+        if !answer.secure && classify_name(&request.host) == NameClass::Icann {
+            return Ok(());
+        }
         if self.config.require_secure_resolution && !answer.secure {
             return Err(GatewayError::InsecureResolution);
         }
@@ -474,10 +546,15 @@ fn cname_target_for_owner(records: &[ResourceRecord], owner: &DnsName) -> Option
     (end == record.rdata.len()).then_some(target)
 }
 
-fn tlsa_resolution_request(host: &str, port: u16) -> Option<ResolutionRequest> {
-    let qname = DnsName::from_ascii(&format!("_{port}._tcp.{}", normalize_host(host))).ok()?;
-    Some(ResolutionRequest {
-        qname: qname.to_string(),
+fn tlsa_resolution_request(
+    host: &str,
+    port: u16,
+    transport: TlsaTransport,
+) -> Result<ResolutionRequest, GatewayError> {
+    let owner = TlsaOwner::derive(host, port, transport)
+        .map_err(|_error| GatewayError::Resolver(ResolverError::InvalidDnsResponse))?;
+    Ok(ResolutionRequest {
+        qname: owner.resolver_name().to_owned(),
         qtype: RecordType::Tlsa.code(),
     })
 }
@@ -486,16 +563,54 @@ fn tlsa_records(
     records: &[ResourceRecord],
     service_qname: &str,
 ) -> Result<Vec<TlsaRecord>, GatewayError> {
-    let owner = match DnsName::from_ascii(service_qname) {
-        Ok(owner) => owner,
-        Err(_) => return Ok(Vec::new()),
-    };
+    let mut owner = DnsName::from_ascii(service_qname)
+        .map_err(|_| GatewayError::Resolver(ResolverError::InvalidDnsResponse))?;
+    let mut seen = Vec::new();
+    for _depth in 0..=MAX_CNAME_CHAIN_LEN {
+        if seen.contains(&owner) {
+            return Err(GatewayError::Resolver(ResolverError::InvalidDnsResponse));
+        }
+        seen.push(owner.clone());
+        if records.iter().any(|record| {
+            record.name == owner
+                && matches!(record.record_type, RecordType::Tlsa | RecordType::Cname)
+                && record.class != 1
+        }) {
+            return Err(GatewayError::Resolver(ResolverError::InvalidDnsResponse));
+        }
 
-    records
-        .iter()
-        .filter(|record| record.record_type == RecordType::Tlsa && record.name == owner)
-        .map(|record| TlsaRecord::parse_rdata(&record.rdata).map_err(GatewayError::from))
-        .collect()
+        let owner_tlsa = records
+            .iter()
+            .filter(|record| record.record_type == RecordType::Tlsa && record.name == owner)
+            .collect::<Vec<_>>();
+        let owner_cnames = records
+            .iter()
+            .filter(|record| record.record_type == RecordType::Cname && record.name == owner)
+            .collect::<Vec<_>>();
+        if !owner_tlsa.is_empty() && !owner_cnames.is_empty() {
+            return Err(GatewayError::Resolver(ResolverError::InvalidDnsResponse));
+        }
+        if !owner_tlsa.is_empty() {
+            return owner_tlsa
+                .into_iter()
+                .map(|record| TlsaRecord::parse_rdata(&record.rdata).map_err(GatewayError::from))
+                .collect();
+        }
+        let [cname] = owner_cnames.as_slice() else {
+            return if owner_cnames.is_empty() {
+                Ok(Vec::new())
+            } else {
+                Err(GatewayError::Resolver(ResolverError::InvalidDnsResponse))
+            };
+        };
+        let (target, end) = DnsName::parse_wire(&cname.rdata, 0)
+            .map_err(|_| GatewayError::Resolver(ResolverError::InvalidDnsResponse))?;
+        if end != cname.rdata.len() {
+            return Err(GatewayError::Resolver(ResolverError::InvalidDnsResponse));
+        }
+        owner = target;
+    }
+    Err(GatewayError::Resolver(ResolverError::InvalidDnsResponse))
 }
 
 fn apply_https_service_policy(
@@ -776,6 +891,38 @@ mod tests {
             gateway.handle(&request("name", "name")).unwrap_err(),
             GatewayError::NonPublicOriginAddress
         );
+    }
+
+    #[test]
+    fn rejects_unsigned_icann_private_address_before_tls_policy_lookup() {
+        let gateway = Gateway::new(
+            GatewayConfig::default(),
+            ScriptedResolver::new(
+                vec![response(
+                    "example.com",
+                    RecordType::A.code(),
+                    false,
+                    vec![ResourceRecord {
+                        name: DnsName::from_ascii("example.com").unwrap(),
+                        record_type: RecordType::A,
+                        class: 1,
+                        ttl: 60,
+                        rdata: vec![127, 0, 0, 1],
+                    }],
+                )],
+                Arc::new(Mutex::new(Vec::new())),
+            ),
+            CapturingTransport::default(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            gateway
+                .handle(&request("example.com", "example.com"))
+                .unwrap_err(),
+            GatewayError::NonPublicOriginAddress
+        );
+        assert!(gateway.transport().last_request.lock().unwrap().is_none());
     }
 
     #[test]
@@ -1205,8 +1352,10 @@ mod tests {
     #[test]
     fn resolves_https_service_policy_when_initial_answer_is_address_only() {
         let requests = Arc::new(Mutex::new(Vec::new()));
+        let mut config = authenticated_icann_gateway_config();
+        config.supported_origin_protocols = vec![OriginProtocol::Http11, OriginProtocol::Http2];
         let gateway = Gateway::new(
-            gateway_config_with_protocols(vec![OriginProtocol::Http11, OriginProtocol::Http2]),
+            config,
             ScriptedResolver::new(
                 vec![
                     response(
@@ -1339,6 +1488,43 @@ mod tests {
     }
 
     #[test]
+    fn icann_https_service_policy_resolver_failure_is_terminal() {
+        struct IcannHttpsPolicyErrorResolver;
+
+        impl Resolver for IcannHttpsPolicyErrorResolver {
+            fn resolve(
+                &self,
+                request: &ResolutionRequest,
+            ) -> Result<ResolutionAnswer, ResolverError> {
+                match RecordType::from_code(request.qtype) {
+                    RecordType::A => Ok(ResolutionAnswer {
+                        name: DnsName::from_ascii(&request.qname).unwrap(),
+                        records: vec![address_record_for(&request.qname)],
+                        secure: true,
+                    }),
+                    RecordType::Https => Err(ResolverError::DnssecFailed),
+                    _ => panic!("ICANN TLSA lookup must not follow a failed HTTPS/SVCB lookup"),
+                }
+            }
+        }
+
+        let gateway = Gateway::new(
+            authenticated_icann_gateway_config(),
+            IcannHttpsPolicyErrorResolver,
+            CapturingTransport::default(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            gateway
+                .handle(&request("example.com", "example.com"))
+                .unwrap_err(),
+            GatewayError::Resolver(ResolverError::DnssecFailed)
+        );
+        assert!(gateway.transport().last_request.lock().unwrap().is_none());
+    }
+
+    #[test]
     fn selects_http3_and_service_port_from_https_service_alpn() {
         let requests = Arc::new(Mutex::new(Vec::new()));
         let gateway = Gateway::new(
@@ -1359,7 +1545,7 @@ mod tests {
                             ),
                         ],
                     ),
-                    response("_8443._tcp.name", RecordType::Tlsa.code(), true, vec![]),
+                    response("_8443._udp.name", RecordType::Tlsa.code(), true, vec![]),
                 ],
                 Arc::clone(&requests),
             ),
@@ -1380,10 +1566,11 @@ mod tests {
             .unwrap();
         assert_eq!(captured.protocol, OriginProtocol::Http3);
         assert_eq!(captured.port, 8443);
+        assert_eq!(captured.tls.service_transport, TlsaTransport::Udp);
         assert_eq!(
             requests.lock().unwrap().last().unwrap(),
             &ResolutionRequest {
-                qname: "_8443._tcp.name".to_owned(),
+                qname: "_8443._udp.name".to_owned(),
                 qtype: RecordType::Tlsa.code(),
             },
         );
@@ -1578,7 +1765,7 @@ mod tests {
     #[test]
     fn icann_hosts_use_icann_webpki_tls_mode() {
         let gateway = Gateway::new(
-            GatewayConfig::default(),
+            authenticated_icann_gateway_config(),
             ScriptedResolver::new(
                 vec![
                     response(
@@ -1615,13 +1802,52 @@ mod tests {
         assert_eq!(captured.tls.mode, DomainTrustMode::IcannWebPki);
         assert!(captured.tls.tlsa_records.is_empty());
         assert_eq!(captured.tls.tlsa_source, None);
+        assert_eq!(
+            captured.tls.browser_tls_decision,
+            Some(BrowserTlsDecision::WebPkiAuthenticatedAbsence)
+        );
+    }
+
+    #[test]
+    fn icann_webpki_requires_an_authenticated_validating_resolver_contract() {
+        let gateway = Gateway::new(
+            GatewayConfig::default(),
+            ScriptedResolver::new(
+                vec![
+                    response(
+                        "example.com",
+                        RecordType::A.code(),
+                        true,
+                        vec![address_record_for("example.com")],
+                    ),
+                    response("example.com", RecordType::Https.code(), true, vec![]),
+                    response(
+                        "_443._tcp.example.com",
+                        RecordType::Tlsa.code(),
+                        true,
+                        vec![],
+                    ),
+                ],
+                Arc::new(Mutex::new(Vec::new())),
+            ),
+            CapturingTransport::default(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            gateway
+                .handle(&request("example.com", "example.com"))
+                .unwrap_err(),
+            GatewayError::InsecureResolution
+        );
+        assert!(gateway.transport().last_request.lock().unwrap().is_none());
     }
 
     #[test]
     fn icann_native_tlsa_records_are_used() {
         let requests = Arc::new(Mutex::new(Vec::new()));
         let gateway = Gateway::new(
-            GatewayConfig::default(),
+            authenticated_icann_gateway_config(),
             ScriptedResolver::new(
                 vec![
                     response(
@@ -1659,6 +1885,11 @@ mod tests {
         assert!(captured.tls.dnssec_secure);
         assert_eq!(captured.tls.tlsa_source, Some(TlsaRecordSource::NativeTlsa));
         assert_eq!(captured.tls.tlsa_records.len(), 1);
+        assert!(matches!(
+            captured.tls.browser_tls_decision,
+            Some(BrowserTlsDecision::EnforceDane { record_count })
+                if record_count.get() == 1
+        ));
         assert_eq!(captured.tls.tlsa_records[0].usage, TlsaUsage::DaneEe);
         assert_eq!(
             captured.tls.tlsa_records[0].selector,
@@ -1686,10 +1917,95 @@ mod tests {
     }
 
     #[test]
+    fn icann_secure_tlsa_cname_chain_reaches_terminal_records_without_webpki_downgrade() {
+        let gateway = Gateway::new(
+            authenticated_icann_gateway_config(),
+            ScriptedResolver::new(
+                vec![
+                    response(
+                        "example.com",
+                        RecordType::A.code(),
+                        true,
+                        vec![address_record_for("example.com")],
+                    ),
+                    response("example.com", RecordType::Https.code(), true, vec![]),
+                    response(
+                        "_443._tcp.example.com",
+                        RecordType::Tlsa.code(),
+                        true,
+                        vec![
+                            cname_record("_443._tcp.example.com", "_443._tcp.edge.example.net"),
+                            tlsa_record("_443._tcp.edge.example.net", vec![3, 1, 1, 0xaa]),
+                        ],
+                    ),
+                ],
+                Arc::new(Mutex::new(Vec::new())),
+            ),
+            CapturingTransport::default(),
+        )
+        .unwrap();
+
+        gateway
+            .handle(&request("example.com", "example.com"))
+            .unwrap();
+        let captured = gateway
+            .transport()
+            .last_request
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap();
+        assert_eq!(captured.tls.tlsa_records.len(), 1);
+        assert!(matches!(
+            captured.tls.browser_tls_decision,
+            Some(BrowserTlsDecision::EnforceDane { record_count })
+                if record_count.get() == 1
+        ));
+    }
+
+    #[test]
+    fn icann_tlsa_cname_loop_fails_closed_instead_of_becoming_absence() {
+        let gateway = Gateway::new(
+            authenticated_icann_gateway_config(),
+            ScriptedResolver::new(
+                vec![
+                    response(
+                        "example.com",
+                        RecordType::A.code(),
+                        true,
+                        vec![address_record_for("example.com")],
+                    ),
+                    response("example.com", RecordType::Https.code(), true, vec![]),
+                    response(
+                        "_443._tcp.example.com",
+                        RecordType::Tlsa.code(),
+                        true,
+                        vec![
+                            cname_record("_443._tcp.example.com", "_443._tcp.edge.example.net"),
+                            cname_record("_443._tcp.edge.example.net", "_443._tcp.example.com"),
+                        ],
+                    ),
+                ],
+                Arc::new(Mutex::new(Vec::new())),
+            ),
+            CapturingTransport::default(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            gateway
+                .handle(&request("example.com", "example.com"))
+                .unwrap_err(),
+            GatewayError::Resolver(ResolverError::InvalidDnsResponse)
+        );
+        assert!(gateway.transport().last_request.lock().unwrap().is_none());
+    }
+
+    #[test]
     fn icann_native_tlsa_no_data_does_not_query_txt() {
         let requests = Arc::new(Mutex::new(Vec::new()));
         let gateway = Gateway::new(
-            GatewayConfig::default(),
+            authenticated_icann_gateway_config(),
             ScriptedResolver::new(
                 vec![
                     response(
@@ -1728,6 +2044,10 @@ mod tests {
         assert!(captured.tls.tlsa_records.is_empty());
         assert_eq!(captured.tls.tlsa_source, None);
         assert_eq!(
+            captured.tls.browser_tls_decision,
+            Some(BrowserTlsDecision::WebPkiAuthenticatedAbsence)
+        );
+        assert_eq!(
             *requests.lock().unwrap(),
             vec![
                 ResolutionRequest {
@@ -1743,6 +2063,103 @@ mod tests {
                     qtype: RecordType::Tlsa.code(),
                 },
             ],
+        );
+    }
+
+    #[test]
+    fn icann_unsigned_delegation_ignores_unsigned_tlsa_and_uses_webpki() {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let gateway = Gateway::new(
+            authenticated_icann_gateway_config(),
+            ScriptedResolver::new(
+                vec![
+                    response(
+                        "example.com",
+                        RecordType::A.code(),
+                        false,
+                        vec![address_record_for("example.com")],
+                    ),
+                    response("example.com", RecordType::Https.code(), false, vec![]),
+                    response(
+                        "_443._tcp.example.com",
+                        RecordType::Tlsa.code(),
+                        false,
+                        vec![tlsa_record("_443._tcp.example.com", vec![3, 1, 1, 0xaa])],
+                    ),
+                ],
+                Arc::clone(&requests),
+            ),
+            CapturingTransport::default(),
+        )
+        .unwrap();
+
+        gateway
+            .handle(&request("example.com", "example.com"))
+            .unwrap();
+
+        let captured = gateway
+            .transport()
+            .last_request
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap();
+        assert_eq!(captured.tls.mode, DomainTrustMode::IcannWebPki);
+        assert!(!captured.tls.dnssec_secure);
+        assert!(captured.tls.tlsa_records.is_empty());
+        assert_eq!(captured.tls.tlsa_source, None);
+        assert_eq!(
+            captured.tls.browser_tls_decision,
+            Some(BrowserTlsDecision::WebPkiInsecureDelegation)
+        );
+        assert_eq!(
+            requests.lock().unwrap().last().unwrap().qname,
+            "_443._tcp.example.com",
+        );
+    }
+
+    #[test]
+    fn icann_tlsa_resolver_failure_never_becomes_authenticated_absence() {
+        let gateway = Gateway::new(
+            authenticated_icann_gateway_config(),
+            ScriptedResolver::new(
+                vec![
+                    response(
+                        "example.com",
+                        RecordType::A.code(),
+                        true,
+                        vec![address_record_for("example.com")],
+                    ),
+                    response("example.com", RecordType::Https.code(), true, vec![]),
+                ],
+                Arc::new(Mutex::new(Vec::new())),
+            ),
+            CapturingTransport::default(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            gateway
+                .handle(&request("example.com", "example.com"))
+                .unwrap_err(),
+            GatewayError::Resolver(ResolverError::ProofUnavailable),
+        );
+        assert!(gateway.transport().last_request.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn oversized_derived_tlsa_owner_is_terminal() {
+        let host = [
+            "a".repeat(63),
+            "b".repeat(63),
+            "c".repeat(63),
+            "d".repeat(52),
+        ]
+        .join(".");
+
+        assert_eq!(
+            tlsa_resolution_request(&host, 443, TlsaTransport::Tcp).unwrap_err(),
+            GatewayError::Resolver(ResolverError::InvalidDnsResponse)
         );
     }
 
@@ -2029,6 +2446,17 @@ mod tests {
         );
     }
 
+    #[test]
+    fn non_in_tlsa_record_fails_closed() {
+        let mut record = tlsa_record("_443._tcp.example.com", vec![3, 1, 1, 0xaa]);
+        record.class = 3;
+
+        assert_eq!(
+            tlsa_records(&[record], "_443._tcp.example.com").unwrap_err(),
+            GatewayError::Resolver(ResolverError::InvalidDnsResponse)
+        );
+    }
+
     impl StaticResolver {
         fn secure() -> Self {
             Self {
@@ -2190,6 +2618,14 @@ mod tests {
     fn gateway_config_with_protocols(protocols: Vec<OriginProtocol>) -> GatewayConfig {
         GatewayConfig {
             supported_origin_protocols: protocols,
+            ..GatewayConfig::default()
+        }
+    }
+
+    fn authenticated_icann_gateway_config() -> GatewayConfig {
+        GatewayConfig {
+            icann_resolver_authentication: ResolverAuthentication::Authenticated,
+            icann_dnssec_query_mode: DnssecQueryMode::Validate,
             ..GatewayConfig::default()
         }
     }

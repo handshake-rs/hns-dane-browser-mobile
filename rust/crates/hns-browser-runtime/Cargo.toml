@@ -10,6 +10,7 @@ hns-chain.workspace = true
 hns-core.workspace = true
 hns-dane.workspace = true
 hns-gateway.workspace = true
+hns-icann-dane.workspace = true
 hns-loopback-proxy.workspace = true
 hns-p2p.workspace = true
 hns-resolver.workspace = true

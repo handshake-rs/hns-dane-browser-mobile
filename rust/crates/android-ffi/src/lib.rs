@@ -20,7 +20,6 @@ const MAX_BROWSER_NAMESPACE_INPUT_BYTES: usize = 1_024;
 const ANDROID_BROWSER_NAMESPACE_INVALID: jint = 0;
 const ANDROID_BROWSER_NAMESPACE_HNS: jint = 1;
 const ANDROID_BROWSER_NAMESPACE_ICANN: jint = 2;
-const ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY: jint = 3;
 const PROXY_ENDPOINT_BUNDLE_MAGIC: &[u8; 4] = b"HNSP";
 const PROXY_ENDPOINT_BUNDLE_VERSION: u8 = 1;
 const PROXY_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNSS";
@@ -493,8 +492,16 @@ fn android_browser_namespace_code(input: &str) -> jint {
     match classify_browser_host(input) {
         BrowserHostClass::Hns => ANDROID_BROWSER_NAMESPACE_HNS,
         BrowserHostClass::Icann => ANDROID_BROWSER_NAMESPACE_ICANN,
-        BrowserHostClass::NativeGateway => ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY,
         BrowserHostClass::Search => ANDROID_BROWSER_NAMESPACE_INVALID,
+    }
+}
+
+fn android_proxy_hns_scope(input: &str) -> Option<Option<String>> {
+    let canonical = canonical_browser_host(input)?;
+    match classify_browser_host(&canonical) {
+        BrowserHostClass::Hns => Some(Some(canonical)),
+        BrowserHostClass::Icann => Some(None),
+        BrowserHostClass::Search => None,
     }
 }
 
@@ -782,10 +789,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeS
             .zip(env.get_string(&scope_root).ok())
             .and_then(|((runtime, policy), scope_root)| {
                 let scope_root = scope_root.to_string_lossy();
+                let hns_scope = android_proxy_hns_scope(&scope_root)?;
                 let statuses = Arc::new(AndroidProxyStatusMailbox::new());
                 runtime
                     .start_whole_browser_proxy_with_policy_and_observer(
-                        Some(&scope_root),
+                        hns_scope.as_deref(),
                         policy,
                         statuses.clone(),
                     )
@@ -1146,8 +1154,8 @@ mod tests {
             ANDROID_BROWSER_NAMESPACE_HNS
         );
         assert_eq!(
-            android_browser_namespace_code("DANE-TEST.DENUOWEB.COM."),
-            ANDROID_BROWSER_NAMESPACE_NATIVE_GATEWAY
+            android_browser_namespace_code("TLSA.EXAMPLE.COM."),
+            ANDROID_BROWSER_NAMESPACE_ICANN
         );
         for host in [
             "example.com",
@@ -1173,6 +1181,16 @@ mod tests {
             android_browser_namespace_code(&"a".repeat(MAX_BROWSER_NAMESPACE_INPUT_BYTES + 1)),
             ANDROID_BROWSER_NAMESPACE_INVALID
         );
+    }
+
+    #[test]
+    fn proxy_scope_admits_all_public_icann_but_only_the_selected_hns_scope() {
+        assert_eq!(
+            android_proxy_hns_scope("Sub.Welcome."),
+            Some(Some("sub.welcome".to_owned()))
+        );
+        assert_eq!(android_proxy_hns_scope("example.com"), Some(None));
+        assert_eq!(android_proxy_hns_scope("two words"), None);
     }
 
     #[test]

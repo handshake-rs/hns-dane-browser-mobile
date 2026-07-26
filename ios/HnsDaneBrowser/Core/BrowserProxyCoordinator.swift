@@ -467,10 +467,13 @@ final class BrowserProxyCoordinator: NSObject {
     private func updateSecurity(for url: URL) {
         guard let destination = try? runtime.classifyNavigation(url.absoluteString) else { return }
         let host = destination.canonicalHost
-        // Reading the exact native result also retains its structured resolution/TLS trace for
-        // both ordinary WebPKI and Handshake pages. The platform-facing security label below
-        // remains authoritative for ICANN HTTPS.
-        let nativeSummary = activeProxy?.takeMainFrameSecurityStatus(host: host)
+        // The exact native result is authoritative for both ICANN and Handshake HTTPS: a
+        // DNS-named ICANN origin may be DANE verified, or use WebPKI only after the validating
+        // resolver proves authenticated TLSA absence or an insecure delegation.
+        let nativeSummary = activeProxy?.takeMainFrameSecurityStatus(
+            host: host,
+            allowsWebPkiFallback: destination.hostKind == .icann
+        )
         switch destination.hostKind {
         case .icann:
             guard url.scheme?.lowercased() == "https" else {
@@ -483,13 +486,21 @@ final class BrowserProxyCoordinator: NSObject {
                 )
                 break
             }
-            delegate?.proxyCoordinator(
-                self,
-                didUpdateSecurity: BrowserSecuritySummary(
-                    level: .webPKI,
-                    detail: "System WebPKI via the Rust whole-browser proxy"
+            if BrowserAuthenticationPolicy.isIPAddressLiteral(host) {
+                delegate?.proxyCoordinator(
+                    self,
+                    didUpdateSecurity: BrowserSecuritySummary(
+                        level: .webPKI,
+                        detail: "WebPKI verified · bounded Rust explicit-address tunnel"
+                    )
                 )
+                break
+            }
+            let summary = nativeSummary ?? BrowserSecuritySummary(
+                level: .blocked,
+                detail: "No exact Rust proxy security result was available"
             )
+            delegate?.proxyCoordinator(self, didUpdateSecurity: summary)
         case .search:
             delegate?.proxyCoordinator(
                 self,

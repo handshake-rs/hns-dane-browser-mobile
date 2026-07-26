@@ -52,6 +52,8 @@ object HnsWebViewSslErrorPolicy {
             return null
         }
         val host = uri.httpAuthorityHost() ?: return null
-        return host.takeIf { HnsHostPolicy.requiresHnsResolution(it, namespacePolicy) }
+        return host.takeIf {
+            HnsHostPolicy.requiresNativeGatewayResolution(it, namespacePolicy)
+        }
     }
 }

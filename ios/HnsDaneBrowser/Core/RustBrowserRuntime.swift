@@ -501,7 +501,10 @@ final class RustBrowserProxySession: BrowserProxySession {
         return result == HNS_BROWSER_RESULT_OK && matches == 1
     }
 
-    func takeMainFrameSecurityStatus(host: String) -> BrowserSecuritySummary? {
+    func takeMainFrameSecurityStatus(
+        host: String,
+        allowsWebPkiFallback: Bool
+    ) -> BrowserSecuritySummary? {
         guard let handle = currentHandle() else { return nil }
         var status = HnsBrowserProxyStatus()
         let result = RustBridge.withUTF8Slice(host) { hostSlice in
@@ -526,7 +529,8 @@ final class RustBrowserProxySession: BrowserProxySession {
             httpStatus: status.http_status,
             tlsPolicy: status.tls_policy,
             resolverPolicy: status.resolver_policy,
-            securityPath: status.security_path
+            securityPath: status.security_path,
+            allowsWebPkiFallback: allowsWebPkiFallback
         )
     }
 
@@ -534,7 +538,8 @@ final class RustBrowserProxySession: BrowserProxySession {
         httpStatus: UInt32,
         tlsPolicy: UInt32,
         resolverPolicy: UInt32,
-        securityPath: UInt32
+        securityPath: UInt32,
+        allowsWebPkiFallback: Bool = false
     ) -> BrowserSecuritySummary {
         if httpStatus >= 400 {
             return BrowserSecuritySummary(
@@ -551,6 +556,12 @@ final class RustBrowserProxySession: BrowserProxySession {
             )
         }
         if tlsPolicy == HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK {
+            if allowsWebPkiFallback {
+                return BrowserSecuritySummary(
+                    level: .webPKI,
+                    detail: "WebPKI verified · no secure TLSA (authenticated absence or insecure delegation) · validating ICANN DoH"
+                )
+            }
             return BrowserSecuritySummary(
                 level: .blocked,
                 detail: "Unsupported legacy HNS WebPKI status"

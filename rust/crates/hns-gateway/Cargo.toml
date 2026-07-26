@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 hns-core.workspace = true
 hns-dane.workspace = true
+hns-icann-dane.workspace = true
 hns-resolver.workspace = true
 hns-transport.workspace = true
 subtle.workspace = true

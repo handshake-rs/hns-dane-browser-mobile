@@ -38,6 +38,7 @@ hns-core = { path = "crates/hns-core" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
+hns-icann-dane = { path = "../../hns-dane-engine/crates/hns-icann-dane" }
 hns-loopback-proxy = { path = "crates/hns-loopback-proxy" }
 h2 = "0.4"
 h3 = "0.0.8"

@@ -589,6 +589,7 @@ fn handle_client(
             &head,
             authority,
             canonical_host,
+            InterceptedConnectClass::Hns,
             method,
             &cancellation,
             context,
@@ -602,17 +603,31 @@ fn handle_client(
             &cancellation,
             context,
         ),
-        (AdmittedHost::Icann(icann_host), RequestTarget::Connect(authority)) => {
-            handle_icann_connect(
-                stream,
-                &head,
-                authority,
-                icann_host,
-                method,
-                &cancellation,
-                context,
-            )
-        }
+        (
+            AdmittedHost::Icann(IcannHost::Name(canonical_host)),
+            RequestTarget::Connect(authority),
+        ) => handle_connect(
+            stream,
+            &head,
+            authority,
+            canonical_host,
+            InterceptedConnectClass::Icann,
+            method,
+            &cancellation,
+            context,
+        ),
+        (
+            AdmittedHost::Icann(icann_host @ IcannHost::Address { .. }),
+            RequestTarget::Connect(authority),
+        ) => handle_icann_connect(
+            stream,
+            &head,
+            authority,
+            icann_host,
+            method,
+            &cancellation,
+            context,
+        ),
         (host, RequestTarget::Origin(_)) => reject_routed_request(
             &mut stream,
             context,
@@ -629,6 +644,12 @@ fn handle_client(
 enum AdmittedHost {
     Hns(crate::NormalizedHost),
     Icann(IcannHost),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum InterceptedConnectClass {
+    Hns,
+    Icann,
 }
 
 impl AdmittedHost {
@@ -1842,6 +1863,7 @@ fn handle_connect(
     head: &RequestHead,
     authority: Authority,
     canonical_host: crate::NormalizedHost,
+    host_class: InterceptedConnectClass,
     method: ObservedMethod,
     cancellation: &CancellationToken,
     context: &ServerContext,
@@ -1853,7 +1875,10 @@ fn handle_connect(
             &canonical_host,
             method,
             501,
-            "HNS Protocol Upgrade Unsupported",
+            match host_class {
+                InterceptedConnectClass::Hns => "HNS Protocol Upgrade Unsupported",
+                InterceptedConnectClass::Icann => "ICANN Protocol Upgrade Unsupported",
+            },
             RequestRejectionReason::InvalidRequest,
         );
         return;
@@ -1884,7 +1909,22 @@ fn handle_connect(
             &canonical_host,
             method,
             400,
-            "HNS CONNECT Body Unsupported",
+            match host_class {
+                InterceptedConnectClass::Hns => "HNS CONNECT Body Unsupported",
+                InterceptedConnectClass::Icann => "ICANN CONNECT Body Unsupported",
+            },
+            RequestRejectionReason::InvalidRequest,
+        );
+        return;
+    }
+    if host_class == InterceptedConnectClass::Icann && is_browser_blocked_port(authority.port()) {
+        reject_scoped_request(
+            &mut stream,
+            context,
+            &canonical_host,
+            method,
+            403,
+            "ICANN Destination Port Denied",
             RequestRejectionReason::InvalidRequest,
         );
         return;
@@ -1913,7 +1953,10 @@ fn handle_connect(
                 &canonical_host,
                 method,
                 503,
-                "HNS Local TLS Unavailable",
+                match host_class {
+                    InterceptedConnectClass::Hns => "HNS Local TLS Unavailable",
+                    InterceptedConnectClass::Icann => "ICANN Local TLS Unavailable",
+                },
                 RequestRejectionReason::InvalidRequest,
             );
             return;
@@ -1957,7 +2000,14 @@ fn handle_connect(
             elapsed: started.elapsed(),
         },
     );
-    handle_connected_http(&mut tls, &authority, &canonical_host, cancellation, context);
+    handle_connected_http(
+        &mut tls,
+        &authority,
+        &canonical_host,
+        host_class,
+        cancellation,
+        context,
+    );
     tls.conn.send_close_notify();
     let _result = tls.flush();
 }
@@ -1966,6 +2016,7 @@ fn handle_connected_http(
     stream: &mut TlsStream,
     connected_to: &Authority,
     outer_host: &crate::NormalizedHost,
+    host_class: InterceptedConnectClass,
     cancellation: &CancellationToken,
     context: &ServerContext,
 ) {
@@ -1987,22 +2038,25 @@ fn handle_connected_http(
             return;
         }
     };
-    let canonical_host = match context
-        .hns_scope
-        .as_ref()
-        .and_then(|scope| scope.authorize(target.authority().host()).ok())
-    {
-        Some(host) if host == *outer_host && target.authority().port() == connected_to.port() => {
-            host
-        }
-        Some(_) | None => {
+    let canonical_host = match authorize_connected_target(
+        context,
+        target.authority(),
+        connected_to,
+        outer_host,
+        host_class,
+    ) {
+        Some(host) => host,
+        None => {
             reject_scoped_request(
                 stream,
                 context,
                 outer_host,
                 method,
                 403,
-                "HNS Proxy Scope Denied",
+                match host_class {
+                    InterceptedConnectClass::Hns => "HNS Proxy Scope Denied",
+                    InterceptedConnectClass::Icann => "ICANN Proxy Scope Denied",
+                },
                 RequestRejectionReason::HostOutsideScope,
             );
             return;
@@ -2075,9 +2129,43 @@ fn handle_connected_http(
             &canonical_host,
             method,
             501,
-            "HNS Protocol Upgrade Unsupported",
+            match host_class {
+                InterceptedConnectClass::Hns => "HNS Protocol Upgrade Unsupported",
+                InterceptedConnectClass::Icann => "ICANN Protocol Upgrade Unsupported",
+            },
             RequestRejectionReason::InvalidRequest,
         ),
+    }
+}
+
+fn authorize_connected_target(
+    context: &ServerContext,
+    target: &Authority,
+    connected_to: &Authority,
+    outer_host: &crate::NormalizedHost,
+    host_class: InterceptedConnectClass,
+) -> Option<crate::NormalizedHost> {
+    if target.port() != connected_to.port() {
+        return None;
+    }
+    let host = crate::NormalizedHost::parse(target.host()).ok()?;
+    if host != *outer_host {
+        return None;
+    }
+    match host_class {
+        InterceptedConnectClass::Hns => context
+            .hns_scope
+            .as_ref()?
+            .authorize(host.as_str())
+            .ok()
+            .filter(|authorized| *authorized == host),
+        InterceptedConnectClass::Icann
+            if classify_name(host.as_str()) == NameClass::Icann
+                && !is_browser_special_use_host(host.as_str()) =>
+        {
+            Some(host)
+        }
+        InterceptedConnectClass::Icann => None,
     }
 }
 
@@ -5227,6 +5315,41 @@ mod tests {
     }
 
     #[test]
+    fn post_connect_icann_wss_upgrade_uses_the_shared_rust_tunnel_path() {
+        let backend = Arc::new(EchoTunnelBackend::websocket(Vec::new()));
+        let proxy = RunningProxy::start(
+            whole_browser_config(Some("welcome")),
+            backend.clone(),
+            Arc::new(NoopProxyObserver),
+        )
+        .unwrap();
+        let stream = begin_authenticated_connect(&proxy, "example.com:443");
+        let (mut tls, certificate) =
+            complete_tls_handshake(stream, "example.com", true, &[b"http/1.1"]).unwrap();
+        assert!(proxy.matches_local_certificate("example.com", &certificate));
+        tls.write_all(
+            b"GET wss://example.com/socket HTTP/1.1\r\nHost: example.com\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: key\r\nSec-WebSocket-Version: 13\r\n\r\nping",
+        )
+        .unwrap();
+        tls.flush().unwrap();
+
+        let response = read_response_head(&mut tls).unwrap();
+        assert_eq!(response_status(&response), 101);
+        let mut echoed = [0_u8; 4];
+        tls.read_exact(&mut echoed).unwrap();
+        assert_eq!(&echoed, b"ping");
+        drop(tls);
+
+        let requests = backend.take_requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].scheme, "wss");
+        assert_eq!(requests[0].host, "example.com");
+        assert_eq!(requests[0].port, 443);
+        assert_eq!(requests[0].path_and_query, "/socket");
+        proxy.stop();
+    }
+
+    #[test]
     fn invalid_upgrade_response_fails_before_switching_protocols() {
         let backend = Arc::new(EchoTunnelBackend::with_head(ProxyResponseHead {
             status_code: 200,
@@ -5573,27 +5696,39 @@ mod tests {
     }
 
     #[test]
-    fn whole_browser_icann_connect_is_an_opaque_explicit_address_tunnel() {
+    fn whole_browser_named_icann_connect_uses_the_shared_https_backend() {
         let network = Arc::new(CountingIcannNetwork::new(
             vec!["1.1.1.1:443".parse().unwrap()],
             vec![Vec::new()],
         ));
+        let backend = Arc::new(RecordingBackend::new(ResponsePlan::plain("icann")));
         let proxy = start_proxy_with_icann_network(
-            whole_browser_config(None),
-            Arc::new(UnusedBackend),
+            whole_browser_config(Some("welcome")),
+            backend.clone(),
             network.clone(),
         );
-        let request = format!(
-            "CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n{}\r\n",
-            auth_header(&proxy)
+        let (response, certificate) = send_tls_request(
+            &proxy,
+            "example.com:443",
+            "example.com",
+            b"GET /asset?q=1 HTTP/1.1\r\nHost: example.com\r\n\r\n",
         );
-        assert_eq!(response_status(&send_raw(&proxy, request.as_bytes())), 200);
-        assert_eq!(network.resolve_calls(), 1);
-        assert_eq!(network.connect_calls(), 1);
+        assert_eq!(response_status(&response), 200);
+        assert_eq!(response_parts(&response).1, b"icann");
+        assert!(proxy.matches_local_certificate("example.com", &certificate));
+        assert_eq!(network.resolve_calls(), 0);
+        assert_eq!(network.connect_calls(), 0);
+
+        let requests = backend.take_requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].scheme, "https");
+        assert_eq!(requests[0].host, "example.com");
+        assert_eq!(requests[0].port, 443);
+        assert_eq!(requests[0].path_and_query, "/asset?q=1");
     }
 
     #[test]
-    fn whole_browser_rejects_special_private_and_unsafe_targets_before_dial() {
+    fn whole_browser_rejects_special_and_unsafe_targets_before_dial() {
         let private_network = Arc::new(CountingIcannNetwork::new(
             vec!["127.0.0.1:443".parse().unwrap()],
             Vec::new(),
@@ -5603,16 +5738,6 @@ mod tests {
             Arc::new(UnusedBackend),
             private_network.clone(),
         );
-        let private_dns = format!(
-            "CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n{}\r\n",
-            auth_header(&proxy)
-        );
-        assert_eq!(
-            response_status(&send_raw(&proxy, private_dns.as_bytes())),
-            403
-        );
-        assert_eq!(private_network.resolve_calls(), 1);
-        assert_eq!(private_network.connect_calls(), 0);
 
         for authority in [
             "example.com:22",
@@ -5626,7 +5751,7 @@ mod tests {
             );
             assert_eq!(response_status(&send_raw(&proxy, request.as_bytes())), 403);
         }
-        assert_eq!(private_network.resolve_calls(), 1);
+        assert_eq!(private_network.resolve_calls(), 0);
         assert_eq!(private_network.connect_calls(), 0);
     }
 

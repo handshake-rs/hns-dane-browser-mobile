@@ -38,9 +38,9 @@ object HnsHostPolicy {
     ): NativeGatewayHostDecision =
         when (namespacePolicy.classifyHost(host)) {
             BrowserNamespaceClass.Hns,
+            BrowserNamespaceClass.Icann,
             BrowserNamespaceClass.NativeGateway,
             -> NativeGatewayHostDecision.Required
-            BrowserNamespaceClass.Icann -> NativeGatewayHostDecision.Direct
             BrowserNamespaceClass.Invalid,
             BrowserNamespaceClass.Unavailable,
             -> NativeGatewayHostDecision.Block

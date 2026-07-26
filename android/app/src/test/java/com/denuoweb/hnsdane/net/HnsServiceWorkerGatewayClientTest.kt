@@ -74,19 +74,19 @@ class HnsServiceWorkerGatewayClientTest {
     }
 
     @Test
-    fun sharedRustCompatibilityHostUsesTheGatewayRoute() {
+    fun everyIcannHostUsesTheGatewayRoute() {
         assertEquals(
             BrowserProxyRoute.CompatibilityInterceptor,
             serviceWorkerProxyRoute(
                 "https",
-                "dane-test.denuoweb.com",
+                "example.com",
                 namespacePolicy,
             ) { BrowserProxyRoute.Block },
         )
     }
 
     @Test
-    fun suspendedSecuritySensitiveRoutesFailClosedWhileIcannRemainsDirect() {
+    fun suspendedSecuritySensitiveRoutesFailClosedIncludingIcann() {
         assertEquals(
             ServiceWorkerRouteAction.Block,
             serviceWorkerRouteAction(
@@ -104,19 +104,25 @@ class HnsServiceWorkerGatewayClientTest {
             ),
         )
         assertEquals(
-            ServiceWorkerRouteAction.Direct,
-            serviceWorkerRouteAction(null, enabled = false, namespacePolicy = namespacePolicy),
+            ServiceWorkerRouteAction.Block,
+            serviceWorkerRouteAction(
+                route = null,
+                enabled = false,
+                scheme = "https",
+                host = "example.com",
+                namespacePolicy = namespacePolicy,
+            ),
         )
     }
 
     @Test
-    fun destroyedClientBlocksHnsWithoutCapturingAnActivityAndLeavesIcannDirect() {
+    fun destroyedClientBlocksHnsAndIcannWithoutCapturingAnActivity() {
         assertEquals(
             ServiceWorkerRouteAction.Block,
             disabledServiceWorkerRouteAction("https", "shakeshift", namespacePolicy),
         )
         assertEquals(
-            ServiceWorkerRouteAction.Direct,
+            ServiceWorkerRouteAction.Block,
             disabledServiceWorkerRouteAction("https", "example.com", namespacePolicy),
         )
         assertEquals(

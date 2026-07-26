@@ -76,9 +76,10 @@ internal fun serviceWorkerProxyRoute(
     if (!isHttpScheme(scheme)) return null
     val requestHost = host.orEmpty()
     return when (namespacePolicy.classifyHost(requestHost)) {
-        BrowserNamespaceClass.NativeGateway -> BrowserProxyRoute.CompatibilityInterceptor
+        BrowserNamespaceClass.Icann,
+        BrowserNamespaceClass.NativeGateway,
+        -> BrowserProxyRoute.CompatibilityInterceptor
         BrowserNamespaceClass.Hns -> routeForHnsHost(requestHost)
-        BrowserNamespaceClass.Icann -> null
         BrowserNamespaceClass.Invalid,
         BrowserNamespaceClass.Unavailable,
         -> BrowserProxyRoute.Block

@@ -41,7 +41,7 @@ class HnsTlsaTraceFormatTest {
     @Test
     fun reportsIcannResolutionTraceLabels() {
         val trace = JSONObject(
-            """{"nameClass":"icann","host":"dane-test.denuoweb.com","resolutionSource":"trusted_icann_doh"}""",
+            """{"nameClass":"icann","host":"tlsa.example.com","resolutionSource":"trusted_icann_doh"}""",
         )
 
         assertEquals(true, HnsResolutionTraceFormat.isIcann(trace))

@@ -22,7 +22,9 @@ No physical-device pass is currently claimed. Before final App Review, arrange a
 ### Proxy isolation
 
 - Confirm the WebKit profile has one authenticated proxy configuration, `allowFailover` is false, and both domain lists are empty.
-- Confirm ordinary ICANN HTTPS uses an opaque Rust CONNECT tunnel and retains WebKit WebPKI.
+- Confirm DNS-named ICANN HTTPS uses local Rust CONNECT termination, validating ICANN DoH, automatic `_port._tcp` TLSA discovery, DANE when secure TLSA is present, and WebPKI only for authenticated absence or insecure delegation.
+- Confirm DNSSEC bogus/indeterminate responses, malformed TLSA, resolver timeout/error, and DANE mismatch fail closed rather than becoming WebPKI.
+- Confirm canonical public IP-literal HTTPS retains the bounded opaque CONNECT/WebKit WebPKI path without target DNS.
 - Confirm ordinary ICANN HTTP uses Rust's bounded direct forwarder.
 - Confirm the active HNS root and its subdomains use Rust HNS resolution, DNSSEC, DANE, and local CONNECT termination.
 - Confirm another HNS root, malformed host, special-use name, loopback/private/link-local address, and browser-blocked port fail before any system resolver or outbound socket is called.
@@ -32,7 +34,7 @@ No physical-device pass is currently claimed. Before final App Review, arrange a
 
 ### Certificate challenges
 
-For each case below, record that WebKit delivered the server-trust challenge, the Swift shell extracted the full leaf DER, and Rust authorized only the exact host and live proxy generation:
+For each case below, record that WebKit delivered the server-trust challenge, the Swift shell extracted the full leaf DER, and Rust authorized only the exact host and live proxy generation for HNS and DNS-named ICANN:
 
 - main-frame HNS HTTPS;
 - CSS, image, script, iframe, XHR, and `fetch` subresources;
@@ -43,7 +45,7 @@ For each case below, record that WebKit delivered the server-trust challenge, th
 - back-forward cache restoration;
 - renderer and WebKit network-process restart.
 
-Presenting an unrelated certificate, another host's certificate, or a stopped generation must be canceled. ICANN trust challenges must remain under WebKit's default handling.
+Presenting an unrelated certificate, another host's certificate, or a stopped generation must be canceled. Only canonical public IP-literal ICANN trust challenges remain under WebKit's default handling.
 
 ### Lifecycle and ownership
 

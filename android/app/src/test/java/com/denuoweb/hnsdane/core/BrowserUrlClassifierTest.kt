@@ -77,12 +77,12 @@ class BrowserUrlClassifierTest {
     }
 
     @Test
-    fun icannDaneTestHostUsesNativeGatewayMode() {
-        val target = classifier.classify("dane-test.denuoweb.com")
+    fun icannDaneHostUsesOrdinaryIcannClassification() {
+        val target = classifier.classify("tlsa.example.com")
 
-        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
-        assertEquals("https://dane-test.denuoweb.com/", target.url)
-        assertEquals("dane-test.denuoweb.com", target.displayHost)
+        assertEquals(BrowserTargetKind.ExactUrl, target.kind)
+        assertEquals("https://tlsa.example.com/", target.url)
+        assertEquals("tlsa.example.com", target.displayHost)
     }
 
     @Test
@@ -173,6 +173,7 @@ class BrowserUrlClassifierTest {
         val target = classifier.classify("two words")
 
         assertEquals(BrowserTargetKind.Search, target.kind)
+        assertEquals("duckduckgo.com", target.displayHost)
         assertEquals("https://duckduckgo.com/?q=two+words", target.url)
     }
 

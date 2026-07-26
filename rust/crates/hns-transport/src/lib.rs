@@ -5,6 +5,7 @@ use hns_dane::{
     WebPkiStatus, evaluate_policy_with_certificate_chain, evaluate_stateless_dane_certificate,
     extract_spki_der,
 };
+pub use hns_icann_dane::{BrowserTlsDecision, TlsaTransport};
 use http::{HeaderName, HeaderValue, Request as Http2Request};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{Resumption, WebPkiServerVerifier};
@@ -67,6 +68,8 @@ pub struct TlsValidation {
     pub tlsa_records: Vec<TlsaRecord>,
     pub tlsa_source: Option<TlsaRecordSource>,
     pub service_port: u16,
+    pub service_transport: TlsaTransport,
+    pub browser_tls_decision: Option<BrowserTlsDecision>,
     pub stateless_dane: StatelessDaneConfig,
 }
 
@@ -394,6 +397,8 @@ impl Default for TlsValidation {
             tlsa_records: Vec::new(),
             tlsa_source: None,
             service_port: 443,
+            service_transport: TlsaTransport::Tcp,
+            browser_tls_decision: None,
             stateless_dane: StatelessDaneConfig::default(),
         }
     }
@@ -407,6 +412,8 @@ impl TlsValidation {
             tlsa_records,
             tlsa_source: None,
             service_port: 443,
+            service_transport: TlsaTransport::Tcp,
+            browser_tls_decision: None,
             stateless_dane: StatelessDaneConfig::default(),
         }
     }
@@ -1034,6 +1041,7 @@ impl TcpHttpTransport {
         tls: TlsValidation,
         alpn_protocols: Vec<Vec<u8>>,
     ) -> Result<(ClientConfig, Arc<DaneServerCertVerifier>), TransportError> {
+        validate_browser_tls_decision(&tls)?;
         let tls_key = tls_validation_key(&tls);
         let verifier = self.dane_verifier_for(tls.clone(), &tls_key)?;
         let provider = rustls::crypto::ring::default_provider();
@@ -1164,6 +1172,13 @@ impl TcpHttpTransport {
             return request.clone();
         };
         if endpoint.port != request.port {
+            return request.clone();
+        }
+        let required_transport = match endpoint.protocol {
+            OriginProtocol::Http3 => TlsaTransport::Udp,
+            OriginProtocol::Http11 | OriginProtocol::Http2 => TlsaTransport::Tcp,
+        };
+        if request.tls.service_transport != required_transport {
             return request.clone();
         }
         let mut promoted = request.clone();
@@ -2556,10 +2571,12 @@ fn protocol_rank(protocol: OriginProtocol) -> u8 {
 
 fn tls_validation_key(tls: &TlsValidation) -> String {
     let mut out = format!(
-        "mode={:?};secure={};port={};records={}",
+        "mode={:?};secure={};port={};transport={:?};browser={:?};records={}",
         tls.mode,
         tls.dnssec_secure,
         tls.service_port,
+        tls.service_transport,
+        tls.browser_tls_decision,
         tls.tlsa_records.len(),
     );
     for record in &tls.tlsa_records {
@@ -2578,6 +2595,33 @@ fn tls_validation_key(tls: &TlsValidation) -> String {
         append_hash_hex(&mut out, root);
     }
     out
+}
+
+fn validate_browser_tls_decision(tls: &TlsValidation) -> Result<(), TransportError> {
+    let Some(decision) = tls.browser_tls_decision else {
+        return Ok(());
+    };
+    if tls.mode != DomainTrustMode::IcannWebPki {
+        return Err(TransportError::InvalidRequest);
+    }
+    let valid = match decision {
+        BrowserTlsDecision::EnforceDane { record_count } => {
+            tls.dnssec_secure
+                && record_count.get() == tls.tlsa_records.len()
+                && !tls.tlsa_records.is_empty()
+        }
+        BrowserTlsDecision::WebPkiAuthenticatedAbsence => {
+            tls.dnssec_secure && tls.tlsa_records.is_empty()
+        }
+        BrowserTlsDecision::WebPkiInsecureDelegation => {
+            !tls.dnssec_secure && tls.tlsa_records.is_empty()
+        }
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(TransportError::InvalidRequest)
+    }
 }
 
 fn append_hash_hex(out: &mut String, bytes: &[u8]) {
@@ -3093,6 +3137,27 @@ mod tests {
         assert_eq!(
             transport.promoted_request(&request).protocol,
             OriginProtocol::Http11
+        );
+    }
+
+    #[test]
+    fn alt_svc_never_reuses_tcp_tlsa_policy_for_http3() {
+        let transport = TcpHttpTransport::default();
+        let mut request = request(SocketAddr::from((Ipv4Addr::LOCALHOST, 443)));
+        request.scheme = "https".to_owned();
+        transport.record_alt_svc(
+            &request,
+            &[("Alt-Svc".to_owned(), "h3=\":443\"; ma=60".to_owned())],
+        );
+
+        assert_eq!(
+            transport.promoted_request(&request).protocol,
+            OriginProtocol::Http11
+        );
+        request.tls.service_transport = TlsaTransport::Udp;
+        assert_eq!(
+            transport.promoted_request(&request).protocol,
+            OriginProtocol::Http3
         );
     }
 
@@ -3815,6 +3880,31 @@ mod tests {
         append_hash_hex(&mut expected_digest, b"first association");
         assert_ne!(first_key, second_key);
         assert!(first_key.contains(&expected_digest));
+    }
+
+    #[test]
+    fn shared_icann_browser_decision_must_match_transport_evidence() {
+        let mut absence = TlsValidation {
+            browser_tls_decision: Some(BrowserTlsDecision::WebPkiAuthenticatedAbsence),
+            ..TlsValidation::default()
+        };
+        assert_eq!(
+            validate_browser_tls_decision(&absence),
+            Err(TransportError::InvalidRequest)
+        );
+        absence.dnssec_secure = true;
+        assert_eq!(validate_browser_tls_decision(&absence), Ok(()));
+
+        let mut insecure = TlsValidation {
+            browser_tls_decision: Some(BrowserTlsDecision::WebPkiInsecureDelegation),
+            ..TlsValidation::default()
+        };
+        assert_eq!(validate_browser_tls_decision(&insecure), Ok(()));
+        insecure.dnssec_secure = true;
+        assert_eq!(
+            validate_browser_tls_decision(&insecure),
+            Err(TransportError::InvalidRequest)
+        );
     }
 
     #[test]

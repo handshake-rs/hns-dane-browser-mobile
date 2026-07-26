@@ -19,6 +19,24 @@ data class BrowserTarget(
     val displayHost: String?,
 )
 
+internal fun isCanonicalIpLiteral(host: String?): Boolean {
+    val value = host
+        ?.trim()
+        ?.removePrefix("[")
+        ?.removeSuffix("]")
+        ?: return false
+    if (value.contains(':')) {
+        return value.count { it == ':' } >= 2 &&
+            value.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' || it == ':' || it == '.' }
+    }
+    val octets = value.split('.')
+    return octets.size == 4 && octets.all { octet ->
+        octet.isNotEmpty() &&
+            octet.all(Char::isDigit) &&
+            octet.toIntOrNull()?.let { it in 0..255 && it.toString() == octet } == true
+    }
+}
+
 class BrowserUrlClassifier(
     private val namespacePolicy: BrowserNamespacePolicy,
     private val searchBaseUrl: String = "https://duckduckgo.com/?q=",
@@ -89,7 +107,10 @@ class BrowserUrlClassifier(
 
     private fun search(query: String): BrowserTarget {
         val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8)
-        return BrowserTarget(BrowserTargetKind.Search, searchBaseUrl + encoded, null)
+        val searchHost = runCatching {
+            URI(searchBaseUrl).httpAuthority()?.host
+        }.getOrNull()
+        return BrowserTarget(BrowserTargetKind.Search, searchBaseUrl + encoded, searchHost)
     }
 
     private fun isValidHost(host: String): Boolean {

@@ -11,12 +11,12 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
 
     private enum SubmissionSecurityExpectation {
         case hnsDANE
-        case webPKI
+        case icannAuthenticated
 
         var description: String {
             switch self {
             case .hnsDANE: "a DANE-verified HNS response"
-            case .webPKI: "the system WebPKI response"
+            case .icannAuthenticated: "an automatic ICANN DANE or validated WebPKI response"
             }
         }
 
@@ -28,8 +28,9 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                     && !String(label.dropFirst(prefix.count)).trimmingCharacters(
                         in: .whitespacesAndNewlines
                     ).isEmpty
-            case .webPKI:
-                return label == "System WebPKI via the Rust whole-browser proxy"
+            case .icannAuthenticated:
+                return label.hasPrefix("DANE verified · ")
+                    || label.hasPrefix("WebPKI verified · no secure TLSA ")
             }
         }
     }
@@ -76,7 +77,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let webPKIEvidence = try navigateAndWait(
             to: Self.webPKIURL,
             expectedHost: "denuoweb.com",
-            expectedSecurity: .webPKI,
+            expectedSecurity: .icannAuthenticated,
             timeout: 90
         )
         capture(named: "LIVE_APPSTORE_SCREENSHOT_04_WEBPKI")
@@ -404,7 +405,7 @@ final class NonSubmissionFixtureScreenshotRegressionTests: XCTestCase {
         )
         XCTAssertEqual(
             app.staticTexts["app-store-screenshot.security"].label,
-            "System WebPKI · Rust proxy"
+            "Automatic ICANN trust · Rust proxy"
         )
         capture(named: "UI_REGRESSION_FIXTURE_03_WEBPKI")
     }

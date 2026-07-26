@@ -7,23 +7,20 @@ import org.junit.Test
 
 class HnsProxyControllerTest {
     @Test
-    fun loopbackProxyConfigScopesProxyToCurrentHnsHostWhenReverseBypassIsSupported() {
-        val config = loopbackProxyConfig(
-            port = 12345,
-            hnsHost = "Nathan.Woodburn.",
-        )
+    fun loopbackProxyConfigRoutesTheWholeWebViewThroughRust() {
+        val config = loopbackProxyConfig(port = 12345)
 
-        assertTrue(config.isReverseBypassEnabled)
-        assertEquals(listOf("nathan.woodburn", "*.nathan.woodburn"), config.bypassRules)
+        assertFalse(config.isReverseBypassEnabled)
+        assertEquals(emptyList<String>(), config.bypassRules)
         assertEquals("http://127.0.0.1:12345", config.proxyRules.single().url)
     }
 
     @Test
-    fun loopbackProxyRequiresReverseBypassAndHostScope() {
-        assertTrue(canApplyLoopbackProxy("nathan.woodburn", reverseBypassSupported = true))
-        assertFalse(canApplyLoopbackProxy("nathan.woodburn", reverseBypassSupported = false))
-        assertFalse(canApplyLoopbackProxy(null, reverseBypassSupported = true))
-        assertFalse(canApplyLoopbackProxy("   ", reverseBypassSupported = true))
+    fun loopbackProxyRequiresAValidatedNavigationHost() {
+        assertTrue(canApplyLoopbackProxy("nathan.woodburn"))
+        assertTrue(canApplyLoopbackProxy("example.com"))
+        assertFalse(canApplyLoopbackProxy(null))
+        assertFalse(canApplyLoopbackProxy("   "))
     }
 
     @Test

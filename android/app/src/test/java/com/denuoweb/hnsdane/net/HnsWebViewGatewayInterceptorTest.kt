@@ -93,18 +93,21 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
-    fun normalWebRequestIsNotIntercepted() {
-        val bridge = RecordingGatewayBridge(ByteArray(0))
+    fun normalWebRequestUsesAutomaticNativeGatewayPolicy() {
+        val bridge = RecordingGatewayBridge(
+            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+                .toByteArray(StandardCharsets.ISO_8859_1),
+        )
         val dataDir = createTempDirectory("hns-webview-normal-test").toFile()
         val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
 
-        assertNull(interceptor.intercept("GET", "https://example.com/", emptyMap()))
-        assertTrue(bridge.calls.isEmpty())
+        requireNotNull(interceptor.intercept("GET", "https://example.com/", emptyMap()))
+        assertEquals("example.com", bridge.calls.single().host)
         dataDir.deleteRecursively()
     }
 
     @Test
-    fun icannDaneTestHostUsesNativeGatewayBridge() {
+    fun everyIcannHostUsesNativeGatewayBridge() {
         val bridge = RecordingGatewayBridge(
             "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
                 .toByteArray(StandardCharsets.ISO_8859_1),
@@ -114,7 +117,7 @@ class HnsWebViewGatewayInterceptorTest {
 
         val response = interceptor.intercept(
             method = "GET",
-            url = "https://dane-test.denuoweb.com/path",
+            url = "https://example.com/path",
             requestHeaders = emptyMap(),
         )
 
@@ -124,7 +127,7 @@ class HnsWebViewGatewayInterceptorTest {
                 dataDir.absolutePath,
                 "GET",
                 "https",
-                "dane-test.denuoweb.com",
+                "example.com",
                 443,
                 "/path",
                 forwardedGatewayHeaders(),
@@ -234,7 +237,7 @@ class HnsWebViewGatewayInterceptorTest {
             "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
                 .toByteArray(StandardCharsets.ISO_8859_1),
         )
-        val dataDir = createTempDirectory("hns-webview-stateless-dane-test").toFile()
+        val dataDir = createTempDirectory("hns-webview-stateless-dane").toFile()
         val interceptor = HnsWebViewGatewayInterceptor(
             dataDir = dataDir,
             hnsGatewayBridge = bridge,

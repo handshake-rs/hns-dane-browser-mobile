@@ -36,8 +36,6 @@ internal val TEST_BROWSER_NAMESPACE_POLICY: BrowserNamespacePolicy =
                     "foo.onion",
                     "foo.test",
                 ).forEach { put(it, BrowserNamespaceClass.Icann) }
-                put("dane-test.denuoweb.com", BrowserNamespaceClass.NativeGateway)
-                put("dane-test.denuoweb.com.", BrowserNamespaceClass.NativeGateway)
             },
         defaultClass = BrowserNamespaceClass.Hns,
     )

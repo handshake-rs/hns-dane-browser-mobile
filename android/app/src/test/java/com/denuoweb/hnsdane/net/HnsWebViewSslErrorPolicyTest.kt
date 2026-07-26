@@ -24,8 +24,8 @@ class HnsWebViewSslErrorPolicyTest {
     }
 
     @Test
-    fun pinnedLocalCertificatesRejectNonHnsAndNonTlsUrls() {
-        assertFalse(HnsWebViewSslErrorPolicy.isEligiblePinnedLocalCertificateUrl("https://example.com/", namespacePolicy))
+    fun pinnedLocalCertificatesIncludeIcannButRejectNonTlsUrls() {
+        assertTrue(HnsWebViewSslErrorPolicy.isEligiblePinnedLocalCertificateUrl("https://example.com/", namespacePolicy))
         assertFalse(HnsWebViewSslErrorPolicy.isEligiblePinnedLocalCertificateUrl("ws://welcome/socket", namespacePolicy))
         assertFalse(HnsWebViewSslErrorPolicy.isEligiblePinnedLocalCertificateUrl("not a url", namespacePolicy))
     }
@@ -67,7 +67,7 @@ class HnsWebViewSslErrorPolicyTest {
     }
 
     @Test
-    fun verifierFailureAndIcannUrlsFailClosed() {
+    fun verifierFailureAndMismatchedIcannPinsFailClosed() {
         val throwingVerifier = HnsLocalCertificateDerVerifier { _, _ -> error("stopped proxy") }
         var icannVerifierCalled = false
         val permissiveVerifier = HnsLocalCertificateDerVerifier { _, _ ->
@@ -76,8 +76,16 @@ class HnsWebViewSslErrorPolicyTest {
         }
 
         assertFalse(HnsWebViewSslErrorPolicy.canProceed("https://welcome/", EXPECTED_CERTIFICATE_DER, throwingVerifier, namespacePolicy))
-        assertFalse(HnsWebViewSslErrorPolicy.canProceed("https://example.com/", EXPECTED_CERTIFICATE_DER, permissiveVerifier, namespacePolicy))
-        assertFalse(icannVerifierCalled)
+        assertTrue(HnsWebViewSslErrorPolicy.canProceed("https://example.com/", EXPECTED_CERTIFICATE_DER, permissiveVerifier, namespacePolicy))
+        assertTrue(icannVerifierCalled)
+        assertFalse(
+            HnsWebViewSslErrorPolicy.canProceed(
+                "https://example.com/",
+                EXPECTED_CERTIFICATE_DER,
+                exactVerifier("other.example", EXPECTED_CERTIFICATE_DER),
+                namespacePolicy,
+            ),
+        )
     }
 
     private fun exactVerifier(

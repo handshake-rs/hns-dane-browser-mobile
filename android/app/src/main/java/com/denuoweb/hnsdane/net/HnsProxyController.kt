@@ -6,7 +6,6 @@ import androidx.webkit.ProxyConfig
 import androidx.webkit.ProxyController
 import androidx.webkit.WebViewFeature
 import java.util.ArrayDeque
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal interface BrowserProxyOverrideController {
@@ -53,13 +52,12 @@ class HnsProxyController(
             return
         }
 
-        val reverseBypassSupported = WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE_REVERSE_BYPASS)
-        if (!canApplyLoopbackProxy(hnsHost, reverseBypassSupported)) {
+        if (!canApplyLoopbackProxy(hnsHost)) {
             onComplete(false)
             return
         }
 
-        val proxyConfig = loopbackProxyConfig(port, requireNotNull(hnsHost))
+        val proxyConfig = loopbackProxyConfig(port)
 
         processOverrideQueue.apply(
             owner = overrideOwner,
@@ -296,32 +294,18 @@ internal class BrowserProxyOverrideOperationQueue {
 
 internal fun loopbackProxyConfig(
     port: Int,
-    hnsHost: String,
 ): ProxyConfig {
-    val builder = ProxyConfig.Builder()
+    return ProxyConfig.Builder()
         .addProxyRule("http://127.0.0.1:$port")
-
-    val normalizedHost = hnsHost
-        .trim()
-        .trimEnd('.')
-        .lowercase(Locale.US)
-    require(normalizedHost.isNotBlank()) { "hnsHost must not be blank" }
-
-    builder
-        .addBypassRule(normalizedHost)
-        .addBypassRule("*.$normalizedHost")
-        .setReverseBypassEnabled(true)
-
-    return builder.build()
+        .build()
 }
 
 internal fun canApplyLoopbackProxy(
     hnsHost: String?,
-    reverseBypassSupported: Boolean,
 ): Boolean {
     val normalizedHost = hnsHost
         .orEmpty()
         .trim()
         .trimEnd('.')
-    return reverseBypassSupported && normalizedHost.isNotBlank()
+    return normalizedHost.isNotBlank()
 }

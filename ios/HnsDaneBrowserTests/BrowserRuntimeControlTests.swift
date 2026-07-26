@@ -453,10 +453,19 @@ final class BrowserRuntimeControlTests: XCTestCase {
             resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
             securityPath: HNS_BROWSER_SECURITY_PATH_UNKNOWN
         )
+        let icannWebPKI = RustBrowserProxySession.securitySummary(
+            httpStatus: 200,
+            tlsPolicy: HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK,
+            resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
+            securityPath: HNS_BROWSER_SECURITY_PATH_UNKNOWN,
+            allowsWebPkiFallback: true
+        )
 
         XCTAssertEqual(legacyResolver.level, .blocked)
         XCTAssertEqual(legacyPath.level, .blocked)
         XCTAssertEqual(legacyWebPKI.level, .blocked)
+        XCTAssertEqual(icannWebPKI.level, .webPKI)
+        XCTAssertTrue(icannWebPKI.detail.contains("validating ICANN DoH"))
     }
 
     func testCurrentDANEStatusRemainsVerifiedInSecurityUI() {

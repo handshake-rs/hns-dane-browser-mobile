@@ -48,7 +48,9 @@ def live_provenance() -> dict:
         "webPKINavigation": {
             "requestedURL": "https://denuoweb.com/work/hns-dane-browser",
             "finalAddress": "https://denuoweb.com/work/hns-dane-browser",
-            "securityLabel": "System WebPKI via the Rust whole-browser proxy",
+            "securityLabel":
+                "WebPKI verified · no secure TLSA "
+                "(authenticated absence or insecure delegation) · validating ICANN DoH",
         },
     }
 
@@ -329,7 +331,7 @@ class ScreenshotManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ScreenshotToolError, "must identify denuoweb"):
             validate_live_provenance(provenance)
 
-    def test_accepts_live_hns_and_webpki_success_evidence(self) -> None:
+    def test_accepts_live_hns_and_automatic_icann_success_evidence(self) -> None:
         for path in (
             "authoritative DoH",
             "authoritative DNS",
@@ -340,6 +342,18 @@ class ScreenshotManifestTests(unittest.TestCase):
             with self.subTest(path=path):
                 provenance = live_provenance()
                 provenance["hnsNavigation"]["securityLabel"] = f"DANE verified · {path}"
+                self.assertEqual(validate_live_provenance(provenance), provenance)
+
+        for security_label in (
+            "DANE verified · ICANN DoH",
+            "WebPKI verified · no secure TLSA "
+            "(authenticated absence) · validating ICANN DoH",
+            "WebPKI verified · no secure TLSA "
+            "(insecure delegation) · validating ICANN DoH",
+        ):
+            with self.subTest(security_label=security_label):
+                provenance = live_provenance()
+                provenance["webPKINavigation"]["securityLabel"] = security_label
                 self.assertEqual(validate_live_provenance(provenance), provenance)
 
     def test_verify_live_rejects_malformed_run_runtime_evidence(self) -> None:

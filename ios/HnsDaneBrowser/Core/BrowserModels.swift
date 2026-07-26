@@ -618,7 +618,10 @@ protocol BrowserProxySession: AnyObject {
 
     func matchesLocalCertificate(host: String, leafCertificateDER: Data) -> Bool
 
-    func takeMainFrameSecurityStatus(host: String) -> BrowserSecuritySummary?
+    func takeMainFrameSecurityStatus(
+        host: String,
+        allowsWebPkiFallback: Bool
+    ) -> BrowserSecuritySummary?
 }
 
 extension BrowserProxySession {

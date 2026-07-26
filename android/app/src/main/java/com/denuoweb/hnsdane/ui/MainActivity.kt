@@ -58,6 +58,7 @@ import com.denuoweb.hnsdane.core.HnsPageResolverPolicy
 import com.denuoweb.hnsdane.core.HnsPageSecurityPath
 import com.denuoweb.hnsdane.core.HnsPageTlsPolicy
 import com.denuoweb.hnsdane.core.SecurityState
+import com.denuoweb.hnsdane.core.isCanonicalIpLiteral
 import com.denuoweb.hnsdane.net.DisabledServiceWorkerClient
 import com.denuoweb.hnsdane.net.BrowserProxyCoordinator
 import com.denuoweb.hnsdane.net.BrowserProxyLifecycleWorker
@@ -168,6 +169,7 @@ class MainActivity : ComponentActivity() {
                     val target = classifier.classify(url)
                     val usesCompatibilityPath =
                         target.kind == BrowserTargetKind.NativeGateway ||
+                            target.kind == BrowserTargetKind.ExactUrl ||
                             (
                                 target.kind == BrowserTargetKind.HnsName &&
                                     target.displayHost?.let(proxyCoordinator::routeForHnsHost) ==
@@ -768,6 +770,11 @@ class MainActivity : ComponentActivity() {
                 mainFrameHnsTlsPolicy = mainFrameHnsTlsPolicy,
                 mainFrameHnsResolverPolicy = mainFrameHnsResolverPolicy,
                 mainFrameHnsSecurityPath = mainFrameHnsSecurityPath,
+                isOpaqueIpLiteral = isCanonicalIpLiteral(
+                    classifier
+                        .classify(pendingMainFrameUrl ?: activeMainFrameUrl.orEmpty())
+                        .displayHost,
+                ),
             ),
         )
     }
@@ -906,7 +913,7 @@ class MainActivity : ComponentActivity() {
             activeMainFrameUrl = url
             val target = classifier.classify(url)
             currentTargetKind = target.kind
-            if (target.kind == BrowserTargetKind.HnsName) {
+            if (target.kind in NATIVE_GATEWAY_TARGET_KINDS) {
                 target.displayHost?.let(proxyCoordinator::noteMainFrameHost)
             }
             clearMainFrameHnsStatusUnlessFor(url)
@@ -971,6 +978,9 @@ class MainActivity : ComponentActivity() {
                     BrowserProxyRoute.CompatibilityInterceptor -> Unit
                 }
             }
+            if (target.kind == BrowserTargetKind.ExactUrl && proxyAvailable) {
+                return null
+            }
             val isMainFrame = request.isForMainFrame || isActiveMainFrameRequest(requestUrl)
             return webViewGatewayInterceptor.intercept(
                 method = request.method,
@@ -1000,7 +1010,7 @@ class MainActivity : ComponentActivity() {
             admittedMainFrameUrl = url
             val target = classifier.classify(url)
             currentTargetKind = target.kind
-            if (target.kind == BrowserTargetKind.HnsName) {
+            if (target.kind in NATIVE_GATEWAY_TARGET_KINDS) {
                 target.displayHost?.let { host ->
                     proxyCoordinator.noteMainFrameHost(host)
                     proxyCoordinator.takeMainFrameStatus(host)?.let { status ->
@@ -1296,7 +1306,7 @@ class MainActivity : ComponentActivity() {
         url?.let(classifier::classify)?.let(::proxyConfigForTarget)
 
     private fun proxyConfigForTarget(target: BrowserTarget): RustBrowserProxyConfig? {
-        val host = if (target.kind == BrowserTargetKind.HnsName) {
+        val host = if (target.kind in NATIVE_GATEWAY_TARGET_KINDS) {
             target.displayHost
         } else {
             null
@@ -1351,8 +1361,10 @@ class MainActivity : ComponentActivity() {
         private val WEB_NAVIGATION_SCHEMES = setOf("http", "https")
         private val SUBFRAME_ALLOWED_SCHEMES = setOf("http", "https", "about", "data", "blob")
         private val NATIVE_GATEWAY_TARGET_KINDS = setOf(
+            BrowserTargetKind.ExactUrl,
             BrowserTargetKind.HnsName,
             BrowserTargetKind.NativeGateway,
+            BrowserTargetKind.Search,
         )
     }
 }
