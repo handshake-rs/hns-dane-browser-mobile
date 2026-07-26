@@ -22,6 +22,11 @@ import sys
 import xml.etree.ElementTree as ElementTree
 import zipfile
 
+from verify_cargo_git_policy import (
+    ALLOWED_ENGINE_PACKAGES,
+    ENGINE_LOCK_SOURCE,
+)
+
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "android/app/src/main/assets/third_party_notices.txt"
@@ -29,6 +34,7 @@ OUTPUT_SHA256 = ROOT / "scripts/third-party-notices.sha256"
 SCHEMA = "2"
 LOCKED_INPUT_PATHS = (
     "scripts/generate-third-party-notices.py",
+    "scripts/verify_cargo_git_policy.py",
     "rust/Cargo.toml",
     "rust/Cargo.lock",
     "android/gradle/libs.versions.toml",
@@ -233,7 +239,9 @@ def shipping_rust_packages_for_targets() -> tuple[list[dict], dict[str, int]]:
         key=lambda package: (package["name"].casefold(), package["version"], package["id"]),
     )
     if not packages:
-        raise RuntimeError("The shipped Rust target closures contain no registry packages.")
+        raise RuntimeError(
+            "The shipped Rust target closures contain no third-party packages."
+        )
     return packages, target_counts
 
 
@@ -386,6 +394,57 @@ def registry_license_files(package: dict) -> list[tuple[str, str]]:
     return result
 
 
+def rust_package_license_files(package: dict) -> list[tuple[str, str]]:
+    source = package.get("source")
+    if not isinstance(source, str) or not source.startswith("git+"):
+        return registry_license_files(package)
+
+    name = package["name"]
+    if source != ENGINE_LOCK_SOURCE or name not in ALLOWED_ENGINE_PACKAGES:
+        raise RuntimeError(
+            f"Unreviewed Cargo Git source for {name} {package['version']}: "
+            f"{source}"
+        )
+
+    package_dir = Path(package["manifest_path"]).resolve().parent
+    checkout_root = package_dir.parents[1]
+    expected_package_dir = checkout_root / "crates" / name
+    if package_dir != expected_package_dir:
+        raise RuntimeError(
+            f"Unexpected canonical engine package location for {name}: "
+            f"{package_dir}"
+        )
+
+    files: list[tuple[str, str]] = []
+    for candidate in sorted(checkout_root.iterdir()):
+        if (
+            candidate.is_symlink()
+            or not candidate.is_file()
+            or not candidate.name.upper().startswith(LICENSE_FILE_PREFIXES)
+        ):
+            continue
+        size = candidate.stat().st_size
+        if not 0 <= size <= MAX_NOTICE_FILE_SIZE:
+            raise RuntimeError(
+                f"Engine license file has an unexpected size: {candidate}"
+            )
+        try:
+            content = (
+                candidate.read_text(encoding="utf-8")
+                .replace("\r\n", "\n")
+                .strip()
+            )
+        except UnicodeDecodeError as error:
+            raise RuntimeError(
+                f"Engine license file is not UTF-8 text: {candidate}"
+            ) from error
+        if content:
+            files.append(
+                (f"canonical engine workspace/{candidate.name}", content)
+            )
+    return files
+
+
 def sqlite_public_domain_notice(rust_packages: list[dict]) -> tuple[str, str] | None:
     package = next(
         (package for package in rust_packages if package["name"] == "libsqlite3-sys"),
@@ -438,7 +497,7 @@ def generate() -> str:
     package_license_files: dict[tuple[str, str], list[tuple[str, str]]] = {}
     for package in rust_packages:
         key = (package["name"], package["version"])
-        package_license_files[key] = registry_license_files(package)
+        package_license_files[key] = rust_package_license_files(package)
     for key, fallback in RUST_LICENSE_FILE_FALLBACKS.items():
         if key in package_license_files and not package_license_files[key]:
             fallback_files = package_license_files.get(fallback)
@@ -479,13 +538,14 @@ def generate() -> str:
         "",
         "Shipped Rust target closure counts:",
         *(
-            f"  {target}: {rust_target_counts[target]} registry components"
+            f"  {target}: {rust_target_counts[target]} third-party components"
             for target, _ in RUST_SHIPPING_TARGETS
         ),
         "",
         "License expressions are the declarations in the verified package metadata. The reproduced",
-        "texts come from the checksum-verified Cargo packages or dependency-verified Android",
-        "artifacts. Inclusion here does not imply endorsement by the component authors.",
+        "texts come from checksum-verified Cargo registry packages, the exact-revision canonical",
+        "engine Git checkout, or dependency-verified Android artifacts. Inclusion here does not",
+        "imply endorsement by the component authors.",
         "",
         f"Generator schema: {SCHEMA}",
         "Generated input SHA-256:",
