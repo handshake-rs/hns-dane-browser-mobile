@@ -472,7 +472,7 @@
     <string name="trace_protocol_authoritative_tcp53">Authoritative TCP 53</string>
     <string name="trace_protocol_authoritative_doh">Authoritative DoH</string>
     <string name="trace_protocol_dns_interception_probe" translatable="false">Port 53 interception probe</string>
-    <string name="trace_protocol_hns_doh">Unsupported legacy HNS DoH</string>
+    <string name="trace_protocol_hns_doh" translatable="false">Unsupported legacy HNS DoH</string>
     <string name="trace_protocol_icann_doh">Trusted ICANN DoH</string>
     <string name="trace_tlsa_present">present</string>
     <string name="trace_tlsa_absent">absent</string>
