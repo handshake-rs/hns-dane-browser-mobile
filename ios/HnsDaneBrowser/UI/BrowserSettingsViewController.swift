@@ -200,7 +200,7 @@ final class BrowserSettingsViewController: UITableViewController {
     }
 
     static let privacyPolicyURL = "https://denuoweb.com/work/hns-dane-browser/privacy"
-    static let sourceCodeURL = "https://github.com/Denuo-Web/hns-dane-browser"
+    static let sourceCodeURL = "https://github.com/handshake-rs/hns-dane-browser-mobile"
 
     weak var delegate: BrowserSettingsViewControllerDelegate?
 

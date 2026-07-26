@@ -7,7 +7,7 @@ class BrowserAppInfoTest {
     @Test
     fun sourceCodeUsesCanonicalCrossPlatformRepository() {
         assertEquals(
-            "https://github.com/Denuo-Web/hns-dane-browser",
+            "https://github.com/handshake-rs/hns-dane-browser-mobile",
             BrowserAppInfo.SOURCE_CODE_URL,
         )
     }

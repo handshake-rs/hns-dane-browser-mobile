@@ -7,7 +7,7 @@ This audit maps this checkout only to `Complete Rust Handshake Ecosystem.pdf`
 `51dc7363ecc7c597c11de531fbeb1f45f3c6997a4d7b2c5065cd4be9681e7868`).
 It does not claim that the coordination-wide PDF is complete.
 
-- Repository: `https://github.com/Denuo-Web/hns-dane-browser.git`
+- Repository: `https://github.com/handshake-rs/hns-dane-browser-mobile.git`
 - Starting commit: `6c1d7888ae804a29ab34051cb1267057942ad0a0`
 - Working branch: `codex/shared-engine-p2p-privacy-transports`
 - Platforms in scope: Android WebView/JNI and iOS WKWebView/Apple C ABI
@@ -25,7 +25,7 @@ It does not claim that the coordination-wide PDF is complete.
 | Explicit migration without turning old HNSDoH consent into relay consent | Implemented | Android and iOS erase legacy resolver/trust fields. Former resolver compatibility consent never enables relay consumption, and fresh installs remain off until explicit requester opt-in. |
 | P2P ODoH: Preferred/Required/Direct Allowed/Off | Not implemented in this checkout | No HIP #77 requester, HPKE/ODoH runtime, status model, or native control exists here. Do not represent the current direct relay as ODoH or query-confidential. |
 | HNSR: Off/Client/Endpoint | Not implemented in this checkout | No HIP #78 runtime or native control exists here. Mobile lifecycle, network-change, renewal, withdrawal, and stale-generation tests for HNSR remain required. |
-| Consume the standalone `hns-dane-engine` | Integrated at source-handoff checkpoint | The Rust workspace temporarily uses sibling paths for `hns-icann-dane` and `hns-namespace-resolution` from engine commit `ab3543ba9b80d23f9fe5a25abf44abd7496a41a2`. Release integration must replace the relative paths with an immutable Git revision. |
+| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-icann-dane` and `hns-namespace-resolution` to exact `handshake-rs/hns-dane-engine` commit `127b9ad55852df00b4df40826517715048dc3571`; the lockfile records the same source. |
 | Browser authority state machine and generation-bound results | Partial | The local proxy has revocable generations and strict certificate admission, but this checkout does not expose the complete PDF state/evidence schema (`runtime session`, policy generation, registry fingerprint/profile, ODoH identities, and all explicit evidence states). |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. ODoH privacy policy, proxy/target separation, registry profile, and complete shared observability fields are unavailable because HIP #77 is absent. |
 | Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Exact-build physical Android and iOS device matrices, mobile network transitions, and the PDF’s ODoH/HNSR lifecycle cases remain release gates. |
@@ -72,10 +72,10 @@ TestFlight pass. Android instrumentation requires an installed SDK/NDK and a
 device or emulator. Store binaries and previously recorded hashes must be
 rebuilt after this source checkpoint before they can be release evidence.
 
-This source-handoff checkpoint requires a sibling `work/hns-dane-engine`
-checkout at engine commit
-`ab3543ba9b80d23f9fe5a25abf44abd7496a41a2`; both engine crates are temporary
-coordination-workspace path dependencies pending the immutable Git pin.
+The two shared policy crates resolve from immutable
+`handshake-rs/hns-dane-engine` commit
+`127b9ad55852df00b4df40826517715048dc3571`; a standalone checkout no longer
+depends on the coordination workspace layout.
 
 The source covers normal navigation, same- and cross-origin redirects through
 the live proxy, subresources, native WebSockets, bodyless Service Worker GET/HEAD
@@ -99,8 +99,8 @@ The following source-level gates passed on Linux on 2026-07-25:
 - Locked/offline test suites for every changed mobile-workspace Rust package:
   `hns-resolver` (65 tests), `hns-transport` (51), `android-ffi` (11),
   `ios-ffi` (11), `hns-browser-runtime` (134), `hns-gateway` (50), and
-  `hns-loopback-proxy` (147). The sibling `hns-icann-dane` contract also
-  passed its 7 tests at the pinned source-handoff commit.
+  `hns-loopback-proxy` (147). The Git-pinned `hns-icann-dane` contract also
+  passed its 7 tests at the exact engine commit.
 - `cargo +1.92.0 build --locked --offline --manifest-path rust/Cargo.toml
   --workspace --release` — optimized portable workspace build.
 - `CARGO_NET_OFFLINE=true ./scripts/check-ios-abi.sh` — locked `ios-ffi`

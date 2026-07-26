@@ -2,13 +2,16 @@
 
 Cross-platform Handshake-first browser core with local HNS proofs, authoritative DNS, an experimental HNS P2P DNS relay, RFC 8484 DoH transport, DNSSEC, and DANE diagnostics. Android is the validated shipping baseline; the repository also contains the native iOS 17.0-or-later shell and Apple ABI/build integration. The Apple build and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6; a signed external-TestFlight device pass is the recommended final iOS release gate and has not been completed.
 
+Canonical source lives at
+[`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).
+
 The coordination-PDF mobile delta and its still-open ODoH, HNSR, external-engine,
 and device-qualification work are tracked in
 [`docs/complete-rust-ecosystem-mobile-audit.md`](docs/complete-rust-ecosystem-mobile-audit.md).
 
 ## Layout
 
-- `rust/`: Cargo workspace for consensus primitives, header chain, Urkel proof interfaces, resolver, DNSSEC, DANE, transport, gateway, cache, the shared browser runtime, the platform-neutral loopback proxy, Android JNI, and the stable Apple C ABI. The current source-handoff checkpoint consumes the sibling standalone engine's `hns-icann-dane` and `hns-namespace-resolution` contracts; release integration will replace these temporary relative paths with an immutable Git revision.
+- `rust/`: Cargo workspace for consensus primitives, header chain, Urkel proof interfaces, resolver, DNSSEC, DANE, transport, gateway, cache, the shared browser runtime, the platform-neutral loopback proxy, Android JNI, and the stable Apple C ABI. It consumes `hns-icann-dane` and `hns-namespace-resolution` from immutable `handshake-rs/hns-dane-engine` commit `127b9ad55852df00b4df40826517715048dc3571`.
 - `rust/fuzz/`: `cargo-fuzz` parser harnesses for DNS, HNS resource values, P2P frames, Urkel proofs, TLSA records, and X.509 SPKI extraction.
 - `android/`: Kotlin Android browser shell with WebView, namespace-agnostic URL admission, whole-browser proxy lifecycle integration, and a thin JNI bridge.
 - `ios/`: Swift/UIKit WKWebView shell with whole-data-store proxy admission, lifecycle/certificate integration, and a generated Xcode project definition.
@@ -72,11 +75,10 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
   connectedDebugAndroidTest
 ```
 
-For this source-handoff checkpoint only, place `hns-dane-engine` beside this
-repository before running Cargo or platform builds. The workspace temporarily
-uses relative paths for `hns-icann-dane` and `hns-namespace-resolution`; the
-release integration is expected to pin the exact reviewed engine commit as an
-immutable Git dependency.
+Cargo and platform builds fetch the two shared policy crates from immutable
+`handshake-rs/hns-dane-engine` commit
+`127b9ad55852df00b4df40826517715048dc3571`; no sibling coordination checkout
+is required.
 
 The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 
@@ -102,4 +104,4 @@ Donations are optional and do not unlock any app features.
 
 This repository is source-available under the PolyForm Noncommercial License 1.0.0. Noncommercial use, study, modification, and redistribution are allowed under the license. Commercial use requires separate written permission from Denuo Web, LLC.
 
-Source code: https://github.com/Denuo-Web/hns-dane-browser
+Source code: https://github.com/handshake-rs/hns-dane-browser-mobile

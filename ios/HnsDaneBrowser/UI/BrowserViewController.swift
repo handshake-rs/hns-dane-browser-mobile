@@ -8,7 +8,7 @@ final class BrowserViewController: UIViewController {
         string: "https://denuoweb.com/work/hns-dane-browser/privacy"
     )!
     private static let sourceCodeURL = URL(
-        string: "https://github.com/Denuo-Web/hns-dane-browser"
+        string: "https://github.com/handshake-rs/hns-dane-browser-mobile"
     )!
 
 #if DEBUG && targetEnvironment(simulator)

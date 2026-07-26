@@ -35,12 +35,12 @@ Create an environment named exactly `app-store`, restrict deployment branches to
 From a trusted local shell with `gh` authenticated as a repository administrator:
 
 ```sh
-gh secret set --repo Denuo-Web/hns-dane-browser --env app-store APP_STORE_CONNECT_API_KEY_ID
-gh secret set --repo Denuo-Web/hns-dane-browser --env app-store APP_STORE_CONNECT_API_ISSUER_ID
-gh secret set --repo Denuo-Web/hns-dane-browser --env app-store APP_STORE_CONNECT_API_PRIVATE_KEY < /trusted/path/AuthKey_KEYID.p8
-base64 -w0 /trusted/path/apple-distribution.p12 | gh secret set --repo Denuo-Web/hns-dane-browser --env app-store IOS_DISTRIBUTION_P12_BASE64
-gh secret set --repo Denuo-Web/hns-dane-browser --env app-store IOS_DISTRIBUTION_P12_PASSWORD < /trusted/path/p12-password.txt
-base64 -w0 /trusted/path/app-store.mobileprovision | gh secret set --repo Denuo-Web/hns-dane-browser --env app-store IOS_APP_STORE_PROFILE_BASE64
+gh secret set --repo handshake-rs/hns-dane-browser-mobile --env app-store APP_STORE_CONNECT_API_KEY_ID
+gh secret set --repo handshake-rs/hns-dane-browser-mobile --env app-store APP_STORE_CONNECT_API_ISSUER_ID
+gh secret set --repo handshake-rs/hns-dane-browser-mobile --env app-store APP_STORE_CONNECT_API_PRIVATE_KEY < /trusted/path/AuthKey_KEYID.p8
+base64 -w0 /trusted/path/apple-distribution.p12 | gh secret set --repo handshake-rs/hns-dane-browser-mobile --env app-store IOS_DISTRIBUTION_P12_BASE64
+gh secret set --repo handshake-rs/hns-dane-browser-mobile --env app-store IOS_DISTRIBUTION_P12_PASSWORD < /trusted/path/p12-password.txt
+base64 -w0 /trusted/path/app-store.mobileprovision | gh secret set --repo handshake-rs/hns-dane-browser-mobile --env app-store IOS_APP_STORE_PROFILE_BASE64
 ```
 
 ## Upload a build
@@ -49,7 +49,7 @@ The workflow is manual, refuses non-`main` refs, has read-only GitHub permission
 
 ```sh
 gh workflow run ios-testflight.yml \
-  --repo Denuo-Web/hns-dane-browser \
+  --repo handshake-rs/hns-dane-browser-mobile \
   --ref main \
   -f confirm_upload=true
 ```

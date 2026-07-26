@@ -12,9 +12,9 @@ Handshake test:
 3. Confirm the security label identifies the resolver and TLS validation path.
 4. Tap the Settings gear button to inspect HNS resolution, HNS sync, Clear resolver cache, Resolver trace, HNS proof details, Privacy policy, and Source code.
 
-Network note: some review networks block Handshake peer traffic or direct authoritative DNS. The app never sends an HNS target to a public recursive resolver and never substitutes WebPKI for required HNS DANE. The experimental P2P DNS relay is enabled by default on a fresh iOS install and can be disabled in Settings; relay answers still require local proof, DNSSEC, TLSA, and DANE validation. If no permitted validated path succeeds, the HNS request fails closed.
+Network note: some review networks block Handshake peer traffic or direct authoritative DNS. The app never sends an HNS target to a public recursive resolver and never substitutes WebPKI for required HNS DANE. Experimental P2P DNS relay consumption is off by default and requires explicit requester opt-in in Settings; relay answers still require local proof, DNSSEC, TLSA, and DANE validation. If no permitted validated path succeeds, the HNS request fails closed.
 
 Cleartext HTTP pages are marked insecure. No reviewer-supplied personal data or credentials are needed. The two test URLs above are developer-controlled.
 
 Privacy policy: https://denuoweb.com/work/hns-dane-browser/privacy
-Source code: https://github.com/Denuo-Web/hns-dane-browser
+Source code: https://github.com/handshake-rs/hns-dane-browser-mobile

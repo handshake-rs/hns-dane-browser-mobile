@@ -7,7 +7,7 @@ reviewed submission artifact, not a required pull-request check.
 
 ```sh
 gh workflow run ios-screenshots.yml \
-  --repo Denuo-Web/hns-dane-browser \
+  --repo handshake-rs/hns-dane-browser-mobile \
   --ref main \
   -f reason='App Store 0.5.0 submission'
 ```

@@ -51,7 +51,7 @@ This audit treats the repository as a candidate update to an existing public Goo
 ## Candidate Verification Status
 
 - `0.5.0` / code 40 portable source checks: passed locked/offline changed-package
-  Rust tests (469 mobile-workspace tests plus 7 sibling-engine contract tests),
+  Rust tests (469 mobile-workspace tests plus 7 Git-pinned engine contract tests),
   full warning-denied workspace Clippy, optimized
   locked/offline workspace build, Rust formatting, Apple C ABI/header/symbol
   checks, version/runtime-boundary/generated-notice checks, and all 19 portable
