@@ -1,6 +1,7 @@
 package com.denuoweb.hnsdane.net
 
 import com.denuoweb.hnsdane.core.BrowserNamespacePolicy
+import com.denuoweb.hnsdane.core.BrowserResolutionTrace
 import com.denuoweb.hnsdane.core.HnsHostPolicy
 import java.io.File
 import java.io.IOException
@@ -29,12 +30,7 @@ internal class HnsNativeDownloadFetcher(
             val target = HnsNativeDownloadTarget.parse(currentUrl, namespacePolicy)
                 ?: throw HnsNativeDownloadException("HNS download URL is not supported.")
             val response = request(target, userAgent, currentUrl)
-            if (
-                response.hasDisabledHnsTrustStatus(
-                    requiresHnsResolution =
-                        HnsHostPolicy.requiresHnsResolution(target.host, namespacePolicy),
-                )
-            ) {
+            if (response.hasDisabledHnsTrustStatus()) {
                 response.deleteBodyFile()
                 throw HnsNativeDownloadException(
                     "Native HNS gateway reported a prohibited legacy resolver or WebPKI path.",
@@ -245,7 +241,7 @@ internal data class HnsNativeDownloadResponse(
     fun headerValue(name: String): String? =
         headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
 
-    fun hasDisabledHnsTrustStatus(requiresHnsResolution: Boolean): Boolean {
+    fun hasDisabledHnsTrustStatus(): Boolean {
         if (statusCode !in 200..399) {
             return false
         }
@@ -256,9 +252,11 @@ internal data class HnsNativeDownloadResponse(
             headerValue(HNS_SECURITY_PATH_HEADER)
                 .equals("hns-third-party-doh", ignoreCase = true) ||
             (
-                requiresHnsResolution &&
-                    headerValue("X-HNS-TLS-Policy")
-                        .equals("webpki-fallback", ignoreCase = true)
+                headerValue("X-HNS-TLS-Policy")
+                    .equals("webpki-fallback", ignoreCase = true) &&
+                    !BrowserResolutionTrace.authorizesWebPkiFallback(
+                        headerValue(HNS_RESOLUTION_TRACE_HEADER),
+                    )
                 )
     }
 

@@ -92,21 +92,26 @@ class HnsNativeDownloadFetcherTest {
     }
 
     @Test
-    fun fetchRejectsRedirectOutsideHnsScopeAndDeletesBody() {
-        val dataDir = createTempDirectory("hns-download-reject-redirect-test").toFile()
+    fun fetchCrossHostRedirectReentersTheDualRootGateway() {
+        val dataDir = createTempDirectory("hns-download-cross-host-redirect-test").toFile()
         val bridge = QueueGatewayBridge(
             GatewayResponse.file(
                 head = "HTTP/1.1 302 Found\r\nLocation: https://example.com/file\r\nContent-Length: 0\r\n\r\n",
                 body = "",
             ),
+            GatewayResponse.file(
+                head = "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n",
+                body = "done",
+            ),
         )
         val fetcher = HnsNativeDownloadFetcher(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
 
-        assertThrows(HnsNativeDownloadException::class.java) {
-            fetcher.fetch("https://welcome/start.bin", null)
-        }
+        val response = fetcher.fetch("https://welcome/start.bin", null)
 
-        assertFalse(bridge.bodyFiles.single().exists())
+        assertEquals(listOf("welcome", "example.com"), bridge.calls.map { it.host })
+        assertFalse(bridge.bodyFiles.first().exists())
+        assertEquals("done", response.bodyFile.readText())
+        response.deleteBodyFile()
         dataDir.deleteRecursively()
     }
 
@@ -136,6 +141,10 @@ class HnsNativeDownloadFetcherTest {
             "$HNS_SECURITY_PATH_HEADER: dane-third-party-doh\r\n",
             "$HNS_SECURITY_PATH_HEADER: hns-third-party-doh\r\n",
             "X-HNS-TLS-Policy: webpki-fallback\r\n",
+            "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                "$HNS_RESOLUTION_TRACE_HEADER: not-json\r\n",
+            "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                "$HNS_RESOLUTION_TRACE_HEADER: $HNS_ONLY_RESOLUTION_TRACE\r\n",
         )
 
         metadataValues.forEachIndexed { index, metadata ->
@@ -192,9 +201,10 @@ class HnsNativeDownloadFetcherTest {
         val bridge = QueueGatewayBridge(
             GatewayResponse.file(
                 head =
-                    "HTTP/1.1 200 OK\r\n" +
-                        "X-HNS-TLS-Policy: webpki-fallback\r\n" +
-                        "Content-Length: 7\r\n\r\n",
+                        "HTTP/1.1 200 OK\r\n" +
+                            "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                            "$HNS_RESOLUTION_TRACE_HEADER: $ICANN_ONLY_RESOLUTION_TRACE\r\n" +
+                            "Content-Length: 7\r\n\r\n",
                 body = "payload",
             ),
         )
@@ -218,6 +228,13 @@ class HnsNativeDownloadFetcherTest {
         val pathAndQuery: String,
         val headers: List<Pair<String, String>>,
     )
+
+    private companion object {
+        const val HNS_ONLY_RESOLUTION_TRACE =
+            """{"namespaceResolution":{"outcome":"hnsOnly","selected":"hns","reason":"onlyAvailableRoot","hnsState":"present","icannState":"authenticatedAbsent","fingerprint":null}}"""
+        const val ICANN_ONLY_RESOLUTION_TRACE =
+            """{"namespaceResolution":{"outcome":"icannOnly","selected":"icann","reason":"onlyAvailableRoot","hnsState":"authenticatedAbsent","icannState":"present","fingerprint":null}}"""
+    }
 
     private sealed class GatewayResponse {
         data class FileBody(

@@ -9,8 +9,12 @@ object BrowserSecurityPolicy {
         mainFrameHnsTlsPolicy: HnsPageTlsPolicy? = null,
         mainFrameHnsResolverPolicy: HnsPageResolverPolicy? = null,
         mainFrameHnsSecurityPath: HnsPageSecurityPath? = null,
+        mainFrameHnsResolutionTraceJson: String? = null,
         isOpaqueIpLiteral: Boolean = false,
     ): SecurityState {
+        if (targetKind == BrowserTargetKind.LocalAsset) {
+            return SecurityState.LocalContent
+        }
         if (targetKind == BrowserTargetKind.Blocked) {
             return SecurityState.ValidationFailed
         }
@@ -54,7 +58,15 @@ object BrowserSecurityPolicy {
                     targetKind == BrowserTargetKind.ExactUrl ||
                     targetKind == BrowserTargetKind.NativeGateway
                 ) {
-                    return SecurityState.WebPkiOnly
+                    return if (
+                        BrowserResolutionTrace.authorizesWebPkiFallback(
+                            mainFrameHnsResolutionTraceJson,
+                        )
+                    ) {
+                        SecurityState.WebPkiOnly
+                    } else {
+                        SecurityState.ValidationFailed
+                    }
                 }
                 return SecurityState.ValidationFailed
             }

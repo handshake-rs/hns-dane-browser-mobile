@@ -584,15 +584,22 @@ final class RustBrowserProxySession: BrowserProxySession {
     }
 
     private static func selectedNamespace(from traceJSON: String?) -> String? {
-        if let selected = namespaceObject(from: traceJSON)?["selected"] as? String {
-            return selected
-        }
-        guard let traceJSON,
-              let data = traceJSON.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard let resolution = namespaceObject(from: traceJSON),
+              let selected = resolution["selected"] as? String,
+              let outcome = resolution["outcome"] as? String else {
             return nil
         }
-        return object["selectedNamespace"] as? String ?? object["nameClass"] as? String
+        switch (selected, outcome) {
+        case ("hns", "hnsOnly"),
+             ("hns", "bothConvergent"),
+             ("hns", "bothDivergent"),
+             ("icann", "icannOnly"),
+             ("icann", "bothConvergent"),
+             ("icann", "bothDivergent"):
+            return selected
+        default:
+            return nil
+        }
     }
 
     private static func namespaceChoiceDetail(from traceJSON: String?) -> String? {

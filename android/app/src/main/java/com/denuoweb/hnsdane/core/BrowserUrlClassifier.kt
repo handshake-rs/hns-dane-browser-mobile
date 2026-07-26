@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 enum class BrowserTargetKind {
+    LocalAsset,
     ExactUrl,
     HnsName,
     NativeGateway,
@@ -18,6 +19,9 @@ data class BrowserTarget(
     val url: String,
     val displayHost: String?,
 )
+
+internal fun isAndroidWebViewAssetHost(host: String?): Boolean =
+    host.equals(ANDROID_WEBVIEW_ASSET_HOST, ignoreCase = true)
 
 internal fun isCanonicalIpLiteral(host: String?): Boolean {
     val value = host
@@ -74,7 +78,13 @@ class BrowserUrlClassifier(
 
         val suffix = trimmed.removePrefix(hostCandidate)
         val normalizedSuffix = if (suffix.isEmpty()) "/" else suffix
-        val kind = targetKindForHost(asciiHost)
+        val kind = targetKindForHost(
+            asciiHost,
+            localAssetRequest = normalizedSuffix
+                .substringBefore('?')
+                .substringBefore('#')
+                .startsWith(ANDROID_WEBVIEW_ASSET_PATH_PREFIX),
+        )
         val scheme = "https"
         val url = "$scheme://$asciiHost$normalizedSuffix"
         return BrowserTarget(kind, url, asciiHost)
@@ -90,11 +100,30 @@ class BrowserUrlClassifier(
             ?: return search(url)
         val host = authority.host.takeIf(::isValidHttpHost)
             ?: return search(url)
-        val kind = targetKindForHost(host)
+        val kind = targetKindForHost(
+            host,
+            localAssetRequest =
+                scheme == "https" &&
+                    authority.portSuffix in setOf("", ":443") &&
+                    uri.rawPath.orEmpty().startsWith(ANDROID_WEBVIEW_ASSET_PATH_PREFIX),
+        )
         return BrowserTarget(kind, uri.withAuthority(authority) ?: return search(url), host)
     }
 
-    private fun targetKindForHost(host: String): BrowserTargetKind {
+    private fun targetKindForHost(
+        host: String,
+        localAssetRequest: Boolean = false,
+    ): BrowserTargetKind {
+        if (isAndroidWebViewAssetHost(host)) {
+            // WebViewAssetLoader owns this synthetic HTTPS origin locally. It
+            // must never enter DNS or the process-wide network proxy. Block
+            // every spelling outside its exact default-port /assets/ surface.
+            return if (localAssetRequest) {
+                BrowserTargetKind.LocalAsset
+            } else {
+                BrowserTargetKind.Blocked
+            }
+        }
         // The Rust result is syntax/IP admission only. A legacy HNS/ICANN
         // name class can never select a root here: every non-IP DNS name
         // still enters the retained dual-root gateway.
@@ -211,3 +240,6 @@ class BrowserUrlClassifier(
         val portSuffix: String,
     )
 }
+
+private const val ANDROID_WEBVIEW_ASSET_HOST = "appassets.androidplatform.net"
+private const val ANDROID_WEBVIEW_ASSET_PATH_PREFIX = "/assets/"

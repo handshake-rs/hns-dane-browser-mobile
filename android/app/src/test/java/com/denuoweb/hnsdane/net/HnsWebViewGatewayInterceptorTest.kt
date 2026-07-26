@@ -107,6 +107,27 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
+    fun syntheticAssetOriginCanNeverFallThroughToTheNetworkGateway() {
+        val bridge = RecordingGatewayBridge(
+            "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+                .toByteArray(StandardCharsets.ISO_8859_1),
+        )
+        val dataDir = createTempDirectory("local-asset-fallback-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = interceptor.intercept(
+            method = "GET",
+            url = "https://appassets.androidplatform.net/assets/missing.html",
+            requestHeaders = emptyMap(),
+        )
+
+        requireNotNull(response)
+        assertEquals(503, response.statusCode)
+        assertTrue(bridge.calls.isEmpty())
+        dataDir.deleteRecursively()
+    }
+
+    @Test
     fun everyIcannHostUsesNativeGatewayBridge() {
         val bridge = RecordingGatewayBridge(
             "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
@@ -487,6 +508,10 @@ class HnsWebViewGatewayInterceptorTest {
             "$HNS_SECURITY_PATH_HEADER: dane-third-party-doh\r\nX-HNS-TLS-Policy: dane\r\n",
             "$HNS_SECURITY_PATH_HEADER: hns-third-party-doh\r\n",
             "X-HNS-TLS-Policy: webpki-fallback\r\n",
+            "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                "$HNS_RESOLUTION_TRACE_HEADER: not-json\r\n",
+            "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                "$HNS_RESOLUTION_TRACE_HEADER: $HNS_ONLY_RESOLUTION_TRACE\r\n",
         )
 
         responses.forEachIndexed { index, metadata ->
@@ -550,6 +575,35 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
+    fun authenticatedIcannWebPkiStatusCanRender() {
+        val bridge = RecordingGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "X-HNS-TLS-Policy: webpki-fallback\r\n" +
+                    "$HNS_RESOLUTION_TRACE_HEADER: $ICANN_ONLY_RESOLUTION_TRACE\r\n" +
+                    "Content-Length: 7\r\n\r\npayload"
+                ).toByteArray(StandardCharsets.ISO_8859_1),
+        )
+        val dataDir = createTempDirectory("icann-webpki-status").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir,
+            bridge,
+            TEST_BROWSER_NAMESPACE_POLICY,
+        )
+
+        val response = interceptor.intercept(
+            method = "GET",
+            url = "https://example.com/",
+            requestHeaders = emptyMap(),
+        )
+
+        requireNotNull(response)
+        assertEquals(200, response.statusCode)
+        assertEquals("payload", response.body.toString(StandardCharsets.UTF_8))
+        dataDir.deleteRecursively()
+    }
+
+    @Test
     fun unknownSecurityPathRetainsLegacyHeaderParsing() {
         val paths = mutableListOf<HnsPageSecurityPath?>()
         val tlsPolicies = mutableListOf<HnsPageTlsPolicy?>()
@@ -607,7 +661,7 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
-    fun hnsRedirectToIcannHostFailsClosed() {
+    fun crossOriginRedirectReentersGatewayPolicyBeforeFailingClosed() {
         val bridge = RecordingGatewayBridge(
             "HTTP/1.1 302 Found\r\nLocation: https://example.com/\r\nContent-Length: 0\r\n\r\n"
                 .toByteArray(StandardCharsets.ISO_8859_1),
@@ -621,7 +675,7 @@ class HnsWebViewGatewayInterceptorTest {
         requireNotNull(response)
         assertEquals(502, response.statusCode)
         assertEquals("HNS Redirect Unsupported", response.reason)
-        assertTrue(response.body.toString(StandardCharsets.UTF_8).contains("inside HNS resolution policy"))
+        assertTrue(response.body.toString(StandardCharsets.UTF_8).contains("same-origin"))
         dataDir.deleteRecursively()
     }
 
@@ -771,6 +825,13 @@ class HnsWebViewGatewayInterceptorTest {
         val headers: List<Pair<String, String>>,
         val body: String,
     )
+
+    private companion object {
+        const val HNS_ONLY_RESOLUTION_TRACE =
+            """{"namespaceResolution":{"outcome":"hnsOnly","selected":"hns","reason":"onlyAvailableRoot","hnsState":"present","icannState":"authenticatedAbsent","fingerprint":null}}"""
+        const val ICANN_ONLY_RESOLUTION_TRACE =
+            """{"namespaceResolution":{"outcome":"icannOnly","selected":"icann","reason":"onlyAvailableRoot","hnsState":"authenticatedAbsent","icannState":"present","fingerprint":null}}"""
+    }
 
     private fun forwardedGatewayHeaders(vararg headers: Pair<String, String>): List<Pair<String, String>> =
         headers.toList() + ("Accept-Encoding" to "identity")

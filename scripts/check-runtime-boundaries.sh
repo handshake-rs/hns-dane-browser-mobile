@@ -109,4 +109,77 @@ for script in build-rust-ios.sh build-ios.sh check-ios-abi.sh run-ios-gate.sh; d
   fi
 done
 
+require_source_contains() {
+  local file="$1"
+  local expected="$2"
+  local detail="$3"
+  if ! grep -Fq -- "$expected" "$file"; then
+    echo "ERROR: $detail" >&2
+    exit 1
+  fi
+}
+
+require_source_absent() {
+  local file="$1"
+  local prohibited="$2"
+  local detail="$3"
+  if grep -Fq -- "$prohibited" "$file"; then
+    echo "ERROR: $detail" >&2
+    exit 1
+  fi
+}
+
+android_trace="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserResolutionTrace.kt"
+android_security="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserSecurityPolicy.kt"
+android_download="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/net/HnsNativeDownloadFetcher.kt"
+android_interceptor="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/net/HnsWebViewGatewayInterceptor.kt"
+android_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/MainActivity.kt"
+android_classifier="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserUrlClassifier.kt"
+android_host_policy="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/HnsHostPolicy.kt"
+ios_runtime="$ROOT_DIR/ios/HnsDaneBrowser/Core/RustBrowserRuntime.swift"
+
+require_source_contains "$android_trace" \
+  'optJSONObject("namespaceResolution")' \
+  "Android WebPKI fallback must read the retained namespace-resolution decision."
+require_source_absent "$android_trace" \
+  'optString("nameClass")' \
+  "Android WebPKI fallback must not authorize legacy top-level name classes."
+require_source_contains "$android_security" \
+  'BrowserResolutionTrace.authorizesWebPkiFallback(' \
+  "Android security UI must require the retained ICANN namespace decision."
+require_source_contains "$android_download" \
+  'BrowserResolutionTrace.authorizesWebPkiFallback(' \
+  "Android downloads must require the retained ICANN namespace decision."
+require_source_contains "$android_interceptor" \
+  'BrowserResolutionTrace.authorizesWebPkiFallback(' \
+  "Android WebView and Service Worker interception must require the retained ICANN namespace decision."
+require_source_contains "$android_activity" \
+  'mainFrameHnsResolutionTraceJson = mainFrameHnsTraceJson' \
+  "Android must bind its main-frame security badge to the exact Rust resolution trace."
+require_source_contains "$android_activity" \
+  'BrowserResolutionTrace.selectedNamespace(mainFrameHnsTraceJson)' \
+  "Android must validate the retained namespace decision before showing a namespace badge."
+require_source_contains "$android_classifier" \
+  'BrowserTargetKind.LocalAsset' \
+  "The synthetic Android asset origin must stay outside DNS and proxy routing."
+require_source_contains "$android_classifier" \
+  'authority.portSuffix in setOf("", ":443")' \
+  "The synthetic Android asset origin must be limited to its default HTTPS port."
+require_source_contains "$android_host_policy" \
+  'if (isAndroidWebViewAssetHost(host))' \
+  "Synthetic Android asset fallbacks must be blocked before DNS routing."
+
+require_source_contains "$ios_runtime" \
+  'return object["namespaceResolution"] as? [String: Any]' \
+  "iOS WebPKI fallback must read the retained namespace-resolution decision."
+require_source_absent "$ios_runtime" \
+  'object["selectedNamespace"]' \
+  "iOS WebPKI fallback must not authorize legacy top-level namespace selections."
+require_source_absent "$ios_runtime" \
+  'object["nameClass"]' \
+  "iOS WebPKI fallback must not authorize legacy top-level name classes."
+require_source_contains "$ios_runtime" \
+  'if selectedNamespace == "icann"' \
+  "iOS WebPKI fallback must require the retained ICANN namespace decision."
+
 echo "Shared runtime, proxy, and platform-adapter boundary checks passed"

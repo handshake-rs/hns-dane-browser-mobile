@@ -258,7 +258,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(content.text, "Experimental stateless DANE certificates")
         XCTAssertEqual(
             content.secondaryText,
-            "Off. HNS proof and TLSA evidence use the live resolver path."
+            "Off. Browser requests use the retained dual-root DNSSEC and TLSA plan."
         )
         XCTAssertFalse(toggle.isOn)
 
@@ -271,7 +271,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         content = try XCTUnwrap(cell.contentConfiguration as? UIListContentConfiguration)
         XCTAssertEqual(
             content.secondaryText,
-            "On. Certificate-carried HNS proof evidence may satisfy DANE when valid."
+            "On. Legacy certificate-carried evidence cannot be combined with retained dual-root plans; prepared browser requests fail closed."
         )
         XCTAssertTrue(try XCTUnwrap(cell.accessoryView as? UISwitch).isOn)
     }
@@ -451,21 +451,39 @@ final class BrowserRuntimeControlTests: XCTestCase {
             httpStatus: 200,
             tlsPolicy: HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK,
             resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
-            securityPath: HNS_BROWSER_SECURITY_PATH_UNKNOWN
+            securityPath: HNS_BROWSER_SECURITY_PATH_UNKNOWN,
+            allowsWebPkiFallback: true
+        )
+        let legacyTopLevelIcann = RustBrowserProxySession.securitySummary(
+            httpStatus: 200,
+            tlsPolicy: HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK,
+            resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
+            securityPath: HNS_BROWSER_SECURITY_PATH_UNKNOWN,
+            resolutionTraceJSON: #"{"nameClass":"icann"}"#
+        )
+        let contradictoryIcann = RustBrowserProxySession.securitySummary(
+            httpStatus: 200,
+            tlsPolicy: HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK,
+            resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
+            securityPath: HNS_BROWSER_SECURITY_PATH_UNKNOWN,
+            resolutionTraceJSON: #"{"namespaceResolution":{"outcome":"hnsOnly","selected":"icann"}}"#
         )
         let icannWebPKI = RustBrowserProxySession.securitySummary(
             httpStatus: 200,
             tlsPolicy: HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK,
             resolverPolicy: HNS_BROWSER_RESOLVER_POLICY_UNKNOWN,
             securityPath: HNS_BROWSER_SECURITY_PATH_UNKNOWN,
-            allowsWebPkiFallback: true
+            resolutionTraceJSON: #"{"namespaceResolution":{"outcome":"icannOnly","selected":"icann","reason":"onlyAvailableRoot","hnsState":"authenticatedAbsent","icannState":"present","fingerprint":null}}"#
         )
 
         XCTAssertEqual(legacyResolver.level, .blocked)
         XCTAssertEqual(legacyPath.level, .blocked)
         XCTAssertEqual(legacyWebPKI.level, .blocked)
+        XCTAssertEqual(legacyTopLevelIcann.level, .blocked)
+        XCTAssertEqual(contradictoryIcann.level, .blocked)
         XCTAssertEqual(icannWebPKI.level, .webPKI)
         XCTAssertTrue(icannWebPKI.detail.contains("validating ICANN DoH"))
+        XCTAssertTrue(icannWebPKI.detail.contains("ICANN only"))
     }
 
     func testCurrentDANEStatusRemainsVerifiedInSecurityUI() {

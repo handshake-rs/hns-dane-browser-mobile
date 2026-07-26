@@ -50,6 +50,8 @@ import androidx.webkit.WebViewRenderProcessClient
 import com.denuoweb.hnsdane.BuildConfig
 import com.denuoweb.hnsdane.HnsDaneApplication
 import com.denuoweb.hnsdane.R
+import com.denuoweb.hnsdane.core.BrowserResolutionTrace
+import com.denuoweb.hnsdane.core.BrowserResolvedNamespace
 import com.denuoweb.hnsdane.core.BrowserSecurityPolicy
 import com.denuoweb.hnsdane.core.BrowserTarget
 import com.denuoweb.hnsdane.core.BrowserTargetKind
@@ -772,6 +774,7 @@ class MainActivity : ComponentActivity() {
                 mainFrameHnsTlsPolicy = mainFrameHnsTlsPolicy,
                 mainFrameHnsResolverPolicy = mainFrameHnsResolverPolicy,
                 mainFrameHnsSecurityPath = mainFrameHnsSecurityPath,
+                mainFrameHnsResolutionTraceJson = mainFrameHnsTraceJson,
                 isOpaqueIpLiteral = isCanonicalIpLiteral(
                     classifier
                         .classify(pendingMainFrameUrl ?: activeMainFrameUrl.orEmpty())
@@ -866,6 +869,7 @@ class MainActivity : ComponentActivity() {
 
     private fun setSecurityState(state: SecurityState) {
         val baseLabel = when (state) {
+            SecurityState.LocalContent -> getString(R.string.security_local_content)
             SecurityState.Syncing -> getString(R.string.security_syncing)
             SecurityState.Loading -> getString(R.string.security_loading)
             SecurityState.HnsVerified -> getString(R.string.security_hns_verified)
@@ -885,11 +889,12 @@ class MainActivity : ComponentActivity() {
         val resolution = mainFrameHnsTraceJson
             ?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?.optJSONObject("namespaceResolution")
-        val selected = resolution?.optString("selected")?.takeIf { it.isNotBlank() }
-        val selectedLabel = when (selected) {
-            "hns" -> "HNS"
-            "icann" -> "ICANN"
-            else -> null
+        val selectedLabel = when (
+            BrowserResolutionTrace.selectedNamespace(mainFrameHnsTraceJson)
+        ) {
+            BrowserResolvedNamespace.Hns -> "HNS"
+            BrowserResolvedNamespace.Icann -> "ICANN"
+            null -> null
         }
         val namespaceBadge = when (resolution?.optString("outcome")) {
             "bothDivergent" -> selectedLabel?.let { "↯ $it" }
@@ -898,10 +903,14 @@ class MainActivity : ComponentActivity() {
             else -> null
         }
         securityLabel.text = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
-        securityLabel.contentDescription = mainFrameHnsTraceJson
-            ?.let { LocalizedTraceText.namespace(this, runCatching { JSONObject(it) }.getOrNull()) }
-            ?.let { "$baseLabel. $it" }
-            ?: baseLabel
+        securityLabel.contentDescription = if (selectedLabel != null) {
+            mainFrameHnsTraceJson
+                ?.let { LocalizedTraceText.namespace(this, runCatching { JSONObject(it) }.getOrNull()) }
+                ?.let { "$baseLabel. $it" }
+                ?: baseLabel
+        } else {
+            baseLabel
+        }
     }
 
     private inner class BrowserClient : WebViewClient() {

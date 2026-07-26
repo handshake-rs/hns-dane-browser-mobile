@@ -111,16 +111,32 @@ class BrowserUrlClassifierTest {
     }
 
     @Test
-    fun appAssetHttpsUrlsLoadAsExactUrls() {
+    fun appAssetHttpsUrlsStayInTheLocalAssetPath() {
         val target = classifier.classify(
             "https://appassets.androidplatform.net/assets/example.txt",
         )
 
-        assertEquals(BrowserTargetKind.NativeGateway, target.kind)
+        assertEquals(BrowserTargetKind.LocalAsset, target.kind)
         assertEquals(
             "https://appassets.androidplatform.net/assets/example.txt",
             target.url,
         )
+    }
+
+    @Test
+    fun appAssetOriginSpellingsOutsideTheOwnedSurfaceFailClosed() {
+        for (url in listOf(
+            "http://appassets.androidplatform.net/assets/start.html",
+            "https://appassets.androidplatform.net/",
+            "https://appassets.androidplatform.net/not-assets/start.html",
+            "https://appassets.androidplatform.net:444/assets/start.html",
+        )) {
+            assertEquals(
+                url,
+                BrowserTargetKind.Blocked,
+                classifier.classify(url).kind,
+            )
+        }
     }
 
     @Test

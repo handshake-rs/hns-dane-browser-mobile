@@ -15,7 +15,7 @@ class BrowserPreferencesTest {
         )
 
         val target = BrowserUrlClassifier(TEST_BROWSER_NAMESPACE_POLICY).classify(BrowserPreferences.DEFAULT_HOME)
-        assertEquals(BrowserTargetKind.ExactUrl, target.kind)
+        assertEquals(BrowserTargetKind.LocalAsset, target.kind)
         assertEquals(BrowserPreferences.DEFAULT_HOME, target.url)
     }
 }

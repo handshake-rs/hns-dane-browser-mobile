@@ -35,8 +35,13 @@ object HnsHostPolicy {
     fun nativeGatewayDecision(
         host: String,
         namespacePolicy: BrowserNamespacePolicy,
-    ): NativeGatewayHostDecision =
-        when (namespacePolicy.classifyHost(host)) {
+    ): NativeGatewayHostDecision {
+        if (isAndroidWebViewAssetHost(host)) {
+            // WebViewAssetLoader gets the first chance to serve its bounded
+            // HTTPS /assets/ surface. Every fallback is blocked from DNS.
+            return NativeGatewayHostDecision.Block
+        }
+        return when (namespacePolicy.classifyHost(host)) {
             BrowserNamespaceClass.Hns,
             BrowserNamespaceClass.NativeGateway,
             -> NativeGatewayHostDecision.Required
@@ -51,6 +56,7 @@ object HnsHostPolicy {
             BrowserNamespaceClass.Unavailable,
             -> NativeGatewayHostDecision.Block
         }
+    }
 
     /** A shell cannot determine the selected root before authenticated dual resolution. */
     fun requiresHnsResolution(

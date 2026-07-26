@@ -422,7 +422,7 @@ class BrowserProxyCoordinatorTest {
     }
 
     @Test
-    fun incompatibleEnsureDropsQueuedNavigation() {
+    fun policyChangingEnsureDropsQueuedNavigation() {
         val fixture = Fixture()
         fixture.factory.results += fixture.proxy("alpha")
         fixture.factory.results += fixture.proxy("beta", port = 43211)
@@ -431,7 +431,7 @@ class BrowserProxyCoordinatorTest {
             fixture.loads += "alpha"
         }
 
-        fixture.coordinator.ensure(fixture.config("beta"))
+        fixture.coordinator.ensure(fixture.config("beta", strict = true))
         fixture.worker.runNext()
         fixture.worker.runNext()
         fixture.worker.runNext()
@@ -514,7 +514,8 @@ class BrowserProxyCoordinatorTest {
 
         proxy.certificateMatches = true
         assertTrue(fixture.coordinator.matchesLocalCertificate("sub.alpha", byteArrayOf(1)))
-        assertFalse(fixture.coordinator.matchesLocalCertificate("other", byteArrayOf(1)))
+        assertTrue(fixture.coordinator.matchesLocalCertificate("other", byteArrayOf(1)))
+        assertFalse(fixture.coordinator.matchesLocalCertificate("192.0.2.1", byteArrayOf(1)))
 
         val status = LocalBrowserProxyStatus(7, 200, null, null, null, null)
         proxy.status = status
@@ -593,7 +594,7 @@ class BrowserProxyCoordinatorTest {
         proxy.onJoin = joined::countDown
         fixture.worker.reject = true
 
-        fixture.coordinator.navigate(fixture.config("beta"), "beta") {}
+        fixture.coordinator.navigate(fixture.config("beta", strict = true), "beta") {}
 
         assertEquals(1, proxy.stopCalls)
         assertTrue(joined.await(5, TimeUnit.SECONDS))

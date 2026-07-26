@@ -1,6 +1,7 @@
 package com.denuoweb.hnsdane.core
 
 enum class SecurityState {
+    LocalContent,
     Syncing,
     Loading,
     HnsVerified,

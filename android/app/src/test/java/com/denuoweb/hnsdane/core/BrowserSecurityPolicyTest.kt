@@ -5,6 +5,18 @@ import org.junit.Test
 
 class BrowserSecurityPolicyTest {
     @Test
+    fun bundledStartPageIsReportedAsLocalContent() {
+        assertEquals(
+            SecurityState.LocalContent,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.LocalAsset,
+                proxyAvailable = false,
+                syncStatusJson = null,
+            ),
+        )
+    }
+
+    @Test
     fun normalWebTargetsStayPendingUntilRustReportsTheTlsDecision() {
         assertEquals(
             SecurityState.Loading,
@@ -156,8 +168,35 @@ class BrowserSecurityPolicyTest {
                 syncStatusJson = """{"status":"idle"}""",
                 mainFrameHnsStatusCode = 200,
                 mainFrameHnsTlsPolicy = HnsPageTlsPolicy.WebPkiFallback,
+                mainFrameHnsResolutionTraceJson = ICANN_ONLY_RESOLUTION_TRACE,
             ),
         )
+    }
+
+    @Test
+    fun webPkiFallbackRequiresAConsistentNestedIcannSelection() {
+        val rejectedTraces = listOf(
+            null,
+            "",
+            "not-json",
+            """{"nameClass":"icann"}""",
+            """{"namespaceResolution":{"outcome":"hnsOnly","selected":"hns"}}""",
+            """{"namespaceResolution":{"outcome":"hnsOnly","selected":"icann"}}""",
+        )
+        rejectedTraces.forEach { trace ->
+            assertEquals(
+                trace,
+                SecurityState.ValidationFailed,
+                BrowserSecurityPolicy.state(
+                    targetKind = BrowserTargetKind.NativeGateway,
+                    proxyAvailable = true,
+                    syncStatusJson = """{"status":"idle"}""",
+                    mainFrameHnsStatusCode = 200,
+                    mainFrameHnsTlsPolicy = HnsPageTlsPolicy.WebPkiFallback,
+                    mainFrameHnsResolutionTraceJson = trace,
+                ),
+            )
+        }
     }
 
     @Test
@@ -290,5 +329,10 @@ class BrowserSecurityPolicyTest {
                 ),
             )
         }
+    }
+
+    private companion object {
+        const val ICANN_ONLY_RESOLUTION_TRACE =
+            """{"namespaceResolution":{"outcome":"icannOnly","selected":"icann","reason":"onlyAvailableRoot","hnsState":"authenticatedAbsent","icannState":"present","fingerprint":null}}"""
     }
 }

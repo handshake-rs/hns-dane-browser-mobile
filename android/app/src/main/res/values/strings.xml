@@ -34,6 +34,7 @@
     <string name="common_yes">yes</string>
 
     <string name="omnibox_hint">Search or enter HNS name</string>
+    <string name="security_local_content" translatable="false">Local app content</string>
     <string name="security_syncing">Syncing</string>
     <string name="security_loading">Loading</string>
     <string name="security_hns_verified">HNS verified</string>

@@ -3,6 +3,7 @@ package com.denuoweb.hnsdane.net
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import com.denuoweb.hnsdane.core.BrowserNamespacePolicy
+import com.denuoweb.hnsdane.core.BrowserResolutionTrace
 import com.denuoweb.hnsdane.core.HnsHostPolicy
 import com.denuoweb.hnsdane.core.HnsPageResolverPolicy
 import com.denuoweb.hnsdane.core.HnsPageSecurityPath
@@ -168,11 +169,7 @@ class HnsWebViewGatewayInterceptor(
             }
         }
 
-        val policyCheckedResponse = response.rejectDisabledTrustStatus(
-            host = target.host,
-            requiresHnsResolution =
-                HnsHostPolicy.requiresHnsResolution(target.host, namespacePolicy),
-        )
+        val policyCheckedResponse = response.rejectDisabledTrustStatus(host = target.host)
 
         return policyCheckedResponse.followHnsRedirects(
             method = normalizedMethod,
@@ -185,7 +182,6 @@ class HnsWebViewGatewayInterceptor(
 
     private fun HnsInterceptedResponse.rejectDisabledTrustStatus(
         host: String,
-        requiresHnsResolution: Boolean,
     ): HnsInterceptedResponse {
         if (statusCode !in 200..399) {
             return this
@@ -197,7 +193,12 @@ class HnsWebViewGatewayInterceptor(
             resolverPolicy == HnsPageResolverPolicy.HnsDohCompatibility ||
                 securityPath == HnsPageSecurityPath.DaneThirdPartyDoh ||
                 securityPath == HnsPageSecurityPath.HnsThirdPartyDoh ||
-                (requiresHnsResolution && tlsPolicy == HnsPageTlsPolicy.WebPkiFallback)
+                (
+                    tlsPolicy == HnsPageTlsPolicy.WebPkiFallback &&
+                        !BrowserResolutionTrace.authorizesWebPkiFallback(
+                            hnsResolutionTrace(),
+                        )
+                    )
         if (!disabledStatus) {
             return this
         }
