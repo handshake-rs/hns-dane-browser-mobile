@@ -32,7 +32,9 @@ classify_path() {
       scripts/check.sh | \
       scripts/check-runtime-boundaries.sh | \
       scripts/check-version-consistency.sh | \
-      scripts/verify-supply-chain.sh)
+      scripts/verify-supply-chain.sh | \
+      scripts/verify_cargo_git_policy.py | \
+      tests/test_cargo_git_policy.py)
       set_all_targets
       ;;
 

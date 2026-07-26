@@ -88,10 +88,8 @@ for script in scripts/*.sh; do
   bash -n "$script"
 done
 
-if grep -H '^source = "git+' rust/Cargo.lock rust/fuzz/Cargo.lock tools/hns-header-snapshot-exporter/Cargo.lock; then
-  echo "Cargo Git dependencies are not allowed in locked build inputs." >&2
-  exit 1
-fi
+python3 -m unittest -v tests/test_cargo_git_policy.py
+python3 scripts/verify_cargo_git_policy.py
 
 "${CARGO[@]}" metadata --locked --manifest-path rust/Cargo.toml --no-deps --format-version 1 >/dev/null
 "${CARGO[@]}" metadata --locked --manifest-path rust/fuzz/Cargo.toml --no-deps --format-version 1 >/dev/null
