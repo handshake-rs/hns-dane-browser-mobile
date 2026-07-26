@@ -516,7 +516,16 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let caughtUp = BrowserSyncSummary(
             headline: "Current",
             detail: "Current",
-            status: "up_to_date"
+            syncStatusSchemaVersion: 2,
+            status: "up_to_date",
+            bestHeight: 339_308,
+            effectiveTargetHeight: 339_308,
+            lagBlocks: 0,
+            freshness: "current",
+            freshnessThresholdBlocks: 2,
+            targetSource: "corroboratedPeers",
+            targetPeerGroups: 3,
+            targetEvidenceExpired: false
         )
         let syncing = BrowserSyncSummary(
             headline: "Syncing",
@@ -524,8 +533,20 @@ final class BrowserRuntimeControlTests: XCTestCase {
             status: "syncing"
         )
 
-        XCTAssertEqual(policy.delay(after: caughtUp, consecutiveFailures: 0), 300)
-        XCTAssertEqual(policy.delay(after: syncing, consecutiveFailures: 0), 30)
+        XCTAssertEqual(policy.delay(after: caughtUp, consecutiveFailures: 0), 600)
+        XCTAssertEqual(policy.delay(after: syncing, consecutiveFailures: 0), 600)
+        XCTAssertEqual(
+            policy.delay(
+                after: BrowserSyncSummary(
+                    headline: "Syncing",
+                    detail: "Advancing",
+                    status: "syncing",
+                    accepted: 1
+                ),
+                consecutiveFailures: 0
+            ),
+            30
+        )
         XCTAssertTrue(
             BrowserSyncSummary(
                 headline: "Attention",
@@ -539,34 +560,133 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let policy = BrowserSyncSchedulingPolicy()
         for status in ["up_to_date", "synced", "attempted"] {
             let summary = try RustBrowserRuntime.syncSummary(from: [
+                "syncStatusSchemaVersion": 2,
                 "network": "mainnet",
                 "status": status,
                 "bestHeight": 339_308,
                 "bestPeerHeight": 339_308,
                 "estimatedTipHeight": 339_400,
+                "effectiveTargetHeight": 339_308,
+                "lagBlocks": 0,
+                "freshness": "current",
+                "freshnessThresholdBlocks": 2,
+                "targetSource": "corroboratedPeers",
+                "targetPeerGroups": 3,
+                "targetEvidenceExpired": false,
             ])
 
             XCTAssertTrue(summary.isCaughtUp, status)
             XCTAssertFalse(summary.isBehind, status)
             XCTAssertEqual(summary.headline, "Handshake headers current", status)
-            XCTAssertEqual(policy.delay(after: summary, consecutiveFailures: 0), 300)
+            XCTAssertEqual(policy.delay(after: summary, consecutiveFailures: 0), 600)
         }
 
         let behind = try RustBrowserRuntime.syncSummary(from: [
+            "syncStatusSchemaVersion": 2,
             "network": "mainnet",
             "status": "attempted",
             "bestHeight": 339_000,
             "bestPeerHeight": 339_308,
             "estimatedTipHeight": 339_400,
+            "effectiveTargetHeight": 339_308,
+            "lagBlocks": 308,
+            "freshness": "stale",
+            "freshnessThresholdBlocks": 2,
+            "targetSource": "corroboratedPeers",
+            "targetPeerGroups": 3,
+            "targetEvidenceExpired": false,
         ])
         XCTAssertTrue(behind.isBehind)
         XCTAssertFalse(behind.isCaughtUp)
         XCTAssertEqual(behind.headline, "Syncing Handshake headers")
-        XCTAssertEqual(policy.delay(after: behind, consecutiveFailures: 0), 30)
+        XCTAssertEqual(policy.delay(after: behind, consecutiveFailures: 0), 600)
+
+        let legacy = try RustBrowserRuntime.syncSummary(from: [
+            "network": "mainnet",
+            "status": "up_to_date",
+            "bestHeight": 339_308,
+            "bestPeerHeight": 339_308,
+            "estimatedTipHeight": 339_400,
+        ])
+        XCTAssertFalse(legacy.isCaughtUp)
+        XCTAssertNil(legacy.targetHeight)
+        XCTAssertEqual(legacy.freshness, "unknown")
+        XCTAssertEqual(legacy.headline, "Handshake sync up to date")
+        XCTAssertEqual(policy.delay(after: legacy, consecutiveFailures: 0), 600)
+    }
+
+    func testAuthoritativeCurrentnessRequiresExactVersionedContract() throws {
+        let current: [String: Any] = [
+            "syncStatusSchemaVersion": 2,
+            "status": "up_to_date",
+            "bestHeight": 339_308,
+            "effectiveTargetHeight": 339_308,
+            "lagBlocks": 0,
+            "freshness": "current",
+            "freshnessThresholdBlocks": 2,
+            "targetSource": "corroboratedPeers",
+            "targetPeerGroups": 3,
+            "targetEvidenceExpired": false,
+        ]
+        var variants: [[String: Any]] = []
+
+        var missingVersion = current
+        missingVersion.removeValue(forKey: "syncStatusSchemaVersion")
+        variants.append(missingVersion)
+
+        var legacyThreshold = current
+        legacyThreshold["freshnessThresholdBlocks"] = 144
+        variants.append(legacyThreshold)
+
+        var insufficientGroups = current
+        insufficientGroups["targetPeerGroups"] = 2
+        variants.append(insufficientGroups)
+
+        var expiredEvidence = current
+        expiredEvidence["targetEvidenceExpired"] = true
+        variants.append(expiredEvidence)
+
+        var genesis = current
+        genesis["bestHeight"] = 0
+        genesis["effectiveTargetHeight"] = 0
+        variants.append(genesis)
+
+        for variant in variants {
+            let summary = try RustBrowserRuntime.syncSummary(from: variant)
+            XCTAssertFalse(summary.hasAuthoritativeCurrentness)
+            XCTAssertFalse(summary.isCaughtUp)
+        }
+    }
+
+    func testSyncSummaryRejectsMalformedUnsignedNumbers() throws {
+        let malformedValues: [NSNumber] = [
+            NSNumber(value: -1),
+            NSNumber(value: 1.5),
+            NSNumber(value: true),
+            NSDecimalNumber(string: "18446744073709551616"),
+        ]
+
+        for malformed in malformedValues {
+            let summary = try RustBrowserRuntime.syncSummary(from: [
+                "syncStatusSchemaVersion": 2,
+                "status": "up_to_date",
+                "bestHeight": malformed,
+                "effectiveTargetHeight": 339_308,
+                "lagBlocks": 0,
+                "freshness": "current",
+                "freshnessThresholdBlocks": 2,
+                "targetSource": "corroboratedPeers",
+                "targetPeerGroups": 3,
+                "targetEvidenceExpired": false,
+            ])
+            XCTAssertNil(summary.bestHeight)
+            XCTAssertFalse(summary.isCaughtUp)
+        }
     }
 
     func testNativeSyncSummaryPreservesUsefulRuntimeResults() throws {
         let summary = try RustBrowserRuntime.syncSummary(from: [
+            "syncStatusSchemaVersion": 2,
             "network": "mainnet",
             "status": "up_to_date",
             "attempted": 4,
@@ -578,6 +698,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "bestHeight": 250_000,
             "bestPeerHeight": 250_000,
             "estimatedTipHeight": 250_000,
+            "effectiveTargetHeight": 250_000,
+            "lagBlocks": 0,
+            "freshness": "current",
+            "freshnessThresholdBlocks": 2,
+            "targetSource": "corroboratedPeers",
+            "targetPeerGroups": 3,
+            "targetEvidenceExpired": false,
             "resourceCacheEntries": 14,
             "resourceCacheBytes": 4_096,
             "resourceCacheEvicted": 2,
@@ -586,6 +713,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ])
 
         XCTAssertEqual(summary.network, "mainnet")
+        XCTAssertEqual(summary.syncStatusSchemaVersion, 2)
         XCTAssertEqual(summary.status, "up_to_date")
         XCTAssertEqual(summary.attempted, 4)
         XCTAssertEqual(summary.successful, 3)
@@ -596,6 +724,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(summary.bestHeight, 250_000)
         XCTAssertEqual(summary.bestPeerHeight, 250_000)
         XCTAssertEqual(summary.estimatedTipHeight, 250_000)
+        XCTAssertEqual(summary.effectiveTargetHeight, 250_000)
+        XCTAssertEqual(summary.lagBlocks, 0)
+        XCTAssertEqual(summary.freshness, "current")
+        XCTAssertEqual(summary.freshnessThresholdBlocks, 2)
+        XCTAssertEqual(summary.targetSource, "corroboratedPeers")
+        XCTAssertEqual(summary.targetPeerGroups, 3)
+        XCTAssertFalse(summary.targetEvidenceExpired)
         XCTAssertEqual(summary.resourceCacheEntries, 14)
         XCTAssertEqual(summary.resourceCacheBytes, 4_096)
         XCTAssertEqual(summary.resourceCacheEvicted, 2)

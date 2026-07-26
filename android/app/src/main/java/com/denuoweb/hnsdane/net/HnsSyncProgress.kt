@@ -6,6 +6,7 @@ import java.text.NumberFormat
 import java.util.Locale
 
 data class HnsSyncProgress(
+    val syncStatusSchemaVersion: Long?,
     val status: String,
     val bestHeight: Long?,
     val bestPeerHeight: Long?,
@@ -16,9 +17,16 @@ data class HnsSyncProgress(
     val peerCount: Long?,
     val peerGroups: Long?,
     val estimatedTipHeight: Long?,
+    val effectiveTargetHeight: Long?,
+    val lagBlocks: Long?,
+    val freshness: String,
+    val freshnessThresholdBlocks: Long?,
+    val targetSource: String,
+    val targetPeerGroups: Long?,
+    val targetEvidenceExpired: Boolean?,
 ) {
     val targetHeight: Long?
-        get() = bestPeerHeight ?: estimatedTipHeight
+        get() = effectiveTargetHeight
 
     val isBehind: Boolean
         get() {
@@ -30,15 +38,32 @@ data class HnsSyncProgress(
     val isBehindKnownPeer: Boolean
         get() {
             val best = bestHeight ?: return false
-            val peer = bestPeerHeight ?: return false
-            return peer > best
+            val target = effectiveTargetHeight ?: return false
+            return target > best
         }
 
     val isCurrent: Boolean
-        get() = status == "up_to_date" || (status in CURRENT_STATUSES && !isBehind)
+        get() {
+            if (syncStatusSchemaVersion != CURRENT_SCHEMA_VERSION) return false
+            val best = bestHeight ?: return false
+            val target = effectiveTargetHeight ?: return false
+            val lag = lagBlocks ?: return false
+            val threshold = freshnessThresholdBlocks ?: return false
+            return status in CURRENT_STATUSES &&
+                freshness == "current" &&
+                targetSource == "corroboratedPeers" &&
+                best > 0L &&
+                target >= best &&
+                lag >= 0L &&
+                threshold == 2L &&
+                lag == target - best &&
+                lag <= threshold &&
+                (targetPeerGroups ?: 0L) >= 3L &&
+                targetEvidenceExpired == false
+        }
 
     val shouldContinueSoon: Boolean
-        get() = isBehindKnownPeer || hasUnknownTargetProgress || status == "syncing"
+        get() = !isCurrent && (accepted ?: 0L) > 0L
 
     val shouldRetrySoon: Boolean
         get() = status in RETRY_STATUSES || needsPeerDiscovery
@@ -46,7 +71,7 @@ data class HnsSyncProgress(
     val hasUnknownTargetProgress: Boolean
         get() = bestHeight != null &&
             bestHeight > 0L &&
-            bestPeerHeight == null &&
+            effectiveTargetHeight == null &&
             ((accepted ?: 0L) > 0L || status == "syncing")
 
     val needsPeerDiscovery: Boolean
@@ -64,9 +89,14 @@ data class HnsSyncProgress(
         val target = targetHeight
         val targetPart = when {
             isBehind && target != null -> "target ${target.formatHeight()}"
-            bestPeerHeight != null -> "bestPeerHeight ${bestPeerHeight.formatHeight()}"
-            estimatedTipHeight != null -> "target ${estimatedTipHeight.formatHeight()}"
+            target != null -> "target ${target.formatHeight()}"
             else -> "target unknown"
+        }
+        val freshnessPart = " • freshness $freshness"
+        val diagnosticPart = when {
+            bestPeerHeight != null -> " • raw peer ${bestPeerHeight.formatHeight()}"
+            estimatedTipHeight != null -> " • estimate ${estimatedTipHeight.formatHeight()}"
+            else -> ""
         }
         val acceptedPart = accepted
             ?.takeIf { it > 0L }
@@ -76,7 +106,7 @@ data class HnsSyncProgress(
             ?.takeIf { it > 0L }
             ?.let { " • peers ${it.formatHeight()}" }
             .orEmpty()
-        return "${status.ifBlank { "idle" }} • bestHeight $formattedBest • $targetPart$acceptedPart$peerPart"
+        return "${status.ifBlank { "idle" }} • bestHeight $formattedBest • $targetPart$freshnessPart$diagnosticPart$acceptedPart$peerPart"
     }
 
     fun summary(context: Context): String {
@@ -84,15 +114,14 @@ data class HnsSyncProgress(
         val target = targetHeight
         val targetPart = when {
             isBehind && target != null -> context.getString(R.string.sync_progress_target, target.formatHeight(context))
-            bestPeerHeight != null -> context.getString(
-                R.string.sync_progress_best_peer_height,
-                bestPeerHeight.formatHeight(context),
-            )
-            estimatedTipHeight != null -> context.getString(
-                R.string.sync_progress_target,
-                estimatedTipHeight.formatHeight(context),
-            )
+            target != null -> context.getString(R.string.sync_progress_target, target.formatHeight(context))
             else -> context.getString(R.string.sync_progress_target_unknown)
+        }
+        val freshnessPart = " • freshness $freshness"
+        val diagnosticPart = when {
+            bestPeerHeight != null -> " • raw peer ${bestPeerHeight.formatHeight(context)}"
+            estimatedTipHeight != null -> " • estimate ${estimatedTipHeight.formatHeight(context)}"
+            else -> ""
         }
         val acceptedPart = accepted
             ?.takeIf { it > 0L }
@@ -107,7 +136,7 @@ data class HnsSyncProgress(
             statusLabel(context),
             formattedBest,
             targetPart,
-            acceptedPart,
+            freshnessPart + diagnosticPart + acceptedPart,
             peerPart,
         )
     }
@@ -130,12 +159,14 @@ data class HnsSyncProgress(
         }
 
     companion object {
-        private val CURRENT_STATUSES = setOf("synced", "attempted")
+        private val CURRENT_STATUSES = setOf("up_to_date", "synced", "attempted")
         private val RETRY_STATUSES = setOf("error", "peer_failed", "seed_failed")
+        private const val CURRENT_SCHEMA_VERSION = 2L
 
         fun fromJson(statusJson: String?): HnsSyncProgress {
             if (statusJson.isNullOrBlank()) {
                 return HnsSyncProgress(
+                    syncStatusSchemaVersion = null,
                     status = "idle",
                     bestHeight = null,
                     bestPeerHeight = null,
@@ -146,9 +177,17 @@ data class HnsSyncProgress(
                     peerCount = null,
                     peerGroups = null,
                     estimatedTipHeight = null,
+                    effectiveTargetHeight = null,
+                    lagBlocks = null,
+                    freshness = "unknown",
+                    freshnessThresholdBlocks = null,
+                    targetSource = "unknown",
+                    targetPeerGroups = null,
+                    targetEvidenceExpired = null,
                 )
             }
             return HnsSyncProgress(
+                syncStatusSchemaVersion = longField(statusJson, "syncStatusSchemaVersion"),
                 status = stringField(statusJson, "status") ?: "idle",
                 bestHeight = longField(statusJson, "bestHeight"),
                 bestPeerHeight = longField(statusJson, "bestPeerHeight"),
@@ -159,6 +198,13 @@ data class HnsSyncProgress(
                 peerCount = longField(statusJson, "peerCount"),
                 peerGroups = longField(statusJson, "peerGroups"),
                 estimatedTipHeight = longField(statusJson, "estimatedTipHeight"),
+                effectiveTargetHeight = longField(statusJson, "effectiveTargetHeight"),
+                lagBlocks = longField(statusJson, "lagBlocks"),
+                freshness = stringField(statusJson, "freshness") ?: "unknown",
+                freshnessThresholdBlocks = longField(statusJson, "freshnessThresholdBlocks"),
+                targetSource = stringField(statusJson, "targetSource") ?: "unknown",
+                targetPeerGroups = longField(statusJson, "targetPeerGroups"),
+                targetEvidenceExpired = booleanField(statusJson, "targetEvidenceExpired"),
             )
         }
 
@@ -168,9 +214,18 @@ data class HnsSyncProgress(
         }
 
         private fun longField(json: String, name: String): Long? {
-            val pattern = """"$name"\s*:\s*(null|-?\d+)""".toRegex()
+            val pattern = """"$name"\s*:\s*(null|-?\d+)(?=\s*[,}])""".toRegex()
             val value = pattern.find(json)?.groupValues?.getOrNull(1) ?: return null
             return value.takeUnless { it == "null" }?.toLongOrNull()
+        }
+
+        private fun booleanField(json: String, name: String): Boolean? {
+            val pattern = """"$name"\s*:\s*(true|false|null)(?=\s*[,}])""".toRegex()
+            return when (pattern.find(json)?.groupValues?.getOrNull(1)) {
+                "true" -> true
+                "false" -> false
+                else -> null
+            }
         }
     }
 }

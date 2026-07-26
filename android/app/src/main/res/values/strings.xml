@@ -422,6 +422,10 @@
     <string name="trace_field_local_best_height">Local best height: %1$s</string>
     <string name="trace_field_target_height">Target height: %1$s</string>
     <string name="trace_field_estimated_target_height">Estimated target height: %1$s</string>
+    <string name="trace_field_local_chain_lag_blocks">Local chain lag: %1$s blocks</string>
+    <string name="trace_field_local_chain_freshness">Local chain freshness: %1$s</string>
+    <string name="trace_field_local_chain_target_source">Currentness target source: %1$s</string>
+    <string name="trace_field_local_chain_freshness_threshold">Freshness threshold: %1$s blocks</string>
     <string name="trace_field_local_chain_stale">Local chain stale: %1$s</string>
     <string name="trace_field_delegation">Delegation: %1$s</string>
     <string name="trace_field_resolution_source">Resolution source: %1$s</string>

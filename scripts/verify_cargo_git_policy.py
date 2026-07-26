@@ -13,7 +13,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
-ENGINE_REVISION = "fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159"
+ENGINE_REVISION = "be58b041b74403042b134a95dcc4588c89ad549b"
 ENGINE_LOCK_SOURCE = (
     f"git+{ENGINE_GIT_URL}?rev={ENGINE_REVISION}#{ENGINE_REVISION}"
 )

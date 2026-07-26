@@ -25,7 +25,7 @@ It does not claim that the coordination-wide PDF is complete.
 | Explicit migration without turning old HNSDoH consent into relay consent | Implemented | Android and iOS erase legacy resolver/trust fields. Former resolver compatibility consent never enables relay consumption, and fresh installs remain off until explicit requester opt-in. |
 | P2P ODoH: Preferred/Required/Direct Allowed/Off | Not implemented in this checkout | No HIP #77 requester, HPKE/ODoH runtime, status model, or native control exists here. Do not represent the current direct relay as ODoH or query-confidential. |
 | HNSR: Off/Client/Endpoint | Not implemented in this checkout | No HIP #78 runtime or native control exists here. Mobile lifecycle, network-change, renewal, withdrawal, and stale-generation tests for HNSR remain required. |
-| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), and live resolution follows the canonical direct-authority UDP/TCP → authenticated authoritative DoH → admitted relay order while unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
+| Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `be58b041b74403042b134a95dcc4588c89ad549b`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), and live resolution follows the canonical direct-authority UDP/TCP → authenticated authoritative DoH → admitted relay order while unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
 | Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
 | Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Exact-build physical Android and iOS device matrices, mobile network transitions, and the PDF’s ODoH/HNSR lifecycle cases remain release gates. |
@@ -111,7 +111,7 @@ rebuilt after this source checkpoint before they can be release evidence.
 
 The five shared engine crates resolve from immutable
 `handshake-rs/hns-dane-engine` commit
-`fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159`; a standalone checkout no longer
+`be58b041b74403042b134a95dcc4588c89ad549b`; a standalone checkout no longer
 depends on the coordination workspace layout.
 
 The source covers normal navigation, same- and cross-origin redirects through
@@ -129,7 +129,7 @@ WebKit network-process behavior.
 ## Checkpoint Verification
 
 Post-fix validation against engine revision
-`fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159` passed on Linux on 2026-07-26:
+`be58b041b74403042b134a95dcc4588c89ad549b` passed on Linux on 2026-07-26:
 
 - The affected library suites passed: `hns-dnssec` (60 tests),
   `hns-resolver` (67), `hns-gateway` (50), and

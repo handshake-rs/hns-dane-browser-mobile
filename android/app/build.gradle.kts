@@ -555,8 +555,8 @@ android {
         applicationId = "com.denuoweb.hnsdane"
         minSdk = 34
         targetSdk = 37
-        versionCode = 40
-        versionName = "0.5.0"
+        versionCode = 41
+        versionName = "0.5.1"
 
         buildConfigField("String", "HNS_DEFAULT_HANDSHAKE_NETWORK", "\"mainnet\"")
         buildConfigField("boolean", "HNS_DEFAULT_STRICT_MODE", "true")

@@ -9,7 +9,7 @@ reviewed submission artifact, not a required pull-request check.
 gh workflow run ios-screenshots.yml \
   --repo handshake-rs/hns-dane-browser-mobile \
   --ref main \
-  -f reason='App Store 0.5.0 submission'
+  -f reason='App Store 0.5.1 submission'
 ```
 
 Download the artifact named `ios-app-store-live-screenshots-COMMIT_SHA`. It

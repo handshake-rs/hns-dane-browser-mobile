@@ -15,10 +15,19 @@ The proof-backed path does not trust a single peer, public recursive HNS resolve
 - Experimental stateless DANE certificate evidence is off by default and retained only as legacy research code. It cannot be combined with the immutable dual-root prepared-plan boundary without adding a second resolution authority. Enabling it on a prepared browser request therefore fails closed before an origin response is exposed; it never falls back to a post-selection live resolver.
 - Sync stale: block HNS secure state and show a sync-specific browser error.
 - Sync attempts that make no progress must distinguish up-to-date peers from all-peer failure.
-- Sync catch-up must continue while persisted `bestPeerHeight` or the estimated mainnet tip is greater than local `bestHeight`, regardless of whether the latest native tick accepted headers.
-- HNS browser state must not show verified unless the proxy is active, the native sync status is `synced` or `up_to_date`, and the current main-frame HNS gateway response has not failed.
+- Raw `bestPeerHeight` and the estimated mainnet tip are diagnostic only.
+  Authoritative currentness requires sync-status schema version 2, a non-genesis
+  locally validated tip within two blocks of the effective target, at least
+  three recent independent peer address groups, and explicitly non-expired
+  target evidence.
+- HNS browser state must not show ready unless the proxy is active, native
+  status is `attempted`, `synced`, or `up_to_date` with that authoritative
+  currentness contract, and the current main-frame HNS gateway response has not
+  failed.
 - Main-frame HNS gateway 4xx/5xx responses must override ready sync state and show validation failed.
-- No-network sync status reads may report `up_to_date` only when stored peer heights are not ahead of a non-genesis local best header.
+- No-network sync status reads may report `up_to_date` only when a recent
+  corroborated effective target is not ahead of a non-genesis local best
+  header.
 - Gateway exposure beyond loopback: configuration error.
 - Browser-visible HNS gateway errors must identify the failing stage without exposing private request bodies.
 - Gateway diagnostics must persist only bounded, sanitized stage/host/status/reason events in app-private storage; paths, query strings, request headers, and response/request bodies stay out of default logs.
@@ -138,7 +147,14 @@ does not by itself change peer score or start a cooldown. See
 - P2P frames reject wrong network magic and payloads above the 8 MB HSD message limit.
 - P2P sockets must use bounded frame decoding, connection timeouts, and session-state checks before accepting headers or proofs.
 - Header sync must not request additional headers from a peer whose advertised height is not ahead of the local best header.
-- Android first-run header sync should use active polling and high-batch native runs while behind, then fall back to idle polling only after stored peer heights are not ahead.
+- Android first-run header sync should use active polling and high-batch native
+  runs while behind, then fall back to idle polling only after the validated
+  tip is within two blocks of a recent corroborated target.
+- The 144-block canonical proof-cache window is reorganization retention, not
+  a freshness allowance. Currentness requires recent agreement from at least
+  three independent peer address groups; the raw highest claim and schedule
+  estimate cannot authorize resolution, and missing corroboration fails
+  closed.
 - Transient peer failures must not permanently exhaust the outbound peer pool; malformed consensus data is still scored and cooldown-banned.
 - Peer-gossip addresses are advisory only; addr packets are bounded, deduplicated, service-filtered, and still subject to outbound peer scoring before any header or proof data is accepted.
 - Version packets use HSD's 88-byte network address format rather than Bitcoin's shorter address encoding.
@@ -147,6 +163,10 @@ does not by itself change peer score or start a cooldown. See
 - No experimental relay request is sent before a complete handshake or to a peer whose current version message lacks the temporary capability bit.
 - Relay-only connections advertise zero local services, including no `SERVICE_NETWORK`; consuming relay DNS does not claim that the requester serves headers, proofs, or relay requests.
 - No height advertised during an automatic relay handshake or manual static-relay capability probe is recorded as a peer sync target or used for local-chain currentness; only header-sync sessions may record an observed height.
+- Header-observation time is persisted independently from general connection
+  time. Proof and relay success may update liveness but cannot refresh an old
+  height, and relay/store merges keep each height atomically paired with its
+  observation time.
 - No relayed answer can set secure state from AD; it must pass the same local delegated DNSSEC and DANE validation as direct authoritative DNS.
 - No relay request carries an arbitrary destination, non-IN/multi-question query, a type outside the HIP allowlist, ANY/AXFR/IXFR, ECS, or a non-HNS root. Query header flags, empty answer/authority sections, and the single EDNS(0) OPT's owner, version, extended RCODE, `DO`, payload size, reserved flags, and options are validated before transmission.
 - No relay timeout, disconnect, transport status, or malformed response is cached as NXDOMAIN/NODATA.
@@ -240,12 +260,17 @@ does not by itself change peer score or start a cooldown. See
   unchanged through the selected transport, status, response, file, or tunnel
   result. A same-generation `Degraded` to `Active` recovery cannot remint or
   revive work admitted before the degradation.
-- No response or HTTP 101 head may cross a concurrent replacement or revocation
-  between its final exact-stamp check and publication. Each result carries an
-  opaque publication capability bound to that exact stamp. A successful
-  result's pending sticky namespace binding is committed only after this permit
-  is acquired, and the same canonical lifecycle lock remains held through the
-  head flush. Stop requests cancellation before waiting on that lock, and
+- No response or HTTP 101 head may cross concurrent header maintenance,
+  replacement, or revocation between its final checks and publication. Each
+  result carries an opaque capability bound to its exact authority stamp and
+  the nonzero maintenance epoch captured under the request read lock. Final
+  publication reacquires that lock, validates the epoch, then retains both the
+  maintenance and canonical lifecycle guards through the head flush. Sync,
+  resolver-cache clear, snapshot install, and header reset advance the epoch
+  before mutation under the exclusive lock; an older result is rejected if
+  maintenance won, while maintenance waits if publication won. A successful
+  result's pending sticky namespace binding is committed only inside this
+  permit. Stop requests cancellation before waiting on the lifecycle lock, and
   response-body/tunnel work remains cancellation and exact-stamp checked after
   the permit is released. A backend error or invalid response head cannot cause
   the server to synthesize an unstamped fallback head.

@@ -2,7 +2,7 @@
 
 Last audited: 2026-07-25
 
-This audit treats the repository as a candidate update to an existing public Google Play app, not as a first closed-testing launch. The live listing observed during the prior audit served version `0.3.1` (`versionCode 22`), while the current source declares Android `0.5.0` (`versionCode 40`) with Rust engine `0.5.0`. The strict-HNS migration changes made after the last signed build require fresh APK/AAB generation, artifact verification, hosted CI, and exact-build release-device verification. Previously recorded `0.5.0` and `0.4.1` hashes are historical evidence only and do not identify the current source checkpoint.
+This audit treats the repository as a candidate update to an existing public Google Play app, not as a first closed-testing launch. The live listing observed during the prior audit served version `0.3.1` (`versionCode 22`), while the current source declares Android `0.5.1` (`versionCode 41`) with Rust engine `0.5.1` and iOS `0.5.1` (`45`). The strict-HNS migration changes made after the last signed build require fresh APK/AAB generation, artifact verification, hosted CI, and exact-build release-device verification. Previously recorded `0.5.0` and `0.4.1` hashes are historical evidence only and do not identify the current source checkpoint.
 
 ## Release Candidate Findings
 
@@ -50,22 +50,18 @@ This audit treats the repository as a candidate update to an existing public Goo
 
 ## Candidate Verification Status
 
-- `0.5.0` / code 40 portable source checks: passed locked/offline changed-package
-  Rust tests (469 mobile-workspace tests plus 7 Git-pinned engine contract tests),
-  full warning-denied workspace Clippy, optimized
-  locked/offline workspace build, Rust formatting, Apple C ABI/header/symbol
-  checks, version/runtime-boundary/generated-notice checks, and all 19 portable
-  screenshot-tool tests on 2026-07-25. The consolidated `check.sh` was not
-  rerun; no fresh cargo-deny, fuzz, exporter, store-metadata, Android-resource,
-  or iOS simulator-selector pass is claimed.
-- `0.5.0` / code 40 Android unit tests and lint: not run; Gradle stopped at
+- `0.5.1` / code 41 portable source checks: the complete `scripts/check.sh`
+  gate passed on 2026-07-26, including supply-chain, generated-notice, version,
+  runtime-boundary, formatting, warning-denied Clippy, Apple C ABI, cargo-deny,
+  full Rust workspace tests, fuzz smoke, and header-snapshot-exporter checks.
+- `0.5.1` / code 41 Android unit tests and lint: not run; Gradle stops at
   configuration with `SDK location not found` because this host has no
   configured Android SDK/NDK.
-- `0.5.0` Apple XCTest/simulator qualification: not run; this Linux host has no
+- `0.5.1` / build 45 Apple XCTest/simulator qualification: not run; this Linux host has no
   Xcode/iOS SDK. The portable C ABI compile/link suite passed.
-- `0.5.0` hosted CI checks: pending.
-- `0.5.0` signed APK/AAB verification and hashes: historical artifacts only; current-source rebuild pending.
-- `0.5.0` exact signed-build physical-device acceptance: pending because the Pixel 9 physically disconnected before installation.
+- `0.5.1` hosted CI checks: pending.
+- `0.5.1` signed APK/AAB verification and hashes: no candidate artifacts yet; current-source rebuild pending.
+- `0.5.1` exact signed-build physical-device acceptance: pending.
 
 ## Historical `0.4.1` Evidence
 
@@ -81,4 +77,4 @@ This audit treats the repository as a candidate update to an existing public Goo
 - Release AAB signing and Play upload remain secret-dependent external operations. CI should build and structurally verify an unsigned release bundle without receiving signing or Play credentials.
 - General-purpose browsing can reach arbitrary third-party content; keep target audience and content rating conservative and consistent with the live listing.
 - Re-review the accepted hosted policy, repository policy, in-app privacy copy, and live Data safety answers whenever a material networking, storage, diagnostics, or third-party-service behavior changes.
-- The hosted policy accepted for the historical release is now materially less complete than the `0.5.0` repository disclosure and must be updated before submission.
+- The hosted policy accepted for the historical release is now materially less complete than the `0.5.1` repository disclosure and must be updated before submission.

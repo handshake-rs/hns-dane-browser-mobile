@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 import HnsBrowserRuntime
 
 private enum RustBridgeError: LocalizedError {
@@ -226,10 +227,10 @@ final class RustBrowserRuntime: BrowserRuntime {
             nameHash: Self.string(in: object, key: "nameHash"),
             hnsProof: hnsProof,
             proofStatus: proofStatus,
-            secure: (object["secure"] as? NSNumber)?.boolValue,
-            exists: (object["exists"] as? NSNumber)?.boolValue,
+            secure: Self.boolean(in: object, key: "secure"),
+            exists: Self.boolean(in: object, key: "exists"),
             treeRoot: Self.string(in: object, key: "treeRoot"),
-            blockHeight: (object["blockHeight"] as? NSNumber)?.uint64Value,
+            blockHeight: Self.unsignedInteger(in: object, key: "blockHeight"),
             cacheStatus: cacheStatus,
             recordTypes: object["recordTypes"] as? [String] ?? [],
             error: error,
@@ -311,22 +312,51 @@ final class RustBrowserRuntime: BrowserRuntime {
             throw RustBridgeError.invalidOutput("sync status is missing")
         }
         let error = string(in: object, key: "error")
-        let bestHeight = (object["bestHeight"] as? NSNumber)?.uint64Value
-        let peerHeight = (object["bestPeerHeight"] as? NSNumber)?.uint64Value
-        let estimatedTipHeight = (object["estimatedTipHeight"] as? NSNumber)?.uint64Value
-        let attempted = (object["attempted"] as? NSNumber)?.intValue ?? 0
-        let successful = (object["successful"] as? NSNumber)?.intValue ?? 0
-        let accepted = (object["accepted"] as? NSNumber)?.intValue ?? 0
-        let failed = (object["failed"] as? NSNumber)?.intValue ?? 0
-        let cacheEntries = (object["resourceCacheEntries"] as? NSNumber)?.intValue ?? 0
-        let cacheBytes = (object["resourceCacheBytes"] as? NSNumber)?.uint64Value ?? 0
-        let cacheEvicted = (object["resourceCacheEvicted"] as? NSNumber)?.intValue ?? 0
-        let targetHeight = peerHeight ?? estimatedTipHeight
-        let isBehind = bestHeight.flatMap { best in
-            targetHeight.map { target in target > best }
-        } ?? false
-        let isCurrent = status == "up_to_date"
-            || (["synced", "attempted"].contains(status) && !isBehind)
+        let syncStatusSchemaVersion = unsignedInteger(
+            in: object,
+            key: "syncStatusSchemaVersion"
+        )
+        let bestHeight = unsignedInteger(in: object, key: "bestHeight")
+        let peerHeight = unsignedInteger(in: object, key: "bestPeerHeight")
+        let estimatedTipHeight = unsignedInteger(in: object, key: "estimatedTipHeight")
+        let effectiveTargetHeight = unsignedInteger(in: object, key: "effectiveTargetHeight")
+        let lagBlocks = unsignedInteger(in: object, key: "lagBlocks")
+        let freshness = string(in: object, key: "freshness") ?? "unknown"
+        let freshnessThresholdBlocks = unsignedInteger(
+            in: object,
+            key: "freshnessThresholdBlocks"
+        )
+        let targetSource = string(in: object, key: "targetSource") ?? "unknown"
+        let targetPeerGroups = nonnegativeInt(in: object, key: "targetPeerGroups") ?? 0
+        let targetEvidenceExpired = boolean(in: object, key: "targetEvidenceExpired") ?? true
+        let attempted = nonnegativeInt(in: object, key: "attempted") ?? 0
+        let successful = nonnegativeInt(in: object, key: "successful") ?? 0
+        let accepted = nonnegativeInt(in: object, key: "accepted") ?? 0
+        let failed = nonnegativeInt(in: object, key: "failed") ?? 0
+        let cacheEntries = nonnegativeInt(in: object, key: "resourceCacheEntries") ?? 0
+        let cacheBytes = unsignedInteger(in: object, key: "resourceCacheBytes") ?? 0
+        let cacheEvicted = nonnegativeInt(in: object, key: "resourceCacheEvicted") ?? 0
+        let hasAuthoritativeCurrentness: Bool
+        if syncStatusSchemaVersion == 2,
+           freshness == "current",
+           targetSource == "corroboratedPeers",
+           let bestHeight,
+           let effectiveTargetHeight,
+           let lagBlocks,
+           let freshnessThresholdBlocks,
+           bestHeight > 0,
+           effectiveTargetHeight >= bestHeight,
+           freshnessThresholdBlocks == 2,
+           targetPeerGroups >= 3,
+           !targetEvidenceExpired {
+            hasAuthoritativeCurrentness =
+                lagBlocks == effectiveTargetHeight - bestHeight
+                && lagBlocks <= 2
+        } else {
+            hasAuthoritativeCurrentness = false
+        }
+        let isCurrent = ["up_to_date", "synced", "attempted"].contains(status)
+            && hasAuthoritativeCurrentness
 
         let headline: String
         if isCurrent {
@@ -349,24 +379,34 @@ final class RustBrowserRuntime: BrowserRuntime {
             detail = "The runtime resolver cache now contains \(cacheEntries) entries."
         } else {
             let best = bestHeight.map(String.init) ?? "unknown"
+            let target = effectiveTargetHeight.map(String.init) ?? "unknown"
             let peer = peerHeight.map(String.init) ?? "unknown"
-            detail = "Local height \(best) · peer height \(peer) · accepted \(accepted)/\(attempted)"
+            let estimate = estimatedTipHeight.map(String.init) ?? "unknown"
+            detail = "Local height \(best) · effective target \(target) · freshness \(freshness) · raw peer \(peer) · estimate \(estimate) · accepted \(accepted)/\(attempted)"
         }
 
         return BrowserSyncSummary(
             headline: headline,
             detail: detail,
+            syncStatusSchemaVersion: syncStatusSchemaVersion,
             status: status,
             network: string(in: object, key: "network"),
             attempted: attempted,
             successful: successful,
             accepted: accepted,
             failed: failed,
-            peerCount: (object["peerCount"] as? NSNumber)?.intValue ?? 0,
-            peerGroups: (object["peerGroups"] as? NSNumber)?.intValue ?? 0,
+            peerCount: nonnegativeInt(in: object, key: "peerCount") ?? 0,
+            peerGroups: nonnegativeInt(in: object, key: "peerGroups") ?? 0,
             bestHeight: bestHeight,
             bestPeerHeight: peerHeight,
             estimatedTipHeight: estimatedTipHeight,
+            effectiveTargetHeight: effectiveTargetHeight,
+            lagBlocks: lagBlocks,
+            freshness: freshness,
+            freshnessThresholdBlocks: freshnessThresholdBlocks,
+            targetSource: targetSource,
+            targetPeerGroups: targetPeerGroups,
+            targetEvidenceExpired: targetEvidenceExpired,
             resourceCacheEntries: cacheEntries,
             resourceCacheBytes: cacheBytes,
             resourceCacheEvicted: cacheEvicted,
@@ -377,6 +417,33 @@ final class RustBrowserRuntime: BrowserRuntime {
     private static func string(in object: [String: Any], key: String) -> String? {
         guard let value = object[key] as? String, !value.isEmpty else { return nil }
         return value
+    }
+
+    private static func unsignedInteger(in object: [String: Any], key: String) -> UInt64? {
+        guard let number = object[key] as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID()
+        else {
+            return nil
+        }
+        return UInt64(number.stringValue)
+    }
+
+    private static func nonnegativeInt(in object: [String: Any], key: String) -> Int? {
+        guard let value = unsignedInteger(in: object, key: key),
+              value <= UInt64(Int.max)
+        else {
+            return nil
+        }
+        return Int(value)
+    }
+
+    private static func boolean(in object: [String: Any], key: String) -> Bool? {
+        guard let number = object[key] as? NSNumber,
+              CFGetTypeID(number) == CFBooleanGetTypeID()
+        else {
+            return nil
+        }
+        return number.boolValue
     }
 
 }

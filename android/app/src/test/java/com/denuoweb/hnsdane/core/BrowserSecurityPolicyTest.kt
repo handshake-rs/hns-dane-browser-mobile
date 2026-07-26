@@ -67,14 +67,14 @@ class BrowserSecurityPolicyTest {
 
     @Test
     fun hnsTargetsShowLoadingWhenSyncIsReadyButPageIsNotVerified() {
-        for (status in listOf("synced", "up_to_date")) {
+        for (status in listOf("synced", "up_to_date", "attempted")) {
             assertEquals(
                 status,
                 SecurityState.Loading,
                 BrowserSecurityPolicy.state(
                     targetKind = BrowserTargetKind.HnsName,
                     proxyAvailable = true,
-                    syncStatusJson = """{"status":"$status"}""",
+                    syncStatusJson = """{"syncStatusSchemaVersion":2,"status":"$status","bestHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
                 ),
             )
         }
@@ -87,7 +87,7 @@ class BrowserSecurityPolicyTest {
             BrowserSecurityPolicy.state(
                 targetKind = BrowserTargetKind.HnsName,
                 proxyAvailable = true,
-                syncStatusJson = """{"status":"synced","bestHeight":93344,"bestPeerHeight":335684}""",
+                syncStatusJson = """{"status":"syncing","bestHeight":93344,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":242340,"freshness":"stale","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
             ),
         )
     }
@@ -99,9 +99,48 @@ class BrowserSecurityPolicyTest {
             BrowserSecurityPolicy.state(
                 targetKind = BrowserTargetKind.HnsName,
                 proxyAvailable = true,
-                syncStatusJson = """{"status":"synced","bestHeight":92000,"bestPeerHeight":null,"estimatedTipHeight":335684}""",
+                syncStatusJson = """{"status":"syncing","bestHeight":92000,"bestPeerHeight":null,"estimatedTipHeight":335684,"effectiveTargetHeight":null,"lagBlocks":null,"freshness":"unknown","freshnessThresholdBlocks":2,"targetSource":"unknown","targetPeerGroups":0,"targetEvidenceExpired":true}""",
             ),
         )
+    }
+
+    @Test
+    fun legacyReadyStatusWithoutAuthoritativeCurrentnessFailsClosed() {
+        assertEquals(
+            SecurityState.Syncing,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.HnsName,
+                proxyAvailable = true,
+                syncStatusJson = """{"status":"up_to_date","bestHeight":335684,"bestPeerHeight":335684}""",
+            ),
+        )
+    }
+
+    @Test
+    fun mismatchedCurrentnessContractFailsClosed() {
+        val baseline =
+            """{"syncStatusSchemaVersion":2,"status":"up_to_date","bestHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}"""
+        val variants = listOf(
+            baseline.replace(""""syncStatusSchemaVersion":2,""", ""),
+            baseline.replace(""""freshnessThresholdBlocks":2""", """"freshnessThresholdBlocks":144"""),
+            baseline.replace(""""freshnessThresholdBlocks":2""", """"freshnessThresholdBlocks":2.5"""),
+            baseline.replace(""""targetPeerGroups":3""", """"targetPeerGroups":2"""),
+            baseline.replace(""""targetEvidenceExpired":false""", """"targetEvidenceExpired":true"""),
+            baseline
+                .replace(""""bestHeight":335684""", """"bestHeight":0""")
+                .replace(""""effectiveTargetHeight":335684""", """"effectiveTargetHeight":0"""),
+        )
+
+        for (statusJson in variants) {
+            assertEquals(
+                SecurityState.Syncing,
+                BrowserSecurityPolicy.state(
+                    targetKind = BrowserTargetKind.HnsName,
+                    proxyAvailable = true,
+                    syncStatusJson = statusJson,
+                ),
+            )
+        }
     }
 
     @Test

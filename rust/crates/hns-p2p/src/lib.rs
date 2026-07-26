@@ -188,6 +188,12 @@ pub struct PeerState {
     pub address: SocketAddr,
     pub score: i32,
     pub last_height: Height,
+    /// When header sync last established `last_height` as usable target evidence.
+    ///
+    /// This is intentionally independent from transport activity in
+    /// `last_connected_at`; proofs, DNS relay, and other successful connections
+    /// must not make a stale header observation fresh.
+    pub last_height_observed_at: Option<u64>,
     pub last_connected_at: Option<u64>,
     pub banned_until: Option<u64>,
     pub successes: u32,
@@ -298,6 +304,7 @@ impl PeerState {
             address,
             score: 0,
             last_height: Height(0),
+            last_height_observed_at: None,
             last_connected_at: None,
             banned_until: None,
             successes: 0,
@@ -346,18 +353,32 @@ impl PeerManager {
         source.discover().map(|peers| self.seed(peers))
     }
 
+    /// Records a header-sync-owned, validated or locally bounded height observation.
+    ///
+    /// Non-header protocols must use `record_transport_success` so they cannot
+    /// promote an unauthenticated version height or refresh old target evidence.
     pub fn record_success(&mut self, address: SocketAddr, height: Height, now: u64) {
         let peer = self.upsert(address);
         peer.score = peer.score.saturating_sub(SUCCESS_REWARD).max(0);
         peer.last_height = height;
+        peer.last_height_observed_at = Some(now);
         peer.last_connected_at = Some(now);
         peer.successes = peer.successes.saturating_add(1);
     }
 
+    /// Records header-sync-owned height evidence without changing peer score.
     pub fn record_observed_height(&mut self, address: SocketAddr, height: Height, now: u64) {
         let peer = self.upsert(address);
         peer.last_height = height;
+        peer.last_height_observed_at = Some(now);
         peer.last_connected_at = Some(now);
+    }
+
+    /// Clears header target evidence without changing transport state.
+    pub fn clear_observed_height(&mut self, address: SocketAddr) {
+        let peer = self.upsert(address);
+        peer.last_height = Height(0);
+        peer.last_height_observed_at = None;
     }
 
     /// Records a transport connection without promoting its unverified height.
@@ -651,6 +672,7 @@ impl SqlitePeerStore {
                     address TEXT PRIMARY KEY NOT NULL,
                     score INTEGER NOT NULL,
                     last_height INTEGER NOT NULL,
+                    last_height_observed_at TEXT,
                     last_connected_at TEXT,
                     banned_until TEXT,
                     successes INTEGER NOT NULL,
@@ -661,7 +683,37 @@ impl SqlitePeerStore {
                     ON peers(score, last_height);
                 ",
             )
-            .map_err(sqlite_error)
+            .map_err(sqlite_error)?;
+
+        // Existing installations predate the header-sync-owned timestamp.
+        // Preserve their diagnostic height, but leave its observation time NULL
+        // so transport activity cannot silently certify legacy evidence.
+        let has_height_observed_at = {
+            let mut statement = self
+                .connection
+                .prepare("PRAGMA table_info(peers)")
+                .map_err(sqlite_error)?;
+            let columns = statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .map_err(sqlite_error)?;
+            let mut found = false;
+            for column in columns {
+                if column.map_err(sqlite_error)? == "last_height_observed_at" {
+                    found = true;
+                    break;
+                }
+            }
+            found
+        };
+        if !has_height_observed_at {
+            self.connection
+                .execute(
+                    "ALTER TABLE peers ADD COLUMN last_height_observed_at TEXT",
+                    [],
+                )
+                .map_err(sqlite_error)?;
+        }
+        Ok(())
     }
 
     pub fn save_peer(&self, peer: &PeerState) -> Result<(), P2pError> {
@@ -672,15 +724,17 @@ impl SqlitePeerStore {
                     address,
                     score,
                     last_height,
+                    last_height_observed_at,
                     last_connected_at,
                     banned_until,
                     successes,
                     failures
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                 ON CONFLICT(address) DO UPDATE SET
                     score = excluded.score,
                     last_height = excluded.last_height,
+                    last_height_observed_at = excluded.last_height_observed_at,
                     last_connected_at = excluded.last_connected_at,
                     banned_until = excluded.banned_until,
                     successes = excluded.successes,
@@ -690,6 +744,7 @@ impl SqlitePeerStore {
                     peer.address.to_string(),
                     peer.score,
                     i64::from(peer.last_height.0),
+                    optional_u64_to_text(peer.last_height_observed_at),
                     optional_u64_to_text(peer.last_connected_at),
                     optional_u64_to_text(peer.banned_until),
                     i64::from(peer.successes),
@@ -717,6 +772,7 @@ impl SqlitePeerStore {
                     address,
                     score,
                     last_height,
+                    last_height_observed_at,
                     last_connected_at,
                     banned_until,
                     successes,
@@ -740,6 +796,7 @@ impl SqlitePeerStore {
                     address,
                     score,
                     last_height,
+                    last_height_observed_at,
                     last_connected_at,
                     banned_until,
                     successes,
@@ -782,22 +839,24 @@ fn row_to_peer_state(row: &rusqlite::Row<'_>) -> rusqlite::Result<PeerState> {
     let address_text: String = row.get(0)?;
     let score: i32 = row.get(1)?;
     let last_height_raw: i64 = row.get(2)?;
-    let last_connected_at_text: Option<String> = row.get(3)?;
-    let banned_until_text: Option<String> = row.get(4)?;
-    let successes_raw: i64 = row.get(5)?;
-    let failures_raw: i64 = row.get(6)?;
+    let last_height_observed_at_text: Option<String> = row.get(3)?;
+    let last_connected_at_text: Option<String> = row.get(4)?;
+    let banned_until_text: Option<String> = row.get(5)?;
+    let successes_raw: i64 = row.get(6)?;
+    let failures_raw: i64 = row.get(7)?;
 
-    let banned_until = optional_u64_from_text(banned_until_text, 4)?
+    let banned_until = optional_u64_from_text(banned_until_text, 5)?
         .filter(|banned_until| *banned_until != u64::MAX);
 
     Ok(PeerState {
         address: socket_addr_from_text(&address_text, 0)?,
         score,
         last_height: Height(u32_from_i64(last_height_raw, 2)?),
-        last_connected_at: optional_u64_from_text(last_connected_at_text, 3)?,
+        last_height_observed_at: optional_u64_from_text(last_height_observed_at_text, 3)?,
+        last_connected_at: optional_u64_from_text(last_connected_at_text, 4)?,
         banned_until,
-        successes: u32_from_i64(successes_raw, 5)?,
-        failures: u32_from_i64(failures_raw, 6)?,
+        successes: u32_from_i64(successes_raw, 6)?,
+        failures: u32_from_i64(failures_raw, 7)?,
     })
 }
 
@@ -2073,12 +2132,68 @@ mod tests {
             let persisted_bad = store.load_peer(bad).unwrap().unwrap();
 
             assert_eq!(persisted_good.last_height, Height(100));
+            assert_eq!(persisted_good.last_height_observed_at, Some(1_000));
             assert_eq!(persisted_good.last_connected_at, Some(1_000));
             assert_eq!(persisted_bad.banned_until, Some(1_600));
             assert!(persisted_bad.is_banned(1_200));
             assert_eq!(manager.select_outbound(8, 1_200), vec![good]);
         }
 
+        cleanup_db_path(&path);
+    }
+
+    #[test]
+    fn sqlite_peer_store_migrates_legacy_height_without_certifying_it() {
+        let path = temp_db_path("legacy-height-observation");
+        let address: SocketAddr = "127.0.0.1:12038".parse().unwrap();
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(
+                "
+                CREATE TABLE peers (
+                    address TEXT PRIMARY KEY NOT NULL,
+                    score INTEGER NOT NULL,
+                    last_height INTEGER NOT NULL,
+                    last_connected_at TEXT,
+                    banned_until TEXT,
+                    successes INTEGER NOT NULL,
+                    failures INTEGER NOT NULL
+                );
+                INSERT INTO peers(
+                    address,
+                    score,
+                    last_height,
+                    last_connected_at,
+                    banned_until,
+                    successes,
+                    failures
+                )
+                VALUES ('127.0.0.1:12038', 0, 42, '700', NULL, 1, 0);
+                ",
+            )
+            .unwrap();
+
+        let store = SqlitePeerStore::from_connection(connection).unwrap();
+        let mut manager = store.load_manager().unwrap();
+        let legacy = manager.get(address).unwrap();
+        assert_eq!(legacy.last_height, Height(42));
+        assert_eq!(legacy.last_height_observed_at, None);
+        assert_eq!(legacy.last_connected_at, Some(700));
+
+        manager.record_transport_success(address, 800);
+        store.save_manager(&manager).unwrap();
+        let transport_only = store.load_peer(address).unwrap().unwrap();
+        assert_eq!(transport_only.last_height, Height(42));
+        assert_eq!(transport_only.last_height_observed_at, None);
+        assert_eq!(transport_only.last_connected_at, Some(800));
+
+        manager.record_success(address, Height(43), 900);
+        store.save_manager(&manager).unwrap();
+        let header_synced = store.load_peer(address).unwrap().unwrap();
+        assert_eq!(header_synced.last_height, Height(43));
+        assert_eq!(header_synced.last_height_observed_at, Some(900));
+        assert_eq!(header_synced.last_connected_at, Some(900));
+        store.flush().unwrap();
         cleanup_db_path(&path);
     }
 

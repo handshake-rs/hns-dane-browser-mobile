@@ -95,8 +95,12 @@ object BrowserSecurityPolicy {
             return SecurityState.ProofUnavailable
         }
         if (
-            !syncStatusJson.isBehindPeerHeight() &&
-            (syncStatusJson.hasSyncStatus("synced") || syncStatusJson.hasSyncStatus("up_to_date"))
+            syncStatusJson.hasAuthoritativelyCurrentHeaders() &&
+            (
+                syncStatusJson.hasSyncStatus("synced") ||
+                    syncStatusJson.hasSyncStatus("up_to_date") ||
+                    syncStatusJson.hasSyncStatus("attempted")
+                )
         ) {
             return SecurityState.Loading
         }
@@ -121,18 +125,44 @@ object BrowserSecurityPolicy {
     private fun String?.hasSyncStatus(status: String): Boolean =
         this?.contains("\"status\":\"$status\"") == true
 
-    private fun String?.isBehindPeerHeight(): Boolean {
+    private fun String?.hasAuthoritativelyCurrentHeaders(): Boolean {
         val json = this ?: return false
+        if (json.longField("syncStatusSchemaVersion") != 2L) return false
         val best = json.longField("bestHeight") ?: return false
-        val target = json.longField("bestPeerHeight")
-            ?: json.longField("estimatedTipHeight")
-            ?: return false
-        return target > best
+        val target = json.longField("effectiveTargetHeight") ?: return false
+        val lag = json.longField("lagBlocks") ?: return false
+        val threshold = json.longField("freshnessThresholdBlocks") ?: return false
+        val targetPeerGroups = json.longField("targetPeerGroups") ?: return false
+        val evidenceExpired = json.booleanField("targetEvidenceExpired") ?: return false
+        return json.stringField("freshness") == "current" &&
+            json.stringField("targetSource") == "corroboratedPeers" &&
+            best > 0L &&
+            target >= best &&
+            lag >= 0L &&
+            threshold == 2L &&
+            lag == target - best &&
+            lag <= threshold &&
+            targetPeerGroups >= 3L &&
+            !evidenceExpired
     }
 
     private fun String.longField(name: String): Long? {
-        val pattern = """"$name"\s*:\s*(null|-?\d+)""".toRegex()
+        val pattern = """"$name"\s*:\s*(null|-?\d+)(?=\s*[,}])""".toRegex()
         val value = pattern.find(this)?.groupValues?.getOrNull(1) ?: return null
         return value.takeUnless { it == "null" }?.toLongOrNull()
+    }
+
+    private fun String.stringField(name: String): String? {
+        val pattern = """"$name"\s*:\s*"([^"]*)"""".toRegex()
+        return pattern.find(this)?.groupValues?.getOrNull(1)
+    }
+
+    private fun String.booleanField(name: String): Boolean? {
+        val pattern = """"$name"\s*:\s*(true|false|null)(?=\s*[,}])""".toRegex()
+        return when (pattern.find(this)?.groupValues?.getOrNull(1)) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
     }
 }

@@ -4,10 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.1 - 2026-07-26
+
 ### Added
 
 - Made the iOS settings menu mirror Android's canonical seven-section hierarchy, row order, summaries, defaults, conditional current-page action, and native equivalents for homepage, privacy data, history, downloads, themes, language, Handshake networks, relay peers, diagnostics, legal information, resolver traces, and header resync.
 - Added automatic ICANN DANE on Android and iOS at the shared Rust gateway boundary, consuming the standalone `hns-icann-dane` contract from `hns-dane-engine`. DNS-named HTTPS/WSS now derives the TLSA owner from the selected service port and TCP/UDP transport, enforces secure TLSA when present, and permits WebPKI only after authenticated validating ICANN DoH establishes TLSA absence or an insecure delegation. Bogus/indeterminate DNSSEC, malformed TLSA or TLSA CNAME chains, invalid owner derivation, resolver errors, and timeouts fail closed.
+
+### Changed
+
+- Decoupled live HNS header freshness from the 144-block
+  proof-cache/reorganization retention window in the shared Android/iOS Rust
+  runtime. Browser admission now requires the validated tip to be within two
+  blocks of a recent, corroborated multi-address-group peer target; raw maximum
+  claims and the idealized schedule remain diagnostic only.
+- Persisted header-observation time independently from peer transport liveness,
+  versioned the mobile sync-status contract, and reduced no-progress Android
+  and iOS sync polling to a ten-minute idle cadence.
+- Bumped the Android app, shared Rust core, and Apple shell to 0.5.1
+  (Android build 41; iOS build 45).
 
 ### Fixed
 
@@ -16,6 +31,17 @@ All notable changes to this project will be documented in this file.
 - Corrected mobile handling of transparent port 53 interception. A DNSSEC failure now runs the existing bounded TEST-NET canary before TCP or another authoritative server is trusted; confirmed interception is cached, direct DNS is suppressed, resolution tries proof-authenticated authoritative DoH and then the P2P requester only when explicitly enabled, and failure of all admitted alternatives remains typed and fail-closed.
 - Corrected delegated NXDOMAIN validation so each covering NSEC RRset is verified only with its own owner/class RRSIG, including multi-owner denial responses.
 - Made mobile HTTPS/SVCB planning retain ordered HTTP/3, HTTP/2, and RFC 9460 implicit HTTP/1.1 candidates from one selected service record. HNS protocol fallback occurs only after securely authenticated TLSA absence for the current UDP/TCP owner; insecure, bogus, or malformed TLSA evidence is terminal.
+- Made unavailable or expired peer-target evidence an explicit unknown
+  currentness state that fails closed for HNS resolution instead of silently
+  accepting an old local tip as current.
+- Prevented proof and DNS-relay traffic from refreshing or promoting header
+  height evidence, including a backwards-safe migration for existing peer
+  databases.
+- Closed the header-maintenance publication race at the shared mobile Rust
+  boundary. Response, fail-closed error, and HTTP 101 results now carry the
+  exact maintenance epoch; final publication revalidates it and holds the
+  maintenance read lock through the head flush, while sync, cache clear,
+  snapshot install, and header reset advance it before mutation.
 
 ### Removed
 

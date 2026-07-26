@@ -84,7 +84,7 @@ struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
 
     init(
         progressInterval: TimeInterval = 30,
-        caughtUpInterval: TimeInterval = 300,
+        caughtUpInterval: TimeInterval = 600,
         failureBackoff: [TimeInterval] = [5, 15, 60]
     ) {
         self.progressInterval = progressInterval
@@ -96,6 +96,9 @@ struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
         if consecutiveFailures > 0, !failureBackoff.isEmpty {
             return failureBackoff[min(consecutiveFailures - 1, failureBackoff.count - 1)]
         }
-        return summary?.isCaughtUp == true ? caughtUpInterval : progressInterval
+        if summary?.isCaughtUp == true {
+            return caughtUpInterval
+        }
+        return summary?.madeHeaderProgress == true ? progressInterval : caughtUpInterval
     }
 }

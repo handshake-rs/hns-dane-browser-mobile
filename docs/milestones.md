@@ -68,7 +68,13 @@
 - ProxyController integration.
 - Randomized-port loopback HTTP/CONNECT proxy with native persistent-cache HNS HTTP routing, automatic validating-DoH ICANN TLSA/DANE routing, WebView and Service Worker bodyless HTTP/HTTPS request interception with file-backed decoded response bodies, bounded redirects, bounded header/body forwarding, reserved-name filtering, local HTTPS termination using exact generated-certificate fingerprint pins, public-IP-only opaque CONNECT compatibility, and native WebSocket/HTTP Upgrade stream tunneling with fail-closed fallback when validation or the native bridge is unavailable.
 - Packaged Rust JNI library.
-- Application-foreground native sync scheduler with in-process status snapshots, live-polled first-page sync progress bar with target fallback, separate WebView loading bar, hamburger back/forward/refresh/settings menu, Settings dashboard for diagnostics, cookie options, resolver cache, legal/user agreement, and donations, automatic active first-run catch-up while the app is open and peer height or estimated tip is ahead, sync/cache diagnostics status with manual sync triggering, explicit syncing/up-to-date vs peer-failed outcomes, and per-peer sync failure stages.
+- Application-foreground native sync scheduler with in-process status snapshots,
+  a first-page progress bar driven by the corroborated effective target,
+  diagnostic raw-peer/schedule estimates, short scheduling only after accepted
+  header progress, ten-minute current/no-progress checks, a separate WebView
+  loading bar, hamburger back/forward/refresh/settings menu, Settings
+  diagnostics, manual sync triggering, explicit
+  syncing/up-to-date/peer-failed outcomes, and per-peer failure stages.
 - HNS omnibox rules.
 - Security and diagnostics UI.
 

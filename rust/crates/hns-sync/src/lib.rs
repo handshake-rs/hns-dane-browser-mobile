@@ -426,8 +426,10 @@ impl<C: HeaderPeerConnector> HeaderSyncRunner<C> {
                 }));
             }
         };
-        peers.record_observed_height(address, remote.height, now);
-        persist_peer_manager(store, peers)?;
+        // The version height is an unauthenticated advisory claim. Do not
+        // persist it as currentness evidence until the peer either agrees it
+        // is at/below the validated local tip or supplies a useful extension.
+        peers.record_connection(address, now);
         if self.config.discover_peers
             && let Ok(discovered) = peer.request_addresses()
         {
@@ -452,6 +454,8 @@ impl<C: HeaderPeerConnector> HeaderSyncRunner<C> {
             )));
         }
         let max_batches = self.config.max_header_batches_per_peer.max(1);
+        let mut certified_height = remote.height;
+        let mut failed_to_extend_claim = false;
 
         for _ in 0..max_batches {
             let locator = coordinator.locator()?;
@@ -468,6 +472,12 @@ impl<C: HeaderPeerConnector> HeaderSyncRunner<C> {
             };
             let header_count = headers.len();
             if header_count == 0 {
+                if let Some(best_height) = best.as_ref().map(|header| header.height)
+                    && remote.height > best_height
+                {
+                    certified_height = best_height;
+                    failed_to_extend_claim = true;
+                }
                 break;
             }
 
@@ -476,6 +486,12 @@ impl<C: HeaderPeerConnector> HeaderSyncRunner<C> {
                     accepted = accepted.saturating_add(batch.accepted);
                     best = batch.best;
                     if header_count < MAX_HEADERS || batch.accepted == 0 {
+                        if let Some(best_height) = best.as_ref().map(|header| header.height)
+                            && remote.height > best_height
+                        {
+                            certified_height = best_height;
+                            failed_to_extend_claim = true;
+                        }
                         break;
                     }
                 }
@@ -511,7 +527,10 @@ impl<C: HeaderPeerConnector> HeaderSyncRunner<C> {
             }
         }
 
-        peers.record_success(address, remote.height, now);
+        peers.record_success(address, certified_height, now);
+        if failed_to_extend_claim {
+            peers.record_stale_tip(address);
+        }
         persist_peer_manager(store, peers)?;
         Ok(HeaderPeerSyncOutcome::Success(Box::new(
             HeaderPeerSyncResult {
@@ -555,14 +574,12 @@ impl<C: HeaderPeerConnector> HeaderSyncRunner<C> {
                 Ok(mut peer) => {
                     let mut session = HeaderSyncSession::new(self.local_version.clone());
                     match peer.handshake(&mut session) {
-                        Ok(remote) => {
-                            peers.record_observed_height(address, remote.height, now);
-                            persist_peer_manager(store, peers)?;
+                        Ok(_remote) => {
                             if let Ok(discovered) = peer.request_addresses() {
                                 self.seed_discovered_peers(peers, discovered);
                                 persist_peer_manager(store, peers)?;
                             }
-                            peers.record_success(address, remote.height, now);
+                            record_uncorroborated_transport_success(peers, address, now);
                             persist_peer_manager(store, peers)?;
                         }
                         Err(_) => peers.record_transient_failure(address),
@@ -584,13 +601,26 @@ impl HeaderSyncRunner<TcpHeaderPeerConnector> {
         now: u64,
     ) -> Result<HeaderSyncRunResult, SyncError> {
         self.probe_peers_parallel_and_persist(peers, store, now)?;
-        if self.config.parallel_header_fetch_peers > 1 {
+        let result = if self.config.parallel_header_fetch_peers > 1 {
             let prefetch =
                 self.prefetch_checkpoint_header_ranges_and_persist(coordinator, peers, store, now)?;
             self.sync_once_racing_and_persist(coordinator, peers, store, now, prefetch)
         } else {
             self.sync_once_and_persist(coordinator, peers, store, now)
+        }?;
+        if let Some(validated_tip) = coordinator
+            .chain()
+            .best_header()?
+            .map(|header| header.height)
+        {
+            self.corroborate_peer_heights_at_tip_parallel_and_persist(
+                peers,
+                store,
+                now,
+                validated_tip,
+            )?;
         }
+        Ok(result)
     }
 
     fn prefetch_checkpoint_header_ranges_and_persist<S: HeaderStore>(
@@ -665,20 +695,17 @@ impl HeaderSyncRunner<TcpHeaderPeerConnector> {
         let mut failures = Vec::new();
         for outcome in receiver {
             match outcome {
-                HeaderCheckpointPrefetchOutcome::Success {
-                    address,
-                    remote_height,
-                    range,
-                } => {
-                    peers.record_success(address, remote_height, now);
+                HeaderCheckpointPrefetchOutcome::Success { address, range } => {
+                    // The staged range is not authoritative until chain
+                    // validation accepts it. A handshake claim must not become
+                    // currentness evidence merely because bytes were returned.
+                    record_uncorroborated_transport_success(peers, address, now);
                     successful = successful.saturating_add(1);
                     ranges.push(range);
                 }
-                HeaderCheckpointPrefetchOutcome::Empty {
-                    address,
-                    remote_height,
-                } => {
-                    peers.record_success(address, remote_height, now);
+                HeaderCheckpointPrefetchOutcome::Empty { address } => {
+                    record_uncorroborated_transport_success(peers, address, now);
+                    peers.record_stale_tip(address);
                     successful = successful.saturating_add(1);
                 }
                 HeaderCheckpointPrefetchOutcome::Failure(failure) => {
@@ -779,11 +806,17 @@ impl HeaderSyncRunner<TcpHeaderPeerConnector> {
                 }
             };
 
-            peers.record_observed_height(address, remote_height, now);
-            persist_peer_manager(Some(store), peers)?;
             let header_count = headers.len();
             if header_count == 0 {
-                peers.record_success(address, remote_height, now);
+                let local_height = coordinator
+                    .chain()
+                    .best_header()?
+                    .map(|header| header.height)
+                    .unwrap_or(Height(0));
+                peers.record_success(address, local_height.min(remote_height), now);
+                if remote_height > local_height {
+                    peers.record_stale_tip(address);
+                }
                 persist_peer_manager(Some(store), peers)?;
                 result.successful = result.successful.saturating_add(1);
                 break;
@@ -794,7 +827,25 @@ impl HeaderSyncRunner<TcpHeaderPeerConnector> {
                     result.successful = result.successful.saturating_add(1);
                     result.accepted = result.accepted.saturating_add(batch.accepted);
                     result.best = batch.best;
-                    peers.record_success(address, remote_height, now);
+                    let validated_height = result
+                        .best
+                        .as_ref()
+                        .map(|header| header.height)
+                        .unwrap_or(Height(0));
+                    let failed_to_extend_claim = remote_height > validated_height
+                        && (header_count < MAX_HEADERS || batch.accepted == 0);
+                    peers.record_success(
+                        address,
+                        if failed_to_extend_claim {
+                            validated_height
+                        } else {
+                            remote_height
+                        },
+                        now,
+                    );
+                    if failed_to_extend_claim {
+                        peers.record_stale_tip(address);
+                    }
                     persist_peer_manager(Some(store), peers)?;
                     if header_count < MAX_HEADERS || batch.accepted == 0 {
                         break;
@@ -913,10 +964,10 @@ impl HeaderSyncRunner<TcpHeaderPeerConnector> {
                 match result {
                     ParallelPeerProbe::Success {
                         address,
-                        remote_height,
+                        remote_height: _,
                         discovered,
                     } => {
-                        peers.record_success(address, remote_height, now);
+                        record_uncorroborated_transport_success(peers, address, now);
                         self.seed_discovered_peers(peers, discovered);
                         successful = successful.saturating_add(1);
                     }
@@ -929,6 +980,79 @@ impl HeaderSyncRunner<TcpHeaderPeerConnector> {
             Ok(successful)
         })
     }
+
+    fn corroborate_peer_heights_at_tip_parallel_and_persist(
+        &self,
+        peers: &mut PeerManager,
+        store: &SqlitePeerStore,
+        now: u64,
+        validated_tip: Height,
+    ) -> Result<usize, SyncError> {
+        let candidates = self.select_outbound_peers(
+            peers,
+            self.config
+                .parallel_peer_probes
+                .max(self.config.parallel_header_fetch_peers)
+                .max(3),
+            now,
+        );
+        if candidates.is_empty() {
+            return Ok(0);
+        }
+
+        thread::scope(|scope| -> Result<usize, SyncError> {
+            let (sender, receiver) = mpsc::channel();
+            for address in candidates {
+                let sender = sender.clone();
+                let network = self.network.clone();
+                let local_version = self.local_version.clone();
+                let timeout = self
+                    .config
+                    .parallel_peer_probe_timeout
+                    .min(self.config.timeout);
+                scope.spawn(move || {
+                    let _ = sender.send(probe_tcp_header_peer(
+                        address,
+                        network,
+                        local_version,
+                        timeout,
+                    ));
+                });
+            }
+            drop(sender);
+
+            let mut corroborated = 0usize;
+            for result in receiver {
+                match result {
+                    ParallelPeerProbe::Success {
+                        address,
+                        remote_height,
+                        discovered,
+                    } => {
+                        if remote_height <= validated_tip {
+                            // A peer claim at or below a PoW-validated local tip
+                            // cannot force the authority target forward. Diverse
+                            // repetitions of this observation establish that
+                            // the newly synced tip is current.
+                            peers.record_success(address, remote_height, now);
+                            corroborated = corroborated.saturating_add(1);
+                        } else {
+                            // A version-only claim above the validated tip is
+                            // not target evidence. The next sync must obtain and
+                            // validate the missing header extension.
+                            record_uncorroborated_transport_success(peers, address, now);
+                        }
+                        self.seed_discovered_peers(peers, discovered);
+                    }
+                    ParallelPeerProbe::Failure(failure) => {
+                        peers.record_transient_failure(failure.address);
+                    }
+                }
+                persist_peer_manager(Some(store), peers)?;
+            }
+            Ok(corroborated)
+        })
+    }
 }
 
 fn peer_height_refresh_due(peers: &PeerManager, now: u64, refresh_interval: u64) -> bool {
@@ -939,7 +1063,7 @@ fn peer_height_refresh_due(peers: &PeerManager, now: u64, refresh_interval: u64)
     !peers.iter().any(|peer| {
         peer.last_height.0 > 0
             && peer
-                .last_connected_at
+                .last_height_observed_at
                 .is_some_and(|seen_at| seen_at >= cutoff)
     })
 }
@@ -969,7 +1093,8 @@ enum HeaderRaceOutcome {
 
 struct HeaderRaceSkipped {
     address: SocketAddr,
-    remote_height: Height,
+    certified_height: Height,
+    failed_to_extend_claim: bool,
 }
 
 struct HeaderCheckpointPrefetchResult {
@@ -997,12 +1122,10 @@ enum HeaderRacePeerOutcome {
 enum HeaderCheckpointPrefetchOutcome {
     Success {
         address: SocketAddr,
-        remote_height: Height,
         range: PrefetchedHeaderRange,
     },
     Empty {
         address: SocketAddr,
-        remote_height: Height,
     },
     Failure(HeaderPeerFailure),
 }
@@ -1048,9 +1171,16 @@ fn race_tcp_header_batch(
                 if local_best_height.is_some_and(|height| remote_height <= height)
                     || headers.is_empty()
                 {
+                    let local_height = local_best_height.unwrap_or(Height(0));
+                    let failed_to_extend_claim = headers.is_empty() && remote_height > local_height;
                     skipped.push(HeaderRaceSkipped {
                         address,
-                        remote_height,
+                        certified_height: if failed_to_extend_claim {
+                            local_height
+                        } else {
+                            remote_height
+                        },
+                        failed_to_extend_claim,
                     });
                     continue;
                 }
@@ -1133,7 +1263,7 @@ fn request_tcp_checkpoint_header_range(
         }
     };
     let mut session = HeaderSyncSession::new(local_version);
-    let remote = match peer.handshake(&mut session) {
+    let _remote = match peer.handshake(&mut session) {
         Ok(remote) => remote,
         Err(error) => {
             return HeaderCheckpointPrefetchOutcome::Failure(HeaderPeerFailure {
@@ -1154,10 +1284,7 @@ fn request_tcp_checkpoint_header_range(
         }
     };
     if headers.is_empty() {
-        return HeaderCheckpointPrefetchOutcome::Empty {
-            address,
-            remote_height: remote.height,
-        };
+        return HeaderCheckpointPrefetchOutcome::Empty { address };
     }
     if headers
         .first()
@@ -1172,7 +1299,6 @@ fn request_tcp_checkpoint_header_range(
 
     HeaderCheckpointPrefetchOutcome::Success {
         address,
-        remote_height: remote.height,
         range: PrefetchedHeaderRange {
             address,
             checkpoint,
@@ -1183,8 +1309,19 @@ fn request_tcp_checkpoint_header_range(
 
 fn record_race_skipped_peers(peers: &mut PeerManager, skipped: Vec<HeaderRaceSkipped>, now: u64) {
     for peer in skipped {
-        peers.record_success(peer.address, peer.remote_height, now);
+        peers.record_success(peer.address, peer.certified_height, now);
+        if peer.failed_to_extend_claim {
+            peers.record_stale_tip(peer.address);
+        }
     }
+}
+
+fn record_uncorroborated_transport_success(peers: &mut PeerManager, address: SocketAddr, now: u64) {
+    // A successful version/GetAddr exchange proves liveness, not remote chain
+    // height. Clear any prior advisory height so refreshing transport metadata
+    // cannot make an unvalidated claim fresh currentness evidence.
+    peers.clear_observed_height(address);
+    peers.record_transport_success(address, now);
 }
 
 fn record_race_failures(
@@ -1892,6 +2029,7 @@ mod tests {
             let persisted = store.load_peer(address).unwrap().unwrap();
 
             assert_eq!(persisted.last_height, Height(1));
+            assert_eq!(persisted.last_height_observed_at, Some(500));
             assert_eq!(persisted.last_connected_at, Some(500));
             assert_eq!(persisted.successes, 1);
             assert_eq!(persisted.failures, 0);
@@ -1955,7 +2093,7 @@ mod tests {
                 .with_request_headers_callback(move || {
                     let store = SqlitePeerStore::open(&check_path).unwrap();
                     let persisted = store.load_peer(address).unwrap().unwrap();
-                    assert_eq!(persisted.last_height, Height(42));
+                    assert_eq!(persisted.last_height, Height(0));
                     assert_eq!(persisted.last_connected_at, Some(700));
                     assert_eq!(persisted.successes, 0);
                     assert!(store.load_peer(discovered).unwrap().is_some());
@@ -1980,6 +2118,9 @@ mod tests {
             assert_eq!(result.attempted, 1);
             assert_eq!(result.successful, 1);
             assert_eq!(result.accepted, 0);
+            let persisted = store.load_peer(address).unwrap().unwrap();
+            assert_eq!(persisted.last_height, Height(0));
+            assert!(persisted.score >= hns_p2p::STALE_TIP_SCORE);
             store.flush().unwrap();
         }
 
@@ -2165,7 +2306,7 @@ mod tests {
     }
 
     #[test]
-    fn header_sync_runner_parallel_probe_persists_heights_and_addresses() {
+    fn header_sync_runner_parallel_probe_records_liveness_without_promoting_heights() {
         let path = temp_db_path("parallel-probe");
         let discovered: std::net::SocketAddr = "127.0.0.3:12038".parse().unwrap();
         let (first, first_server) = spawn_probe_server(Height(42), vec![discovered]);
@@ -2188,13 +2329,15 @@ mod tests {
                 .unwrap();
 
             assert_eq!(successful, 2);
-            assert_eq!(peers.get(first).unwrap().last_height, Height(42));
-            assert_eq!(peers.get(second).unwrap().last_height, Height(43));
+            assert_eq!(peers.get(first).unwrap().last_height, Height(0));
+            assert_eq!(peers.get(first).unwrap().last_height_observed_at, None);
+            assert_eq!(peers.get(second).unwrap().last_height, Height(0));
+            assert_eq!(peers.get(second).unwrap().last_height_observed_at, None);
             assert!(peers.get(discovered).is_some());
-            assert_eq!(
-                store.load_peer(first).unwrap().unwrap().last_height,
-                Height(42)
-            );
+            let persisted = store.load_peer(first).unwrap().unwrap();
+            assert_eq!(persisted.last_height, Height(0));
+            assert_eq!(persisted.last_height_observed_at, None);
+            assert_eq!(persisted.last_connected_at, Some(900));
             assert!(store.load_peer(discovered).unwrap().is_some());
             store.flush().unwrap();
         }
@@ -2230,12 +2373,14 @@ mod tests {
                 .unwrap();
 
             assert_eq!(successful, 2);
-            assert_eq!(peers.get(first).unwrap().last_height, Height(42));
-            assert_eq!(peers.get(second).unwrap().last_height, Height(43));
-            assert_eq!(
-                store.load_peer(second).unwrap().unwrap().last_height,
-                Height(43)
-            );
+            assert_eq!(peers.get(first).unwrap().last_height, Height(0));
+            assert_eq!(peers.get(first).unwrap().last_height_observed_at, None);
+            assert_eq!(peers.get(second).unwrap().last_height, Height(0));
+            assert_eq!(peers.get(second).unwrap().last_height_observed_at, None);
+            let persisted = store.load_peer(second).unwrap().unwrap();
+            assert_eq!(persisted.last_height, Height(0));
+            assert_eq!(persisted.last_height_observed_at, None);
+            assert_eq!(persisted.last_connected_at, Some(1_000));
             store.flush().unwrap();
         }
 
@@ -2274,6 +2419,56 @@ mod tests {
             store.flush().unwrap();
         }
 
+        cleanup_db_path(&path);
+    }
+
+    #[test]
+    fn post_sync_probe_corroborates_only_claims_at_or_below_validated_tip() {
+        let path = temp_db_path("post-sync-corroboration");
+        let (first, first_server) = spawn_probe_server(Height(12), Vec::new());
+        let (second, second_server) = spawn_probe_server(Height(11), Vec::new());
+        let (third, third_server) = spawn_probe_server(Height(12), Vec::new());
+        let (liar, liar_server) = spawn_probe_server(Height(50_000), Vec::new());
+        let mut peers = PeerManager::default();
+        peers.seed([first, second, third, liar]);
+        let runner = HeaderSyncRunner::with_config(
+            network::mainnet(),
+            TcpHeaderPeerConnector,
+            HeaderSyncRunnerConfig {
+                parallel_peer_probes: 4,
+                timeout: Duration::from_secs(2),
+                ..permissive_runner_config()
+            },
+        );
+
+        {
+            let store = SqlitePeerStore::open(&path).unwrap();
+            let corroborated = runner
+                .corroborate_peer_heights_at_tip_parallel_and_persist(
+                    &mut peers,
+                    &store,
+                    1_000,
+                    Height(12),
+                )
+                .unwrap();
+
+            assert_eq!(corroborated, 3);
+            assert_eq!(peers.get(first).unwrap().last_height, Height(12));
+            assert_eq!(peers.get(second).unwrap().last_height, Height(11));
+            assert_eq!(peers.get(third).unwrap().last_height, Height(12));
+            assert_eq!(peers.get(liar).unwrap().last_height, Height(0));
+            assert_eq!(peers.get(liar).unwrap().last_height_observed_at, None);
+            let persisted_liar = store.load_peer(liar).unwrap().unwrap();
+            assert_eq!(persisted_liar.last_height, Height(0));
+            assert_eq!(persisted_liar.last_height_observed_at, None);
+            assert_eq!(persisted_liar.last_connected_at, Some(1_000));
+            store.flush().unwrap();
+        }
+
+        first_server.join().unwrap();
+        second_server.join().unwrap();
+        third_server.join().unwrap();
+        liar_server.join().unwrap();
         cleanup_db_path(&path);
     }
 
@@ -2354,6 +2549,7 @@ mod tests {
             assert_eq!(result.accepted, 1);
             assert_eq!(result.best.unwrap().height, Height(1));
             assert_eq!(peers.get(empty).unwrap().successes, 1);
+            assert_eq!(peers.get(empty).unwrap().last_height, Height(0));
             assert_eq!(peers.get(useful).unwrap().successes, 1);
             store.flush().unwrap();
         }

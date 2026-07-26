@@ -297,12 +297,20 @@ final class BrowserViewController: UIViewController {
             updateSyncSummary(
                 BrowserSyncSummary(
                     headline: "Handshake headers current",
-                    detail: "Local height 335942 · peer height 335942 · accepted 0/0",
+                    detail: "Local height 335942 · effective target 335942 · freshness current",
+                    syncStatusSchemaVersion: 2,
                     status: "up_to_date",
                     network: "main",
                     bestHeight: 335_942,
                     bestPeerHeight: 335_942,
-                    estimatedTipHeight: 335_942
+                    estimatedTipHeight: 335_942,
+                    effectiveTargetHeight: 335_942,
+                    lagBlocks: 0,
+                    freshness: "current",
+                    freshnessThresholdBlocks: 2,
+                    targetSource: "corroboratedPeers",
+                    targetPeerGroups: 3,
+                    targetEvidenceExpired: false
                 )
             )
             shouldPresentScreenshotProof = scene == .proofDetails
@@ -317,12 +325,20 @@ final class BrowserViewController: UIViewController {
             updateSyncSummary(
                 BrowserSyncSummary(
                     headline: "Handshake headers current",
-                    detail: "Local height 335942 · peer height 335942 · accepted 0/0",
+                    detail: "Local height 335942 · effective target 335942 · freshness current",
+                    syncStatusSchemaVersion: 2,
                     status: "up_to_date",
                     network: "main",
                     bestHeight: 335_942,
                     bestPeerHeight: 335_942,
-                    estimatedTipHeight: 335_942
+                    estimatedTipHeight: 335_942,
+                    effectiveTargetHeight: 335_942,
+                    lagBlocks: 0,
+                    freshness: "current",
+                    freshnessThresholdBlocks: 2,
+                    targetSource: "corroboratedPeers",
+                    targetPeerGroups: 3,
+                    targetEvidenceExpired: false
                 )
             )
         }

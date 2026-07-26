@@ -336,6 +336,7 @@ struct BrowserSecuritySummary: Equatable, Sendable {
 }
 
 struct BrowserSyncSummary: Equatable, Sendable {
+    let syncStatusSchemaVersion: UInt64?
     let headline: String
     let detail: String
     let status: String
@@ -349,6 +350,13 @@ struct BrowserSyncSummary: Equatable, Sendable {
     let bestHeight: UInt64?
     let bestPeerHeight: UInt64?
     let estimatedTipHeight: UInt64?
+    let effectiveTargetHeight: UInt64?
+    let lagBlocks: UInt64?
+    let freshness: String
+    let freshnessThresholdBlocks: UInt64?
+    let targetSource: String
+    let targetPeerGroups: Int
+    let targetEvidenceExpired: Bool
     let resourceCacheEntries: Int
     let resourceCacheBytes: UInt64
     let resourceCacheEvicted: Int
@@ -357,6 +365,7 @@ struct BrowserSyncSummary: Equatable, Sendable {
     init(
         headline: String,
         detail: String,
+        syncStatusSchemaVersion: UInt64? = nil,
         status: String = "unavailable",
         network: String? = nil,
         attempted: Int = 0,
@@ -368,11 +377,19 @@ struct BrowserSyncSummary: Equatable, Sendable {
         bestHeight: UInt64? = nil,
         bestPeerHeight: UInt64? = nil,
         estimatedTipHeight: UInt64? = nil,
+        effectiveTargetHeight: UInt64? = nil,
+        lagBlocks: UInt64? = nil,
+        freshness: String = "unknown",
+        freshnessThresholdBlocks: UInt64? = nil,
+        targetSource: String = "unknown",
+        targetPeerGroups: Int = 0,
+        targetEvidenceExpired: Bool = true,
         resourceCacheEntries: Int = 0,
         resourceCacheBytes: UInt64 = 0,
         resourceCacheEvicted: Int = 0,
         error: String? = nil
     ) {
+        self.syncStatusSchemaVersion = syncStatusSchemaVersion
         self.headline = headline
         self.detail = detail
         self.status = status
@@ -386,6 +403,13 @@ struct BrowserSyncSummary: Equatable, Sendable {
         self.bestHeight = bestHeight
         self.bestPeerHeight = bestPeerHeight
         self.estimatedTipHeight = estimatedTipHeight
+        self.effectiveTargetHeight = effectiveTargetHeight
+        self.lagBlocks = lagBlocks
+        self.freshness = freshness
+        self.freshnessThresholdBlocks = freshnessThresholdBlocks
+        self.targetSource = targetSource
+        self.targetPeerGroups = targetPeerGroups
+        self.targetEvidenceExpired = targetEvidenceExpired
         self.resourceCacheEntries = resourceCacheEntries
         self.resourceCacheBytes = resourceCacheBytes
         self.resourceCacheEvicted = resourceCacheEvicted
@@ -396,21 +420,41 @@ struct BrowserSyncSummary: Equatable, Sendable {
         error != nil || ["error", "peer_failed", "seed_failed"].contains(status)
     }
 
-    var targetHeight: UInt64? { bestPeerHeight ?? estimatedTipHeight }
+    var targetHeight: UInt64? { effectiveTargetHeight }
 
     var isBehind: Bool {
         guard let bestHeight, let targetHeight else { return false }
         return targetHeight > bestHeight
     }
 
-    /// Mirrors Android's currentness interpretation. A successful sync tick
-    /// reports `synced` after it accepts headers and reaches its target; a
-    /// partially attempted tick is also current when its recorded target is
-    /// not ahead. Neither state should be forced through another foreground
-    /// catch-up cycle merely because it is not spelled `up_to_date`.
+    var hasAuthoritativeCurrentness: Bool {
+        guard syncStatusSchemaVersion == 2,
+              freshness == "current",
+              targetSource == "corroboratedPeers",
+              let bestHeight,
+              let effectiveTargetHeight,
+              let lagBlocks,
+              let freshnessThresholdBlocks,
+              bestHeight > 0,
+              effectiveTargetHeight >= bestHeight,
+              freshnessThresholdBlocks == 2,
+              targetPeerGroups >= 3,
+              !targetEvidenceExpired
+        else {
+            return false
+        }
+        return lagBlocks == effectiveTargetHeight - bestHeight && lagBlocks <= 2
+    }
+
+    /// Only the Rust runtime's corroborated target can authorize currentness.
+    /// Raw peer maxima and wall-clock estimates remain diagnostic.
     var isCaughtUp: Bool {
-        status == "up_to_date"
-            || (["synced", "attempted"].contains(status) && !isBehind)
+        ["up_to_date", "synced", "attempted"].contains(status)
+            && hasAuthoritativeCurrentness
+    }
+
+    var madeHeaderProgress: Bool {
+        !isCaughtUp && accepted > 0
     }
 
     static let unavailable = BrowserSyncSummary(

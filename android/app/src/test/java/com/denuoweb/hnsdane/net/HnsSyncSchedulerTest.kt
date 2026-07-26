@@ -30,7 +30,7 @@ class HnsSyncSchedulerTest {
     }
 
     @Test
-    fun nextDelayUsesActiveIntervalWhilePeerHeightIsAhead() {
+    fun nextDelayUsesActiveIntervalOnlyWhileHeadersAreAdvancing() {
         val scheduler = HnsSyncScheduler(
             dataDir = File("/tmp/hns-dane-browser-test"),
             bridge = RecordingSyncBridge("{}"),
@@ -40,10 +40,10 @@ class HnsSyncSchedulerTest {
         )
 
         assertEquals(
-            7L,
+            13L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
-                    statusJson = """{"status":"synced","bestHeight":45000,"bestPeerHeight":335684}""",
+                    statusJson = """{"status":"syncing","bestHeight":45000,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":290684,"freshness":"stale","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers"}""",
                     updatedAtMillis = 1L,
                 ),
             ),
@@ -52,7 +52,7 @@ class HnsSyncSchedulerTest {
             13L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
-                    statusJson = """{"status":"up_to_date","bestHeight":335684,"bestPeerHeight":335684}""",
+                    statusJson = """{"syncStatusSchemaVersion":2,"status":"up_to_date","bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
                     updatedAtMillis = 2L,
                 ),
             ),
@@ -61,7 +61,7 @@ class HnsSyncSchedulerTest {
             13L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
-                    statusJson = """{"status":"synced","accepted":1,"bestHeight":335684,"bestPeerHeight":335684}""",
+                    statusJson = """{"syncStatusSchemaVersion":2,"status":"synced","accepted":1,"bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
                     updatedAtMillis = 6L,
                 ),
             ),
@@ -70,7 +70,7 @@ class HnsSyncSchedulerTest {
             13L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
-                    statusJson = """{"status":"attempted","bestHeight":335684,"bestPeerHeight":335684}""",
+                    statusJson = """{"syncStatusSchemaVersion":2,"status":"attempted","bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
                     updatedAtMillis = 7L,
                 ),
             ),
@@ -79,7 +79,7 @@ class HnsSyncSchedulerTest {
             7L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
-                    statusJson = """{"status":"syncing","accepted":2000,"bestHeight":92000,"bestPeerHeight":null,"estimatedTipHeight":335684,"peerCount":0}""",
+                    statusJson = """{"status":"syncing","accepted":2000,"bestHeight":92000,"bestPeerHeight":null,"estimatedTipHeight":335684,"effectiveTargetHeight":null,"lagBlocks":null,"freshness":"unknown","freshnessThresholdBlocks":2,"targetSource":"unknown","peerCount":0}""",
                     updatedAtMillis = 3L,
                 ),
             ),

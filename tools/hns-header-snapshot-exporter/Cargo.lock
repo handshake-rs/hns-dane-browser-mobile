@@ -264,11 +264,11 @@ dependencies = [
 
 [[package]]
 name = "hns-cache"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "hns-chain"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "hns-core",
  "rusqlite",
@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "hns-core"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "blake2",
  "hex",
@@ -290,7 +290,7 @@ dependencies = [
 
 [[package]]
 name = "hns-dane"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "hns-core",
  "hns-dnssec",
@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "hns-dnssec"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "hns-core",
  "num-bigint",
@@ -326,11 +326,11 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159#fe38e805ba9d8ba26d486c5c7aa67c87c8cf9159"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=be58b041b74403042b134a95dcc4588c89ad549b#be58b041b74403042b134a95dcc4588c89ad549b"
 
 [[package]]
 name = "hns-p2p"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "getrandom 0.3.4",
  "hns-core",
@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "hns-resolver"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "hns-cache",
  "hns-core",
@@ -354,7 +354,7 @@ dependencies = [
 
 [[package]]
 name = "hns-sync"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "hns-chain",
  "hns-core",
@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "hns-urkel"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "hns-core",
  "thiserror",

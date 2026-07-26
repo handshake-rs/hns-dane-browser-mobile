@@ -54,8 +54,8 @@ use hns_namespace_resolution::{
 };
 use hns_p2p::{
     DnsRelayClient, DnsRelayClientError, DnsSeedPeerSource, EXPERIMENTAL_DNS_RELAY_SERVICE,
-    HeaderSyncSession, PeerConnection, PeerSource, SERVICE_NETWORK, SqlitePeerStore,
-    StaticPeerSource, VersionPacket, is_allowed_peer_endpoint,
+    HeaderSyncSession, PeerAddressGroup, PeerConnection, PeerSource, SERVICE_NETWORK,
+    SqlitePeerStore, StaticPeerSource, VersionPacket, is_allowed_peer_endpoint,
 };
 use hns_resolution_policy::{
     ChainAnchor as CanonicalChainAnchor, DnsRelayRequesterPolicy,
@@ -95,7 +95,8 @@ use std::num::NonZeroU16;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{
-    Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock, RwLockReadGuard, TryLockError, Weak,
+    Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard,
+    TryLockError, Weak,
 };
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -203,7 +204,21 @@ const NAMESPACE_EVIDENCE_MAX_TTL_SECONDS: u64 = 30;
 const DNS_INTERCEPTION_PROBE_TIMEOUT: Duration = Duration::from_millis(350);
 const DNS_INTERCEPTION_PROBE_ID: u16 = 0x484a;
 const DNS_INTERCEPTION_PROBE_NAME: &str = "hns-dns-interception-probe.invalid";
+// Retain proof anchors across a conservative reorganization window. This is a
+// cache invalidation policy, not a statement that a 144-block-old browser view
+// is current enough to authorize name resolution.
 const RESOURCE_PROOF_CACHE_CANONICAL_WINDOW: u32 = 144;
+// A browser name decision may trail a corroborated network target by at most
+// two blocks. Peer version heights are advisory and unauthenticated, so a
+// currentness target requires recent agreement across independent address
+// groups instead of trusting the raw maximum claim.
+const LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG: u32 = 2;
+const LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS: usize = 3;
+const LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS: u64 = 2 * 10 * 60;
+// Increment when the security meaning of the sync-status currentness fields
+// changes. Mobile consumers require this exact version before treating headers
+// as current, so legacy or partially upgraded runtimes fail closed.
+const SYNC_STATUS_SCHEMA_VERSION: u32 = 2;
 const ANDROID_HEADER_SYNC_PEERS: usize = 12;
 const ANDROID_HEADER_SYNC_BATCHES_PER_PEER: usize = 16;
 const ANDROID_PARALLEL_PEER_PROBES: usize = 32;
@@ -215,7 +230,6 @@ const HEADER_SNAPSHOT_IMPORT_BATCH: usize = 2_000;
 const HEADER_SNAPSHOT_MAX_HEIGHT: u32 = 1_000_000;
 const MAINNET_GENESIS_TIME: u64 = 1_580_745_078;
 const MAINNET_TARGET_SPACING_SECONDS: u64 = 10 * 60;
-const LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG: u32 = RESOURCE_PROOF_CACHE_CANONICAL_WINDOW;
 const ICANN_DOH_HOST: &str = "cloudflare-dns.com";
 const ICANN_DOH_PATH: &str = "/dns-query";
 // Cloudflare's documented 1.1.1.1 resolver endpoints. Connecting to these
@@ -1422,8 +1436,52 @@ struct RuntimeInner {
 struct RuntimeCoordination {
     sync_lock: Mutex<()>,
     maintenance: RwLock<()>,
+    maintenance_epoch: AtomicU64,
     peer_state: Arc<Mutex<()>>,
     relay: SharedDnsRelayState,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct MaintenanceEpoch(u64);
+
+struct ProxyMaintenanceGuard<'a> {
+    _guard: RwLockReadGuard<'a, ()>,
+    epoch: MaintenanceEpoch,
+}
+
+impl ProxyMaintenanceGuard<'_> {
+    fn epoch(&self) -> MaintenanceEpoch {
+        self.epoch
+    }
+}
+
+impl RuntimeCoordination {
+    fn begin_maintenance(&self, _guard: &RwLockWriteGuard<'_, ()>) -> Result<(), RuntimeError> {
+        let current = self.maintenance_epoch.load(Ordering::Acquire);
+        if current == 0 {
+            return Err(RuntimeError::Operation(
+                "header maintenance epoch is exhausted".to_owned(),
+            ));
+        }
+        let Some(next) = current.checked_add(1) else {
+            // Zero is a permanent fail-closed sentinel. It invalidates every
+            // outstanding nonzero publication permit and prevents new work
+            // from being admitted against an epoch which could wrap.
+            self.maintenance_epoch.store(0, Ordering::Release);
+            return Err(RuntimeError::Operation(
+                "header maintenance epoch is exhausted".to_owned(),
+            ));
+        };
+        self.maintenance_epoch.store(next, Ordering::Release);
+        Ok(())
+    }
+
+    fn publication_epoch(&self, _guard: &RwLockReadGuard<'_, ()>) -> Option<MaintenanceEpoch> {
+        match self.maintenance_epoch.load(Ordering::Acquire) {
+            0 => None,
+            epoch => Some(MaintenanceEpoch(epoch)),
+        }
+    }
 }
 
 type SharedDnsRelayFlights = Arc<Mutex<HashMap<Vec<u8>, Arc<DnsRelayFlight>>>>;
@@ -1452,6 +1510,7 @@ fn runtime_coordination(base: &Path) -> Result<Arc<RuntimeCoordination>, Runtime
     let coordination = Arc::new(RuntimeCoordination {
         sync_lock: Mutex::new(()),
         maintenance: RwLock::new(()),
+        maintenance_epoch: AtomicU64::new(1),
         peer_state: Arc::new(Mutex::new(())),
         relay: SharedDnsRelayState {
             client: Arc::new(Mutex::new(None)),
@@ -2312,12 +2371,13 @@ impl BrowserRuntime {
             .sync_lock
             .lock()
             .map_err(|_| RuntimeError::Synchronization("sync lock"))?;
-        let _maintenance = self
+        let maintenance = self
             .inner
             .coordination
             .maintenance
-            .read()
+            .write()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        self.inner.coordination.begin_maintenance(&maintenance)?;
         let _peer_state = self
             .inner
             .coordination
@@ -2429,12 +2489,13 @@ impl BrowserRuntime {
             .sync_lock
             .lock()
             .map_err(|_| RuntimeError::Synchronization("sync lock"))?;
-        let _maintenance = self
+        let maintenance = self
             .inner
             .coordination
             .maintenance
             .write()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        self.inner.coordination.begin_maintenance(&maintenance)?;
         clear_resolver_cache_inner(&self.inner.data_dir, self.inner.configuration.network)
             .map_err(RuntimeError::Operation)
     }
@@ -2452,12 +2513,13 @@ impl BrowserRuntime {
             .sync_lock
             .lock()
             .map_err(|_| RuntimeError::Synchronization("sync lock"))?;
-        let _maintenance = self
+        let maintenance = self
             .inner
             .coordination
             .maintenance
             .write()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        self.inner.coordination.begin_maintenance(&maintenance)?;
         install_header_snapshot_inner(
             &self.inner.data_dir,
             snapshot_path,
@@ -2473,12 +2535,13 @@ impl BrowserRuntime {
             .sync_lock
             .lock()
             .map_err(|_| RuntimeError::Synchronization("sync lock"))?;
-        let _maintenance = self
+        let maintenance = self
             .inner
             .coordination
             .maintenance
             .write()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        self.inner.coordination.begin_maintenance(&maintenance)?;
         reset_headers_from_peers_inner(&self.inner.data_dir, self.inner.configuration.network)
             .map_err(RuntimeError::Operation)
     }
@@ -2887,6 +2950,7 @@ impl Drop for StagedBodyPublication {
 }
 
 struct RuntimePublicationPermit<'a> {
+    _maintenance: RwLockReadGuard<'a, ()>,
     _authority: MutexGuard<'a, CanonicalAuthorityRuntime>,
 }
 
@@ -2896,26 +2960,31 @@ impl PublicationPermit for RuntimePublicationPermit<'_> {}
 struct RuntimePublicationAuthorization {
     binding: RuntimeAuthorityBinding,
     stamp: Option<RuntimeStamp>,
+    maintenance_epoch: MaintenanceEpoch,
     selection: Option<NamespacePublicationSelection>,
 }
 
 fn runtime_publication_capability(
     binding: RuntimeAuthorityBinding,
     stamp: Option<RuntimeStamp>,
+    maintenance_epoch: MaintenanceEpoch,
 ) -> PublicationCapability {
     PublicationCapability::new(RuntimePublicationAuthorization {
         binding,
         stamp,
+        maintenance_epoch,
         selection: None,
     })
 }
 
 fn runtime_success_publication_capability(
     prepared: &PreparedRuntimeGateway,
+    maintenance_epoch: MaintenanceEpoch,
 ) -> PublicationCapability {
     PublicationCapability::new(RuntimePublicationAuthorization {
         binding: prepared.authority_binding,
         stamp: Some(prepared.authority_stamp),
+        maintenance_epoch,
         selection: Some(NamespacePublicationSelection {
             origin: prepared.origin.clone(),
             plans: Arc::clone(&prepared.plans),
@@ -3467,13 +3536,21 @@ impl BrowserRuntime {
     fn acquire_proxy_maintenance<'a>(
         &'a self,
         cancellation: &ProxyCancellationToken,
-    ) -> Result<RwLockReadGuard<'a, ()>, ProxyBackendError> {
+    ) -> Result<ProxyMaintenanceGuard<'a>, ProxyBackendError> {
         loop {
             if cancellation.is_cancelled() {
                 return Err(ProxyBackendError::Cancelled);
             }
             match self.inner.coordination.maintenance.try_read() {
-                Ok(guard) => return Ok(guard),
+                Ok(guard) => {
+                    let Some(epoch) = self.inner.coordination.publication_epoch(&guard) else {
+                        return Err(ProxyBackendError::Internal);
+                    };
+                    return Ok(ProxyMaintenanceGuard {
+                        _guard: guard,
+                        epoch,
+                    });
+                }
                 Err(TryLockError::Poisoned(_)) => return Err(ProxyBackendError::Internal),
                 Err(TryLockError::WouldBlock) => {
                     if cancellation.wait_cancelled_timeout(PROXY_MAINTENANCE_POLL_INTERVAL) {
@@ -3598,7 +3675,8 @@ impl ProxyBackend for RuntimeProxyBackend {
             .runtime
             .admit_authority_work(authority_binding)
             .map_err(runtime_error_to_proxy_backend)?;
-        let _maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
+        let maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
+        let maintenance_epoch = maintenance.epoch();
         let prepared = self
             .runtime
             .prepare_proxy_gateway(&request, authority_binding, authority_stamp)
@@ -3637,6 +3715,7 @@ impl ProxyBackend for RuntimeProxyBackend {
                 response.publication = runtime_publication_capability(
                     prepared.authority_binding,
                     Some(prepared.authority_stamp),
+                    maintenance_epoch,
                 );
                 return Ok(response);
             }
@@ -3676,7 +3755,8 @@ impl ProxyBackend for RuntimeProxyBackend {
             .insert(prepared.authority_stamp, canonical_status)
             .map_err(runtime_error_to_proxy_backend)?;
         proxy_response.head.observation_id = Some(observation_id);
-        proxy_response.publication = runtime_success_publication_capability(&prepared);
+        proxy_response.publication =
+            runtime_success_publication_capability(&prepared, maintenance_epoch);
         Ok(proxy_response)
     }
 
@@ -3700,7 +3780,8 @@ impl ProxyBackend for RuntimeProxyBackend {
             .runtime
             .admit_authority_work(authority_binding)
             .map_err(runtime_error_to_proxy_backend)?;
-        let _maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
+        let maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
+        let maintenance_epoch = maintenance.epoch();
         let prepared = self
             .runtime
             .prepare_proxy_gateway(&request, authority_binding, authority_stamp)
@@ -3739,6 +3820,7 @@ impl ProxyBackend for RuntimeProxyBackend {
                 response.publication = runtime_publication_capability(
                     prepared.authority_binding,
                     Some(prepared.authority_stamp),
+                    maintenance_epoch,
                 );
                 return Ok(ProxyTunnelOpen::Response(response));
             }
@@ -3778,7 +3860,8 @@ impl ProxyBackend for RuntimeProxyBackend {
             .insert(prepared.authority_stamp, canonical_status)
             .map_err(runtime_error_to_proxy_backend)?;
         proxy_tunnel.head.observation_id = Some(observation_id);
-        proxy_tunnel.publication = runtime_success_publication_capability(&prepared);
+        proxy_tunnel.publication =
+            runtime_success_publication_capability(&prepared, maintenance_epoch);
         Ok(ProxyTunnelOpen::Tunnel(proxy_tunnel))
     }
 
@@ -3798,6 +3881,22 @@ impl ProxyBackend for RuntimeProxyBackend {
         let Some(stamp) = authorization.stamp else {
             return Err(ProxyBackendError::PolicyDenied);
         };
+        let maintenance = self
+            .runtime
+            .inner
+            .coordination
+            .maintenance
+            .read()
+            .map_err(|_| ProxyBackendError::Internal)?;
+        if self
+            .runtime
+            .inner
+            .coordination
+            .publication_epoch(&maintenance)
+            != Some(authorization.maintenance_epoch)
+        {
+            return Err(ProxyBackendError::PolicyDenied);
+        }
         let authority = match self
             .runtime
             .authorized_publication_guard(authorization.binding, stamp)
@@ -3818,6 +3917,7 @@ impl ProxyBackend for RuntimeProxyBackend {
                 .map_err(|_| ProxyBackendError::Internal)?;
         }
         Ok(Box::new(RuntimePublicationPermit {
+            _maintenance: maintenance,
             _authority: authority,
         }))
     }
@@ -4601,8 +4701,12 @@ impl GatewayProofProvider {
                 best.header.tree_root,
                 best.height,
             ) {
-                Ok(remote_height) => {
-                    peers.record_success(address, remote_height, now);
+                Ok(()) => {
+                    // The proof is verified against our already validated local
+                    // tree root. Its transport handshake does not authenticate
+                    // the peer's advertised version height, so only refresh
+                    // connection health here.
+                    peers.record_transport_success(address, now);
                     if let Some(proof_peer) = self.proof_peer.as_ref()
                         && let Ok(mut selected) = proof_peer.lock()
                     {
@@ -4632,7 +4736,7 @@ impl GatewayProofProvider {
         name_hash: NameHash,
         proof_root: hns_core::Hash,
         proof_height: Height,
-    ) -> Result<Height, SyncError> {
+    ) -> Result<(), SyncError> {
         let network = self.network.network();
         let mut peer = PeerConnection::connect(address, network, self.timeout)?;
         let mut session = HeaderSyncSession::new(VersionPacket::default());
@@ -4649,7 +4753,7 @@ impl GatewayProofProvider {
             name_hash,
             proof_height,
         )?;
-        Ok(remote.height)
+        Ok(())
     }
 }
 
@@ -5190,7 +5294,9 @@ fn build_namespace_plan(
         }
         Err(error) => {
             let (hns_root_failure, icann_root_failure) = match error {
-                ClassificationError::RootFailed { hns, icann } => (hns, icann),
+                ClassificationError::RootFailed { hns, icann } => {
+                    (hns.failure().cloned(), icann.failure().cloned())
+                }
                 ClassificationError::StaleEvidence { namespace } => {
                     let failure = RootFailure::new(
                         namespace,
@@ -7082,13 +7188,35 @@ fn merge_dns_relay_peer_state(
     stored: &hns_p2p::PeerState,
     relay: &hns_p2p::PeerState,
 ) -> hns_p2p::PeerState {
+    // Height and observation time are one piece of header-sync-owned
+    // evidence. Never independently max them: a newer relay connection must
+    // not refresh an older height, and a stale relay snapshot must not replace
+    // a newer certified observation.
+    let (last_height, last_height_observed_at) = match (
+        stored.last_height_observed_at,
+        relay.last_height_observed_at,
+    ) {
+        (Some(stored_at), Some(relay_at)) if stored_at > relay_at => {
+            (stored.last_height, Some(stored_at))
+        }
+        (Some(stored_at), Some(relay_at)) if relay_at > stored_at => {
+            (relay.last_height, Some(relay_at))
+        }
+        (Some(observed_at), Some(_)) => {
+            (stored.last_height.max(relay.last_height), Some(observed_at))
+        }
+        (Some(stored_at), None) => (stored.last_height, Some(stored_at)),
+        (None, Some(relay_at)) => (relay.last_height, Some(relay_at)),
+        (None, None) => (stored.last_height.max(relay.last_height), None),
+    };
     hns_p2p::PeerState {
         address: stored.address,
         // Conservatively preserve either path's penalty. Successful relay
         // counts still persist, but a stale relay snapshot cannot erase a
         // concurrent proof/sync failure or ban.
         score: stored.score.max(relay.score),
-        last_height: stored.last_height.max(relay.last_height),
+        last_height,
+        last_height_observed_at,
         last_connected_at: stored.last_connected_at.max(relay.last_connected_at),
         banned_until: stored.banned_until.max(relay.banned_until),
         successes: stored.successes.max(relay.successes),
@@ -9412,10 +9540,23 @@ fn resolution_trace_json(
     let target_height = optional_u32_json(local_currentness.and_then(|value| value.target_height));
     let estimated_tip_height =
         optional_u32_json(local_currentness.and_then(|value| value.estimated_tip_height));
+    let local_chain_lag_blocks =
+        optional_u32_json(local_currentness.and_then(|value| value.lag_blocks));
+    let local_chain_freshness = local_currentness
+        .map(|value| value.freshness.as_str())
+        .unwrap_or(ChainFreshness::Unknown.as_str());
+    let local_chain_target_source = if local_currentness
+        .and_then(|value| value.target_height)
+        .is_some()
+    {
+        CurrentnessTargetSource::CorroboratedPeers.as_str()
+    } else {
+        CurrentnessTargetSource::Unknown.as_str()
+    };
     let local_chain_stale = optional_bool_json(local_currentness.and_then(|value| value.stale));
 
     format!(
-        r#"{{"host":"{}","url":"{}","nameClass":"{}","namespaceResolution":{},"root":"{}","network":"{}","mode":"{}","hnsProof":"{}","localBestHeight":{},"targetHeight":{},"estimatedTargetHeight":{},"localChainStale":{},"delegation":{},"resolutionSource":"{}","resourceRecords":[{}],"nameserverCandidates":{},"authoritativeDns":{},"p2pDnsRelay":{},"port53Interception":"{}","dnssec":"{}","originAddress":"{}","tls":{},"fallback":{{"used":{},"type":{},"reason":{}}},"rootEvidence":{},"dnsAttempts":[{}],"finalError":{}}}"#,
+        r#"{{"host":"{}","url":"{}","nameClass":"{}","namespaceResolution":{},"root":"{}","network":"{}","mode":"{}","hnsProof":"{}","localBestHeight":{},"targetHeight":{},"estimatedTargetHeight":{},"localChainLagBlocks":{},"localChainFreshness":"{}","localChainTargetSource":"{}","localChainFreshnessThresholdBlocks":{},"localChainStale":{},"delegation":{},"resolutionSource":"{}","resourceRecords":[{}],"nameserverCandidates":{},"authoritativeDns":{},"p2pDnsRelay":{},"port53Interception":"{}","dnssec":"{}","originAddress":"{}","tls":{},"fallback":{{"used":{},"type":{},"reason":{}}},"rootEvidence":{},"dnsAttempts":[{}],"finalError":{}}}"#,
         json_escape(input.host),
         json_escape(&gateway_request_address(input)),
         name_class,
@@ -9431,6 +9572,10 @@ fn resolution_trace_json(
         local_best_height,
         target_height,
         estimated_tip_height,
+        local_chain_lag_blocks,
+        local_chain_freshness,
+        local_chain_target_source,
+        LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG,
         local_chain_stale,
         delegation,
         resolution_source,
@@ -9594,7 +9739,15 @@ fn hns_proof_trace_status(
         (Some(answer), _) if answer.secure => "verified",
         (_, Some(GatewayError::Resolver(ResolverError::ProofUnavailable))) => "unavailable",
         (_, Some(GatewayError::Resolver(ResolverError::NameNotFound))) => "not_found",
-        (_, Some(GatewayError::Resolver(ResolverError::LocalChainNotCurrent))) => "stale",
+        (_, Some(GatewayError::Resolver(ResolverError::LocalChainNotCurrent))) => {
+            match local_chain_currentness_for_trace(input.data_dir, network)
+                .map(|currentness| currentness.freshness)
+            {
+                Some(ChainFreshness::Stale) => "stale",
+                Some(ChainFreshness::Current) => "verified",
+                Some(ChainFreshness::Unknown) | None => "currentness_unknown",
+            }
+        }
         (_, Some(GatewayError::Resolver(ResolverError::ProofNameMismatch))) => "failed",
         _ => {
             hns_cached_proof_trace_status(input.data_dir, network, input.host).unwrap_or("unknown")
@@ -9617,14 +9770,13 @@ fn hns_cached_proof_trace_status(
     match provider.prove_resource_value(&root_name, name_hash) {
         Ok(verified) if !verified.secure => Some("failed"),
         Ok(verified) if verified.value.is_some() => Some("verified"),
-        Ok(_)
-            if local_chain_currentness_for_trace(data_dir, network)
-                .and_then(|currentness| currentness.stale)
-                .unwrap_or(false) =>
+        Ok(_) => match local_chain_currentness_for_trace(data_dir, network)
+            .map(|currentness| currentness.freshness)
         {
-            Some("stale")
-        }
-        Ok(_) => Some("not_found"),
+            Some(ChainFreshness::Current) => Some("not_found"),
+            Some(ChainFreshness::Stale) => Some("stale"),
+            Some(ChainFreshness::Unknown) | None => Some("currentness_unknown"),
+        },
         Err(ResolverError::ProofUnavailable) => Some("unavailable"),
         Err(ResolverError::ProofNameMismatch) => Some("failed"),
         Err(_) => None,
@@ -11266,6 +11418,9 @@ fn run_sync_once(
     let best_peer_height = best_peer_height(&peers);
     let best_height = best.as_ref().map(|header| header.height.0);
     let estimated_tip_height = estimated_tip_height_for_network(network_kind, now);
+    let peer_target = assess_peer_target(&peers, &network_kind.network(), now);
+    let currentness =
+        LocalChainCurrentness::new(best_height, peer_target.height, estimated_tip_height);
     let resource_cache_evicted =
         prune_resource_cache_to_best_chain(&base, coordinator.chain())?.saturating_add(
             enforce_resource_cache_limit(&base, resource_cache_limit_bytes)?,
@@ -11279,7 +11434,7 @@ fn run_sync_once(
         failed,
         seed_error.is_some(),
         best_height,
-        best_peer_height,
+        currentness.target_height,
     );
     let error = if status == "peer_failed" {
         Some(format!(
@@ -11302,6 +11457,16 @@ fn run_sync_once(
         best_height,
         best_peer_height,
         estimated_tip_height,
+        effective_target_height: currentness.target_height,
+        lag_blocks: currentness.lag_blocks,
+        freshness: currentness.freshness.as_str(),
+        freshness_threshold_blocks: LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG,
+        target_source: peer_target
+            .height
+            .map(|_| CurrentnessTargetSource::CorroboratedPeers.as_str())
+            .unwrap_or_else(|| CurrentnessTargetSource::Unknown.as_str()),
+        target_peer_groups: peer_target.peer_groups,
+        target_evidence_expired: peer_target.evidence_expired,
         resource_cache_entries,
         resource_cache_bytes,
         resource_cache_evicted,
@@ -11325,18 +11490,18 @@ fn classify_sync_status(
     failed: usize,
     seed_failed: bool,
     best_height: Option<u32>,
-    best_peer_height: Option<u32>,
+    effective_target_height: Option<u32>,
 ) -> &'static str {
     if successful > 0 && accepted > 0 {
-        if is_sync_behind(best_height, best_peer_height)
-            || is_sync_target_unknown(best_height, best_peer_height)
+        if is_sync_behind(best_height, effective_target_height)
+            || is_sync_target_unknown(best_height, effective_target_height)
         {
             "syncing"
         } else {
             "synced"
         }
     } else if successful > 0 {
-        if is_sync_behind(best_height, best_peer_height) {
+        if is_sync_behind(best_height, effective_target_height) {
             "syncing"
         } else {
             "up_to_date"
@@ -11352,12 +11517,12 @@ fn classify_sync_status(
     }
 }
 
-fn is_sync_behind(best_height: Option<u32>, best_peer_height: Option<u32>) -> bool {
-    matches!((best_height, best_peer_height), (Some(best), Some(peer)) if peer > best)
+fn is_sync_behind(best_height: Option<u32>, effective_target_height: Option<u32>) -> bool {
+    matches!((best_height, effective_target_height), (Some(best), Some(target)) if target > best)
 }
 
-fn is_sync_target_unknown(best_height: Option<u32>, best_peer_height: Option<u32>) -> bool {
-    matches!((best_height, best_peer_height), (Some(best), None) if best > 0)
+fn is_sync_target_unknown(best_height: Option<u32>, effective_target_height: Option<u32>) -> bool {
+    matches!((best_height, effective_target_height), (Some(best), None) if best > 0)
 }
 
 fn best_peer_height(peers: &hns_p2p::PeerManager) -> Option<u32> {
@@ -11366,6 +11531,69 @@ fn best_peer_height(peers: &hns_p2p::PeerManager) -> Option<u32> {
         .map(|peer| peer.last_height.0)
         .filter(|height| *height > 0)
         .max()
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct PeerTargetAssessment {
+    height: Option<u32>,
+    peer_groups: usize,
+    evidence_expired: bool,
+}
+
+/// Derives an outlier-resistant currentness target from advisory peer heights.
+///
+/// One observation per network address group is retained, preferring the most
+/// recent header-sync observation. At least three groups must corroborate a
+/// target, and the lower median prevents one isolated high claim from forcing
+/// the browser permanently stale. Old observations cannot certify currentness.
+fn assess_peer_target(
+    peers: &hns_p2p::PeerManager,
+    network: &hns_core::network::Network,
+    now: u64,
+) -> PeerTargetAssessment {
+    let mut by_group = HashMap::<PeerAddressGroup, (u64, u32)>::new();
+    let mut evidence_expired = false;
+    for peer in peers.iter().filter(|peer| {
+        !peer.is_banned(now)
+            && peer.successes > 0
+            && peer.last_height.0 > 0
+            && is_allowed_peer_endpoint(network, peer.address)
+    }) {
+        let Some(observed_at) = peer.last_height_observed_at else {
+            continue;
+        };
+        if observed_at > now {
+            continue;
+        }
+        if now.saturating_sub(observed_at) > LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS {
+            evidence_expired = true;
+            continue;
+        }
+        let group = PeerAddressGroup::from_socket_addr(peer.address);
+        let candidate = (observed_at, peer.last_height.0);
+        by_group
+            .entry(group)
+            .and_modify(|current| {
+                if candidate > *current {
+                    *current = candidate;
+                }
+            })
+            .or_insert(candidate);
+    }
+
+    let peer_groups = by_group.len();
+    let mut heights = by_group
+        .into_values()
+        .map(|(_, height)| height)
+        .collect::<Vec<_>>();
+    heights.sort_unstable();
+    let height = (heights.len() >= LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS)
+        .then(|| heights[(heights.len() - 1) / 2]);
+    PeerTargetAssessment {
+        height,
+        peer_groups,
+        evidence_expired: height.is_none() && evidence_expired,
+    }
 }
 
 fn open_initialized_header_chain(
@@ -11585,7 +11813,41 @@ struct LocalChainCurrentness {
     best_height: Option<u32>,
     target_height: Option<u32>,
     estimated_tip_height: Option<u32>,
+    lag_blocks: Option<u32>,
+    freshness: ChainFreshness,
     stale: Option<bool>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ChainFreshness {
+    Current,
+    Stale,
+    Unknown,
+}
+
+impl ChainFreshness {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Current => "current",
+            Self::Stale => "stale",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CurrentnessTargetSource {
+    CorroboratedPeers,
+    Unknown,
+}
+
+impl CurrentnessTargetSource {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::CorroboratedPeers => "corroboratedPeers",
+            Self::Unknown => "unknown",
+        }
+    }
 }
 
 impl LocalChainCurrentness {
@@ -11594,17 +11856,33 @@ impl LocalChainCurrentness {
         target_height: Option<u32>,
         estimated_tip_height: Option<u32>,
     ) -> Self {
-        let current_target = target_height.or(estimated_tip_height);
-        let stale = match (best_height, current_target) {
-            (Some(best), Some(target)) => {
-                Some(target.saturating_sub(best) > LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG)
-            }
+        // A schedule-derived height is useful diagnostic context, but Handshake
+        // production does not track the ideal ten-minute schedule closely
+        // enough for it to authorize browser name decisions.
+        let target_height = match (best_height, target_height) {
+            (Some(best), Some(target)) if best > 0 => Some(target.max(best)),
             _ => None,
+        };
+        let lag_blocks = match (best_height, target_height) {
+            (Some(best), Some(target)) if best > 0 => Some(target.saturating_sub(best)),
+            _ => None,
+        };
+        let freshness = match lag_blocks {
+            Some(lag) if lag <= LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG => ChainFreshness::Current,
+            Some(_) => ChainFreshness::Stale,
+            None => ChainFreshness::Unknown,
+        };
+        let stale = match freshness {
+            ChainFreshness::Current => Some(false),
+            ChainFreshness::Stale => Some(true),
+            ChainFreshness::Unknown => None,
         };
         Self {
             best_height,
             target_height,
             estimated_tip_height,
+            lag_blocks,
+            freshness,
             stale,
         }
     }
@@ -11614,9 +11892,16 @@ fn local_chain_is_stale_for_current_resolution(
     base: &Path,
     network: NetworkKind,
 ) -> Result<bool, ResolverError> {
-    Ok(local_chain_currentness(base, network)?
-        .stale
-        .unwrap_or(false))
+    let currentness = local_chain_currentness(base, network)?;
+    match network {
+        NetworkKind::Regtest => Ok(currentness.best_height.is_none_or(|height| height == 0)),
+        NetworkKind::Mainnet | NetworkKind::Testnet => {
+            // Unknown peer currentness is not equivalent to current. Failing
+            // closed prevents an isolated or offline client from authorizing
+            // current HNS state using an arbitrarily old local tip.
+            Ok(currentness.freshness != ChainFreshness::Current)
+        }
+    }
 }
 
 fn local_chain_currentness(
@@ -11635,11 +11920,14 @@ fn local_chain_currentness(
     let mut peers = peer_store
         .load_manager()
         .map_err(|error| ResolverError::Storage(format!("load peer store: {error}")))?;
-    retain_allowed_peer_endpoints(&mut peers, &network.network());
+    let network_policy = network.network();
+    retain_allowed_peer_endpoints(&mut peers, &network_policy);
+    let now = now_unix_seconds();
+    let target_height = assess_peer_target(&peers, &network_policy, now).height;
     Ok(LocalChainCurrentness::new(
         best_height,
-        best_peer_height(&peers),
-        estimated_tip_height_for_network(network, now_unix_seconds()),
+        target_height,
+        estimated_tip_height_for_network(network, now),
     ))
 }
 
@@ -11693,11 +11981,15 @@ fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncSt
     let best_height = best.map(|header| header.height.0);
     let best_peer_height = best_peer_height(&peers);
     let estimated_tip_height = estimated_tip_height_for_network(network, now);
+    let network_policy = network.network();
+    let peer_target = assess_peer_target(&peers, &network_policy, now);
+    let currentness =
+        LocalChainCurrentness::new(best_height, peer_target.height, estimated_tip_height);
     let (resource_cache_entries, resource_cache_bytes) = resource_cache_stats(&base)?;
 
     Ok(NativeSyncStatus {
         network,
-        status: classify_cached_sync_status(best_height, best_peer_height),
+        status: classify_cached_sync_status(best_height, currentness.target_height),
         attempted: 0,
         successful: 0,
         accepted: 0,
@@ -11707,6 +11999,16 @@ fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncSt
         best_height,
         best_peer_height,
         estimated_tip_height,
+        effective_target_height: currentness.target_height,
+        lag_blocks: currentness.lag_blocks,
+        freshness: currentness.freshness.as_str(),
+        freshness_threshold_blocks: LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG,
+        target_source: peer_target
+            .height
+            .map(|_| CurrentnessTargetSource::CorroboratedPeers.as_str())
+            .unwrap_or_else(|| CurrentnessTargetSource::Unknown.as_str()),
+        target_peer_groups: peer_target.peer_groups,
+        target_evidence_expired: peer_target.evidence_expired,
         resource_cache_entries,
         resource_cache_bytes,
         resource_cache_evicted: 0,
@@ -11717,11 +12019,11 @@ fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncSt
 
 fn classify_cached_sync_status(
     best_height: Option<u32>,
-    best_peer_height: Option<u32>,
+    effective_target_height: Option<u32>,
 ) -> &'static str {
-    match (best_height, best_peer_height) {
-        (Some(best), Some(peer)) if best > 0 && peer <= best => "up_to_date",
-        (Some(best), Some(peer)) if peer > best => "syncing",
+    match (best_height, effective_target_height) {
+        (Some(best), Some(target)) if best > 0 && target <= best => "up_to_date",
+        (Some(best), Some(target)) if target > best => "syncing",
         (Some(best), None) if best > 0 => "syncing",
         _ => "idle",
     }
@@ -11867,6 +12169,13 @@ pub struct SyncStatus {
     pub best_height: Option<u32>,
     pub best_peer_height: Option<u32>,
     pub estimated_tip_height: Option<u32>,
+    pub effective_target_height: Option<u32>,
+    pub lag_blocks: Option<u32>,
+    pub freshness: &'static str,
+    pub freshness_threshold_blocks: u32,
+    pub target_source: &'static str,
+    pub target_peer_groups: usize,
+    pub target_evidence_expired: bool,
     pub resource_cache_entries: usize,
     pub resource_cache_bytes: usize,
     pub resource_cache_evicted: usize,
@@ -11897,6 +12206,13 @@ impl SyncStatus {
             best_height: None,
             best_peer_height: None,
             estimated_tip_height: None,
+            effective_target_height: None,
+            lag_blocks: None,
+            freshness: ChainFreshness::Unknown.as_str(),
+            freshness_threshold_blocks: LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG,
+            target_source: CurrentnessTargetSource::Unknown.as_str(),
+            target_peer_groups: 0,
+            target_evidence_expired: false,
             resource_cache_entries: 0,
             resource_cache_bytes: 0,
             resource_cache_evicted: 0,
@@ -11922,6 +12238,13 @@ impl SyncStatus {
             best_height: None,
             best_peer_height: None,
             estimated_tip_height: None,
+            effective_target_height: None,
+            lag_blocks: None,
+            freshness: ChainFreshness::Unknown.as_str(),
+            freshness_threshold_blocks: LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG,
+            target_source: CurrentnessTargetSource::Unknown.as_str(),
+            target_peer_groups: 0,
+            target_evidence_expired: false,
             resource_cache_entries: 0,
             resource_cache_bytes: 0,
             resource_cache_evicted: 0,
@@ -11943,6 +12266,14 @@ impl SyncStatus {
             .estimated_tip_height
             .map(|height| height.to_string())
             .unwrap_or_else(|| "null".to_owned());
+        let effective_target_height = self
+            .effective_target_height
+            .map(|height| height.to_string())
+            .unwrap_or_else(|| "null".to_owned());
+        let lag_blocks = self
+            .lag_blocks
+            .map(|lag| lag.to_string())
+            .unwrap_or_else(|| "null".to_owned());
         let error = self
             .error
             .as_ref()
@@ -11956,7 +12287,8 @@ impl SyncStatus {
             .join(",");
 
         format!(
-            r#"{{"network":"{}","status":"{}","attempted":{},"successful":{},"accepted":{},"failed":{},"peerCount":{},"peerGroups":{},"bestHeight":{},"bestPeerHeight":{},"estimatedTipHeight":{},"resourceCacheEntries":{},"resourceCacheBytes":{},"resourceCacheEvicted":{},"error":{},"failures":[{}]}}"#,
+            r#"{{"syncStatusSchemaVersion":{},"network":"{}","status":"{}","attempted":{},"successful":{},"accepted":{},"failed":{},"peerCount":{},"peerGroups":{},"bestHeight":{},"bestPeerHeight":{},"estimatedTipHeight":{},"effectiveTargetHeight":{},"lagBlocks":{},"freshness":"{}","freshnessThresholdBlocks":{},"targetSource":"{}","targetPeerGroups":{},"targetEvidenceExpired":{},"resourceCacheEntries":{},"resourceCacheBytes":{},"resourceCacheEvicted":{},"error":{},"failures":[{}]}}"#,
+            SYNC_STATUS_SCHEMA_VERSION,
             self.network.as_str(),
             self.status,
             self.attempted,
@@ -11968,6 +12300,13 @@ impl SyncStatus {
             best_height,
             best_peer_height,
             estimated_tip_height,
+            effective_target_height,
+            lag_blocks,
+            self.freshness,
+            self.freshness_threshold_blocks,
+            self.target_source,
+            self.target_peer_groups,
+            self.target_evidence_expired,
             self.resource_cache_entries,
             self.resource_cache_bytes,
             self.resource_cache_evicted,
@@ -12022,6 +12361,15 @@ mod tests {
     use std::io::{Read, Write};
     use std::net::{Shutdown, TcpListener, TcpStream};
     use std::thread;
+
+    fn current_maintenance_epoch(runtime: &BrowserRuntime) -> MaintenanceEpoch {
+        let guard = runtime.inner.coordination.maintenance.read().unwrap();
+        runtime
+            .inner
+            .coordination
+            .publication_epoch(&guard)
+            .unwrap()
+    }
 
     fn trace_recorder_for_selection(namespace: Namespace) -> DnsTraceRecorder {
         let trace = DnsTraceRecorder::default();
@@ -12904,7 +13252,11 @@ mod tests {
         assert!(matches!(
             runtime
                 .proxy_backend_for(binding)
-                .acquire_publication_permit(&runtime_publication_capability(binding, None)),
+                .acquire_publication_permit(&runtime_publication_capability(
+                    binding,
+                    None,
+                    current_maintenance_epoch(&runtime),
+                )),
             Err(ProxyBackendError::PolicyDenied)
         ));
 
@@ -12955,7 +13307,11 @@ mod tests {
         assert!(matches!(
             runtime
                 .proxy_backend_for(binding)
-                .acquire_publication_permit(&runtime_publication_capability(binding, None)),
+                .acquire_publication_permit(&runtime_publication_capability(
+                    binding,
+                    None,
+                    current_maintenance_epoch(&runtime),
+                )),
             Err(ProxyBackendError::PolicyDenied)
         ));
 
@@ -12981,7 +13337,11 @@ mod tests {
         assert!(matches!(
             runtime
                 .proxy_backend_for(binding)
-                .acquire_publication_permit(&runtime_publication_capability(binding, None)),
+                .acquire_publication_permit(&runtime_publication_capability(
+                    binding,
+                    None,
+                    current_maintenance_epoch(&runtime),
+                )),
             Err(ProxyBackendError::PolicyDenied)
         ));
         proxy.stop();
@@ -13010,6 +13370,7 @@ mod tests {
                 .acquire_publication_permit(&runtime_publication_capability(
                     first_binding,
                     Some(first_stamp),
+                    current_maintenance_epoch(&runtime),
                 )),
             Err(ProxyBackendError::PolicyDenied)
         ));
@@ -13028,7 +13389,11 @@ mod tests {
             proxy_generation: second.generation(),
         };
         let second_stamp = runtime.admit_authority_work(second_binding).unwrap();
-        let second_capability = runtime_publication_capability(second_binding, Some(second_stamp));
+        let second_capability = runtime_publication_capability(
+            second_binding,
+            Some(second_stamp),
+            current_maintenance_epoch(&runtime),
+        );
         drop(
             runtime
                 .proxy_backend_for(second_binding)
@@ -13069,7 +13434,11 @@ mod tests {
         };
         let backend = runtime.proxy_backend_for(binding);
         let stamp = runtime.admit_authority_work(binding).unwrap();
-        let capability = runtime_publication_capability(binding, Some(stamp));
+        let capability = runtime_publication_capability(
+            binding,
+            Some(stamp),
+            current_maintenance_epoch(&runtime),
+        );
         let permit = backend.acquire_publication_permit(&capability).unwrap();
         let worker_proxy = Arc::clone(&proxy);
         let (started_tx, started_rx) = std::sync::mpsc::channel();
@@ -13156,7 +13525,11 @@ mod tests {
         };
         let backend = runtime.proxy_backend_for(binding);
         let stamp = runtime.admit_authority_work(binding).unwrap();
-        let capability = runtime_publication_capability(binding, Some(stamp));
+        let capability = runtime_publication_capability(
+            binding,
+            Some(stamp),
+            current_maintenance_epoch(&runtime),
+        );
         let permit = backend.acquire_publication_permit(&capability).unwrap();
         let replacement_runtime = runtime.clone();
         let (started_tx, started_rx) = std::sync::mpsc::channel();
@@ -13220,11 +13593,26 @@ mod tests {
         }
 
         impl PausedStampedBackend {
-            fn admit_then_pause(&self) -> Result<RuntimeStamp, ProxyBackendError> {
+            fn admit_then_pause(
+                &self,
+            ) -> Result<(RuntimeStamp, MaintenanceEpoch), ProxyBackendError> {
                 let stamp = self
                     .runtime
                     .admit_authority_work(self.binding)
                     .map_err(runtime_error_to_proxy_backend)?;
+                let maintenance = self
+                    .runtime
+                    .inner
+                    .coordination
+                    .maintenance
+                    .read()
+                    .map_err(|_| ProxyBackendError::Internal)?;
+                let maintenance_epoch = self
+                    .runtime
+                    .inner
+                    .coordination
+                    .publication_epoch(&maintenance)
+                    .ok_or(ProxyBackendError::Internal)?;
                 if let Some(sender) = self.admitted.lock().unwrap().take() {
                     sender
                         .send(stamp)
@@ -13235,7 +13623,7 @@ mod tests {
                     .unwrap()
                     .recv_timeout(Duration::from_secs(2))
                     .map_err(|_| ProxyBackendError::Internal)?;
-                Ok(stamp)
+                Ok((stamp, maintenance_epoch))
             }
         }
 
@@ -13248,7 +13636,7 @@ mod tests {
                 if self.output == OutputKind::Tunnel {
                     return Err(ProxyBackendError::Internal);
                 }
-                let stamp = self.admit_then_pause()?;
+                let (stamp, maintenance_epoch) = self.admit_then_pause()?;
                 let (status_code, reason_phrase) = match self.output {
                     OutputKind::Response => (200, "OK"),
                     OutputKind::FailureResponse => (502, "Fail Closed"),
@@ -13262,7 +13650,11 @@ mod tests {
                         observation_id: None,
                     },
                     body: ProxyResponseBody::Bytes(b"stale".to_vec()),
-                    publication: runtime_publication_capability(self.binding, Some(stamp)),
+                    publication: runtime_publication_capability(
+                        self.binding,
+                        Some(stamp),
+                        maintenance_epoch,
+                    ),
                 })
             }
 
@@ -13274,7 +13666,7 @@ mod tests {
                 if self.output != OutputKind::Tunnel {
                     return Err(ProxyBackendError::Internal);
                 }
-                let stamp = self.admit_then_pause()?;
+                let (stamp, maintenance_epoch) = self.admit_then_pause()?;
                 Ok(ProxyTunnelOpen::Tunnel(ProxyTunnel {
                     head: ProxyResponseHead {
                         status_code: 101,
@@ -13286,7 +13678,11 @@ mod tests {
                         observation_id: None,
                     },
                     stream: Box::new(std::io::Cursor::new(Vec::<u8>::new())),
-                    publication: runtime_publication_capability(self.binding, Some(stamp)),
+                    publication: runtime_publication_capability(
+                        self.binding,
+                        Some(stamp),
+                        maintenance_epoch,
+                    ),
                 }))
             }
 
@@ -13529,6 +13925,7 @@ mod tests {
         let stale_capability = PublicationCapability::new(RuntimePublicationAuthorization {
             binding,
             stamp: Some(stale_stamp),
+            maintenance_epoch: current_maintenance_epoch(&runtime),
             selection: Some(selection.clone()),
         });
         assert!(matches!(
@@ -13543,6 +13940,7 @@ mod tests {
         let fresh_capability = PublicationCapability::new(RuntimePublicationAuthorization {
             binding,
             stamp: Some(fresh_stamp),
+            maintenance_epoch: current_maintenance_epoch(&runtime),
             selection: Some(selection),
         });
         let permit = backend
@@ -14291,6 +14689,379 @@ mod tests {
 
         assert!(status.unwrap().is_ok());
         cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn browser_runtime_sync_takes_exclusive_maintenance_lock() {
+        let data_dir = temp_dir_path("browser-runtime-sync-maintenance-write");
+        let runtime = BrowserRuntime::open(
+            RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest).with_sync_options(
+                SyncOptions {
+                    seed_peers: false,
+                    timeout: Duration::from_millis(1),
+                    resource_cache_limit_bytes: DEFAULT_RESOURCE_CACHE_LIMIT_BYTES,
+                },
+            ),
+        )
+        .unwrap();
+        let maintenance = runtime.inner.coordination.maintenance.read().unwrap();
+        let call_runtime = runtime.clone();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let call = thread::spawn(move || sender.send(call_runtime.sync_once()).unwrap());
+
+        assert!(matches!(
+            receiver.recv_timeout(Duration::from_millis(100)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        ));
+        drop(maintenance);
+        assert!(
+            receiver
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap()
+                .is_ok()
+        );
+        call.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn header_sync_is_excluded_by_response_and_tunnel_head_publication() {
+        let exercise_race = |label: &str, boundary: &str| {
+            let (data_dir, runtime) = runtime_with_current_regtest_state(label);
+            let sync_runtime = BrowserRuntime::open(
+                RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest).with_sync_options(
+                    SyncOptions {
+                        seed_peers: false,
+                        timeout: Duration::from_millis(1),
+                        resource_cache_limit_bytes: DEFAULT_RESOURCE_CACHE_LIMIT_BYTES,
+                    },
+                ),
+            )
+            .unwrap();
+            let proxy = runtime.start_proxy("welcome").unwrap();
+            let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+            let binding = RuntimeAuthorityBinding {
+                runtime_generation: snapshot.generation(),
+                policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+                proxy_generation: proxy.generation(),
+            };
+            let stamp = runtime.admit_authority_work(binding).unwrap();
+            let capability = runtime_publication_capability(
+                binding,
+                Some(stamp),
+                current_maintenance_epoch(&runtime),
+            );
+            let backend = runtime.proxy_backend_for(binding);
+            let permit = backend.acquire_publication_permit(&capability).unwrap();
+
+            let (sent, received) = std::sync::mpsc::channel();
+            let sync = thread::spawn(move || {
+                sent.send(sync_runtime.sync_once()).unwrap();
+            });
+            assert!(
+                received.recv_timeout(Duration::from_millis(50)).is_err(),
+                "{boundary} publication did not exclude header maintenance"
+            );
+
+            drop(permit);
+            assert!(
+                received
+                    .recv_timeout(Duration::from_secs(2))
+                    .unwrap()
+                    .is_ok()
+            );
+            sync.join().unwrap();
+            assert!(
+                matches!(
+                    backend.acquire_publication_permit(&capability),
+                    Err(ProxyBackendError::PolicyDenied)
+                ),
+                "pre-sync {boundary} capability remained publishable"
+            );
+            proxy.stop();
+            cleanup_dir(&data_dir);
+        };
+
+        exercise_race(
+            "runtime-sync-response-publication-exclusion",
+            "normal response head",
+        );
+        exercise_race(
+            "runtime-sync-tunnel-publication-exclusion",
+            "tunnel response head",
+        );
+    }
+
+    #[test]
+    fn loopback_head_publication_and_header_sync_have_one_deterministic_winner() {
+        #[derive(Clone, Copy, Eq, PartialEq)]
+        enum OutputKind {
+            Response,
+            FailureResponse,
+            Tunnel,
+        }
+
+        #[derive(Clone, Copy)]
+        enum RaceWinner {
+            Maintenance,
+            Publication,
+        }
+
+        struct GatedPublicationBackend {
+            runtime: BrowserRuntime,
+            binding: RuntimeAuthorityBinding,
+            permit_backend: RuntimeProxyBackend,
+            output: OutputKind,
+            winner: RaceWinner,
+            permit_entered: Mutex<Option<std::sync::mpsc::Sender<()>>>,
+            permit_release: Mutex<std::sync::mpsc::Receiver<()>>,
+        }
+
+        impl GatedPublicationBackend {
+            fn publication_capability(&self) -> Result<PublicationCapability, ProxyBackendError> {
+                let stamp = self
+                    .runtime
+                    .admit_authority_work(self.binding)
+                    .map_err(runtime_error_to_proxy_backend)?;
+                let maintenance = self
+                    .runtime
+                    .inner
+                    .coordination
+                    .maintenance
+                    .read()
+                    .map_err(|_| ProxyBackendError::Internal)?;
+                let epoch = self
+                    .runtime
+                    .inner
+                    .coordination
+                    .publication_epoch(&maintenance)
+                    .ok_or(ProxyBackendError::Internal)?;
+                Ok(runtime_publication_capability(
+                    self.binding,
+                    Some(stamp),
+                    epoch,
+                ))
+            }
+
+            fn gate_permit(&self) -> Result<(), ProxyBackendError> {
+                if let Some(sender) = self.permit_entered.lock().unwrap().take() {
+                    sender.send(()).map_err(|_| ProxyBackendError::Internal)?;
+                }
+                self.permit_release
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(2))
+                    .map_err(|_| ProxyBackendError::Internal)
+            }
+        }
+
+        impl ProxyBackend for GatedPublicationBackend {
+            fn execute(
+                &self,
+                _request: LoopbackProxyRequest,
+                _cancellation: &ProxyCancellationToken,
+            ) -> Result<ProxyResponse, ProxyBackendError> {
+                if self.output == OutputKind::Tunnel {
+                    return Err(ProxyBackendError::Internal);
+                }
+                let (status_code, reason_phrase) = match self.output {
+                    OutputKind::Response => (200, "OK"),
+                    OutputKind::FailureResponse => (502, "Fail Closed"),
+                    OutputKind::Tunnel => unreachable!(),
+                };
+                Ok(ProxyResponse {
+                    head: ProxyResponseHead {
+                        status_code,
+                        reason_phrase: reason_phrase.to_owned(),
+                        headers: Vec::new(),
+                        observation_id: None,
+                    },
+                    body: ProxyResponseBody::Bytes(b"published".to_vec()),
+                    publication: self.publication_capability()?,
+                })
+            }
+
+            fn open_tunnel(
+                &self,
+                _request: LoopbackProxyRequest,
+                _cancellation: &ProxyCancellationToken,
+            ) -> Result<ProxyTunnelOpen, ProxyBackendError> {
+                if self.output != OutputKind::Tunnel {
+                    return Err(ProxyBackendError::Internal);
+                }
+                Ok(ProxyTunnelOpen::Tunnel(ProxyTunnel {
+                    head: ProxyResponseHead {
+                        status_code: 101,
+                        reason_phrase: "Switching Protocols".to_owned(),
+                        headers: vec![
+                            ProxyHeader::new("Connection", "Upgrade"),
+                            ProxyHeader::new("Upgrade", "websocket"),
+                        ],
+                        observation_id: None,
+                    },
+                    stream: Box::new(std::io::Cursor::new(Vec::<u8>::new())),
+                    publication: self.publication_capability()?,
+                }))
+            }
+
+            fn acquire_publication_permit(
+                &self,
+                capability: &PublicationCapability,
+            ) -> Result<Box<dyn PublicationPermit + '_>, ProxyBackendError> {
+                match self.winner {
+                    RaceWinner::Maintenance => {
+                        self.gate_permit()?;
+                        self.permit_backend.acquire_publication_permit(capability)
+                    }
+                    RaceWinner::Publication => {
+                        let permit = self.permit_backend.acquire_publication_permit(capability)?;
+                        self.gate_permit()?;
+                        Ok(permit)
+                    }
+                }
+            }
+        }
+
+        let exercise_race = |label: &str,
+                             output: OutputKind,
+                             winner: RaceWinner,
+                             expected_status: &[u8]| {
+            let (data_dir, runtime) = runtime_with_current_regtest_state(label);
+            let sync_runtime = BrowserRuntime::open(
+                RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest).with_sync_options(
+                    SyncOptions {
+                        seed_peers: false,
+                        timeout: Duration::from_millis(1),
+                        resource_cache_limit_bytes: DEFAULT_RESOURCE_CACHE_LIMIT_BYTES,
+                    },
+                ),
+            )
+            .unwrap();
+            let authority_proxy = runtime.start_proxy("welcome").unwrap();
+            let snapshot = runtime.inner.canonical_authority.lock().unwrap().snapshot();
+            let binding = RuntimeAuthorityBinding {
+                runtime_generation: snapshot.generation(),
+                policy_generation: runtime.canonical_policy_snapshot().unwrap().generation(),
+                proxy_generation: authority_proxy.generation(),
+            };
+            let (permit_entered_tx, permit_entered_rx) = std::sync::mpsc::channel();
+            let (permit_release_tx, permit_release_rx) = std::sync::mpsc::channel();
+            let backend = Arc::new(GatedPublicationBackend {
+                runtime: runtime.clone(),
+                binding,
+                permit_backend: runtime.proxy_backend_for(binding),
+                output,
+                winner,
+                permit_entered: Mutex::new(Some(permit_entered_tx)),
+                permit_release: Mutex::new(permit_release_rx),
+            });
+            let proxy = RunningProxy::start(
+                ProxyConfig::new(
+                    ProxyInstanceId::new(ProxySessionId::generate().unwrap(), 1),
+                    hns_loopback_proxy::HostScope::new("welcome").unwrap(),
+                ),
+                backend,
+                Arc::new(NoopProxyObserver),
+            )
+            .unwrap();
+            let mut client = TcpStream::connect(proxy.endpoint().address()).unwrap();
+            client
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let request = match output {
+                OutputKind::Response | OutputKind::FailureResponse => format!(
+                    "GET http://welcome/ HTTP/1.1\r\nHost: welcome\r\nProxy-Authorization: {}\r\nConnection: close\r\n\r\n",
+                    proxy.endpoint().authorization_header_value(),
+                ),
+                OutputKind::Tunnel => format!(
+                    "GET ws://welcome/socket HTTP/1.1\r\nHost: welcome\r\nProxy-Authorization: {}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: key\r\nSec-WebSocket-Version: 13\r\n\r\n",
+                    proxy.endpoint().authorization_header_value(),
+                ),
+            };
+            client.write_all(request.as_bytes()).unwrap();
+            client.flush().unwrap();
+            permit_entered_rx
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap();
+
+            let (sync_tx, sync_rx) = std::sync::mpsc::channel();
+            let sync = thread::spawn(move || {
+                sync_tx.send(sync_runtime.sync_once()).unwrap();
+            });
+
+            match winner {
+                RaceWinner::Maintenance => {
+                    assert!(
+                        sync_rx
+                            .recv_timeout(Duration::from_secs(2))
+                            .unwrap()
+                            .is_ok()
+                    );
+                    permit_release_tx.send(()).unwrap();
+                }
+                RaceWinner::Publication => {
+                    assert!(
+                        sync_rx.recv_timeout(Duration::from_millis(50)).is_err(),
+                        "header maintenance crossed a live publication permit"
+                    );
+                    permit_release_tx.send(()).unwrap();
+                }
+            }
+
+            let mut published = Vec::new();
+            client.read_to_end(&mut published).unwrap();
+            match winner {
+                RaceWinner::Maintenance => assert!(
+                    published.is_empty(),
+                    "maintenance-invalidated head crossed the loopback boundary"
+                ),
+                RaceWinner::Publication => {
+                    assert!(published.starts_with(expected_status));
+                    assert!(
+                        sync_rx
+                            .recv_timeout(Duration::from_secs(2))
+                            .unwrap()
+                            .is_ok()
+                    );
+                }
+            }
+
+            sync.join().unwrap();
+            proxy.stop();
+            authority_proxy.stop();
+            cleanup_dir(&data_dir);
+        };
+
+        for (output, status, label) in [
+            (
+                OutputKind::Response,
+                b"HTTP/1.1 200 OK\r\n".as_slice(),
+                "200",
+            ),
+            (
+                OutputKind::FailureResponse,
+                b"HTTP/1.1 502 Fail Closed\r\n".as_slice(),
+                "502",
+            ),
+            (
+                OutputKind::Tunnel,
+                b"HTTP/1.1 101 Switching Protocols\r\n".as_slice(),
+                "101",
+            ),
+        ] {
+            exercise_race(
+                &format!("runtime-maintenance-wins-{label}"),
+                output,
+                RaceWinner::Maintenance,
+                status,
+            );
+            exercise_race(
+                &format!("runtime-publication-wins-{label}"),
+                output,
+                RaceWinner::Publication,
+                status,
+            );
+        }
     }
 
     #[test]
@@ -15344,6 +16115,210 @@ mod tests {
     }
 
     #[test]
+    fn local_chain_currentness_uses_two_block_boundary_and_not_wall_clock_estimate() {
+        let at_boundary = LocalChainCurrentness::new(Some(100), Some(102), Some(9_999));
+        assert_eq!(at_boundary.target_height, Some(102));
+        assert_eq!(at_boundary.lag_blocks, Some(2));
+        assert_eq!(at_boundary.freshness, ChainFreshness::Current);
+        assert_eq!(at_boundary.stale, Some(false));
+
+        let beyond_boundary = LocalChainCurrentness::new(Some(100), Some(103), Some(100));
+        assert_eq!(beyond_boundary.lag_blocks, Some(3));
+        assert_eq!(beyond_boundary.freshness, ChainFreshness::Stale);
+        assert_eq!(beyond_boundary.stale, Some(true));
+
+        let unknown = LocalChainCurrentness::new(Some(100), None, Some(9_999));
+        assert_eq!(unknown.target_height, None);
+        assert_eq!(unknown.lag_blocks, None);
+        assert_eq!(unknown.freshness, ChainFreshness::Unknown);
+        assert_eq!(unknown.stale, None);
+        assert_eq!(unknown.estimated_tip_height, Some(9_999));
+        assert_ne!(
+            LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG,
+            RESOURCE_PROOF_CACHE_CANONICAL_WINDOW
+        );
+
+        let local_ahead = LocalChainCurrentness::new(Some(103), Some(100), None);
+        assert_eq!(local_ahead.target_height, Some(103));
+        assert_eq!(local_ahead.lag_blocks, Some(0));
+        assert_eq!(local_ahead.freshness, ChainFreshness::Current);
+    }
+
+    #[test]
+    fn peer_target_requires_three_fresh_successful_address_groups() {
+        let now = 10_000;
+        let network = hns_core::network::mainnet();
+        let mut peers = PeerManager::default();
+        peers.record_success("1.1.1.1:12038".parse().unwrap(), Height(100), now);
+        peers.record_success("2.2.2.2:12038".parse().unwrap(), Height(101), now);
+
+        let no_quorum = assess_peer_target(&peers, &network, now);
+        assert_eq!(no_quorum.height, None);
+        assert_eq!(no_quorum.peer_groups, 2);
+        assert!(!no_quorum.evidence_expired);
+
+        peers.record_success("3.3.3.3:12038".parse().unwrap(), Height(102), now);
+        let quorum = assess_peer_target(&peers, &network, now);
+        assert_eq!(quorum.height, Some(101));
+        assert_eq!(quorum.peer_groups, 3);
+        assert!(!quorum.evidence_expired);
+    }
+
+    #[test]
+    fn peer_target_uses_freshest_group_observation_and_lower_median() {
+        let now = 10_000;
+        let network = hns_core::network::mainnet();
+        let mut peers = PeerManager::default();
+        peers.record_success("1.1.1.1:12038".parse().unwrap(), Height(90), now - 10);
+        peers.record_success("1.1.2.2:12038".parse().unwrap(), Height(102), now - 5);
+        peers.record_success("2.2.2.2:12038".parse().unwrap(), Height(101), now);
+        peers.record_success("3.3.3.3:12038".parse().unwrap(), Height(103), now);
+        peers.record_success("4.4.4.4:12038".parse().unwrap(), Height(1_000_000), now);
+
+        let target = assess_peer_target(&peers, &network, now);
+        assert_eq!(target.height, Some(102));
+        assert_eq!(target.peer_groups, 4);
+    }
+
+    #[test]
+    fn peer_target_recency_boundary_expires_without_authorizing_old_evidence() {
+        let now = 10_000;
+        let network = hns_core::network::mainnet();
+        let mut peers = PeerManager::default();
+        for (address, height) in [
+            ("1.1.1.1:12038", 100),
+            ("2.2.2.2:12038", 101),
+            ("3.3.3.3:12038", 102),
+        ] {
+            peers.record_success(
+                address.parse().unwrap(),
+                Height(height),
+                now - LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS,
+            );
+        }
+        peers.record_success(
+            "4.4.4.4:12038".parse().unwrap(),
+            Height(99),
+            now - LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS - 1,
+        );
+        let mixed = assess_peer_target(&peers, &network, now);
+        assert_eq!(mixed.height, Some(101));
+        assert!(!mixed.evidence_expired);
+
+        for address in peers.iter().map(|peer| peer.address).collect::<Vec<_>>() {
+            let height = peers.get(address).unwrap().last_height;
+            peers.record_observed_height(
+                address,
+                height,
+                now - LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS - 1,
+            );
+            // Newer proof/relay/transport activity must not refresh old header
+            // evidence used to decide whether the local chain is current.
+            peers.record_transport_success(address, now);
+        }
+        let expired = assess_peer_target(&peers, &network, now);
+        assert_eq!(expired.height, None);
+        assert_eq!(expired.peer_groups, 0);
+        assert!(expired.evidence_expired);
+    }
+
+    #[test]
+    fn peer_target_ignores_legacy_height_without_header_observation_time() {
+        let now = 10_000;
+        let network = hns_core::network::mainnet();
+        let mut peers = PeerManager::default();
+        for (address, height) in [
+            ("1.1.1.1:12038", 100),
+            ("2.2.2.2:12038", 101),
+            ("3.3.3.3:12038", 102),
+        ] {
+            let peer = peers.upsert(address.parse().unwrap());
+            peer.last_height = Height(height);
+            peer.last_connected_at = Some(now);
+            peer.successes = 1;
+        }
+
+        let target = assess_peer_target(&peers, &network, now);
+
+        assert_eq!(target.height, None);
+        assert_eq!(target.peer_groups, 0);
+        assert!(!target.evidence_expired);
+    }
+
+    #[test]
+    fn peer_target_ignores_banned_unsuccessful_future_and_disallowed_observations() {
+        let now = 10_000;
+        let network = hns_core::network::mainnet();
+        let mut peers = PeerManager::default();
+        peers.record_success("1.1.1.1:12038".parse().unwrap(), Height(100), now);
+        peers.record_success("2.2.2.2:12038".parse().unwrap(), Height(101), now);
+        let banned: SocketAddr = "3.3.3.3:12038".parse().unwrap();
+        peers.record_success(banned, Height(1_000_000), now);
+        peers.upsert(banned).banned_until = Some(now + 1);
+        peers.record_observed_height("4.4.4.4:12038".parse().unwrap(), Height(1_000_000), now);
+        peers.record_success("5.5.5.5:12038".parse().unwrap(), Height(1_000_000), now + 1);
+        peers.record_success("127.0.0.1:12038".parse().unwrap(), Height(1_000_000), now);
+
+        let target = assess_peer_target(&peers, &network, now);
+        assert_eq!(target.height, None);
+        assert_eq!(target.peer_groups, 2);
+        assert!(!target.evidence_expired);
+    }
+
+    #[test]
+    fn mainnet_unknown_target_is_explicit_and_fails_closed() {
+        let path = temp_dir_path("unknown-currentness-target");
+        let base = path.join("hns");
+        std::fs::create_dir_all(&base).unwrap();
+        let best = store_best_header_with_tree_root(&base, Hash::new([31; 32]));
+
+        assert!(local_chain_is_stale_for_current_resolution(&base, NetworkKind::Mainnet).unwrap());
+
+        let status = read_sync_status(path.to_str().unwrap(), NetworkKind::Mainnet).unwrap();
+        assert_eq!(status.best_height, Some(best.0));
+        assert_eq!(status.effective_target_height, None);
+        assert_eq!(status.lag_blocks, None);
+        assert_eq!(status.freshness, "unknown");
+        assert_eq!(status.freshness_threshold_blocks, 2);
+        assert_eq!(status.target_source, "unknown");
+        assert_eq!(status.target_peer_groups, 0);
+        assert!(!status.target_evidence_expired);
+        assert_eq!(status.status, "syncing");
+
+        let json = status.to_json();
+        assert!(json.contains(r#""syncStatusSchemaVersion":2"#));
+        assert!(json.contains(r#""effectiveTargetHeight":null"#));
+        assert!(json.contains(r#""lagBlocks":null"#));
+        assert!(json.contains(r#""freshness":"unknown""#));
+        assert!(json.contains(r#""freshnessThresholdBlocks":2"#));
+        assert!(json.contains(r#""targetSource":"unknown""#));
+        cleanup_dir(&path);
+    }
+
+    #[test]
+    fn persisted_peer_quorum_drives_authoritative_sync_status() {
+        let path = temp_dir_path("corroborated-currentness-target");
+        let base = path.join("hns");
+        std::fs::create_dir_all(&base).unwrap();
+        let best = store_best_header_with_tree_root(&base, Hash::new([32; 32]));
+        store_peer_height(&base, best.0 + LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG);
+
+        assert!(!local_chain_is_stale_for_current_resolution(&base, NetworkKind::Mainnet).unwrap());
+
+        let status = read_sync_status(path.to_str().unwrap(), NetworkKind::Mainnet).unwrap();
+        assert_eq!(
+            status.effective_target_height,
+            Some(best.0 + LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG)
+        );
+        assert_eq!(status.lag_blocks, Some(LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG));
+        assert_eq!(status.freshness, "current");
+        assert_eq!(status.target_source, "corroboratedPeers");
+        assert_eq!(status.target_peer_groups, 3);
+        assert!(!status.target_evidence_expired);
+        cleanup_dir(&path);
+    }
+
+    #[test]
     fn live_proof_peer_selection_ignores_zero_height_failed_peers() {
         let stale: SocketAddr = "1.1.1.2:12038".parse().unwrap();
         let current: SocketAddr = "1.1.1.3:12038".parse().unwrap();
@@ -15375,6 +16350,13 @@ mod tests {
             best_height: Some(0),
             best_peer_height: None,
             estimated_tip_height: Some(335_684),
+            effective_target_height: None,
+            lag_blocks: None,
+            freshness: "unknown",
+            freshness_threshold_blocks: LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG,
+            target_source: "unknown",
+            target_peer_groups: 0,
+            target_evidence_expired: false,
             resource_cache_entries: 0,
             resource_cache_bytes: 0,
             resource_cache_evicted: 0,
@@ -15391,6 +16373,13 @@ mod tests {
         assert!(json.contains(r#""status":"peer_failed""#));
         assert!(json.contains(r#""failed":1"#));
         assert!(json.contains(r#""estimatedTipHeight":335684"#));
+        assert!(json.contains(r#""effectiveTargetHeight":null"#));
+        assert!(json.contains(r#""lagBlocks":null"#));
+        assert!(json.contains(r#""freshness":"unknown""#));
+        assert!(json.contains(r#""freshnessThresholdBlocks":2"#));
+        assert!(json.contains(r#""targetSource":"unknown""#));
+        assert!(json.contains(r#""targetPeerGroups":0"#));
+        assert!(json.contains(r#""targetEvidenceExpired":false"#));
         assert!(json.contains(r#""error":"all 1 attempted sync peers failed; see failures""#,));
         assert!(json.contains(
             r#""failures":[{"address":"127.0.0.1:12038","stage":"connect","error":"connection \"closed\"\n"}]"#,
@@ -16456,6 +17445,13 @@ mod tests {
         assert!(trace.contains(&format!(r#""localBestHeight":{}"#, proof_height.0)));
         assert!(trace.contains(&format!(r#""targetHeight":{}"#, target_height)));
         assert!(trace.contains(r#""estimatedTargetHeight":"#));
+        assert!(trace.contains(&format!(
+            r#""localChainLagBlocks":{}"#,
+            LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG + 2
+        )));
+        assert!(trace.contains(r#""localChainFreshness":"stale""#));
+        assert!(trace.contains(r#""localChainTargetSource":"corroboratedPeers""#));
+        assert!(trace.contains(r#""localChainFreshnessThresholdBlocks":2"#));
         assert!(trace.contains(r#""localChainStale":true"#));
         assert!(trace.contains(
             r#""fallback":{"used":true,"type":"HNS_DOH","reason":"local_chain_not_current"}"#
@@ -16463,6 +17459,58 @@ mod tests {
         assert!(trace.contains(
             r#""finalError":"resolver error: local HNS chain is not current enough to determine current name state""#
         ));
+        cleanup_dir(&path);
+    }
+
+    #[test]
+    fn resolution_trace_reports_unknown_currentness_without_claiming_name_absence() {
+        let path = temp_dir_path("trace-unknown-chain-currentness");
+        let base = path.join("hns");
+        std::fs::create_dir_all(&base).unwrap();
+        let resources = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
+        let root_name = "unknown-currentness".to_owned();
+        let name_hash = NameHash::from_name(&root_name).unwrap();
+        let proof_root = Hash::new([33; 32]);
+        let proof_height = store_best_header_with_tree_root(&base, proof_root);
+        resources
+            .insert(
+                VerifiedResourceValue::non_inclusion(root_name.clone(), name_hash)
+                    .with_anchor(proof_root, proof_height),
+            )
+            .unwrap();
+
+        assert_eq!(
+            hns_cached_proof_trace_status(path.to_str().unwrap(), NetworkKind::Mainnet, &root_name,),
+            Some("currentness_unknown"),
+        );
+
+        let trace = resolution_trace_json(
+            &GatewayHttpRequestInput {
+                data_dir: path.to_str().unwrap(),
+                method: "GET",
+                scheme: "https",
+                host: &root_name,
+                port: 443,
+                path_and_query: "/",
+                header_text: "",
+                body: &[],
+            },
+            NetworkKind::Mainnet,
+            GatewayResolutionMode::Strict,
+            None,
+            TlsTraceInput::default(),
+            Some(&GatewayError::Resolver(ResolverError::LocalChainNotCurrent)),
+            &FallbackMarker::default(),
+            &DnsTraceRecorder::default(),
+        );
+
+        assert!(trace.contains(r#""hnsProof":"currentness_unknown""#));
+        assert!(trace.contains(r#""targetHeight":null"#));
+        assert!(trace.contains(r#""localChainLagBlocks":null"#));
+        assert!(trace.contains(r#""localChainFreshness":"unknown""#));
+        assert!(trace.contains(r#""localChainTargetSource":"unknown""#));
+        assert!(trace.contains(r#""localChainStale":null"#));
+        assert!(!trace.contains(r#""hnsProof":"not_found""#));
         cleanup_dir(&path);
     }
 
@@ -16882,11 +17930,12 @@ mod tests {
     }
 
     #[test]
-    fn relay_peer_persistence_merge_cannot_erase_newer_proof_state() {
+    fn relay_peer_persistence_merge_preserves_header_observation_atomically() {
         let address: SocketAddr = "203.0.113.80:12038".parse().unwrap();
         let mut stored = hns_p2p::PeerState::new(address);
         stored.score = 25;
         stored.last_height = Height(200);
+        stored.last_height_observed_at = Some(290);
         stored.last_connected_at = Some(300);
         stored.banned_until = Some(600);
         stored.successes = 8;
@@ -16894,15 +17943,17 @@ mod tests {
 
         let mut stale_relay = hns_p2p::PeerState::new(address);
         stale_relay.score = 5;
-        stale_relay.last_height = Height(150);
-        stale_relay.last_connected_at = Some(250);
+        stale_relay.last_height = Height(10_000);
+        stale_relay.last_height_observed_at = Some(240);
+        stale_relay.last_connected_at = Some(350);
         stale_relay.successes = 9;
         stale_relay.failures = 3;
 
         let merged = merge_dns_relay_peer_state(&stored, &stale_relay);
         assert_eq!(merged.score, 25);
         assert_eq!(merged.last_height, Height(200));
-        assert_eq!(merged.last_connected_at, Some(300));
+        assert_eq!(merged.last_height_observed_at, Some(290));
+        assert_eq!(merged.last_connected_at, Some(350));
         assert_eq!(merged.banned_until, Some(600));
         assert_eq!(merged.successes, 9);
         assert_eq!(merged.failures, 4);
@@ -17846,7 +18897,7 @@ mod tests {
         let peer_store = SqlitePeerStore::open(base.join("peers.sqlite")).unwrap();
         let mut peers = PeerManager::default();
         peers.seed([proof_address]);
-        peers.record_observed_height(proof_address, remote_height, now_unix_seconds());
+        peers.record_observed_height(proof_address, proof_height, 1);
         peer_store.save_manager(&peers).unwrap();
 
         let origin_listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -17892,7 +18943,13 @@ mod tests {
             }),
         );
         let peer = peer_store.load_peer(proof_address).unwrap().unwrap();
-        assert_eq!(peer.last_height, remote_height);
+        assert_eq!(peer.last_height, proof_height);
+        assert_eq!(peer.last_height_observed_at, Some(1));
+        assert!(
+            peer.last_connected_at
+                .is_some_and(|connected_at| connected_at > 1)
+        );
+        assert_eq!(peer.successes, 1);
         proof_server.join().unwrap();
         origin_server.join().unwrap();
         cleanup_dir(&path);
@@ -19830,11 +20887,12 @@ mod tests {
     }
 
     fn store_peer_height(base: &std::path::Path, height: u32) {
-        let address = "1.1.1.1:12038".parse().unwrap();
         let peer_store = SqlitePeerStore::open(base.join("peers.sqlite")).unwrap();
         let mut peers = PeerManager::default();
-        peers.seed([address]);
-        peers.record_observed_height(address, Height(height), now_unix_seconds());
+        let now = now_unix_seconds();
+        for address in ["1.1.1.1:12038", "2.2.2.2:12038", "3.3.3.3:12038"] {
+            peers.record_success(address.parse().unwrap(), Height(height), now);
+        }
         peer_store.save_manager(&peers).unwrap();
     }
 
