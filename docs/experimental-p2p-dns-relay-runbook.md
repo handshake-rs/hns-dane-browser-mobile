@@ -171,14 +171,14 @@ cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-dnssec
 cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-resolver
 cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-transport
 cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-p2p
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-runtime
+cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-mobile-platform-runtime
 ```
 
 These tests are necessary but do not by themselves convert the fast topology
 into an end-to-end DNSSEC result. Only the real-node controller plus native
 runtime result establishes that local acceptance claim.
 
-The `hns-p2p` and `hns-browser-runtime` regression suites are also the protocol
+The `hns-p2p` and `hns-mobile-platform-runtime` regression suites are also the protocol
 gate for four requester invariants: the complete HIP type/flag/EDNS query
 profile is enforced before transmission; relay-only handshakes advertise zero
 local services; automatic and static-relay handshakes cannot promote their

@@ -5,7 +5,7 @@
     deny(clippy::expect_used, clippy::panic, clippy::unwrap_used)
 )]
 
-use hns_browser_runtime::*;
+use hns_mobile_platform_runtime::*;
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};

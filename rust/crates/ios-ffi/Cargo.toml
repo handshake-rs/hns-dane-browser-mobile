@@ -10,4 +10,4 @@ name = "hns_browser_ios"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
-hns-browser-runtime.workspace = true
+hns-mobile-platform-runtime.workspace = true

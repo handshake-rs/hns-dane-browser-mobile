@@ -98,7 +98,7 @@ The following source-level gates passed on Linux on 2026-07-25:
   --manifest-path rust/Cargo.toml --all -- --check`.
 - Locked/offline test suites for every changed mobile-workspace Rust package:
   `hns-resolver` (66 tests), `hns-transport` (51), `android-ffi` (11),
-  `ios-ffi` (11), `hns-browser-runtime` (135), `hns-gateway` (50), and
+  `ios-ffi` (11), `hns-mobile-platform-runtime` (135), `hns-gateway` (50), and
   `hns-loopback-proxy` (147). The Git-pinned `hns-icann-dane` contract also
   passed its 7 tests at the exact engine commit.
 - `cargo +1.92.0 build --locked --offline --manifest-path rust/Cargo.toml

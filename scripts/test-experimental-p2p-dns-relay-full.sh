@@ -171,7 +171,7 @@ if [[ -z ${FULL_TIER_CLIENT:-} ]]; then
   require_command cargo
   (
     cd "$REPO_ROOT/rust"
-    cargo build -p hns-browser-runtime --bin hns-runtime-full-tier --offline
+    cargo build -p hns-mobile-platform-runtime --bin hns-runtime-full-tier --offline
   )
   FULL_TIER_CLIENT="$REPO_ROOT/rust/target/debug/hns-runtime-full-tier"
 fi

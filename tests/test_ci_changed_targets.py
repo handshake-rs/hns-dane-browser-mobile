@@ -52,7 +52,7 @@ class CiChangedTargetsTests(unittest.TestCase):
         for path in (
             "rust/Cargo.toml",
             "rust/Cargo.lock",
-            "rust/crates/hns-browser-runtime/src/lib.rs",
+            "rust/crates/hns-mobile-platform-runtime/src/lib.rs",
             "android/app/src/main/assets/hns_headers_300000.snapshot.gzip",
         ):
             with self.subTest(path=path):

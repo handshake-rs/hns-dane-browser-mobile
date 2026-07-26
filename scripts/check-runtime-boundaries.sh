@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUST_TOOLCHAIN="1.92.0"
 
-for shared_crate in hns-browser-runtime hns-loopback-proxy; do
+for shared_crate in hns-mobile-platform-runtime hns-loopback-proxy; do
   shared_dir="$ROOT_DIR/rust/crates/$shared_crate"
   dependency_tree="$(cargo "+$RUST_TOOLCHAIN" tree --locked \
     --manifest-path "$ROOT_DIR/rust/Cargo.toml" \
@@ -35,7 +35,7 @@ if matches="$(grep -RInE \
   "$legacy_android_protocol_pattern" \
   "$ROOT_DIR/android/app/src" \
   "$ROOT_DIR/rust/crates/android-ffi" \
-  "$ROOT_DIR/rust/crates/hns-browser-runtime" || true)" && [[ -n "$matches" ]]; then
+  "$ROOT_DIR/rust/crates/hns-mobile-platform-runtime" || true)" && [[ -n "$matches" ]]; then
   echo "ERROR: obsolete Android protocol or compatibility bridge code is present." >&2
   printf '%s\n' "$matches" >&2
   exit 1

@@ -3,7 +3,6 @@ resolver = "3"
 exclude = ["fuzz"]
 members = [
     "crates/android-ffi",
-    "crates/hns-browser-runtime",
     "crates/hns-cache",
     "crates/hns-chain",
     "crates/hns-core",
@@ -11,6 +10,7 @@ members = [
     "crates/hns-dnssec",
     "crates/hns-gateway",
     "crates/hns-loopback-proxy",
+    "crates/hns-mobile-platform-runtime",
     "crates/ios-ffi",
     "crates/hns-p2p",
     "crates/hns-resolver",
@@ -32,7 +32,6 @@ bytes = "1"
 hex = "0.4"
 getrandom = "0.3"
 hns-cache = { path = "crates/hns-cache" }
-hns-browser-runtime = { path = "crates/hns-browser-runtime" }
 hns-chain = { path = "crates/hns-chain" }
 hns-core = { path = "crates/hns-core" }
 hns-dane = { path = "crates/hns-dane" }
@@ -40,6 +39,7 @@ hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
 hns-icann-dane = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "2850ac1f50e361e2772e18f2e5ecbd7e77085afb" }
 hns-loopback-proxy = { path = "crates/hns-loopback-proxy" }
+hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "2850ac1f50e361e2772e18f2e5ecbd7e77085afb" }
 hns-resolution-policy = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "2850ac1f50e361e2772e18f2e5ecbd7e77085afb" }
 h2 = "0.4"

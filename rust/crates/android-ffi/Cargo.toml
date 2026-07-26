@@ -10,5 +10,5 @@ name = "hns_dane_browser_ffi"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-hns-browser-runtime.workspace = true
+hns-mobile-platform-runtime.workspace = true
 jni.workspace = true

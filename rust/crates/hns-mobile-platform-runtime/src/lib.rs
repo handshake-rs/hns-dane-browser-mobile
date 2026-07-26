@@ -1,4 +1,8 @@
-//! Platform-neutral browser runtime shared by native application shells.
+//! Mobile platform runtime shared by the Android and Apple application shells.
+//!
+//! This crate owns mobile storage, synchronization, proxy, socket, and shell
+//! adaptation. The canonical session-bound authority lifecycle remains the
+//! `hns-browser-runtime` crate in `handshake-rs/hns-dane-engine`.
 
 #![cfg_attr(
     not(test),

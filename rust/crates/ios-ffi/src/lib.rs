@@ -9,7 +9,7 @@
 )]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use hns_browser_runtime::{
+use hns_mobile_platform_runtime::{
     BrowserNameClass, BrowserProxy, BrowserProxyResolverPolicy, BrowserProxySecurityPath,
     BrowserProxyStatus, BrowserProxyStatusObserver, BrowserProxyTlsPolicy, BrowserRuntime,
     DEFAULT_RESOURCE_CACHE_LIMIT_BYTES, NetworkKind, ResolutionMode, RuntimeConfiguration,

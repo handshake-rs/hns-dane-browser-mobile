@@ -1,12 +1,12 @@
-use hns_browser_runtime::{
-    BrowserRuntime, GatewayHttpRequest, ResolutionMode, RuntimeConfiguration, RuntimePolicy,
-    SyncOptions,
-};
 use hns_core::dns::{
     DnsEncodeConfig, DnsFlags, DnsHeader, DnsMessage, DnsName, DnsQuestion, RecordType,
     ResourceRecord,
 };
 use hns_core::network::NetworkKind;
+use hns_mobile_platform_runtime::{
+    BrowserRuntime, GatewayHttpRequest, ResolutionMode, RuntimeConfiguration, RuntimePolicy,
+    SyncOptions,
+};
 use hns_p2p::{DnsRelayClient, PeerManager, SqlitePeerStore};
 use std::collections::HashSet;
 use std::env;
