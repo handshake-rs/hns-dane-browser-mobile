@@ -513,7 +513,7 @@
     <string name="trace_fix_dnssec_before_tlsa">Fix delegated DNSSEC first. TLSA/DANE was not evaluated because secure resolution failed before the TLSA lookup.</string>
     <string name="trace_fix_renew_cert">Renew the origin HTTPS certificate. The gateway reached an HTTPS origin, but TLS failed because the certificate is past its validity window.</string>
     <string name="trace_fix_origin_address_missing">Serve A/AAAA for the requested host from delegated DNS. HNS GLUE/SYNTH data is only used to reach nameservers, not as the origin address.</string>
-    <string name="trace_fix_compat_fallback_used">An unsupported legacy HNS DoH status was reported. Current builds prohibit this path; update or restart the runtime.</string>
+    <string name="trace_fix_compat_fallback_used" translatable="false">An unsupported legacy HNS DoH status was reported. Current builds prohibit this path; update or restart the runtime.</string>
     <string name="trace_fix_no_obvious_hns">No obvious fix from this trace. If HTTPS fails, inspect TLSA/DANE once certificate tracing is enabled.</string>
     <string name="trace_fix_icann_dnssec_bogus">Fix the ICANN DNSSEC chain: DS, DNSKEY, signatures, and denial records must validate.</string>
     <string name="trace_fix_icann_origin_address_missing">Publish a DNSSEC-validated A or AAAA record for this host.</string>
