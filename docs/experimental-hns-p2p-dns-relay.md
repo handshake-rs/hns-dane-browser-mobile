@@ -226,13 +226,15 @@ invalid DNSSEC, invalid negative proof, invalid TLSA, or a failed DANE match.
 
 ## Controls and diagnostics
 
-New installs enable `Experimental HNS peer DNS relay`; existing installations
-retain their relay preference. Startup migration deletes the former public
-recursive HNS DoH endpoint and compatibility flags. Relay provenance is
-`p2p_dns_relay`, distinct from proof-anchored authoritative DoH and direct
-authoritative DNS. A relayed result may be displayed as `DANE via HNS P2P`.
-Serving remains separate: the companion `hsd` responder starts only when its
-operator explicitly enables the experimental relay service.
+New installs leave `Experimental HNS peer DNS relay` off until the browser user
+opts in; existing installations retain their independent relay-requester
+preference. Startup migration deletes the former public recursive HNS DoH
+endpoint and compatibility flags without converting those legacy settings into
+relay consent. Relay provenance is `p2p_dns_relay`, distinct from
+proof-anchored authoritative DoH and direct authoritative DNS. A relayed result
+may be displayed as `DANE via HNS P2P`. Serving remains separate: the companion
+`hsd` responder starts only when its operator explicitly enables the
+experimental DNS-output service.
 
 Settings can add a known relay peer by numeric `IPv4:port` or `[IPv6]:port`.
 The runtime applies the selected network's endpoint policy, completes a live
