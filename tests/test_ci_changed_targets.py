@@ -139,6 +139,7 @@ class CiChangedTargetsTests(unittest.TestCase):
             ".github/workflows/ci.yml",
             ".github/workflows/future-shared.yml",
             "scripts/ci-changed-targets.sh",
+            "scripts/verify_android_translations.py",
             "scripts/check-runtime-boundaries.sh",
             "scripts/verify-supply-chain.sh",
             "scripts/verify_cargo_git_policy.py",

@@ -374,6 +374,10 @@
 <string name="trace_field_local_best_height">Lokalna najlepsza wysokość: %1$s</string>
 <string name="trace_field_target_height">Wysokość docelowa: %1$s</string>
 <string name="trace_field_estimated_target_height">Szacunkowa wysokość celu: %1$s</string>
+<string name="trace_field_local_chain_lag_blocks">Opóźnienie lokalnego łańcucha: %1$s bloków</string>
+<string name="trace_field_local_chain_freshness">Aktualność lokalnego łańcucha: %1$s</string>
+<string name="trace_field_local_chain_target_source">Źródło celu aktualności: %1$s</string>
+<string name="trace_field_local_chain_freshness_threshold">Próg aktualności: %1$s bloków</string>
 <string name="trace_field_local_chain_stale">Lokalny łańcuch nieaktualny: %1$s</string>
 <string name="trace_field_delegation">Delegacja: %1$s</string>
 <string name="trace_field_resolution_source">Źródło rozdzielczości: %1$s</string>
@@ -417,6 +421,7 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">autorytatywny DNS</string>
 <string name="trace_source_authoritative_doh">autorytatywny DoH</string>
+<string name="trace_source_hns_resource">Lokalnie zweryfikowany dowód HNS</string>
 <string name="trace_protocol_authoritative_udp53">Autorytatywny UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Autorytatywny TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Autorytatywny DoH</string>

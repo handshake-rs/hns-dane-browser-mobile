@@ -362,6 +362,10 @@
     <string name="trace_field_local_best_height">ローカル最高の高さ: %1$s</string>
     <string name="trace_field_target_height">対象身長：%1$s</string>
     <string name="trace_field_estimated_target_height">推定ターゲット高さ: %1$s</string>
+    <string name="trace_field_local_chain_lag_blocks">ローカルチェーンの遅れ: %1$s ブロック</string>
+    <string name="trace_field_local_chain_freshness">ローカルチェーンの鮮度: %1$s</string>
+    <string name="trace_field_local_chain_target_source">現行性ターゲットのソース: %1$s</string>
+    <string name="trace_field_local_chain_freshness_threshold">鮮度しきい値: %1$s ブロック</string>
     <string name="trace_field_local_chain_stale">ローカル チェーンが古い: %1$s</string>
     <string name="trace_field_delegation">委任: %1$s</string>
     <string name="trace_field_resolution_source">解決策ソース: %1$s</string>
@@ -405,6 +409,7 @@
     <string name="trace_source_icann_dns">ICANN DNS</string>
     <string name="trace_source_authoritative_dns">権威DNS</string>
     <string name="trace_source_authoritative_doh">権威のある DoH</string>
+    <string name="trace_source_hns_resource">検証済みのローカル HNS 証明</string>
     <string name="trace_protocol_authoritative_udp53">権威のある UDP 53</string>
     <string name="trace_protocol_authoritative_tcp53">権威あるTCP 53</string>
     <string name="trace_protocol_authoritative_doh">権威のある DoH</string>

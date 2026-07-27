@@ -386,6 +386,10 @@
     <string name="trace_field_local_best_height">أفضل ارتفاع محلي: %1$s</string>
     <string name="trace_field_target_height">الارتفاع المستهدف: %1$s</string>
     <string name="trace_field_estimated_target_height">الارتفاع المقدر للهدف: %1$s</string>
+    <string name="trace_field_local_chain_lag_blocks">تأخر السلسلة المحلية: %1$s كتلة</string>
+    <string name="trace_field_local_chain_freshness">حداثة السلسلة المحلية: %1$s</string>
+    <string name="trace_field_local_chain_target_source">مصدر هدف الحداثة: %1$s</string>
+    <string name="trace_field_local_chain_freshness_threshold">حد حداثة السلسلة: %1$s كتلة</string>
     <string name="trace_field_local_chain_stale">السلسلة المحلية قديمة: %1$s</string>
     <string name="trace_field_delegation">الوفد: %1$s</string>
     <string name="trace_field_resolution_source">مصدر القرار: %1$s</string>
@@ -429,6 +433,7 @@
     <string name="trace_source_icann_dns">نظام أسماء النطاقات الخاص بآيكان</string>
     <string name="trace_source_authoritative_dns">DNS الرسمي</string>
     <string name="trace_source_authoritative_doh">DoH الرسمية</string>
+    <string name="trace_source_hns_resource">إثبات HNS محلي تم التحقق منه</string>
     <string name="trace_protocol_authoritative_udp53">UDP الرسمي 53</string>
     <string name="trace_protocol_authoritative_tcp53">برنامج التعاون الفني الرسمي 53</string>
     <string name="trace_protocol_authoritative_doh">DoH الرسمية</string>

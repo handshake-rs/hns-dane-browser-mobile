@@ -362,6 +362,10 @@
     <string name="trace_field_local_best_height">بهترین ارتفاع محلی: %1$s</string>
     <string name="trace_field_target_height">ارتفاع هدف: %1$s</string>
     <string name="trace_field_estimated_target_height">ارتفاع هدف تخمینی: %1$s</string>
+    <string name="trace_field_local_chain_lag_blocks">عقب‌ماندگی زنجیره محلی: %1$s بلوک</string>
+    <string name="trace_field_local_chain_freshness">تازگی زنجیره محلی: %1$s</string>
+    <string name="trace_field_local_chain_target_source">منبع هدف به‌روز بودن: %1$s</string>
+    <string name="trace_field_local_chain_freshness_threshold">آستانه تازگی: %1$s بلوک</string>
     <string name="trace_field_local_chain_stale">قدیمی زنجیره محلی: %1$s</string>
     <string name="trace_field_delegation">نمایندگی: %1$s</string>
     <string name="trace_field_resolution_source">منبع رزولوشن: %1$s</string>
@@ -405,6 +409,7 @@
     <string name="trace_source_icann_dns">ICANN DNS</string>
     <string name="trace_source_authoritative_dns">DNS معتبر</string>
     <string name="trace_source_authoritative_doh">DoH معتبر</string>
+    <string name="trace_source_hns_resource">اثبات محلی تأییدشده HNS</string>
     <string name="trace_protocol_authoritative_udp53">UDP معتبر 53</string>
     <string name="trace_protocol_authoritative_tcp53">TCP 53 معتبر</string>
     <string name="trace_protocol_authoritative_doh">DoH معتبر</string>

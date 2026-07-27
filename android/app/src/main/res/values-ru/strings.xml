@@ -374,6 +374,10 @@
 <string name="trace_field_local_best_height">Лучшая местная высота: %1$s.</string>
 <string name="trace_field_target_height">Высота цели: %1$s</string>
 <string name="trace_field_estimated_target_height">Расчетная высота цели: %1$s</string>
+<string name="trace_field_local_chain_lag_blocks">Отставание локальной цепи: %1$s блоков</string>
+<string name="trace_field_local_chain_freshness">Актуальность локальной цепи: %1$s</string>
+<string name="trace_field_local_chain_target_source">Источник целевой актуальности: %1$s</string>
+<string name="trace_field_local_chain_freshness_threshold">Порог актуальности: %1$s блоков</string>
 <string name="trace_field_local_chain_stale">Устаревшая местная сеть: %1$s.</string>
 <string name="trace_field_delegation">Делегирование: %1$s</string>
 <string name="trace_field_resolution_source">Источник разрешения: %1$s</string>
@@ -417,6 +421,7 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">авторитетный DNS</string>
 <string name="trace_source_authoritative_doh">авторитетный DoH</string>
+<string name="trace_source_hns_resource">Локальное проверенное доказательство HNS</string>
 <string name="trace_protocol_authoritative_udp53">Авторитетный UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Авторитетный TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Авторитетный DoH</string>

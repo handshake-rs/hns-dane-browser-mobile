@@ -29,6 +29,7 @@ classify_path() {
     .github/workflows/ci.yml | \
       scripts/ci-changed-targets.sh | \
       tests/test_ci_changed_targets.py | \
+      scripts/verify_android_translations.py | \
       scripts/check.sh | \
       scripts/check-runtime-boundaries.sh | \
       scripts/check-version-consistency.sh | \

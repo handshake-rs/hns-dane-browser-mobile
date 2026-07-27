@@ -362,6 +362,10 @@
 <string name="trace_field_local_best_height">局部最佳高度：%1$s</string>
 <string name="trace_field_target_height">目标高度：%1$s</string>
 <string name="trace_field_estimated_target_height">预计目标高度：%1$s</string>
+<string name="trace_field_local_chain_lag_blocks">本地链落后：%1$s 个区块</string>
+<string name="trace_field_local_chain_freshness">本地链新鲜度：%1$s</string>
+<string name="trace_field_local_chain_target_source">当前性目标来源：%1$s</string>
+<string name="trace_field_local_chain_freshness_threshold">新鲜度阈值：%1$s 个区块</string>
 <string name="trace_field_local_chain_stale">本地连锁陈旧：%1$s</string>
 <string name="trace_field_delegation">代表团：%1$s</string>
 <string name="trace_field_resolution_source">分辨率来源：%1$s</string>
@@ -405,6 +409,7 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">权威DNS</string>
 <string name="trace_source_authoritative_doh">权威DoH</string>
+<string name="trace_source_hns_resource">已验证的本地 HNS 证明</string>
 <string name="trace_protocol_authoritative_udp53">权威UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">权威TCP 53</string>
 <string name="trace_protocol_authoritative_doh">权威DoH</string>

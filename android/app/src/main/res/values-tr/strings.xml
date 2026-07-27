@@ -362,6 +362,10 @@
 <string name="trace_field_local_best_height">Yerel en iyi yükseklik: %1$s</string>
 <string name="trace_field_target_height">Hedef yüksekliği: %1$s</string>
 <string name="trace_field_estimated_target_height">Tahmini hedef yüksekliği: %1$s</string>
+<string name="trace_field_local_chain_lag_blocks">Yerel zincir gecikmesi: %1$s blok</string>
+<string name="trace_field_local_chain_freshness">Yerel zincir güncelliği: %1$s</string>
+<string name="trace_field_local_chain_target_source">Güncellik hedefi kaynağı: %1$s</string>
+<string name="trace_field_local_chain_freshness_threshold">Güncellik eşiği: %1$s blok</string>
 <string name="trace_field_local_chain_stale">Yerel zincir bayat: %1$s</string>
 <string name="trace_field_delegation">Delegasyon: %1$s</string>
 <string name="trace_field_resolution_source">Çözünürlük kaynağı: %1$s</string>
@@ -405,6 +409,7 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">yetkili DNS</string>
 <string name="trace_source_authoritative_doh">yetkili DoH</string>
+<string name="trace_source_hns_resource">Yerel doğrulanmış HNS kanıtı</string>
 <string name="trace_protocol_authoritative_udp53">Yetkili UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Yetkili TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Yetkili DoH</string>

@@ -362,6 +362,10 @@
 <string name="trace_field_local_best_height">स्थानीय सर्वोत्तम ऊंचाई: %1$s</string>
 <string name="trace_field_target_height">लक्ष्य ऊंचाई: %1$s</string>
 <string name="trace_field_estimated_target_height">अनुमानित लक्ष्य ऊंचाई: %1$s</string>
+<string name="trace_field_local_chain_lag_blocks">स्थानीय शृंखला विलंब: %1$s ब्लॉक</string>
+<string name="trace_field_local_chain_freshness">स्थानीय शृंखला की नवीनता: %1$s</string>
+<string name="trace_field_local_chain_target_source">नवीनता लक्ष्य स्रोत: %1$s</string>
+<string name="trace_field_local_chain_freshness_threshold">नवीनता सीमा: %1$s ब्लॉक</string>
 <string name="trace_field_local_chain_stale">स्थानीय श्रृंखला बासी: %1$s</string>
 <string name="trace_field_delegation">प्रतिनिधिमंडल: %1$s</string>
 <string name="trace_field_resolution_source">रिज़ॉल्यूशन स्रोत: %1$s</string>
@@ -405,6 +409,7 @@
 <string name="trace_source_icann_dns">पीएच1 पीएच2</string>
 <string name="trace_source_authoritative_dns">आधिकारिक DNS</string>
 <string name="trace_source_authoritative_doh">आधिकारिक DoH</string>
+<string name="trace_source_hns_resource">सत्यापित स्थानीय HNS प्रमाण</string>
 <string name="trace_protocol_authoritative_udp53">आधिकारिक UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">आधिकारिक TCP 53</string>
 <string name="trace_protocol_authoritative_doh">आधिकारिक DoH</string>

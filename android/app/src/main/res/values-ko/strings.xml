@@ -362,6 +362,10 @@
 <string name="trace_field_local_best_height">지역 최고 높이: %1$s</string>
 <string name="trace_field_target_height">타겟 높이: %1$s</string>
 <string name="trace_field_estimated_target_height">예상 타겟 높이: %1$s</string>
+<string name="trace_field_local_chain_lag_blocks">로컬 체인 지연: %1$s블록</string>
+<string name="trace_field_local_chain_freshness">로컬 체인 최신성: %1$s</string>
+<string name="trace_field_local_chain_target_source">최신성 대상 소스: %1$s</string>
+<string name="trace_field_local_chain_freshness_threshold">최신성 임계값: %1$s블록</string>
 <string name="trace_field_local_chain_stale">로컬 체인이 오래됨: %1$s</string>
 <string name="trace_field_delegation">위임: %1$s</string>
 <string name="trace_field_resolution_source">해결 소스: %1$s</string>
@@ -405,6 +409,7 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">신뢰할 수 있는 DNS</string>
 <string name="trace_source_authoritative_doh">신뢰할 수 있는 DoH</string>
+<string name="trace_source_hns_resource">검증된 로컬 HNS 증명</string>
 <string name="trace_protocol_authoritative_udp53">신뢰할 수 있는 UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">신뢰할 수 있는 TCP 53</string>
 <string name="trace_protocol_authoritative_doh">신뢰할 수 있는 DoH</string>

@@ -362,6 +362,10 @@
     <string name="trace_field_local_best_height">Melhor altura local: %1$s</string>
     <string name="trace_field_target_height">Altura do alvo: %1$s</string>
     <string name="trace_field_estimated_target_height">Altura estimada do alvo: %1$s</string>
+    <string name="trace_field_local_chain_lag_blocks">Atraso da cadeia local: %1$s blocos</string>
+    <string name="trace_field_local_chain_freshness">Atualidade da cadeia local: %1$s</string>
+    <string name="trace_field_local_chain_target_source">Fonte do alvo de atualidade: %1$s</string>
+    <string name="trace_field_local_chain_freshness_threshold">Limite de atualidade: %1$s blocos</string>
     <string name="trace_field_local_chain_stale">Cadeia local obsoleta: %1$s</string>
     <string name="trace_field_delegation">Delegação: %1$s</string>
     <string name="trace_field_resolution_source">Fonte de resolução: %1$s</string>
@@ -405,6 +409,7 @@
     <string name="trace_source_icann_dns">DNS da ICANN</string>
     <string name="trace_source_authoritative_dns">DNS autoritativo</string>
     <string name="trace_source_authoritative_doh">DoH oficial</string>
+    <string name="trace_source_hns_resource">Prova HNS local verificada</string>
     <string name="trace_protocol_authoritative_udp53">UDP oficial 53</string>
     <string name="trace_protocol_authoritative_tcp53">TCP autoritativo 53</string>
     <string name="trace_protocol_authoritative_doh">DoH oficial</string>

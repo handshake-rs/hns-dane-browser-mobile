@@ -362,6 +362,10 @@
     <string name="trace_field_local_best_height">Meilleure hauteur locale : %1$s</string>
     <string name="trace_field_target_height">Hauteur cible : %1$s</string>
     <string name="trace_field_estimated_target_height">Hauteur cible estimée : %1$s</string>
+    <string name="trace_field_local_chain_lag_blocks">Retard de la chaîne locale : %1$s blocs</string>
+    <string name="trace_field_local_chain_freshness">Actualité de la chaîne locale : %1$s</string>
+    <string name="trace_field_local_chain_target_source">Source de la cible d’actualité : %1$s</string>
+    <string name="trace_field_local_chain_freshness_threshold">Seuil d’actualité : %1$s blocs</string>
     <string name="trace_field_local_chain_stale">Chaîne locale obsolète : %1$s</string>
     <string name="trace_field_delegation">Délégation : %1$s</string>
     <string name="trace_field_resolution_source">Source de résolution : %1$s</string>
@@ -405,6 +409,7 @@
     <string name="trace_source_icann_dns">DNS de l\'ICANN</string>
     <string name="trace_source_authoritative_dns">DNS faisant autorité</string>
     <string name="trace_source_authoritative_doh">DoH faisant autorité</string>
+    <string name="trace_source_hns_resource">Preuve HNS locale vérifiée</string>
     <string name="trace_protocol_authoritative_udp53">UDP 53 faisant autorité</string>
     <string name="trace_protocol_authoritative_tcp53">TCP 53 faisant autorité</string>
     <string name="trace_protocol_authoritative_doh">DoH faisant autorité</string>

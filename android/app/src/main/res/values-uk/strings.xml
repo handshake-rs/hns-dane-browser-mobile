@@ -374,6 +374,10 @@
 <string name="trace_field_local_best_height">Краща місцева висота: %1$s</string>
 <string name="trace_field_target_height">Висота цілі: %1$s</string>
 <string name="trace_field_estimated_target_height">Розрахункова висота цілі: %1$s</string>
+<string name="trace_field_local_chain_lag_blocks">Відставання локального ланцюга: %1$s блоків</string>
+<string name="trace_field_local_chain_freshness">Актуальність локального ланцюга: %1$s</string>
+<string name="trace_field_local_chain_target_source">Джерело цільової актуальності: %1$s</string>
+<string name="trace_field_local_chain_freshness_threshold">Поріг актуальності: %1$s блоків</string>
 <string name="trace_field_local_chain_stale">Локальний ланцюг застарілий: %1$s</string>
 <string name="trace_field_delegation">Делегація: %1$s</string>
 <string name="trace_field_resolution_source">Джерело роздільної здатності: %1$s</string>
@@ -417,6 +421,7 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">авторитетний DNS</string>
 <string name="trace_source_authoritative_doh">авторитетний DoH</string>
+<string name="trace_source_hns_resource">Локальний перевірений доказ HNS</string>
 <string name="trace_protocol_authoritative_udp53">Авторитетний UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Авторитетний TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Авторитетний DoH</string>

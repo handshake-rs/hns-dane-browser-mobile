@@ -362,6 +362,10 @@
 <string name="trace_field_local_best_height">Chiều cao tốt nhất cục bộ: %1$s</string>
 <string name="trace_field_target_height">Chiều cao mục tiêu: %1$s</string>
 <string name="trace_field_estimated_target_height">Chiều cao mục tiêu ước tính: %1$s</string>
+<string name="trace_field_local_chain_lag_blocks">Độ trễ chuỗi cục bộ: %1$s khối</string>
+<string name="trace_field_local_chain_freshness">Độ mới của chuỗi cục bộ: %1$s</string>
+<string name="trace_field_local_chain_target_source">Nguồn mục tiêu hiện hành: %1$s</string>
+<string name="trace_field_local_chain_freshness_threshold">Ngưỡng độ mới: %1$s khối</string>
 <string name="trace_field_local_chain_stale">Chuỗi địa phương cũ: %1$s</string>
 <string name="trace_field_delegation">Đoàn: %1$s</string>
 <string name="trace_field_resolution_source">Nguồn độ phân giải: %1$s</string>
@@ -405,6 +409,7 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">DNS có thẩm quyền</string>
 <string name="trace_source_authoritative_doh">DoH có thẩm quyền</string>
+<string name="trace_source_hns_resource">Bằng chứng HNS cục bộ đã xác minh</string>
 <string name="trace_protocol_authoritative_udp53">UDP 53 có thẩm quyền</string>
 <string name="trace_protocol_authoritative_tcp53">TCP 53 có thẩm quyền</string>
 <string name="trace_protocol_authoritative_doh">DoH có thẩm quyền</string>

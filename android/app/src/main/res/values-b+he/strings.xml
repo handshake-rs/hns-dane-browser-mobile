@@ -368,6 +368,10 @@
     <string name="trace_field_local_best_height">הגובה המקומי הטוב ביותר: %1$s</string>
     <string name="trace_field_target_height">גובה יעד: %1$s</string>
     <string name="trace_field_estimated_target_height">גובה יעד משוער: %1$s</string>
+    <string name="trace_field_local_chain_lag_blocks">פער השרשרת המקומית: %1$s בלוקים</string>
+    <string name="trace_field_local_chain_freshness">עדכניות השרשרת המקומית: %1$s</string>
+    <string name="trace_field_local_chain_target_source">מקור יעד העדכניות: %1$s</string>
+    <string name="trace_field_local_chain_freshness_threshold">סף עדכניות: %1$s בלוקים</string>
     <string name="trace_field_local_chain_stale">שרשרת מקומית מעוותת: %1$s</string>
     <string name="trace_field_delegation">משלחת: %1$s</string>
     <string name="trace_field_resolution_source">מקור רזולוציה: %1$s</string>
@@ -411,6 +415,7 @@
     <string name="trace_source_icann_dns">ICANN DNS</string>
     <string name="trace_source_authoritative_dns">DNS סמכותי</string>
     <string name="trace_source_authoritative_doh">DoH סמכותי</string>
+    <string name="trace_source_hns_resource">הוכחת HNS מקומית מאומתת</string>
     <string name="trace_protocol_authoritative_udp53">UDP סמכותי 53</string>
     <string name="trace_protocol_authoritative_tcp53">TCP סמכותי 53</string>
     <string name="trace_protocol_authoritative_doh">DoH סמכותי</string>
