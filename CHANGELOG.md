@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Added a hardened, click-only recovery page for confirmed port 53
+  interception on Android and iOS. Its fixed-origin DANE generator handoff
+  carries the canonical HNS root and includes a nameserver only when it came
+  from the authenticated HNS delegation; merely rendering the page contacts
+  neither a suggested recovery resolver nor the setup site.
+
 ## 0.5.2 - 2026-07-26
 
 ### Added

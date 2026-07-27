@@ -758,8 +758,10 @@ final class BrowserViewController: UIViewController {
 
         PORT 53 RECOVERY GUIDANCE
         \(relayGuidance)
-        Owner: publish proof-anchored authoritative DoH on HTTPS 443.
-        User: configure a resolver. https://hnsdoh.com/dns-query is only a user-entered example and is never contacted by default.
+
+        Website owner: use the fixed-origin setup link on the interception error page to prepare proof-anchored authoritative DoH on HTTPS 443. It includes a nameserver only when authenticated HNS delegation evidence supplied one. The setup website is contacted only if you choose the link.
+
+        Browser user: configure a resolver. https://hnsdoh.com/dns-query is only a user-entered example and is never contacted by default.
 
         SYNC
         \(latestSyncSummary.headline)

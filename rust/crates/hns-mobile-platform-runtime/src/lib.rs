@@ -271,6 +271,9 @@ const HNS_DOH_FALLBACK_HEADER: &str = "X-HNS-DoH-Fallback";
 const HNS_SECURITY_PATH_HEADER: &str = "X-HNS-Security-Path";
 const HNS_TLS_POLICY_HEADER: &str = "X-HNS-TLS-Policy";
 const HNS_RESOLVER_POLICY_HEADER: &str = "X-HNS-Resolver-Policy";
+const HNS_AUTHORITATIVE_DOH_GENERATOR_BASE: &str = "https://hns.denuoweb.com/dane-generator/";
+const INTERCEPTION_ERROR_CSP: &str =
+    "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const TUNNEL_COPY_BUFFER_BYTES: usize = 16 * 1024;
 const PROXY_MAINTENANCE_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const MAX_PROXY_UPGRADE_HEADERS: usize = 256;
@@ -4064,11 +4067,22 @@ fn proxy_error_response_from_gateway(
         dns_trace,
     );
     let address = gateway_request_address(&input);
-    let body = plain_response_body(status, reason, detail, Some(&address));
-    let mut headers = vec![(
-        "Content-Type".to_owned(),
-        "text/plain; charset=utf-8".to_owned(),
-    )];
+    let document = gateway_error_document(
+        &input,
+        error,
+        status,
+        reason,
+        detail,
+        Some(&address),
+        dns_trace,
+    );
+    let mut headers = vec![("Content-Type".to_owned(), document.content_type.to_owned())];
+    headers.extend(
+        document
+            .security_headers
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), (*value).to_owned())),
+    );
     append_runtime_response_metadata(&mut headers, &DaneDecision::NoTlsa, None, None, &trace);
     ProxyResponse {
         head: ProxyResponseHead {
@@ -4077,7 +4091,7 @@ fn proxy_error_response_from_gateway(
             headers: proxy_headers(headers),
             observation_id: None,
         },
-        body: ProxyResponseBody::Bytes(body),
+        body: ProxyResponseBody::Bytes(document.body),
         publication: Default::default(),
     }
 }
@@ -6666,11 +6680,24 @@ impl DelegatedResolver for BoxedDelegatedResolver {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct AuthenticatedHnsDelegationEvidence {
+    root_name: String,
+    nameservers: Vec<String>,
+}
+
+#[derive(Debug, Default)]
+struct AuthenticatedHnsDelegationEvidenceState {
+    observation: Option<AuthenticatedHnsDelegationEvidence>,
+    conflicted: bool,
+}
+
 #[derive(Clone, Debug, Default)]
 struct DnsTraceRecorder {
     events: Arc<Mutex<Vec<DnsTraceEvent>>>,
     relay: Arc<Mutex<Option<DnsRelayTraceMetadata>>>,
     namespace: Arc<Mutex<Option<NamespaceResolutionMetadata>>>,
+    authenticated_hns_delegation: Arc<Mutex<AuthenticatedHnsDelegationEvidenceState>>,
 }
 
 impl DnsTraceRecorder {
@@ -6708,6 +6735,96 @@ impl DnsTraceRecorder {
             .lock()
             .ok()
             .and_then(|namespace| namespace.clone())
+    }
+
+    fn record_authenticated_hns_delegation(&self, delegation: &HnsDelegation) {
+        let Some(observation) = authenticated_hns_delegation_evidence(delegation) else {
+            return;
+        };
+        let Ok(mut state) = self.authenticated_hns_delegation.lock() else {
+            return;
+        };
+        if state.conflicted {
+            return;
+        }
+        match state.observation.as_ref() {
+            Some(previous) if previous != &observation => {
+                state.observation = None;
+                state.conflicted = true;
+            }
+            Some(_) => {}
+            None => state.observation = Some(observation),
+        }
+    }
+
+    fn authenticated_hns_delegation_snapshot(&self) -> Option<AuthenticatedHnsDelegationEvidence> {
+        self.authenticated_hns_delegation
+            .lock()
+            .ok()
+            .and_then(|state| (!state.conflicted).then(|| state.observation.clone()))
+            .flatten()
+    }
+}
+
+fn authenticated_hns_delegation_evidence(
+    delegation: &HnsDelegation,
+) -> Option<AuthenticatedHnsDelegationEvidence> {
+    let root_owner = DnsName::from_ascii(&delegation.root_name).ok()?;
+    if root_owner != delegation.owner {
+        return None;
+    }
+    let root_name = root_owner.to_string().trim_end_matches('.').to_owned();
+    if root_name.is_empty() || root_name.contains('.') {
+        return None;
+    }
+
+    let nameservers = delegation
+        .records
+        .iter()
+        .filter(|record| {
+            record.class == DNS_CLASS_IN
+                && record.name == delegation.owner
+                && record.record_type == RecordType::Ns
+        })
+        .filter_map(|record| {
+            let (nameserver, end) = DnsName::parse_wire(&record.rdata, 0).ok()?;
+            if end != record.rdata.len() {
+                return None;
+            }
+            let nameserver = nameserver.to_string().trim_end_matches('.').to_owned();
+            (!nameserver.is_empty()).then_some(nameserver)
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    Some(AuthenticatedHnsDelegationEvidence {
+        root_name,
+        nameservers,
+    })
+}
+
+struct AuthenticatedHnsDelegationRecordingResolver<R> {
+    inner: R,
+    trace: DnsTraceRecorder,
+}
+
+impl<R> AuthenticatedHnsDelegationRecordingResolver<R> {
+    fn new(inner: R, trace: DnsTraceRecorder) -> Self {
+        Self { inner, trace }
+    }
+}
+
+impl<R: DelegatedResolver> DelegatedResolver for AuthenticatedHnsDelegationRecordingResolver<R> {
+    fn resolve_delegated(
+        &self,
+        request: &ResolutionRequest,
+        delegation: &HnsDelegation,
+    ) -> Result<ResolutionAnswer, ResolverError> {
+        // HnsDelegation is constructed only after the Urkel resource proof has
+        // validated. Record that typed object here rather than inferring owner
+        // guidance from unauthenticated DNS trace endpoints.
+        self.trace.record_authenticated_hns_delegation(delegation);
+        self.inner.resolve_delegated(request, delegation)
     }
 }
 
@@ -9007,9 +9124,11 @@ fn prepare_gateway_http_response_with_transport(
                 &fallback_marker,
                 &dns_trace,
             );
-            PreparedGatewayHttpResponse::without_selection(plain_response_for_request_with_trace(
-                &input, status, reason, detail, &trace,
-            ))
+            PreparedGatewayHttpResponse::without_selection(
+                gateway_error_response_for_request_with_trace(
+                    &input, &error, status, reason, detail, &trace, &dns_trace,
+                ),
+            )
         }
     }
 }
@@ -9220,8 +9339,8 @@ fn prepare_gateway_http_response_body_to_file_with_transport(
                 &fallback_marker,
                 &dns_trace,
             );
-            plain_response_to_file_for_request_with_trace(
-                &input, status, reason, detail, body_path, &trace,
+            gateway_error_response_to_file_for_request_with_trace(
+                &input, &error, status, reason, detail, body_path, &trace, &dns_trace,
             )
             .map(PreparedGatewayFileResponse::without_selection)
         }
@@ -9422,7 +9541,9 @@ fn gateway_http_upgrade_tunnel_with_transport(
             );
             write_tunnel_response(
                 &mut client_output,
-                &plain_response_for_request_with_trace(&input, status, reason, detail, &trace),
+                &gateway_error_response_for_request_with_trace(
+                    &input, &error, status, reason, detail, &trace, &dns_trace,
+                ),
             )
         }
     }
@@ -9631,6 +9752,7 @@ fn android_gateway_resolver(
         .with_peer_state(peer_state)
         .with_proof_peer(proof_peer)
         .with_evidence(hns_evidence.clone());
+    let delegated = AuthenticatedHnsDelegationRecordingResolver::new(delegated, dns_trace.clone());
     let primary = DelegatingResolver::new(proof_provider, delegated);
     let icann = IcannDohResolver::new(dns_trace.clone(), http, icann_evidence.clone(), fixture_key);
     AndroidGatewayResolver::new(
@@ -11449,7 +11571,7 @@ fn map_gateway_error(error: &GatewayError) -> (u16, &'static str, &'static str) 
         GatewayError::Resolver(ResolverError::Port53InterceptionDetected) => (
             502,
             "Port 53 DNS Interception Detected",
-            "Direct delegated DNS was intercepted and every enabled recovery path was exhausted. Owner: publish proof-anchored authoritative DoH on HTTPS 443. User: configure a resolver in Settings; https://hnsdoh.com/dns-query is an example to enter explicitly, never an automatic default.",
+            "Direct delegated DNS was intercepted and every enabled recovery path was exhausted.\n\nWebsite owner: publish proof-anchored authoritative DoH on HTTPS 443.\n\nBrowser user: enable the requester-only P2P DNS relay or explicitly configure a recovery resolver in Settings. Neither option is enabled automatically.",
         ),
         GatewayError::Resolver(ResolverError::DnsTransport(_)) => (
             502,
@@ -11606,66 +11728,234 @@ fn map_gateway_error(error: &GatewayError) -> (u16, &'static str, &'static str) 
     }
 }
 
-fn plain_response_for_request(
-    input: &GatewayHttpRequestInput<'_>,
-    status: u16,
-    reason: &str,
-    detail: &str,
-) -> Vec<u8> {
-    let address = gateway_request_address(input);
-    plain_response_with_address(status, reason, detail, Some(&address))
+struct GatewayErrorDocument {
+    content_type: &'static str,
+    body: Vec<u8>,
+    security_headers: Vec<(&'static str, &'static str)>,
 }
 
-fn plain_response_for_request_with_trace(
+fn gateway_error_document(
     input: &GatewayHttpRequestInput<'_>,
-    status: u16,
-    reason: &str,
-    detail: &str,
-    trace_json: &str,
-) -> Vec<u8> {
-    let address = gateway_request_address(input);
-    plain_response_with_address_and_trace(status, reason, detail, Some(&address), trace_json)
-}
-
-pub fn plain_response_with_address(
+    error: &GatewayError,
     status: u16,
     reason: &str,
     detail: &str,
     address: Option<&str>,
-) -> Vec<u8> {
-    plain_response_with_address_and_optional_trace(status, reason, detail, address, None)
+    dns_trace: &DnsTraceRecorder,
+) -> GatewayErrorDocument {
+    if matches!(
+        error,
+        GatewayError::Resolver(ResolverError::Port53InterceptionDetected)
+    ) {
+        return GatewayErrorDocument {
+            content_type: "text/html; charset=utf-8",
+            body: port53_interception_error_html(input, status, reason, address, dns_trace),
+            security_headers: vec![
+                ("Content-Security-Policy", INTERCEPTION_ERROR_CSP),
+                ("Referrer-Policy", "no-referrer"),
+                ("Cache-Control", "no-store"),
+                ("X-Content-Type-Options", "nosniff"),
+            ],
+        };
+    }
+
+    GatewayErrorDocument {
+        content_type: "text/plain; charset=utf-8",
+        body: plain_response_body(status, reason, detail, address),
+        security_headers: Vec::new(),
+    }
 }
 
-fn plain_response_with_address_and_trace(
+fn port53_interception_error_html(
+    input: &GatewayHttpRequestInput<'_>,
+    status: u16,
+    reason: &str,
+    address: Option<&str>,
+    dns_trace: &DnsTraceRecorder,
+) -> Vec<u8> {
+    let address = address.unwrap_or("Requested HNS origin");
+    let handoff = authoritative_doh_generator_handoff(input.host, dns_trace);
+    let owner_action = match handoff {
+        Some((url, root)) => format!(
+            "<p><a href=\"{}\" rel=\"noreferrer\">Open authoritative DoH setup for {}</a></p>",
+            html_escape(&url),
+            html_escape(&root),
+        ),
+        None => "<p>Publish proof-anchored authoritative DoH on HTTPS 443.</p>".to_owned(),
+    };
+    format!(
+        concat!(
+            "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
+            "<meta name=\"referrer\" content=\"no-referrer\">",
+            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">",
+            "<title>{status} {reason}</title></head><body><main>",
+            "<h1>{reason}</h1>",
+            "<p>The browser detected transparent interception of direct delegated DNS for ",
+            "<code>{address}</code> and exhausted every recovery path you enabled. ",
+            "The request failed closed.</p>",
+            "<h2>Website owner</h2>",
+            "<p>Publish proof-anchored authoritative DoH on HTTPS 443 so visitors can avoid ",
+            "an intercepted port 53 path without weakening DNSSEC or DANE.</p>",
+            "{owner_action}",
+            "<h2>Browser user</h2>",
+            "<p>You may enable the requester-only P2P DNS relay or explicitly configure an ",
+            "HTTPS recovery resolver in Settings. DNSSEC, TLSA, and DANE remain locally ",
+            "validated.</p>",
+            "<p>No suggested resolver or setup website was contacted merely to render this page. ",
+            "The setup website opens only if you choose the link above.</p>",
+            "</main></body></html>"
+        ),
+        status = status,
+        reason = html_escape(reason),
+        address = html_escape(address),
+        owner_action = owner_action,
+    )
+    .into_bytes()
+}
+
+fn authoritative_doh_generator_handoff(
+    host: &str,
+    dns_trace: &DnsTraceRecorder,
+) -> Option<(String, String)> {
+    let root_name = hns_root_label(host).ok()?;
+    let root_owner = DnsName::from_ascii(&root_name).ok()?;
+    let root_name = root_owner.to_string().trim_end_matches('.').to_owned();
+    if root_name.is_empty() || root_name.contains('.') {
+        return None;
+    }
+    let display_root = format!("{root_name}/");
+    let evidence = dns_trace.authenticated_hns_delegation_snapshot();
+    let nameserver = evidence
+        .as_ref()
+        .filter(|evidence| evidence.root_name.eq_ignore_ascii_case(&root_name))
+        .and_then(|evidence| evidence.nameservers.first());
+
+    let mut url = format!(
+        "{HNS_AUTHORITATIVE_DOH_GENERATOR_BASE}?domain={}&domain_type=hns&intent=authoritative_doh&mode=delegated",
+        url_query_component(&display_root),
+    );
+    if let Some(nameserver) = nameserver {
+        url.push_str("&nameserver=");
+        url.push_str(&url_query_component(nameserver));
+    }
+    Some((url, display_root))
+}
+
+fn url_query_component(value: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(char::from(byte));
+        } else {
+            encoded.push('%');
+            encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+            encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+        }
+    }
+    encoded
+}
+
+fn html_escape(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            character => escaped.push(character),
+        }
+    }
+    escaped
+}
+
+fn gateway_error_response_for_request_with_trace(
+    input: &GatewayHttpRequestInput<'_>,
+    error: &GatewayError,
     status: u16,
     reason: &str,
     detail: &str,
-    address: Option<&str>,
     trace_json: &str,
+    dns_trace: &DnsTraceRecorder,
 ) -> Vec<u8> {
-    plain_response_with_address_and_optional_trace(
+    let address = gateway_request_address(input);
+    let document = gateway_error_document(
+        input,
+        error,
         status,
         reason,
         detail,
-        address,
-        Some(trace_json),
-    )
+        Some(&address),
+        dns_trace,
+    );
+    error_document_response(status, reason, document, Some(trace_json))
 }
 
-fn plain_response_with_address_and_optional_trace(
+// Keep the error, trace, and destination inputs explicit so the file/download
+// path cannot silently diverge from the encoded response's security policy.
+#[allow(clippy::too_many_arguments)]
+fn gateway_error_response_to_file_for_request_with_trace(
+    input: &GatewayHttpRequestInput<'_>,
+    error: &GatewayError,
     status: u16,
     reason: &str,
     detail: &str,
-    address: Option<&str>,
+    body_path: &Path,
+    trace_json: &str,
+    dns_trace: &DnsTraceRecorder,
+) -> Result<Vec<u8>, String> {
+    let address = gateway_request_address(input);
+    let document = gateway_error_document(
+        input,
+        error,
+        status,
+        reason,
+        detail,
+        Some(&address),
+        dns_trace,
+    );
+    if let Some(parent) = body_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("create response directory: {error}"))?;
+    }
+    fs::write(body_path, &document.body)
+        .map_err(|error| format!("write response body: {error}"))?;
+    Ok(error_document_response_head(
+        status,
+        reason,
+        &document,
+        Some(trace_json),
+    ))
+}
+
+fn error_document_response(
+    status: u16,
+    reason: &str,
+    document: GatewayErrorDocument,
     trace_json: Option<&str>,
 ) -> Vec<u8> {
-    let body = plain_response_body(status, reason, detail, address);
+    let mut out = error_document_response_head(status, reason, &document, trace_json);
+    out.extend(document.body);
+    out
+}
+
+fn error_document_response_head(
+    status: u16,
+    reason: &str,
+    document: &GatewayErrorDocument,
+    trace_json: Option<&str>,
+) -> Vec<u8> {
     let mut out = response_head(
         status,
         reason,
-        Some("text/plain; charset=utf-8"),
-        body.len(),
+        Some(document.content_type),
+        document.body.len(),
     );
+    for (name, value) in &document.security_headers {
+        out.extend(format!("{name}: {value}\r\n").as_bytes());
+    }
     if let Some(trace_json) = trace_json {
         out.extend(
             format!("{HNS_RESOLVER_MODE_HEADER}: {}\r\n", trace_mode(trace_json)).as_bytes(),
@@ -11679,6 +11969,33 @@ fn plain_response_with_address_and_optional_trace(
         );
         out.extend(format!("{HNS_RESOLUTION_TRACE_HEADER}: {trace_json}\r\n").as_bytes());
     }
+    out.extend(b"\r\n");
+    out
+}
+
+fn plain_response_for_request(
+    input: &GatewayHttpRequestInput<'_>,
+    status: u16,
+    reason: &str,
+    detail: &str,
+) -> Vec<u8> {
+    let address = gateway_request_address(input);
+    plain_response_with_address(status, reason, detail, Some(&address))
+}
+
+pub fn plain_response_with_address(
+    status: u16,
+    reason: &str,
+    detail: &str,
+    address: Option<&str>,
+) -> Vec<u8> {
+    let body = plain_response_body(status, reason, detail, address);
+    let mut out = response_head(
+        status,
+        reason,
+        Some("text/plain; charset=utf-8"),
+        body.len(),
+    );
     out.extend(b"\r\n");
     out.extend(body);
     out
@@ -11695,62 +12012,12 @@ fn plain_response_to_file_for_request(
     plain_response_to_file_with_address(status, reason, detail, Some(&address), body_path)
 }
 
-fn plain_response_to_file_for_request_with_trace(
-    input: &GatewayHttpRequestInput<'_>,
-    status: u16,
-    reason: &str,
-    detail: &str,
-    body_path: &Path,
-    trace_json: &str,
-) -> Result<Vec<u8>, String> {
-    let address = gateway_request_address(input);
-    plain_response_to_file_with_address_and_trace(
-        status,
-        reason,
-        detail,
-        Some(&address),
-        body_path,
-        trace_json,
-    )
-}
-
 pub fn plain_response_to_file_with_address(
     status: u16,
     reason: &str,
     detail: &str,
     address: Option<&str>,
     body_path: &Path,
-) -> Result<Vec<u8>, String> {
-    plain_response_to_file_with_address_and_optional_trace(
-        status, reason, detail, address, body_path, None,
-    )
-}
-
-fn plain_response_to_file_with_address_and_trace(
-    status: u16,
-    reason: &str,
-    detail: &str,
-    address: Option<&str>,
-    body_path: &Path,
-    trace_json: &str,
-) -> Result<Vec<u8>, String> {
-    plain_response_to_file_with_address_and_optional_trace(
-        status,
-        reason,
-        detail,
-        address,
-        body_path,
-        Some(trace_json),
-    )
-}
-
-fn plain_response_to_file_with_address_and_optional_trace(
-    status: u16,
-    reason: &str,
-    detail: &str,
-    address: Option<&str>,
-    body_path: &Path,
-    trace_json: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     let body = plain_response_body(status, reason, detail, address);
     if let Some(parent) = body_path.parent() {
@@ -11764,19 +12031,6 @@ fn plain_response_to_file_with_address_and_optional_trace(
         Some("text/plain; charset=utf-8"),
         body.len(),
     );
-    if let Some(trace_json) = trace_json {
-        out.extend(
-            format!("{HNS_RESOLVER_MODE_HEADER}: {}\r\n", trace_mode(trace_json)).as_bytes(),
-        );
-        out.extend(
-            format!(
-                "{HNS_DOH_FALLBACK_HEADER}: {}\r\n",
-                trace_doh_fallback(trace_json)
-            )
-            .as_bytes(),
-        );
-        out.extend(format!("{HNS_RESOLUTION_TRACE_HEADER}: {trace_json}\r\n").as_bytes());
-    }
     out.extend(b"\r\n");
     Ok(out)
 }
@@ -16209,6 +16463,17 @@ mod tests {
         assert_eq!(response.head.status_code, 404);
         assert_eq!(response.head.reason_phrase, "HNS Name Not Found");
         assert!(response.head.headers.iter().any(|header| {
+            header.name.eq_ignore_ascii_case("content-type")
+                && header.value == "text/plain; charset=utf-8"
+        }));
+        assert!(
+            !response
+                .head
+                .headers
+                .iter()
+                .any(|header| { header.name.eq_ignore_ascii_case("content-security-policy") })
+        );
+        assert!(response.head.headers.iter().any(|header| {
             header
                 .name
                 .eq_ignore_ascii_case(HNS_RESOLUTION_TRACE_HEADER)
@@ -16221,9 +16486,186 @@ mod tests {
                 let body = String::from_utf8(body).unwrap();
                 assert!(body.contains("ws://missing/socket"));
                 assert!(body.contains("404 HNS Name Not Found"));
+                assert!(!body.contains(HNS_AUTHORITATIVE_DOH_GENERATOR_BASE));
             }
             ProxyResponseBody::Stream { .. } => panic!("error response must be bounded bytes"),
         }
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn interception_owner_handoff_uses_only_authenticated_delegation_evidence() {
+        let trace = DnsTraceRecorder::default();
+        trace.push(DnsTraceEvent {
+            protocol: "udp53",
+            server: "ns.attacker.invalid:53".to_owned(),
+            question_name: Some("www.shakeshift".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "transport_error".to_owned(),
+            elapsed_ms: 1,
+            error: Some("intercepted".to_owned()),
+        });
+        let (unproven_url, root) =
+            authoritative_doh_generator_handoff("WWW.ShakeShift", &trace).unwrap();
+        assert_eq!(root, "shakeshift/");
+        assert_eq!(
+            unproven_url,
+            "https://hns.denuoweb.com/dane-generator/?domain=shakeshift%2F&domain_type=hns&intent=authoritative_doh&mode=delegated"
+        );
+        assert!(!unproven_url.contains("attacker"));
+
+        let delegation = HnsDelegation {
+            root_name: "shakeshift".to_owned(),
+            owner: DnsName::from_ascii("shakeshift").unwrap(),
+            records: vec![
+                ns_record("shakeshift", "ns2.shakeshift"),
+                ns_record("shakeshift", "ns1.shakeshift"),
+            ],
+        };
+        let recorder = AuthenticatedHnsDelegationRecordingResolver::new(
+            TestDelegatedResolver::error(|| ResolverError::Port53InterceptionDetected),
+            trace.clone(),
+        );
+        let request = ResolutionRequest {
+            qname: "www.shakeshift".to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        assert_eq!(
+            recorder.resolve_delegated(&request, &delegation),
+            Err(ResolverError::Port53InterceptionDetected)
+        );
+
+        let (authenticated_url, root) =
+            authoritative_doh_generator_handoff("www.shakeshift", &trace).unwrap();
+        assert_eq!(root, "shakeshift/");
+        assert_eq!(
+            authenticated_url,
+            "https://hns.denuoweb.com/dane-generator/?domain=shakeshift%2F&domain_type=hns&intent=authoritative_doh&mode=delegated&nameserver=ns1.shakeshift"
+        );
+
+        let unrelated = authoritative_doh_generator_handoff("www.otherroot", &trace)
+            .unwrap()
+            .0;
+        assert!(!unrelated.contains("nameserver="));
+    }
+
+    #[test]
+    fn typed_interception_error_is_safe_click_only_html() {
+        let data_dir = temp_dir_path("runtime-proxy-interception-html");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let request = GatewayHttpRequest {
+            method: "GET".to_owned(),
+            scheme: "https".to_owned(),
+            host: "www.shakeshift".to_owned(),
+            port: 443,
+            path_and_query: "/".to_owned(),
+            headers: Vec::new(),
+            body: Vec::new(),
+        };
+        let trace = DnsTraceRecorder::default();
+        trace.record_authenticated_hns_delegation(&HnsDelegation {
+            root_name: "shakeshift".to_owned(),
+            owner: DnsName::from_ascii("shakeshift").unwrap(),
+            records: vec![ns_record("shakeshift", "ns1.shakeshift")],
+        });
+        let response = proxy_error_response_from_gateway(
+            &runtime,
+            &request,
+            NetworkKind::Regtest,
+            GatewayResolutionMode::Strict,
+            &GatewayError::Resolver(ResolverError::Port53InterceptionDetected),
+            &FallbackMarker::default(),
+            &trace,
+        );
+
+        assert_eq!(response.head.status_code, 502);
+        for (name, value) in [
+            ("content-type", "text/html; charset=utf-8"),
+            ("content-security-policy", INTERCEPTION_ERROR_CSP),
+            ("referrer-policy", "no-referrer"),
+            ("cache-control", "no-store"),
+            ("x-content-type-options", "nosniff"),
+        ] {
+            assert!(
+                response.head.headers.iter().any(|header| {
+                    header.name.eq_ignore_ascii_case(name) && header.value == value
+                })
+            );
+        }
+        match response.body {
+            ProxyResponseBody::Bytes(body) => {
+                let body = String::from_utf8(body).unwrap();
+                assert!(body.contains("<!doctype html>"));
+                assert!(body.contains(
+                    "href=\"https://hns.denuoweb.com/dane-generator/?domain=shakeshift%2F&amp;domain_type=hns&amp;intent=authoritative_doh&amp;mode=delegated&amp;nameserver=ns1.shakeshift\""
+                ));
+                assert!(body.contains(
+                    "No suggested resolver or setup website was contacted merely to render this page."
+                ));
+                assert!(!body.contains("<script"));
+                assert!(!body.contains("<img"));
+                assert!(!body.contains("<iframe"));
+                assert!(!body.contains("<link"));
+            }
+            ProxyResponseBody::Stream { .. } => panic!("error response must be bounded bytes"),
+        }
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn encoded_and_file_interception_errors_share_safe_html_policy() {
+        let data_dir = temp_dir_path("interception-html-encoded-file");
+        let input = GatewayHttpRequestInput {
+            data_dir: data_dir.to_str().unwrap(),
+            method: "GET",
+            scheme: "https",
+            host: "shakeshift",
+            port: 443,
+            path_and_query: "/",
+            header_text: "",
+            body: &[],
+        };
+        let trace = DnsTraceRecorder::default();
+        trace.record_authenticated_hns_delegation(&HnsDelegation {
+            root_name: "shakeshift".to_owned(),
+            owner: DnsName::from_ascii("shakeshift").unwrap(),
+            records: vec![ns_record("shakeshift", "ns1.shakeshift")],
+        });
+        let error = GatewayError::Resolver(ResolverError::Port53InterceptionDetected);
+        let (status, reason, detail) = map_gateway_error(&error);
+
+        let encoded = gateway_error_response_for_request_with_trace(
+            &input, &error, status, reason, detail, "{}", &trace,
+        );
+        let encoded = String::from_utf8(encoded).unwrap();
+        assert!(encoded.starts_with("HTTP/1.1 502 Port 53 DNS Interception Detected\r\n"));
+        assert!(encoded.contains("Content-Type: text/html; charset=utf-8\r\n"));
+        assert!(encoded.contains(&format!(
+            "Content-Security-Policy: {INTERCEPTION_ERROR_CSP}\r\n"
+        )));
+        assert!(encoded.contains("Referrer-Policy: no-referrer\r\n"));
+        assert!(encoded.contains("Cache-Control: no-store\r\n"));
+        assert!(encoded.contains("X-Content-Type-Options: nosniff\r\n"));
+        assert!(encoded.contains("intent=authoritative_doh"));
+
+        let body_path = data_dir.join("interception.body");
+        let head = gateway_error_response_to_file_for_request_with_trace(
+            &input, &error, status, reason, detail, &body_path, "{}", &trace,
+        )
+        .unwrap();
+        let head = String::from_utf8(head).unwrap();
+        let body = String::from_utf8(fs::read(&body_path).unwrap()).unwrap();
+        assert!(head.contains("Content-Type: text/html; charset=utf-8\r\n"));
+        assert!(head.contains(&format!(
+            "Content-Security-Policy: {INTERCEPTION_ERROR_CSP}\r\n"
+        )));
+        assert!(head.contains("Referrer-Policy: no-referrer\r\n"));
+        assert!(head.contains("Cache-Control: no-store\r\n"));
+        assert!(head.contains("X-Content-Type-Options: nosniff\r\n"));
+        assert!(body.contains("intent=authoritative_doh"));
+        assert!(body.contains("domain=shakeshift%2F"));
         cleanup_dir(&data_dir);
     }
 
@@ -19964,6 +20406,21 @@ mod tests {
             class: DNS_CLASS_IN,
             ttl: 20,
             rdata: address.to_vec(),
+        }
+    }
+
+    fn ns_record(owner: &str, nameserver: &str) -> ResourceRecord {
+        let mut rdata = Vec::new();
+        DnsName::from_ascii(nameserver)
+            .unwrap()
+            .encode_wire(&mut rdata)
+            .unwrap();
+        ResourceRecord {
+            name: DnsName::from_ascii(owner).unwrap(),
+            record_type: RecordType::Ns,
+            class: DNS_CLASS_IN,
+            ttl: 20,
+            rdata,
         }
     }
 
