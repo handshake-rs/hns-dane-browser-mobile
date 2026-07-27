@@ -417,7 +417,6 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">авторитетний DNS</string>
 <string name="trace_source_authoritative_doh">авторитетний DoH</string>
-<string name="trace_source_hns_resource">Ресурс HNS</string>
 <string name="trace_protocol_authoritative_udp53">Авторитетний UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Авторитетний TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Авторитетний DoH</string>

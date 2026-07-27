@@ -43,6 +43,38 @@ class HnsResolutionPreferencesTest {
     }
 
     @Test
+    fun normalizeHnsDohRecoveryUrlAcceptsOnlyBoundedPublicHttpsEndpoints() {
+        assertEquals("", HnsResolutionPreferences.normalizeHnsDohRecoveryUrl("  "))
+        assertEquals(
+            "https://resolver.example.net/dns-query?profile=hns",
+            HnsResolutionPreferences.normalizeHnsDohRecoveryUrl(
+                " HTTPS://Resolver.Example.NET.:443/dns-query?profile=hns ",
+            ),
+        )
+        assertEquals(
+            "https://resolver.example.net:8443/dns-query",
+            HnsResolutionPreferences.normalizeHnsDohRecoveryUrl(
+                "https://resolver.example.net:8443/dns-query",
+            ),
+        )
+
+        for (endpoint in listOf(
+            "http://resolver.example.net/dns-query",
+            "https://user@resolver.example.net/dns-query",
+            "https://resolver.example.net/dns-query#fragment",
+            "https://resolver.example.net",
+            "https://127.0.0.1/dns-query",
+            "https://resolver.local/dns-query",
+            "https://resolver.example.net:53/dns-query",
+            "https://resolver.example.net:6000/dns-query",
+            "https://resolver.example.net/{?dns}",
+            "https://resolver.example.net/${"x".repeat(2_048)}",
+        )) {
+            assertNull(endpoint, HnsResolutionPreferences.normalizeHnsDohRecoveryUrl(endpoint))
+        }
+    }
+
+    @Test
     fun normalizeStaticRelayPeerEndpointAcceptsExplicitIpPorts() {
         assertEquals(
             "1.2.3.4:13038",

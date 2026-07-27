@@ -505,8 +505,6 @@ class HnsWebViewGatewayInterceptorTest {
     fun successfulDisabledHnsTrustMetadataIsRejectedBeforeRendering() {
         val responses = listOf(
             "X-HNS-Resolver-Policy: hns-doh-compat\r\n",
-            "$HNS_SECURITY_PATH_HEADER: dane-third-party-doh\r\nX-HNS-TLS-Policy: dane\r\n",
-            "$HNS_SECURITY_PATH_HEADER: hns-third-party-doh\r\n",
             "X-HNS-TLS-Policy: webpki-fallback\r\n",
             "X-HNS-TLS-Policy: webpki-fallback\r\n" +
                 "$HNS_RESOLUTION_TRACE_HEADER: not-json\r\n",
@@ -542,6 +540,35 @@ class HnsWebViewGatewayInterceptorTest {
             assertFalse(String(response.body).contains("attack"))
             dataDir.deleteRecursively()
         }
+    }
+
+    @Test
+    fun successfulUserConfiguredRecoveryTrustMetadataCanRender() {
+        val bridge = RecordingGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "$HNS_SECURITY_PATH_HEADER: dane-third-party-doh\r\n" +
+                    "X-HNS-TLS-Policy: dane\r\n" +
+                    "Content-Length: 7\r\n\r\npayload"
+                ).toByteArray(StandardCharsets.ISO_8859_1),
+        )
+        val dataDir = createTempDirectory("hns-recovery-doh-status").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir,
+            bridge,
+            TEST_BROWSER_NAMESPACE_POLICY,
+        )
+
+        val response = interceptor.intercept(
+            method = "GET",
+            url = "https://welcome/",
+            requestHeaders = emptyMap(),
+        )
+
+        requireNotNull(response)
+        assertEquals(200, response.statusCode)
+        assertEquals("payload", String(response.body))
+        dataDir.deleteRecursively()
     }
 
     @Test

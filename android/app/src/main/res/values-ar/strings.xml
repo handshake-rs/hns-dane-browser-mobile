@@ -429,7 +429,6 @@
     <string name="trace_source_icann_dns">نظام أسماء النطاقات الخاص بآيكان</string>
     <string name="trace_source_authoritative_dns">DNS الرسمي</string>
     <string name="trace_source_authoritative_doh">DoH الرسمية</string>
-    <string name="trace_source_hns_resource">موارد HNS</string>
     <string name="trace_protocol_authoritative_udp53">UDP الرسمي 53</string>
     <string name="trace_protocol_authoritative_tcp53">برنامج التعاون الفني الرسمي 53</string>
     <string name="trace_protocol_authoritative_doh">DoH الرسمية</string>

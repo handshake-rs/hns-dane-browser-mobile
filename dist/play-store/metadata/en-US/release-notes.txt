@@ -1,1 +1,1 @@
-0.5.1 adds automatic full-host HNS/ICANN selection, strict ICANN DANE, transparent port 53 interception detection, and two-block HNS header freshness. DNSSEC and DANE validation remain local.
+0.5.2 adds independently optional requester-only P2P relay and user-configured recursive HNS DoH recovery for intercepted networks. Both remain off until chosen, and recovered answers still require local proof, DNSSEC, TLSA, and DANE validation.

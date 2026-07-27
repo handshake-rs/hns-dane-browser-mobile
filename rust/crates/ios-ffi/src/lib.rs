@@ -12,9 +12,10 @@
 use hns_mobile_platform_runtime::{
     BrowserNameClass, BrowserProxy, BrowserProxyResolverPolicy, BrowserProxySecurityPath,
     BrowserProxyStatus, BrowserProxyStatusObserver, BrowserProxyTlsPolicy, BrowserRuntime,
-    DEFAULT_RESOURCE_CACHE_LIMIT_BYTES, NetworkKind, ResolutionMode, RuntimeConfiguration,
-    RuntimePolicy, SyncOptions, browser_hns_root_label, canonical_browser_host,
-    classify_browser_name, core_version, diagnostics_json,
+    DEFAULT_RESOURCE_CACHE_LIMIT_BYTES, MAX_HNS_DOH_RECOVERY_URL_BYTES, NetworkKind,
+    ResolutionMode, RuntimeConfiguration, RuntimePolicy, SyncOptions, browser_hns_root_label,
+    canonical_browser_host, classify_browser_name, core_version, diagnostics_json,
+    normalize_hns_doh_recovery_url,
 };
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -760,14 +761,18 @@ fn ffi_bool(value: u8) -> Result<bool, FfiFailure> {
 
 unsafe fn policy_from_fields(
     mode: u32,
-    _endpoint: HnsBrowserSlice,
+    endpoint: HnsBrowserSlice,
     stateless_dane_certificates: u8,
     experimental_p2p_dns_relay: u8,
     legacy_hns_doh_compatibility: u8,
 ) -> Result<RuntimePolicy, FfiFailure> {
+    // SAFETY: The caller guarantees a readable, bounded policy slice.
+    let endpoint = unsafe { input_str(endpoint, MAX_HNS_DOH_RECOVERY_URL_BYTES) }?;
+    let endpoint = normalize_hns_doh_recovery_url(&endpoint)
+        .map_err(|_| FfiFailure::invalid("HNS recovery DoH URL is invalid"))?;
     Ok(RuntimePolicy {
         resolution_mode: resolution_mode(mode)?,
-        hns_doh_resolver: None,
+        hns_doh_resolver: endpoint,
         experimental_p2p_dns_relay: ffi_bool(experimental_p2p_dns_relay)?,
         legacy_hns_doh_compatibility: {
             ffi_bool(legacy_hns_doh_compatibility)?;
@@ -2430,6 +2435,39 @@ mod tests {
         assert_eq!(runtime_policy.resolution_mode, ResolutionMode::Strict);
         assert!(runtime_policy.hns_doh_resolver.is_none());
         assert!(!runtime_policy.legacy_hns_doh_compatibility);
+
+        // SAFETY: The static endpoint bytes remain readable for the call.
+        let configured_recovery = match unsafe {
+            policy_from_fields(
+                HNS_BROWSER_RESOLUTION_STRICT,
+                ffi_slice(b"HTTPS://Resolver.Example.NET.:443/dns-query"),
+                0,
+                0,
+                0,
+            )
+        } {
+            Ok(policy) => policy,
+            Err(_) => panic!("valid explicit recovery endpoint"),
+        };
+        assert_eq!(
+            configured_recovery.hns_doh_resolver.as_deref(),
+            Some("https://resolver.example.net/dns-query")
+        );
+        assert!(!configured_recovery.experimental_p2p_dns_relay);
+
+        // SAFETY: The static endpoint bytes remain readable for the call.
+        assert!(
+            unsafe {
+                policy_from_fields(
+                    HNS_BROWSER_RESOLUTION_STRICT,
+                    ffi_slice(b"http://resolver.example.net/dns-query"),
+                    0,
+                    0,
+                    0,
+                )
+            }
+            .is_err()
+        );
 
         let mut invalid = HnsBrowserPolicy::defaults();
         invalid.experimental_p2p_dns_relay = 2;

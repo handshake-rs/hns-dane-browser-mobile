@@ -100,7 +100,7 @@ The `--resolve` flag mirrors the browser's separation of identity from routing: 
 
 ## Browser Expectations
 
-Test after the update confirms and the tree interval has passed. Exercise direct authoritative DoH, direct port 53, and optional P2P relay separately; each unavailable-path case must fail closed without contacting a public recursive HNS resolver:
+Test after the update confirms and the tree interval has passed. Exercise direct authoritative DoH, direct port 53, optional P2P relay, and explicit configured-recursive recovery separately. Keep the recovery field blank for all direct/owner/P2P cases so no recursive operator is contacted, then configure a test endpoint only for the interception/transport-recovery case:
 
 - `https://crewball/`
 - Resolver trace `hnsProof`: `verified`

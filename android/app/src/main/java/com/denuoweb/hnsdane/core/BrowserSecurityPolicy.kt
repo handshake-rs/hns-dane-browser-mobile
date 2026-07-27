@@ -38,8 +38,6 @@ object BrowserSecurityPolicy {
         if (mainFrameHnsStatusCode?.let { it in 200..299 } == true) {
             if (
                 mainFrameHnsResolverPolicy == HnsPageResolverPolicy.HnsDohCompatibility ||
-                mainFrameHnsSecurityPath == HnsPageSecurityPath.DaneThirdPartyDoh ||
-                mainFrameHnsSecurityPath == HnsPageSecurityPath.HnsThirdPartyDoh ||
                 (
                     targetKind == BrowserTargetKind.HnsName &&
                         mainFrameHnsTlsPolicy == HnsPageTlsPolicy.WebPkiFallback
@@ -112,12 +110,14 @@ object BrowserSecurityPolicy {
         when (this) {
             HnsPageSecurityPath.DaneAuthoritativeDoh -> SecurityState.DaneViaAuthoritativeDoh
             HnsPageSecurityPath.DaneAuthoritativeDns53 -> SecurityState.DaneViaAuthoritativeDns53
-            HnsPageSecurityPath.DaneThirdPartyDoh -> SecurityState.ValidationFailed
+            HnsPageSecurityPath.DaneThirdPartyDoh ->
+                SecurityState.DaneViaUserConfiguredRecoveryDoh
             HnsPageSecurityPath.StatelessDane -> SecurityState.StatelessDane
             HnsPageSecurityPath.DaneIcannDoh -> SecurityState.DaneViaIcannDoh
             HnsPageSecurityPath.HnsAuthoritativeDoh -> SecurityState.HnsViaAuthoritativeDoh
             HnsPageSecurityPath.HnsAuthoritativeDns53 -> SecurityState.HnsViaAuthoritativeDns53
-            HnsPageSecurityPath.HnsThirdPartyDoh -> SecurityState.ValidationFailed
+            HnsPageSecurityPath.HnsThirdPartyDoh ->
+                SecurityState.HnsViaUserConfiguredRecoveryDoh
             HnsPageSecurityPath.DaneP2pDnsRelay -> SecurityState.DaneViaP2pDnsRelay
             HnsPageSecurityPath.HnsP2pDnsRelay -> SecurityState.HnsViaP2pDnsRelay
         }

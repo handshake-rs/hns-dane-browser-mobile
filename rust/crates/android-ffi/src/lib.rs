@@ -586,29 +586,29 @@ fn runtime_gateway_policy(
         .to_string_lossy()
         .trim()
         .to_owned();
-    Some(runtime_gateway_policy_from_values(
+    runtime_gateway_policy_from_values(
         input.strict_hns_mode,
         doh_resolver_url,
         input.stateless_dane_certificates,
         input.experimental_p2p_dns_relay,
         input.legacy_hns_doh_compatibility,
-    ))
+    )
 }
 
 fn runtime_gateway_policy_from_values(
     _strict_hns_mode: jboolean,
-    _doh_resolver_url: String,
+    doh_resolver_url: String,
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
     _legacy_hns_doh_compatibility: jboolean,
-) -> RuntimePolicy {
-    RuntimePolicy {
+) -> Option<RuntimePolicy> {
+    Some(RuntimePolicy {
         resolution_mode: ResolutionMode::Strict,
-        hns_doh_resolver: None,
+        hns_doh_resolver: normalize_hns_doh_recovery_url(&doh_resolver_url).ok()?,
         experimental_p2p_dns_relay: experimental_p2p_dns_relay != 0,
         legacy_hns_doh_compatibility: false,
         stateless_dane_certificates: stateless_dane_certificates != 0,
-    }
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -1132,20 +1132,34 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn gateway_policy_migrates_legacy_fallback_controls_to_strict() {
+    fn gateway_policy_preserves_only_explicit_valid_recovery_and_relay_controls() {
         let policy = runtime_gateway_policy_from_values(
             0,
-            "https://resolver.example/dns-query".to_owned(),
+            "https://Resolver.Example.NET:443/dns-query".to_owned(),
             0,
             1,
             1,
-        );
+        )
+        .expect("valid recovery endpoint");
 
         assert_eq!(policy.resolution_mode, ResolutionMode::Strict);
-        assert!(policy.hns_doh_resolver.is_none());
+        assert_eq!(
+            policy.hns_doh_resolver.as_deref(),
+            Some("https://resolver.example.net/dns-query")
+        );
         assert!(policy.experimental_p2p_dns_relay);
         assert!(!policy.legacy_hns_doh_compatibility);
         assert!(!policy.stateless_dane_certificates);
+        assert!(
+            runtime_gateway_policy_from_values(
+                1,
+                "http://resolver.example.net/dns-query".to_owned(),
+                0,
+                0,
+                0,
+            )
+            .is_none()
+        );
     }
 
     #[test]

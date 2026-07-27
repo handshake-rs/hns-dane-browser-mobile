@@ -82,6 +82,7 @@ final class BrowserSettingsViewController: UITableViewController {
         case appLanguage
         case handshakeNetwork
         case statelessDANECertificates
+        case hnsDoHRecovery
         case experimentalP2PDNSRelay
         case addHNSRelayPeer
         case clearResolverCache
@@ -109,6 +110,7 @@ final class BrowserSettingsViewController: UITableViewController {
             case .appLanguage: "App language"
             case .handshakeNetwork: "Handshake network"
             case .statelessDANECertificates: "Experimental stateless DANE certificates"
+            case .hnsDoHRecovery: "HNS recovery DNS over HTTPS"
             case .experimentalP2PDNSRelay: "Experimental P2P DNS relay"
             case .addHNSRelayPeer: "Add HNS relay peer"
             case .clearResolverCache: "Clear resolver cache"
@@ -139,6 +141,8 @@ final class BrowserSettingsViewController: UITableViewController {
             case .handshakeNetwork: "settings.hns-resolution.handshake-network"
             case .statelessDANECertificates:
                 "settings.hns-resolution.stateless-dane-certificates"
+            case .hnsDoHRecovery:
+                "settings.hns-resolution.hns-doh-recovery"
             case .experimentalP2PDNSRelay:
                 "settings.hns-resolution.experimental-p2p-dns-relay"
             case .addHNSRelayPeer: "settings.hns-resolution.add-hns-relay-peer"
@@ -161,6 +165,7 @@ final class BrowserSettingsViewController: UITableViewController {
             switch self {
             case .handshakeNetwork,
                  .statelessDANECertificates,
+                 .hnsDoHRecovery,
                  .experimentalP2PDNSRelay,
                  .addHNSRelayPeer,
                  .clearResolverCache,
@@ -326,6 +331,7 @@ final class BrowserSettingsViewController: UITableViewController {
             [
                 .handshakeNetwork,
                 .statelessDANECertificates,
+                .hnsDoHRecovery,
                 .experimentalP2PDNSRelay,
                 .addHNSRelayPeer,
                 .clearResolverCache,
@@ -430,6 +436,8 @@ final class BrowserSettingsViewController: UITableViewController {
             request(.openLanguageSettings)
         case .handshakeNetwork:
             presentNetworkConfiguration()
+        case .hnsDoHRecovery:
+            presentHNSDoHRecoveryConfiguration()
         case .addHNSRelayPeer:
             presentRelayPeerConfiguration()
         case .clearResolverCache:
@@ -504,6 +512,11 @@ final class BrowserSettingsViewController: UITableViewController {
                 return "On by explicit request. Delegated DNS may use relay-capable Handshake peers; DNSSEC validation remains local."
             }
             return "Off by default. Peer DNS relay messages are not requested."
+        case .hnsDoHRecovery:
+            if let resolver = policy.hnsDohResolver {
+                return "Configured: \(resolver). Used only after direct authoritative DNS, owner-published authenticated DoH, and any opted-in P2P requester fail for an eligible transport reason. DNSSEC, TLSA, and DANE remain locally validated."
+            }
+            return "Off. No third-party HNS resolver is contacted."
         case .addHNSRelayPeer:
             return relayPeerSummary
         case .clearResolverCache:
@@ -600,6 +613,7 @@ final class BrowserSettingsViewController: UITableViewController {
              .legal:
             "View"
         case .theme, .handshakeNetwork: "Change"
+        case .hnsDoHRecovery: "Edit"
         case .addHNSRelayPeer: "Add"
         case .clearResolverCache: "Clear"
         case .appLanguage,
@@ -761,6 +775,61 @@ final class BrowserSettingsViewController: UITableViewController {
         present(alert, animated: true)
     }
 
+    private func presentHNSDoHRecoveryConfiguration() {
+        let relayMessage = policy.experimentalP2PDNSRelay
+            ? "The requester-only P2P DNS relay is enabled and is tried before this recovery endpoint."
+            : "You can first enable the requester-only P2P DNS relay. It never makes this device an output node."
+        let alert = UIAlertController(
+            title: "HNS recovery DoH",
+            message: """
+            \(relayMessage) Leave blank to keep third-party recovery off. If configured, its operator can observe HNS qnames, qtypes, timing, and your source IP. Nothing is sent to a recovery operator while blank. Resolver hostnames are bootstrapped through validating ICANN DoH and connected with WebPKI. Every answer still undergoes local DNSSEC, TLSA, and DANE validation.
+
+            Owner: publish proof-anchored authoritative DoH on HTTPS 443.
+            User: configure a resolver.
+            """,
+            preferredStyle: .alert
+        )
+        alert.addTextField { [resolver = policy.hnsDohResolver] field in
+            field.text = resolver
+            field.placeholder = "Example: https://hnsdoh.com/dns-query"
+            field.keyboardType = .URL
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.spellCheckingType = .no
+            field.textContentType = nil
+            field.clearButtonMode = .whileEditing
+            field.accessibilityIdentifier = "settings.hns-resolution.hns-doh-recovery.field"
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        if !policy.experimentalP2PDNSRelay {
+            alert.addAction(UIAlertAction(title: "Enable P2P requester", style: .default) {
+                [weak self] _ in
+                guard let self else { return }
+                self.requestPolicyUpdate(
+                    self.policyByReplacingExperimentalP2PDNSRelay(true)
+                )
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Save", style: .default) {
+            [weak self, weak alert] _ in
+            guard let self else { return }
+            let input = alert?.textFields?.first?.text
+            guard let normalized = BrowserRuntimePolicy.normalizeHNSDoHRecoveryURL(input) else {
+                self.presentValidationError(
+                    title: "Invalid recovery resolver",
+                    message: "Enter a bounded HTTPS RFC 8484 URL with a public ICANN hostname and path, without credentials or a fragment."
+                )
+                return
+            }
+            self.requestPolicyUpdate(
+                self.policyByReplacingHNSDoHRecoveryResolver(
+                    normalized.isEmpty ? nil : normalized
+                )
+            )
+        })
+        present(alert, animated: true)
+    }
+
     private func presentRelayPeerConfiguration() {
         let port: Int
         switch handshakeNetwork {
@@ -863,6 +932,7 @@ final class BrowserSettingsViewController: UITableViewController {
         _ enabled: Bool
     ) -> BrowserRuntimePolicy {
         BrowserRuntimePolicy(
+            hnsDohResolver: policy.hnsDohResolver,
             statelessDANECertificates: enabled,
             experimentalP2PDNSRelay: policy.experimentalP2PDNSRelay
         )
@@ -872,8 +942,19 @@ final class BrowserSettingsViewController: UITableViewController {
         _ enabled: Bool
     ) -> BrowserRuntimePolicy {
         BrowserRuntimePolicy(
+            hnsDohResolver: policy.hnsDohResolver,
             statelessDANECertificates: policy.statelessDANECertificates,
             experimentalP2PDNSRelay: enabled
+        )
+    }
+
+    private func policyByReplacingHNSDoHRecoveryResolver(
+        _ resolver: String?
+    ) -> BrowserRuntimePolicy {
+        BrowserRuntimePolicy(
+            hnsDohResolver: resolver,
+            statelessDANECertificates: policy.statelessDANECertificates,
+            experimentalP2PDNSRelay: policy.experimentalP2PDNSRelay
         )
     }
 

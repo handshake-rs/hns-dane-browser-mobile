@@ -876,10 +876,14 @@ class MainActivity : ComponentActivity() {
             SecurityState.HnsViaAuthoritativeDoh -> getString(R.string.security_hns_via_authoritative_doh)
             SecurityState.HnsViaAuthoritativeDns53 -> getString(R.string.security_hns_via_authoritative_dns53)
             SecurityState.HnsViaP2pDnsRelay -> getString(R.string.security_hns_via_p2p_dns_relay)
+            SecurityState.HnsViaUserConfiguredRecoveryDoh ->
+                getString(R.string.security_hns_via_user_configured_recovery_doh)
             SecurityState.DaneVerified -> getString(R.string.security_dane_verified)
             SecurityState.DaneViaAuthoritativeDoh -> getString(R.string.security_dane_via_authoritative_doh)
             SecurityState.DaneViaAuthoritativeDns53 -> getString(R.string.security_dane_via_authoritative_dns53)
             SecurityState.DaneViaP2pDnsRelay -> getString(R.string.security_dane_via_p2p_dns_relay)
+            SecurityState.DaneViaUserConfiguredRecoveryDoh ->
+                getString(R.string.security_dane_via_user_configured_recovery_doh)
             SecurityState.StatelessDane -> getString(R.string.security_stateless_dane)
             SecurityState.DaneViaIcannDoh -> getString(R.string.security_dane_via_icann_doh)
             SecurityState.WebPkiOnly -> getString(R.string.security_webpki)

@@ -353,8 +353,8 @@ if (not state.get("proofRootMatchesTip")
 if (sentinel.get("contacts") != 0
         or sentinel.get("request_headers_logged") != 0
         or sentinel.get("request_paths_logged") != 0
-        or result.get("legacyDohContact") is not False):
-    raise SystemExit("legacy DoH zero-contact assertion failed")
+        or result.get("recursiveDohRecoveryContact") is not False):
+    raise SystemExit("recursive HNS DoH recovery zero-contact assertion failed")
 if (authority.get("queries", 0) == 0
         or authority.get("qnamesLogged") != 0
         or authority.get("rawDnsLogged") != 0):

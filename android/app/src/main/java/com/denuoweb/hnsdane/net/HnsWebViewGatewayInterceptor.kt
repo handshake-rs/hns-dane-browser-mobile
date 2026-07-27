@@ -191,8 +191,6 @@ class HnsWebViewGatewayInterceptor(
         val tlsPolicy = hnsTlsPolicy()
         val disabledStatus =
             resolverPolicy == HnsPageResolverPolicy.HnsDohCompatibility ||
-                securityPath == HnsPageSecurityPath.DaneThirdPartyDoh ||
-                securityPath == HnsPageSecurityPath.HnsThirdPartyDoh ||
                 (
                     tlsPolicy == HnsPageTlsPolicy.WebPkiFallback &&
                         !BrowserResolutionTrace.authorizesWebPkiFallback(

@@ -64,7 +64,8 @@ internal object LocalizedTraceText {
             "icann_dns" -> context.getString(R.string.trace_source_icann_dns)
             "authoritative_dns" -> context.getString(R.string.trace_source_authoritative_dns)
             "authoritative_doh" -> context.getString(R.string.trace_source_authoritative_doh)
-            "hns_doh" -> context.getString(R.string.trace_source_hns_doh)
+            "user_configured_recursive_hns_doh" ->
+                context.getString(R.string.trace_source_hns_doh)
             "hns_resource" -> context.getString(R.string.trace_source_hns_resource)
             "" -> context.getString(R.string.common_unknown)
             else -> source.replace('_', ' ')
@@ -76,7 +77,11 @@ internal object LocalizedTraceText {
             "tcp53" -> context.getString(R.string.trace_protocol_authoritative_tcp53)
             "authoritative_doh" -> context.getString(R.string.trace_protocol_authoritative_doh)
             "dns_interception_probe" -> context.getString(R.string.trace_protocol_dns_interception_probe)
-            "hns_doh" -> context.getString(R.string.trace_protocol_hns_doh)
+            "user_configured_recursive_hns_doh" ->
+                context.getString(R.string.trace_protocol_hns_doh)
+            "user_configured_recursive_hns_doh_bootstrap" ->
+                context.getString(R.string.trace_protocol_hns_doh_bootstrap)
+            "p2p_dns_relay" -> context.getString(R.string.trace_protocol_p2p_dns_relay)
             "icann_doh" -> context.getString(R.string.trace_protocol_icann_doh)
             else -> protocol
         }

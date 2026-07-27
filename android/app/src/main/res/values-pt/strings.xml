@@ -405,7 +405,6 @@
     <string name="trace_source_icann_dns">DNS da ICANN</string>
     <string name="trace_source_authoritative_dns">DNS autoritativo</string>
     <string name="trace_source_authoritative_doh">DoH oficial</string>
-    <string name="trace_source_hns_resource">Recurso HNS</string>
     <string name="trace_protocol_authoritative_udp53">UDP oficial 53</string>
     <string name="trace_protocol_authoritative_tcp53">TCP autoritativo 53</string>
     <string name="trace_protocol_authoritative_doh">DoH oficial</string>

@@ -732,8 +732,17 @@ final class BrowserViewController: UIViewController {
             ?? addressField.text
             ?? "No current page"
         let security = securityLabel.accessibilityLabel ?? "Security unavailable"
-        let trace = coordinator?.currentResolutionTraceJSON
+        let nativeTrace = coordinator?.currentResolutionTraceJSON
+        let trace = nativeTrace
             ?? "No native resolution trace is available for the current page."
+        let relayGuidance: String
+        if BrowserDiagnosticReports.port53InterceptionDetected(traceJSON: nativeTrace) {
+            relayGuidance = process.currentPolicy.experimentalP2PDNSRelay
+                ? "The opted-in requester-only P2P DNS relay was attempted and did not provide a valid answer; configured recovery is next when present."
+                : "You may opt in to the requester-only P2P DNS relay; it is never enabled automatically and local DNSSEC and DANE remain required."
+        } else {
+            relayGuidance = "No confirmed port 53 interception is recorded for this page."
+        }
         let text = """
         ADDRESS
         \(address)
@@ -741,8 +750,16 @@ final class BrowserViewController: UIViewController {
         RESOLUTION RESULT
         \(security)
 
+        SELECTED DNS PROVENANCE
+        \(BrowserDiagnosticReports.resolutionSource(traceJSON: nativeTrace))
+
         NATIVE TRACE
         \(trace)
+
+        PORT 53 RECOVERY GUIDANCE
+        \(relayGuidance)
+        Owner: publish proof-anchored authoritative DoH on HTTPS 443.
+        User: configure a resolver. https://hnsdoh.com/dns-query is only a user-entered example and is never contacted by default.
 
         SYNC
         \(latestSyncSummary.headline)
@@ -761,9 +778,10 @@ final class BrowserViewController: UIViewController {
 
         Build: \(BrowserSettingsViewController.buildLabelForDiagnostics)
         Network: \(process.currentNetwork.title)
-        HNS trust policy: strict DNSSEC/DANE; public recursive HNS DoH and WebPKI fallback prohibited
+        HNS trust policy: strict local DNSSEC/DANE; HNS WebPKI fallback prohibited
         Stateless DANE certificates: \(policy.statelessDANECertificates)
         Experimental P2P DNS relay: \(policy.experimentalP2PDNSRelay)
+        User-configured HNS recovery DoH: \(policy.hnsDohResolver ?? "Off")
 
         SYNC STATUS
 
@@ -828,7 +846,10 @@ final class BrowserViewController: UIViewController {
             notices = "Third-party notices are unavailable."
         }
         let agreement = """
-        This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, an optional P2P DNS relay, proof-anchored authoritative DoH, and DNSSEC/DANE diagnostics. HNS resolution, validation, relay, and sync may fail closed or be incomplete. Public recursive HNS DoH and HNS WebPKI fallback are prohibited. The app is provided without warranty and is not a financial service.
+        This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only P2P DNS relay, proof-anchored authoritative DoH, an optional user-configured recovery DoH endpoint, and DNSSEC/DANE diagnostics. HNS resolution, validation, relay, recovery, and sync may fail closed or be incomplete. HNS WebPKI fallback is prohibited; recovery answers never bypass local DNSSEC, TLSA, or DANE validation. The app is provided without warranty and is not a financial service.
+        """
+        let privacyDisclosure = """
+        P2P relay consumption and user-configured recovery DoH are independently off by default. This device is only a P2P requester, never an output node. If enabled, a selected relay peer can observe relayed qnames, qtypes, timing, and the source network address. While the recovery field is blank, no recovery operator is contacted. If configured and reached after direct, owner-authenticated, and opted-in P2P paths are exhausted, its operator can observe HNS qnames, qtypes, timing, and the source IP of the HTTPS connection. The recovery hostname is bootstrapped only through validating ICANN DoH and its TLS uses WebPKI. Relay and recovery answers still require local DNSSEC, TLSA, and DANE validation; bogus DNSSEC and stale or missing HNS proofs fail closed. Historical compatibility settings never enable either path.
         """
         let text = """
         PRIVACY POLICY
@@ -840,6 +861,9 @@ final class BrowserViewController: UIViewController {
 
         USER AGREEMENT
         \(agreement)
+
+        PRIVACY DISCLOSURE
+        \(privacyDisclosure)
 
         THIRD-PARTY NOTICES
         \(notices)

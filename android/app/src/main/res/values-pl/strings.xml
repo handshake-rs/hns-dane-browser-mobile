@@ -417,7 +417,6 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">autorytatywny DNS</string>
 <string name="trace_source_authoritative_doh">autorytatywny DoH</string>
-<string name="trace_source_hns_resource">Zasób HNS</string>
 <string name="trace_protocol_authoritative_udp53">Autorytatywny UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Autorytatywny TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Autorytatywny DoH</string>

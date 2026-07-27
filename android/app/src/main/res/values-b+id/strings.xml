@@ -405,7 +405,6 @@
   <string name="trace_source_icann_dns">ICANN DNS</string>
   <string name="trace_source_authoritative_dns">berwibawa DNS</string>
   <string name="trace_source_authoritative_doh">berwibawa DoH</string>
-  <string name="trace_source_hns_resource">HNS sumber daya</string>
   <string name="trace_protocol_authoritative_udp53">Resmi UDP 53</string>
   <string name="trace_protocol_authoritative_tcp53">Resmi TCP 53</string>
   <string name="trace_protocol_authoritative_doh">Resmi DoH</string>

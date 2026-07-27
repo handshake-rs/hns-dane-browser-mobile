@@ -405,7 +405,6 @@
 <string name="trace_source_icann_dns">पीएच1 पीएच2</string>
 <string name="trace_source_authoritative_dns">आधिकारिक DNS</string>
 <string name="trace_source_authoritative_doh">आधिकारिक DoH</string>
-<string name="trace_source_hns_resource">HNS संसाधन</string>
 <string name="trace_protocol_authoritative_udp53">आधिकारिक UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">आधिकारिक TCP 53</string>
 <string name="trace_protocol_authoritative_doh">आधिकारिक DoH</string>

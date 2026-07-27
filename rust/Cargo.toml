@@ -21,7 +21,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.5.1"
+version = "0.5.2"
 license = "PolyForm-Noncommercial-1.0.0"
 rust-version = "1.92"
 
@@ -37,13 +37,13 @@ hns-core = { path = "crates/hns-core" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
-hns-browser-observability = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "be58b041b74403042b134a95dcc4588c89ad549b" }
-hns-browser-runtime = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "be58b041b74403042b134a95dcc4588c89ad549b" }
-hns-icann-dane = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "be58b041b74403042b134a95dcc4588c89ad549b" }
+hns-browser-observability = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5" }
+hns-browser-runtime = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5" }
+hns-icann-dane = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5" }
 hns-loopback-proxy = { path = "crates/hns-loopback-proxy" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
-hns-namespace-resolution = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "be58b041b74403042b134a95dcc4588c89ad549b" }
-hns-resolution-policy = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "be58b041b74403042b134a95dcc4588c89ad549b" }
+hns-namespace-resolution = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5" }
+hns-resolution-policy = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5" }
 h2 = "0.4"
 h3 = "0.0.8"
 h3-quinn = "0.0.10"

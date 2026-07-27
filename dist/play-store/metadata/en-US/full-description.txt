@@ -1,4 +1,4 @@
-HNS DANE Browser is a Handshake-first browser with local HNS proofs, authoritative DNS, an optional HNS P2P DNS relay, RFC 8484 authoritative DoH, DNSSEC, and DANE diagnostics. It syncs Handshake headers, verifies HNS proofs, resolves delegated names, and keeps HNS HTTPS fail-closed to locally validated DNSSEC, TLSA, and DANE.
+HNS DANE Browser is a Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only HNS P2P DNS relay, optional user-configured recursive HNS DoH recovery, DNSSEC, and DANE diagnostics. It syncs Handshake headers, verifies HNS proofs, resolves delegated names, and keeps HNS HTTPS fail-closed to locally validated DNSSEC, TLSA, and DANE.
 
 HNS DANE Browser opens a bundled start page by default and is built for users who want to test HNS sites with a local verification path instead of relying on a normal system resolver.
 
@@ -6,10 +6,11 @@ Features:
 - HNS-aware omnibar for names such as `example/` and `name.tld/`
 - Local Handshake proof verification and resolver cache
 - RFC 8484 authoritative DoH retry for delegated HNS nameservers discovered through RFC 9461 SVCB records
-- HNS P2P DNS relay enabled on new Android installs after local proof and authoritative DNS attempts
+- Optional requester-only HNS P2P DNS relay, off until the user explicitly enables it
 - Locally validated DNSSEC, TLSA, and DANE policy for relayed answers
 - Manual relay peers accepted only as IP-literal endpoints verified by a live HSD capability handshake before they are saved
-- No public recursive HNS DoH or HNS WebPKI fallback
+- Optional user-configured recursive HNS DoH recovery, blank by default and tried only after direct, owner-published, and independently enabled P2P paths encounter interception or transport failure
+- Configured-recursive answers still require local proof, DNSSEC, TLSA, and DANE validation; HNS WebPKI fallback remains prohibited
 - DNSSEC and TLSA/DANE diagnostics for HTTPS HNS sites
 - Ordinary internet sites retain their normal WebPKI path
 - Resolver trace, HNS proof viewer, and TLSA inspector

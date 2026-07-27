@@ -405,7 +405,6 @@
 <string name="trace_source_icann_dns">ICANNDNS</string>
 <string name="trace_source_authoritative_dns">autorevole DNS</string>
 <string name="trace_source_authoritative_doh">autorevole DoH</string>
-<string name="trace_source_hns_resource">Risorsa HNS</string>
 <string name="trace_protocol_authoritative_udp53">Autorevole UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Autorevole TCP 53</string>
 <string name="trace_protocol_authoritative_doh">DoH autorevole</string>

@@ -41,10 +41,12 @@
     <string name="security_hns_via_authoritative_doh" translatable="false">HNS via ADoH</string>
     <string name="security_hns_via_authoritative_dns53" translatable="false">HNS via DNS53</string>
     <string name="security_hns_via_p2p_dns_relay" translatable="false">HNS via P2P DNS relay</string>
+    <string name="security_hns_via_user_configured_recovery_doh" translatable="false">HNS via user-configured recovery DoH</string>
     <string name="security_dane_verified">DANE verified</string>
     <string name="security_dane_via_authoritative_doh" translatable="false">DANE via ADoH</string>
     <string name="security_dane_via_authoritative_dns53" translatable="false">DANE via DNS53</string>
     <string name="security_dane_via_p2p_dns_relay" translatable="false">DANE via P2P DNS relay</string>
+    <string name="security_dane_via_user_configured_recovery_doh" translatable="false">DANE via user-configured recovery DoH</string>
     <string name="security_stateless_dane" translatable="false">Stateless DANE</string>
     <string name="security_dane_via_icann_doh" translatable="false">DANE via ICANN DoH</string>
     <string name="security_webpki">WebPKI</string>
@@ -160,6 +162,7 @@
     <string name="row_gateway_summary">Inspect recent native gateway events.</string>
     <string name="row_handshake_network">Handshake network</string>
     <string name="row_add_hns_relay_peer" translatable="false">Add HNS relay peer</string>
+    <string name="row_hns_doh_recovery" translatable="false">HNS recovery DNS over HTTPS</string>
     <string name="row_history">History</string>
     <string name="row_hns_domain_setup">HNS domain setup</string>
     <string name="row_hns_domain_setup_summary">Check records and delegation for an HNS domain.</string>
@@ -294,6 +297,17 @@
     <string name="settings_experimental_p2p_dns_relay" translatable="false">Experimental P2P DNS relay</string>
     <string name="settings_experimental_p2p_dns_relay_on" translatable="false">On by explicit request. Delegated DNS may use relay-capable Handshake peers; DNSSEC validation remains local.</string>
     <string name="settings_experimental_p2p_dns_relay_off" translatable="false">Off by default. Peer DNS relay messages are not requested.</string>
+    <string name="settings_hns_doh_recovery_off" translatable="false">Off. No third-party HNS resolver is contacted.</string>
+    <string name="settings_hns_doh_recovery_on" translatable="false">Configured: %1$s. Used only after direct authoritative DNS, owner-published authenticated DoH, and any opted-in P2P requester fail for an eligible transport reason. DNSSEC, TLSA, and DANE remain locally validated.</string>
+    <string name="settings_hns_doh_recovery_title" translatable="false">HNS recovery DoH</string>
+    <string name="settings_hns_doh_recovery_message_relay_off" translatable="false">Leave blank to keep this path off. You can first enable the requester-only P2P DNS relay; it never makes this device an output node, and DNSSEC/TLSA/DANE remain local. If you configure an HTTPS RFC 8484 endpoint, its operator can observe HNS qnames, qtypes, timing, and your source IP. Nothing is sent to a recovery operator while this field is blank. Resolver hostnames are bootstrapped through validating ICANN DoH and connected with WebPKI.\n\nOwner: publish proof-anchored authoritative DoH on HTTPS 443.\nUser: configure a resolver.</string>
+    <string name="settings_hns_doh_recovery_message_relay_enabled" translatable="false">The requester-only P2P DNS relay is enabled and is tried before this recovery endpoint. Leave blank to keep third-party recovery off. If configured, the operator can observe HNS qnames, qtypes, timing, and your source IP. Nothing is sent to a recovery operator while blank. Every answer still undergoes local DNSSEC, TLSA, and DANE validation.\n\nOwner: publish proof-anchored authoritative DoH on HTTPS 443.\nUser: configure a resolver.</string>
+    <string name="settings_hns_doh_recovery_example" translatable="false">Example: https://hnsdoh.com/dns-query</string>
+    <string name="settings_hns_doh_recovery_error" translatable="false">Enter a bounded HTTPS RFC 8484 URL with a public ICANN hostname and path, without credentials or a fragment</string>
+    <string name="settings_hns_doh_recovery_saved" translatable="false">HNS recovery DoH saved</string>
+    <string name="settings_hns_doh_recovery_disabled" translatable="false">HNS recovery DoH disabled</string>
+    <string name="settings_enable_p2p_requester" translatable="false">Enable P2P requester</string>
+    <string name="settings_p2p_requester_enabled" translatable="false">Requester-only P2P DNS relay enabled; local DNSSEC and DANE remain required</string>
     <string name="settings_static_relay_peer_summary" translatable="false">Add a known relay-capable peer when discovery has not found one. Existing peers remain available.</string>
     <string name="settings_static_relay_peer_title" translatable="false">Add HNS relay peer</string>
     <string name="settings_static_relay_peer_message" translatable="false">Enter a %1$s Handshake peer as IPv4:port or [IPv6]:port. The app will verify its network handshake and live DNS-relay capability before saving it. Hostnames are not accepted or resolved.</string>
@@ -341,8 +355,8 @@
     <string name="gateway_cleared" translatable="false">Gateway events cleared</string>
 
     <string name="legal_license_summary">HNS DANE Browser is source-available under the PolyForm Noncommercial License 1.0.0. Noncommercial use, study, modification, and redistribution are allowed under the license. Commercial use requires separate written permission from Denuo Web, LLC.</string>
-    <string name="legal_user_agreement" translatable="false">This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, an optional P2P DNS relay, proof-anchored authoritative DoH, and DNSSEC/DANE diagnostics. HNS resolution, DNSSEC validation, DANE checks, relay, and sync may fail closed or be incomplete. Public recursive HNS DoH and HNS WebPKI fallback are prohibited. The app is provided without warranty, is not a financial service, and donations are optional and unlock no features.</string>
-    <string name="legal_privacy_summary" translatable="false">HNS DANE Browser does not include ads, analytics SDKs, or developer-operated accounts. It stores browsing history, cookies, website data, download records, settings, diagnostics, HNS sync/cache data, and manually added relay-peer IP endpoints locally on the device. It sends network requests needed for browser functionality to websites you visit, HNS peers, DNS seeds, authoritative nameservers, proof-bootstrapped or RFC 9461-discovered authoritative DoH endpoints, the optional HNS P2P relay, validating ICANN DoH, WebView Safe Browsing services when supported by the installed WebView provider, and the non-routable 192.0.2.1 TEST-NET DNS sentinel after delegated DNS failure. Relay consumption is off by default and requires explicit opt-in; an explicit former compatibility choice is not converted into relay consent during upgrade. A selected relay peer can observe each relayed qname, qtype, timing, and the source network address of the P2P connection; relayed answers still undergo local DNSSEC and DANE validation. This browser does not become an output node. Public recursive HNS DoH and HNS WebPKI fallback are prohibited. Local browsing data can be cleared from Settings.</string>
+    <string name="legal_user_agreement" translatable="false">This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only P2P DNS relay, proof-anchored authoritative DoH, an optional user-configured recovery DoH endpoint, and DNSSEC/DANE diagnostics. HNS resolution, DNSSEC validation, DANE checks, relay, recovery, and sync may fail closed or be incomplete. HNS WebPKI fallback is prohibited; recovery DNS answers never bypass local DNSSEC, TLSA, or DANE validation. The app is provided without warranty, is not a financial service, and donations are optional and unlock no features.</string>
+    <string name="legal_privacy_summary" translatable="false">HNS DANE Browser does not include ads, analytics SDKs, or developer-operated accounts. It stores browsing history, cookies, website data, download records, settings, diagnostics, HNS sync/cache data, a user-configured recovery DoH URL, and manually added relay-peer IP endpoints locally on the device. It sends network requests needed for browser functionality to websites you visit, HNS peers, DNS seeds, authoritative nameservers, proof-bootstrapped or RFC 9461-discovered authoritative DoH endpoints, the optional HNS P2P relay, validating ICANN DoH, WebView Safe Browsing services when supported by the installed WebView provider, and the non-routable 192.0.2.1 TEST-NET DNS sentinel after delegated DNS failure. Relay consumption is off by default and requires explicit opt-in; it is requester-only and does not make this device an output node. A selected relay peer can observe each relayed qname, qtype, timing, and the source network address of the P2P connection. User-configured recovery DoH is separately off by default; while its field is blank no recovery operator is contacted. If configured and reached after direct, owner-authenticated, and opted-in P2P paths are exhausted, its operator can observe HNS qnames, qtypes, timing, and the source IP of the HTTPS connection. Its hostname is bootstrapped only through validating ICANN DoH and its TLS uses WebPKI. Relay and recovery answers still undergo local DNSSEC, TLSA, and DANE validation; bogus DNSSEC and stale or missing HNS proofs fail closed. Historical compatibility settings never enable either path. Local browsing data can be cleared from Settings.</string>
     <string name="legal_license_name" translatable="false">PolyForm Noncommercial 1.0.0</string>
     <string name="legal_copy_privacy_policy_url">privacy policy URL</string>
     <string name="legal_copy_source_code_url">source code URL</string>
@@ -434,6 +448,7 @@
     <string name="trace_field_authoritative_udp53">Authoritative UDP 53: %1$s</string>
     <string name="trace_field_authoritative_tcp53">Authoritative TCP 53: %1$s</string>
     <string name="trace_field_authoritative_doh">Authoritative DoH: %1$s</string>
+    <string name="trace_field_recovery_doh" translatable="false">User-configured recovery DoH: %1$s</string>
     <string name="trace_field_port53_interception" translatable="false">Port 53 interception probe: %1$s</string>
     <string name="trace_field_resolver_attempts">Resolver attempts: %1$s</string>
     <string name="trace_field_dnssec">DNSSEC: %1$s</string>
@@ -470,13 +485,15 @@
     <string name="trace_source_icann_dns">ICANN DNS</string>
     <string name="trace_source_authoritative_dns">authoritative DNS</string>
     <string name="trace_source_authoritative_doh">authoritative DoH</string>
-    <string name="trace_source_hns_doh" translatable="false">unsupported legacy HNS DoH status</string>
-    <string name="trace_source_hns_resource">HNS resource</string>
+    <string name="trace_source_hns_doh" translatable="false">user-configured recursive HNS DoH</string>
+    <string name="trace_source_hns_resource">Local verified HNS proof</string>
     <string name="trace_protocol_authoritative_udp53">Authoritative UDP 53</string>
     <string name="trace_protocol_authoritative_tcp53">Authoritative TCP 53</string>
     <string name="trace_protocol_authoritative_doh">Authoritative DoH</string>
     <string name="trace_protocol_dns_interception_probe" translatable="false">Port 53 interception probe</string>
-    <string name="trace_protocol_hns_doh" translatable="false">Unsupported legacy HNS DoH</string>
+    <string name="trace_protocol_hns_doh" translatable="false">User-configured HNS recovery DoH</string>
+    <string name="trace_protocol_hns_doh_bootstrap" translatable="false">Recovery resolver hostname via validating ICANN DoH</string>
+    <string name="trace_protocol_p2p_dns_relay" translatable="false">Requester-only P2P DNS relay</string>
     <string name="trace_protocol_icann_doh">Trusted ICANN DoH</string>
     <string name="trace_tlsa_present">present</string>
     <string name="trace_tlsa_absent">absent</string>
@@ -509,7 +526,9 @@
     <string name="trace_fix_hns_stale">Let HNS sync catch up, then retry. The local proof is valid for its historical block, but not current enough to decide whether the name exists now.</string>
     <string name="trace_fix_hns_unavailable">Sync headers/proofs first, then retry. No verified HNS proof was available.</string>
     <string name="trace_fix_add_delegation" translatable="false">Add usable HNS delegation data: NS plus GLUE4/GLUE6 or SYNTH4/SYNTH6. To work without port 53, add a proof-anchored hnsdns=1 authoritative DoH declaration to the HNS resource.</string>
-    <string name="trace_fix_port53_interception" translatable="false">This network returned a DNS reply for a non-routable TEST-NET destination, which confirms transparent port 53 interception. Use authoritative DoH; the HNS owner must publish a proof-anchored hnsdns=1 endpoint so the browser can bootstrap it without DNS.</string>
+    <string name="trace_fix_port53_interception" translatable="false">This network confirmed transparent port 53 interception. Owner: publish proof-anchored authoritative DoH on HTTPS 443. User: configure a resolver in Settings; https://hnsdoh.com/dns-query is an example you must enter yourself and is never contacted by default.</string>
+    <string name="trace_fix_port53_interception_relay_available" translatable="false">This network confirmed transparent port 53 interception. You may opt in to the requester-only P2P DNS relay; local DNSSEC and DANE remain required and this device does not become an output node. Owner: publish proof-anchored authoritative DoH on HTTPS 443. User: configure a resolver in Settings; https://hnsdoh.com/dns-query is only a user-entered example and is never contacted by default.</string>
+    <string name="trace_fix_port53_interception_relay_attempted" translatable="false">This network confirmed transparent port 53 interception. The opted-in requester-only P2P DNS relay was attempted before configured recovery and did not provide a valid answer; local DNSSEC and DANE remained required. Owner: publish proof-anchored authoritative DoH on HTTPS 443. User: configure a resolver in Settings; https://hnsdoh.com/dns-query is only a user-entered example and is never contacted by default.</string>
     <string name="trace_fix_doh_answered" translatable="false">Direct authoritative DNS on port 53 failed, but the authoritative DoH endpoint answered and validated.</string>
     <string name="trace_fix_nameserver_unreliable_with_doh" translatable="false">Your delegated nameserver candidate did not answer reliably. Keep authoritative DNS reachable on UDP/TCP 53 and publish proof-anchored hnsdns=1 bootstrap metadata for networks that intercept or block port 53.</string>
     <string name="trace_fix_nameserver_unreliable">Your delegated nameserver candidate did not answer reliably. Ensure authoritative DNS is reachable on UDP 53 and TCP 53.</string>
@@ -517,7 +536,7 @@
     <string name="trace_fix_dnssec_before_tlsa">Fix delegated DNSSEC first. TLSA/DANE was not evaluated because secure resolution failed before the TLSA lookup.</string>
     <string name="trace_fix_renew_cert">Renew the origin HTTPS certificate. The gateway reached an HTTPS origin, but TLS failed because the certificate is past its validity window.</string>
     <string name="trace_fix_origin_address_missing">Serve A/AAAA for the requested host from delegated DNS. HNS GLUE/SYNTH data is only used to reach nameservers, not as the origin address.</string>
-    <string name="trace_fix_compat_fallback_used" translatable="false">An unsupported legacy HNS DoH status was reported. Current builds prohibit this path; update or restart the runtime.</string>
+    <string name="trace_fix_recovery_used" translatable="false">The explicitly configured HNS recovery DoH path was used after eligible direct, owner-authenticated, and opted-in P2P paths were exhausted. The answer still required local DNSSEC and DANE validation.</string>
     <string name="trace_fix_no_obvious_hns">No obvious fix from this trace. If HTTPS fails, inspect TLSA/DANE once certificate tracing is enabled.</string>
     <string name="trace_fix_icann_dnssec_bogus">Fix the ICANN DNSSEC chain: DS, DNSKEY, signatures, and denial records must validate.</string>
     <string name="trace_fix_icann_origin_address_missing">Publish a DNSSEC-validated A or AAAA record for this host.</string>

@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.text.InputType
 import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
@@ -34,6 +35,7 @@ class SettingsActivity : ComponentActivity() {
     private lateinit var cookieStatus: TextView
     private lateinit var hnsNetworkStatus: TextView
     private lateinit var statelessDaneStatus: TextView
+    private lateinit var hnsDohRecoveryStatus: TextView
     private lateinit var experimentalP2pRelayStatus: TextView
     private lateinit var staticRelayPeerStatus: TextView
     private lateinit var resolverCacheStatus: TextView
@@ -51,6 +53,7 @@ class SettingsActivity : ComponentActivity() {
         cookieStatus = preferenceSummary(cookieSummary())
         hnsNetworkStatus = preferenceSummary(hnsNetworkText())
         statelessDaneStatus = preferenceSummary(statelessDaneText())
+        hnsDohRecoveryStatus = preferenceSummary(hnsDohRecoveryText())
         experimentalP2pRelayStatus = preferenceSummary(experimentalP2pRelayText())
         staticRelayPeerStatus = preferenceSummary(getString(R.string.settings_static_relay_peer_summary))
         resolverCacheStatus = preferenceSummary(getString(R.string.settings_resolver_cache_ready))
@@ -146,6 +149,13 @@ class SettingsActivity : ComponentActivity() {
                     showNetworkDialog()
                 })
                 addPreference(statelessDaneCertificateOption())
+                addPreference(preferenceRow(
+                    title = getString(R.string.row_hns_doh_recovery),
+                    summaryView = hnsDohRecoveryStatus,
+                    actionLabel = getString(R.string.action_edit),
+                ) {
+                    showHnsDohRecoveryDialog()
+                })
                 addPreference(experimentalP2pDnsRelayOption())
                 addPreference(preferenceRow(
                     title = getString(R.string.row_add_hns_relay_peer),
@@ -282,6 +292,7 @@ class SettingsActivity : ComponentActivity() {
             refreshCookieStatus()
             refreshHnsNetworkStatus()
             refreshStatelessDaneStatus()
+            refreshHnsDohRecoveryStatus()
             refreshExperimentalP2pRelayStatus()
             refreshHistoryStatus()
             refreshDownloadStatus()
@@ -612,6 +623,70 @@ class SettingsActivity : ComponentActivity() {
         dialog.show()
     }
 
+    private fun showHnsDohRecoveryDialog() {
+        val relayEnabled = HnsResolutionPreferences.experimentalP2pDnsRelay(this)
+        val input = EditText(this).apply {
+            setText(HnsResolutionPreferences.dohResolverUrl(this@SettingsActivity))
+            hint = getString(R.string.settings_hns_doh_recovery_example)
+            inputType =
+                InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_VARIATION_URI or
+                InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+            setSingleLine(true)
+            setSelection(0, text.length)
+            imeOptions = EditorInfo.IME_ACTION_DONE
+        }
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.settings_hns_doh_recovery_title)
+            .setMessage(
+                if (relayEnabled) {
+                    R.string.settings_hns_doh_recovery_message_relay_enabled
+                } else {
+                    R.string.settings_hns_doh_recovery_message_relay_off
+                },
+            )
+            .setView(input)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_save, null)
+        if (!relayEnabled) {
+            builder.setNeutralButton(R.string.settings_enable_p2p_requester) { _, _ ->
+                HnsResolutionPreferences.setExperimentalP2pDnsRelay(this, true)
+                refreshExperimentalP2pRelayStatus()
+                Toast.makeText(
+                    this,
+                    R.string.settings_p2p_requester_enabled,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+        val dialog = builder.create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val saved = HnsResolutionPreferences.setHnsDohRecoveryUrl(
+                    this,
+                    input.text.toString(),
+                )
+                if (saved == null) {
+                    input.error = getString(R.string.settings_hns_doh_recovery_error)
+                    return@setOnClickListener
+                }
+                refreshHnsDohRecoveryStatus()
+                Toast.makeText(
+                    this,
+                    if (saved.isEmpty()) {
+                        R.string.settings_hns_doh_recovery_disabled
+                    } else {
+                        R.string.settings_hns_doh_recovery_saved
+                    },
+                    Toast.LENGTH_SHORT,
+                ).show()
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
+    }
+
     private fun showNetworkDialog() {
         val networks = HandshakeNetwork.entries.toTypedArray()
         val labels = networks
@@ -760,6 +835,10 @@ class SettingsActivity : ComponentActivity() {
         statelessDaneStatus.text = statelessDaneText()
     }
 
+    private fun refreshHnsDohRecoveryStatus() {
+        hnsDohRecoveryStatus.text = hnsDohRecoveryText()
+    }
+
     private fun refreshExperimentalP2pRelayStatus() {
         experimentalP2pRelayStatus.text = experimentalP2pRelayText()
     }
@@ -793,6 +872,15 @@ class SettingsActivity : ComponentActivity() {
             getString(R.string.settings_experimental_p2p_dns_relay_on)
         } else {
             getString(R.string.settings_experimental_p2p_dns_relay_off)
+        }
+
+    private fun hnsDohRecoveryText(): String =
+        HnsResolutionPreferences.dohResolverUrl(this).let { endpoint ->
+            if (endpoint.isEmpty()) {
+                getString(R.string.settings_hns_doh_recovery_off)
+            } else {
+                getString(R.string.settings_hns_doh_recovery_on, endpoint)
+            }
         }
 
     private fun defaultPeerPort(network: HandshakeNetwork): Int = when (network) {

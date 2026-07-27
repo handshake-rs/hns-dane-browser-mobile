@@ -39,7 +39,7 @@ fn run() -> Result<(), String> {
 
     let name = required_env("HNS_NAME")?;
     let url = required_env("HNS_URL")?;
-    let legacy_doh_sentinel = required_env("HNS_DOH_RESOLVER")?;
+    let recursive_doh_recovery_sentinel = required_env("HNS_DOH_RESOLVER")?;
     let peers = socket_list(&required_env("HNS_STATIC_PEERS")?)?;
     if peers.len() != 4 {
         return Err(format!(
@@ -78,9 +78,9 @@ fn run() -> Result<(), String> {
 
     let policy = RuntimePolicy {
         resolution_mode: ResolutionMode::Strict,
-        // Keep a reachable sentinel configured while the independent compatibility control is
-        // disabled. The harness requires that sentinel to observe zero connections.
-        hns_doh_resolver: Some(legacy_doh_sentinel),
+        // Keep a reachable, explicitly configured recovery endpoint present. The harness
+        // requires the earlier successful relay path to suppress every contact with it.
+        hns_doh_resolver: Some(recursive_doh_recovery_sentinel),
         experimental_p2p_dns_relay: true,
         legacy_hns_doh_compatibility: false,
         stateless_dane_certificates: false,
@@ -179,7 +179,10 @@ fn run() -> Result<(), String> {
         (r#""decision":"verified""#, "DANE decision"),
         (r#""certificateMatch":"pass""#, "certificate match"),
         (r#""webPkiFallback":false"#, "no WebPKI fallback"),
-        (r#""fallback":{"used":false"#, "no legacy DoH fallback"),
+        (
+            r#""fallback":{"used":false"#,
+            "no recursive HNS DoH recovery",
+        ),
     ] {
         assert_contains(&trace, needle, label)?;
     }
@@ -218,7 +221,7 @@ fn run() -> Result<(), String> {
             "  \"dane\": \"verified\",\n",
             "  \"httpsStatus\": 200,\n",
             "  \"resolutionSource\": \"p2p_dns_relay\",\n",
-            "  \"legacyDohContact\": false,\n",
+            "  \"recursiveDohRecoveryContact\": false,\n",
             "  \"relayFailover\": {{\"verified\": true, \"retryCount\": {}, \"peer\": {}}}\n",
             "}}\n"
         ),

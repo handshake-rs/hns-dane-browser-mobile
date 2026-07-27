@@ -7,8 +7,9 @@ Features:
 - Resolve delegated names through authoritative DNS or RFC 8484 DNS-over-HTTPS
 - Validate DNSSEC, TLSA, and DANE policies locally
 - Inspect resolver paths, proof details, and security status
-- Use a proof-gated experimental HNS peer-to-peer DNS relay, enabled by default
-- Keep HNS HTTPS fail-closed without public recursive HNS DoH or WebPKI fallback
+- Optionally enable requester-only HNS peer-to-peer DNS relay consumption
+- Optionally configure recursive HNS DoH recovery when port 53 is intercepted
+- Keep all HNS answers subject to local proof, DNSSEC, TLSA, and DANE validation, without HNS WebPKI fallback
 - Keep website data in a persistent WebKit profile
 - Download files and share pages with standard iOS controls
 

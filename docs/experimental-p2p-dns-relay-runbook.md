@@ -52,8 +52,8 @@ authoritative server exists only on the internal DNS bridge. The good relay is
 the only P2P role on both bridges. The test sends real UDP and TCP probes from
 the browser namespace and requires both to fail, requires external port-53
 probes to fail, and confirms that the good relay used both transports. The
-legacy-DoH sentinel is reachable on the P2P bridge but must retain a zero
-connection count. All three bridges use Docker's `internal` boundary, so the
+configured-recursive-DoH recovery sentinel is reachable on the P2P bridge but
+must retain a zero connection count. All three bridges use Docker's `internal` boundary, so the
 test namespace has no external egress.
 
 The fast tier speaks the actual nine-byte Handshake frame, regtest magic,
@@ -159,7 +159,8 @@ needed.
 
 The registered A record is `127.0.0.1`, so the same DNSSEC/TLSA data reaches the
 device-side forwarded HTTPS origin. Enable the experimental peer relay; strict
-HNS DNSSEC/DANE is mandatory and public recursive HNS DoH is unavailable. The Docker/native pass does not by itself
+HNS DNSSEC/DANE is mandatory. Leave user-configured recursive recovery blank
+while qualifying the relay path so it cannot mask a relay failure. The Docker/native pass does not by itself
 claim Android application-binary execution; record the device result
 separately, then remove the two `adb reverse` mappings and stop the kept Compose
 project.
@@ -271,8 +272,9 @@ Stop a stage on any trust regression, qname/raw-DNS logging, unbounded pending
 work or memory, repeated cross-implementation decode failure, material DNSSEC or
 DANE discrepancy, single-relay dependency, or inability to distinguish
 provenance. Disable the browser relay setting first, then disable the `hsd`
-experimental option. The client then fails closed when no direct authoritative
-path succeeds; rollback does not restore public recursive HNS DoH or HNS WebPKI.
+experimental option. With configured recovery blank, the client then fails
+closed when no direct authoritative path succeeds. Rollback never enables a
+recursive endpoint automatically and never restores HNS WebPKI.
 Purge only ephemeral aggregate canary data according to its published retention
 policy; do not preserve query data that should never have been logged.
 

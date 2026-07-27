@@ -11,8 +11,8 @@ This directory is the reviewed source for the first iOS App Store record. It is 
 - SKU: `hns-dane-browser-ios`
 - Apple Team ID: `45NQQK3G3S`
 - User access: Full Access
-- Version: `0.5.1`
-- Build: `45`
+- Version: `0.5.2`
+- Build: `46`
 - Primary category: Utilities
 - Price: Free
 
@@ -20,7 +20,7 @@ The first release is iPhone-only. Native iPad support can be enabled in a later 
 
 ## First-release fields
 
-Paste these public fields from `en-US/` into the `0.5.1` version record:
+Paste these public fields from `en-US/` into the `0.5.2` version record:
 
 - `name.txt`
 - `subtitle.txt`
@@ -55,6 +55,6 @@ python3 dist/app-store/validate.py
 3. Generate current iPhone simulator screenshots from the iOS shell. Do not reuse Android screenshots.
 4. If an iPhone tester becomes available, run an optional external-TestFlight pass. An owned or borrowed iPhone is not an App Store submission requirement; record the simulator-only limitation when no tester is available.
 5. Supply App Review with the notes in `en-US/review-notes.txt`; no login is required.
-6. Complete every item in `../submission-checklist.md`, select build `45`, and choose manual release before adding the version for review.
+6. Complete every item in `../submission-checklist.md`, select build `46`, and choose manual release before adding the version for review.
 
 The API private key used by CI must exist only in the protected GitHub `app-store` environment and must never be committed or uploaded as a workflow artifact.

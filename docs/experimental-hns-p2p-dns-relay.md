@@ -228,9 +228,9 @@ invalid DNSSEC, invalid negative proof, invalid TLSA, or a failed DANE match.
 
 New installs leave `Experimental HNS peer DNS relay` off until the browser user
 opts in; existing installations retain their independent relay-requester
-preference. Startup migration deletes the former public recursive HNS DoH
-endpoint and compatibility flags without converting those legacy settings into
-relay consent. Relay provenance is `p2p_dns_relay`, distinct from
+preference. Startup migration permanently tombstones the historical recursive
+HNS DoH key without converting it into relay consent or into the distinct,
+blank-by-default configured-recovery key. Relay provenance is `p2p_dns_relay`, distinct from
 proof-anchored authoritative DoH and direct authoritative DNS. A relayed result
 may be displayed as `DANE via HNS P2P`. Serving remains separate: the companion
 `hsd` responder starts only when its operator explicitly enables the
@@ -256,7 +256,8 @@ delegated zone derived from a registered regtest name.
 Docker internal networks still enforce the transport property under test: the
 browser role can reach P2P and HTTPS but has no route to authoritative UDP/TCP
 53; only the good relay joins the DNS network; external resolver egress is
-absent; and a local legacy-DoH sentinel must observe zero connections. The fast
+absent; and a reachable configured-recursive-DoH sentinel must observe zero
+connections. The fast
 tier also exercises bad-to-good failover, UDP truncation followed by relay-side
 TCP, TLSA/certificate matching, HTTPS, connection reuse, bounded load, and
 qname-free aggregate artifacts.
@@ -281,8 +282,8 @@ prefixes, mines the complete `relaytest` regtest name lifecycle, commits its
 NS/GLUE4/DS resource through the safe-root window, and requires a current
 `TYPE_EXISTS` Urkel proof with a non-empty registered resource from every node.
 Its native runtime follows bad-to-good relay failover, validates the positive
-DS/DNSKEY/RRSIG chain, HTTPS and TLSA/DANE locally, and requires zero legacy-DoH
-contacts. That full positive-answer path does not claim an NSEC/NSEC3 denial
+DS/DNSKEY/RRSIG chain, HTTPS and TLSA/DANE locally, and requires zero configured
+recursive HNS DoH recovery contacts. That full positive-answer path does not claim an NSEC/NSEC3 denial
 case or Android application-binary execution.
 
 The exact commands, artifact requirements, and physical-device follow-up are

@@ -49,7 +49,9 @@ internal object HnsResolutionPreferences {
     private const val PREFS = "hns_resolution_preferences"
     private const val KEY_HANDSHAKE_NETWORK = "handshake_network"
     private const val KEY_STRICT_HNS_MODE = "strict_hns_mode"
+    // Historical compatibility key: permanently deleted during migration.
     private const val KEY_DOH_RESOLVER_URL = "doh_resolver_url"
+    private const val KEY_HNS_DOH_RECOVERY_URL = "hns_doh_recovery_url_v1"
     private const val KEY_STATELESS_DANE_CERTIFICATES = "stateless_dane_certificates"
     private const val KEY_EXPERIMENTAL_P2P_DNS_RELAY = "experimental_p2p_dns_relay"
     private const val KEY_LEGACY_HNS_DOH_COMPATIBILITY = "legacy_hns_doh_compatibility"
@@ -99,7 +101,31 @@ internal object HnsResolutionPreferences {
 
     fun legacyHnsDohCompatibility(@Suppress("UNUSED_PARAMETER") context: Context): Boolean = false
 
-    fun dohResolverUrl(@Suppress("UNUSED_PARAMETER") context: Context): String = ""
+    fun dohResolverUrl(context: Context): String {
+        val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val stored = preferences.getString(KEY_HNS_DOH_RECOVERY_URL, "") ?: ""
+        val normalized = normalizeHnsDohRecoveryUrl(stored)
+        if (normalized == null) {
+            preferences.edit().remove(KEY_HNS_DOH_RECOVERY_URL).apply()
+            return ""
+        }
+        return normalized
+    }
+
+    fun setHnsDohRecoveryUrl(context: Context, input: String): String? {
+        val normalized = normalizeHnsDohRecoveryUrl(input) ?: return null
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .also { editor ->
+                if (normalized.isEmpty()) {
+                    editor.remove(KEY_HNS_DOH_RECOVERY_URL)
+                } else {
+                    editor.putString(KEY_HNS_DOH_RECOVERY_URL, normalized)
+                }
+            }
+            .apply()
+        return normalized
+    }
 
     /**
      * One-way migration for releases that persisted public recursive HNS DoH or
@@ -147,6 +173,49 @@ internal object HnsResolutionPreferences {
 
     internal fun buildDefaultLegacyHnsDohCompatibility(): Boolean =
         BuildConfig.HNS_DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY
+
+    /**
+     * Validates one explicit RFC 8484 POST endpoint without opening a socket.
+     * Blank disables recovery. Historical compatibility values never enter
+     * this new key, so upgrades cannot silently resurrect consent.
+     */
+    fun normalizeHnsDohRecoveryUrl(input: String): String? {
+        val value = input.trim()
+        if (value.isEmpty()) return ""
+        if (value.toByteArray(Charsets.UTF_8).size > MAX_HNS_DOH_RECOVERY_URL_BYTES ||
+            value.any { it.isWhitespace() || it.isISOControl() } ||
+            '#' in value ||
+            '{' in value ||
+            '}' in value
+        ) {
+            return null
+        }
+        val uri = runCatching { URI(value).parseServerAuthority() }.getOrNull() ?: return null
+        if (!uri.scheme.equals("https", ignoreCase = true) ||
+            uri.rawUserInfo != null ||
+            uri.rawFragment != null ||
+            uri.host.isNullOrBlank() ||
+            uri.rawPath.isNullOrEmpty() ||
+            !uri.rawPath.startsWith("/")
+        ) {
+            return null
+        }
+        val host = uri.host.trimEnd('.').lowercase(Locale.US)
+        if ('.' !in host ||
+            normalizeIpv4Literal(host) != null ||
+            isBrowserSpecialUseHost(host) ||
+            !HOSTNAME_PATTERN.matches(host)
+        ) {
+            return null
+        }
+        val port = if (uri.port == -1) 443 else uri.port
+        if (port !in 1..65535 || port in BROWSER_BLOCKED_PORTS) {
+            return null
+        }
+        val authority = if (port == 443) host else "$host:$port"
+        val query = uri.rawQuery?.let { "?$it" }.orEmpty()
+        return "https://$authority${uri.rawPath}$query"
+    }
 
     /**
      * Normalizes one explicit Handshake peer without performing DNS or opening a socket.
@@ -205,6 +274,20 @@ internal object HnsResolutionPreferences {
     }
 
     private const val MAX_STATIC_RELAY_PEER_ENDPOINT_CHARS = 320
+    private const val MAX_HNS_DOH_RECOVERY_URL_BYTES = 2 * 1024
+    private val HOSTNAME_PATTERN =
+        Regex("""(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?""")
+    private val BROWSER_BLOCKED_PORTS = setOf(
+        0, 1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79,
+        87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137,
+        139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532,
+        540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720,
+        1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668,
+        6669, 6679, 6697, 10080,
+    )
+    private val BROWSER_SPECIAL_USE_SUFFIXES = setOf(
+        "alt", "arpa", "example", "internal", "invalid", "local", "localhost", "onion", "test",
+    )
     private val IPV6_LITERAL_CHARS = ('0'..'9').toSet() + ('a'..'f') + ('A'..'F') + setOf(':', '.')
 
     private fun normalizeIpv4Literal(host: String): String? {
@@ -215,4 +298,7 @@ internal object HnsResolutionPreferences {
         val values = octets.map { it.toIntOrNull()?.takeIf { value -> value in 0..255 } ?: return null }
         return values.joinToString(".")
     }
+
+    private fun isBrowserSpecialUseHost(host: String): Boolean =
+        host.substringAfterLast('.').lowercase(Locale.US) in BROWSER_SPECIAL_USE_SUFFIXES
 }

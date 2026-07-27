@@ -135,7 +135,10 @@ final class RustBrowserRuntime: BrowserRuntime {
         nativePolicy.legacy_hns_doh_compatibility = 0
 
         var revision: UInt64 = 0
-        let result = hns_browser_runtime_set_policy(handle, &nativePolicy, &revision)
+        let result = RustBridge.withUTF8Slice(policy.hnsDohResolver ?? "") { resolver in
+            nativePolicy.hns_doh_resolver = resolver
+            return hns_browser_runtime_set_policy(handle, &nativePolicy, &revision)
+        }
         try RustBridge.check(result, operation: "runtime policy update")
         guard revision != 0 else {
             throw RustBridgeError.invalidOutput("policy revision is zero")
@@ -610,9 +613,7 @@ final class RustBrowserProxySession: BrowserProxySession {
         if httpStatus >= 400 {
             return result(.blocked, "The Rust proxy rejected the dual-root response")
         }
-        if resolverPolicy == HNS_BROWSER_RESOLVER_POLICY_HNS_DOH_COMPATIBILITY ||
-            securityPath == HNS_BROWSER_SECURITY_PATH_DANE_THIRD_PARTY_DOH ||
-            securityPath == HNS_BROWSER_SECURITY_PATH_HNS_THIRD_PARTY_DOH {
+        if resolverPolicy == HNS_BROWSER_RESOLVER_POLICY_HNS_DOH_COMPATIBILITY {
             return result(.blocked, "Unsupported legacy HNS resolver status")
         }
         if tlsPolicy == HNS_BROWSER_TLS_POLICY_WEBPKI_FALLBACK {
@@ -726,7 +727,7 @@ final class RustBrowserProxySession: BrowserProxySession {
         case HNS_BROWSER_SECURITY_PATH_DANE_AUTHORITATIVE_DNS53:
             return "authoritative DNS"
         case HNS_BROWSER_SECURITY_PATH_DANE_THIRD_PARTY_DOH:
-            return "unsupported legacy HNS DoH"
+            return "DANE via user-configured HNS recovery DoH"
         case HNS_BROWSER_SECURITY_PATH_STATELESS_DANE:
             return "stateless DANE"
         case HNS_BROWSER_SECURITY_PATH_DANE_ICANN_DOH:
@@ -736,7 +737,7 @@ final class RustBrowserProxySession: BrowserProxySession {
         case HNS_BROWSER_SECURITY_PATH_HNS_AUTHORITATIVE_DNS53:
             return "HNS authoritative DNS"
         case HNS_BROWSER_SECURITY_PATH_HNS_THIRD_PARTY_DOH:
-            return "unsupported legacy HNS DoH"
+            return "HNS via user-configured recovery DoH"
         case HNS_BROWSER_SECURITY_PATH_DANE_P2P_DNS_RELAY:
             return "P2P DNS relay"
         case HNS_BROWSER_SECURITY_PATH_HNS_P2P_DNS_RELAY:

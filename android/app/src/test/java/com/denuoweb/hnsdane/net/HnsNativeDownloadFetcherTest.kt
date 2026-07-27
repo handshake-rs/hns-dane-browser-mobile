@@ -138,8 +138,6 @@ class HnsNativeDownloadFetcherTest {
     fun fetchRejectsDisabledHnsTrustMetadataAndDeletesBody() {
         val metadataValues = listOf(
             "X-HNS-Resolver-Policy: hns-doh-compat\r\n",
-            "$HNS_SECURITY_PATH_HEADER: dane-third-party-doh\r\n",
-            "$HNS_SECURITY_PATH_HEADER: hns-third-party-doh\r\n",
             "X-HNS-TLS-Policy: webpki-fallback\r\n",
             "X-HNS-TLS-Policy: webpki-fallback\r\n" +
                 "$HNS_RESOLUTION_TRACE_HEADER: not-json\r\n",
@@ -169,6 +167,28 @@ class HnsNativeDownloadFetcherTest {
             assertFalse(bridge.bodyFiles.single().exists())
             dataDir.deleteRecursively()
         }
+    }
+
+    @Test
+    fun fetchAcceptsLocallyValidatedUserConfiguredRecoveryPath() {
+        val dataDir = createTempDirectory("hns-download-recovery-doh-test").toFile()
+        val bridge = QueueGatewayBridge(
+            GatewayResponse.file(
+                head =
+                    "HTTP/1.1 200 OK\r\n" +
+                        "$HNS_SECURITY_PATH_HEADER: dane-third-party-doh\r\n" +
+                        "X-HNS-TLS-Policy: dane\r\n" +
+                        "Content-Length: 7\r\n\r\n",
+                body = "payload",
+            ),
+        )
+        val fetcher = HnsNativeDownloadFetcher(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = fetcher.fetch("https://welcome/file.bin", null)
+
+        assertEquals("payload", response.bodyFile.readText())
+        response.deleteBodyFile()
+        dataDir.deleteRecursively()
     }
 
     @Test

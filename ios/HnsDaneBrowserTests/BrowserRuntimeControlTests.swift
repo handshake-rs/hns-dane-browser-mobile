@@ -21,16 +21,42 @@ final class BrowserRuntimeControlTests: XCTestCase {
         super.tearDown()
     }
 
-    func testPolicyMigratesProhibitedHNSFallbackValues() {
+    func testProofContainedHNSResolutionUsesLocalVerifiedProofLabel() {
+        XCTAssertEqual(
+            BrowserDiagnosticReports.resolutionSource(
+                traceJSON: #"{"resolutionSource":"hns_resource"}"#
+            ),
+            "Local verified HNS proof"
+        )
+    }
+
+    func testPort53InterceptionGuidanceRequiresConfirmedTraceEvidence() {
+        XCTAssertTrue(
+            BrowserDiagnosticReports.port53InterceptionDetected(
+                traceJSON: #"{"port53Interception":"detected"}"#
+            )
+        )
+        XCTAssertFalse(
+            BrowserDiagnosticReports.port53InterceptionDetected(
+                traceJSON: #"{"port53Interception":"not_detected"}"#
+            )
+        )
+        XCTAssertFalse(BrowserDiagnosticReports.port53InterceptionDetected(traceJSON: nil))
+    }
+
+    func testPolicyNormalizesExplicitRecoveryButDiscardsLegacyModeFlags() {
         let configured = BrowserRuntimePolicy(
             resolutionMode: .compatibility,
-            hnsDohResolver: "  https://resolver.example/dns-query  ",
+            hnsDohResolver: "  HTTPS://Resolver.Example.NET:443/dns-query  ",
             statelessDANECertificates: true,
             experimentalP2PDNSRelay: true,
             legacyHNSDoHCompatibility: true
         )
         XCTAssertEqual(configured.resolutionMode, .strict)
-        XCTAssertNil(configured.hnsDohResolver)
+        XCTAssertEqual(
+            configured.hnsDohResolver,
+            "https://resolver.example.net/dns-query"
+        )
         XCTAssertFalse(configured.legacyHNSDoHCompatibility)
         XCTAssertTrue(configured.statelessDANECertificates)
         XCTAssertTrue(configured.experimentalP2PDNSRelay)
@@ -39,6 +65,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
     func testPolicyStoreRoundTripsNonSensitiveSettings() {
         let store = BrowserRuntimePolicyStore(defaults: defaults)
         let expected = BrowserRuntimePolicy(
+            hnsDohResolver: "https://resolver.example.net/dns-query",
             statelessDANECertificates: true,
             experimentalP2PDNSRelay: true
         )
@@ -48,6 +75,12 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(store.load(), expected)
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"))
+        XCTAssertEqual(
+            defaults.string(
+                forKey: "hnsBrowser.runtimePolicy.hnsDohRecoveryResolver.v1"
+            ),
+            "https://resolver.example.net/dns-query"
+        )
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.legacyHNSDoHCompatibility"))
     }
 
@@ -120,6 +153,49 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(policy.legacyHNSDoHCompatibility)
     }
 
+    func testRecoveryURLValidationRejectsUnsafeAndSpecialUseEndpoints() {
+        XCTAssertEqual(BrowserRuntimePolicy.normalizeHNSDoHRecoveryURL("  "), "")
+        XCTAssertEqual(
+            BrowserRuntimePolicy.normalizeHNSDoHRecoveryURL(
+                "HTTPS://Resolver.Example.NET.:443/dns-query?profile=hns"
+            ),
+            "https://resolver.example.net/dns-query?profile=hns"
+        )
+        for invalid in [
+            "http://resolver.example.net/dns-query",
+            "https://user@resolver.example.net/dns-query",
+            "https://resolver.example.net/dns-query#fragment",
+            "https://resolver.example.net",
+            "https://127.0.0.1/dns-query",
+            "https://resolver.local/dns-query",
+            "https://resolver.example.net:53/dns-query",
+            "https://resolver.example.net:6000/dns-query",
+            "https://resolver.example.net/{?dns}",
+        ] {
+            XCTAssertNil(
+                BrowserRuntimePolicy.normalizeHNSDoHRecoveryURL(invalid),
+                invalid
+            )
+        }
+    }
+
+    func testLegacyResolverKeyNeverResurrectsNewRecoveryConsent() {
+        defaults.set(
+            "https://resolver.example.net/dns-query",
+            forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"
+        )
+
+        let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
+
+        XCTAssertNil(policy.hnsDohResolver)
+        XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.hnsDohResolver"))
+        XCTAssertNil(
+            defaults.object(
+                forKey: "hnsBrowser.runtimePolicy.hnsDohRecoveryResolver.v1"
+            )
+        )
+    }
+
     @MainActor
     func testIOSSettingsKeepCompleteAndroidSectionAndRowOrder() {
         XCTAssertEqual(BrowserSettingsViewController.Section.allCases.map(\.title), [
@@ -149,6 +225,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             [
                 .handshakeNetwork,
                 .statelessDANECertificates,
+                .hnsDoHRecovery,
                 .experimentalP2PDNSRelay,
                 .addHNSRelayPeer,
                 .clearResolverCache,
@@ -158,6 +235,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(rows.map(\.title), [
             "Handshake network",
             "Experimental stateless DANE certificates",
+            "HNS recovery DNS over HTTPS",
             "Experimental P2P DNS relay",
             "Add HNS relay peer",
             "Clear resolver cache",
@@ -222,7 +300,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             ["Manage", "View", "View"],
             ["Change"],
             ["Open"],
-            ["Change", nil, nil, "Add", "Clear", "View"],
+            ["Change", nil, "Edit", nil, "Add", "Clear", "View"],
             ["Open", "Open", "Open", "Open", "View", "View"],
             [nil, "View", "Open", "Open"],
         ]
@@ -299,7 +377,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         navigation.loadViewIfNeeded()
         settings.loadViewIfNeeded()
 
-        let settingsIndexPath = IndexPath(row: 5, section: 4)
+        let settingsIndexPath = IndexPath(row: 6, section: 4)
         let settingsCell = settings.tableView(
             settings.tableView,
             cellForRowAt: settingsIndexPath
@@ -343,7 +421,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         settings.loadViewIfNeeded()
         settings.tableView(
             settings.tableView,
-            didSelectRowAt: IndexPath(row: 5, section: 4)
+            didSelectRowAt: IndexPath(row: 6, section: 4)
         )
         let sync = try XCTUnwrap(navigation.topViewController as? HNSSyncViewController)
         sync.loadViewIfNeeded()
@@ -388,7 +466,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let cache = settings.tableView(
             settings.tableView,
-            cellForRowAt: IndexPath(row: 4, section: 4)
+            cellForRowAt: IndexPath(row: 5, section: 4)
         )
         XCTAssertEqual(
             try XCTUnwrap(cache.contentConfiguration as? UIListContentConfiguration)
@@ -399,7 +477,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let hnsSync = settings.tableView(
             settings.tableView,
-            cellForRowAt: IndexPath(row: 5, section: 4)
+            cellForRowAt: IndexPath(row: 6, section: 4)
         )
         XCTAssertEqual((hnsSync.accessoryView as? UILabel)?.text, "View")
 
@@ -434,7 +512,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertNil(defaults.object(forKey: "hnsBrowser.runtimePolicy.resolutionMode"))
     }
 
-    func testDisabledLegacyHNSStatusesFailClosedInSecurityUI() {
+    func testLegacyResolverAndWebPkiStatusesFailClosedButRecoveryDaneIsVerified() {
         let legacyResolver = RustBrowserProxySession.securitySummary(
             httpStatus: 200,
             tlsPolicy: HNS_BROWSER_TLS_POLICY_DANE,
@@ -477,7 +555,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
 
         XCTAssertEqual(legacyResolver.level, .blocked)
-        XCTAssertEqual(legacyPath.level, .blocked)
+        XCTAssertEqual(legacyPath.level, .handshakeDANE)
+        XCTAssertTrue(legacyPath.detail.contains("user-configured HNS recovery DoH"))
         XCTAssertEqual(legacyWebPKI.level, .blocked)
         XCTAssertEqual(legacyTopLevelIcann.level, .blocked)
         XCTAssertEqual(contradictoryIcann.level, .blocked)

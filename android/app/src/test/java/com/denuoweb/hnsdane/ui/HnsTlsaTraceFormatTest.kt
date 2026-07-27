@@ -50,12 +50,27 @@ class HnsTlsaTraceFormatTest {
     }
 
     @Test
-    fun reportsThirdPartyHnsDohResolutionSource() {
+    fun reportsUserConfiguredHnsRecoveryDohResolutionSource() {
         val trace = JSONObject(
-            """{"nameClass":"hns","host":"denuoweb","resolutionSource":"hns_doh"}""",
+            """{"nameClass":"hns","host":"denuoweb","resolutionSource":"user_configured_recursive_hns_doh"}""",
         )
 
-        assertEquals("third-party HNS DoH", HnsResolutionTraceFormat.resolutionSource(trace))
+        assertEquals(
+            "user-configured HNS recovery DoH",
+            HnsResolutionTraceFormat.resolutionSource(trace),
+        )
+    }
+
+    @Test
+    fun reportsProofContainedHnsSuccessAsLocalVerifiedProof() {
+        val trace = JSONObject(
+            """{"nameClass":"hns","host":"denuoweb","resolutionSource":"hns_resource"}""",
+        )
+
+        assertEquals(
+            "Local verified HNS proof",
+            HnsResolutionTraceFormat.resolutionSource(trace),
+        )
     }
 
     @Test

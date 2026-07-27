@@ -1,1 +1,1 @@
-Initial iOS release using the shared Rust HNS resolver and fail-closed loopback proxy, with local proof verification, strict HNS DNSSEC/DANE, an optional P2P relay, downloads, sharing, and resolver diagnostics.
+Adds independently optional requester-only P2P relay and user-configured recursive HNS DoH recovery for intercepted networks. Both remain off until chosen, and all recovered answers still require local proof, DNSSEC, TLSA, and DANE validation.

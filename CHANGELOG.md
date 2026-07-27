@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.2 - 2026-07-26
+
+### Added
+
+- Added a separately configured, persistent HNS recovery DoH endpoint to Android and iOS. It is blank and inactive by default, accepts only bounded HTTPS RFC 8484 URLs with public ICANN hostnames, bootstraps that hostname only through validating ICANN DoH, authenticates the endpoint with WebPKI, and still validates DNSSEC, TLSA, and DANE locally.
+- Added recovery settings, provenance, diagnostics, privacy disclosure, and a requester-only P2P relay prompt on both mobile platforms. `https://hnsdoh.com/dns-query` appears only as an example and is never prefilled, selected, or contacted automatically.
+
+### Changed
+
+- Generation-bound recovery consent now follows direct authoritative UDP/TCP, owner-published proof-anchored authoritative DoH, and any independently opted-in P2P requester. Eligible fallback is limited to transport failure or confirmed port 53 interception; bogus DNSSEC, stale or unavailable HNS proofs, invalid DNS responses, and DNS response codes remain terminal.
+- Kept historical recursive-DoH keys as permanent tombstones and stored the new recovery choice under distinct Android and iOS keys, so an upgrade cannot resurrect old consent.
+- Bumped the Android app and shared Rust core to `0.5.2` (Android build 42) and the Apple shell to `0.5.2` (iOS build 46).
+
+### Security
+
+- Recovery endpoint hostnames reject IP literals and browser special-use names, resolved bootstrap addresses are restricted to public routes, and native HTTPS uses the endpoint hostname for WebPKI while dialing only validated bootstrap addresses.
+- A confirmed interception is non-terminal only for explicitly enabled alternatives. P2P remains requester-only and independent of recovery DoH, and neither setting grants output-node consent.
+
 ## 0.5.1 - 2026-07-26
 
 ### Added

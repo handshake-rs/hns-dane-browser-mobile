@@ -405,7 +405,6 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">gezaghebbende DNS</string>
 <string name="trace_source_authoritative_doh">gezaghebbende DoH</string>
-<string name="trace_source_hns_resource">HNS-bron</string>
 <string name="trace_protocol_authoritative_udp53">Gezaghebbende UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">Gezaghebbende TCP 53</string>
 <string name="trace_protocol_authoritative_doh">Gezaghebbende DoH</string>

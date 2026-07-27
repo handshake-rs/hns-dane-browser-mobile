@@ -12,7 +12,7 @@ Handshake test:
 3. Confirm the security label identifies the resolver and TLS validation path.
 4. Tap the Settings gear button to inspect HNS resolution, HNS sync, Clear resolver cache, Resolver trace, HNS proof details, Privacy policy, and Source code.
 
-Network note: some review networks block Handshake peer traffic or direct authoritative DNS. The app never sends an HNS target to a public recursive resolver and never substitutes WebPKI for required HNS DANE. Experimental P2P DNS relay consumption is off by default and requires explicit requester opt-in in Settings; relay answers still require local proof, DNSSEC, TLSA, and DANE validation. If no permitted validated path succeeds, the HNS request fails closed.
+Network note: some review networks block Handshake peer traffic or direct authoritative DNS. Experimental P2P DNS relay consumption is off by default and requires explicit requester opt-in in Settings. A separate recursive HNS DoH recovery URL is also blank by default; the app contacts no such operator unless the user explicitly enters a validated HTTPS endpoint. Its operator can observe queried names/types, timing, and source IP. Relay and configured-recursive answers still require local proof, DNSSEC, TLSA, and DANE validation, and the app never substitutes WebPKI for required HNS DANE. If no permitted validated path succeeds, the HNS request fails closed.
 
 Cleartext HTTP pages are marked insecure. No reviewer-supplied personal data or credentials are needed. The two test URLs above are developer-controlled.
 

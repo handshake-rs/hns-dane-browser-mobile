@@ -8,7 +8,7 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `HNS DANE Browser`
 - Deployment floor: iOS 17.0
-- Current iOS release candidate: `0.5.1` (`45`)
+- Current iOS release candidate: `0.5.2` (`46`)
 - Device family: iPhone
 
 ## One-time Apple setup

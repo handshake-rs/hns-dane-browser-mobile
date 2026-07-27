@@ -64,6 +64,45 @@ class HnsResolutionPreferencesInstrumentationTest {
     }
 
     @Test
+    fun explicitRecoveryEndpointUsesOnlyTheNewKeyAndSurvivesLegacyCleanup() {
+        assertEquals(
+            "https://resolver.example.net/dns-query",
+            HnsResolutionPreferences.setHnsDohRecoveryUrl(
+                context,
+                "HTTPS://Resolver.Example.NET:443/dns-query",
+            ),
+        )
+        assertTrue(
+            preferences.edit()
+                .putString("doh_resolver_url", "https://legacy.invalid/dns-query")
+                .commit(),
+        )
+
+        HnsResolutionPreferences.migrateProhibitedHnsFallbackSettings(context)
+
+        assertFalse(preferences.contains("doh_resolver_url"))
+        assertEquals(
+            "https://resolver.example.net/dns-query",
+            HnsResolutionPreferences.dohResolverUrl(context),
+        )
+        assertFalse(HnsResolutionPreferences.experimentalP2pDnsRelay(context))
+    }
+
+    @Test
+    fun legacyResolverValueNeverResurrectsRecoveryConsent() {
+        assertTrue(
+            preferences.edit()
+                .putString("doh_resolver_url", "https://resolver.example.net/dns-query")
+                .commit(),
+        )
+
+        HnsResolutionPreferences.migrateProhibitedHnsFallbackSettings(context)
+
+        assertEquals("", HnsResolutionPreferences.dohResolverUrl(context))
+        assertFalse(preferences.contains("hns_doh_recovery_url_v1"))
+    }
+
+    @Test
     fun freshInstallRequiresRelayRequesterOptIn() {
         HnsResolutionPreferences.migrateProhibitedHnsFallbackSettings(context)
 

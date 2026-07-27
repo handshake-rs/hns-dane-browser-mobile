@@ -492,6 +492,40 @@ struct BrowserProofDetails: Equatable, Sendable {
 }
 
 enum BrowserDiagnosticReports {
+    static func port53InterceptionDetected(traceJSON: String?) -> Bool {
+        guard let traceJSON,
+              let data = traceJSON.data(using: .utf8),
+              let trace = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        return trace["port53Interception"] as? String == "detected"
+    }
+
+    static func resolutionSource(traceJSON: String?) -> String {
+        guard let traceJSON,
+              let data = traceJSON.data(using: .utf8),
+              let trace = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let source = trace["resolutionSource"] as? String else {
+            return "Unknown"
+        }
+        switch source {
+        case "hns_resource":
+            return "Local verified HNS proof"
+        case "authoritative_dns":
+            return "Authoritative DNS"
+        case "authoritative_doh":
+            return "Owner-published authoritative DoH"
+        case "p2p_dns_relay":
+            return "Requester-only HNS P2P DNS relay"
+        case "user_configured_recursive_hns_doh":
+            return "User-configured recursive HNS DoH"
+        case "trusted_icann_doh":
+            return "Validating ICANN DoH"
+        default:
+            return source.replacingOccurrences(of: "_", with: " ")
+        }
+    }
+
     static func domainSetup(_ details: BrowserProofDetails) -> String {
         let types = Set(details.recordTypes.map { $0.uppercased() })
         let hasNS = types.contains("NS")

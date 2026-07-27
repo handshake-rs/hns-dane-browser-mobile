@@ -84,6 +84,7 @@ class HnsResolverTraceActivity : ComponentActivity() {
             appendLine(getString(R.string.trace_field_authoritative_udp53, authoritativeDns?.optString("udp53") ?: getString(R.string.common_unknown)))
             appendLine(getString(R.string.trace_field_authoritative_tcp53, authoritativeDns?.optString("tcp53") ?: getString(R.string.common_unknown)))
             appendLine(getString(R.string.trace_field_authoritative_doh, authoritativeDns?.optString("doh") ?: getString(R.string.common_unknown)))
+            appendLine(getString(R.string.trace_field_recovery_doh, authoritativeDns?.optString("recoveryDoh") ?: getString(R.string.common_unknown)))
             appendLine(getString(R.string.trace_field_port53_interception, trace.optString("port53Interception", getString(R.string.common_unknown))))
             appendLine(getString(R.string.trace_field_resolver_attempts, dnsAttemptsSummary(trace)))
             appendLine(getString(R.string.trace_field_dnssec, trace.optString("dnssec", getString(R.string.common_unknown))))
@@ -172,7 +173,11 @@ class HnsResolverTraceActivity : ComponentActivity() {
             hnsProof == "unavailable" || hnsProof == "unknown" ->
                 getString(R.string.trace_fix_hns_unavailable)
             port53Interception == "detected" ->
-                getString(R.string.trace_fix_port53_interception)
+                if (HnsResolutionPreferences.experimentalP2pDnsRelay(this)) {
+                    getString(R.string.trace_fix_port53_interception_relay_attempted)
+                } else {
+                    getString(R.string.trace_fix_port53_interception_relay_available)
+                }
             nameserverCandidates == null || nameserverCandidates.length() == 0 ->
                 getString(R.string.trace_fix_add_delegation)
             udp53 in setOf("timeout", "transport_error") &&
@@ -192,7 +197,7 @@ class HnsResolverTraceActivity : ComponentActivity() {
             trace.optString("originAddress") == "missing" ->
                 getString(R.string.trace_fix_origin_address_missing)
             fallback?.optBoolean("used", false) == true ->
-                getString(R.string.trace_fix_compat_fallback_used)
+                getString(R.string.trace_fix_recovery_used)
             else ->
                 getString(R.string.trace_fix_no_obvious_hns)
         }

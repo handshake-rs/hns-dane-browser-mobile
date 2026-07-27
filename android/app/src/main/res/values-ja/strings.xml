@@ -405,7 +405,6 @@
     <string name="trace_source_icann_dns">ICANN DNS</string>
     <string name="trace_source_authoritative_dns">権威DNS</string>
     <string name="trace_source_authoritative_doh">権威のある DoH</string>
-    <string name="trace_source_hns_resource">HNS リソース</string>
     <string name="trace_protocol_authoritative_udp53">権威のある UDP 53</string>
     <string name="trace_protocol_authoritative_tcp53">権威あるTCP 53</string>
     <string name="trace_protocol_authoritative_doh">権威のある DoH</string>

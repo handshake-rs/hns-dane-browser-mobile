@@ -258,12 +258,14 @@ class BrowserSecurityPolicyTest {
         val expectations = mapOf(
             HnsPageSecurityPath.DaneAuthoritativeDoh to SecurityState.DaneViaAuthoritativeDoh,
             HnsPageSecurityPath.DaneAuthoritativeDns53 to SecurityState.DaneViaAuthoritativeDns53,
-            HnsPageSecurityPath.DaneThirdPartyDoh to SecurityState.ValidationFailed,
+            HnsPageSecurityPath.DaneThirdPartyDoh to
+                SecurityState.DaneViaUserConfiguredRecoveryDoh,
             HnsPageSecurityPath.StatelessDane to SecurityState.StatelessDane,
             HnsPageSecurityPath.DaneIcannDoh to SecurityState.DaneViaIcannDoh,
             HnsPageSecurityPath.HnsAuthoritativeDoh to SecurityState.HnsViaAuthoritativeDoh,
             HnsPageSecurityPath.HnsAuthoritativeDns53 to SecurityState.HnsViaAuthoritativeDns53,
-            HnsPageSecurityPath.HnsThirdPartyDoh to SecurityState.ValidationFailed,
+            HnsPageSecurityPath.HnsThirdPartyDoh to
+                SecurityState.HnsViaUserConfiguredRecoveryDoh,
             HnsPageSecurityPath.DaneP2pDnsRelay to SecurityState.DaneViaP2pDnsRelay,
             HnsPageSecurityPath.HnsP2pDnsRelay to SecurityState.HnsViaP2pDnsRelay,
         )

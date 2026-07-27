@@ -4,7 +4,7 @@
 
 The app verifies header chainwork, checkpoint ancestry, proof-of-work difficulty, Urkel proofs against header tree roots, DNSSEC chains below HNS delegations, TLSA records, DANE certificate or SPKI matches, and transport downgrade policy.
 
-The proof-backed path does not trust a single peer, public recursive HNS resolvers, unsigned DNS answers for HNS names, TLSA answers without a valid proof chain, stale caches, or origin certificates that fail active DANE policy. HNS uses strict DNSSEC/DANE. Public recursive HNS DoH and HNS WebPKI fallback are prohibited; proof-anchored authoritative HNS DoH is a transport for the proven delegation, not a recursive fallback. DNS-named ICANN HTTPS uses a bounded validating ICANN DoH path, automatic TLSA discovery, and WebPKI only after authenticated TLSA absence or a proven insecure delegation.
+The proof-backed path does not trust a single peer, a recursive HNS resolver's authenticated-data claim, unsigned DNS answers for HNS names, TLSA answers without a valid proof chain, stale caches, or origin certificates that fail active DANE policy. HNS uses strict local DNSSEC/DANE and never substitutes WebPKI for HNS origin authentication. Proof-anchored authoritative HNS DoH is a transport for the proven delegation. A separate user-configured recursive HNS DoH endpoint is blank/off by default and can recover only from eligible transport failure after direct, owner-authenticated, and opted-in P2P paths; its answers still require the same local validation. DNS-named ICANN HTTPS uses a bounded validating ICANN DoH path, automatic TLSA discovery, and WebPKI only after authenticated TLSA absence or a proven insecure delegation.
 
 ## Failure Policy
 
@@ -102,8 +102,10 @@ revoked and never becomes relay consent. The relay is
 considered only after current locally validated headers and a matching Urkel
 proof have produced an acceptable HNS NS/DS delegation, proof-declared
 authoritative DoH has not succeeded, and direct authoritative UDP/TCP 53 has
-failed or has been classified as intercepted. There is no later public recursive
-HNS DoH or HNS WebPKI fallback. The mobile browser does not become an output
+failed or has been classified as intercepted. A separately configured recursive
+HNS DoH endpoint may follow only for eligible transport failure; it is not
+enabled by relay consent and cannot bypass local validation. There is no HNS
+WebPKI fallback. The mobile browser does not become an output
 node. Opaque relayer capacity is a separate default-on/opt-out network role;
 serving as an output node remains explicit operator opt-in.
 
@@ -238,7 +240,7 @@ does not by itself change peer score or start a cooldown. See
 - No HNS address presence with missing required TLSA may be reclassified as
   authenticated HNS absence; it is a root failure that prevents silent ICANN
   selection.
-- No public recursive HNS DoH endpoint may be selected by settings, persisted policy, raw gateway metadata, JNI, the Apple C ABI, or the resolver plan.
+- No recursive HNS DoH endpoint may be selected implicitly, inherited from a historical key, contacted while the new setting is blank, bootstrapped through system DNS, or used after bogus DNSSEC, invalid DNS, a DNS response code, or stale/missing HNS proof state. An explicitly configured endpoint is generation-bound and its answers still require local DNSSEC, TLSA, and DANE.
 - No unbounded or panic-prone X.509 parsing for DANE SPKI selector matching.
 - No QUIC downgrade without an explicit policy event.
 - No local gateway listener beyond loopback and no fixed browser proxy port in normal app startup. Android and iOS intentionally apply the authenticated Rust proxy to their browser data store/WebView without failover to a direct DNS-named origin route. Neither platform keeps a browser proxy listener after its owning foreground browser lifecycle is revoked.

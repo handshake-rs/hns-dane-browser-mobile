@@ -405,7 +405,6 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">신뢰할 수 있는 DNS</string>
 <string name="trace_source_authoritative_doh">신뢰할 수 있는 DoH</string>
-<string name="trace_source_hns_resource">HNS 리소스</string>
 <string name="trace_protocol_authoritative_udp53">신뢰할 수 있는 UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">신뢰할 수 있는 TCP 53</string>
 <string name="trace_protocol_authoritative_doh">신뢰할 수 있는 DoH</string>

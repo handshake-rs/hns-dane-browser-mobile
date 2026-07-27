@@ -247,10 +247,6 @@ internal data class HnsNativeDownloadResponse(
         }
         return headerValue("X-HNS-Resolver-Policy")
             .equals("hns-doh-compat", ignoreCase = true) ||
-            headerValue(HNS_SECURITY_PATH_HEADER)
-                .equals("dane-third-party-doh", ignoreCase = true) ||
-            headerValue(HNS_SECURITY_PATH_HEADER)
-                .equals("hns-third-party-doh", ignoreCase = true) ||
             (
                 headerValue("X-HNS-TLS-Policy")
                     .equals("webpki-fallback", ignoreCase = true) &&

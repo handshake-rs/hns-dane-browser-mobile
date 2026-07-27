@@ -59,8 +59,8 @@ Presenting an unrelated certificate, another host's certificate, or a stopped ge
 ### Browser behavior
 
 - Repeat the Android parity cases for GET, POST, uploads, range requests, redirects, cookies, JavaScript fetch/XHR, Service Workers, WebSockets, downloads, HTTP/1.1, HTTP/2, HTTP/3 origin transport, IPv4, and IPv6.
-- Exercise `https://denuoweb/` for proof-anchored authoritative DoH and a second HNS origin whose direct authoritative path is unavailable; verify that the second origin uses the independently enabled P2P relay or fails closed, and compare bounded security traces with Android.
-- Verify the strict HNS trust invariant, absence of public recursive HNS DoH and HNS WebPKI fallback, explicit requester opt-in for relay consumption, legacy-policy migration, stateless-DANE fail-closed behavior, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
+- Exercise `https://denuoweb/` for proof-anchored authoritative DoH and a second HNS origin whose direct authoritative path is unavailable; verify independently enabled P2P and user-configured recursive recovery paths in their exact order, then verify blank/off recovery fails closed and compare bounded security traces with Android.
+- Verify the strict HNS trust invariant, absence of any implicit/default recursive HNS resolver and HNS WebPKI fallback, independent requester/recovery opt-ins, permanent historical-key tombstoning, endpoint and ICANN-bootstrap validation, terminal bogus/invalid/stale cases, stateless-DANE fail-closed behavior, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
 
 ## Apple References
 

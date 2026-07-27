@@ -88,8 +88,9 @@ typedef struct HnsBrowserRuntimeOptions {
     uint8_t stateless_dane_certificates;
     /* Non-standard DNS relay experiment; disabled by default. */
     uint8_t experimental_p2p_dns_relay;
-    /* Existing third-party HNS DoH compatibility path; enabled by default. */
+    /* Historical compatibility flag; ignored and forced off. */
     uint8_t legacy_hns_doh_compatibility;
+    /* Explicit recursive HNS DoH recovery URL; blank means off. */
     HnsBrowserSlice hns_doh_resolver;
     uint64_t reserved1[2];
 } HnsBrowserRuntimeOptions;
@@ -98,11 +99,12 @@ typedef struct HnsBrowserRuntimeOptions {
 typedef struct HnsBrowserPolicy {
     uint32_t struct_size;
     HnsBrowserResolutionMode resolution_mode;
+    /* Explicit recursive HNS DoH recovery URL; blank means off. */
     HnsBrowserSlice hns_doh_resolver;
     uint8_t stateless_dane_certificates;
     /* Non-standard DNS relay experiment; disabled by default. */
     uint8_t experimental_p2p_dns_relay;
-    /* Existing third-party HNS DoH compatibility path; enabled by default. */
+    /* Historical compatibility flag; ignored and forced off. */
     uint8_t legacy_hns_doh_compatibility;
     uint8_t reserved0[5];
     uint64_t reserved1;

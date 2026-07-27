@@ -34,8 +34,8 @@ internal object HnsResolutionTraceFormat {
             "icann_dns" -> "ICANN DNS"
             "authoritative_dns" -> "authoritative DNS"
             "authoritative_doh" -> "authoritative DoH"
-            "hns_doh" -> "third-party HNS DoH"
-            "hns_resource" -> "HNS resource"
+            "user_configured_recursive_hns_doh" -> "user-configured HNS recovery DoH"
+            "hns_resource" -> "Local verified HNS proof"
             "" -> "unknown"
             else -> source.replace('_', ' ')
         }

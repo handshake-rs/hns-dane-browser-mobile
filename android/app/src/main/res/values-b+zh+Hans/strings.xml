@@ -405,7 +405,6 @@
 <string name="trace_source_icann_dns">ICANN DNS</string>
 <string name="trace_source_authoritative_dns">权威DNS</string>
 <string name="trace_source_authoritative_doh">权威DoH</string>
-<string name="trace_source_hns_resource">HNS资源</string>
 <string name="trace_protocol_authoritative_udp53">权威UDP 53</string>
 <string name="trace_protocol_authoritative_tcp53">权威TCP 53</string>
 <string name="trace_protocol_authoritative_doh">权威DoH</string>
