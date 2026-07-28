@@ -17,15 +17,24 @@ The resolution order is:
 1. validated local header and proof/resource caches (the current PoC does not
    cache relayed DNS answers across gateway requests);
 2. locally verified current Handshake root state and name proof;
-3. proof-declared authoritative DoH;
-4. direct authoritative UDP/TCP DNS;
+3. direct authoritative UDP/TCP DNS;
+4. proof-anchored owner authoritative DoH after typed direct transport
+   unavailability or positively confirmed port 53 interception;
 5. the optional HNS P2P recursive relay (requester consumption is off by
-   default and requires explicit opt-in).
+   default and requires explicit opt-in); and
+6. a separately and explicitly configured recursive HNS DoH endpoint, only
+   after eligible transport unavailability.
 
-A successful authoritative DoH exchange suppresses direct DNS and P2P relay.
-A successful direct authoritative exchange suppresses the relay. The P2P path
-is never considered before a current, locally verified proof has produced an
-acceptable delegation. Public recursive HNS DoH is not a fallback.
+A successful direct authoritative exchange suppresses every later transport.
+A positive matching reply to the bounded TEST-NET canary stops futile TCP and
+remaining direct nameservers before owner ADoH; a timeout or inconclusive
+canary proves neither clean transport nor authenticated absence. Successful
+owner ADoH suppresses relay and configured recovery, and a successful relay
+suppresses configured recovery. Neither recovery path is considered before a
+current, locally verified proof has produced an acceptable delegation.
+Malformed DNS, response codes, bogus DNSSEC, invalid authenticated transport
+metadata, and missing or stale proof state are terminal rather than fallback
+authority. There is no implicit/default public recursive HNS resolver.
 
 ## Temporary negotiation and framing
 
@@ -230,10 +239,11 @@ New installs leave `Experimental HNS peer DNS relay` off until the browser user
 opts in; existing installations retain their independent relay-requester
 preference. Startup migration permanently tombstones the historical recursive
 HNS DoH key without converting it into relay consent or into the distinct,
-blank-by-default configured-recovery key. Relay provenance is `p2p_dns_relay`, distinct from
-proof-anchored authoritative DoH and direct authoritative DNS. A relayed result
-may be displayed as `DANE via HNS P2P`. Serving remains separate: the companion
-`hsd` responder starts only when its operator explicitly enables the
+blank-by-default configured-recovery key. Relay provenance is
+`p2p_dns_relay`, distinct from direct authoritative DNS, proof-anchored
+authoritative DoH, and user-configured recursive recovery. A relayed result
+may be displayed as `DANE via P2P DNS relay`. Serving remains separate: the
+companion `hsd` responder starts only when its operator explicitly enables the
 experimental DNS-output service.
 
 Settings can add a known relay peer by numeric `IPv4:port` or `[IPv6]:port`.

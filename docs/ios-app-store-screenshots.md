@@ -62,8 +62,8 @@ The capture fails instead of producing an artifact when:
 Debug UI regression work. Its attachments are named `UI_REGRESSION_FIXTURE_*`;
 the collector and staging verifier reject them as App Store assets.
 
-This is live simulator evidence, not the optional physical-device validation
-matrix in `docs/ios-device-validation.md`.
+This is live simulator evidence, not the separate physical-device
+qualification matrix in `docs/ios-device-validation.md`.
 
 ## Review and stage the images
 

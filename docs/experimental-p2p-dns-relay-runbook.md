@@ -123,9 +123,10 @@ through `hsd-relay-bad` and a successful retry through `hsd-owner-good`. It then
 synchronizes and validates the current Handshake header chain, fetches and
 verifies the current-tip Urkel inclusion proof, derives the delegation from the
 registered resource, validates the child DS/DNSKEY/RRSIG chain locally, matches
-TLSA/DANE locally, and receives HTTPS 200 from a loopback origin. Strict mode
-and the experimental relay are enabled; legacy compatibility is disabled even
-though a reachable sentinel URL is configured. The sentinel must observe zero
+TLSA/DANE locally, and receives HTTPS 200 from a loopback origin. The
+experimental relay is enabled, explicit recursive recovery remains blank, and
+unsupported legacy compatibility is absent from the runtime policy. A
+reachable zero-contact sentinel is configured and must observe zero
 connections.
 
 The Linux runner reuses the cached `python:3.12-alpine` image and mounts the
@@ -234,8 +235,10 @@ advertises the relay capability. Ordinary discovered peers remain available,
 and arbitrary public peers must not be assumed to support the private
 identifiers. The relay-only requester advertises no local services, and the
 remote version height observed by this capability check does not affect sync
-target/currentness. The P2P relay remains independently disableable; public
-recursive HNS DoH is not a runtime option.
+target/currentness. The P2P relay remains independently disableable. There is
+no automatic public recursive HNS resolver; an explicitly configured recovery
+endpoint is a separate blank-by-default option and must remain blank during
+relay qualification.
 
 ### Stage 1: synthetic shadow
 
@@ -246,11 +249,13 @@ availability. No user browsing traffic is eligible.
 
 ### Stage 2: development-build fail-closed fallback
 
-Use the enforced order: proof-declared authoritative DoH, direct authoritative
-53, experimental relay, then fail closed. Confirm that a successful
-authoritative DoH or direct exchange suppresses all later paths, and that relay
-unavailability never contacts the zero-contact public-resolver sentinel. Review
-aggregate BUSY, timeout, malformed, retry, and validation-failure counts.
+Use the enforced order: direct authoritative UDP/TCP 53, proof-anchored owner
+authoritative DoH after eligible direct unavailability or confirmed
+interception, experimental relay, then fail closed because configured recovery
+is blank for this qualification. Confirm that a successful direct or owner
+exchange suppresses all later paths and that relay unavailability never
+contacts the zero-contact resolver sentinel. Review aggregate BUSY, timeout,
+malformed, retry, and validation-failure counts.
 
 ### Stage 3: tester builds
 

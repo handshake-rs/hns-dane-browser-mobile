@@ -8,13 +8,15 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `HNS DANE Browser`
 - Deployment floor: iOS 17.0
+- Public App Store baseline observed 2026-07-28: `0.5.0`
 - Current iOS release candidate: `0.5.3` (`47`)
 - Device family: iPhone
 
 ## One-time Apple setup
 
 1. In Apple Developer, accept all current agreements and register an explicit App ID for `com.denuoweb.hnsdane.ios`. No optional capabilities are currently required.
-2. In App Store Connect, create the iOS app record using the fixed values in `dist/app-store/metadata/README.md`.
+2. In App Store Connect, verify the existing iOS app record against the fixed
+   values in `dist/app-store/metadata/README.md`.
 3. In App Store Connect **Users and Access → Integrations → App Store Connect API**, enable API access if needed and create a **team** API key for CI.
 4. Download the `.p8` private key once. Record its 10-character Key ID and issuer UUID. Never commit the key, attach it to an issue, paste it into chat, or publish it as a workflow artifact.
 5. Create an Apple Distribution certificate and an App Store provisioning profile for the explicit App ID. Export the certificate and private key as a password-protected `.p12` that macOS Keychain can import. Use Keychain Access, or OpenSSL 3's legacy-compatible PKCS#12 export mode instead of its default PBES2/AES encoding. App Store profiles contain no registered devices, so this setup does not require an iPhone.
@@ -59,19 +61,29 @@ The workflow then:
 1. runs `scripts/run-ios-gate.sh` with Xcode 26.5/26.6 and the iOS 26.5 SDK;
 2. writes the API key, distribution identity, and App Store profile only to the ephemeral runner's private temporary directory;
 3. verifies the identity and profile against the fixed team and bundle IDs, then creates a Release archive using manual App Store distribution signing in a disposable keychain;
-4. verifies the archived app identity and compiled AppIcon catalog, then validates/exports the archive with App Store Connect authentication and uploads build `45`;
+4. verifies the archived app identity and compiled AppIcon catalog, then
+   validates/exports the archive with App Store Connect authentication and
+   uploads build `47`;
 5. deletes the temporary keychain, installed profile, API key, `.p12`, and profile while GitHub discards the runner.
 
-Apple associates the uploaded build with the app record using its bundle ID, version, and build number. A rerun after Apple accepts build `45` requires a higher build number.
+Apple associates the uploaded build with the app record using its bundle ID,
+version, and build number. A rerun after Apple accepts build `47` requires a
+higher build number.
 
-Build `44` declares `ITSAppUsesNonExemptEncryption = false` because the first
-release uses only industry-standard cryptography and excludes France from App
-Store availability. Do not add an export-compliance code to this build. Before
-enabling France, complete the French encryption declaration; after Apple
-approves it, add the supplied export-compliance code to the next build.
+Build `47` declares `ITSAppUsesNonExemptEncryption = false` because the
+candidate uses only industry-standard cryptography and excludes France from
+App Store availability. Do not add an export-compliance code to this build.
+Before enabling France, complete the French encryption declaration; after
+Apple approves it, add the supplied export-compliance code to the next build.
 
 ## Release gate after upload
 
 Complete the metadata in `dist/app-store/metadata/en-US`, publish the revised privacy policy, generate and review current iPhone screenshots using `docs/ios-app-store-screenshots.md`, answer App Privacy/age-rating/content-rights/export-compliance questions, and distribute the build through TestFlight.
 
-Owning an iPhone is not required to archive, sign, upload, or submit. Before final App Review, arrange one external TestFlight pass on a real iPhone and record the applicable matrix from `docs/ios-device-validation.md`. MacInCloud is only a fallback if an account-specific problem cannot be resolved through the developer portals and GitHub Actions logs.
+Owning an iPhone is not required to archive, sign, upload, or submit. An
+external TestFlight pass on a real iPhone may therefore occur after submission.
+Its absence does not block App Store submission, but it remains an explicit
+installed-iOS and ecosystem qualification gap; record the matrix from
+`docs/ios-device-validation.md` when completed. MacInCloud is only a fallback
+if an account-specific problem cannot be resolved through the developer
+portals and GitHub Actions logs.

@@ -1,10 +1,17 @@
 # HNS DANE Browser
 
-Cross-platform Handshake-first browser core with local HNS proofs, authoritative DNS, an experimental requester-only HNS P2P DNS relay, optional user-configured recovery DoH, DNSSEC, and DANE diagnostics. Android is the validated shipping baseline; the repository also contains the native iOS 17.0-or-later shell and Apple ABI/build integration. The Apple build and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
+Cross-platform Handshake-first browser core with local HNS proofs,
+authoritative DNS, an experimental requester-only HNS P2P DNS relay, optional
+user-configured recovery DoH, DNSSEC, and DANE diagnostics. Android and iOS are
+publicly distributed; Android remains the deepest release-device validation
+baseline. The native iOS shell supports iOS 17.0 or later, and its Apple build
+and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 
-Google Play Store: https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane
+- [Google Play Store](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
+- [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 
-Apple App Connect: https://apps.apple.com/us/app/hns-dane-browser/id6791914326
+Both public listings reported version `0.5.0` on 2026-07-28. This repository is
+the `0.5.3` update candidate (Android build `43`, iOS build `47`).
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).
@@ -19,7 +26,8 @@ device-qualification work are tracked in
 - `rust/fuzz/`: `cargo-fuzz` parser harnesses for DNS, HNS resource values, P2P frames, Urkel proofs, TLSA records, and X.509 SPKI extraction.
 - `android/`: Kotlin Android browser shell with WebView, namespace-agnostic URL admission, whole-browser proxy lifecycle integration, and a thin JNI bridge.
 - `ios/`: Swift/UIKit WKWebView shell with whole-data-store proxy admission, lifecycle/certificate integration, and a generated Xcode project definition.
-- `fixtures/`: Header, Urkel, and DNS fixture slots for HSD/HNSD comparison data.
+- `fixtures/`: bounded cross-language experimental DNS-relay framing and
+  request-correlation fixtures.
 - `docs/`: Architecture, security model, version audit, and milestone notes.
 - `docs/sync-audit.md`: first-run sync path, progress UI, and remaining sync-speed bottlenecks.
 - `docs/supply-chain-audit.md`: pinned build inputs, CI/release gates, and residual reproducibility risks.
@@ -40,6 +48,13 @@ device-qualification work are tracked in
 - Adds an independently configured recursive HNS DoH recovery path that is blank/off by default. It is tried only after direct authoritative DNS, owner-published authenticated authoritative DoH, and any opted-in P2P requester are exhausted by an eligible transport failure. Resolver hostnames are bootstrapped only through validating ICANN DoH, endpoint TLS uses WebPKI, and returned DNS remains untrusted until local HNS proof, DNSSEC, TLSA, and DANE checks succeed. Bogus DNSSEC and stale or missing HNS proofs never reach recovery.
 - Adds parser fuzz smoke targets for DNS messages/names/SVCB, HNS resource values, P2P frames/payloads, Urkel proofs, TLSA records, and bounded X.509 SPKI extraction.
 - Provides sync coordinators for version/verack, getaddr/addr peer discovery, getheaders/headers ingestion with duplicate-header tolerance, locator construction, remote-height-aware no-op sync when peers are not ahead of the local best header, bounded multi-batch header sync across selected peers with persisted peer outcomes, same-run getaddr discovery rotation toward the peer-table target, and versioned Android/iOS currentness status derived from a recent outlier-resistant target corroborated by at least three peer address groups. The validated local tip may trail that target by at most two blocks; raw maximum peer claims and the schedule estimate are diagnostic only. The same layer handles DNS seed refresh while the peer table is below target, tracked getproof/proof flow control, upstream-compatible Urkel proof verification, verified HSD `NameState.data` value handoff, and proof scheduling into the resolver resource-value store.
+- Stages header network I/O, quorum collection, snapshot preparation, and peer
+  merging in a private database. A short generation-and-tip-bound publication
+  step atomically exposes headers, peers, and readiness; an unchanged-header
+  peer refresh does not invalidate active requests, and incomplete,
+  superseded, or cross-process-conflicting state fails closed. Final peer
+  corroboration is timestamped when the long sync finishes rather than when it
+  starts.
 - Implements full-host dual-root classification with five outcomes: HNS only, ICANN only, both convergent, both divergent, or neither. Explicit pins take precedence over a successful sticky binding and the ICANN default. Each root independently resolves complete A+AAAA endpoint evidence and HTTPS/SVCB policy; the chosen immutable plan alone supplies endpoints, protocol, TLSA owner, trust policy, trace attribution, and errors, with no post-selection DNS. DANE matching remains strict, while ICANN WebPKI is narrowly admitted only after authenticated TLSA denial or a proven unsigned zone; bogus DNSSEC is never treated as absence. HNS address presence without the required TLSA is a root failure, not authenticated HNS absence, so it cannot silently select ICANN.
 - Uses the canonical engine session, policy generation, authority lifecycle, and schema-v2 status beneath both mobile shells. One random 16-byte session backs both the unchanged proxy capability token and the canonical runtime identity. A fresh listener may exist while sync is incomplete, but it remains degraded and non-admitting until a current non-genesis header on every network, the proof store, and a policy-permitted resolution transport are factually ready. Policy no-ops do not churn generations; replacement, stop, and drop revoke only the exact listener generation.
 - Mints one canonical authority stamp at whole-request entry, before DNS or namespace classification, and carries that exact stamp through resolution, origin work, status construction, sticky-namespace commit, and the per-result response or tunnel-head publication capability. That capability also captures the exact header-maintenance epoch under a shared read lock. Final publication reacquires and validates the epoch, then retains both the maintenance and authority guards through the response or HTTP 101 head; sync, cache clear, snapshot install, and header reset advance the epoch while holding the exclusive maintenance lock. Therefore maintenance either invalidates an older result before publication or waits until the already-authorized head is committed. A same-generation degrade/recover transition cannot revive stale work; unstamped locally generated backend errors and post-admission JNI fallbacks are suppressed. File-backed direct responses remain hidden in a same-directory staging file until exact-stamp commit atomically renames them. Typed success and failure status is published only after authorized response publication and only from the request-local retained namespace decision or exact typed root failure plus actual selected-root DNS question. A verifier-native DANE association mismatch survives HTTP/1.1, HTTP/2, HTTP/3, and TLS-upgrade error wrapping without message matching; it proves DANE failure but does not fabricate a separate origin-SNI failure. Bogus DNSSEC remains distinct from TLSA absence, generic transport/WebPKI failures with insufficient typed evidence remain explicitly unavailable, and ICANN-selected status deliberately has no HNS chain anchor. Cached or legacy paths that cannot honestly supply exact transport evidence, including a relay without negotiated registry identity, report an explicit canonical-status-unavailable reason instead of fabricating schema fields.
@@ -58,7 +73,17 @@ device-qualification work are tracked in
 
 ## Platform Migration Status
 
-Android has completed its Rust-only proxy cutover: `MainActivity` uses the shared Rust runtime and proxy, while Kotlin owns only platform UI, WebView admission, lifecycle, and JNI conversion. The Apple C ABI, XCFramework build, and native iOS shell are implemented against the same runtime and proxy. Linux validates the Rust, ABI, header, and architecture boundaries; macOS compilation and simulator tests against the iOS 26.5 SDK form the Apple build gate. The signed physical-device matrix in `docs/ios-device-validation.md` is a recommended final release gate for WebKit behavior that simulator success cannot establish.
+Android has completed its Rust-only proxy cutover: `MainActivity` uses the
+shared Rust runtime and proxy, while Kotlin owns only platform UI, WebView
+admission, lifecycle, and JNI conversion. The Apple C ABI, XCFramework build,
+and native iOS shell use the same runtime and proxy, and version `0.5.0` is
+public on the Apple App Store. Linux validates the Rust, ABI, header, and
+architecture boundaries; macOS compilation and simulator tests against the
+iOS 26.5 SDK form the Apple build gate. The signed physical-device matrix in
+`docs/ios-device-validation.md` is not an archive, upload, or App Store
+submission prerequisite, but it remains an open installed-iOS and ecosystem
+qualification gate for WebKit behavior that simulator success cannot
+establish.
 
 ## Validate
 
@@ -95,7 +120,13 @@ On macOS with Xcode 26.5 or 26.6, the stable iOS 26.5 SDK, and the configured Ap
 ./scripts/run-ios-gate.sh
 ```
 
-The gate verifies the selected Xcode and exact SDK, installs the pinned Rust toolchain and Apple targets, checks the ABI and platform boundaries, creates `build/apple/HnsBrowserRuntime.xcframework`, selects an iOS 26.5 iPhone simulator, executes the test target, and links an unsigned Release build against the arm64 device slice. This validates the Apple build, linkage, and simulator tests only; see `docs/ios-device-validation.md` for the recommended signed physical-device matrix before final App Review.
+The gate verifies the selected Xcode and exact SDK, installs the pinned Rust
+toolchain and Apple targets, checks the ABI and platform boundaries, creates
+`build/apple/HnsBrowserRuntime.xcframework`, selects an iOS 26.5 iPhone
+simulator, executes the test target, and links an unsigned Release build
+against the arm64 device slice. This validates the Apple build, linkage, and
+simulator tests only; see `docs/ios-device-validation.md` for the still-open
+signed physical-device qualification matrix.
 
 Debug/demo builds are unsigned beyond the default Android debug key and are intended for testing only. The diagnostics screen identifies Denuo Web, LLC as publisher, shows the build channel and license, and states that donations are optional and unlock no app features.
 

@@ -1,10 +1,21 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-07-26
+Last audited: 2026-07-28
 
 ## Configured and Local Gates
 
-- The checked-in GitHub Actions workflow always runs a lightweight repository-policy and path-classification job, then selects the Rust, Android, and Apple gates affected by the complete change set. Shared Rust changes run all three gates; platform-only changes skip the opposing application shell; unknown paths and manual dispatches fail safe by selecting everything. Its permissions are read-only, release secrets are not provided, every non-local `uses:` reference is pinned to a full commit SHA, checkout credentials are not persisted, and concurrent runs on the same ref are cancelled. Historical evidence: the `0.4.1` code and build-policy tree passed every selected job in [run 29477163745](https://github.com/Denuo-Web/hns-dane-browser/actions/runs/29477163745). Actions was then restored to the repository's prior disabled state, so that pass does not validate `0.5.3` and CI is not an enforced merge gate.
+- The checked-in GitHub Actions workflow always runs a lightweight
+  repository-policy and path-classification job, then selects the Rust,
+  Android, and Apple gates affected by the complete change set. Shared Rust
+  changes run all three gates; platform-only changes skip the opposing shell;
+  unknown paths and manual dispatches fail safe by selecting everything. Its
+  permissions are read-only, release secrets are not provided, every non-local
+  `uses:` reference is pinned to a full commit SHA, checkout credentials are
+  not persisted, and concurrent runs on the same ref are cancelled. Current
+  evidence: feature commit `14edcaf` passed every selected job in
+  [run 30323566765](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30323566765),
+  and docs-only HEAD `153db03` passed repository policy and Required CI in
+  [run 30393560141](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30393560141).
 - Dependabot watches GitHub Actions, Gradle, and all three Cargo lockfile roots weekly.
 - Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums; the only locked Git packages are the five exact-revision engine exceptions detailed below.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
@@ -20,12 +31,26 @@ Last audited: 2026-07-26
 
 ### Current `0.5.3` Candidate
 
-- Android declares `0.5.3` / code 43, the shared Rust workspace declares `0.5.3`, and iOS declares `0.5.3` / build 47. This is not a metadata-only release: it adds generation-bound explicit recursive HNS DoH recovery, independent native consent controls, a permanent legacy-key tombstone, endpoint/bootstrap constraints, and new status provenance.
+- Android declares `0.5.3` / code 43, the shared Rust workspace declares
+  `0.5.3`, and iOS declares `0.5.3` / build 47. This is not a metadata-only
+  release: it adds generation-bound explicit recursive HNS DoH recovery,
+  independent native consent controls, a permanent legacy-key tombstone,
+  endpoint/bootstrap constraints, the hardened interception recovery page, and
+  private staged synchronization with atomic header/peer/readiness
+  publication.
 - The five engine crates are pinned to reviewed immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
-- The complete portable `scripts/check.sh` gate is pending after that final pin. The preceding `0.5.1` pass is historical evidence only.
-- Android Gradle build/lint and artifact gates and Apple XCTest/archive validation remain required for the exact candidate.
-- Hosted path-policy, Rust, cold-cache Android, Apple, and required-result jobs are pending for the exact candidate commit.
-- No signed `0.5.3` APK/AAB exists yet. Release signing, bundle verification, device acceptance, and Play upload remain intentional external gates.
+- The complete portable `scripts/check.sh` gate passed for feature commit
+  `14edcaf` in CI run 30323566765.
+- Android `assembleDebug`, unit tests, lint, runtime-boundary checks, and
+  unsigned release-bundle structure passed for code 43 in that run. The
+  complete Apple ABI/XCFramework/XCTest/simulator/device-link gate passed for
+  build 47.
+- The docs-only HEAD then passed the path-policy and required-result jobs; its
+  Rust, Android, and Apple jobs were correctly skipped because no product
+  source changed.
+- No signed `0.5.3` APK/AAB is retained yet. Release signing,
+  signature-aware bundle verification, signed-device acceptance, and Play
+  upload remain intentional external gates.
 
 ### Historical `0.5.0` Evidence
 
@@ -46,7 +71,7 @@ Last audited: 2026-07-26
 - cargo-deny reported no known advisory, source, or license-policy failures for the shipping workspace, fuzz workspace, or exporter. Duplicate transitive versions and unused allow-list entries remained warnings.
 - No high-confidence secret or secret-bearing filename was found among tracked files.
 - The locally configured upload certificate SHA-256 matched the retained and published `0.4.0` APK signer and the `0.4.1` APK. It still needs an out-of-band comparison with the upload certificate shown by Play Console for the next release.
-- GitHub Actions [run 29477163745](https://github.com/Denuo-Web/hns-dane-browser/actions/runs/29477163745) passed the `0.4.1` code and build-policy tree before the evidence-only documentation update. Actions is disabled and `main` has neither branch protection nor a ruleset, so this is historical execution evidence rather than a continuously enforced control.
+- GitHub Actions [run 29477163745](https://github.com/Denuo-Web/hns-dane-browser/actions/runs/29477163745) passed the `0.4.1` code and build-policy tree before the evidence-only documentation update. At that historical checkpoint, Actions was subsequently disabled and `main` had neither branch protection nor a ruleset; those statements are not descriptions of the current `handshake-rs` repository state.
 
 ## Residual Risks
 

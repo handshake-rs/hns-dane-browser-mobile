@@ -1,7 +1,8 @@
 # App Store submission checklist
 
-Canonical first-release values: iOS version `0.5.3`, build `47`, bundle ID
-`com.denuoweb.hnsdane.ios`, iPhone only, Utilities, Free, manual release.
+Canonical update-candidate values: iOS version `0.5.3`, build `47`, bundle ID
+`com.denuoweb.hnsdane.ios`, iPhone only, Utilities, Free, manual release. The
+public baseline observed on 2026-07-28 is version `0.5.0`.
 
 ## Public listing
 
@@ -10,8 +11,8 @@ Canonical first-release values: iOS version `0.5.3`, build `47`, bundle ID
 - [ ] The live privacy URL contains the current cross-platform policy and does not
   direct users to post personal information in a public issue.
 - [ ] The app's in-app Privacy Policy and Source Code actions open those live pages.
-- [ ] Paste the first-release fields listed in `metadata/README.md`; leave **What's
-  New in This Version** empty.
+- [ ] Paste the update fields listed in `metadata/README.md`, including
+  `metadata/en-US/whats-new.txt` under **What's New in This Version**.
 - [ ] Set the version to `0.5.3`, select build `47`, and leave Routing App Coverage
   empty.
 
@@ -57,6 +58,7 @@ Canonical first-release values: iOS version `0.5.3`, build `47`, bundle ID
   availability, screenshots, and build are all attached to the same submission.
 - [ ] Choose **Manually release this version**, save, then add the app version and
   build for review.
-- [ ] Record whether an optional external-TestFlight real-iPhone pass was available.
-  If none was available, record that limitation; it does not block App Store
-  submission.
+- [ ] Record whether an external-TestFlight real-iPhone qualification pass was
+  available. If none was available, record that limitation; it does not block
+  App Store submission, but installed-iOS and ecosystem qualification remain
+  open.

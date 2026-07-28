@@ -1,11 +1,18 @@
 # Architecture
 
-The validated shipping product is currently Android, not a system-wide resolver. Its security engine is a platform-neutral Rust runtime so Android WebView and iOS WKWebView shells share full-host dual-root namespace preparation, HNS and ICANN DANE policy, transport policy, persistent state, proxy parsing, and validation results while retaining platform-native UI and lifecycle integration. The iOS shell is implemented; its signed-device WebKit matrix remains optional and unverified.
+Android and iOS are publicly distributed browsers, not system-wide resolvers.
+Their security engine is a platform-neutral Rust runtime, so Android WebView
+and iOS WKWebView shells share full-host dual-root namespace preparation, HNS
+and ICANN DANE policy, transport policy, persistent state, proxy parsing, and
+validation results while retaining platform-native UI and lifecycle
+integration. Android remains the deepest release-device validation baseline;
+the iOS signed-device WebKit matrix is not required for App Store submission,
+but remains an unverified installed-device and ecosystem qualification gate.
 
 ## Layers
 
 ```text
-Android UI / Browser Shell                         [shipping]
+Android UI / Browser Shell                         [public]
   -> MainActivity + BrowserProxyCoordinator navigation admission
   -> process-global AndroidX ProxyController ownership
   -> RustBrowserProxy + thin android-ffi JNI adapter
@@ -13,7 +20,7 @@ Android UI / Browser Shell                         [shipping]
   -> persistent hns-mobile-platform-runtime handle
   -> HNS/validating ICANN resolver, DNSSEC, DANE, transport, cache
   -> HNS peers, ICANN DNS, TCP TLS, QUIC/HTTP3
-iOS UI / Browser Shell                             [device gate open]
+iOS UI / Browser Shell                             [public; device qualification open]
   -> BrowserProxyCoordinator + persistent WKWebsiteDataStore
   -> authenticated, no-failover whole-browser proxy configuration
   -> thin versioned ios-ffi C ABI / XCFramework
@@ -24,9 +31,28 @@ iOS UI / Browser Shell                             [device gate open]
 
 - External engine contracts: `hns-browser-runtime` owns the canonical session, generation, lifecycle, and admitted-work stamps; `hns-browser-observability` checks the name-free schema-v2 browser status; `hns-icann-dane` derives transport-aware TLSA owners and constrained ICANN DANE/WebPKI outcomes; `hns-namespace-resolution` validates complete single-root origin plans, compares them, applies explicit-pin/sticky/ICANN precedence, fingerprints the selected immutable decision, and retains bounded per-root present/absent/failed dispositions when classification fails; `hns-resolution-policy` provides the typed direct-first transport plan. Mobile maps its stable relay ABI and normalized explicit recursive-recovery choice into that policy with ODoH, HNSR, provider roles, and legacy compatibility explicitly disabled. All five come from immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
 - `hns-core`: consensus-neutral primitives, HSD-compatible name validation and name-hash derivation, hashes, bounded parsing, Handshake headers, DNS/TLSA wire primitives, RFC 9460 SVCB/HTTPS RDATA parsing, and HSD name resource value decoding.
-- `hns-chain`: header storage, chainwork, HSD-compatible mainnet difficulty retarget validation, best-tip selection, restartable state interfaces, canonical `hash_by_height` indexing for reorg-aware height lookups, and append-only canonical tip promotion for normal chain growth.
+- `hns-chain`: header storage, chainwork, HSD-compatible mainnet difficulty
+  retarget validation, best-tip selection, restartable state interfaces,
+  canonical `hash_by_height` indexing for reorg-aware height lookups, and
+  append-only canonical tip promotion for normal chain growth. It supports
+  private SQLite snapshot staging plus a generation-and-tip-bound delta
+  journal, allowing normal validated publication to commit only the new
+  canonical suffix instead of rescanning the live database.
 - `hns-p2p`: Handshake packet payload codec, HSD-compatible frame encoder/decoder, blocking TCP peer connection, header-sync session state, static peer seeding, HSD-compatible DNS seed discovery, bounded getaddr/addr peer discovery with discovery-rotation selection, SQLite peer-state persistence, peer score tracking, transient-failure recovery with bounded malformed-peer bans, address-group-aware outbound peer selection, and the opt-in private DNS-relay capability/client. The relay client tracks capability only from the current handshake, reuses a bounded connection set, matches bounded request IDs, and returns raw DNS bytes without making a security judgment. Relay-only handshakes advertise zero local services, exclude their remote version heights from sync-currentness state, enforce the HIP query type/flag/EDNS profile before transmission, and close an exchange/connection for a future unknown transport status without automatically changing score or cooldown.
-- `hns-sync`: header batch and proof lifecycle coordinators connecting P2P sync actions to chain validation, remote-height-aware no-op sync when selected peers are not ahead, bounded multi-batch header sync across selected peers with persisted peer outcomes, successful-peer getaddr discovery plus same-run probing of additional unqueried peers toward the peer-table target, upstream-compatible Urkel proof verification, verified HSD `NameState.data` value handoff, and resolver resource-value storage. Non-genesis headers must match expected mainnet difficulty bits and satisfy proof-of-work before storage.
+- `hns-sync`: header batch and proof lifecycle coordinators connecting P2P sync
+  actions to chain validation, remote-height-aware no-op sync when selected
+  peers are not ahead, bounded multi-batch header sync across selected peers
+  with persisted peer outcomes, successful-peer getaddr discovery plus
+  same-run probing of additional unqueried peers toward the peer-table target,
+  upstream-compatible Urkel proof verification, verified HSD `NameState.data`
+  value handoff, and resolver resource-value storage. Network I/O, quorum
+  collection, snapshot preparation, and peer merging occur in a private stage.
+  Conditional publication briefly takes the cross-process publication and
+  browser-maintenance locks, rechecks the stage's generation/tip baseline, and
+  publishes headers, peer evidence, and readiness together. An unchanged-header
+  peer refresh does not rotate the maintenance epoch; incomplete, stale, or
+  superseded state fails closed. Non-genesis headers must match expected
+  mainnet difficulty bits and satisfy proof-of-work before storage.
 - `hns-urkel`: Bounded Urkel proof parsing and BLAKE2b-256 verification for inclusion, deadend, short-prefix, and collision proofs, with a separate fail-closed verifier for unwired runtime paths.
 - `hns-resolver`: legacy name classification for diagnostics, final-label HNS proof-root extraction, verified HSD resource-value extraction, verified non-inclusion state, local-chain-currentness errors, resource-value providers and cache controls, proof-backed answer filtering and nameserver address hydration, proof-anchored `hnsdns=1` bootstrap plus RFC 9461 authoritative-DoH discovery, DNSSEC-gated delegation, authoritative DoH or UDP DNS with TCP fallback, optional raw recursive relay transport after direct port 53, signed positive and denial validation, bounded CNAME and child-referral validation, TTL cache wrapping, and query-bound prepared namespace plans. A DNSSEC failure that the bounded TEST-NET canary confirms as transparent port 53 interception suppresses TCP and later direct nameservers and caches the detection. Resolution next tries proof-authenticated authoritative DoH, then the policy-admitted P2P requester only under explicit opt-in; failure of all admitted alternatives remains typed and fail-closed. Secure delegated NXDOMAIN is distinct from unsigned or bogus denial. Every transport converges on the same local DNSSEC validation code.
 - `hns-dnssec`: DNSSEC validation boundary with DNSKEY/DS/RRSIG/NSEC/NSEC3 parsing, RFC 4034 key-tag computation, SHA-1, SHA-256, and SHA-384 delegation-link verification, canonical signed-data construction including canonical RDATA names for CNAME, NS, SOA, SRV, SVCB/HTTPS, RRSIG signer names, RSA/SHA-1 compatibility, RSA/SHA-256, RSA/SHA-512, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, and Ed25519 RRset signature verification, signed DNSKEY RRset checks, composed delegated-chain validation, NSEC no-data/name-range/name-error denial validation, and RFC 5155 NSEC3 no-data/name-error/DS/wildcard/referral denial validation. Covering NSEC RRsets are validated independently with only same-owner/class RRSIGs, including multi-owner name-error responses. Unsupported algorithms and unknown NSEC3 hash algorithms remain fail-closed.
@@ -56,7 +82,11 @@ iOS UI / Browser Shell                             [device gate open]
 - `MainActivity` supplies a Rust-only `LocalBrowserProxyFactory`. If Rust proxy startup fails, admitted bodyless GET/HEAD requests may use the compatibility interceptor; unavailable request bodies and unsupported redirect/upgrade cases fail closed. Android contains no second HTTP proxy, CONNECT terminator, certificate generator, or Upgrade tunnel.
 - `ios-ffi`, the XCFramework build scripts, and the UIKit/WKWebView shell are present. The shell installs a single authenticated `ProxyConfiguration` with `allowFailover = false` on a persistent identified `WKWebsiteDataStore`; every canonical DNS host shares that generation and Rust prepares its own per-origin plan.
 - Swift performs only namespace-agnostic URL parsing and delegates runtime policy, sync, proxy parsing, dual-root resolution, DNSSEC, DANE, and local TLS identity generation to Rust. Swift retains UIKit/WebKit navigation, profile ownership, lifecycle, download, UI, and exact live server-trust challenge integration.
-- Rust/ABI/header checks run cross-platform and Apple slices plus the Swift targets build in macOS CI. The optional signed physical-device matrix can add evidence for WebKit network-process challenge and failover behavior that simulator or unit-test success cannot prove.
+- Rust/ABI/header checks run cross-platform and Apple slices plus the Swift
+  targets build in macOS CI. The still-open signed physical-device matrix is
+  the qualification evidence for WebKit network-process challenge and
+  failover behavior that simulator or unit-test success cannot prove; it is
+  separate from App Store submission eligibility.
 
 ## iOS Modules
 

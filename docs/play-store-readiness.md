@@ -1,16 +1,31 @@
 # Google Play Readiness Checklist
 
-Last audited: 2026-07-25
+Last audited: 2026-07-28
 
-This checklist maps HNS DANE Browser to current Google Play update requirements and identifies the Play Console fields that must be reconciled outside the repository. The app is already public: the live production listing observed during the prior audit served `0.3.1` (`versionCode 22`). The current repository source declares Android `0.5.3` (`versionCode 43`) with shared Rust engine `0.5.3`. Portable source gates must pass against the exact candidate, and the explicit recursive-recovery policy and migration changes postdate the recorded signed artifacts, so Android build/lint, signing, artifact, hosted-CI, and release-device gates must be repeated. Retained `0.5.1`, `0.5.0`, and `0.4.1` results are historical evidence only.
+This checklist maps HNS DANE Browser to current Google Play update requirements
+and identifies the Play Console fields that must be reconciled outside the
+repository. The public listing reported display version `0.5.0`, updated July
+16, 2026, when checked on 2026-07-28. The public page does not expose an
+authoritative `versionCode`; verify that value in Play Console. Current source
+declares Android `0.5.3` (`versionCode 43`) with shared Rust engine `0.5.3`.
+The complete Rust/supply-chain, Android build/test/lint/unsigned-bundle, and
+Apple gates passed for feature commit `14edcaf` in
+[CI run 30323566765](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30323566765);
+the docs-only HEAD `153db03` then passed repository policy and Required CI in
+[run 30393560141](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30393560141).
+Explicit recursive recovery, the hardened recovery page, and private staged
+header publication still postdate retained signed artifacts, so candidate
+signing, signed-artifact verification, release-device acceptance, and store
+submission remain open.
+Earlier `0.5.1`, `0.5.0`, and `0.4.1` results remain dated historical evidence.
 
 ## Current Repo Status
 
 | Area | Status | Evidence / Action |
 | --- | --- | --- |
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
-| Android App Bundle | Rebuild required | Package identity remains `com.denuoweb.hnsdane`. The earlier code 40 upload-signed AAB with SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0` predates this checkpoint and is not its release artifact. |
-| 64-bit / 16 KiB native code | Historical pass; rebuild required | Earlier `arm64-v8a` and `x86_64` libraries passed 16 KiB alignment, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, and APK ZIP-alignment gates. Repeat them on the rebuilt checkpoint artifacts. |
+| Android App Bundle | Unsigned structure passed; signed candidate required | Package identity remains `com.denuoweb.hnsdane`. CI run 30323566765 passed `verifyReleaseBundleStructure` for code 43. The earlier code 40 upload-signed AAB with SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0` is dated v0.5.0 evidence, not the 0.5.3 upload artifact. |
+| 64-bit / 16 KiB native code | Current unsigned gate passed; signed verification pending | The code 43 CI bundle passed the exact `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, and path-sanitization structure gate. Repeat the signature-aware bundle gate and APK ZIP-alignment check on the externally signed candidate. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
 | Privacy policy | Repository updated; hosted reconciliation required | Keep `https://denuoweb.com/work/hns-dane-browser/privacy` as the canonical URL, but publish the revised policy that discloses the independently opt-in P2P requester and user-configured recursive HNS DoH recovery, operator-visible qnames/qtypes/timing/source IP, blank/off defaults, validating ICANN bootstrap, the permanent legacy-key tombstone, and continued prohibition on HNS WebPKI fallback before submitting `0.5.3`. |
@@ -124,11 +139,23 @@ Use a conservative general-purpose browser posture:
 
 ### Existing Production Listing and Test Track
 
-The app is already public at `0.3.1` (`versionCode 22`), so closed-testing eligibility is not a first-launch gate. Use an internal or closed track when useful to validate the candidate, then promote or submit the verified update:
+The app is already public at display version `0.5.0` as observed on
+2026-07-28. Confirm the live `versionCode` in Play Console. Closed-testing
+eligibility is therefore not a first-launch gate; use an internal or closed
+track when useful to validate the candidate, then promote or submit the
+verified update:
 
 1. Regenerate the third-party notices and release notes after any version or dependency change.
 2. Rebuild and verify `dist/play-store/hns-dane-browser-v0.5.3-play-upload-signed.aab` from the exact candidate commit; the automated gate covers 16 KiB alignment, required ABIs, native hardening/symbols, R8 mapping, notices, and upload signing. No earlier artifact is valid for this filename or checkpoint.
-3. Compare the configured upload-certificate fingerprint with Play Console. Install the exact signed `0.5.3` APK on the connected device, verify the code 43 upgrade and cold launch, and exercise permanent legacy-key tombstoning, blank/off recovery, default-off requester relay consumption, independent explicit opt-ins, configured-endpoint validation/bootstrap, manual-peer validation, and fail-closed bogus/invalid/stale/no-route behavior. The corresponding signed update smoke for `0.4.1` is historical evidence only.
+3. Compare the configured upload-certificate fingerprint with Play Console.
+   Install the exact signed `0.5.3` APK on the connected device, verify the code
+   43 upgrade and cold launch, and exercise private staged header publication,
+   atomic header/peer/readiness visibility, interrupted-sync recovery,
+   permanent legacy-key tombstoning, blank/off recovery, default-off requester
+   relay consumption, independent explicit opt-ins, configured-endpoint
+   validation/bootstrap, manual-peer validation, and fail-closed
+   bogus/invalid/stale/no-route behavior. The corresponding signed update smoke
+   for `0.4.1` is historical evidence only.
 4. Upload to an internal/closed track for validation if desired. For API upload, use the Console's actual track ID; `alpha` is the standard closed-testing API track.
 5. Reconcile the live privacy policy, Data safety answers, listing copy, screenshots, and release notes, then submit the update to production.
 

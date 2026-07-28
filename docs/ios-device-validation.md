@@ -2,7 +2,13 @@
 
 The iOS shell has an iOS 17.0 deployment floor, retaining support for the iOS 17 and iOS 18 generations. That minimum supported runtime is independent of the build SDK: Apple builds use the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 
-The Rust and C boundaries can be validated on Linux. The Apple slices, Swift shell, and unit tests can then be compiled and exercised in a macOS simulator gate. A signed physical-device pass adds evidence about WebKit's out-of-process networking that simulator success cannot provide. It is not required to archive or upload, but it is a recommended final release gate and has not been completed.
+The Rust and C boundaries can be validated on Linux. The Apple slices, Swift
+shell, and unit tests can then be compiled and exercised in a macOS simulator
+gate. A signed physical-device pass adds evidence about WebKit's
+out-of-process networking that simulator success cannot provide. It is
+not required to archive, upload, or submit an App Store update, but it remains
+required before claiming installed-iOS or ecosystem qualification. No
+physical-device pass is claimed here.
 
 ## macOS Build and Simulator Gate
 
@@ -15,9 +21,14 @@ Run with the repository-pinned Rust toolchain, Xcode 26.5 or 26.6, and the iOS 2
 
 The first command is the portable repository check. The second is the same complete macOS gate used by CI: it verifies Xcode and the exact SDK, installs the pinned Rust toolchain and Apple targets, produces device arm64 and universal arm64/x86_64 simulator slices, creates `HnsBrowserRuntime.xcframework`, compiles the C header smoke test, links the iOS application and test target without undefined FFI symbols, executes the unit tests on an iPhone simulator, and performs an unsigned Release link against the device slice. Completion establishes build, linkage, and simulator behavior only; it is not evidence that the signed physical-device matrix passed.
 
-## Signed Physical Device Gate — Pending
+## Signed Physical-Device Qualification
 
-No physical-device pass is currently claimed. Before final App Review, arrange an external TestFlight tester with an iPhone running iOS 17.0 or later and capture the applicable evidence below. The user who builds and submits the app does not need to own that device.
+No physical-device pass is currently claimed. If an external TestFlight tester
+with an iPhone running iOS 17.0 or later is available, capture the applicable
+evidence below. The user who builds and submits the app does not need to own
+that device. The absence of this matrix is not an App Store submission blocker;
+it remains an explicit installed-device qualification gap and may be completed
+after submission.
 
 ### Proxy isolation
 

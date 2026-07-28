@@ -60,7 +60,7 @@ FIELD_RULES = {
     "keywords.txt": (1, 100, "bytes"),
     "copyright.txt": (1, 200, "characters"),
     "review-notes.txt": (1, 4000, "bytes"),
-    "whats-new.txt": (0, 4000, "characters"),
+    "whats-new.txt": (1, 4000, "characters"),
     "support-url.txt": (1, None, "characters"),
     "marketing-url.txt": (0, None, "characters"),
     "privacy-policy-url.txt": (1, None, "characters"),
@@ -272,10 +272,6 @@ def validate_metadata(validation):
     else:
         read_text_field(checklist_path, validation)
 
-    if values.get("whats-new.txt", ""):
-        validation.warn(
-            "whats-new.txt is a future-update draft; do not enter it for version 0.5.3"
-        )
     return values
 
 

@@ -1,7 +1,14 @@
 # Fixtures
 
-Fixture directories are intentionally empty until test-oracle data is imported from HSD, HNSD, Urkel, DNSSEC examples, and generated DANE certificates.
+The active fixture set exercises the experimental DNS relay's bounded,
+cross-language framing and request-correlation contract.
 
-- `headers/`: serialized Handshake headers and expected HSD hashes.
-- `urkel/`: inclusion and non-inclusion proofs with expected roots.
-- `dns/`: DNS, DNSSEC, TLSA, SVCB, and HTTPS record fixtures.
+- `experimental-dns-relay/manifest.json` records the fixture names, expected
+  parser result, and protocol meaning.
+- `experimental-dns-relay/*.hex` covers valid basic and boundary-sized
+  requests/responses, maximum QNAME handling, error status, malformed and
+  oversized lengths, trailing bytes, unknown status values, and zero request
+  IDs.
+
+These fixtures are protocol test vectors, not live-network captures or
+authoritative DNS/header/Urkel test oracles.

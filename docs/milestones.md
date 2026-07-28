@@ -27,6 +27,12 @@
 - Persistent header store.
 - Persistent peer-state store.
 - Bounded multi-batch header sync runner with selected peers, scoring, and persistence.
+- Private SQLite staging for header network work, quorum collection, snapshot
+  preparation, and peer merging, with generation-and-tip-bound delta
+  publication that atomically updates headers, peers, and readiness.
+- Unchanged-header peer refresh without active-request invalidation,
+  cross-process publication locking, interrupted-state recovery, and
+  completion-time peer-evidence timestamps.
 - Proof request lifecycle scaffolding with Urkel proof verification.
 - Proof-provider-backed HNS resolver boundary with verified resource-value extraction and proven-record filtering.
 - Verified HNS non-inclusion surfaced separately from existing names with no origin address.
@@ -94,5 +100,13 @@
 - Added the stable versioned `ios-ffi` C ABI, C/C++ header checks, Apple Rust slices, and XCFramework build scripts.
 - Added the iOS 17.0-or-later UIKit/WKWebView shell with persistent profile data, authenticated no-failover whole-data-store proxying, generation-safe scope rotation, exact Rust-authorized HNS certificate handling, lifecycle revocation, downloads, and shared snapshot bootstrap.
 - Added the macOS ABI, XCFramework, application, and simulator test gate against the stable iOS 26.5 SDK, accepting Xcode 26.5 or 26.6. The iOS 17.0 deployment floor, including support for the iOS 18 generation, remains independent of that build SDK.
-- Optional additional gate: run and document the signed physical-device WebKit matrix for main frames, subresources, Service Workers, WebSockets, downloads, background/resume, and renderer/network-process restart. No physical-device result is claimed; Linux and simulator checks do not provide that hardware-specific evidence.
+- Published the iPhone app on the Apple App Store; version `0.5.0` was the
+  public baseline observed on 2026-07-28, while `0.5.3` / build `47` is the
+  current source update candidate.
+- Installed-device qualification gate: run and document the signed
+  physical-device WebKit matrix for main frames, subresources, Service Workers,
+  WebSockets, downloads, background/resume, and renderer/network-process
+  restart. It is separate from App Store submission eligibility. No
+  physical-device result is claimed; Linux and simulator checks do not provide
+  that hardware-specific evidence.
 - Removed the single-host ICANN DANE exception and applied the automatic policy to Android and iOS navigation, redirects, subresources, WebSockets, supported Service Worker requests, and downloads. Portable coverage is checked in; Android/iOS device qualification remains open.

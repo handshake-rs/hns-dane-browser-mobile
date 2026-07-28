@@ -17,6 +17,25 @@
   unknown and fails closed. `bestPeerHeight` and `estimatedTipHeight` remain
   diagnostics and never authorize currentness.
 
+## Staged Synchronization and Publication
+
+- Each live sync takes a private SQLite snapshot, then performs peer network
+  I/O, quorum collection, checkpoint preparation, header validation, and
+  three-way peer merging in that stage rather than holding the browser's
+  exclusive maintenance lock.
+- The stage records its live generation and canonical tip baseline plus a
+  bounded SQLite delta journal. Publication takes the cross-process
+  header/peer publication locks and maintenance lock only long enough to
+  revalidate that baseline and commit the validated delta.
+- Headers, peer observations, and readiness generations publish atomically.
+  A peer-only refresh against an unchanged header tip preserves the active
+  maintenance epoch; a header advance or reorganization rotates it and
+  invalidates older proof/status publication authority.
+- Interrupted `UPDATING` state, missing delta coverage, stale stages, and
+  concurrent superseding publishers are rejected or reclaimed fail closed.
+  Final peer corroboration is timestamped when the long sync completes so new
+  currentness evidence does not begin near expiry.
+
 ## User-Visible Progress
 
 - The main browser screen shows a horizontal sync progress bar directly under the omnibox toolbar.

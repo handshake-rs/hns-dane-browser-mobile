@@ -90,7 +90,10 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 - Swift may answer proxy authentication only for the exact live proxy handle, endpoint, and realm. It may accept an expected local HNS or DNS-named ICANN server-trust challenge only after Rust separately confirms the exact live generation, canonical host, and complete leaf certificate DER. Public IP-literal trust remains under WebKit's default handling.
 - Proxy credentials, certificate state, trace data, and Rust-owned buffers are memory-only and bounded. Lifecycle revocation becomes visible before any blocking worker join.
 - Swift contains no independent HNS resolver, socket transport, HTTP proxy parser, DANE validator, certificate generator, or TLS terminator.
-- The committed privacy manifest declares the platform reason APIs used for preferences and file timestamps. Optional physical-device traffic/challenge testing remains unverified.
+- The committed privacy manifest declares the platform reason APIs used for
+  preferences and file timestamps. Physical-device traffic/challenge
+  qualification remains unverified; it is not an App Store submission
+  prerequisite, but it remains an installed-iOS and ecosystem gate.
 
 ## Experimental P2P DNS relay trust boundary
 
@@ -100,14 +103,17 @@ explicit requester opt-in, while preserving an independent preference already
 chosen by an existing installation. A legacy compatibility preference is
 revoked and never becomes relay consent. The relay is
 considered only after current locally validated headers and a matching Urkel
-proof have produced an acceptable HNS NS/DS delegation, proof-declared
-authoritative DoH has not succeeded, and direct authoritative UDP/TCP 53 has
-failed or has been classified as intercepted. A separately configured recursive
-HNS DoH endpoint may follow only for eligible transport failure; it is not
-enabled by relay consent and cannot bypass local validation. There is no HNS
-WebPKI fallback. The mobile browser does not become an output
-node. Opaque relayer capacity is a separate default-on/opt-out network role;
-serving as an output node remains explicit operator opt-in.
+proof have produced an acceptable HNS NS/DS delegation and direct
+authoritative UDP/TCP 53 has ended in typed transport unavailability or been
+positively classified as intercepted, and owner-authenticated authoritative
+DoH has also been unavailable. A canary timeout is inconclusive, not
+authenticated absence. A separately configured recursive HNS DoH endpoint may
+follow the relay step—which is skipped when requester consent is off—only for
+eligible transport failure; it is not enabled by relay consent and cannot
+bypass local validation. There is no HNS WebPKI fallback. The mobile browser
+does not become an output node. Opaque relayer capacity is a separate
+default-on/opt-out network role; serving as an output node remains explicit
+operator opt-in.
 
 The peer necessarily learns the qname, qtype, client P2P connection, and source
 network address. The ordinary Handshake TCP listener is plaintext; no query
@@ -152,6 +158,15 @@ does not by itself change peer score or start a cooldown. See
 - Android first-run header sync should use active polling and high-batch native
   runs while behind, then fall back to idle polling only after the validated
   tip is within two blocks of a recent corroborated target.
+- Header network I/O, quorum collection, snapshot preparation, and peer
+  merging must occur in a private stage outside the exclusive live-browser
+  maintenance window. Conditional publication must revalidate the exact
+  generation/tip baseline under cross-process publication locks and atomically
+  publish headers, peers, and readiness.
+- An unchanged-header peer refresh must not invalidate active requests. A
+  missing delta, interrupted publication, stale stage, or superseding
+  concurrent publisher must fail closed, and final peer evidence must be
+  timestamped at completion rather than at the start of a long sync.
 - The 144-block canonical proof-cache window is reorganization retention, not
   a freshness allowance. Currentness requires recent agreement from at least
   three independent peer address groups; the raw highest claim and schedule

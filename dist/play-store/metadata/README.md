@@ -1,6 +1,11 @@
 # Google Play Metadata Package
 
-This directory contains the source text and field checklist for the Google Play Console listing for package `com.denuoweb.hnsdane`.
+This directory contains the source text and field checklist for the Google
+Play Console update to package `com.denuoweb.hnsdane`. The repository update
+candidate is `0.5.3` / code `43`. The public listing reported the July 16,
+2026 release when checked on 2026-07-28. Google Play's public page does not
+expose an authoritative `versionCode`; confirm the live release identity in
+Play Console.
 
 ## Listing Text
 
@@ -21,7 +26,13 @@ This directory contains the source text and field checklist for the Google Play 
 - App category: Tools
 - Ads declaration: No ads
 - Privacy policy URL: `https://denuoweb.com/work/hns-dane-browser/privacy`
-- Default closed-testing upload artifact: `../hns-dane-browser-v0.5.3-play-upload-signed.aab`
+- Expected closed-testing upload artifact:
+  `../hns-dane-browser-v0.5.3-play-upload-signed.aab`
 - Foreground service type: none; remove any stale `dataSync` declaration because sync is application-foreground scoped and the manifest declares no service.
 
-The Android App Bundle is generated during release builds and is intentionally not committed.
+CI run
+[30323566765](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30323566765)
+passed code 43 Android build/tests/lint and the unsigned release-bundle
+structure gate. The upload-signed AAB is generated and signature-verified only
+in the credentialed release process and is intentionally not committed. Do
+not reuse the dated code-40 AAB as the v0.5.3 candidate.

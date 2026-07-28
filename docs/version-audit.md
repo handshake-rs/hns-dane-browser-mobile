@@ -1,11 +1,18 @@
 # Version Audit
 
-Audit date: 2026-07-10.
+Audit date: 2026-07-28.
 
 This table records the versions actually configured for the shipping build. Android runtime dependencies use stable releases; separate build-tool transitive dependencies may carry preview labels selected by AGP and are not packaged into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
+| Android app | `0.5.3` / code `43` | `android/app/build.gradle.kts` |
+| Shared Rust workspace | `0.5.3` | `rust/Cargo.toml` |
+| iOS app | `0.5.3` / build `47` | `ios/project.yml` |
+| Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
+| Canonical engine contracts | `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` | Cargo manifests and lock |
+| Android SDK | compile/target `37`, minimum `34` | `android/app/build.gradle.kts` |
+| iOS deployment floor | `17.0` | `ios/project.yml` |
 | Android Gradle Plugin | `9.2.1` | https://developer.android.com/build/releases/agp-9-2-0-release-notes |
 | Gradle distribution | `9.6.1` | https://gradle.org/releases/ |
 | AndroidX Activity | `1.13.0` | https://developer.android.com/jetpack/androidx/releases/activity |
@@ -44,6 +51,12 @@ Notes:
   and schedule estimate remain diagnostic. The main page shows the local and
   effective target heights plus freshness, with separate WebView loading and
   the existing browser/settings controls.
+- Header synchronization now performs network I/O, quorum collection,
+  snapshot preparation, and peer merging in a private staged SQLite database.
+  Generation-and-tip-bound conditional publication atomically exposes
+  headers, peer evidence, and readiness; unchanged-header peer refreshes do
+  not invalidate active requests, and incomplete or superseded state fails
+  closed.
 - Gateway-generated HNS error pages now include the requested URL above the status line so repeated 502 validation pages show which address failed.
 - Gateway failure diagnostics are now persisted in app-private storage as a bounded, sanitized recent-event log containing only stage, host, status, and reason. URL paths, query strings, headers, and bodies are not written to the default diagnostic log.
 - An Android instrumentation test now validates the real HNS CONNECT termination path on-device: the loopback proxy generates a native per-host TLS certificate, completes a TLS handshake, pins the certificate fingerprint for WebView SSL policy, rejects an ICANN URL for that pinned certificate, and forwards a bounded HNS HTTPS POST body through the native gateway bridge.

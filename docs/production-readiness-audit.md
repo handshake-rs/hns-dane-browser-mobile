@@ -1,23 +1,33 @@
 # Production Readiness Audit
 
-Last audited: 2026-07-26
+Last audited: 2026-07-28
 
-This audit treats the repository as a candidate update to an existing public Google Play app, not as a first closed-testing launch. The live listing observed during the prior audit served version `0.3.1` (`versionCode 22`), while the current source declares Android `0.5.3` (`versionCode 43`) with Rust engine `0.5.3` and iOS `0.5.3` (`47`). The explicit recursive-recovery policy and migration changes made after the last signed build require fresh portable gates, APK/AAB generation, artifact verification, hosted CI, and exact-build release-device verification. Previously recorded `0.5.1`, `0.5.0`, and `0.4.1` results are historical evidence only and do not identify the current source checkpoint.
+This audit treats the repository as an update candidate for existing public
+Google Play and Apple App Store apps. Both public listings reported version
+`0.5.0` when checked on 2026-07-28; Google Play's public page did not expose
+the authoritative live `versionCode`, which must be checked in Play Console.
+Current source declares Android `0.5.3` (`versionCode 43`), Rust engine
+`0.5.3`, and iOS `0.5.3` (build `47`). Explicit recursive recovery, the
+hardened recovery page, and private staged header publication passed the full
+feature CI matrix at `14edcaf`; signed artifacts, exact-build Android
+release-device verification, and store submissions remain open. Previously
+recorded results remain historical evidence only.
 
 ## Release Candidate Findings
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| Android release build | Rebuild required | An earlier code 40 APK/AAB passed local release checks, but its hashes (`bff5ba468b0c5ad2d134603127f089ad6fdc9e9b5ceab921825e570cfefd60fb` and `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0`) predate the current trust-policy and migration changes. They are not artifacts for this checkpoint. |
-| Public Play listing | Reconciliation required | Google Play already has a production listing at `0.3.1` (`versionCode 22`). Before the next update, reconcile the live privacy-policy field, Data safety answers, listing text, screenshots, and release notes with current behavior and the eventual release version. |
+| Android release build | Unsigned structure passed; signed candidate required | Code 43 passed Android build, unit tests, lint, and `verifyReleaseBundleStructure` in CI run 30323566765. The retained code 40 APK/AAB hashes (`bff5ba468b0c5ad2d134603127f089ad6fdc9e9b5ceab921825e570cfefd60fb` and `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0`) are dated v0.5.0 evidence, not artifacts for this checkpoint. |
+| Public Play listing | Reconciliation required | Google Play reported display version `0.5.0` on 2026-07-28. Verify the live `versionCode` in Play Console, then reconcile the privacy-policy field, Data safety answers, listing text, screenshots, and release notes with current behavior and the eventual update. |
+| Public App Store listing | Update record exists; device qualification open | Apple reported version `0.5.0` on 2026-07-28. Treat `0.5.3` / build `47` as an update, including `What's New`. A real-iPhone TestFlight pass is not a submission prerequisite, but remains required for installed-iOS and ecosystem qualification. |
 | Privacy policy | Repository updated; hosted update pending | The repository policy now discloses the independently opt-in P2P requester and user-configured recursive HNS DoH recovery, operator-visible queried names/types, timing and source IP, blank/off defaults, one-way legacy-key tombstone, local DNSSEC/DANE validation, validating ICANN bootstrap, and continued prohibition on HNS WebPKI fallback. Publish this revision at the canonical `https://denuoweb.com/work/hns-dane-browser/privacy` URL before submitting the next build; the previously accepted hosted copy applies only to the historical audit. |
 | Manifest exposure | Ready | The only app-defined exported entry point is `LauncherActivity`. Browser, settings, diagnostics, HNS inspector, history, download, and other app activities are non-exported, and the app declares no service. Merged dependency components remain subject to their own signature/permission guards. |
 | Backup / transfer | Ready | App backup and device-transfer extraction are disabled for local browsing data, WebView state, download records, diagnostics, resolver cache, and HNS sync/cache state. |
 | Cleartext policy | Ready | Cleartext is disabled globally with a loopback-only exception for the local gateway. User-selected HTTP and direct DNS/HNS traffic are accurately disclosed, but ordinary open-web and user-initiated transfers are outside Google Play's Data safety collection/sharing scope. |
 | WebView hardening | Ready | Mixed content is blocked, Safe Browsing is enabled, file/content access is disabled, native JavaScript bridges are removed, WebView debugging follows `BuildConfig.DEBUG`, and browser-wide loopback proxying sends every canonical DNS host to exact per-origin Rust dual-root preparation. |
 | Privacy controls | Improved | Settings can clear cookies plus WebView origin storage, and the diagnostics UI can clear the bounded gateway event log. The repository and in-app disclosures now describe WebView-provider Safe Browsing and these local retention controls. |
-| Build supply chain | Fresh `0.5.3` gates pending | The prior `0.5.1` portable source gates are historical only. Locked tests, warning-denied Clippy, formatting, Apple C ABI/header/symbol checks, runtime/version boundaries, generated notices, store metadata, and supply-chain verification must be rerun after the final exact engine revision is pinned. Android and Apple platform qualification remain separate gates. |
-| 16 KiB / native symbols | Historical pass; rebuild required | Earlier JNI libraries passed PT_LOAD alignment, hardening, stripping, Build ID, matching FULL debug metadata, path sanitization, and signed-APK ZIP alignment. Rebuild and repeat those checks because the current Rust source differs. |
+| Build supply chain | Current feature gates passed | Feature commit `14edcaf` passed `scripts/check.sh`, warning-denied Clippy/tests, supply-chain/notices/runtime boundaries, Android build/unit/lint/unsigned bundle structure, and the complete Apple gate in CI run 30323566765. Docs-only HEAD `153db03` passed repository policy and Required CI in run 30393560141. |
+| 16 KiB / native symbols | Current unsigned gate passed; signed verification pending | The code 43 CI bundle passed PT_LOAD alignment, hardening, stripping, Build ID, matching FULL debug metadata, and path sanitization. Signature-aware AAB verification and signed-APK ZIP alignment remain required on the externally signed candidate. |
 | Release-device acceptance | Pending for the next build | Install the exact signed APK and exercise cold launch, permanent tombstoning of the historical resolver key, blank/off recovery default, independent requester opt-in, configured-recursive validation and interception-only eligibility, verified manual-peer persistence, fail-closed bogus/invalid/stale cases, and dual-root HNS/ICANN/DNSSEC/DANE/WebPKI browsing. Historical only: the signed `0.4.1` APK upgraded and cold-launched successfully on the Pixel 9 after its shared-runtime device matrix passed. |
 | Data collection posture | Repository review updated; live-form reconciliation required | No ads, analytics SDKs, developer accounts, sensitive permissions, advertising ID access, or developer telemetry endpoint was found. The policy now records that a relay peer receives the DNS name/type and source network address needed for the request. Retain the live `No collected / No shared` posture only after reconciling the current Play definitions and WebView-provider Safe Browsing guidance. |
 
@@ -33,9 +43,19 @@ This audit treats the repository as a candidate update to an existing public Goo
 - Reworked release native packaging so AGP strips the installed libraries and embeds matching FULL debug metadata, while deterministic prefix maps keep checkout, home, Cargo, Rustup, and NDK paths out of both artifacts.
 - Added an automated release-bundle gate for exact ABI inventory, 16 KiB bundle and ELF alignment, ELF architecture/type/bounds, native hardening, stripping, matching Build IDs and symbols, local-path rejection, R8 mapping, third-party notices, and upload signing.
 - Hardened the loopback gateway and moved Android to authenticated whole-WebView proxy routing. Every canonical DNS host enters a retained per-origin dual-root plan; private/special targets are rejected before dialing and public IP literals use bounded opaque forwarding.
-- Added proof-pinned authoritative DoH bootstrap for single-label HNS endpoint names, with authoritative DoH preferred when declared and direct authoritative UDP/TCP 53 next. The browser exposes successful authoritative paths explicitly and strips internal provenance headers before content reaches Chromium or the page.
+- Added proof-pinned authoritative DoH bootstrap for single-label HNS endpoint
+  names. Current policy attempts direct authoritative UDP/TCP 53 first and
+  reaches owner ADoH only after eligible direct transport unavailability or
+  confirmed interception. The browser exposes successful authoritative paths
+  explicitly and strips internal provenance headers before content reaches
+  Chromium or the page.
 - Added an untrusted optional HNS P2P DNS relay after local proof and authoritative transport attempts; relayed answers still pass local DNSSEC, TLSA, and DANE validation.
 - Added an explicit, blank-by-default recursive HNS DoH recovery control after direct authority, owner-published proof-anchored DoH, and independently enabled P2P consumption. Both FFI boundaries normalize the endpoint, the endpoint host bootstraps only through validating ICANN DoH and public WebPKI addresses, HNS answers remain locally validated, and the historical resolver key is permanently tombstoned rather than copied as consent.
+- Moved header network I/O, quorum collection, snapshot preparation, and peer
+  merging into a private staged database. A generation-and-tip-bound
+  publication step atomically exposes headers, peers, and readiness; peer-only
+  refresh preserves active requests, and incomplete or superseded
+  cross-process state fails closed.
 - Added manual relay-peer configuration restricted to IP-literal endpoints. The runtime completes a live HSD handshake and verifies the current relay capability before persisting an endpoint; the `hsd` responder remains an explicit operator opt-in.
 - Updated repository privacy and store disclosures for relay-visible queried names/types and client network address. The hosted privacy page must be updated before release.
 - Updated `androidx.activity:activity-ktx` from an alpha build to stable `1.13.0`.
@@ -43,25 +63,37 @@ This audit treats the repository as a candidate update to an existing public Goo
 
 ## Remaining Release Gates
 
-1. Run the hosted path-policy, Rust, cold-cache Android, Apple, and required-result jobs on the exact candidate commit. If future merges should require CI, leave GitHub Actions enabled and add appropriate protection or a ruleset for `main`.
+1. Retain CI run 30323566765 as the full feature-gate evidence and run
+   30393560141 as the exact docs-only HEAD policy evidence. If product source
+   changes before signing, repeat the hosted path-policy, Rust, cold-cache
+   Android, Apple, and required-result jobs on that final candidate commit.
 2. Compare upload certificate SHA-256 `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14` with the upload certificate shown in Play Console.
-3. Run the critical first-run, upgrade-policy migration, sync-resume, blank/off recursive recovery, default-off requester relay, explicit independent opt-ins, configured-endpoint validation/bootstrap, verified manual-peer, terminal bogus/invalid/stale cases, fail-closed no-route, HNS-only browsing, ICANN-only browsing, convergent/divergent dual-root browsing, download, website-data deletion, and gateway-log deletion flows on a physical supported Android device using the exact signed candidate.
+3. Run the critical first-run, private staged-sync publication,
+   interrupted-publication recovery, upgrade-policy migration, sync-resume,
+   blank/off recursive recovery, default-off requester relay, explicit
+   independent opt-ins, configured-endpoint validation/bootstrap, verified
+   manual-peer, terminal bogus/invalid/stale cases, fail-closed no-route,
+   HNS-only browsing, ICANN-only browsing, convergent/divergent dual-root
+   browsing, download, website-data deletion, and gateway-log deletion flows
+   on a physical supported Android device using the exact signed candidate.
 4. Publish the revised privacy policy and reconcile the existing live Play listing: update its privacy-policy field, Data safety/app-access/content/ads answers, listing copy, release notes, and stale screenshots before submitting the verified AAB.
 
 ## Candidate Verification Status
 
-- `0.5.3` / code 43 portable source checks: pending after the final exact shared-engine pin.
-- `0.5.3` / code 43 Android unit tests, lint, and artifact gates: pending.
-- `0.5.3` / build 47 Apple XCTest/simulator qualification: pending on macOS/Xcode.
-- `0.5.3` hosted CI checks: pending.
-- `0.5.3` signed APK/AAB verification and hashes: no candidate artifacts yet; current-source rebuild pending.
-- `0.5.3` exact signed-build physical-device acceptance: pending.
-
-The complete `scripts/check.sh` gate passed for the preceding `0.5.1` source on
-2026-07-26, including supply-chain, generated-notice, version, runtime-boundary,
-formatting, warning-denied Clippy, Apple C ABI, cargo-deny, full Rust workspace
-tests, fuzz smoke, and header-snapshot-exporter checks. That pass does not
-validate the current `0.5.3` changes.
+- `0.5.3` / code 43 portable `scripts/check.sh`: passed for `14edcaf` on
+  2026-07-28 in CI run 30323566765.
+- `0.5.3` / code 43 Android build, unit tests, lint, runtime boundaries, and
+  unsigned release-bundle structure: passed in the same run.
+- `0.5.3` / build 47 Apple ABI, XCFramework, XCTest/simulator, and device-link
+  gate: passed in the same run.
+- Docs-only HEAD `153db03`: repository policy and Required CI passed on
+  2026-07-28 in run 30393560141; code/platform jobs were correctly skipped.
+- `0.5.3` signed APK/AAB verification and hashes: pending; no signed candidate
+  artifact is retained in the repository.
+- `0.5.3` exact signed-build physical Android acceptance: pending.
+- iOS real-device qualification: pending. It is separate from App Store
+  submission eligibility and remains required before installed-iOS or
+  ecosystem qualification is claimed.
 
 ## Historical `0.4.1` Evidence
 
