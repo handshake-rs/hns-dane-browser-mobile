@@ -67,7 +67,17 @@ jobs:
           HNS_ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           HNS_ASC_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           HNS_IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+          HNS_IOS_IPA_OUTPUT_PATH: ${{ runner.temp }}/hns-dane-browser-ios-app-store.ipa
         run: ./scripts/upload-ios-testflight.sh
+
+      - name: Retain the signed App Store IPA for release publication
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-app-store-ipa-${{ github.sha }}
+          path: ${{ runner.temp }}/hns-dane-browser-ios-app-store.ipa
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
       - name: Remove the temporary signing credentials
         if: ${{ always() }}

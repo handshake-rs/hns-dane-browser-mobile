@@ -47,7 +47,11 @@ base64 -w0 /trusted/path/app-store.mobileprovision | gh secret set --repo handsh
 
 ## Upload a build
 
-The workflow is manual, refuses non-`main` refs, has read-only GitHub permissions, runs the complete unsigned simulator/device-link gate before credentials are materialized, and uploads without retaining a public IPA artifact.
+The workflow is manual, refuses non-`main` refs, has read-only GitHub
+permissions, and runs the complete unsigned simulator/device-link gate before
+credentials are materialized. It uploads the build to App Store Connect and
+retains the same App Store-signed IPA as a private workflow artifact for seven
+days so the release operator can publish it with the matching GitHub Release.
 
 ```sh
 gh workflow run ios-testflight.yml \
@@ -62,8 +66,9 @@ The workflow then:
 2. writes the API key, distribution identity, and App Store profile only to the ephemeral runner's private temporary directory;
 3. verifies the identity and profile against the fixed team and bundle IDs, then creates a Release archive using manual App Store distribution signing in a disposable keychain;
 4. verifies the archived app identity and compiled AppIcon catalog, then
-   validates/exports the archive with App Store Connect authentication and
-   uploads build `47`;
+   exports the signed IPA, validates/exports the archive with App Store Connect
+   authentication, uploads build `47`, and retains
+   `ios-app-store-ipa-<commit>` for release publication;
 5. deletes the temporary keychain, installed profile, API key, `.p12`, and profile while GitHub discards the runner.
 
 Apple associates the uploaded build with the app record using its bundle ID,

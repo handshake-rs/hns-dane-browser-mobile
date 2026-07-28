@@ -10,6 +10,7 @@ API_KEY_PATH="${HNS_ASC_API_KEY_PATH:-}"
 DISTRIBUTION_P12_PATH="${HNS_IOS_DISTRIBUTION_P12_PATH:-}"
 DISTRIBUTION_P12_PASSWORD="${HNS_IOS_DISTRIBUTION_P12_PASSWORD:-}"
 APP_STORE_PROFILE_PATH="${HNS_IOS_APP_STORE_PROFILE_PATH:-}"
+IPA_OUTPUT_PATH="${HNS_IOS_IPA_OUTPUT_PATH:-}"
 IOS_SDK_VERSION="26.5"
 FRAMEWORK_PATH="$ROOT_DIR/build/apple/HnsBrowserRuntime.xcframework"
 
@@ -102,7 +103,9 @@ fi
 release_dir="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/hns-ios-release.XXXXXX")"
 archive_path="$release_dir/HnsDaneBrowser.xcarchive"
 export_path="$release_dir/export"
-export_options="$release_dir/ExportOptions.plist"
+ipa_export_path="$release_dir/ipa-export"
+ipa_export_options="$release_dir/IpaExportOptions.plist"
+upload_export_options="$release_dir/UploadExportOptions.plist"
 profile_plist="$release_dir/AppStoreProfile.plist"
 p12_leaf_cert="$release_dir/AppleDistribution.cer"
 keychain_path="$release_dir/signing.keychain-db"
@@ -240,7 +243,7 @@ signing_identities="$(security find-identity -v -p codesigning "$keychain_path")
   fail "the temporary keychain does not contain the expected signing identity."
 unset DISTRIBUTION_P12_PASSWORD HNS_IOS_DISTRIBUTION_P12_PASSWORD keychain_password
 
-cat >"$export_options" <<PLIST
+cat >"$upload_export_options" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -269,7 +272,40 @@ cat >"$export_options" <<PLIST
 </dict>
 </plist>
 PLIST
-plutil -lint "$export_options"
+plutil -lint "$upload_export_options"
+
+if [[ -n "$IPA_OUTPUT_PATH" ]]; then
+  cat >"$ipa_export_options" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>destination</key>
+  <string>export</string>
+  <key>manageAppVersionAndBuildNumber</key>
+  <false/>
+  <key>method</key>
+  <string>app-store-connect</string>
+  <key>signingStyle</key>
+  <string>manual</string>
+  <key>signingCertificate</key>
+  <string>Apple Distribution</string>
+  <key>provisioningProfiles</key>
+  <dict>
+    <key>$BUNDLE_ID</key>
+    <string>$profile_uuid</string>
+  </dict>
+  <key>stripSwiftSymbols</key>
+  <true/>
+  <key>teamID</key>
+  <string>$TEAM_ID</string>
+  <key>uploadSymbols</key>
+  <true/>
+</dict>
+</plist>
+PLIST
+  plutil -lint "$ipa_export_options"
+fi
 
 authentication_args=(
   -authenticationKeyPath "$API_KEY_PATH"
@@ -316,11 +352,33 @@ archived_encryption="$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEnc
 printf 'Verified archived app: %s %s (%s), icon %s.\n' \
   "$archived_bundle_id" "$archived_version" "$archived_build" "$archived_icon_name"
 
+if [[ -n "$IPA_OUTPUT_PATH" ]]; then
+  mkdir -p "$(dirname "$IPA_OUTPUT_PATH")"
+  rm -f -- "$IPA_OUTPUT_PATH"
+  xcodebuild \
+    -exportArchive \
+    -archivePath "$archive_path" \
+    -exportPath "$ipa_export_path" \
+    -exportOptionsPlist "$ipa_export_options" \
+    -allowProvisioningUpdates \
+    "${authentication_args[@]}"
+
+  shopt -s nullglob
+  exported_ipas=("$ipa_export_path"/*.ipa)
+  shopt -u nullglob
+  (( ${#exported_ipas[@]} == 1 )) ||
+    fail "the signed archive export produced ${#exported_ipas[@]} IPA files; expected exactly one."
+  cp "${exported_ipas[0]}" "$IPA_OUTPUT_PATH"
+  [[ -s "$IPA_OUTPUT_PATH" ]] ||
+    fail "the signed IPA was not retained at $IPA_OUTPUT_PATH."
+  printf 'Retained signed IPA for release publication: %s\n' "$IPA_OUTPUT_PATH"
+fi
+
 xcodebuild \
   -exportArchive \
   -archivePath "$archive_path" \
   -exportPath "$export_path" \
-  -exportOptionsPlist "$export_options" \
+  -exportOptionsPlist "$upload_export_options" \
   -allowProvisioningUpdates \
   "${authentication_args[@]}"
 
