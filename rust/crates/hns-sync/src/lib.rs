@@ -600,6 +600,35 @@ impl HeaderSyncRunner<TcpHeaderPeerConnector> {
         store: &SqlitePeerStore,
         now: u64,
     ) -> Result<HeaderSyncRunResult, SyncError> {
+        self.sync_once_parallel_and_persist_with_completion_time(
+            coordinator,
+            peers,
+            store,
+            now,
+            || now,
+        )
+    }
+
+    /// Runs one parallel sync while allowing the caller to timestamp the final
+    /// corroboration immediately before that network phase begins.
+    ///
+    /// A complete catch-up can span many bounded peer batches. Reusing the
+    /// sync-start timestamp for the final observations can therefore publish
+    /// evidence which is already near expiry. The ordinary API above retains a
+    /// deterministic fixed timestamp for tests and embedders; long-running
+    /// browser runtimes should supply a fresh clock through this method.
+    pub fn sync_once_parallel_and_persist_with_completion_time<S, F>(
+        &self,
+        coordinator: &mut HeaderSyncCoordinator<S>,
+        peers: &mut PeerManager,
+        store: &SqlitePeerStore,
+        now: u64,
+        completion_time: F,
+    ) -> Result<HeaderSyncRunResult, SyncError>
+    where
+        S: HeaderStore,
+        F: FnOnce() -> u64,
+    {
         self.probe_peers_parallel_and_persist(peers, store, now)?;
         let result = if self.config.parallel_header_fetch_peers > 1 {
             let prefetch =
@@ -613,10 +642,11 @@ impl HeaderSyncRunner<TcpHeaderPeerConnector> {
             .best_header()?
             .map(|header| header.height)
         {
+            let corroboration_started_at = completion_time().max(now);
             self.corroborate_peer_heights_at_tip_parallel_and_persist(
                 peers,
                 store,
-                now,
+                corroboration_started_at,
                 validated_tip,
             )?;
         }
@@ -2469,6 +2499,62 @@ mod tests {
         second_server.join().unwrap();
         third_server.join().unwrap();
         liar_server.join().unwrap();
+        cleanup_db_path(&path);
+    }
+
+    #[test]
+    fn parallel_sync_uses_fresh_time_for_final_corroboration() {
+        let path = temp_db_path("post-sync-fresh-time");
+        let (first, first_server) = spawn_probe_server(Height(0), Vec::new());
+        let (second, second_server) = spawn_probe_server(Height(0), Vec::new());
+        let (third, third_server) = spawn_probe_server(Height(0), Vec::new());
+        let mut coordinator = seeded_coordinator();
+        let mut peers = PeerManager::default();
+        peers.seed([first, second, third]);
+        let runner = HeaderSyncRunner::with_config(
+            network::mainnet(),
+            TcpHeaderPeerConnector,
+            HeaderSyncRunnerConfig {
+                preferred_peers: 0,
+                discover_peers: false,
+                parallel_peer_probes: 3,
+                timeout: Duration::from_secs(2),
+                ..permissive_runner_config()
+            },
+        );
+
+        {
+            let store = SqlitePeerStore::open(&path).unwrap();
+            runner
+                .sync_once_parallel_and_persist_with_completion_time(
+                    &mut coordinator,
+                    &mut peers,
+                    &store,
+                    1_000,
+                    || 1_275,
+                )
+                .unwrap();
+
+            for address in [first, second, third] {
+                assert_eq!(
+                    peers.get(address).unwrap().last_height_observed_at,
+                    Some(1_275)
+                );
+                assert_eq!(
+                    store
+                        .load_peer(address)
+                        .unwrap()
+                        .unwrap()
+                        .last_height_observed_at,
+                    Some(1_275)
+                );
+            }
+            store.flush().unwrap();
+        }
+
+        first_server.join().unwrap();
+        second_server.join().unwrap();
+        third_server.join().unwrap();
         cleanup_db_path(&path);
     }
 

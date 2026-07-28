@@ -4,7 +4,7 @@ Last audited: 2026-07-26
 
 ## Configured and Local Gates
 
-- The checked-in GitHub Actions workflow always runs a lightweight repository-policy and path-classification job, then selects the Rust, Android, and Apple gates affected by the complete change set. Shared Rust changes run all three gates; platform-only changes skip the opposing application shell; unknown paths and manual dispatches fail safe by selecting everything. Its permissions are read-only, release secrets are not provided, every non-local `uses:` reference is pinned to a full commit SHA, checkout credentials are not persisted, and concurrent runs on the same ref are cancelled. Historical evidence: the `0.4.1` code and build-policy tree passed every selected job in [run 29477163745](https://github.com/Denuo-Web/hns-dane-browser/actions/runs/29477163745). Actions was then restored to the repository's prior disabled state, so that pass does not validate `0.5.2` and CI is not an enforced merge gate.
+- The checked-in GitHub Actions workflow always runs a lightweight repository-policy and path-classification job, then selects the Rust, Android, and Apple gates affected by the complete change set. Shared Rust changes run all three gates; platform-only changes skip the opposing application shell; unknown paths and manual dispatches fail safe by selecting everything. Its permissions are read-only, release secrets are not provided, every non-local `uses:` reference is pinned to a full commit SHA, checkout credentials are not persisted, and concurrent runs on the same ref are cancelled. Historical evidence: the `0.4.1` code and build-policy tree passed every selected job in [run 29477163745](https://github.com/Denuo-Web/hns-dane-browser/actions/runs/29477163745). Actions was then restored to the repository's prior disabled state, so that pass does not validate `0.5.3` and CI is not an enforced merge gate.
 - Dependabot watches GitHub Actions, Gradle, and all three Cargo lockfile roots weekly.
 - Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums; the only locked Git packages are the five exact-revision engine exceptions detailed below.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
@@ -18,14 +18,14 @@ Last audited: 2026-07-26
 
 ## Audit Results
 
-### Current `0.5.2` Candidate
+### Current `0.5.3` Candidate
 
-- Android declares `0.5.2` / code 42, the shared Rust workspace declares `0.5.2`, and iOS declares `0.5.2` / build 46. This is not a metadata-only release: it adds generation-bound explicit recursive HNS DoH recovery, independent native consent controls, a permanent legacy-key tombstone, endpoint/bootstrap constraints, and new status provenance.
+- Android declares `0.5.3` / code 43, the shared Rust workspace declares `0.5.3`, and iOS declares `0.5.3` / build 47. This is not a metadata-only release: it adds generation-bound explicit recursive HNS DoH recovery, independent native consent controls, a permanent legacy-key tombstone, endpoint/bootstrap constraints, and new status provenance.
 - The five engine crates are pinned to reviewed immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
 - The complete portable `scripts/check.sh` gate is pending after that final pin. The preceding `0.5.1` pass is historical evidence only.
 - Android Gradle build/lint and artifact gates and Apple XCTest/archive validation remain required for the exact candidate.
 - Hosted path-policy, Rust, cold-cache Android, Apple, and required-result jobs are pending for the exact candidate commit.
-- No signed `0.5.2` APK/AAB exists yet. Release signing, bundle verification, device acceptance, and Play upload remain intentional external gates.
+- No signed `0.5.3` APK/AAB exists yet. Release signing, bundle verification, device acceptance, and Play upload remain intentional external gates.
 
 ### Historical `0.5.0` Evidence
 
@@ -35,7 +35,7 @@ Last audited: 2026-07-26
 - The upload-signed code 40 APK used the established RSA-4096 signer, passed APK Signature Scheme v2 and 16 KiB ZIP alignment, and had SHA-256 `bff5ba468b0c5ad2d134603127f089ad6fdc9e9b5ceab921825e570cfefd60fb`.
 - The upload-signed AAB passed content-signature, ABI, 16 KiB ELF-alignment, hardening, stripping, matching-symbol, local-path, mapping, and notices gates and had SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0`.
 - The separate debug test APK used package `com.denuoweb.hnsdane.relaytest`, version `0.5.0-relay-test` / code 40, and SHA-256 `019aeb82b84de878716637fd053321a4590e0c384de3010e885af7e154803990`.
-- Those artifacts predate the current source and do not validate or identify the `0.5.2` candidate.
+- Those artifacts predate the current source and do not validate or identify the `0.5.3` candidate.
 
 ### Historical `0.4.1` Evidence
 

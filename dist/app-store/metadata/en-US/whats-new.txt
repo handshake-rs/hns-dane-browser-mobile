@@ -1,1 +1,1 @@
-Adds independently optional requester-only P2P relay and user-configured recursive HNS DoH recovery for intercepted networks. Both remain off until chosen, and all recovered answers still require local proof, DNSSEC, TLSA, and DANE validation.
+Keeps browsing responsive during validated Handshake header sync, publishes header and peer state atomically, and adds a hardened owner-recovery page for confirmed DNS interception.

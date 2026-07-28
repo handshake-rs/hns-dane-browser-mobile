@@ -662,6 +662,9 @@ impl SqlitePeerStore {
 
     fn initialize(&self) -> Result<(), P2pError> {
         self.connection
+            .busy_timeout(Duration::from_secs(5))
+            .map_err(sqlite_error)?;
+        self.connection
             .execute_batch(
                 "
                 PRAGMA journal_mode = WAL;
@@ -681,6 +684,11 @@ impl SqlitePeerStore {
 
                 CREATE INDEX IF NOT EXISTS peers_score_height
                     ON peers(score, last_height);
+
+                CREATE TABLE IF NOT EXISTS peer_state_metadata (
+                    key TEXT PRIMARY KEY NOT NULL,
+                    value TEXT NOT NULL
+                );
                 ",
             )
             .map_err(sqlite_error)?;
@@ -717,50 +725,78 @@ impl SqlitePeerStore {
     }
 
     pub fn save_peer(&self, peer: &PeerState) -> Result<(), P2pError> {
-        self.connection
-            .execute(
-                "
-                INSERT INTO peers(
-                    address,
-                    score,
-                    last_height,
-                    last_height_observed_at,
-                    last_connected_at,
-                    banned_until,
-                    successes,
-                    failures
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                ON CONFLICT(address) DO UPDATE SET
-                    score = excluded.score,
-                    last_height = excluded.last_height,
-                    last_height_observed_at = excluded.last_height_observed_at,
-                    last_connected_at = excluded.last_connected_at,
-                    banned_until = excluded.banned_until,
-                    successes = excluded.successes,
-                    failures = excluded.failures
-                ",
-                params![
-                    peer.address.to_string(),
-                    peer.score,
-                    i64::from(peer.last_height.0),
-                    optional_u64_to_text(peer.last_height_observed_at),
-                    optional_u64_to_text(peer.last_connected_at),
-                    optional_u64_to_text(peer.banned_until),
-                    i64::from(peer.successes),
-                    i64::from(peer.failures),
-                ],
-            )
-            .map_err(sqlite_error)?;
+        save_peer_to_connection(&self.connection, peer)?;
         Ok(())
     }
 
     pub fn save_manager(&self, manager: &PeerManager) -> Result<usize, P2pError> {
+        let transaction = self
+            .connection
+            .unchecked_transaction()
+            .map_err(sqlite_error)?;
         let mut saved = 0usize;
         for peer in manager.iter() {
-            self.save_peer(peer)?;
+            save_peer_to_connection(&transaction, peer)?;
             saved = saved.saturating_add(1);
         }
+        transaction.commit().map_err(sqlite_error)?;
+        Ok(saved)
+    }
+
+    /// Returns the generation shared with the canonical header snapshot.
+    ///
+    /// Databases created before coordinated publication have no metadata row
+    /// and are generation zero.
+    pub fn sync_generation(&self) -> Result<u64, P2pError> {
+        let value = self
+            .connection
+            .query_row(
+                "SELECT value FROM peer_state_metadata WHERE key = 'sync_generation'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(sqlite_error)?;
+        value
+            .map(|value| {
+                value.parse::<u64>().map_err(|_| {
+                    P2pError::Storage("peer sync generation is not a valid u64".to_owned())
+                })
+            })
+            .transpose()
+            .map(Option::unwrap_or_default)
+    }
+
+    /// Replaces the complete peer snapshot and its matching header generation
+    /// in one SQLite transaction.
+    pub fn replace_manager_with_sync_generation(
+        &self,
+        manager: &PeerManager,
+        generation: u64,
+    ) -> Result<usize, P2pError> {
+        let transaction = self
+            .connection
+            .unchecked_transaction()
+            .map_err(sqlite_error)?;
+        transaction
+            .execute("DELETE FROM peers", [])
+            .map_err(sqlite_error)?;
+        let mut saved = 0usize;
+        for peer in manager.iter() {
+            save_peer_to_connection(&transaction, peer)?;
+            saved = saved.saturating_add(1);
+        }
+        transaction
+            .execute(
+                "
+                INSERT INTO peer_state_metadata(key, value)
+                VALUES ('sync_generation', ?1)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                ",
+                params![generation.to_string()],
+            )
+            .map_err(sqlite_error)?;
+        transaction.commit().map_err(sqlite_error)?;
         Ok(saved)
     }
 
@@ -833,6 +869,45 @@ impl SqlitePeerStore {
             .close()
             .map_err(|(_, error)| sqlite_error(error))
     }
+}
+
+fn save_peer_to_connection(connection: &Connection, peer: &PeerState) -> Result<(), P2pError> {
+    connection
+        .execute(
+            "
+            INSERT INTO peers(
+                address,
+                score,
+                last_height,
+                last_height_observed_at,
+                last_connected_at,
+                banned_until,
+                successes,
+                failures
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ON CONFLICT(address) DO UPDATE SET
+                score = excluded.score,
+                last_height = excluded.last_height,
+                last_height_observed_at = excluded.last_height_observed_at,
+                last_connected_at = excluded.last_connected_at,
+                banned_until = excluded.banned_until,
+                successes = excluded.successes,
+                failures = excluded.failures
+            ",
+            params![
+                peer.address.to_string(),
+                peer.score,
+                i64::from(peer.last_height.0),
+                optional_u64_to_text(peer.last_height_observed_at),
+                optional_u64_to_text(peer.last_connected_at),
+                optional_u64_to_text(peer.banned_until),
+                i64::from(peer.successes),
+                i64::from(peer.failures),
+            ],
+        )
+        .map_err(sqlite_error)?;
+    Ok(())
 }
 
 fn row_to_peer_state(row: &rusqlite::Row<'_>) -> rusqlite::Result<PeerState> {
@@ -2140,6 +2215,38 @@ mod tests {
         }
 
         cleanup_db_path(&path);
+    }
+
+    #[test]
+    fn sqlite_peer_store_replaces_manager_and_generation_atomically() {
+        let store = SqlitePeerStore::in_memory().unwrap();
+        let removed: SocketAddr = "127.0.0.1:12038".parse().unwrap();
+        let retained: SocketAddr = "127.0.0.2:12038".parse().unwrap();
+        let added: SocketAddr = "127.0.0.3:12038".parse().unwrap();
+        let mut initial = PeerManager::default();
+        initial.record_success(removed, Height(41), 700);
+        initial.record_success(retained, Height(42), 700);
+
+        assert_eq!(store.sync_generation().unwrap(), 0);
+        store.save_manager(&initial).unwrap();
+
+        let mut replacement = PeerManager::default();
+        replacement.record_success(retained, Height(43), 800);
+        replacement.record_success(added, Height(43), 800);
+        assert_eq!(
+            store
+                .replace_manager_with_sync_generation(&replacement, 9)
+                .unwrap(),
+            2
+        );
+
+        assert_eq!(store.sync_generation().unwrap(), 9);
+        assert!(store.load_peer(removed).unwrap().is_none());
+        assert_eq!(
+            store.load_peer(retained).unwrap().unwrap().last_height,
+            Height(43)
+        );
+        assert_eq!(store.load_manager().unwrap().len(), 2);
     }
 
     #[test]

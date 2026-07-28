@@ -2,7 +2,7 @@
 
 Last audited: 2026-07-26
 
-This audit treats the repository as a candidate update to an existing public Google Play app, not as a first closed-testing launch. The live listing observed during the prior audit served version `0.3.1` (`versionCode 22`), while the current source declares Android `0.5.2` (`versionCode 42`) with Rust engine `0.5.2` and iOS `0.5.2` (`46`). The explicit recursive-recovery policy and migration changes made after the last signed build require fresh portable gates, APK/AAB generation, artifact verification, hosted CI, and exact-build release-device verification. Previously recorded `0.5.1`, `0.5.0`, and `0.4.1` results are historical evidence only and do not identify the current source checkpoint.
+This audit treats the repository as a candidate update to an existing public Google Play app, not as a first closed-testing launch. The live listing observed during the prior audit served version `0.3.1` (`versionCode 22`), while the current source declares Android `0.5.3` (`versionCode 43`) with Rust engine `0.5.3` and iOS `0.5.3` (`47`). The explicit recursive-recovery policy and migration changes made after the last signed build require fresh portable gates, APK/AAB generation, artifact verification, hosted CI, and exact-build release-device verification. Previously recorded `0.5.1`, `0.5.0`, and `0.4.1` results are historical evidence only and do not identify the current source checkpoint.
 
 ## Release Candidate Findings
 
@@ -16,7 +16,7 @@ This audit treats the repository as a candidate update to an existing public Goo
 | Cleartext policy | Ready | Cleartext is disabled globally with a loopback-only exception for the local gateway. User-selected HTTP and direct DNS/HNS traffic are accurately disclosed, but ordinary open-web and user-initiated transfers are outside Google Play's Data safety collection/sharing scope. |
 | WebView hardening | Ready | Mixed content is blocked, Safe Browsing is enabled, file/content access is disabled, native JavaScript bridges are removed, WebView debugging follows `BuildConfig.DEBUG`, and browser-wide loopback proxying sends every canonical DNS host to exact per-origin Rust dual-root preparation. |
 | Privacy controls | Improved | Settings can clear cookies plus WebView origin storage, and the diagnostics UI can clear the bounded gateway event log. The repository and in-app disclosures now describe WebView-provider Safe Browsing and these local retention controls. |
-| Build supply chain | Fresh `0.5.2` gates pending | The prior `0.5.1` portable source gates are historical only. Locked tests, warning-denied Clippy, formatting, Apple C ABI/header/symbol checks, runtime/version boundaries, generated notices, store metadata, and supply-chain verification must be rerun after the final exact engine revision is pinned. Android and Apple platform qualification remain separate gates. |
+| Build supply chain | Fresh `0.5.3` gates pending | The prior `0.5.1` portable source gates are historical only. Locked tests, warning-denied Clippy, formatting, Apple C ABI/header/symbol checks, runtime/version boundaries, generated notices, store metadata, and supply-chain verification must be rerun after the final exact engine revision is pinned. Android and Apple platform qualification remain separate gates. |
 | 16 KiB / native symbols | Historical pass; rebuild required | Earlier JNI libraries passed PT_LOAD alignment, hardening, stripping, Build ID, matching FULL debug metadata, path sanitization, and signed-APK ZIP alignment. Rebuild and repeat those checks because the current Rust source differs. |
 | Release-device acceptance | Pending for the next build | Install the exact signed APK and exercise cold launch, permanent tombstoning of the historical resolver key, blank/off recovery default, independent requester opt-in, configured-recursive validation and interception-only eligibility, verified manual-peer persistence, fail-closed bogus/invalid/stale cases, and dual-root HNS/ICANN/DNSSEC/DANE/WebPKI browsing. Historical only: the signed `0.4.1` APK upgraded and cold-launched successfully on the Pixel 9 after its shared-runtime device matrix passed. |
 | Data collection posture | Repository review updated; live-form reconciliation required | No ads, analytics SDKs, developer accounts, sensitive permissions, advertising ID access, or developer telemetry endpoint was found. The policy now records that a relay peer receives the DNS name/type and source network address needed for the request. Retain the live `No collected / No shared` posture only after reconciling the current Play definitions and WebView-provider Safe Browsing guidance. |
@@ -50,18 +50,18 @@ This audit treats the repository as a candidate update to an existing public Goo
 
 ## Candidate Verification Status
 
-- `0.5.2` / code 42 portable source checks: pending after the final exact shared-engine pin.
-- `0.5.2` / code 42 Android unit tests, lint, and artifact gates: pending.
-- `0.5.2` / build 46 Apple XCTest/simulator qualification: pending on macOS/Xcode.
-- `0.5.2` hosted CI checks: pending.
-- `0.5.2` signed APK/AAB verification and hashes: no candidate artifacts yet; current-source rebuild pending.
-- `0.5.2` exact signed-build physical-device acceptance: pending.
+- `0.5.3` / code 43 portable source checks: pending after the final exact shared-engine pin.
+- `0.5.3` / code 43 Android unit tests, lint, and artifact gates: pending.
+- `0.5.3` / build 47 Apple XCTest/simulator qualification: pending on macOS/Xcode.
+- `0.5.3` hosted CI checks: pending.
+- `0.5.3` signed APK/AAB verification and hashes: no candidate artifacts yet; current-source rebuild pending.
+- `0.5.3` exact signed-build physical-device acceptance: pending.
 
 The complete `scripts/check.sh` gate passed for the preceding `0.5.1` source on
 2026-07-26, including supply-chain, generated-notice, version, runtime-boundary,
 formatting, warning-denied Clippy, Apple C ABI, cargo-deny, full Rust workspace
 tests, fuzz smoke, and header-snapshot-exporter checks. That pass does not
-validate the current `0.5.2` changes.
+validate the current `0.5.3` changes.
 
 ## Historical `0.4.1` Evidence
 
@@ -77,4 +77,4 @@ validate the current `0.5.2` changes.
 - Release AAB signing and Play upload remain secret-dependent external operations. CI should build and structurally verify an unsigned release bundle without receiving signing or Play credentials.
 - General-purpose browsing can reach arbitrary third-party content; keep target audience and content rating conservative and consistent with the live listing.
 - Re-review the accepted hosted policy, repository policy, in-app privacy copy, and live Data safety answers whenever a material networking, storage, diagnostics, or third-party-service behavior changes.
-- The hosted policy accepted for the historical release is now materially less complete than the `0.5.2` repository disclosure and must be updated before submission.
+- The hosted policy accepted for the historical release is now materially less complete than the `0.5.3` repository disclosure and must be updated before submission.

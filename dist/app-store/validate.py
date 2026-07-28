@@ -18,8 +18,8 @@ SCREENSHOT_ROOT = STORE_ROOT / "screenshots" / "en-US"
 SCREENSHOT_MANIFEST = STORE_ROOT / "screenshots" / "manifest.json"
 REPOSITORY_ROOT = STORE_ROOT.parent.parent
 
-EXPECTED_VERSION = "0.5.2"
-EXPECTED_BUILD = "46"
+EXPECTED_VERSION = "0.5.3"
+EXPECTED_BUILD = "47"
 
 APP_ICON_SET = (
     REPOSITORY_ROOT
@@ -274,7 +274,7 @@ def validate_metadata(validation):
 
     if values.get("whats-new.txt", ""):
         validation.warn(
-            "whats-new.txt is a future-update draft; do not enter it for version 0.5.2"
+            "whats-new.txt is a future-update draft; do not enter it for version 0.5.3"
         )
     return values
 

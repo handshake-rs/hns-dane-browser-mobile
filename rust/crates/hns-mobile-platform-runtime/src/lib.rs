@@ -18,7 +18,9 @@ use hns_browser_runtime::{
     AuthorityState, BrowserRuntime as CanonicalAuthorityRuntime,
     RuntimeSessionId as CanonicalRuntimeSessionId, RuntimeStamp,
 };
-use hns_chain::{DifficultyPolicy, HeaderChain, SqliteHeaderStore, mainnet_sync_checkpoints};
+use hns_chain::{
+    DifficultyPolicy, HeaderChain, HeaderStore, SqliteHeaderStore, mainnet_sync_checkpoints,
+};
 use hns_core::dns::{
     DnsEncodeConfig, DnsFlags, DnsHeader, DnsMessage, DnsName, DnsQuestion, RecordType,
     ResourceRecord, SVCB_PARAM_MANDATORY, SVCB_PARAM_NO_DEFAULT_ALPN, SvcbRecord,
@@ -91,8 +93,8 @@ use hns_urkel::UrkelProofVerifier;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
-use std::fs;
-use std::io::{Error, ErrorKind, Read, Write};
+use std::fs::{self, File, OpenOptions, TryLockError as FileTryLockError};
+use std::io::{Error, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, UdpSocket};
 use std::num::NonZeroU16;
 use std::path::{Path, PathBuf};
@@ -110,6 +112,12 @@ pub const MAX_GATEWAY_HEADER_TEXT_BYTES: usize = 64 * 1024;
 pub const MAX_BROWSER_PROXY_RESOLUTION_TRACE_JSON_BYTES: usize = 64 * 1024;
 const MAX_STATIC_RELAY_PEER_ENDPOINT_BYTES: usize = 320;
 pub const MAX_HNS_DOH_RECOVERY_URL_BYTES: usize = 2 * 1024;
+static HEADER_SYNC_STAGE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const HEADER_STATE_RECORD_MAGIC: &[u8; 8] = b"HNSHS01\0";
+const HEADER_STATE_RECORD_BYTES: usize = 58;
+const HEADER_STATE_UPDATING: u8 = 0;
+const HEADER_STATE_READY: u8 = 1;
+const HEADER_SYNC_STAGE_STALE_AFTER_SECONDS: u64 = 24 * 60 * 60;
 
 /// Legacy diagnostic classification retained for compatibility.
 ///
@@ -1452,6 +1460,9 @@ struct RuntimeCoordination {
     sync_lock: Mutex<()>,
     maintenance: RwLock<()>,
     maintenance_epoch: AtomicU64,
+    header_state_base: PathBuf,
+    header_state_lock_path: PathBuf,
+    header_sync_lock_path: PathBuf,
     peer_state: Arc<Mutex<()>>,
     relay: SharedDnsRelayState,
 }
@@ -1461,12 +1472,222 @@ struct MaintenanceEpoch(u64);
 
 struct ProxyMaintenanceGuard<'a> {
     _guard: RwLockReadGuard<'a, ()>,
+    _header_state_lock: HeaderStateFileLock,
     epoch: MaintenanceEpoch,
+    storage_identity: HeaderSyncStorageIdentity,
 }
 
 impl ProxyMaintenanceGuard<'_> {
     fn epoch(&self) -> MaintenanceEpoch {
         self.epoch
+    }
+
+    fn storage_identity(&self) -> HeaderSyncStorageIdentity {
+        self.storage_identity
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct HeaderSyncStorageIdentity {
+    header_generation: u64,
+    peer_generation: u64,
+    best_hash: Option<hns_core::Hash>,
+}
+
+struct HeaderStateFileLock {
+    file: File,
+}
+
+impl HeaderStateFileLock {
+    fn shared(path: &Path) -> Result<Self, String> {
+        let file = open_header_state_lock_file(path)?;
+        file.lock_shared()
+            .map_err(|error| format!("acquire shared header-state lock: {error}"))?;
+        Ok(Self { file })
+    }
+
+    fn exclusive(path: &Path) -> Result<Self, String> {
+        let file = open_header_state_lock_file(path)?;
+        file.lock()
+            .map_err(|error| format!("acquire exclusive header-state lock: {error}"))?;
+        Ok(Self { file })
+    }
+
+    fn try_shared(path: &Path) -> Result<Option<Self>, String> {
+        let file = open_header_state_lock_file(path)?;
+        match file.try_lock_shared() {
+            Ok(()) => Ok(Some(Self { file })),
+            Err(FileTryLockError::WouldBlock) => Ok(None),
+            Err(FileTryLockError::Error(error)) => {
+                Err(format!("try shared header-state lock: {error}"))
+            }
+        }
+    }
+
+    fn ready_identity(&mut self) -> Result<HeaderSyncStorageIdentity, String> {
+        let record = read_header_state_record(&mut self.file)?;
+        match record {
+            HeaderStateRecord::Ready(identity) => Ok(identity),
+            HeaderStateRecord::Updating => Err("header-state publication is incomplete".to_owned()),
+        }
+    }
+
+    fn mark_updating(&mut self) -> Result<(), String> {
+        write_header_state_record(&mut self.file, HeaderStateRecord::Updating)
+    }
+
+    fn mark_ready(&mut self, identity: HeaderSyncStorageIdentity) -> Result<(), String> {
+        write_header_state_record(&mut self.file, HeaderStateRecord::Ready(identity))
+    }
+}
+
+impl Drop for HeaderStateFileLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock();
+    }
+}
+
+fn open_header_state_lock_file(path: &Path) -> Result<File, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "header-state lock path has no parent".to_owned())?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("create header-state lock directory: {error}"))?;
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options
+        .open(path)
+        .map_err(|error| format!("open header-state lock file: {error}"))
+}
+
+fn peer_state_lock_path(peer_store_path: &Path) -> Result<PathBuf, String> {
+    peer_store_path
+        .parent()
+        .map(|parent| parent.join(".peer-state.lock"))
+        .ok_or_else(|| "peer-store path has no parent".to_owned())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HeaderStateRecord {
+    Updating,
+    Ready(HeaderSyncStorageIdentity),
+}
+
+fn read_header_state_record(file: &mut File) -> Result<HeaderStateRecord, String> {
+    let length = file
+        .metadata()
+        .map_err(|error| format!("inspect header-state record: {error}"))?
+        .len();
+    if length != HEADER_STATE_RECORD_BYTES as u64 {
+        return Err("header-state record has an invalid length".to_owned());
+    }
+    let mut encoded = [0_u8; HEADER_STATE_RECORD_BYTES];
+    file.seek(SeekFrom::Start(0))
+        .and_then(|_| file.read_exact(&mut encoded))
+        .map_err(|error| format!("read header-state record: {error}"))?;
+    if &encoded[..8] != HEADER_STATE_RECORD_MAGIC {
+        return Err("header-state record has an invalid magic value".to_owned());
+    }
+    match encoded[8] {
+        HEADER_STATE_UPDATING => Ok(HeaderStateRecord::Updating),
+        HEADER_STATE_READY => {
+            let header_generation = u64::from_le_bytes(
+                encoded[9..17]
+                    .try_into()
+                    .map_err(|_| "header-state header generation is malformed".to_owned())?,
+            );
+            let peer_generation = u64::from_le_bytes(
+                encoded[17..25]
+                    .try_into()
+                    .map_err(|_| "header-state peer generation is malformed".to_owned())?,
+            );
+            let best_hash = match encoded[25] {
+                0 => None,
+                1 => Some(
+                    hns_core::Hash::from_slice(&encoded[26..58])
+                        .map_err(|error| format!("decode header-state best hash: {error}"))?,
+                ),
+                _ => return Err("header-state best-hash marker is invalid".to_owned()),
+            };
+            Ok(HeaderStateRecord::Ready(HeaderSyncStorageIdentity {
+                header_generation,
+                peer_generation,
+                best_hash,
+            }))
+        }
+        _ => Err("header-state record has an invalid state".to_owned()),
+    }
+}
+
+fn write_header_state_record(file: &mut File, record: HeaderStateRecord) -> Result<(), String> {
+    let mut encoded = [0_u8; HEADER_STATE_RECORD_BYTES];
+    encoded[..8].copy_from_slice(HEADER_STATE_RECORD_MAGIC);
+    match record {
+        HeaderStateRecord::Updating => {
+            encoded[8] = HEADER_STATE_UPDATING;
+        }
+        HeaderStateRecord::Ready(identity) => {
+            encoded[8] = HEADER_STATE_READY;
+            encoded[9..17].copy_from_slice(&identity.header_generation.to_le_bytes());
+            encoded[17..25].copy_from_slice(&identity.peer_generation.to_le_bytes());
+            if let Some(best_hash) = identity.best_hash {
+                encoded[25] = 1;
+                encoded[26..58].copy_from_slice(best_hash.as_bytes());
+            }
+        }
+    }
+    file.set_len(0)
+        .and_then(|_| file.seek(SeekFrom::Start(0)))
+        .and_then(|_| file.write_all(&encoded))
+        .and_then(|_| file.sync_all())
+        .map_err(|error| format!("write header-state record: {error}"))
+}
+
+fn read_header_sync_storage_identity(base: &Path) -> Result<HeaderSyncStorageIdentity, String> {
+    let header_store = SqliteHeaderStore::open(base.join("headers.sqlite"))
+        .map_err(|error| format!("open header store for storage identity: {error}"))?;
+    let header_generation = header_store
+        .sync_generation()
+        .map_err(|error| format!("read header sync generation: {error}"))?;
+    let best_hash = header_store.best_hash();
+    let peer_store = SqlitePeerStore::open(base.join("peers.sqlite"))
+        .map_err(|error| format!("open peer store for storage identity: {error}"))?;
+    let peer_generation = peer_store
+        .sync_generation()
+        .map_err(|error| format!("read peer sync generation: {error}"))?;
+    Ok(HeaderSyncStorageIdentity {
+        header_generation,
+        peer_generation,
+        best_hash,
+    })
+}
+
+fn initialize_header_state_record(base: &Path, lock_path: &Path) -> Result<(), String> {
+    let mut lock = HeaderStateFileLock::exclusive(lock_path)?;
+    let live_identity = read_header_sync_storage_identity(base)?;
+    let record_was_empty = lock
+        .file
+        .metadata()
+        .map_err(|error| format!("inspect header-state record: {error}"))?
+        .len()
+        == 0;
+    let existing = read_header_state_record(&mut lock.file);
+    match existing {
+        Ok(HeaderStateRecord::Ready(identity)) if identity == live_identity => Ok(()),
+        Ok(HeaderStateRecord::Updating) => Ok(()),
+        Err(_) if record_was_empty => {
+            if live_identity.header_generation == live_identity.peer_generation {
+                lock.mark_ready(live_identity)
+            } else {
+                lock.mark_updating()
+            }
+        }
+        Ok(HeaderStateRecord::Ready(_)) | Err(_) => lock.mark_updating(),
     }
 }
 
@@ -1522,10 +1743,16 @@ fn runtime_coordination(base: &Path) -> Result<Arc<RuntimeCoordination>, Runtime
     if let Some(coordination) = registry.get(&identity).and_then(Weak::upgrade) {
         return Ok(coordination);
     }
+    let header_state_lock_path = identity.join(".header-state.lock");
+    initialize_header_state_record(&identity, &header_state_lock_path)
+        .map_err(RuntimeError::Operation)?;
     let coordination = Arc::new(RuntimeCoordination {
         sync_lock: Mutex::new(()),
         maintenance: RwLock::new(()),
         maintenance_epoch: AtomicU64::new(1),
+        header_state_base: identity.clone(),
+        header_state_lock_path,
+        header_sync_lock_path: identity.join(".header-sync.lock"),
         peer_state: Arc::new(Mutex::new(())),
         relay: SharedDnsRelayState {
             client: Arc::new(Mutex::new(None)),
@@ -1570,6 +1797,12 @@ impl BrowserRuntime {
         let base = network_base_path(&data_dir, configuration.network);
         fs::create_dir_all(&base).map_err(|error| {
             RuntimeError::Operation(format!("create runtime directory: {error}"))
+        })?;
+        let initialized_header_store = open_initialized_header_chain(&base, configuration.network)
+            .map_err(RuntimeError::Operation)?
+            .into_store();
+        initialized_header_store.flush().map_err(|error| {
+            RuntimeError::Operation(format!("close initialized chain: {error}"))
         })?;
         let coordination = runtime_coordination(&base)?;
         let proxy_session = ProxySessionId::generate()
@@ -2386,27 +2619,166 @@ impl BrowserRuntime {
             .sync_lock
             .lock()
             .map_err(|_| RuntimeError::Synchronization("sync lock"))?;
+        let mut observed_header_state =
+            HeaderStateFileLock::shared(&self.inner.coordination.header_state_lock_path)
+                .map_err(RuntimeError::Operation)?;
+        let observed_identity =
+            read_header_sync_storage_identity(&self.inner.coordination.header_state_base)
+                .map_err(RuntimeError::Operation)?;
+        let observed_recorded_identity = observed_header_state.ready_identity().ok();
+        let observed_status =
+            read_sync_status(&self.inner.data_dir, self.inner.configuration.network).ok();
+        drop(observed_header_state);
+
+        let _process_sync =
+            HeaderStateFileLock::exclusive(&self.inner.coordination.header_sync_lock_path)
+                .map_err(RuntimeError::Operation)?;
+        let mut header_state_lock =
+            HeaderStateFileLock::shared(&self.inner.coordination.header_state_lock_path)
+                .map_err(RuntimeError::Operation)?;
+        let current_identity =
+            read_header_sync_storage_identity(&self.inner.coordination.header_state_base)
+                .map_err(RuntimeError::Operation)?;
+        let recorded_identity = header_state_lock.ready_identity().ok();
+        let mut current_status =
+            read_sync_status(&self.inner.data_dir, self.inner.configuration.network)
+                .map_err(RuntimeError::Operation)?;
+        let another_process_refreshed = current_identity != observed_identity
+            || target_evidence_deadline_advanced(
+                observed_status
+                    .as_ref()
+                    .and_then(|status| status.target_evidence_valid_until_unix),
+                current_status.target_evidence_valid_until_unix,
+            )
+            || (observed_recorded_identity != Some(observed_identity)
+                && recorded_identity == Some(current_identity));
+        if another_process_refreshed
+            && Some(current_identity) == recorded_identity
+            && current_status.freshness == "current"
+            && !current_status.target_evidence_expired
+        {
+            current_status.status = "coalesced";
+            return Ok(current_status);
+        }
+        drop(header_state_lock);
+
+        let staged = prepare_header_sync_stage(
+            &self.inner.data_dir,
+            self.inner.configuration.network,
+            &self.inner.coordination,
+        )
+        .map_err(RuntimeError::Operation)?;
+        let staged_status = run_sync_once(
+            staged.data_dir()?,
+            self.inner.configuration.network,
+            self.inner.configuration.sync.seed_peers,
+            self.inner.configuration.sync.timeout,
+            self.inner.configuration.sync.resource_cache_limit_bytes,
+        )
+        .map_err(RuntimeError::Operation)?;
+
+        if staged_status.freshness == "current"
+            && !staged_status.target_evidence_expired
+            && staged_headers_match_baseline(&staged, self.inner.configuration.network)
+                .map_err(RuntimeError::Operation)?
+        {
+            let _maintenance = self
+                .inner
+                .coordination
+                .maintenance
+                .read()
+                .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+            let mut header_state_lock =
+                HeaderStateFileLock::shared(&self.inner.coordination.header_state_lock_path)
+                    .map_err(RuntimeError::Operation)?;
+            let live_identity =
+                read_header_sync_storage_identity(&self.inner.coordination.header_state_base)
+                    .map_err(RuntimeError::Operation)?;
+            let recorded_identity = header_state_lock.ready_identity().ok();
+            if live_identity != staged.baseline_storage_identity {
+                return Err(RuntimeError::Operation(format!(
+                    "header sync stage was superseded before peer refresh \
+                     (baseline {baseline:?}, live {live_identity:?}, record {recorded_identity:?})",
+                    baseline = staged.baseline_storage_identity,
+                )));
+            }
+            if recorded_identity == Some(live_identity) {
+                let _peer_state = self
+                    .inner
+                    .coordination
+                    .peer_state
+                    .lock()
+                    .map_err(|_| RuntimeError::Synchronization("peer state lock"))?;
+                let peer_store_path = self
+                    .inner
+                    .coordination
+                    .header_state_base
+                    .join("peers.sqlite");
+                let process_peer_state_path =
+                    peer_state_lock_path(&peer_store_path).map_err(RuntimeError::Operation)?;
+                let _process_peer_state = HeaderStateFileLock::exclusive(&process_peer_state_path)
+                    .map_err(RuntimeError::Operation)?;
+                return publish_peer_only_sync_stage(
+                    &self.inner.data_dir,
+                    &staged,
+                    self.inner.configuration.network,
+                    staged_status,
+                )
+                .map_err(RuntimeError::Operation);
+            }
+        }
+
         let maintenance = self
             .inner
             .coordination
             .maintenance
             .write()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
-        self.inner.coordination.begin_maintenance(&maintenance)?;
+        let mut header_state_lock =
+            HeaderStateFileLock::exclusive(&self.inner.coordination.header_state_lock_path)
+                .map_err(RuntimeError::Operation)?;
+        let live_identity =
+            read_header_sync_storage_identity(&self.inner.coordination.header_state_base)
+                .map_err(RuntimeError::Operation)?;
+        if live_identity != staged.baseline_storage_identity {
+            return Err(RuntimeError::Operation(
+                "header sync stage was superseded by another process before publication".to_owned(),
+            ));
+        }
         let _peer_state = self
             .inner
             .coordination
             .peer_state
             .lock()
             .map_err(|_| RuntimeError::Synchronization("peer state lock"))?;
-        run_sync_once(
+        let peer_store_path = self
+            .inner
+            .coordination
+            .header_state_base
+            .join("peers.sqlite");
+        let process_peer_state_path =
+            peer_state_lock_path(&peer_store_path).map_err(RuntimeError::Operation)?;
+        let _process_peer_state = HeaderStateFileLock::exclusive(&process_peer_state_path)
+            .map_err(RuntimeError::Operation)?;
+        header_state_lock
+            .mark_updating()
+            .map_err(RuntimeError::Operation)?;
+        self.inner.coordination.begin_maintenance(&maintenance)?;
+        let status = publish_header_sync_stage(
             &self.inner.data_dir,
+            &staged,
             self.inner.configuration.network,
-            self.inner.configuration.sync.seed_peers,
-            self.inner.configuration.sync.timeout,
             self.inner.configuration.sync.resource_cache_limit_bytes,
+            staged_status,
         )
-        .map_err(RuntimeError::Operation)
+        .map_err(RuntimeError::Operation)?;
+        let published_identity =
+            read_header_sync_storage_identity(&self.inner.coordination.header_state_base)
+                .map_err(RuntimeError::Operation)?;
+        header_state_lock
+            .mark_ready(published_identity)
+            .map_err(RuntimeError::Operation)?;
+        Ok(status)
     }
 
     pub fn sync_status(&self) -> Result<SyncStatus, RuntimeError> {
@@ -2416,6 +2788,7 @@ impl BrowserRuntime {
             .maintenance
             .read()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        let _header_state_lock = self.acquire_ready_header_state()?;
         read_sync_status(&self.inner.data_dir, self.inner.configuration.network)
             .map_err(RuntimeError::Operation)
     }
@@ -2467,6 +2840,7 @@ impl BrowserRuntime {
             .maintenance
             .read()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        let _header_state_lock = self.acquire_ready_header_state()?;
         let _peer_state = self
             .inner
             .coordination
@@ -2475,7 +2849,12 @@ impl BrowserRuntime {
             .map_err(|_| RuntimeError::Synchronization("peer state lock"))?;
 
         let base = network_base_path(&self.inner.data_dir, network_kind);
-        let peer_store = SqlitePeerStore::open(base.join("peers.sqlite"))
+        let peer_store_path = base.join("peers.sqlite");
+        let process_peer_state_path =
+            peer_state_lock_path(&peer_store_path).map_err(RuntimeError::Operation)?;
+        let _process_peer_state = HeaderStateFileLock::exclusive(&process_peer_state_path)
+            .map_err(RuntimeError::Operation)?;
+        let peer_store = SqlitePeerStore::open(peer_store_path)
             .map_err(|error| RuntimeError::Operation(format!("open peer store: {error}")))?;
         let mut peers = peer_store
             .load_manager()
@@ -2510,6 +2889,9 @@ impl BrowserRuntime {
             .maintenance
             .write()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        let _header_state_lock =
+            HeaderStateFileLock::exclusive(&self.inner.coordination.header_state_lock_path)
+                .map_err(RuntimeError::Operation)?;
         self.inner.coordination.begin_maintenance(&maintenance)?;
         clear_resolver_cache_inner(&self.inner.data_dir, self.inner.configuration.network)
             .map_err(RuntimeError::Operation)
@@ -2522,43 +2904,119 @@ impl BrowserRuntime {
         let snapshot_path = snapshot_path.as_ref().to_str().ok_or_else(|| {
             RuntimeError::InvalidConfiguration("snapshot must be a UTF-8 path".to_owned())
         })?;
-        let _sync = self
-            .inner
-            .coordination
-            .sync_lock
-            .lock()
-            .map_err(|_| RuntimeError::Synchronization("sync lock"))?;
-        let maintenance = self
-            .inner
-            .coordination
-            .maintenance
-            .write()
-            .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
-        self.inner.coordination.begin_maintenance(&maintenance)?;
-        install_header_snapshot_inner(
-            &self.inner.data_dir,
-            snapshot_path,
-            self.inner.configuration.network,
-        )
-        .map_err(RuntimeError::Operation)
+        self.coordinated_header_mutation(|| {
+            install_header_snapshot_inner(
+                &self.inner.data_dir,
+                snapshot_path,
+                self.inner.configuration.network,
+            )
+        })
     }
 
     pub fn reset_headers_from_peers(&self) -> Result<SyncStatus, RuntimeError> {
+        self.coordinated_header_mutation(|| {
+            reset_headers_from_peers_inner(&self.inner.data_dir, self.inner.configuration.network)
+        })
+    }
+
+    fn coordinated_header_mutation(
+        &self,
+        mutation: impl FnOnce() -> Result<NativeSyncStatus, String>,
+    ) -> Result<SyncStatus, RuntimeError> {
         let _sync = self
             .inner
             .coordination
             .sync_lock
             .lock()
             .map_err(|_| RuntimeError::Synchronization("sync lock"))?;
+        let _process_sync =
+            HeaderStateFileLock::exclusive(&self.inner.coordination.header_sync_lock_path)
+                .map_err(RuntimeError::Operation)?;
         let maintenance = self
             .inner
             .coordination
             .maintenance
             .write()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        let mut header_state_lock =
+            HeaderStateFileLock::exclusive(&self.inner.coordination.header_state_lock_path)
+                .map_err(RuntimeError::Operation)?;
+        let _peer_state = self
+            .inner
+            .coordination
+            .peer_state
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("peer state lock"))?;
+        let peer_store_path = self
+            .inner
+            .coordination
+            .header_state_base
+            .join("peers.sqlite");
+        let process_peer_state_path =
+            peer_state_lock_path(&peer_store_path).map_err(RuntimeError::Operation)?;
+        let _process_peer_state = HeaderStateFileLock::exclusive(&process_peer_state_path)
+            .map_err(RuntimeError::Operation)?;
+        let baseline =
+            read_header_sync_storage_identity(&self.inner.coordination.header_state_base)
+                .map_err(RuntimeError::Operation)?;
+        header_state_lock
+            .mark_updating()
+            .map_err(RuntimeError::Operation)?;
         self.inner.coordination.begin_maintenance(&maintenance)?;
-        reset_headers_from_peers_inner(&self.inner.data_dir, self.inner.configuration.network)
-            .map_err(RuntimeError::Operation)
+        let outcome = mutation().map_err(RuntimeError::Operation)?;
+        let next_generation = baseline
+            .header_generation
+            .max(baseline.peer_generation)
+            .checked_add(1)
+            .ok_or_else(|| {
+                RuntimeError::Operation(
+                    "header mutation publication generation is exhausted".to_owned(),
+                )
+            })?;
+        let mut header_store = SqliteHeaderStore::open(
+            self.inner
+                .coordination
+                .header_state_base
+                .join("headers.sqlite"),
+        )
+        .map_err(|error| RuntimeError::Operation(format!("open mutated header store: {error}")))?;
+        header_store
+            .set_sync_generation(next_generation)
+            .map_err(|error| {
+                RuntimeError::Operation(format!("publish mutated header generation: {error}"))
+            })?;
+        header_store.flush().map_err(|error| {
+            RuntimeError::Operation(format!("close mutated header store: {error}"))
+        })?;
+        let peer_store = SqlitePeerStore::open(peer_store_path).map_err(|error| {
+            RuntimeError::Operation(format!("open peer store for header mutation: {error}"))
+        })?;
+        let peers = peer_store.load_manager().map_err(|error| {
+            RuntimeError::Operation(format!("load peer store for header mutation: {error}"))
+        })?;
+        peer_store
+            .replace_manager_with_sync_generation(&peers, next_generation)
+            .map_err(|error| {
+                RuntimeError::Operation(format!("publish peer mutation generation: {error}"))
+            })?;
+        let published_identity =
+            read_header_sync_storage_identity(&self.inner.coordination.header_state_base)
+                .map_err(RuntimeError::Operation)?;
+        header_state_lock
+            .mark_ready(published_identity)
+            .map_err(RuntimeError::Operation)?;
+
+        let mut published =
+            read_sync_status(&self.inner.data_dir, self.inner.configuration.network)
+                .map_err(RuntimeError::Operation)?;
+        published.status = outcome.status;
+        published.attempted = outcome.attempted;
+        published.successful = outcome.successful;
+        published.accepted = outcome.accepted;
+        published.failed = outcome.failed;
+        published.resource_cache_evicted = outcome.resource_cache_evicted;
+        published.failures = outcome.failures;
+        Ok(published)
     }
 
     pub fn proof_details(&self, host_or_url: &str) -> Result<String, RuntimeError> {
@@ -2568,6 +3026,7 @@ impl BrowserRuntime {
             .maintenance
             .read()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        let _header_state_lock = self.acquire_ready_header_state()?;
         Ok(hns_proof_details_for_network(
             &self.inner.data_dir,
             host_or_url,
@@ -2589,6 +3048,7 @@ impl BrowserRuntime {
                 .maintenance
                 .read()
                 .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+            let _header_state_lock = self.acquire_ready_header_state()?;
             let header_text = self.gateway_header_text(&request.headers)?;
             let prepared = prepare_gateway_http_response_with_transport(
                 GatewayHttpRequestInput {
@@ -2631,6 +3091,7 @@ impl BrowserRuntime {
                 .maintenance
                 .read()
                 .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+            let _header_state_lock = self.acquire_ready_header_state()?;
             let header_text = self.gateway_header_text(&request.headers)?;
             let sequence = self
                 .inner
@@ -2972,6 +3433,7 @@ impl Drop for StagedBodyPublication {
 
 struct RuntimePublicationPermit<'a> {
     _maintenance: RwLockReadGuard<'a, ()>,
+    _header_state_lock: HeaderStateFileLock,
     _authority: MutexGuard<'a, CanonicalAuthorityRuntime>,
 }
 
@@ -2982,9 +3444,11 @@ struct RuntimePublicationAuthorization {
     binding: RuntimeAuthorityBinding,
     stamp: Option<RuntimeStamp>,
     maintenance_epoch: MaintenanceEpoch,
+    storage_identity: Option<HeaderSyncStorageIdentity>,
     selection: Option<NamespacePublicationSelection>,
 }
 
+#[cfg(test)]
 fn runtime_publication_capability(
     binding: RuntimeAuthorityBinding,
     stamp: Option<RuntimeStamp>,
@@ -2994,6 +3458,22 @@ fn runtime_publication_capability(
         binding,
         stamp,
         maintenance_epoch,
+        storage_identity: None,
+        selection: None,
+    })
+}
+
+fn runtime_publication_capability_for_storage(
+    binding: RuntimeAuthorityBinding,
+    stamp: Option<RuntimeStamp>,
+    maintenance_epoch: MaintenanceEpoch,
+    storage_identity: HeaderSyncStorageIdentity,
+) -> PublicationCapability {
+    PublicationCapability::new(RuntimePublicationAuthorization {
+        binding,
+        stamp,
+        maintenance_epoch,
+        storage_identity: Some(storage_identity),
         selection: None,
     })
 }
@@ -3001,11 +3481,13 @@ fn runtime_publication_capability(
 fn runtime_success_publication_capability(
     prepared: &PreparedRuntimeGateway,
     maintenance_epoch: MaintenanceEpoch,
+    storage_identity: HeaderSyncStorageIdentity,
 ) -> PublicationCapability {
     PublicationCapability::new(RuntimePublicationAuthorization {
         binding: prepared.authority_binding,
         stamp: Some(prepared.authority_stamp),
         maintenance_epoch,
+        storage_identity: Some(storage_identity),
         selection: Some(NamespacePublicationSelection {
             origin: prepared.origin.clone(),
             plans: Arc::clone(&prepared.plans),
@@ -3578,6 +4060,24 @@ impl BrowserRuntime {
         .map_err(|_| CanonicalStatusUnavailableReason::SchemaValidationRejected)
     }
 
+    fn acquire_ready_header_state(&self) -> Result<HeaderStateFileLock, RuntimeError> {
+        let mut header_state_lock =
+            HeaderStateFileLock::shared(&self.inner.coordination.header_state_lock_path)
+                .map_err(RuntimeError::Operation)?;
+        let recorded_identity = header_state_lock
+            .ready_identity()
+            .map_err(RuntimeError::Operation)?;
+        let storage_identity =
+            read_header_sync_storage_identity(&self.inner.coordination.header_state_base)
+                .map_err(RuntimeError::Operation)?;
+        if recorded_identity != storage_identity {
+            return Err(RuntimeError::Operation(
+                "header-state record does not match live header and peer storage".to_owned(),
+            ));
+        }
+        Ok(header_state_lock)
+    }
+
     fn acquire_proxy_maintenance<'a>(
         &'a self,
         cancellation: &ProxyCancellationToken,
@@ -3591,9 +4091,32 @@ impl BrowserRuntime {
                     let Some(epoch) = self.inner.coordination.publication_epoch(&guard) else {
                         return Err(ProxyBackendError::Internal);
                     };
+                    let Some(mut header_state_lock) = HeaderStateFileLock::try_shared(
+                        &self.inner.coordination.header_state_lock_path,
+                    )
+                    .map_err(|_| ProxyBackendError::Internal)?
+                    else {
+                        drop(guard);
+                        if cancellation.wait_cancelled_timeout(PROXY_MAINTENANCE_POLL_INTERVAL) {
+                            return Err(ProxyBackendError::Cancelled);
+                        }
+                        continue;
+                    };
+                    let recorded_identity = header_state_lock
+                        .ready_identity()
+                        .map_err(|_| ProxyBackendError::Internal)?;
+                    let storage_identity = read_header_sync_storage_identity(
+                        &self.inner.coordination.header_state_base,
+                    )
+                    .map_err(|_| ProxyBackendError::Internal)?;
+                    if storage_identity != recorded_identity {
+                        return Err(ProxyBackendError::Internal);
+                    }
                     return Ok(ProxyMaintenanceGuard {
                         _guard: guard,
+                        _header_state_lock: header_state_lock,
                         epoch,
+                        storage_identity,
                     });
                 }
                 Err(TryLockError::Poisoned(_)) => return Err(ProxyBackendError::Internal),
@@ -3723,6 +4246,7 @@ impl ProxyBackend for RuntimeProxyBackend {
             .map_err(runtime_error_to_proxy_backend)?;
         let maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
         let maintenance_epoch = maintenance.epoch();
+        let storage_identity = maintenance.storage_identity();
         let prepared = self
             .runtime
             .prepare_proxy_gateway(&request, authority_binding, authority_stamp)
@@ -3758,10 +4282,11 @@ impl ProxyBackend for RuntimeProxyBackend {
                     .map_err(runtime_error_to_proxy_backend)?;
                 response.head.observation_id = Some(observation_id);
                 self.runtime.observe_gateway_authority_failure(&error);
-                response.publication = runtime_publication_capability(
+                response.publication = runtime_publication_capability_for_storage(
                     prepared.authority_binding,
                     Some(prepared.authority_stamp),
                     maintenance_epoch,
+                    storage_identity,
                 );
                 return Ok(response);
             }
@@ -3802,7 +4327,7 @@ impl ProxyBackend for RuntimeProxyBackend {
             .map_err(runtime_error_to_proxy_backend)?;
         proxy_response.head.observation_id = Some(observation_id);
         proxy_response.publication =
-            runtime_success_publication_capability(&prepared, maintenance_epoch);
+            runtime_success_publication_capability(&prepared, maintenance_epoch, storage_identity);
         Ok(proxy_response)
     }
 
@@ -3828,6 +4353,7 @@ impl ProxyBackend for RuntimeProxyBackend {
             .map_err(runtime_error_to_proxy_backend)?;
         let maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
         let maintenance_epoch = maintenance.epoch();
+        let storage_identity = maintenance.storage_identity();
         let prepared = self
             .runtime
             .prepare_proxy_gateway(&request, authority_binding, authority_stamp)
@@ -3863,10 +4389,11 @@ impl ProxyBackend for RuntimeProxyBackend {
                     .map_err(runtime_error_to_proxy_backend)?;
                 response.head.observation_id = Some(observation_id);
                 self.runtime.observe_gateway_authority_failure(&error);
-                response.publication = runtime_publication_capability(
+                response.publication = runtime_publication_capability_for_storage(
                     prepared.authority_binding,
                     Some(prepared.authority_stamp),
                     maintenance_epoch,
+                    storage_identity,
                 );
                 return Ok(ProxyTunnelOpen::Response(response));
             }
@@ -3907,7 +4434,7 @@ impl ProxyBackend for RuntimeProxyBackend {
             .map_err(runtime_error_to_proxy_backend)?;
         proxy_tunnel.head.observation_id = Some(observation_id);
         proxy_tunnel.publication =
-            runtime_success_publication_capability(&prepared, maintenance_epoch);
+            runtime_success_publication_capability(&prepared, maintenance_epoch, storage_identity);
         Ok(ProxyTunnelOpen::Tunnel(proxy_tunnel))
     }
 
@@ -3943,6 +4470,24 @@ impl ProxyBackend for RuntimeProxyBackend {
         {
             return Err(ProxyBackendError::PolicyDenied);
         }
+        let mut header_state_lock = HeaderStateFileLock::try_shared(
+            &self.runtime.inner.coordination.header_state_lock_path,
+        )
+        .map_err(|_| ProxyBackendError::Internal)?
+        .ok_or(ProxyBackendError::PolicyDenied)?;
+        let recorded_identity = header_state_lock
+            .ready_identity()
+            .map_err(|_| ProxyBackendError::PolicyDenied)?;
+        let storage_identity =
+            read_header_sync_storage_identity(&self.runtime.inner.coordination.header_state_base)
+                .map_err(|_| ProxyBackendError::Internal)?;
+        if recorded_identity != storage_identity
+            || authorization
+                .storage_identity
+                .is_some_and(|identity| identity != storage_identity)
+        {
+            return Err(ProxyBackendError::PolicyDenied);
+        }
         let authority = match self
             .runtime
             .authorized_publication_guard(authorization.binding, stamp)
@@ -3964,6 +4509,7 @@ impl ProxyBackend for RuntimeProxyBackend {
         }
         Ok(Box::new(RuntimePublicationPermit {
             _maintenance: maintenance,
+            _header_state_lock: header_state_lock,
             _authority: authority,
         }))
     }
@@ -8885,9 +9431,12 @@ pub fn sync_status(data_dir: &str) -> String {
 }
 
 pub fn sync_status_for_network(data_dir: &str, network: NetworkKind) -> String {
-    read_sync_status(data_dir, network)
-        .unwrap_or_else(|error| NativeSyncStatus::error_for(network, error))
-        .to_json()
+    runtime_status_result(
+        network,
+        BrowserRuntime::open(RuntimeConfiguration::new(data_dir, network))
+            .and_then(|runtime| runtime.sync_status()),
+    )
+    .to_json()
 }
 
 pub fn clear_resolver_cache(data_dir: &str) -> String {
@@ -8895,9 +9444,12 @@ pub fn clear_resolver_cache(data_dir: &str) -> String {
 }
 
 pub fn clear_resolver_cache_for_network(data_dir: &str, network: NetworkKind) -> String {
-    clear_resolver_cache_inner(data_dir, network)
-        .unwrap_or_else(|error| NativeSyncStatus::error_for(network, error))
-        .to_json()
+    runtime_status_result(
+        network,
+        BrowserRuntime::open(RuntimeConfiguration::new(data_dir, network))
+            .and_then(|runtime| runtime.clear_resolver_cache()),
+    )
+    .to_json()
 }
 
 pub fn install_header_snapshot(data_dir: &str, snapshot_path: &str) -> String {
@@ -8909,9 +9461,12 @@ pub fn install_header_snapshot_for_network(
     snapshot_path: &str,
     network: NetworkKind,
 ) -> String {
-    install_header_snapshot_inner(data_dir, snapshot_path, network)
-        .unwrap_or_else(|error| NativeSyncStatus::error_for(network, error))
-        .to_json()
+    runtime_status_result(
+        network,
+        BrowserRuntime::open(RuntimeConfiguration::new(data_dir, network))
+            .and_then(|runtime| runtime.install_header_snapshot(snapshot_path)),
+    )
+    .to_json()
 }
 
 pub fn reset_headers_from_peers(data_dir: &str) -> String {
@@ -8919,9 +9474,12 @@ pub fn reset_headers_from_peers(data_dir: &str) -> String {
 }
 
 pub fn reset_headers_from_peers_for_network(data_dir: &str, network: NetworkKind) -> String {
-    reset_headers_from_peers_inner(data_dir, network)
-        .unwrap_or_else(|error| NativeSyncStatus::error_for(network, error))
-        .to_json()
+    runtime_status_result(
+        network,
+        BrowserRuntime::open(RuntimeConfiguration::new(data_dir, network))
+            .and_then(|runtime| runtime.reset_headers_from_peers()),
+    )
+    .to_json()
 }
 
 fn sync_once_with_options(
@@ -8931,16 +9489,24 @@ fn sync_once_with_options(
     timeout: Duration,
     resource_cache_limit_bytes: usize,
 ) -> NativeSyncStatus {
-    match run_sync_once(
-        data_dir,
+    runtime_status_result(
         network,
-        seed_on_empty,
-        timeout,
-        resource_cache_limit_bytes,
-    ) {
-        Ok(status) => status,
-        Err(error) => NativeSyncStatus::error_for(network, error),
-    }
+        BrowserRuntime::open(
+            RuntimeConfiguration::new(data_dir, network).with_sync_options(SyncOptions {
+                seed_peers: seed_on_empty,
+                timeout,
+                resource_cache_limit_bytes,
+            }),
+        )
+        .and_then(|runtime| runtime.sync_once()),
+    )
+}
+
+fn runtime_status_result(
+    network: NetworkKind,
+    result: Result<NativeSyncStatus, RuntimeError>,
+) -> NativeSyncStatus {
+    result.unwrap_or_else(|error| NativeSyncStatus::error_for(network, error.to_string()))
 }
 
 pub fn gateway_http_response(input: GatewayHttpRequestInput<'_>) -> Vec<u8> {
@@ -12072,6 +12638,451 @@ fn response_head(
     out
 }
 
+struct PreparedHeaderSyncStage {
+    root: PathBuf,
+    baseline_peers: hns_p2p::PeerManager,
+    baseline_storage_identity: HeaderSyncStorageIdentity,
+}
+
+impl PreparedHeaderSyncStage {
+    fn create(data_dir: &str, network: NetworkKind) -> Result<Self, String> {
+        let parent = Path::new(data_dir);
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("create header sync staging parent: {error}"))?;
+        let prefix = format!(".header-sync-stage-{}-", network.as_str());
+        reclaim_stale_header_sync_stages(parent, &prefix)?;
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        for _ in 0..64 {
+            let sequence = HEADER_SYNC_STAGE_SEQUENCE.fetch_add(1, Ordering::AcqRel);
+            let root = parent.join(format!(
+                "{prefix}{}-{timestamp}-{sequence}",
+                std::process::id()
+            ));
+            match fs::create_dir(&root) {
+                Ok(()) => {
+                    return Ok(Self {
+                        root,
+                        baseline_peers: hns_p2p::PeerManager::default(),
+                        baseline_storage_identity: HeaderSyncStorageIdentity {
+                            header_generation: 0,
+                            peer_generation: 0,
+                            best_hash: None,
+                        },
+                    });
+                }
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+                Err(error) => {
+                    return Err(format!("create header sync staging directory: {error}"));
+                }
+            }
+        }
+        Err("could not allocate a unique header sync staging directory".to_owned())
+    }
+
+    fn data_dir(&self) -> Result<&str, RuntimeError> {
+        self.root.to_str().ok_or_else(|| {
+            RuntimeError::InvalidConfiguration(
+                "header sync staging path must be valid UTF-8".to_owned(),
+            )
+        })
+    }
+
+    fn network_base(&self, network: NetworkKind) -> Result<PathBuf, String> {
+        let data_dir = self
+            .root
+            .to_str()
+            .ok_or_else(|| "header sync staging path must be valid UTF-8".to_owned())?;
+        Ok(network_base_path(data_dir, network))
+    }
+}
+
+fn reclaim_stale_header_sync_stages(parent: &Path, prefix: &str) -> Result<(), String> {
+    let now = SystemTime::now();
+    let entries = fs::read_dir(parent)
+        .map_err(|error| format!("scan header sync staging directory: {error}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("inspect header sync stage entry: {error}"))?;
+        if !entry.file_name().to_string_lossy().starts_with(prefix) {
+            continue;
+        }
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("inspect header sync stage type: {error}"))?;
+        if !file_type.is_dir() || file_type.is_symlink() {
+            continue;
+        }
+        let modified = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .map_err(|error| format!("inspect header sync stage age: {error}"))?;
+        let age = now.duration_since(modified).unwrap_or_default();
+        if age.as_secs() < HEADER_SYNC_STAGE_STALE_AFTER_SECONDS {
+            continue;
+        }
+        fs::remove_dir_all(entry.path())
+            .map_err(|error| format!("reclaim stale header sync stage: {error}"))?;
+    }
+    Ok(())
+}
+
+impl Drop for PreparedHeaderSyncStage {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}
+
+fn prepare_header_sync_stage(
+    data_dir: &str,
+    network: NetworkKind,
+    coordination: &RuntimeCoordination,
+) -> Result<PreparedHeaderSyncStage, String> {
+    let mut staged = PreparedHeaderSyncStage::create(data_dir, network)?;
+    let live_base = network_base_path(data_dir, network);
+    let staged_base = staged.network_base(network)?;
+    fs::create_dir_all(&staged_base)
+        .map_err(|error| format!("create staged sync directory: {error}"))?;
+
+    let _maintenance = coordination
+        .maintenance
+        .read()
+        .map_err(|_| "maintenance lock is poisoned".to_owned())?;
+    let _header_state_lock = HeaderStateFileLock::shared(&coordination.header_state_lock_path)?;
+    let live_chain = open_initialized_header_chain(&live_base, network)?;
+    let live_header_store = live_chain.into_store();
+    let header_generation = live_header_store
+        .sync_generation()
+        .map_err(|error| format!("read live header sync generation: {error}"))?;
+    let best_hash = live_header_store.best_hash();
+    live_header_store
+        .snapshot_to(staged_base.join("headers.sqlite"))
+        .map_err(|error| format!("snapshot live header store: {error}"))?;
+    live_header_store
+        .flush()
+        .map_err(|error| format!("close live header snapshot source: {error}"))?;
+    let mut staged_header_store = SqliteHeaderStore::open(staged_base.join("headers.sqlite"))
+        .map_err(|error| format!("open staged header publication delta: {error}"))?;
+    staged_header_store
+        .begin_snapshot_publication_delta(header_generation, best_hash)
+        .map_err(|error| format!("initialize staged header publication delta: {error}"))?;
+    staged_header_store
+        .flush()
+        .map_err(|error| format!("close staged header publication delta: {error}"))?;
+
+    let _peer_state = coordination
+        .peer_state
+        .lock()
+        .map_err(|_| "peer-state lock is poisoned".to_owned())?;
+    let live_peer_store_path = live_base.join("peers.sqlite");
+    let _process_peer_state =
+        HeaderStateFileLock::shared(&peer_state_lock_path(&live_peer_store_path)?)?;
+    let live_peer_store = SqlitePeerStore::open(live_peer_store_path)
+        .map_err(|error| format!("open live peer store for staging: {error}"))?;
+    let peer_generation = live_peer_store
+        .sync_generation()
+        .map_err(|error| format!("read live peer sync generation: {error}"))?;
+    staged.baseline_peers = live_peer_store
+        .load_manager()
+        .map_err(|error| format!("load live peer store for staging: {error}"))?;
+    staged.baseline_storage_identity = HeaderSyncStorageIdentity {
+        header_generation,
+        peer_generation,
+        best_hash,
+    };
+    live_peer_store
+        .flush()
+        .map_err(|error| format!("close live peer staging source: {error}"))?;
+    drop((
+        _process_peer_state,
+        _peer_state,
+        _header_state_lock,
+        _maintenance,
+    ));
+
+    let staged_peer_store = SqlitePeerStore::open(staged_base.join("peers.sqlite"))
+        .map_err(|error| format!("open staged peer store: {error}"))?;
+    staged_peer_store
+        .replace_manager_with_sync_generation(&staged.baseline_peers, header_generation)
+        .map_err(|error| format!("seed staged peer store: {error}"))?;
+    staged_peer_store
+        .flush()
+        .map_err(|error| format!("close seeded staged peer store: {error}"))?;
+    Ok(staged)
+}
+
+fn target_evidence_deadline_advanced(before: Option<u64>, after: Option<u64>) -> bool {
+    match (before, after) {
+        (Some(before), Some(after)) => after > before,
+        (None, Some(_)) => true,
+        _ => false,
+    }
+}
+
+fn staged_headers_match_baseline(
+    staged: &PreparedHeaderSyncStage,
+    network: NetworkKind,
+) -> Result<bool, String> {
+    if staged.baseline_storage_identity.header_generation
+        != staged.baseline_storage_identity.peer_generation
+    {
+        return Ok(false);
+    }
+    let staged_base = staged.network_base(network)?;
+    let staged_header_store = SqliteHeaderStore::open(staged_base.join("headers.sqlite"))
+        .map_err(|error| format!("open completed staged header store: {error}"))?;
+    let staged_generation = staged_header_store
+        .sync_generation()
+        .map_err(|error| format!("read completed staged header generation: {error}"))?;
+    Ok(
+        staged_generation == staged.baseline_storage_identity.header_generation
+            && staged_header_store.best_hash() == staged.baseline_storage_identity.best_hash,
+    )
+}
+
+fn publish_peer_only_sync_stage(
+    data_dir: &str,
+    staged: &PreparedHeaderSyncStage,
+    network: NetworkKind,
+    staged_status: NativeSyncStatus,
+) -> Result<NativeSyncStatus, String> {
+    let live_base = network_base_path(data_dir, network);
+    let live_identity = read_header_sync_storage_identity(&live_base)?;
+    if live_identity != staged.baseline_storage_identity {
+        return Err("header sync stage was superseded before peer-only publication".to_owned());
+    }
+    if !staged_headers_match_baseline(staged, network)? {
+        return Err(
+            "peer-only publication requires an unchanged, generation-matched header stage"
+                .to_owned(),
+        );
+    }
+
+    let staged_base = staged.network_base(network)?;
+    let staged_peer_store = SqlitePeerStore::open(staged_base.join("peers.sqlite"))
+        .map_err(|error| format!("open completed staged peer store: {error}"))?;
+    let staged_peers = staged_peer_store
+        .load_manager()
+        .map_err(|error| format!("load completed staged peer store: {error}"))?;
+    let live_peer_store = SqlitePeerStore::open(live_base.join("peers.sqlite"))
+        .map_err(|error| format!("open live peer store for peer refresh: {error}"))?;
+    let live_peers = live_peer_store
+        .load_manager()
+        .map_err(|error| format!("load live peer store for peer refresh: {error}"))?;
+    let merged_peers = merge_staged_peer_manager(
+        &staged.baseline_peers,
+        &staged_peers,
+        &live_peers,
+        &network.network(),
+    );
+    live_peer_store
+        .replace_manager_with_sync_generation(
+            &merged_peers,
+            staged.baseline_storage_identity.header_generation,
+        )
+        .map_err(|error| format!("publish refreshed peer evidence: {error}"))?;
+
+    let published_status = read_sync_status(data_dir, network)?;
+    Ok(apply_staged_sync_outcome(
+        published_status,
+        staged_status,
+        0,
+    ))
+}
+
+fn publish_header_sync_stage(
+    data_dir: &str,
+    staged: &PreparedHeaderSyncStage,
+    network: NetworkKind,
+    resource_cache_limit_bytes: usize,
+    staged_status: NativeSyncStatus,
+) -> Result<NativeSyncStatus, String> {
+    let live_base = network_base_path(data_dir, network);
+    let staged_base = staged.network_base(network)?;
+    let staged_header_path = staged_base.join("headers.sqlite");
+    let staged_peer_store = SqlitePeerStore::open(staged_base.join("peers.sqlite"))
+        .map_err(|error| format!("open completed staged peer store: {error}"))?;
+    let staged_peers = staged_peer_store
+        .load_manager()
+        .map_err(|error| format!("load completed staged peer store: {error}"))?;
+
+    let live_peer_store = SqlitePeerStore::open(live_base.join("peers.sqlite"))
+        .map_err(|error| format!("open live peer store for publication: {error}"))?;
+    let live_peers = live_peer_store
+        .load_manager()
+        .map_err(|error| format!("load live peer store for publication: {error}"))?;
+    let merged_peers = merge_staged_peer_manager(
+        &staged.baseline_peers,
+        &staged_peers,
+        &live_peers,
+        &network.network(),
+    );
+
+    let mut live_header_store = SqliteHeaderStore::open(live_base.join("headers.sqlite"))
+        .map_err(|error| format!("open live header store for publication: {error}"))?;
+    let live_header_generation = live_header_store
+        .sync_generation()
+        .map_err(|error| format!("read live header sync generation: {error}"))?;
+    let live_best_hash = live_header_store.best_hash();
+    let live_peer_generation = live_peer_store
+        .sync_generation()
+        .map_err(|error| format!("read live peer sync generation: {error}"))?;
+    let live_storage_identity = HeaderSyncStorageIdentity {
+        header_generation: live_header_generation,
+        peer_generation: live_peer_generation,
+        best_hash: live_best_hash,
+    };
+    if live_storage_identity != staged.baseline_storage_identity {
+        return Err(
+            "header sync stage was superseded by another process before publication".to_owned(),
+        );
+    }
+    let mut staged_header_store = SqliteHeaderStore::open(&staged_header_path)
+        .map_err(|error| format!("open staged header store for publication: {error}"))?;
+    let staged_header_generation = staged_header_store
+        .sync_generation()
+        .map_err(|error| format!("read staged header sync generation: {error}"))?;
+    if staged_header_generation != staged.baseline_storage_identity.header_generation {
+        return Err("completed header sync stage has an unexpected base generation".to_owned());
+    }
+    let next_generation = staged
+        .baseline_storage_identity
+        .header_generation
+        .max(staged.baseline_storage_identity.peer_generation)
+        .checked_add(1)
+        .ok_or_else(|| "header sync publication generation is exhausted".to_owned())?;
+    staged_header_store
+        .set_sync_generation(next_generation)
+        .map_err(|error| format!("stage header sync generation: {error}"))?;
+    staged_header_store
+        .flush()
+        .map_err(|error| format!("close staged header publication source: {error}"))?;
+
+    // Header state is committed first. If the peer transaction fails or the
+    // process exits between the two databases, their generation mismatch is
+    // detected by every readiness check and fails closed until the next sync.
+    let published = live_header_store
+        .publish_snapshot_from_if_current(
+            &staged_header_path,
+            staged.baseline_storage_identity.header_generation,
+            staged.baseline_storage_identity.best_hash,
+        )
+        .map_err(|error| format!("publish staged header store: {error}"))?;
+    if !published {
+        return Err("header sync stage was superseded during conditional publication".to_owned());
+    }
+    live_peer_store
+        .replace_manager_with_sync_generation(&merged_peers, next_generation)
+        .map_err(|error| format!("publish staged peer store: {error}"))?;
+
+    let live_chain = chain_for_network(live_header_store, network);
+    let resource_cache_evicted =
+        prune_resource_cache_to_best_chain(&live_base, &live_chain)?.saturating_add(
+            enforce_resource_cache_limit(&live_base, resource_cache_limit_bytes)?,
+        );
+    let published_status = read_sync_status(data_dir, network)?;
+    Ok(apply_staged_sync_outcome(
+        published_status,
+        staged_status,
+        resource_cache_evicted,
+    ))
+}
+
+fn apply_staged_sync_outcome(
+    mut published_status: NativeSyncStatus,
+    staged_status: NativeSyncStatus,
+    resource_cache_evicted: usize,
+) -> NativeSyncStatus {
+    published_status.status = staged_status.status;
+    published_status.attempted = staged_status.attempted;
+    published_status.successful = staged_status.successful;
+    published_status.accepted = staged_status.accepted;
+    published_status.failed = staged_status.failed;
+    published_status.resource_cache_evicted = resource_cache_evicted;
+    published_status.error = staged_status.error;
+    published_status.failures = staged_status.failures;
+    published_status
+}
+
+fn merge_staged_peer_manager(
+    baseline: &hns_p2p::PeerManager,
+    staged: &hns_p2p::PeerManager,
+    live: &hns_p2p::PeerManager,
+    network: &hns_core::network::Network,
+) -> hns_p2p::PeerManager {
+    let mut addresses = HashSet::new();
+    addresses.extend(staged.iter().map(|peer| peer.address));
+    addresses.extend(live.iter().map(|peer| peer.address));
+    let mut merged = Vec::with_capacity(addresses.len());
+
+    for address in addresses {
+        let baseline_peer = baseline.get(address);
+        let staged_peer = staged.get(address);
+        let live_peer = live.get(address);
+        let mut peer = match (live_peer, staged_peer) {
+            (Some(live_peer), Some(staged_peer)) => {
+                let mut peer = merge_dns_relay_peer_state(live_peer, staged_peer);
+                peer.score = merge_peer_score(
+                    baseline_peer.map(|peer| peer.score),
+                    live_peer.score,
+                    staged_peer.score,
+                );
+                peer.successes = merge_monotonic_peer_counter(
+                    baseline_peer.map(|peer| peer.successes),
+                    live_peer.successes,
+                    staged_peer.successes,
+                );
+                peer.failures = merge_monotonic_peer_counter(
+                    baseline_peer.map(|peer| peer.failures),
+                    live_peer.failures,
+                    staged_peer.failures,
+                );
+                if baseline_peer.map(peer_height_tuple) != Some(peer_height_tuple(staged_peer)) {
+                    peer.last_height = staged_peer.last_height;
+                    peer.last_height_observed_at = staged_peer.last_height_observed_at;
+                }
+                peer
+            }
+            (Some(peer), None) | (None, Some(peer)) => peer.clone(),
+            (None, None) => continue,
+        };
+        if is_allowed_peer_endpoint(network, peer.address) {
+            // Normalize expired zero-height evidence before it can enter the
+            // coordinated snapshot through a transport-only concurrent peer.
+            if peer.last_height.0 == 0 {
+                peer.last_height_observed_at = None;
+            }
+            merged.push(peer);
+        }
+    }
+
+    hns_p2p::PeerManager::from_states(merged)
+}
+
+fn peer_height_tuple(peer: &hns_p2p::PeerState) -> (Height, Option<u64>) {
+    (peer.last_height, peer.last_height_observed_at)
+}
+
+fn merge_monotonic_peer_counter(baseline: Option<u32>, live: u32, staged: u32) -> u32 {
+    let baseline = baseline.unwrap_or(0);
+    baseline
+        .saturating_add(live.saturating_sub(baseline))
+        .saturating_add(staged.saturating_sub(baseline))
+        .max(live)
+        .max(staged)
+}
+
+fn merge_peer_score(baseline: Option<i32>, live: i32, staged: i32) -> i32 {
+    let baseline = i64::from(baseline.unwrap_or(0));
+    let live_delta = i64::from(live).saturating_sub(baseline);
+    let staged_delta = i64::from(staged).saturating_sub(baseline);
+    baseline
+        .saturating_add(live_delta)
+        .saturating_add(staged_delta)
+        .clamp(0, i64::from(i32::MAX)) as i32
+}
+
 fn run_sync_once(
     data_dir: &str,
     network_kind: NetworkKind,
@@ -12080,10 +13091,13 @@ fn run_sync_once(
     resource_cache_limit_bytes: usize,
 ) -> Result<NativeSyncStatus, String> {
     let base = network_base_path(data_dir, network_kind);
+    let peer_store_path = base.join("peers.sqlite");
+    let _process_peer_state =
+        HeaderStateFileLock::exclusive(&peer_state_lock_path(&peer_store_path)?)?;
     let chain = open_initialized_header_chain(&base, network_kind)?;
     let mut coordinator = HeaderSyncCoordinator::new(chain);
 
-    let peer_store = SqlitePeerStore::open(base.join("peers.sqlite"))
+    let peer_store = SqlitePeerStore::open(peer_store_path)
         .map_err(|error| format!("open peer store: {error}"))?;
     let mut peers = peer_store
         .load_manager()
@@ -12130,11 +13144,12 @@ fn run_sync_once(
         },
     );
     let result = runner
-        .sync_once_parallel_and_persist(
+        .sync_once_parallel_and_persist_with_completion_time(
             &mut coordinator,
             &mut peers,
             &peer_store,
             now_unix_seconds(),
+            now_unix_seconds,
         )
         .map_err(|error| format!("sync headers: {error}"))?;
     let best = coordinator
@@ -12196,6 +13211,7 @@ fn run_sync_once(
             .unwrap_or_else(|| CurrentnessTargetSource::Unknown.as_str()),
         target_peer_groups: peer_target.peer_groups,
         target_evidence_expired: peer_target.evidence_expired,
+        target_evidence_valid_until_unix: peer_target.evidence_valid_until_unix,
         resource_cache_entries,
         resource_cache_bytes,
         resource_cache_evicted,
@@ -12267,6 +13283,7 @@ struct PeerTargetAssessment {
     height: Option<u32>,
     peer_groups: usize,
     evidence_expired: bool,
+    evidence_valid_until_unix: Option<u64>,
 }
 
 /// Derives an outlier-resistant currentness target from advisory peer heights.
@@ -12311,17 +13328,29 @@ fn assess_peer_target(
     }
 
     let peer_groups = by_group.len();
-    let mut heights = by_group
-        .into_values()
-        .map(|(_, height)| height)
+    let observations = by_group.into_values().collect::<Vec<_>>();
+    let mut heights = observations
+        .iter()
+        .map(|(_, height)| *height)
         .collect::<Vec<_>>();
     heights.sort_unstable();
     let height = (heights.len() >= LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS)
         .then(|| heights[(heights.len() - 1) / 2]);
+    let evidence_valid_until_unix = height.map(|_| {
+        let mut expirations = observations
+            .iter()
+            .map(|(observed_at, _)| {
+                observed_at.saturating_add(LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS)
+            })
+            .collect::<Vec<_>>();
+        expirations.sort_unstable();
+        expirations[peer_groups - LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS]
+    });
     PeerTargetAssessment {
         height,
         peer_groups,
         evidence_expired: height.is_none() && evidence_expired,
+        evidence_valid_until_unix,
     }
 }
 
@@ -12639,6 +13668,9 @@ fn local_chain_currentness(
 ) -> Result<LocalChainCurrentness, ResolverError> {
     let header_store = SqliteHeaderStore::open(base.join("headers.sqlite"))
         .map_err(|error| ResolverError::Storage(format!("open header store: {error}")))?;
+    let header_generation = header_store
+        .sync_generation()
+        .map_err(|error| ResolverError::Storage(format!("read header sync generation: {error}")))?;
     let chain = chain_for_network(header_store, network);
     let best_height = chain
         .best_header()
@@ -12646,6 +13678,14 @@ fn local_chain_currentness(
         .map(|header| header.height.0);
     let peer_store = SqlitePeerStore::open(base.join("peers.sqlite"))
         .map_err(|error| ResolverError::Storage(format!("open peer store: {error}")))?;
+    let peer_generation = peer_store
+        .sync_generation()
+        .map_err(|error| ResolverError::Storage(format!("read peer sync generation: {error}")))?;
+    if header_generation != peer_generation {
+        return Err(ResolverError::Storage(
+            "header and peer sync generations do not match".to_owned(),
+        ));
+    }
     let mut peers = peer_store
         .load_manager()
         .map_err(|error| ResolverError::Storage(format!("load peer store: {error}")))?;
@@ -12697,8 +13737,16 @@ fn estimated_mainnet_tip_height(now: u64) -> Option<u32> {
 fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncStatus, String> {
     let base = network_base_path(data_dir, network);
     let chain = open_initialized_header_chain(&base, network)?;
+    let header_generation = chain
+        .into_store()
+        .sync_generation()
+        .map_err(|error| format!("read header sync generation: {error}"))?;
+    let chain = open_initialized_header_chain(&base, network)?;
     let peer_store = SqlitePeerStore::open(base.join("peers.sqlite"))
         .map_err(|error| format!("open peer store: {error}"))?;
+    let peer_generation = peer_store
+        .sync_generation()
+        .map_err(|error| format!("read peer sync generation: {error}"))?;
     let mut peers = peer_store
         .load_manager()
         .map_err(|error| format!("load peer store: {error}"))?;
@@ -12711,7 +13759,17 @@ fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncSt
     let best_peer_height = best_peer_height(&peers);
     let estimated_tip_height = estimated_tip_height_for_network(network, now);
     let network_policy = network.network();
-    let peer_target = assess_peer_target(&peers, &network_policy, now);
+    let generations_match = header_generation == peer_generation;
+    let peer_target = if generations_match {
+        assess_peer_target(&peers, &network_policy, now)
+    } else {
+        PeerTargetAssessment {
+            height: None,
+            peer_groups: 0,
+            evidence_expired: false,
+            evidence_valid_until_unix: None,
+        }
+    };
     let currentness =
         LocalChainCurrentness::new(best_height, peer_target.height, estimated_tip_height);
     let (resource_cache_entries, resource_cache_bytes) = resource_cache_stats(&base)?;
@@ -12738,10 +13796,12 @@ fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncSt
             .unwrap_or_else(|| CurrentnessTargetSource::Unknown.as_str()),
         target_peer_groups: peer_target.peer_groups,
         target_evidence_expired: peer_target.evidence_expired,
+        target_evidence_valid_until_unix: peer_target.evidence_valid_until_unix,
         resource_cache_entries,
         resource_cache_bytes,
         resource_cache_evicted: 0,
-        error: None,
+        error: (!generations_match)
+            .then(|| "header and peer sync generations do not match".to_owned()),
         failures: Vec::new(),
     })
 }
@@ -12905,6 +13965,7 @@ pub struct SyncStatus {
     pub target_source: &'static str,
     pub target_peer_groups: usize,
     pub target_evidence_expired: bool,
+    pub target_evidence_valid_until_unix: Option<u64>,
     pub resource_cache_entries: usize,
     pub resource_cache_bytes: usize,
     pub resource_cache_evicted: usize,
@@ -12942,6 +14003,7 @@ impl SyncStatus {
             target_source: CurrentnessTargetSource::Unknown.as_str(),
             target_peer_groups: 0,
             target_evidence_expired: false,
+            target_evidence_valid_until_unix: None,
             resource_cache_entries: 0,
             resource_cache_bytes: 0,
             resource_cache_evicted: 0,
@@ -12974,6 +14036,7 @@ impl SyncStatus {
             target_source: CurrentnessTargetSource::Unknown.as_str(),
             target_peer_groups: 0,
             target_evidence_expired: false,
+            target_evidence_valid_until_unix: None,
             resource_cache_entries: 0,
             resource_cache_bytes: 0,
             resource_cache_evicted: 0,
@@ -13003,6 +14066,10 @@ impl SyncStatus {
             .lag_blocks
             .map(|lag| lag.to_string())
             .unwrap_or_else(|| "null".to_owned());
+        let target_evidence_valid_until_unix = self
+            .target_evidence_valid_until_unix
+            .map(|timestamp| timestamp.to_string())
+            .unwrap_or_else(|| "null".to_owned());
         let error = self
             .error
             .as_ref()
@@ -13016,7 +14083,7 @@ impl SyncStatus {
             .join(",");
 
         format!(
-            r#"{{"syncStatusSchemaVersion":{},"network":"{}","status":"{}","attempted":{},"successful":{},"accepted":{},"failed":{},"peerCount":{},"peerGroups":{},"bestHeight":{},"bestPeerHeight":{},"estimatedTipHeight":{},"effectiveTargetHeight":{},"lagBlocks":{},"freshness":"{}","freshnessThresholdBlocks":{},"targetSource":"{}","targetPeerGroups":{},"targetEvidenceExpired":{},"resourceCacheEntries":{},"resourceCacheBytes":{},"resourceCacheEvicted":{},"error":{},"failures":[{}]}}"#,
+            r#"{{"syncStatusSchemaVersion":{},"network":"{}","status":"{}","attempted":{},"successful":{},"accepted":{},"failed":{},"peerCount":{},"peerGroups":{},"bestHeight":{},"bestPeerHeight":{},"estimatedTipHeight":{},"effectiveTargetHeight":{},"lagBlocks":{},"freshness":"{}","freshnessThresholdBlocks":{},"targetSource":"{}","targetPeerGroups":{},"targetEvidenceExpired":{},"targetEvidenceValidUntilUnix":{},"resourceCacheEntries":{},"resourceCacheBytes":{},"resourceCacheEvicted":{},"error":{},"failures":[{}]}}"#,
             SYNC_STATUS_SCHEMA_VERSION,
             self.network.as_str(),
             self.status,
@@ -13036,6 +14103,7 @@ impl SyncStatus {
             self.target_source,
             self.target_peer_groups,
             self.target_evidence_expired,
+            target_evidence_valid_until_unix,
             self.resource_cache_entries,
             self.resource_cache_bytes,
             self.resource_cache_evicted,
@@ -14700,6 +15768,7 @@ mod tests {
             binding,
             stamp: Some(stale_stamp),
             maintenance_epoch: current_maintenance_epoch(&runtime),
+            storage_identity: None,
             selection: Some(selection.clone()),
         });
         assert!(matches!(
@@ -14715,6 +15784,7 @@ mod tests {
             binding,
             stamp: Some(fresh_stamp),
             maintenance_epoch: current_maintenance_epoch(&runtime),
+            storage_identity: None,
             selection: Some(selection),
         });
         let permit = backend
@@ -17384,6 +18454,7 @@ mod tests {
             target_source: "unknown",
             target_peer_groups: 0,
             target_evidence_expired: false,
+            target_evidence_valid_until_unix: None,
             resource_cache_entries: 0,
             resource_cache_bytes: 0,
             resource_cache_evicted: 0,
@@ -22172,7 +23243,9 @@ mod tests {
         }
         let mut store = SqliteHeaderStore::open(base.join("headers.sqlite")).unwrap();
         for header in &headers {
-            store.put_header(header.clone()).unwrap();
+            if store.get_header(header.hash).is_none() {
+                store.put_header(header.clone()).unwrap();
+            }
         }
         store.replace_canonical_chain(&headers).unwrap();
         heights

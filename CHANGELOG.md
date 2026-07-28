@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.3 - 2026-07-27
+
 ### Added
 
 - Added a hardened, click-only recovery page for confirmed port 53
@@ -11,6 +13,21 @@ All notable changes to this project will be documented in this file.
   carries the canonical HNS root and includes a nameserver only when it came
   from the authenticated HNS delegation; merely rendering the page contacts
   neither a suggested recovery resolver nor the setup site.
+
+### Changed
+
+- Bumped the shared Rust engine and Android app to `0.5.3` (Android build 43)
+  and the Apple shell to `0.5.3` (iOS build 47).
+
+### Fixed
+
+- Moved live header synchronization into a private staged database and limited
+  the exclusive browser-maintenance window to validated generation-bound
+  publication. Header, peer, and readiness generations now publish together,
+  unchanged-header peer refreshes avoid invalidating active requests, and
+  concurrent runtimes/processes fail closed on incomplete or superseded state.
+- Timestamped final peer corroboration at the end of long syncs so newly
+  published currentness evidence does not begin near expiry.
 
 ## 0.5.2 - 2026-07-26
 
