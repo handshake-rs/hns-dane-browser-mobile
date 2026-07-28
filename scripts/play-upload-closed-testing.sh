@@ -10,9 +10,9 @@ fi
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
 track_name="${PLAY_TRACK:-alpha}"
 release_status="${PLAY_RELEASE_STATUS:-completed}"
-aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.3-play-upload-signed.aab}"
-release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.3}"
-release_notes="${PLAY_RELEASE_NOTES:-0.5.3 keeps browsing responsive during validated header sync, publishes header and peer state atomically, and adds a hardened owner-recovery page for confirmed DNS interception.}"
+aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.4-play-upload-signed.aab}"
+release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.4}"
+release_notes="${PLAY_RELEASE_NOTES:-0.5.4 keeps browsing responsive during validated header sync, publishes header and peer state atomically, and adds a hardened owner-recovery page for confirmed DNS interception.}"
 
 if [[ ! "$package_name" =~ ^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$ ]]; then
   echo "Invalid Play package name: $package_name" >&2

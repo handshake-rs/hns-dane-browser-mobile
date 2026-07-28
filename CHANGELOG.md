@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.4 - 2026-07-28
+
+### Changed
+
+- Prepared the coordinated public update as shared Rust engine `0.5.4`,
+  Android `0.5.4` (build 44), and iOS `0.5.4` (build 48).
+- Retained the App Store-signed IPA from the protected iOS upload workflow so
+  the Android and iOS packages can be published together on the matching
+  GitHub Release.
+
 ## 0.5.3 - 2026-07-27
 
 ### Added

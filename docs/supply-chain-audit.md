@@ -29,10 +29,10 @@ Last audited: 2026-07-28
 
 ## Audit Results
 
-### Current `0.5.3` Candidate
+### Current `0.5.4` Candidate
 
-- Android declares `0.5.3` / code 43, the shared Rust workspace declares
-  `0.5.3`, and iOS declares `0.5.3` / build 47. This is not a metadata-only
+- Android declares `0.5.4` / code 44, the shared Rust workspace declares
+  `0.5.4`, and iOS declares `0.5.4` / build 48. This is not a metadata-only
   release: it adds generation-bound explicit recursive HNS DoH recovery,
   independent native consent controls, a permanent legacy-key tombstone,
   endpoint/bootstrap constraints, the hardened interception recovery page, and
@@ -42,13 +42,14 @@ Last audited: 2026-07-28
 - The complete portable `scripts/check.sh` gate passed for feature commit
   `14edcaf` in CI run 30323566765.
 - Android `assembleDebug`, unit tests, lint, runtime-boundary checks, and
-  unsigned release-bundle structure passed for code 43 in that run. The
-  complete Apple ABI/XCFramework/XCTest/simulator/device-link gate passed for
-  build 47.
+  unsigned release-bundle structure passed for predecessor code 43 in that
+  run. The complete Apple ABI/XCFramework/XCTest/simulator/device-link gate
+  passed for predecessor build 47. The exact code 44/build 48 gates remain
+  required.
 - The docs-only HEAD then passed the path-policy and required-result jobs; its
   Rust, Android, and Apple jobs were correctly skipped because no product
   source changed.
-- No signed `0.5.3` APK/AAB is retained yet. Release signing,
+- No signed `0.5.4` APK/AAB is retained yet. Release signing,
   signature-aware bundle verification, signed-device acceptance, and Play
   upload remain intentional external gates.
 
@@ -60,7 +61,7 @@ Last audited: 2026-07-28
 - The upload-signed code 40 APK used the established RSA-4096 signer, passed APK Signature Scheme v2 and 16 KiB ZIP alignment, and had SHA-256 `bff5ba468b0c5ad2d134603127f089ad6fdc9e9b5ceab921825e570cfefd60fb`.
 - The upload-signed AAB passed content-signature, ABI, 16 KiB ELF-alignment, hardening, stripping, matching-symbol, local-path, mapping, and notices gates and had SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0`.
 - The separate debug test APK used package `com.denuoweb.hnsdane.relaytest`, version `0.5.0-relay-test` / code 40, and SHA-256 `019aeb82b84de878716637fd053321a4590e0c384de3010e885af7e154803990`.
-- Those artifacts predate the current source and do not validate or identify the `0.5.3` candidate.
+- Those artifacts predate the current source and do not validate or identify the `0.5.4` candidate.
 
 ### Historical `0.4.1` Evidence
 

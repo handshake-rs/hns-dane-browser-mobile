@@ -1,1 +1,1 @@
-0.5.3 keeps browsing responsive while validated Handshake headers synchronize, publishes header and peer state atomically, and adds a hardened owner-recovery page for confirmed port 53 interception.
+0.5.4 keeps browsing responsive while validated Handshake headers synchronize, publishes header and peer state atomically, and adds a hardened owner-recovery page for confirmed port 53 interception.

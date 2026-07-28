@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "android-ffi"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-mobile-platform-runtime",
  "jni",
@@ -577,11 +577,11 @@ source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa10
 
 [[package]]
 name = "hns-cache"
-version = "0.5.3"
+version = "0.5.4"
 
 [[package]]
 name = "hns-chain"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-core",
  "rusqlite",
@@ -590,7 +590,7 @@ dependencies = [
 
 [[package]]
 name = "hns-core"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "blake2",
  "hex",
@@ -603,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "hns-dane"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-core",
  "hns-dnssec",
@@ -614,7 +614,7 @@ dependencies = [
 
 [[package]]
 name = "hns-dnssec"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-core",
  "num-bigint",
@@ -628,7 +628,7 @@ dependencies = [
 
 [[package]]
 name = "hns-gateway"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-core",
  "hns-dane",
@@ -647,7 +647,7 @@ source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa10
 
 [[package]]
 name = "hns-loopback-proxy"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "base64",
  "hns-core",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "hns-mobile-platform-runtime"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-browser-observability",
  "hns-browser-runtime",
@@ -695,7 +695,7 @@ source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa10
 
 [[package]]
 name = "hns-p2p"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "getrandom 0.3.4",
  "hex",
@@ -712,7 +712,7 @@ source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa10
 
 [[package]]
 name = "hns-resolver"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-cache",
  "hns-core",
@@ -725,7 +725,7 @@ dependencies = [
 
 [[package]]
 name = "hns-sync"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-chain",
  "hns-core",
@@ -737,7 +737,7 @@ dependencies = [
 
 [[package]]
 name = "hns-transport"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "bytes",
  "h2",
@@ -758,7 +758,7 @@ dependencies = [
 
 [[package]]
 name = "hns-urkel"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-core",
  "thiserror 2.0.19",
@@ -895,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "ios-ffi"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "hns-mobile-platform-runtime",
 ]
