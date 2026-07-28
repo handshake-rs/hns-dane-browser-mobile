@@ -1,6 +1,10 @@
 # HNS DANE Browser
 
-Cross-platform Handshake-first browser core with local HNS proofs, authoritative DNS, an experimental requester-only HNS P2P DNS relay, optional user-configured recovery DoH, DNSSEC, and DANE diagnostics. Android is the validated shipping baseline; the repository also contains the native iOS 17.0-or-later shell and Apple ABI/build integration. The Apple build and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6; a signed external-TestFlight device pass is the recommended final iOS release gate and has not been completed.
+Cross-platform Handshake-first browser core with local HNS proofs, authoritative DNS, an experimental requester-only HNS P2P DNS relay, optional user-configured recovery DoH, DNSSEC, and DANE diagnostics. Android is the validated shipping baseline; the repository also contains the native iOS 17.0-or-later shell and Apple ABI/build integration. The Apple build and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
+
+Google Play Store: https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane
+
+Apple App Connect: https://apps.apple.com/us/app/hns-dane-browser/id6791914326
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).
