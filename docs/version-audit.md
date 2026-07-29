@@ -79,16 +79,28 @@ Notes:
   canonical DNS host enters that dual-root path. Before this correction, an
   HNS-selected host could be replaced with synthetic ICANN details containing
   `nameClass: icann` and `hnsProof: not_applicable`.
-- Connected Pixel 9 debug validation covered a fresh regtest runtime at height
-  `0` with `error: null`, recovery of preserved data to snapshot height
-  `300000`, and a manual **Run** transition to `syncing` with `error: null`. On
-  the same physical Pixel 9 running API 37, the new HNS Proof Details
-  instrumentation first failed against the pre-fix behavior by showing
-  DNSSEC/synthetic ICANN details; after the fix, paired HNS and ICANN activity
-  tests pass. Required CI now includes the fresh-runtime and paired
-  proof-details regressions on an API 37 x86_64 Android emulator. These are
-  source and debug-device checks only: no signed code `47` artifact, Play
-  upload, GitHub tag/release, or completed remote CI run is claimed here.
+- Android `0.5.6` shipped from source
+  `417af67efd68198de4871c0a339d1e456b60cb68`. Its signed 51,323,995-byte APK
+  has SHA-256
+  `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; its
+  signed 60,276,192-byte Play AAB has SHA-256
+  `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`.
+- On a Pixel 9 running Android 17 / API 37, the exact signed APK upgraded code
+  `46` to code `47` with data preserved, cold-launched, reached `up_to_date` at
+  height `340348` with lag `0`, freshness `current`, and `error: null`, and
+  passed manual sync plus HNS browsing and proof-presentation checks. Earlier
+  instrumentation reproduced the pre-fix DNSSEC/synthetic ICANN display for an
+  HNS selection; paired HNS and ICANN tests pass after correction.
+- Required CI passed in run `30484282637` on workflow-only descendant
+  `cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`. That commit does not replace the
+  tagged shipping source or alter the signed artifacts.
+- Google Play deployed code `47` to production with status `completed` through
+  edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
+  Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes the verified APK only;
+  the Play AAB and unchanged iOS build are not attached.
+- iOS remains `0.5.5` / build `57`. App Store Connect reports the build
+  `VALID` and its direct App Review submission `WAITING_FOR_REVIEW`, with
+  manual release and no TestFlight distribution.
 - Gateway-generated HNS error pages now include the requested URL above the status line so repeated 502 validation pages show which address failed.
 - Gateway failure diagnostics are now persisted in app-private storage as a bounded, sanitized recent-event log containing only stage, host, status, and reason. URL paths, query strings, headers, and bodies are not written to the default diagnostic log.
 - An Android instrumentation test now validates the real HNS CONNECT termination path on-device: the loopback proxy generates a native per-host TLS certificate, completes a TLS handshake, pins the certificate fingerprint for WebView SSL policy, rejects an ICANN URL for that pinned certificate, and forwards a bounded HNS HTTPS POST body through the native gateway bridge.

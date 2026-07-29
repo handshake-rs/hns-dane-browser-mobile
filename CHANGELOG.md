@@ -8,11 +8,28 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Prepared the Android-only `0.5.6` hotfix (`versionCode 47`) with shared Rust
-  engine `0.5.6`. iOS remains unchanged at `0.5.5` (build 57).
-- Signed code 47 artifacts, Google Play upload and commit, the `v0.5.6` tag,
-  and GitHub Release publication remain pending and are not recorded here as
-  completed.
+- Released the Android-only `0.5.6` hotfix (`versionCode 47`) with shared Rust
+  engine `0.5.6` from shipping source
+  `417af67efd68198de4871c0a339d1e456b60cb68`. iOS remains unchanged at
+  `0.5.5` (build 57), `VALID`, and directly `WAITING_FOR_REVIEW` with manual
+  release and no TestFlight distribution.
+- Built and verified the signed 51,323,995-byte APK (SHA-256
+  `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and
+  60,276,192-byte Play AAB (SHA-256
+  `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`).
+- Upgraded a Pixel 9 running Android 17 / API 37 from code 46 to the exact
+  signed code 47 APK without clearing data. It cold-launched successfully,
+  reached `up_to_date` at height `340348` with lag `0`, freshness `current`,
+  and `error: null`, and passed manual sync plus HNS browsing and proof checks.
+- Required CI passed in run `30484282637` on workflow-only descendant
+  `cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`; the tagged shipping source and
+  artifact provenance remain `417af67efd68198de4871c0a339d1e456b60cb68`.
+- Deployed code 47 to Google Play production with status `completed` through
+  edit `07330408575596336357`; the post-commit `generatedApks/47` readback returned
+  HTTP `200`.
+- Published GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) with only the
+  verified Android APK. The Play AAB and unchanged iOS build are intentionally
+  not release assets.
 
 ### Fixed
 
