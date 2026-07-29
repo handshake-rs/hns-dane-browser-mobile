@@ -135,43 +135,39 @@ WebKit network-process behavior.
 
 ## Checkpoint Verification
 
-Post-fix validation against engine revision
-`7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` remains subject to the fresh
-`0.5.5` gates below. The `0.5.4` candidate passed the complete hosted
-Rust/Android/Apple matrix before this Apple-shell fix. The preceding engine
-revision passed on Linux on
-2026-07-26:
+The `0.5.5` release source continues to pin engine revision
+`7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
 
-- The affected library suites passed: `hns-dnssec` (60 tests),
-  `hns-resolver` (67), `hns-gateway` (50), and
-  `hns-mobile-platform-runtime` (160).
-- Strict all-target Clippy passed for those four packages, and
-  `cargo check --workspace --all-targets`, `cargo fmt --all -- --check`, and
-  `git diff --check` passed.
-- The seven immutable-Git-policy tests, exact repository policy verifier,
-  runtime-boundary checker, generated-third-party-notice verification, and
-  supply-chain verifier passed, and no prior engine revision remains in tracked
-  source or lockfiles.
+- Local Rust validation passed 764 tests with no failures and one ignored
+  benchmark; strict Clippy, formatting, and workspace checks passed.
+- Full manual CI run `30448341156` passed repository policy, the complete
+  Rust/supply-chain gate, Android build/tests/lint/bundle structure, the Apple
+  ABI/XCFramework/XCTest/simulator/device-link gate, and Required CI for the
+  code 46/build 57 version-bump source.
+- The signed code 46 APK and AAB passed exact ABI, 16 KiB alignment, ELF
+  hardening, symbols, R8, notices, archive-signature, upload-certificate, APK
+  signature, and ZIP-alignment checks. Google Play committed production edit
+  `17438779769069438085`; `generatedApks/46` returned HTTP `200`.
+- Final iOS-only source
+  `d926561091634cd69fc9b7e79a4b76003fa4ee47` passed exact-head policy, the
+  complete Apple gate, and Required CI in run `30454904736`.
+- Live Release screenshot run `30454926117` produced four fixture-free
+  1284 × 2778 images at that exact source. Provenance records current Handshake
+  headers, DANE-verified HNS, same-navigation Proof Details, and authenticated
+  ICANN WebPKI; the full App Store metadata/screenshot validator passes.
+- Protected upload run `30456522039` passed the unsigned gate, signed and
+  uploaded build `57`, and retained the 47,930,601-byte IPA with SHA-256
+  `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.
+  App Store Connect reports the build `VALID` and the direct App Review
+  submission `WAITING_FOR_REVIEW`, with manual release and no TestFlight
+  distribution.
+- Public GitHub Release `v0.5.5` retains the exact verified code 46 APK and
+  build 57 IPA at annotated tag source
+  `d926561091634cd69fc9b7e79a4b76003fa4ee47`.
 
-The broader canonical-engine adoption checkpoint earlier on 2026-07-26 also
-passed the locked workspace test and Clippy suites, runtime boundary checker,
-and generated-third-party-notice verification. Its supporting package counts
-preceded the five new mobile runtime regressions and one resolver regression.
-
-The preceding 2026-07-25 checkpoint also passed the locked/offline optimized
-workspace build, C/C++ Apple ABI and exact exported-symbol checks, version
-consistency, and all 19 portable iOS screenshot-tool tests. Those historical
-results are retained as supporting evidence, not represented as fresh
-2026-07-26 executions.
-
-The consolidated `./scripts/check.sh` was not rerun because it would duplicate
-the expensive Rust suites above. This checkpoint therefore does not claim a
-fresh `cargo-deny`, fuzz-target, snapshot-exporter, store-metadata, Android
-resource, or iOS simulator-selector result.
-
-`./gradlew --offline --no-daemon :app:testDebugUnitTest :app:lintDebug` could
-not enter Android task execution because this host has no configured Android SDK
-(`SDK location not found`). Android JVM/instrumentation/lint and Apple
-XCTest/simulator/device qualification therefore remain external gates; this
-Linux host has no Xcode or Swift compiler, and no pass is inferred from the
-portable checks.
+These gates verify portable, Android package, hosted Apple build, and live
+simulator behavior. They do not prove the separate signed physical Android or
+real-iPhone matrices for WebView/WebKit process restarts, lifecycle changes,
+Service Workers, downloads, WebSockets, and cross-origin subresources. Those
+installed-device rows remain open and are not prerequisites for App Store
+Connect upload or direct App Review submission, both of which are complete.

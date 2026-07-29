@@ -2,30 +2,31 @@
 
 Last audited: 2026-07-29
 
-This audit treats the repository as an update candidate for existing public
+This audit records the release checkpoint for the existing public
 Google Play and Apple App Store apps. Google Play production completed
-`0.5.5` / code `45`; the Apple public baseline observed on 2026-07-28 was
+`0.5.5` / code `46`; the Apple public baseline observed on 2026-07-28 was
 `0.5.0`. Current source declares Android `0.5.5` (`versionCode 46`), Rust
-engine `0.5.5`, and iOS `0.5.5` (build `57`). Code `46` and build `57` are the
-replacement candidates carrying the shared dual-root negative-evidence fix.
-Their exact gates, signing, exact-build Android release-device verification,
-and store submissions remain pending.
+engine `0.5.5`, and iOS `0.5.5` (build `57`). Code `46` passed its exact
+signed-package gates and production deployment. Build `57` carries the same
+shared dual-root fix, has been uploaded and submitted directly to App Review
+with manual release, and is tracked separately from the still-open Android/iOS
+physical-device matrices.
 
-## Release Candidate Findings
+## Release Findings
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| Android release build | Code 45 signed and deployed; code 46 pending | Code 45 passed Android build, unit tests, lint, unsigned bundle structure, upload-signature verification, APK signature/alignment checks, and production deployment. Code 46 must repeat the same gates. The retained code 40 APK/AAB hashes (`bff5ba468b0c5ad2d134603127f089ad6fdc9e9b5ceab921825e570cfefd60fb` and `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0`) remain dated v0.5.0 evidence, not artifacts for this checkpoint. |
-| Public Play listing | Production update deployed | Google Play production contains version `0.5.5` / code 45 with release status completed. |
-| Public App Store listing | Build 57 replacement pending; device qualification open | Apple reported version `0.5.0` on 2026-07-28. Build `48` is predecessor evidence and `0.5.5` / build `49` is a superseded upload. Builds `50`–`56` were not uploaded. Build `56` passed exact CI, but its live screenshot run failed when compressed SOA negative evidence and stale plan-start timing made dual-root ICANN evidence indeterminate. Build `57` carries the shared fix; its gates and upload remain pending. No TestFlight distribution is part of this release, and App Store release remains manual after review. A real-iPhone pass remains a separate installed-iOS and ecosystem qualification item. |
+| Android release build | Code 46 signed, verified, and deployed | Source `d24f85158854abb8be4a7bb9e914aebe5e7e4679` produced the signed code 46 APK (SHA-256 `b36a4346ffcba14c081500ef3dc7c5012cabd30f42cdaa80a354eefb5da210ba`) and AAB (SHA-256 `728d8892e180d954652668a4e53a7e2d6c7542e9d36330f4803cdecdb34598b0`). Both passed build, test, lint, bundle structure, native hardening/symbol, signature, and alignment gates. |
+| Public Play listing | Code 46 production complete | Android Publisher edit `17438779769069438085` committed code 46 directly to production with status `completed`; `generatedApks/46` returned HTTP `200`. |
+| App Store update | Public `0.5.0`; build 57 is `WAITING_FOR_REVIEW`; device qualification tracked separately | Apple reported public version `0.5.0` on 2026-07-28. Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). App Store Connect reports the build `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`. No TestFlight distribution is part of this release, and a real-iPhone pass remains a separate qualification item. |
 | Privacy policy | Repository and hosted policy aligned | The canonical `https://denuoweb.com/work/hns-dane-browser/privacy` policy now discloses the independently opt-in P2P requester and user-configured recursive HNS DoH recovery, operator-visible queried names/types, timing and source IP, blank/off defaults, one-way legacy-key tombstone, local DNSSEC/DANE validation, validating ICANN bootstrap, and continued prohibition on HNS WebPKI fallback. |
 | Manifest exposure | Ready | The only app-defined exported entry point is `LauncherActivity`. Browser, settings, diagnostics, HNS inspector, history, download, and other app activities are non-exported, and the app declares no service. Merged dependency components remain subject to their own signature/permission guards. |
 | Backup / transfer | Ready | App backup and device-transfer extraction are disabled for local browsing data, WebView state, download records, diagnostics, resolver cache, and HNS sync/cache state. |
 | Cleartext policy | Ready | Cleartext is disabled globally with a loopback-only exception for the local gateway. User-selected HTTP and direct DNS/HNS traffic are accurately disclosed, but ordinary open-web and user-initiated transfers are outside Google Play's Data safety collection/sharing scope. |
 | WebView hardening | Ready | Mixed content is blocked, Safe Browsing is enabled, file/content access is disabled, native JavaScript bridges are removed, WebView debugging follows `BuildConfig.DEBUG`, and browser-wide loopback proxying sends every canonical DNS host to exact per-origin Rust dual-root preparation. |
 | Privacy controls | Improved | Settings can clear cookies plus WebView origin storage, and the diagnostics UI can clear the bounded gateway event log. The repository and in-app disclosures now describe WebView-provider Safe Browsing and these local retention controls. |
-| Build supply chain | Build 56 exact CI passed; replacement gates pending | Build 56 passed its exact CI matrix. Because the compressed-SOA and post-resolution freshness fix changes the shared runtime, code 46/build 57 must repeat the selected Rust, Android, and Apple matrix before release. |
-| 16 KiB / native symbols | Code 45 signed gates passed; code 46 pending | The code 45 bundle passed PT_LOAD alignment, hardening, stripping, Build ID, matching FULL debug metadata, path sanitization, and upload signing; its APK passed signature and 16 KiB ZIP-alignment verification. Repeat the same gates for code 46. |
+| Build supply chain | Code 46/build 57 shared and final Apple gates passed | Full manual CI run `30448341156` passed policy, Rust/supply-chain, Android, Apple, and Required CI at the version-bump source. Exact-head run `30454904736` passed policy, the complete Apple gate, and Required CI after the final iOS-only corrections. |
+| 16 KiB / native symbols | Code 46 signed gates passed | The code 46 bundle passed PT_LOAD alignment, hardening, stripping, Build ID, matching FULL debug metadata, path sanitization, R8 mapping, notices, and upload signing; its APK passed signature and 16 KiB ZIP-alignment verification. |
 | Release-device acceptance | Pending for code 46 | Install the exact signed code 46 APK and exercise cold launch, permanent tombstoning of the historical resolver key, blank/off recovery default, independent requester opt-in, configured-recursive validation and interception-only eligibility, verified manual-peer persistence, fail-closed bogus/invalid/stale cases, and dual-root HNS/ICANN/DNSSEC/DANE/WebPKI browsing. Historical only: the signed `0.4.1` APK upgraded and cold-launched successfully on the Pixel 9 after its shared-runtime device matrix passed. |
 | Data collection posture | Repository review updated; live-form reconciliation required | No ads, analytics SDKs, developer accounts, sensitive permissions, advertising ID access, or developer telemetry endpoint was found. The policy now records that a relay peer receives the DNS name/type and source network address needed for the request. Retain the live `No collected / No shared` posture only after reconciling the current Play definitions and WebView-provider Safe Browsing guidance. |
 
@@ -64,23 +65,21 @@ and store submissions remain pending.
 
 ## Remaining Release Gates
 
-1. Retain historical CI evidence, including build `56`'s exact passing matrix,
-   but repeat the hosted path-policy, Rust, cold-cache Android, Apple, and
-   required-result jobs on the final code `46` / build `57` candidate commit.
-2. Compare upload certificate SHA-256 `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14` with the upload certificate shown in Play Console.
-3. Run the critical first-run, private staged-sync publication,
+1. Monitor Apple's review of build `57` and, after approval, perform the
+   deliberately manual App Store release. Upload, metadata, screenshots, build
+   linkage, full readback, and direct submission are complete.
+2. Run the critical first-run, private staged-sync publication,
    interrupted-publication recovery, upgrade-policy migration, sync-resume,
    blank/off recursive recovery, default-off requester relay, explicit
    independent opt-ins, configured-endpoint validation/bootstrap, verified
    manual-peer, terminal bogus/invalid/stale cases, fail-closed no-route,
    HNS-only browsing, ICANN-only browsing, convergent/divergent dual-root
    browsing, download, website-data deletion, and gateway-log deletion flows
-   on a physical supported Android device using the exact signed candidate.
-4. Reconfirm the aligned privacy policy and reconcile the existing live Play
-   listing's Data safety/app-access/content/ads answers, listing copy, release
-   notes, and stale screenshots before submitting the verified code `46` AAB.
+   on a physical supported Android device using the exact signed artifact.
+3. Reconcile the existing live Play listing's Data safety, app-access, content,
+   ads, listing-copy, and stale-screenshot fields against deployed code `46`.
 
-## Candidate Verification Status
+## Release Verification Status
 
 - `0.5.3` / code 43 portable `scripts/check.sh`: passed for `14edcaf` on
   2026-07-28 in CI run 30323566765.
@@ -94,13 +93,23 @@ and store submissions remain pending.
   CI run 30402803553.
 - `0.5.4` signed APK/AAB verification: passed as predecessor release evidence;
   generated binaries remain outside the tracked source tree.
-- `0.5.5` / code `45` signed-package verification and Google Play production
-  deployment: completed.
-- `0.5.5` / build `56` exact CI: passed. Its live screenshot run failed closed
-  because compressed SOA negative evidence and stale plan-start timing made the
-  dual-root ICANN result indeterminate; it was not uploaded.
-- `0.5.5` / code `46` and build `57` exact portable/platform and signed-package
-  gates: pending for the shared fix candidate.
+- `0.5.5` / code `46` signed APK/AAB verification and direct Google Play
+  production deployment: completed; edit `17438779769069438085` committed and
+  `generatedApks/46` returned HTTP `200`.
+- `0.5.5` / code `46` and build `57` shared portable/platform gates: passed in
+  full manual CI run `30448341156`; exact code 46 signed-package gates passed.
+- `0.5.5` / build `57` final iOS-only exact-head gate: policy, complete Apple
+  matrix, and Required CI passed in run `30454904736`.
+- `0.5.5` / build `57` live Release screenshots: four-image, exact-source,
+  fixture-free provenance passed in run `30454926117`.
+- `0.5.5` / build `57` signed upload and direct App Review: protected run
+  `30456522039` uploaded the verified IPA; App Store Connect reports build
+  `VALID`, version `appStoreState=WAITING_FOR_REVIEW`, and the direct review
+  submission `WAITING_FOR_REVIEW`, with manual release and App Store review
+  type. No TestFlight distribution was created.
+- Public GitHub Release `v0.5.5`: published at annotated tag source
+  `d926561091634cd69fc9b7e79a4b76003fa4ee47` with the verified code 46 APK and
+  build 57 IPA assets.
 - `0.5.5` / code `46` exact signed-build physical Android acceptance: pending.
 - iOS real-device qualification: pending. It is separate from App Store
   submission eligibility and remains required before installed-iOS or
@@ -117,7 +126,9 @@ and store submissions remain pending.
 ## Watch Items
 
 - Sync runs while any app activity is started and stops when the entire app backgrounds; verify cross-screen continuity, interruption, and catch-up resume on the release device.
-- Release AAB signing and Play upload remain secret-dependent external operations. CI should build and structurally verify an unsigned release bundle without receiving signing or Play credentials.
+- Future release AAB signing and Play upload remain credentialed external
+  operations. CI should continue to build and structurally verify an unsigned
+  release bundle without receiving signing or Play credentials.
 - General-purpose browsing can reach arbitrary third-party content; keep target audience and content rating conservative and consistent with the live listing.
 - Re-review the accepted hosted policy, repository policy, in-app privacy copy, and live Data safety answers whenever a material networking, storage, diagnostics, or third-party-service behavior changes.
 - The hosted and repository policies are aligned at this checkpoint; re-review

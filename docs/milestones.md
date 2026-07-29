@@ -101,27 +101,18 @@
 - Added the iOS 17.0-or-later UIKit/WKWebView shell with persistent profile data, authenticated no-failover whole-data-store proxying, generation-safe scope rotation, exact Rust-authorized HNS certificate handling, lifecycle revocation, downloads, and shared snapshot bootstrap.
 - Added the macOS ABI, XCFramework, application, and simulator test gate against the stable iOS 26.5 SDK, accepting Xcode 26.5 or 26.6. The iOS 17.0 deployment floor, including support for the iOS 18 generation, remains independent of that build SDK.
 - Published the iPhone app on the Apple App Store; version `0.5.0` was the
-  public baseline observed on 2026-07-28. Version `0.5.4` / build `48` is
-  predecessor upload evidence, and `0.5.5` / build `49` is a superseded App
-  Store Connect upload. Version `0.5.5` / build `50` reproduced the transient
-  connection-loss alert in a clean simulator run and was not uploaded. Version
-  `0.5.5` / build `51` was pushed, but validation was canceled and it was not
-  uploaded. Version `0.5.5` / build `52` passed exact CI, but a live capture
-  reproduced a second bounded startup connection loss and its upload was
-  canceled. Version `0.5.5` / build `53` passed exact CI, but its live capture
-  exhausted two same-connection recovery attempts and it was not uploaded.
-  Version `0.5.5` / build `54` was superseded before live capture after deeper
-  analysis showed that the proxy must remain suspended until factual header
-  currentness. Build `55` proved that gate in live capture and exposed a stale
-  WebKit policy-interruption callback when a new address replaced the
-  provisional homepage. Build `56` handled only that superseded navigation and
-  passed exact CI, but its live screenshot run failed closed when compressed
-  SOA negative evidence and stale plan-start timing made the dual-root ICANN
-  result indeterminate. It was not uploaded. Build `57` is the current source
-  candidate and carries the shared RFC 1035 name-expansion and post-resolution
-  freshness fix. Builds `50`–`56` were not uploaded; build `49` remains the
-  superseded App Store Connect upload. No TestFlight distribution is part of
-  this release, and App Store release is manual after review.
+  public baseline observed on 2026-07-28. The useful intermediate Apple build
+  chronology is retained in `docs/ios-app-store-release.md`.
+- Build `57` at source
+  `d926561091634cd69fc9b7e79a4b76003fa4ee47` carries those fixes plus stable
+  Proof Details selection and origin revalidation when a cached main frame has
+  no new Rust status. Android code `46` completed Google Play production from
+  the matching version-bump source. Protected run `30456522039` signed and
+  uploaded build `57`; App Store Connect reports the build `VALID` and the
+  direct App Review submission `WAITING_FOR_REVIEW`. No TestFlight distribution
+  is part of this release, and App Store release remains manual after review.
+  GitHub Release `v0.5.5` publicly retains the verified code 46 APK and build 57
+  App Store IPA.
 - Installed-device qualification gate: run and document the signed
   physical-device WebKit matrix for main frames, subresources, Service Workers,
   WebSockets, downloads, background/resume, and renderer/network-process

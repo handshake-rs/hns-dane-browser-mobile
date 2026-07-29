@@ -9,18 +9,23 @@ and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 
 - [Google Play Store](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
+- [GitHub Release v0.5.5](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.5)
 
-Google Play production completed `0.5.5` / code `45`; the Apple App Store
-baseline observed on 2026-07-28 was `0.5.0`. This repository is the replacement
-`0.5.5` candidate (Android code `46`, iOS build `57`). The matching `0.5.4`
-packages and superseded iOS build `49` App Store Connect upload remain
-predecessor evidence. Builds `50`–`56` were not uploaded. Build `56` passed
-exact CI, but its live screenshot run exposed indeterminate dual-root ICANN
-negative evidence: compressed SOA names were retained with unusable message
-pointers and plan freshness used a stale plan-start clock sample. Build `57`
-carries the shared parser and post-resolution timing fix. The hosted privacy
-policy at the canonical product URL is aligned with the current repository
-disclosure.
+Google Play production contains `0.5.5` / code `46`, built from source
+`d24f85158854abb8be4a7bb9e914aebe5e7e4679`. The Apple App Store baseline
+observed on 2026-07-28 was `0.5.0`; iOS `0.5.5` / build `57` is the matching
+update. Apple source `d926561091634cd69fc9b7e79a4b76003fa4ee47` adds the
+shared compressed-negative-evidence and post-resolution freshness fixes,
+stable semantic Proof Details selection, and origin revalidation for a cached
+main frame with no new Rust status. Exact-head Apple CI run `30454904736` and
+live Release screenshot run `30454926117` passed. Protected upload run
+`30456522039` signed and uploaded build `57`; the retained IPA has SHA-256
+`efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.
+App Store Connect reports the build `VALID` and the direct App Review
+submission `WAITING_FOR_REVIEW`, with manual release selected. No TestFlight
+distribution was created. Public GitHub Release `v0.5.5` contains the verified
+code 46 APK and build 57 App Store IPA. The hosted privacy policy at the
+canonical product URL is aligned with the current repository disclosure.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).

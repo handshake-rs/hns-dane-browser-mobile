@@ -4,16 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-## 0.5.5 - 2026-07-28
+## 0.5.5 - 2026-07-29
 
 ### Changed
 
 - Prepared the coordinated public update as shared Rust engine `0.5.5`,
   Android `0.5.5` (`versionCode 46`), and iOS `0.5.5` (build 57).
-- Google Play production completed the earlier `0.5.5` / code 45 package.
-  Code 46 and iOS build 57 are the replacement candidates carrying the shared
-  dual-root negative-evidence fix. iOS build 56 passed exact CI but was not
-  uploaded after its live screenshot run exposed that defect.
+- Built and verified the signed code 46 APK/AAB, then completed its direct
+  Google Play production deployment. iOS build 57 is the matching Apple update.
+- Signed and uploaded iOS build 57 in protected run `30456522039`, retained the
+  App Store IPA with SHA-256
+  `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`,
+  reconciled the current metadata and four live screenshots, and submitted the
+  build directly to App Review. App Store Connect reports
+  `WAITING_FOR_REVIEW`; release remains manual and no TestFlight distribution
+  was created.
+- Published GitHub Release `v0.5.5` at shipping source
+  `d926561091634cd69fc9b7e79a4b76003fa4ee47` with the verified code 46 APK and
+  build 57 App Store IPA.
 
 ### Fixed
 
@@ -41,6 +49,12 @@ All notable changes to this project will be documented in this file.
 - Evaluates plan freshness against a clock sampled after root resolution.
   Multi-second DNS and TLSA lookups no longer reject their own newly observed
   evidence as future-dated.
+- Keeps the iOS Settings proof row stable while runtime-summary polling
+  continues, and re-queries the semantic row before live App Store capture.
+- Forces iOS Reload to revalidate with the origin through the active Rust
+  proxy. Live App Store capture may retry once only for the exact cached
+  main-frame-without-status or dual-root-indeterminate result, and still
+  requires a final DANE or validating-DoH/WebPKI result.
 
 ## 0.5.4 - 2026-07-28
 

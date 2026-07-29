@@ -1,31 +1,42 @@
 # App Store submission checklist
 
-Canonical update-candidate values: iOS version `0.5.5`, build `57`, bundle ID
+Canonical submitted-update values: iOS version `0.5.5`, build `57`, bundle ID
 `com.denuoweb.hnsdane.ios`, iPhone only, Utilities, Free, manual release. The
-public baseline observed on 2026-07-28 is version `0.5.0`.
+public baseline observed on 2026-07-28 is version `0.5.0`. App Store Connect
+accepted the direct App Review submission on 2026-07-29 and reports
+`WAITING_FOR_REVIEW`.
+
+Checked items below have repository, workflow, or App Store Connect API
+readback. Unchecked app/account-level items were sufficient for Apple to accept
+the submission, but their exact saved answers were not independently exposed by
+the guarded release client; they remain evidence follow-ups, not submission
+blockers.
 
 ## Public listing
 
-- [ ] The support and marketing page describes the iOS release and visibly lists
+- [x] The support and marketing page describes the iOS release and visibly lists
   `info@denuoweb.com` for support.
 - [x] The live privacy URL contains the current cross-platform policy and does not
   direct users to post personal information in a public issue.
-- [ ] The app's in-app Privacy Policy and Source Code actions open those live pages.
-- [ ] Paste the update fields listed in `metadata/README.md`, including
-  `metadata/en-US/whats-new.txt` under **What's New in This Version**.
-- [ ] Set the version to `0.5.5`, select build `57`, and leave Routing App Coverage
-  empty.
+- [x] The app's in-app Privacy Policy and Source Code actions open those live pages.
+- [x] Reconcile the version-managed description, keywords, promotional text,
+  support/marketing URLs, copyright, and
+  `metadata/en-US/whats-new.txt`.
+- [ ] Independently read back the existing app-level name, subtitle, privacy
+  policy URL, and Routing App Coverage; the release client does not manage
+  those fields.
+- [x] Set the version to `0.5.5` and select build `57`.
 
 ## Screenshots
 
-- [ ] Add one to ten real iPhone screenshots to `screenshots/en-US/`; three is the
-  recommended first set.
-- [ ] Use one accepted 6.9-inch or 6.5-inch resolution throughout, with no alpha
+- [x] Stage the four verified live iPhone screenshots in
+  `screenshots/en-US/`.
+- [x] Use one accepted 6.9-inch or 6.5-inch resolution throughout, with no alpha
   channel or transparency.
-- [ ] Show: ordinary WebPKI browsing, a developer-controlled Handshake page with
-  its security path, and Proof Details or Browser Settings. Do not use a splash or
-  empty start screen.
-- [ ] Run `python3 dist/app-store/validate.py` successfully.
+- [x] Show: ordinary authenticated ICANN browsing, a developer-controlled
+  Handshake page with its DANE path, Browser Settings, and Proof Details. Do not
+  use a splash or empty start screen.
+- [x] Run `python3 dist/app-store/validate.py` successfully.
 
 ## App Store questionnaires
 
@@ -37,10 +48,11 @@ public baseline observed on 2026-07-28 is version `0.5.0`.
 - [ ] **Age Rating:** Unrestricted Web Access = Yes. The app itself has no ads,
   chat, social feed, gambling, loot boxes, parental controls, or age assurance;
   answer the content-frequency questions accordingly. Do not select Made for Kids.
-- [ ] **Content Rights:** Third-party content = Yes. Confirm it is accessed by a
+- [x] **Content Rights:** Third-party content = Yes. Confirm it is accessed by a
   user-directed browser and is not bundled or curated by the app.
-- [ ] **App Access:** Sign-in required = No. There is no account, subscription,
+- [x] **App Access:** Sign-in required = No. There is no account, subscription,
   in-app purchase, wallet, or payment flow.
+- [x] Build `57` readback reports `usesNonExemptEncryption=false`.
 - [ ] **Export Compliance:** Uses encryption = Yes; limited to Apple OS encryption
   = No; proprietary or non-standard encryption = No; industry-standard encryption
   outside the OS = Yes. Complete any documentation App Store Connect requests for
@@ -50,14 +62,18 @@ public baseline observed on 2026-07-28 is version `0.5.0`.
 
 ## Review and release
 
-- [ ] Enter a real review contact name, phone number, and email address.
-- [ ] Paste `metadata/en-US/review-notes.txt`; do not enable the sign-in fields.
-- [ ] Confirm build `57` has finished processing and its export-compliance status is
-  resolved.
-- [ ] Confirm the metadata, privacy answers, age rating, content rights, pricing,
-  availability, screenshots, and build are all attached to the same submission.
-- [ ] Choose **Manually release this version**, save, then add the app version and
+- [x] Enter a real review contact name, phone number, and email address.
+- [x] Paste `metadata/en-US/review-notes.txt`; do not enable the sign-in fields.
+- [x] Confirm build `57` has finished processing as `VALID`, is unexpired, and
+  reports `usesNonExemptEncryption=false`.
+- [x] Confirm the version-managed metadata, review details, content-rights
+  declaration, four ordered screenshots, and build are attached to the same
+  submission.
+- [ ] Independently archive the exact app-level App Privacy, age-rating, DSA,
+  pricing, availability, and routing answers; Apple accepted the submission,
+  but the guarded client did not read those fields.
+- [x] Choose **Manually release this version**, save, then add the app version and
   build for review.
-- [ ] Record that no TestFlight distribution is part of this release. This does
+- [x] Record that no TestFlight distribution is part of this release. This does
   not block App Store submission, but installed-iOS and ecosystem qualification
   remain open until a separate physical-device matrix is completed.

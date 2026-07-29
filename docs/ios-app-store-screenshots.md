@@ -80,7 +80,7 @@ qualification matrix in `docs/ios-device-validation.md`.
 1. Inspect all four images at full size. Confirm that the HNS page and public
    product page rendered normally, Settings matches the shipping Android-aligned
    structure with Stateless DANE visibly rendered as a switch, Proof Details
-   refers to `denuoweb`, text is not clipped, and no
+   refers to `denuoweb`, critical app and security text is not clipped, and no
    keyboard, test overlay, or alert is visible.
 2. Inspect `manifest.json`. Confirm `capture.mode` is
    `live-production-runtime`, `capture.configuration` is `Release`,
@@ -96,19 +96,29 @@ qualification matrix in `docs/ios-device-validation.md`.
    python3 dist/app-store/validate.py
    ```
 
-The committed screenshot package predates automatic ICANN DANE and must be
-recaptured before it can be used as evidence for a release containing this
-change.
-
    The staging script verifies every digest, replaces
    `dist/app-store/screenshots/en-US/` with only the four live JPEGs, and writes
    the adjacent `dist/app-store/screenshots/manifest.json` provenance gate. Do
    not copy or rename fixture images into the upload folder.
 4. Upload the four approved JPEGs to App Store Connect's 6.5-inch iPhone slot
-   in numerical order.
+   in numerical order, either through the guarded release client or directly
+   in App Store Connect.
 
-The workflow never contacts App Store Connect and does not use signing or
-App Store credentials. Upload remains a deliberate manual step after review.
+The committed `0.5.5` set was captured from exact source
+`d926561091634cd69fc9b7e79a4b76003fa4ee47` in successful workflow run
+`30454926117`. Its Release/runtime provenance, four 1284 × 2778 images, and
+digests pass the full metadata validator.
+
+The screenshot workflow never contacts App Store Connect and does not use
+signing or App Store credentials. After local visual review, the guarded
+release client uploaded this `0.5.5` set and verified its order, checksums, and
+dimensions in App Store Connect.
+
+Protected upload run `30456522039` also completed a repeat live capture and
+retained artifact `8727084963`. That distinct set is corroborating evidence
+only; its WebPKI page used the permitted bounded retry, so it did not replace
+the cleaner single-attempt set from run `30454926117` in source or App Store
+Connect.
 
 On a compatible Mac, run the same live capture after the unsigned iOS gate:
 

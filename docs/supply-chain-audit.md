@@ -29,7 +29,7 @@ Last audited: 2026-07-29
 
 ## Audit Results
 
-### Current `0.5.5` Candidate
+### Current `0.5.5` Release Checkpoint
 
 - Android declares `0.5.5` / code 46, the shared Rust workspace declares
   `0.5.5`, and iOS declares `0.5.5` / build 57. The Apple shell now accepts the
@@ -47,31 +47,39 @@ Last audited: 2026-07-29
   parser expands RFC 1035-compressed NS and SOA names before retaining record
   RDATA, and namespace-plan freshness is evaluated against a clock sampled
   after root resolution so newly gathered negative evidence is not rejected
-  against a stale plan-start time.
+  against a stale plan-start time. iOS Settings no longer reloads its table for
+  summary-only sync polling, and Reload now forces origin revalidation through
+  the active proxy so a cached main frame cannot be presented as newly trusted
+  without an exact Rust status.
 - The five engine crates are pinned to reviewed immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
 - The exact `0.5.4` candidate commit `8ffc296` passed the complete portable
   Rust/supply-chain, Android build/test/lint/bundle-structure, and Apple
   ABI/XCFramework/XCTest/simulator/device-link matrix in CI run 30402803553.
-- Signed `0.5.4` Android and iOS packages were produced and verified as
-  predecessor release evidence. iOS `0.5.5` build 49 was uploaded to App Store
-  Connect before the bounded navigation-recovery fix and is retained as
-  superseded upload evidence. Build 50 was not uploaded: clean simulator run
-  30414784116 retained two main-frame `NSURLErrorDomain` code `-1005` events
-  221 milliseconds apart, so next-main-turn replay timing did not recover.
-  Build 51 was pushed, but its validation was canceled and it was not uploaded.
-  Build 52 passed exact CI in run 30417946199, but live run 30417953393
-  reproduced two consecutive provisional `-1005` failures and its Apple upload
-  workflow was canceled before credentials, signing, or upload. Build 53 passed
-  exact CI in run 30420194567, but live run 30421038307 exhausted two bounded
-  same-WebView and same-proxy recovery attempts; no upload ran. Build 54 was
-  superseded before live capture after the pre-currentness admission gap was
-  identified. Build 55 then exposed a superseded-navigation WebKit policy
-  interruption during live capture and was not uploaded. Build 56 passed exact
-  CI, but its live screenshot run failed closed when compressed SOA negative
-  evidence and stale plan-start timing made the dual-root ICANN result
-  indeterminate; it also was not uploaded. Android code 45 passed its signed
-  gates and completed Google Play production. Exact code 46/build 57 gates,
-  signing, artifact verification, and store uploads remain pending.
+- Earlier signed packages remain predecessor evidence only. The useful Apple
+  build chronology is retained once in `docs/ios-app-store-release.md`; build
+  `57` from source `d926561091634cd69fc9b7e79a4b76003fa4ee47` is the sole
+  current `0.5.5` iOS submission/release artifact.
+- Full manual CI run `30448341156` passed policy, Rust/supply-chain, Android,
+  Apple, and Required CI for the code 46/build 57 version-bump source. The exact
+  signed code 46 APK and AAB then passed their release gates and completed
+  Google Play production through committed edit `17438779769069438085`;
+  `generatedApks/46` returned HTTP `200`. The APK SHA-256 is
+  `b36a4346ffcba14c081500ef3dc7c5012cabd30f42cdaa80a354eefb5da210ba`
+  and the AAB SHA-256 is
+  `728d8892e180d954652668a4e53a7e2d6c7542e9d36330f4803cdecdb34598b0`.
+- Build 57's later iOS-only proof-selection and cached-main-frame corrections
+  passed exact-head policy, Apple, and Required CI in run `30454904736`.
+  Live Release screenshot run `30454926117` produced four fixture-free,
+  exact-source 1284 × 2778 images with DANE-verified HNS, same-navigation Proof
+  Details, and authenticated ICANN WebPKI provenance. Protected run
+  `30456522039` signed and uploaded the 47,930,601-byte App Store IPA with
+  SHA-256
+  `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.
+  Its bundle/version/build/profile and signature inputs passed the archive
+  checks. App Store Connect reports build `57` `VALID`, the direct submission
+  `WAITING_FOR_REVIEW`, manual release, and App Store review type. No
+  TestFlight distribution was created. GitHub Release `v0.5.5` publishes this
+  exact IPA beside the verified code 46 APK.
 
 ### Historical `0.5.0` Evidence
 
@@ -81,7 +89,7 @@ Last audited: 2026-07-29
 - The upload-signed code 40 APK used the established RSA-4096 signer, passed APK Signature Scheme v2 and 16 KiB ZIP alignment, and had SHA-256 `bff5ba468b0c5ad2d134603127f089ad6fdc9e9b5ceab921825e570cfefd60fb`.
 - The upload-signed AAB passed content-signature, ABI, 16 KiB ELF-alignment, hardening, stripping, matching-symbol, local-path, mapping, and notices gates and had SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0`.
 - The separate debug test APK used package `com.denuoweb.hnsdane.relaytest`, version `0.5.0-relay-test` / code 40, and SHA-256 `019aeb82b84de878716637fd053321a4590e0c384de3010e885af7e154803990`.
-- Those artifacts predate the current source and do not validate or identify the `0.5.5` candidate.
+- Those artifacts predate the current source and do not validate or identify the `0.5.5` release.
 
 ### Historical `0.4.1` Evidence
 
@@ -100,5 +108,6 @@ Last audited: 2026-07-29
 - Gradle verification metadata was generated from artifacts already obtained over the configured HTTPS repositories. Future checksum changes require a deliberate review; the metadata is an integrity pin, not independent provenance proof.
 - cargo-deny relies on the current RustSec advisory database at check time. CI availability or an upstream advisory-database outage can affect results.
 - The local JNI script defaults to and enforces NDK `28.2.13676358`; `HNS_ANDROID_NDK_VERSION` may override that expectation only for an intentional, reviewed toolchain change.
-- Code 46 must use the same Play upload identity accepted for code 45; the
-  signature-aware bundle gate remains the local fail-closed check before upload.
+- Code 46 was accepted by Google Play with the established upload identity.
+  The signature-aware bundle gate remains the local fail-closed check for
+  future uploads.

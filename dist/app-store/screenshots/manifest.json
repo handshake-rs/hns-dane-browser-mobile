@@ -1,6 +1,6 @@
 {
   "capture": {
-    "commit": "528c97bd57c37e1547129b651881104203fd3542",
+    "commit": "d926561091634cd69fc9b7e79a4b76003fa4ee47",
     "configuration": "Release",
     "device": "iPhone 14 Plus",
     "fixtureEnvironmentInjected": false,
@@ -14,15 +14,17 @@
     "fixtureEnvironmentInjected": false,
     "hnsNavigation": {
       "finalAddress": "https://denuoweb/",
+      "navigationAttemptCount": 1,
       "requestedURL": "https://denuoweb/",
-      "runtimeStatusBeforeNavigation": "Handshake headers current. Local height 338741 \u00b7 peer height 338741 \u00b7 accepted 38741/20",
-      "securityLabel": "DANE verified \u00b7 authoritative DoH"
+      "retryReason": null,
+      "runtimeStatusBeforeNavigation": "Handshake headers current. Local height 340313 \u00b7 effective target 340313 \u00b7 freshness current \u00b7 raw peer 340313 \u00b7 estimate 340977 \u00b7 accepted 0/0",
+      "securityLabel": "DANE verified \u00b7 authoritative DNS \u00b7 HNS only"
     },
     "proofDetails": {
       "contentAccessibilityLabel": "Handshake proof details for denuoweb",
       "sourceRequestedURL": "https://denuoweb/"
     },
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "settings": {
       "sourceRequestedURL": "https://denuoweb/",
       "statelessDANERowIdentifier": "settings.hns-resolution.stateless-dane-certificates",
@@ -30,8 +32,10 @@
     },
     "webPKINavigation": {
       "finalAddress": "https://denuoweb.com/work/hns-dane-browser",
+      "navigationAttemptCount": 1,
       "requestedURL": "https://denuoweb.com/work/hns-dane-browser",
-      "securityLabel": "System WebPKI via the Rust whole-browser proxy"
+      "retryReason": null,
+      "securityLabel": "WebPKI verified \u00b7 no secure TLSA (authenticated absence or insecure delegation) \u00b7 validating ICANN DoH \u00b7 ICANN only"
     }
   },
   "schemaVersion": 1,
@@ -40,28 +44,28 @@
       "attachment": "LIVE_APPSTORE_SCREENSHOT_01_HNS_PAGE",
       "file": "01-hns-page.jpg",
       "height": 2778,
-      "sha256": "157615fafd3abb2c7748eb8bc00461f9943789af8635d0202ad3ddcd8d008121",
+      "sha256": "e0eac436f9127f4f7dfc113e5209e1e878b55d1f62cf9ade10cb01d4a3892ca7",
       "width": 1284
     },
     {
       "attachment": "LIVE_APPSTORE_SCREENSHOT_02_SETTINGS",
       "file": "02-settings.jpg",
       "height": 2778,
-      "sha256": "cb9131481c310cd569e80df1fba48c5e7ddec66e9fe411d2d64a00dcada0efb7",
+      "sha256": "80f4eceb1d69e2894b8bd805dc79d5cacefdb41d5a50dc525e877428b109d4c7",
       "width": 1284
     },
     {
       "attachment": "LIVE_APPSTORE_SCREENSHOT_03_PROOF_DETAILS",
       "file": "03-proof-details.jpg",
       "height": 2778,
-      "sha256": "78d4472d57cede01910475bee8f2726138c56f4471d949f12b4013978f78f800",
+      "sha256": "b214ee0f2b74cf66c81d7d1a1adfac4d76734ff732472b6b6318a1fe95f219a8",
       "width": 1284
     },
     {
       "attachment": "LIVE_APPSTORE_SCREENSHOT_04_WEBPKI",
       "file": "04-webpki.jpg",
       "height": 2778,
-      "sha256": "7eb10a3de8e280ab498f797265fbcb4b8e64568039dfd66a072c1c50bffaf09a",
+      "sha256": "6a8b9ff79002d7b119874d7ad23c2d6ea74b586e2c051db77bed579d603bdc43",
       "width": 1284
     }
   ]

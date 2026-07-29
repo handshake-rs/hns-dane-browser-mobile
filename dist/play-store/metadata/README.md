@@ -2,11 +2,13 @@
 
 This directory contains the source text and field checklist for the Google
 Play Console update to package `com.denuoweb.hnsdane`. The repository update
-candidate is `0.5.5` / code `46`. Google Play production completed the earlier
-`0.5.5` / code `45` release; code `46` is the pending replacement carrying the
-shared dual-root negative-evidence fix. Google Play's public page does not
-expose an authoritative `versionCode`; use Play Console as the release-identity
-source.
+is `0.5.5` / code `46`, built from source commit
+`d24f85158854abb8be4a7bb9e914aebe5e7e4679`. Google Play production completed
+code `46`, carrying the shared dual-root negative-evidence fix, through
+committed edit `17438779769069438085` with production status `completed`.
+The `generatedApks/46` readback returned HTTP `200`. Google Play's public page
+does not expose an authoritative `versionCode`; use the Android Publisher API
+or Play Console as the release-identity source.
 
 ## Listing Text
 
@@ -27,13 +29,19 @@ source.
 - App category: Tools
 - Ads declaration: No ads
 - Privacy policy URL: `https://denuoweb.com/work/hns-dane-browser/privacy`
-- Expected production-replacement upload artifact:
+- Deployed production upload artifact:
   `../hns-dane-browser-v0.5.5-play-upload-signed.aab`
 - Foreground service type: none; remove any stale `dataSync` declaration because sync is application-foreground scoped and the manifest declares no service.
 
-Code `45` passed the signed release gates and completed production deployment.
-Code `46` must repeat the build, test, lint, bundle-structure, signing, and
-artifact-verification gates before its replacement upload; no such result is
-claimed here. The upload-signed AAB is generated and signature-verified only in
-the credentialed release process and is intentionally not committed. The
-canonical hosted privacy policy is aligned with the repository disclosure.
+The exact code `46` APK and AAB passed their build, test, lint, bundle-structure,
+native-library, signing, and artifact-verification release gates. Evidence:
+
+- APK SHA-256: `b36a4346ffcba14c081500ef3dc7c5012cabd30f42cdaa80a354eefb5da210ba`
+- AAB SHA-256: `728d8892e180d954652668a4e53a7e2d6c7542e9d36330f4803cdecdb34598b0`
+- Upload certificate SHA-256: `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`
+- Production edit: `17438779769069438085`, status `completed`
+- Post-commit readback: `generatedApks/46`, HTTP `200`
+
+The credentialed upload AAB is intentionally not committed. Physical-device
+upgrade, cold-launch, and behavior qualification remain open. The canonical
+hosted privacy policy is aligned with the repository disclosure.

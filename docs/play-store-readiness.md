@@ -4,18 +4,16 @@ Last audited: 2026-07-29
 
 This checklist maps HNS DANE Browser to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
-repository. Google Play production completed `0.5.5` / code `45`. The public
-page does not expose an authoritative `versionCode`, so Play Console remains
-the release-identity source. Current source declares Android `0.5.5`
-(`versionCode 46`) with shared Rust engine `0.5.5`.
-The exact `0.5.4` predecessor passed the complete Rust/supply-chain, Android
-build/test/lint/unsigned-bundle, and Apple gates in
-[CI run 30402803553](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30402803553),
-and its signed Android packages passed signature-aware release verification.
-Code `45` subsequently passed the release gates and production deployment.
-Code `46` is the pending replacement carrying the shared dual-root
-negative-evidence fix and must repeat exact gates, signed-artifact verification,
-release-device acceptance, and store submission.
+repository. Google Play production completed `0.5.5` / code `46` from source
+commit `d24f85158854abb8be4a7bb9e914aebe5e7e4679`. The public page does not
+expose an authoritative `versionCode`, so the Android Publisher API and Play
+Console remain the release-identity sources. Current source declares Android
+`0.5.5` (`versionCode 46`) with shared Rust engine `0.5.5`.
+Code `46`, carrying the shared dual-root negative-evidence fix, passed the exact
+signed APK/AAB release gates and completed production deployment through
+committed Play edit `17438779769069438085`; the `generatedApks/46` readback
+returned HTTP `200`. Physical-device acceptance remains an open post-release
+qualification.
 Earlier `0.5.4`, `0.5.1`, `0.5.0`, and `0.4.1` results remain dated historical
 evidence.
 
@@ -24,8 +22,8 @@ evidence.
 | Area | Status | Evidence / Action |
 | --- | --- | --- |
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
-| Android App Bundle | Code 45 production complete; code 46 candidate pending | Package identity remains `com.denuoweb.hnsdane`. Code 45 passed `verifyReleaseBundleStructure`, the signature-aware bundle gate, and production deployment. Code 46 must pass the same gates before replacement upload. The earlier code 40 upload-signed AAB with SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0` remains dated v0.5.0 evidence. |
-| 64-bit / 16 KiB native code | Code 45 signed gates passed; code 46 pending | The code 45 packages passed the exact `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, signature, and APK ZIP-alignment gates. Repeat them for code 46. |
+| Android App Bundle | Code 46 production complete | Package `com.denuoweb.hnsdane` code `46` completed production through committed edit `17438779769069438085`, with HTTP `200` from the `generatedApks/46` readback. The verified AAB SHA-256 is `728d8892e180d954652668a4e53a7e2d6c7542e9d36330f4803cdecdb34598b0`. |
+| 64-bit / 16 KiB native code | Code 46 signed gates passed | The exact code `46` APK/AAB passed the `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `b36a4346ffcba14c081500ef3dc7c5012cabd30f42cdaa80a354eefb5da210ba`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
 | Privacy policy | Repository and hosted policy aligned | `https://denuoweb.com/work/hns-dane-browser/privacy` is the canonical URL and its hosted policy matches the repository disclosure for the independently opt-in P2P requester, user-configured recursive HNS DoH recovery, operator-visible qnames/qtypes/timing/source IP, blank/off defaults, validating ICANN bootstrap, permanent legacy-key tombstone, and continued prohibition on HNS WebPKI fallback. |
@@ -34,14 +32,22 @@ evidence.
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
 | App category | Recommended: Tools or Communication | Avoid Finance classification; the app is not a wallet, exchange, lender, or financial service. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
-| Release track | Code 45 completed production; code 46 replacement pending | This is an update to a public listing, not a first closed-test launch. An internal or closed track remains useful for release-candidate validation but is not the launch precondition described by the new-personal-account rule. |
-| Store assets | Reconciliation required | Local icon, feature graphic, screenshots, and listing text exist in `dist/play-store/`, but they must be compared with the live listing. Recapture stale screenshots, including the diagnostic image showing an older version, after the final version increment. |
+| Release track | Code 46 completed production | The Android Publisher API committed edit `17438779769069438085` with production status `completed`; `generatedApks/46` returned HTTP `200`. This remains an update to a public listing, not a first closed-test launch. |
+| Store assets | Reconciliation required | Local icon, feature graphic, screenshots, and listing text exist in `dist/play-store/`, but they must be compared with the live listing. Recapture stale screenshots, including the diagnostic image showing an older version, against deployed code `46`. |
 
 ## Release Signing
 
 Google Play requires an upload-signed Android App Bundle. Do not commit keystores or passwords.
 
-Set these environment variables before creating a Play upload bundle:
+The shipped code `46` APK and AAB were signed by upload certificate SHA-256
+`D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`.
+Their verified SHA-256 digests are:
+
+- APK: `b36a4346ffcba14c081500ef3dc7c5012cabd30f42cdaa80a354eefb5da210ba`
+- AAB: `728d8892e180d954652668a4e53a7e2d6c7542e9d36330f4803cdecdb34598b0`
+
+For a future release, set these environment variables before creating a Play
+upload bundle:
 
 ```sh
 export HNS_DANE_BROWSER_UPLOAD_STORE_FILE=/absolute/path/to/upload-keystore.jks
@@ -73,38 +79,35 @@ Then run:
 
 ## Google Play Developer API
 
-The Play Developer API is optional for this update. It can automate upload and track promotion for the existing Play Console app.
-
-To use the API:
-
-1. Create or select a Google Cloud project.
-2. Enable the Google Play Android Developer API.
-3. Create a service account.
-4. Link that service account in Play Console and grant the minimum release-management role needed.
-5. Store the service-account JSON outside the repo; `service-account*.json` is ignored by `.gitignore`.
-
-Closed testing upload helper:
-
-```sh
-RELEASE_VERSION='set-after-final-version-increment'
-PLAY_TRACK=alpha \
-  scripts/play-upload-closed-testing.sh \
-  "dist/play-store/hns-dane-browser-v${RELEASE_VERSION}-play-upload-signed.aab"
-```
-
-`alpha` is the default Play API track used for the standard closed testing track. If the Play Console app uses a custom closed testing track, set `PLAY_TRACK` to that track ID from Play Console. On 2026-07-06, the local `gcloud` user token could not upload because it lacked the `https://www.googleapis.com/auth/androidpublisher` OAuth scope. Fix that by using a Play-linked service account, setting `PLAY_ACCESS_TOKEN` from a correctly scoped token, or re-authenticating gcloud with the Android Publisher scope.
+The Play-linked service account uploaded code `46` for
+`com.denuoweb.hnsdane`, assigned it to production with status `completed`, and
+committed edit `17438779769069438085`. A post-commit
+`generatedApks/46` request returned HTTP `200`, independently confirming that
+Play recognizes the uploaded version code. Service-account JSON remains outside
+the repository and is ignored by `.gitignore`.
 
 ## Play Console Declarations
 
-Use these values to reconcile the existing live production listing. Re-check the current saved answers and Console UI labels before submission because Google can rename form fields without changing app behavior.
+Use these values to reconcile the existing live production listing. Re-check
+the current saved answers and Console UI labels before a future form or listing
+resubmission because Google can rename fields without changing app behavior.
 
 ### Foreground Services
 
-The repository candidate does not declare an Android service or request notification/foreground-service permissions. Header sync starts when the first app activity starts, publishes progress in-process across app screens, and stops when the last activity stops. In Play Console, answer that the candidate does not use foreground service types. A foreground-service declaration, notification demo, or `dataSync` reviewer note would describe a removed implementation and must not be submitted for this build.
+The deployed code `46` release does not declare an Android service or request
+notification/foreground-service permissions. Header sync starts when the first
+app activity starts, publishes progress in-process across app screens, and
+stops when the last activity stops. In Play Console, answer that the deployed
+build does not use foreground service types. A foreground-service declaration,
+notification demo, or `dataSync` reviewer note would describe a removed
+implementation and must not be submitted for this build.
 
 ### Data Safety Draft
 
-Use the Play Console definitions and answer conservatively. These are repository draft answers, not proof that the existing live form is current; compare every saved Console answer before submission:
+Use the Play Console definitions and answer conservatively. These are
+repository draft answers, not proof that the existing live form is current;
+compare every saved Console answer before a future form or listing
+resubmission:
 
 - Data collected: `No` under the current Play definitions. There are no developer-operated accounts, analytics/ads/crash-upload SDKs, or backend telemetry endpoints. Google explicitly excludes on-device-only processing and data from a WebView in which users navigate the open web.
 - Data shared: `No` under the current Play definitions. Google explicitly excludes open-web WebView navigation and transfers based on a specific user-initiated action where sharing is reasonably expected. User-entered website/HNS navigation and its necessary resolution requests fit those exclusions; protocol-only background header sync does not transmit a listed user data type.
@@ -140,32 +143,26 @@ Use a conservative general-purpose browser posture:
 - Ads: `No ads`.
 - In-app purchases: `No`; donations are external/optional and do not unlock features.
 
-### Existing Production Listing and Test Track
+### Production Deployment and Remaining Device Qualification
 
-The Play production track completed `0.5.5` / code `45`. Code `46` is the
-pending replacement. Closed-testing eligibility is therefore not a first-launch
-gate; use an internal or closed track when useful to validate the candidate,
-then promote or submit the verified update:
+Google Play production now contains `0.5.5` / code `46` from exact source
+commit `d24f85158854abb8be4a7bb9e914aebe5e7e4679`. The exact signed artifacts
+passed the automated release gates before the production edit was committed.
+Code `45` and earlier releases remain historical evidence only.
 
-1. Regenerate the third-party notices and release notes after any version or dependency change.
-2. Rebuild and verify `dist/play-store/hns-dane-browser-v0.5.5-play-upload-signed.aab` for code `46` from the exact candidate commit; the automated gate covers 16 KiB alignment, required ABIs, native hardening/symbols, R8 mapping, notices, and upload signing. The deployed code `45` artifact is historical evidence and is not valid for this replacement checkpoint.
-3. Compare the configured upload-certificate fingerprint with Play Console.
-   Install the exact signed `0.5.5` APK on the connected device, verify the code
-   46 upgrade and cold launch, and exercise private staged header publication,
-   atomic header/peer/readiness visibility, interrupted-sync recovery,
-   permanent legacy-key tombstoning, blank/off recovery, default-off requester
-   relay consumption, independent explicit opt-ins, configured-endpoint
-   validation/bootstrap, manual-peer validation, and fail-closed
-   bogus/invalid/stale/no-route behavior. The corresponding signed update smoke
-   for `0.4.1` is historical evidence only.
-4. Upload to an internal/closed track for validation if desired. For API upload, use the Console's actual track ID; `alpha` is the standard closed-testing API track.
-5. Reconfirm the aligned live privacy policy, reconcile Data safety answers,
-   listing copy, screenshots, and release notes, then submit code `46` to
-   production.
+Physical-device acceptance remains open. Install the exact signed code `46` APK
+on the connected device, verify upgrade and cold launch, and exercise private
+staged header publication, atomic header/peer/readiness visibility,
+interrupted-sync recovery, permanent legacy-key tombstoning, blank/off
+recovery, default-off requester relay consumption, independent explicit
+opt-ins, configured-endpoint validation/bootstrap, manual-peer validation, and
+fail-closed bogus/invalid/stale/no-route behavior.
 
 ## Store Listing Draft
 
-The repository draft copy lives under `dist/play-store/metadata/en-US/`. Compare it field-by-field with the existing public listing before treating it as Console-ready, and regenerate release notes after the `0.5.5` candidate is verified.
+The repository copy for the deployed code `46` update lives under
+`dist/play-store/metadata/en-US/`. Compare it field-by-field with the public
+listing whenever live metadata is changed.
 
 Short description, 80 characters max:
 
@@ -193,7 +190,7 @@ Full description draft:
 
 - App icon: 512×512 PNG for Play Console: `dist/play-store/hns-dane-browser-play-icon-512.png`.
 - Feature graphic: 1024×500 PNG24, no alpha: `dist/play-store/hns-dane-browser-feature-graphic-1024x500.png`.
-- Phone screenshots: compare the local set with the live listing and recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, and diagnostics after the final version increment. The current diagnostics screenshot visibly reports an older app version and must not ship unchanged.
+- Phone screenshots: compare the local set with the live listing and recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, and diagnostics against deployed code `46`. The current diagnostics screenshot visibly reports an older app version and must not ship unchanged.
 - Tablet screenshots: recommended if tablet distribution remains enabled.
 - Privacy policy URL: the canonical route is selected and the hosted relay-aware policy is aligned; keep the existing Play listing on that route.
 - Content rating questionnaire: reconcile the saved live answers as a general-purpose browser that is not child-directed.
