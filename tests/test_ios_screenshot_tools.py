@@ -6,6 +6,8 @@ from pathlib import Path
 
 from scripts.ios_screenshot_tools import (
     LIVE_CAPTURE_MODE,
+    LIVE_PROVENANCE_SCHEMA_VERSION,
+    RETRYABLE_DUAL_ROOT_SECURITY_LABEL,
     SCREENSHOTS,
     ScreenshotToolError,
     collect_attachments,
@@ -29,6 +31,8 @@ def live_provenance() -> dict:
         "hnsNavigation": {
             "requestedURL": "https://denuoweb/",
             "finalAddress": "https://denuoweb/",
+            "navigationAttemptCount": 1,
+            "retryReason": None,
             "runtimeStatusBeforeNavigation":
                 "Handshake headers current. Local height 336000 · peer height 336000",
             "securityLabel": "DANE verified · authoritative DoH",
@@ -37,7 +41,7 @@ def live_provenance() -> dict:
             "sourceRequestedURL": "https://denuoweb/",
             "contentAccessibilityLabel": "Handshake proof details for denuoweb",
         },
-        "schemaVersion": 1,
+        "schemaVersion": LIVE_PROVENANCE_SCHEMA_VERSION,
         "settings": {
             "sourceRequestedURL": "https://denuoweb/",
             "statelessDANERowIdentifier":
@@ -48,6 +52,8 @@ def live_provenance() -> dict:
         "webPKINavigation": {
             "requestedURL": "https://denuoweb.com/work/hns-dane-browser",
             "finalAddress": "https://denuoweb.com/work/hns-dane-browser",
+            "navigationAttemptCount": 1,
+            "retryReason": None,
             "securityLabel":
                 "WebPKI verified · no secure TLSA "
                 "(authenticated absence or insecure delegation) · validating ICANN DoH",
@@ -275,6 +281,11 @@ class ScreenshotManifestTests(unittest.TestCase):
 
     def test_rejects_fixture_or_pending_runtime_provenance(self) -> None:
         provenance = live_provenance()
+        provenance["schemaVersion"] = 1
+        with self.assertRaisesRegex(ScreenshotToolError, "schemaVersion must be 2"):
+            validate_live_provenance(provenance)
+
+        provenance = live_provenance()
         provenance["fixtureEnvironmentInjected"] = True
         with self.assertRaisesRegex(ScreenshotToolError, "fixture injection"):
             validate_live_provenance(provenance)
@@ -355,6 +366,46 @@ class ScreenshotManifestTests(unittest.TestCase):
                 provenance = live_provenance()
                 provenance["webPKINavigation"]["securityLabel"] = security_label
                 self.assertEqual(validate_live_provenance(provenance), provenance)
+
+    def test_accepts_one_exact_bounded_dual_root_retry(self) -> None:
+        provenance = live_provenance()
+        provenance["webPKINavigation"]["navigationAttemptCount"] = 2
+        provenance["webPKINavigation"][
+            "retryReason"
+        ] = RETRYABLE_DUAL_ROOT_SECURITY_LABEL
+        self.assertEqual(validate_live_provenance(provenance), provenance)
+
+    def test_rejects_unbounded_or_inexact_navigation_retry_evidence(self) -> None:
+        provenance = live_provenance()
+        provenance["webPKINavigation"]["navigationAttemptCount"] = 3
+        with self.assertRaisesRegex(ScreenshotToolError, "must be 1 or 2"):
+            validate_live_provenance(provenance)
+
+        provenance = live_provenance()
+        provenance["webPKINavigation"]["navigationAttemptCount"] = 2
+        provenance["webPKINavigation"]["retryReason"] = "another failure"
+        with self.assertRaisesRegex(ScreenshotToolError, "exact dual-root"):
+            validate_live_provenance(provenance)
+
+        provenance = live_provenance()
+        provenance["hnsNavigation"]["navigationAttemptCount"] = 2
+        provenance["hnsNavigation"][
+            "retryReason"
+        ] = RETRYABLE_DUAL_ROOT_SECURITY_LABEL
+        with self.assertRaisesRegex(ScreenshotToolError, "exact dual-root"):
+            validate_live_provenance(provenance)
+
+        provenance = live_provenance()
+        provenance["webPKINavigation"].pop("retryReason")
+        with self.assertRaisesRegex(ScreenshotToolError, "must be present"):
+            validate_live_provenance(provenance)
+
+        provenance = live_provenance()
+        provenance["webPKINavigation"][
+            "retryReason"
+        ] = RETRYABLE_DUAL_ROOT_SECURITY_LABEL
+        with self.assertRaisesRegex(ScreenshotToolError, "only after a bounded retry"):
+            validate_live_provenance(provenance)
 
     def test_verify_live_rejects_malformed_run_runtime_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

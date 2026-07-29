@@ -8,6 +8,9 @@ import XCTest
 final class LiveAppStoreScreenshotTests: XCTestCase {
     private static let hnsURL = "https://denuoweb/"
     private static let webPKIURL = "https://denuoweb.com/work/hns-dane-browser"
+    private static let retryableDualRootSecurityLabel =
+        "The Rust proxy rejected the dual-root response · Dual-root validation failed"
+    private static let retryableDualRootObservationSeconds: TimeInterval = 1.25
 
     private enum SubmissionSecurityExpectation {
         case hnsDANE
@@ -29,8 +32,15 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                         in: .whitespacesAndNewlines
                     ).isEmpty
             case .icannAuthenticated:
-                return label.hasPrefix("DANE verified · ")
-                    || label.hasPrefix("WebPKI verified · no secure TLSA ")
+                return [
+                    "DANE verified · ",
+                    "WebPKI verified · no secure TLSA ",
+                ].contains { prefix in
+                    label.hasPrefix(prefix)
+                        && !String(label.dropFirst(prefix.count)).trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
+                }
             }
         }
     }
@@ -77,7 +87,8 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             to: Self.webPKIURL,
             expectedHost: "denuoweb.com",
             expectedSecurity: .icannAuthenticated,
-            timeout: 90
+            timeout: 90,
+            allowBoundedDualRootRetry: true
         )
         capture(named: "LIVE_APPSTORE_SCREENSHOT_04_WEBPKI")
 
@@ -131,7 +142,8 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         to requestedURL: String,
         expectedHost: String,
         expectedSecurity: SubmissionSecurityExpectation,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        allowBoundedDualRootRetry: Bool = false
     ) throws -> [String: Any] {
         let address = app.textFields["app-store-screenshot.address"]
         address.tap()
@@ -185,6 +197,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let security = app.staticTexts["app-store-screenshot.security"]
         XCTAssertTrue(security.waitForExistence(timeout: 10), "Security status did not appear")
         var lastSecurityLabel = ""
+        var retryableFailureObservedAt: TimeInterval?
         XCTAssertTrue(
             waitUntil(
                 description: expectedSecurity.description,
@@ -193,19 +206,83 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                 condition: {
                     let label = security.label.trimmingCharacters(in: .whitespacesAndNewlines)
                     lastSecurityLabel = label
-                    return expectedSecurity.matches(label)
+                    if expectedSecurity.matches(label) {
+                        return true
+                    }
+                    guard allowBoundedDualRootRetry,
+                          label == Self.retryableDualRootSecurityLabel else {
+                        retryableFailureObservedAt = nil
+                        return false
+                    }
+                    let now = ProcessInfo.processInfo.systemUptime
+                    guard let observedAt = retryableFailureObservedAt else {
+                        retryableFailureObservedAt = now
+                        return false
+                    }
+                    return now - observedAt >= Self.retryableDualRootObservationSeconds
                 }
             )
         )
-        assertNoNavigationAlert()
 
-        return [
+        var navigationAttemptCount = 1
+        var retryReason: String?
+        if !expectedSecurity.matches(lastSecurityLabel) {
+            XCTAssertEqual(
+                lastSecurityLabel,
+                Self.retryableDualRootSecurityLabel,
+                "Only the exact dual-root indeterminate result may be retried"
+            )
+            let reload = app.buttons["Reload"].firstMatch
+            XCTAssertTrue(
+                waitUntil(
+                    description: "hittable Reload control for bounded dual-root retry",
+                    timeout: 10,
+                    condition: {
+                        reload.exists && reload.isHittable
+                    }
+                )
+            )
+            retryReason = lastSecurityLabel
+            navigationAttemptCount = 2
+            print("Retrying the exact dual-root indeterminate result once.")
+            reload.tap()
+
+            lastSecurityLabel = ""
+            XCTAssertTrue(
+                waitUntil(
+                    description: expectedSecurity.description
+                        + " after one bounded Reload",
+                    timeout: timeout,
+                    timeoutEvidence: { " Last security label: \(lastSecurityLabel)" },
+                    condition: {
+                        let label = security.label.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        )
+                        lastSecurityLabel = label
+                        return expectedSecurity.matches(label)
+                    }
+                )
+            )
+        }
+        assertNoNavigationAlert()
+        let finalSecurityLabel = security.label.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        XCTAssertTrue(
+            expectedSecurity.matches(finalSecurityLabel),
+            "Final security label did not prove the required trust result"
+        )
+
+        var evidence: [String: Any] = [
             "requestedURL": requestedURL,
             "finalAddress": (address.value as? String) ?? "",
+            "navigationAttemptCount": navigationAttemptCount,
             // This is evidence, not an assertion. HNS may honestly report DANE,
             // fallback, insecure, or blocked depending on the live response.
-            "securityLabel": security.label,
+            "securityLabel": finalSecurityLabel,
         ]
+        evidence["retryReason"] = retryReason.map { $0 as Any } ?? NSNull()
+        return evidence
     }
 
     private func clearAddressField(_ address: XCUIElement) {
@@ -459,7 +536,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             "fixtureEnvironmentInjected": false,
             "hnsNavigation": hnsEvidence,
             "proofDetails": proofEvidence,
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "settings": settingsEvidence,
             "webPKINavigation": webPKIEvidence,
         ]

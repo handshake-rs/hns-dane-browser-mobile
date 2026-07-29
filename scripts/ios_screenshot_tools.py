@@ -48,6 +48,10 @@ SCREENSHOT_PROFILES = {
 }
 LIVE_PROVENANCE_ATTACHMENT = "LIVE_APPSTORE_PROVENANCE"
 LIVE_CAPTURE_MODE = "live-production-runtime"
+LIVE_PROVENANCE_SCHEMA_VERSION = 2
+RETRYABLE_DUAL_ROOT_SECURITY_LABEL = (
+    "The Rust proxy rejected the dual-root response · Dual-root validation failed"
+)
 LIVE_TARGETS = {
     "hnsNavigation": "https://denuoweb/",
     "settings": "https://denuoweb/",
@@ -269,8 +273,11 @@ def sha256(path: Path) -> str:
 def validate_live_provenance(document: Any) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise ScreenshotToolError("live runtime provenance must be a JSON object")
-    if document.get("schemaVersion") != 1:
-        raise ScreenshotToolError("live runtime provenance schemaVersion must be 1")
+    if document.get("schemaVersion") != LIVE_PROVENANCE_SCHEMA_VERSION:
+        raise ScreenshotToolError(
+            "live runtime provenance schemaVersion must be "
+            f"{LIVE_PROVENANCE_SCHEMA_VERSION}"
+        )
     if document.get("captureMode") != LIVE_CAPTURE_MODE:
         raise ScreenshotToolError(
             f"live runtime provenance captureMode must be {LIVE_CAPTURE_MODE!r}"
@@ -309,6 +316,25 @@ def validate_live_provenance(document: Any) -> dict[str, Any]:
             raise ScreenshotToolError(f"{section}.securityLabel must be non-empty")
         if security_label in {"Security pending", "Waiting for a verified response"}:
             raise ScreenshotToolError(f"{section} captured a pending security state")
+        attempt_count = evidence.get("navigationAttemptCount")
+        if type(attempt_count) is not int or attempt_count not in {1, 2}:
+            raise ScreenshotToolError(
+                f"{section}.navigationAttemptCount must be 1 or 2"
+            )
+        if "retryReason" not in evidence:
+            raise ScreenshotToolError(f"{section}.retryReason must be present")
+        retry_reason = evidence["retryReason"]
+        if attempt_count == 1 and retry_reason is not None:
+            raise ScreenshotToolError(
+                f"{section}.retryReason is valid only after a bounded retry"
+            )
+        if attempt_count == 2 and (
+            section != "webPKINavigation"
+            or retry_reason != RETRYABLE_DUAL_ROOT_SECURITY_LABEL
+        ):
+            raise ScreenshotToolError(
+                f"{section} may retry only the exact dual-root indeterminate result"
+            )
 
     hns_security = document["hnsNavigation"]["securityLabel"]
     hns_security_prefix = "DANE verified · "
