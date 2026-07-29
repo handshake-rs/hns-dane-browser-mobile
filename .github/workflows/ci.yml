@@ -179,11 +179,11 @@ jobs:
           channel: stable
           pre-emulator-launch-script: adb start-server
           working-directory: android
-          script: |
-            ./gradlew :app:connectedDebugAndroidTest \
-              --no-daemon \
-              --stacktrace \
-              "-Pandroid.testInstrumentationRunnerArguments.class=com.denuoweb.hnsdane.net.SharedBrowserNamespacePolicyInstrumentationTest#freshAndroidStorageOpensTheNativeRuntime,com.denuoweb.hnsdane.ui.HnsProofDetailsActivityInstrumentationTest"
+          script: >-
+            ./gradlew :app:connectedDebugAndroidTest
+            --no-daemon
+            --stacktrace
+            "-Pandroid.testInstrumentationRunnerArguments.class=com.denuoweb.hnsdane.net.SharedBrowserNamespacePolicyInstrumentationTest#freshAndroidStorageOpensTheNativeRuntime,com.denuoweb.hnsdane.ui.HnsProofDetailsActivityInstrumentationTest"
 
   ios:
     name: Apple ABI, XCFramework, and iOS shell
