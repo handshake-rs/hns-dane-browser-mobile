@@ -325,6 +325,36 @@ struct NavigationReplayPolicy {
     }
 }
 
+enum ProvisionalNavigationFailureRecoveryDecision: Equatable {
+    case replayOnce
+    case report
+}
+
+struct ProvisionalNavigationFailureRecoveryPolicy {
+    private let replayPolicy = NavigationReplayPolicy()
+
+    func evaluate(
+        error: NSError,
+        requestURL: URL?,
+        httpMethod: String?,
+        automaticReplayCount: Int
+    ) -> ProvisionalNavigationFailureRecoveryDecision {
+        let failingURL = (error.userInfo[NSURLErrorFailingURLErrorKey] as? URL)
+            ?? (error.userInfo[NSURLErrorFailingURLStringErrorKey] as? String)
+                .flatMap { URL(string: $0) }
+        guard let requestURL,
+              let failingURL,
+              failingURL == requestURL,
+              error.domain == NSURLErrorDomain,
+              error.code == NSURLErrorNetworkConnectionLost,
+              automaticReplayCount == 0,
+              replayPolicy.allowsAutomaticReplay(httpMethod: httpMethod) else {
+            return .report
+        }
+        return .replayOnce
+    }
+}
+
 struct BrowserSecuritySummary: Equatable, Sendable {
     let level: BrowserSecurityLevel
     let detail: String

@@ -59,6 +59,7 @@ final class BrowserProxyCoordinator: NSObject {
     private let authenticationPolicy = BrowserAuthenticationPolicy()
     private let admissionPolicy = MainFrameAdmissionPolicy()
     private let replayPolicy = NavigationReplayPolicy()
+    private let provisionalFailureRecoveryPolicy = ProvisionalNavigationFailureRecoveryPolicy()
     private let downloadController = BrowserDownloadController()
 
     private var machine = BrowserProxyStateMachine()
@@ -71,6 +72,9 @@ final class BrowserProxyCoordinator: NSObject {
     private var historyIndex = -1
     private var destroyed = false
     private var syncStatusRefreshInFlight = false
+    private var provisionalFailureAutomaticReplayCount = 0
+    private var provisionalFailureRecoveryGeneration: UInt64 = 0
+    private var pendingAutomaticProvisionalFailureReplay: URLRequest?
 
     init(runtime: BrowserRuntime, profile: PersistentWebKitProfile) {
         self.runtime = runtime
@@ -152,6 +156,7 @@ final class BrowserProxyCoordinator: NSObject {
             if let lastNavigation { enqueue(lastNavigation) }
             return
         }
+        resetProvisionalFailureRecovery()
         webView.reload()
     }
 
@@ -216,6 +221,7 @@ final class BrowserProxyCoordinator: NSObject {
         destination: BrowserDestination,
         historyTarget: Int?
     ) {
+        resetProvisionalFailureRecovery()
         activeProxy?.clearResolutionTrace()
         pendingNavigation = PendingNavigation(
             request: request,
@@ -382,6 +388,7 @@ final class BrowserProxyCoordinator: NSObject {
 
         let webView = self.webView ?? makeWebView()
         self.webView = webView
+        resetProvisionalFailureRecovery()
         lastNavigation = pendingNavigation
         self.pendingNavigation = nil
         machine.navigationAdmitted(epoch: epoch, scope: scope)
@@ -397,6 +404,66 @@ final class BrowserProxyCoordinator: NSObject {
         )
         _ = activeProxy
         webView.load(pendingNavigation.request)
+    }
+
+    private func resetProvisionalFailureRecovery() {
+        provisionalFailureAutomaticReplayCount = 0
+        provisionalFailureRecoveryGeneration &+= 1
+        pendingAutomaticProvisionalFailureReplay = nil
+    }
+
+    private func requestsMatchForProvisionalFailureRecovery(
+        _ lhs: URLRequest,
+        _ rhs: URLRequest
+    ) -> Bool {
+        lhs.url == rhs.url
+            && (lhs.httpMethod?.uppercased() ?? "GET")
+                == (rhs.httpMethod?.uppercased() ?? "GET")
+    }
+
+    private func recoverProvisionalNavigationIfAllowed(
+        in webView: WKWebView,
+        error: Error
+    ) -> Bool {
+        guard self.webView === webView,
+              !destroyed,
+              let lastNavigation else {
+            return false
+        }
+        switch provisionalFailureRecoveryPolicy.evaluate(
+            error: error as NSError,
+            requestURL: lastNavigation.request.url,
+            httpMethod: lastNavigation.request.httpMethod,
+            automaticReplayCount: provisionalFailureAutomaticReplayCount
+        ) {
+        case .report:
+            return false
+        case .replayOnce:
+            break
+        }
+
+        provisionalFailureAutomaticReplayCount += 1
+        let request = lastNavigation.request
+        let destination = lastNavigation.destination
+        let recoveryGeneration = provisionalFailureRecoveryGeneration
+        DispatchQueue.main.async { [weak self, weak webView] in
+            guard let self,
+                  let webView,
+                  !self.destroyed,
+                  self.webView === webView,
+                  self.provisionalFailureRecoveryGeneration == recoveryGeneration,
+                  let lastNavigation = self.lastNavigation,
+                  lastNavigation.destination == destination,
+                  self.requestsMatchForProvisionalFailureRecovery(
+                      lastNavigation.request,
+                      request
+                  ) else {
+                return
+            }
+            self.pendingAutomaticProvisionalFailureReplay = request
+            webView.load(request)
+        }
+        return true
     }
 
     private func makeWebView() -> WKWebView {
@@ -604,6 +671,16 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
             if isAdmitted(destination, in: webView) {
                 activeProxy?.clearResolutionTrace()
                 delegate?.proxyCoordinator(self, didUpdateSecurity: .pending)
+                let isAutomaticFailureReplay = pendingAutomaticProvisionalFailureReplay.map {
+                    requestsMatchForProvisionalFailureRecovery(
+                        $0,
+                        navigationAction.request
+                    )
+                } ?? false
+                pendingAutomaticProvisionalFailureReplay = nil
+                if !isAutomaticFailureReplay {
+                    resetProvisionalFailureRecovery()
+                }
                 let historyTarget: Int?
                 if let lastNavigation,
                    lastNavigation.request.url == navigationAction.request.url,
@@ -681,6 +758,7 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
         guard self.webView === webView, let url = webView.url else { return }
+        resetProvisionalFailureRecovery()
         commitHistory(url: url)
         updateSecurity(for: url)
     }
@@ -690,6 +768,10 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
         didFailProvisionalNavigation navigation: WKNavigation?,
         withError error: Error
     ) {
+        if recoverProvisionalNavigationIfAllowed(in: webView, error: error) {
+            return
+        }
+        pendingAutomaticProvisionalFailureReplay = nil
         if let url = lastNavigation?.destination.url ?? webView.url {
             updateSecurity(for: url)
         }
@@ -707,6 +789,7 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
         didFail navigation: WKNavigation?,
         withError error: Error
     ) {
+        pendingAutomaticProvisionalFailureReplay = nil
         if let url = lastNavigation?.destination.url ?? webView.url {
             updateSecurity(for: url)
         }
