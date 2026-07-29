@@ -336,14 +336,15 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             proofContent.waitForExistence(timeout: timeout),
             "Proof Details content disappeared before dismissal"
         )
-        // The Release sheet's UIKit navigation items are visible but are not
-        // represented as NavigationBar or Button elements in the XCUI
-        // hierarchy. This verified 6.5-inch capture coordinate targets the
-        // top-left close item without changing the shipping app solely for
-        // screenshot automation.
-        app.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.10, dy: 0.097)
-        ).tap()
+        let proofClose = app
+            .navigationBars["Handshake proof verified"]
+            .buttons["close"]
+            .firstMatch
+        XCTAssertTrue(
+            proofClose.waitForExistence(timeout: timeout),
+            "Proof Details close control did not appear"
+        )
+        proofClose.tap()
         XCTAssertTrue(
             waitUntil(
                 description: "Proof Details dismissal",
