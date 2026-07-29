@@ -3,15 +3,9 @@
 This directory is the reviewed source for the next iOS App Store update. It is
 not uploaded automatically by the binary upload workflow. Version `0.5.0` was
 public on the Apple App Store when checked on 2026-07-28; the source candidate
-is `0.5.5` (build `55`). Build `48` is retained as predecessor upload evidence,
-build `49` as superseded `0.5.5` upload evidence, and build `50` as a
-simulator-only failed candidate that was not uploaded. Build `51` was pushed,
-but its validation was canceled. Build `52` passed exact CI, but a live capture
-reproduced a second bounded startup connection loss. Build `53` passed exact
-CI, but its live capture exhausted two same-connection recovery attempts.
-Build `54` was superseded before live capture when deeper runtime analysis
-identified the missing pre-currentness admission gate. Builds `50`–`54` were
-not uploaded.
+is `0.5.5` (build `56`). Build `48` is retained as predecessor upload evidence
+and build `49` as a superseded `0.5.5` upload. Builds `50`–`55` were not
+uploaded; their useful findings are incorporated into build `56`.
 
 ## App record
 
@@ -23,7 +17,7 @@ not uploaded.
 - Apple Team ID: `45NQQK3G3S`
 - User access: Full Access
 - Version: `0.5.5`
-- Build: `55`
+- Build: `56`
 - Primary category: Utilities
 - Price: Free
 
@@ -69,6 +63,6 @@ python3 dist/app-store/validate.py
    signed build may be used for a future physical-device matrix; until that is
    recorded, installed-iOS and ecosystem qualification remain open.
 5. Supply App Review with the notes in `en-US/review-notes.txt`; no login is required.
-6. Complete every item in `../submission-checklist.md`, select build `55`, and choose manual release before adding the version for review.
+6. Complete every item in `../submission-checklist.md`, select build `56`, and choose manual release before adding the version for review.
 
 The API private key used by CI must exist only in the protected GitHub `app-store` environment and must never be committed or uploaded as a workflow artifact.

@@ -112,8 +112,10 @@
   exhausted two same-connection recovery attempts and it was not uploaded.
   Version `0.5.5` / build `54` was superseded before live capture after deeper
   analysis showed that the proxy must remain suspended until factual header
-  currentness. Build `55` adds that bidirectional readiness gate and is the
-  current source update candidate.
+  currentness. Build `55` proved that gate in live capture and exposed a stale
+  WebKit policy-interruption callback when a new address replaced the
+  provisional homepage. Build `56` handles only that superseded navigation and
+  is the current source update candidate.
 - Installed-device qualification gate: run and document the signed
   physical-device WebKit matrix for main frames, subresources, Service Workers,
   WebSockets, downloads, background/resume, and renderer/network-process

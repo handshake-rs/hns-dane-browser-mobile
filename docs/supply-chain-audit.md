@@ -32,7 +32,7 @@ Last audited: 2026-07-28
 ### Current `0.5.5` Candidate
 
 - Android declares `0.5.5` / code 45, the shared Rust workspace declares
-  `0.5.5`, and iOS declares `0.5.5` / build 55. The Apple shell now accepts the
+  `0.5.5`, and iOS declares `0.5.5` / build 56. The Apple shell now accepts the
   valid zero revision returned when a fresh runtime reapplies its unchanged
   default policy, so first-install preparation does not fail before browsing.
   Proxy admission now remains suspended until a matching schema-v2 status
@@ -61,7 +61,9 @@ Last audited: 2026-07-28
   exact CI in run 30420194567, but live run 30421038307 exhausted two bounded
   same-WebView and same-proxy recovery attempts; no upload ran. Build 54 was
   superseded before live capture after the pre-currentness admission gap was
-  identified. Exact code 45/build 55 gates, signing, artifact verification,
+  identified. Build 55 then exposed a superseded-navigation WebKit policy
+  interruption during live capture and was not uploaded. Exact code 45/build
+  56 gates, signing, artifact verification,
   and store upload must be repeated.
 
 ### Historical `0.5.0` Evidence

@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Prepared the coordinated public update as shared Rust engine `0.5.5`,
-  Android `0.5.5` (build 45), and iOS `0.5.5` (build 55).
+  Android `0.5.5` (build 45), and iOS `0.5.5` (build 56).
 
 ### Fixed
 
@@ -27,6 +27,9 @@ All notable changes to this project will be documented in this file.
   Handshake status proves non-genesis authoritative header readiness. A stale,
   failed, or wrong-network status revokes admission and retains only a
   replay-safe navigation; renewed currentness starts a fresh proxy context.
+- Ignores WebKit's policy-interruption callback only when it belongs to an
+  older provisional main-frame load that a newer tracked navigation replaced.
+  The same failure for the current navigation remains visible.
 
 ## 0.5.4 - 2026-07-28
 

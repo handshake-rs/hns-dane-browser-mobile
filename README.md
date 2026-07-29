@@ -11,13 +11,11 @@ and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 
 Both public listings reported version `0.5.0` on 2026-07-28. This repository is
-the `0.5.5` update candidate (Android build `45`, iOS build `55`). The matching
+the `0.5.5` update candidate (Android build `45`, iOS build `56`). The matching
 `0.5.4` packages and superseded iOS build `49` App Store Connect upload remain
-predecessor evidence. Non-uploaded builds `50`–`53` exposed progressively
-deeper startup connection-recovery behavior; build `54` was superseded before
-live capture when runtime analysis proved navigation also had to remain queued
-until authoritative header currentness. Build `55` combines that factual
-readiness gate with bounded fresh proxy/WebView recovery.
+predecessor evidence. Builds `50`–`55` were not uploaded. Build `56` combines
+factual header-readiness admission, bounded fresh proxy/WebView recovery, and
+identity-bound suppression of a stale WebKit policy-interruption callback.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).
