@@ -1,6 +1,6 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-07-28
+Last audited: 2026-07-29
 
 ## Configured and Local Gates
 
@@ -31,8 +31,8 @@ Last audited: 2026-07-28
 
 ### Current `0.5.5` Candidate
 
-- Android declares `0.5.5` / code 45, the shared Rust workspace declares
-  `0.5.5`, and iOS declares `0.5.5` / build 56. The Apple shell now accepts the
+- Android declares `0.5.5` / code 46, the shared Rust workspace declares
+  `0.5.5`, and iOS declares `0.5.5` / build 57. The Apple shell now accepts the
   valid zero revision returned when a fresh runtime reapplies its unchanged
   default policy, so first-install preparation does not fail before browsing.
   Proxy admission now remains suspended until a matching schema-v2 status
@@ -43,7 +43,11 @@ Last audited: 2026-07-28
   the current sync to release maintenance, then replaces both the native proxy
   generation and `WKWebView`; the second adds a bounded backoff and fresh safe
   point. Recovery remains bound to the exact failed `WKNavigation` identities.
-  Unsafe methods and a failed final attempt remain reportable.
+  Unsafe methods and a failed final attempt remain reportable. The shared DNS
+  parser expands RFC 1035-compressed NS and SOA names before retaining record
+  RDATA, and namespace-plan freshness is evaluated against a clock sampled
+  after root resolution so newly gathered negative evidence is not rejected
+  against a stale plan-start time.
 - The five engine crates are pinned to reviewed immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
 - The exact `0.5.4` candidate commit `8ffc296` passed the complete portable
   Rust/supply-chain, Android build/test/lint/bundle-structure, and Apple
@@ -62,9 +66,12 @@ Last audited: 2026-07-28
   same-WebView and same-proxy recovery attempts; no upload ran. Build 54 was
   superseded before live capture after the pre-currentness admission gap was
   identified. Build 55 then exposed a superseded-navigation WebKit policy
-  interruption during live capture and was not uploaded. Exact code 45/build
-  56 gates, signing, artifact verification,
-  and store upload must be repeated.
+  interruption during live capture and was not uploaded. Build 56 passed exact
+  CI, but its live screenshot run failed closed when compressed SOA negative
+  evidence and stale plan-start timing made the dual-root ICANN result
+  indeterminate; it also was not uploaded. Android code 45 passed its signed
+  gates and completed Google Play production. Exact code 46/build 57 gates,
+  signing, artifact verification, and store uploads remain pending.
 
 ### Historical `0.5.0` Evidence
 
@@ -93,4 +100,5 @@ Last audited: 2026-07-28
 - Gradle verification metadata was generated from artifacts already obtained over the configured HTTPS repositories. Future checksum changes require a deliberate review; the metadata is an integrity pin, not independent provenance proof.
 - cargo-deny relies on the current RustSec advisory database at check time. CI availability or an upstream advisory-database outage can affect results.
 - The local JNI script defaults to and enforces NDK `28.2.13676358`; `HNS_ANDROID_NDK_VERSION` may override that expectation only for an intentional, reviewed toolchain change.
-- The upload certificate fingerprint is public configuration, but its approved value still needs an out-of-band comparison with the Play Console upload certificate before the next release.
+- Code 46 must use the same Play upload identity accepted for code 45; the
+  signature-aware bundle gate remains the local fail-closed check before upload.

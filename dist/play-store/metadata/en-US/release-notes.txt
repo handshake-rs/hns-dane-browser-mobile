@@ -1,1 +1,1 @@
-0.5.5 retains responsive validated Handshake header sync, atomic header and peer publication, and hardened owner recovery in the coordinated mobile release.
+0.5.5 retains responsive validated Handshake header sync, atomic header and peer publication, and hardened owner recovery. It also fixes dual-root ICANN browsing when validating DNS replies contain compressed negative records or resolution spans a clock tick.

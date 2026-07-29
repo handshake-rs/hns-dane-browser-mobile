@@ -1,19 +1,21 @@
 # Google Play Readiness Checklist
 
-Last audited: 2026-07-28
+Last audited: 2026-07-29
 
 This checklist maps HNS DANE Browser to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
-repository. The public listing reported display version `0.5.0`, updated July
-16, 2026, when checked on 2026-07-28. The public page does not expose an
-authoritative `versionCode`; verify that value in Play Console. Current source
-declares Android `0.5.5` (`versionCode 45`) with shared Rust engine `0.5.5`.
+repository. Google Play production completed `0.5.5` / code `45`. The public
+page does not expose an authoritative `versionCode`, so Play Console remains
+the release-identity source. Current source declares Android `0.5.5`
+(`versionCode 46`) with shared Rust engine `0.5.5`.
 The exact `0.5.4` predecessor passed the complete Rust/supply-chain, Android
 build/test/lint/unsigned-bundle, and Apple gates in
 [CI run 30402803553](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30402803553),
 and its signed Android packages passed signature-aware release verification.
-The coordinated code 45 candidate must repeat those gates, signed-artifact
-verification, release-device acceptance, and store submission.
+Code `45` subsequently passed the release gates and production deployment.
+Code `46` is the pending replacement carrying the shared dual-root
+negative-evidence fix and must repeat exact gates, signed-artifact verification,
+release-device acceptance, and store submission.
 Earlier `0.5.4`, `0.5.1`, `0.5.0`, and `0.4.1` results remain dated historical
 evidence.
 
@@ -22,17 +24,17 @@ evidence.
 | Area | Status | Evidence / Action |
 | --- | --- | --- |
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
-| Android App Bundle | Predecessor signed release passed; new candidate required | Package identity remains `com.denuoweb.hnsdane`. Code 44 passed `verifyReleaseBundleStructure` and the signature-aware bundle gate; code 45 must pass both before upload. The earlier code 40 upload-signed AAB with SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0` remains dated v0.5.0 evidence. |
-| 64-bit / 16 KiB native code | Predecessor signed gates passed | The code 44 packages passed the exact `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, signature, and APK ZIP-alignment gates. Repeat them for code 45. |
+| Android App Bundle | Code 45 production complete; code 46 candidate pending | Package identity remains `com.denuoweb.hnsdane`. Code 45 passed `verifyReleaseBundleStructure`, the signature-aware bundle gate, and production deployment. Code 46 must pass the same gates before replacement upload. The earlier code 40 upload-signed AAB with SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0` remains dated v0.5.0 evidence. |
+| 64-bit / 16 KiB native code | Code 45 signed gates passed; code 46 pending | The code 45 packages passed the exact `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, signature, and APK ZIP-alignment gates. Repeat them for code 46. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
-| Privacy policy | Repository updated; hosted reconciliation required | Keep `https://denuoweb.com/work/hns-dane-browser/privacy` as the canonical URL, but publish the revised policy that discloses the independently opt-in P2P requester and user-configured recursive HNS DoH recovery, operator-visible qnames/qtypes/timing/source IP, blank/off defaults, validating ICANN bootstrap, the permanent legacy-key tombstone, and continued prohibition on HNS WebPKI fallback before submitting `0.5.5`. |
+| Privacy policy | Repository and hosted policy aligned | `https://denuoweb.com/work/hns-dane-browser/privacy` is the canonical URL and its hosted policy matches the repository disclosure for the independently opt-in P2P requester, user-configured recursive HNS DoH recovery, operator-visible qnames/qtypes/timing/source IP, blank/off defaults, validating ICANN bootstrap, permanent legacy-key tombstone, and continued prohibition on HNS WebPKI fallback. |
 | Data safety form | Live reconciliation required | The current `No data collected / No data shared` posture is consistent with Google's open-web, on-device, and user-initiated-transfer exclusions. Confirm current WebView-provider Safe Browsing guidance before resubmission. |
 | Ads declaration | Ready | Declare “No ads.” Donations do not unlock features. |
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
 | App category | Recommended: Tools or Communication | Avoid Finance classification; the app is not a wallet, exchange, lender, or financial service. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
-| Release track | Existing production app | This is an update to a public listing, not a first closed-test launch. An internal or closed track remains useful for release-candidate validation but is not the launch precondition described by the new-personal-account rule. |
+| Release track | Code 45 completed production; code 46 replacement pending | This is an update to a public listing, not a first closed-test launch. An internal or closed track remains useful for release-candidate validation but is not the launch precondition described by the new-personal-account rule. |
 | Store assets | Reconciliation required | Local icon, feature graphic, screenshots, and listing text exist in `dist/play-store/`, but they must be compared with the live listing. Recapture stale screenshots, including the diagnostic image showing an older version, after the final version increment. |
 
 ## Release Signing
@@ -121,7 +123,10 @@ Use an active, publicly accessible, non-PDF URL. Current hosted URL:
 
 <https://denuoweb.com/work/hns-dane-browser/privacy>
 
-On 2026-07-14 the route rendered the policy accepted for the historical `0.4.1` audit after the site application loaded. That copy predates the `0.5.5` candidate's relay requester, dual-root behavior, and configured-recursive recovery disclosure and must be replaced with the current repository policy before submission. Change the existing Play listing from its older `/hns-dane-browser/privacy/` URL to this canonical route, and keep the live Data safety answers consistent with the updated policy and actual app behavior.
+The hosted route now matches the current repository policy, including the
+`0.5.5` relay requester, dual-root behavior, and configured-recursive recovery
+disclosures. Keep the existing Play listing on this canonical route and keep
+the live Data safety answers consistent with the policy and actual app behavior.
 
 ### Content Rating
 
@@ -137,17 +142,16 @@ Use a conservative general-purpose browser posture:
 
 ### Existing Production Listing and Test Track
 
-The app is already public at display version `0.5.0` as observed on
-2026-07-28. Confirm the live `versionCode` in Play Console. Closed-testing
-eligibility is therefore not a first-launch gate; use an internal or closed
-track when useful to validate the candidate, then promote or submit the
-verified update:
+The Play production track completed `0.5.5` / code `45`. Code `46` is the
+pending replacement. Closed-testing eligibility is therefore not a first-launch
+gate; use an internal or closed track when useful to validate the candidate,
+then promote or submit the verified update:
 
 1. Regenerate the third-party notices and release notes after any version or dependency change.
-2. Rebuild and verify `dist/play-store/hns-dane-browser-v0.5.5-play-upload-signed.aab` from the exact candidate commit; the automated gate covers 16 KiB alignment, required ABIs, native hardening/symbols, R8 mapping, notices, and upload signing. No earlier artifact is valid for this filename or checkpoint.
+2. Rebuild and verify `dist/play-store/hns-dane-browser-v0.5.5-play-upload-signed.aab` for code `46` from the exact candidate commit; the automated gate covers 16 KiB alignment, required ABIs, native hardening/symbols, R8 mapping, notices, and upload signing. The deployed code `45` artifact is historical evidence and is not valid for this replacement checkpoint.
 3. Compare the configured upload-certificate fingerprint with Play Console.
    Install the exact signed `0.5.5` APK on the connected device, verify the code
-   45 upgrade and cold launch, and exercise private staged header publication,
+   46 upgrade and cold launch, and exercise private staged header publication,
    atomic header/peer/readiness visibility, interrupted-sync recovery,
    permanent legacy-key tombstoning, blank/off recovery, default-off requester
    relay consumption, independent explicit opt-ins, configured-endpoint
@@ -155,7 +159,9 @@ verified update:
    bogus/invalid/stale/no-route behavior. The corresponding signed update smoke
    for `0.4.1` is historical evidence only.
 4. Upload to an internal/closed track for validation if desired. For API upload, use the Console's actual track ID; `alpha` is the standard closed-testing API track.
-5. Reconcile the live privacy policy, Data safety answers, listing copy, screenshots, and release notes, then submit the update to production.
+5. Reconfirm the aligned live privacy policy, reconcile Data safety answers,
+   listing copy, screenshots, and release notes, then submit code `46` to
+   production.
 
 ## Store Listing Draft
 
@@ -189,7 +195,7 @@ Full description draft:
 - Feature graphic: 1024×500 PNG24, no alpha: `dist/play-store/hns-dane-browser-feature-graphic-1024x500.png`.
 - Phone screenshots: compare the local set with the live listing and recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, and diagnostics after the final version increment. The current diagnostics screenshot visibly reports an older app version and must not ship unchanged.
 - Tablet screenshots: recommended if tablet distribution remains enabled.
-- Privacy policy URL: canonical route selected; publish the revised relay-aware policy there, then point the existing Play listing to that updated route.
+- Privacy policy URL: the canonical route is selected and the hosted relay-aware policy is aligned; keep the existing Play listing on that route.
 - Content rating questionnaire: reconcile the saved live answers as a general-purpose browser that is not child-directed.
 
 ## References

@@ -1,14 +1,14 @@
 # Version Audit
 
-Audit date: 2026-07-28.
+Audit date: 2026-07-29.
 
 This table records the versions actually configured for the shipping build. Android runtime dependencies use stable releases; separate build-tool transitive dependencies may carry preview labels selected by AGP and are not packaged into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `0.5.5` / code `45` | `android/app/build.gradle.kts` |
+| Android app | `0.5.5` / code `46` | `android/app/build.gradle.kts` |
 | Shared Rust workspace | `0.5.5` | `rust/Cargo.toml` |
-| iOS app | `0.5.5` / build `56` | `ios/project.yml` |
+| iOS app | `0.5.5` / build `57` | `ios/project.yml` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Canonical engine contracts | `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` | Cargo manifests and lock |
 | Android SDK | compile/target `37`, minimum `34` | `android/app/build.gradle.kts` |
@@ -34,6 +34,10 @@ Notes:
 - Gradle is pinned to the current `9.6.1` stable patch release, with both distribution and wrapper-JAR checksums verified. AGP is pinned to the current `9.2.1` stable patch release.
 - AGP 9 has built-in Kotlin support, so the Android module intentionally does not apply `org.jetbrains.kotlin.android`. See https://developer.android.com/build/migrate-to-built-in-kotlin.
 - DNSSEC RSA/SHA-1 compatibility, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, RSA/SHA-256, RSA/SHA-512, Ed25519, SHA-1/SHA-256/SHA-384 DS/DNSKEY delegation-link validation, RRSIG signed-data, signed DNSKEY RRset, delegated-chain, NSEC no-data/name-range/name-error validation, RFC 5155 NSEC3 no-data/name-error/DS/wildcard/referral validation, RFC 4034 canonical RDATA name handling, and RFC 9460 SVCB/HTTPS RDATA primitives are implemented locally. Remaining DNSSEC algorithms and unknown NSEC3 hash algorithms stay fail-closed until full algorithm and advisory review is complete.
+- The wire parser expands RFC 1035-compressible CNAME, NS, and SOA names before
+  storing standalone RDATA. Namespace-plan freshness uses a post-resolution
+  clock sample, preserving newly authenticated negative evidence after
+  multi-second root resolution.
 - Urkel proof payload decoding and verification are implemented locally against the upstream `urkel` proof format used by HSD `proof` packets. HSD resource value decoding is implemented locally for DS, NS, GLUE4/GLUE6, SYNTH4/SYNTH6, and TXT records, with resolver adapters plus in-memory and SQLite providers for verified proof values, resource-cache byte accounting, chain-root/height anchoring, current-tip invalidation, active cap enforcement, clear-cache support, and oldest-entry eviction. Header storage validates the exact mainnet genesis header, enforces HSD-compatible mainnet difficulty retarget bits, maintains a canonical hash-by-height index for reorg-aware height lookups, and appends canonical tip updates for normal chain growth. Blocking TCP peer connections cover version/verack, getaddr, getheaders, and getproof flows, with static peer seeding, HSD-compatible DNS seed discovery, bounded peer discovery, address-group diversity, SQLite peer-state persistence, bounded multi-batch header sync, foreground Android scheduling, proof fetching, and verified-resource storage. The gateway classifies each complete canonical hostname through both HNS and ICANN, applies explicit convergence/divergence selection, uses proof-anchored HNS authoritative DNS transports, and performs automatic validating-DoH ICANN TLSA/DANE with authenticated WebPKI fallback. It supports local CONNECT termination with native per-host certificates and WebSocket/HTTP Upgrade tunneling after the same prepared namespace and transport policy.
 - WebSocket/HTTP Upgrade requests are no longer stripped into normal GET
   requests. Normal WebView traffic for all canonical DNS hosts uses the

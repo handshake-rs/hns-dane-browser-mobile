@@ -9,7 +9,11 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Prepared the coordinated public update as shared Rust engine `0.5.5`,
-  Android `0.5.5` (build 45), and iOS `0.5.5` (build 56).
+  Android `0.5.5` (`versionCode 46`), and iOS `0.5.5` (build 57).
+- Google Play production completed the earlier `0.5.5` / code 45 package.
+  Code 46 and iOS build 57 are the replacement candidates carrying the shared
+  dual-root negative-evidence fix. iOS build 56 passed exact CI but was not
+  uploaded after its live screenshot run exposed that defect.
 
 ### Fixed
 
@@ -30,6 +34,13 @@ All notable changes to this project will be documented in this file.
 - Ignores WebKit's policy-interruption callback only when it belongs to an
   older provisional main-frame load that a newer tracked navigation replaced.
   The same failure for the current navigation remains visible.
+- Expands RFC 1035-compressed NS and SOA names before retaining standalone
+  resource-record data. Authenticated ICANN NODATA and NXDOMAIN responses now
+  keep their negative TTL evidence instead of becoming indeterminate during
+  dual-root namespace selection.
+- Evaluates plan freshness against a clock sampled after root resolution.
+  Multi-second DNS and TLSA lookups no longer reject their own newly observed
+  evidence as future-dated.
 
 ## 0.5.4 - 2026-07-28
 

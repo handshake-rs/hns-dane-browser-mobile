@@ -10,12 +10,17 @@ and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Google Play Store](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 
-Both public listings reported version `0.5.0` on 2026-07-28. This repository is
-the `0.5.5` update candidate (Android build `45`, iOS build `56`). The matching
-`0.5.4` packages and superseded iOS build `49` App Store Connect upload remain
-predecessor evidence. Builds `50`–`55` were not uploaded. Build `56` combines
-factual header-readiness admission, bounded fresh proxy/WebView recovery, and
-identity-bound suppression of a stale WebKit policy-interruption callback.
+Google Play production completed `0.5.5` / code `45`; the Apple App Store
+baseline observed on 2026-07-28 was `0.5.0`. This repository is the replacement
+`0.5.5` candidate (Android code `46`, iOS build `57`). The matching `0.5.4`
+packages and superseded iOS build `49` App Store Connect upload remain
+predecessor evidence. Builds `50`–`56` were not uploaded. Build `56` passed
+exact CI, but its live screenshot run exposed indeterminate dual-root ICANN
+negative evidence: compressed SOA names were retained with unusable message
+pointers and plan freshness used a stale plan-start clock sample. Build `57`
+carries the shared parser and post-resolution timing fix. The hosted privacy
+policy at the canonical product URL is aligned with the current repository
+disclosure.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).

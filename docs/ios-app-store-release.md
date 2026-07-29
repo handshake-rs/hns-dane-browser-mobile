@@ -9,9 +9,9 @@ The committed application identity is:
 - Display name: `HNS DANE Browser`
 - Deployment floor: iOS 17.0
 - Public App Store baseline observed 2026-07-28: `0.5.0`
-- Current iOS release candidate: `0.5.5` (`56`); build `48` is predecessor
+- Current iOS release candidate: `0.5.5` (`57`); build `48` is predecessor
   evidence, build `49` is a superseded App Store Connect upload, and builds
-  `50`–`55` were not uploaded
+  `50`–`56` were not uploaded
 - Device family: iPhone
 
 ## One-time Apple setup
@@ -69,22 +69,25 @@ The workflow then:
 3. verifies the identity and profile against the fixed team and bundle IDs, then creates a Release archive using manual App Store distribution signing in a disposable keychain;
 4. verifies the archived app identity and compiled AppIcon catalog, then
    exports the signed IPA, validates/exports the archive with App Store Connect
-   authentication, uploads build `56`, and retains
+   authentication, uploads build `57`, and retains
    `ios-app-store-ipa-<commit>` for release publication;
 5. deletes the temporary keychain, installed profile, API key, `.p12`, and profile while GitHub discards the runner.
 
 Apple associates the uploaded build with the app record using its bundle ID,
 version, and build number. Build `49` has already been uploaded and is
-superseded. Builds `50`–`55` were not uploaded. Build `55` passed exact CI, but
+superseded. Builds `50`–`56` were not uploaded. Build `55` passed exact CI, but
 live screenshot run `30426689154` reached current headers and then received
 `WebKitErrorDomain` code 102 (`Frame load interrupted`) from the superseded
-provisional homepage; it produced no screenshot artifact. Build `56` keeps
-admission suspended until exact matching-network readiness, retains bounded
-fresh-context recovery, and suppresses code 102 only for an older navigation
-that a new tracked navigation replaced. Current-load failures remain visible.
-A rerun after Apple accepts build `56` requires another higher build number.
+provisional homepage; it produced no screenshot artifact. Build `56` kept
+admission suspended until exact matching-network readiness, retained bounded
+fresh-context recovery, and passed exact CI. Its live screenshot run then
+failed closed because RFC 1035-compressed SOA names left ICANN negative evidence
+unusable and plan freshness was compared with a stale plan-start clock sample,
+making the dual-root result indeterminate. Build `56` was not uploaded. Build
+`57` expands the permitted compressed negative-evidence names and samples
+freshness after root resolution. Its gates and upload remain pending.
 
-Build `56` declares `ITSAppUsesNonExemptEncryption = false` because the
+Build `57` declares `ITSAppUsesNonExemptEncryption = false` because the
 candidate uses only industry-standard cryptography and excludes France from
 App Store availability. Do not add an export-compliance code to this build.
 Before enabling France, complete the French encryption declaration; after
@@ -92,12 +95,13 @@ Apple approves it, add the supplied export-compliance code to the next build.
 
 ## Release gate after upload
 
-Complete the metadata in `dist/app-store/metadata/en-US`, publish the revised
-privacy policy, generate and review current iPhone screenshots using
+Complete the metadata in `dist/app-store/metadata/en-US`, confirm the aligned
+hosted privacy policy, generate and review current iPhone screenshots using
 `docs/ios-app-store-screenshots.md`, answer App
 Privacy/age-rating/content-rights/export-compliance questions, attach the build
-to the App Store version, and submit it for App Review. The upload workflow does
-not create TestFlight groups or distribute the build to testers.
+to the App Store version, choose **Manually release this version**, and submit
+it for App Review. The upload workflow does not create TestFlight groups or
+distribute the build to testers.
 
 Owning an iPhone is not required to archive, sign, upload, or submit. An
 independently installed signed build may be exercised on a real iPhone in a
