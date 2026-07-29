@@ -137,15 +137,12 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let address = app.textFields["app-store-screenshot.address"]
         address.tap()
 
-        let nestedClearButton = address.buttons["Clear text"]
-        let clearButton = nestedClearButton.waitForExistence(timeout: 3)
-            ? nestedClearButton
-            : app.buttons["Clear text"]
-        XCTAssertTrue(
-            clearButton.waitForExistence(timeout: 2),
-            "Address clear button did not appear"
+        clearAddressField(address)
+        XCTAssertEqual(
+            addressText(in: address),
+            "",
+            "Address field did not clear before entering the requested URL"
         )
-        clearButton.tap()
 
         address.typeText(requestedURL)
         XCTAssertEqual(
@@ -210,6 +207,34 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             // fallback, insecure, or blocked depending on the live response.
             "securityLabel": security.label,
         ]
+    }
+
+    private func clearAddressField(_ address: XCUIElement) {
+        let currentAddress = addressText(in: address)
+        guard !currentAddress.isEmpty else { return }
+
+        let nestedClearButton = address.buttons["Clear text"]
+        if nestedClearButton.waitForExistence(timeout: 3) {
+            nestedClearButton.tap()
+            return
+        }
+
+        let globalClearButton = app.buttons["Clear text"]
+        if globalClearButton.waitForExistence(timeout: 2) {
+            globalClearButton.tap()
+            return
+        }
+
+        let deletes = String(
+            repeating: XCUIKeyboardKey.delete.rawValue,
+            count: currentAddress.count
+        )
+        address.typeText(deletes)
+    }
+
+    private func addressText(in address: XCUIElement) -> String {
+        guard let value = address.value as? String else { return "" }
+        return value == address.placeholderValue ? "" : value
     }
 
     private func openSettings(
