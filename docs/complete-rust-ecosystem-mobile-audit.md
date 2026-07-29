@@ -29,7 +29,7 @@ It does not claim that the coordination-wide PDF is complete.
 | Consume the standalone `hns-dane-engine` | Integrated through qualified crates.io release | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact, checksum-verified crates.io `0.1.0`; the lockfile records the same versions and registry checksums. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), while the normalized recovery URL maps to generation-bound `user_configured_recursive_hns_doh`. Live resolution follows direct authority UDP/TCP → owner-published authenticated authoritative DoH → independently admitted relay → configured recursive recovery; unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
 | Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
-| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. A connected Pixel 9 debug run now covers fresh native-runtime opening, preserved sync-state recovery, manual sync, and paired HNS/ICANN Proof Details selection after reproducing the pre-fix HNS-to-synthetic-ICANN failure; exact signed code 47 physical Android and mobile-network qualification remains a release gate. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
+| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Targeted exact-signed code 47 checks passed on a Pixel 9 for upgrade with preserved data, cold launch, manual sync, HNS browsing, and corrected HNS/ICANN Proof Details presentation. The broader Android lifecycle, mobile-network, requester/recovery, Service Worker, download, WebSocket, and cross-origin matrix remains open. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
 
 ## Security Invariants for the Current Feature Set
 
@@ -113,11 +113,11 @@ Portable Rust, Android source, and host Apple-ABI checks can run on Linux. The
 complete iOS gate still requires macOS, Xcode 26.5/26.6, the iOS 26.5 SDK, and
 an iOS simulator; signed device behavior requires a separate physical-device
 pass. Android instrumentation requires an installed SDK/NDK and a device or
-emulator. Required CI now includes the focused fresh-runtime regression and
-paired HNS/ICANN Proof Details activity tests on an API 37 x86_64 emulator, but
-no completed remote run is claimed for the current hotfix source. Store
-binaries and previously recorded hashes must be rebuilt after this source
-checkpoint before they can be release evidence.
+emulator. Required CI run `30484282637` completed the focused
+fresh-runtime regression and paired HNS/ICANN Proof Details activity tests on
+an API 37 x86_64 emulator at workflow-only descendant
+`cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`. The signed store binaries remain
+tied to shipping source `417af67efd68198de4871c0a339d1e456b60cb68`.
 
 The five shared engine crates resolve from exact, checksum-verified crates.io
 `0.1.0` packages; a standalone checkout no longer depends on the coordination
@@ -137,11 +137,12 @@ WebKit network-process behavior.
 
 ## Checkpoint Verification
 
-### Current `0.5.6` Android Hotfix
+### Released `0.5.6` Android Hotfix
 
-Current source declares Android `0.5.6` / code `47` and shared Rust `0.5.6`,
-while iOS remains unchanged at `0.5.5` / build `57`. It pins all five engine
-contracts to exact crates.io `0.1.0`.
+Android `0.5.6` / code `47` and shared Rust `0.5.6` shipped from source
+`417af67efd68198de4871c0a339d1e456b60cb68`, while iOS remains unchanged at
+`0.5.5` / build `57`. Current source now pins all five engine contracts to
+the exact, checksum-verified crates.io `0.1.0` release.
 
 - Rust 1.92 omitted Android from the standard `File::lock`,
   `lock_shared`, `try_lock_shared`, and `unlock` implementation, causing the
@@ -151,31 +152,34 @@ contracts to exact crates.io `0.1.0`.
   semantics. Rust's equivalent upstream change
   [rust-lang/rust#157038](https://github.com/rust-lang/rust/pull/157038) is in
   the Rust 1.98 release train; this workspace remains on Rust 1.92.
-- Connected Pixel 9 debug validation opened fresh regtest storage at height `0`
-  with `error: null`, recovered preserved data to snapshot height
-  `300000`, and returned `syncing` with `error: null` after manual **Run**.
 - Android Proof Details now selects HNS proof versus ICANN DNSSEC presentation
   only from Rust's strict retained `namespaceResolution`. Physical Pixel 9 API
   37 instrumentation first failed against the pre-fix HNS path because it
   showed DNSSEC/synthetic ICANN details; the corrected build passes paired HNS
   and ICANN activity tests.
-- Required CI now runs the fresh-runtime and paired proof-details regressions on
-  an API 37 Google APIs x86_64 emulator. Remote completion remains pending. No
-  signed code `47` artifact, Play upload, GitHub tag, or GitHub Release is
-  claimed.
+- The signed 51,323,995-byte APK has SHA-256
+  `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the
+  signed 60,276,192-byte Play AAB has SHA-256
+  `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`.
+  Both passed the exact ABI, 16 KiB alignment, ELF hardening, symbols, R8,
+  notices, archive-signature, upload-certificate, APK-signature, and
+  ZIP-alignment gates.
+- On a Pixel 9 running Android 17 / API 37, the exact signed APK upgraded code
+  `46` to code `47` with data preserved, cold-launched, reached `up_to_date` at
+  height `340348` with lag `0`, freshness `current`, and `error: null`, and
+  passed manual sync plus HNS browsing and proof-presentation checks.
+- Required CI, including the fresh-runtime and paired proof-details API 37
+  emulator regressions, passed in run `30484282637` on workflow-only
+  descendant `cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`. That workflow-only
+  commit is not the tagged artifact
+  source and does not alter the shipping binaries.
+- Google Play committed code `47` to production with status `completed` through
+  edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
+  Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes the verified APK only;
+  the Play AAB and unchanged iOS build are not attached.
 
-### Historical `0.5.5` Release Evidence
+### Current `0.5.5` iOS Submission Evidence
 
-- Local Rust validation passed 764 tests with no failures and one ignored
-  benchmark; strict Clippy, formatting, and workspace checks passed.
-- Full manual CI run `30448341156` passed repository policy, the complete
-  Rust/supply-chain gate, Android build/tests/lint/bundle structure, the Apple
-  ABI/XCFramework/XCTest/simulator/device-link gate, and Required CI for the
-  code 46/build 57 version-bump source.
-- The signed code 46 APK and AAB passed exact ABI, 16 KiB alignment, ELF
-  hardening, symbols, R8, notices, archive-signature, upload-certificate, APK
-  signature, and ZIP-alignment checks. Google Play committed production edit
-  `17438779769069438085`; `generatedApks/46` returned HTTP `200`.
 - Final iOS-only source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47` passed exact-head policy, the
   complete Apple gate, and Required CI in run `30454904736`.
@@ -189,14 +193,10 @@ contracts to exact crates.io `0.1.0`.
   App Store Connect reports the build `VALID` and the direct App Review
   submission `WAITING_FOR_REVIEW`, with manual release and no TestFlight
   distribution.
-- Public GitHub Release `v0.5.5` retains the exact verified code 46 APK and
-  build 57 IPA at annotated tag source
-  `d926561091634cd69fc9b7e79a4b76003fa4ee47`.
 
-Those historical gates verify the `0.5.5` portable, Android package, hosted
-Apple build, and live simulator behavior. They do not validate the current code
-`47` release artifact or prove the separate signed physical Android or
-real-iPhone matrices for WebView/WebKit process restarts, lifecycle changes,
-Service Workers, downloads, WebSockets, and cross-origin subresources. The
-installed-device rows remain open. The unchanged iOS `0.5.5` / build `57` App
-Store Connect upload and direct App Review submission remain complete.
+The completed Android release checks do not prove the remaining physical-device
+matrix for process restarts, lifecycle changes, Service Workers, downloads,
+WebSockets, requester/recovery combinations, and cross-origin subresources.
+Real-iPhone qualification also remains open. The unchanged iOS `0.5.5` / build
+`57` is `VALID` in App Store Connect and its direct App Review submission
+remains `WAITING_FOR_REVIEW` with manual release and no TestFlight distribution.

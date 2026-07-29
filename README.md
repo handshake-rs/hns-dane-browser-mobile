@@ -9,27 +9,38 @@ and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 
 - [Google Play Store](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
-- [GitHub Release v0.5.5](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.5)
+- [GitHub Release v0.5.6](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6)
 
-Current source is preparing Android `0.5.6` / code `47` with shared Rust engine
-`0.5.6` as an Android-only hotfix. iOS remains unchanged at `0.5.5` / build
-`57`. Rust 1.92's `std::fs::File::lock` is unsupported on Android, causing the
-`0.5.5` runtime to report `rust-core-unavailable` before synchronization could
-start; the hotfix uses Android bionic `libc::flock` for the same advisory-lock
-coordination. It also makes Android Proof Details follow Rust's retained
-dual-root namespace decision instead of treating namespace-agnostic native
-gateway routing as ICANN. On a physical Pixel 9 running API 37, the new HNS
-activity regression failed against the pre-fix path by showing DNSSEC/synthetic
-ICANN details; after the correction, the paired HNS and ICANN activity tests
-pass. Required emulator CI is configured for both regressions, but its remote
-result remains pending. Signed code 47 artifacts, the Google Play upload, the
-`v0.5.6` tag, and GitHub Release publication remain pending.
+Android `0.5.6` / code `47`, with shared Rust engine `0.5.6`, is released as an
+Android-only hotfix from shipping source
+`417af67efd68198de4871c0a339d1e456b60cb68`. iOS remains unchanged at `0.5.5`
+/ build `57`. Rust 1.92's `std::fs::File::lock` is unsupported on Android, so
+the hotfix uses Android bionic `libc::flock` for the same advisory-lock
+coordination. Android Proof Details also follows Rust's retained dual-root
+namespace decision instead of treating namespace-agnostic native-gateway
+routing as ICANN.
 
-The currently published Google Play production release remains `0.5.5` / code
-`46`, built from source
-`d24f85158854abb8be4a7bb9e914aebe5e7e4679`. The Apple App Store baseline
-observed on 2026-07-28 was `0.5.0`; iOS `0.5.5` / build `57` is the matching
-update. Apple source `d926561091634cd69fc9b7e79a4b76003fa4ee47` adds the
+The signed 51,323,995-byte APK has SHA-256
+`46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the
+signed 60,276,192-byte Play AAB has SHA-256
+`de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`.
+On a Pixel 9 running Android 17 / API 37, that exact signed APK upgraded code
+`46` to code `47` without clearing data, cold-launched successfully, reached
+`up_to_date` at height `340348` with lag `0`, freshness `current`, and
+`error: null`, and passed manual sync plus HNS browsing and proof-presentation
+checks. Required CI completed in run `30484282637` on workflow-only
+descendant `cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`; that descendant does not
+replace the exact shipping source or artifact provenance above.
+
+Google Play production received code `47` with status `completed` through edit
+`07330408575596336357`, and `generatedApks/47` returned HTTP `200`. GitHub Release
+[`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes only the verified APK from the
+shipping-source tag; the Play AAB and an unchanged iOS asset are intentionally
+not attached.
+
+The Apple App Store baseline observed on 2026-07-28 was `0.5.0`; iOS `0.5.5` /
+build `57` is the pending Apple update. Apple source
+`d926561091634cd69fc9b7e79a4b76003fa4ee47` adds the
 shared compressed-negative-evidence and post-resolution freshness fixes,
 stable semantic Proof Details selection, and origin revalidation for a cached
 main frame with no new Rust status. Exact-head Apple CI run `30454904736` and
@@ -38,9 +49,8 @@ live Release screenshot run `30454926117` passed. Protected upload run
 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.
 App Store Connect reports the build `VALID` and the direct App Review
 submission `WAITING_FOR_REVIEW`, with manual release selected. No TestFlight
-distribution was created. Public GitHub Release `v0.5.5` contains the verified
-code 46 APK and build 57 App Store IPA. The hosted privacy policy at the
-canonical product URL is aligned with the current repository disclosure.
+distribution was created. The hosted privacy policy at the canonical product
+URL is aligned with the current repository disclosure.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).
