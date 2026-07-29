@@ -93,10 +93,12 @@ use hns_urkel::UrkelProofVerifier;
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
-use std::fs::{self, File, OpenOptions, TryLockError as FileTryLockError};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Error, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, UdpSocket};
 use std::num::NonZeroU16;
+#[cfg(target_os = "android")]
+use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{
@@ -1498,29 +1500,94 @@ struct HeaderStateFileLock {
     file: File,
 }
 
+// Rust's standard file-locking implementation did not include Android until
+// rust-lang/rust#157038 (Rust 1.98). Keep the equivalent target-local shim
+// while this workspace remains on Rust 1.92.
+#[cfg(target_os = "android")]
+fn android_advisory_lock(file: &File, operation: libc::c_int) -> Result<(), Error> {
+    loop {
+        // SAFETY: `file` owns a live descriptor for the duration of this call,
+        // and Android's bionic `flock` accepts the LOCK_* operation constants
+        // supplied by the same libc target.
+        if unsafe { libc::flock(file.as_raw_fd(), operation) } == 0 {
+            return Ok(());
+        }
+        let error = Error::last_os_error();
+        if error.kind() != ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+fn advisory_lock_shared(file: &File) -> Result<(), Error> {
+    android_advisory_lock(file, libc::LOCK_SH)
+}
+
+#[cfg(not(target_os = "android"))]
+fn advisory_lock_shared(file: &File) -> Result<(), Error> {
+    file.lock_shared()
+}
+
+#[cfg(target_os = "android")]
+fn advisory_lock_exclusive(file: &File) -> Result<(), Error> {
+    android_advisory_lock(file, libc::LOCK_EX)
+}
+
+#[cfg(not(target_os = "android"))]
+fn advisory_lock_exclusive(file: &File) -> Result<(), Error> {
+    file.lock()
+}
+
+#[cfg(target_os = "android")]
+fn advisory_try_lock_shared(file: &File) -> Result<bool, Error> {
+    match android_advisory_lock(file, libc::LOCK_SH | libc::LOCK_NB) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn advisory_try_lock_shared(file: &File) -> Result<bool, Error> {
+    match file.try_lock_shared() {
+        Ok(()) => Ok(true),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(false),
+        Err(std::fs::TryLockError::Error(error)) => Err(error),
+    }
+}
+
+#[cfg(target_os = "android")]
+fn advisory_unlock(file: &File) -> Result<(), Error> {
+    android_advisory_lock(file, libc::LOCK_UN)
+}
+
+#[cfg(not(target_os = "android"))]
+fn advisory_unlock(file: &File) -> Result<(), Error> {
+    file.unlock()
+}
+
 impl HeaderStateFileLock {
     fn shared(path: &Path) -> Result<Self, String> {
         let file = open_header_state_lock_file(path)?;
-        file.lock_shared()
+        advisory_lock_shared(&file)
             .map_err(|error| format!("acquire shared header-state lock: {error}"))?;
         Ok(Self { file })
     }
 
     fn exclusive(path: &Path) -> Result<Self, String> {
         let file = open_header_state_lock_file(path)?;
-        file.lock()
+        advisory_lock_exclusive(&file)
             .map_err(|error| format!("acquire exclusive header-state lock: {error}"))?;
         Ok(Self { file })
     }
 
     fn try_shared(path: &Path) -> Result<Option<Self>, String> {
         let file = open_header_state_lock_file(path)?;
-        match file.try_lock_shared() {
-            Ok(()) => Ok(Some(Self { file })),
-            Err(FileTryLockError::WouldBlock) => Ok(None),
-            Err(FileTryLockError::Error(error)) => {
-                Err(format!("try shared header-state lock: {error}"))
-            }
+        match advisory_try_lock_shared(&file) {
+            Ok(true) => Ok(Some(Self { file })),
+            Ok(false) => Ok(None),
+            Err(error) => Err(format!("try shared header-state lock: {error}")),
         }
     }
 
@@ -1543,7 +1610,7 @@ impl HeaderStateFileLock {
 
 impl Drop for HeaderStateFileLock {
     fn drop(&mut self) {
-        let _ = self.file.unlock();
+        let _ = advisory_unlock(&self.file);
     }
 }
 
@@ -14159,6 +14226,28 @@ mod tests {
     use std::io::{Read, Write};
     use std::net::{Shutdown, TcpListener, TcpStream};
     use std::thread;
+
+    #[test]
+    fn header_state_exclusive_lock_blocks_shared_probe_until_release() {
+        let data_dir = temp_dir_path("header-state-advisory-lock");
+        fs::create_dir_all(&data_dir).unwrap();
+        let lock_path = data_dir.join(".header-state.lock");
+        let exclusive = HeaderStateFileLock::exclusive(&lock_path).unwrap();
+
+        assert!(
+            HeaderStateFileLock::try_shared(&lock_path)
+                .unwrap()
+                .is_none()
+        );
+        drop(exclusive);
+        assert!(
+            HeaderStateFileLock::try_shared(&lock_path)
+                .unwrap()
+                .is_some()
+        );
+
+        cleanup_dir(&data_dir);
+    }
 
     fn current_maintenance_epoch(runtime: &BrowserRuntime) -> MaintenanceEpoch {
         let guard = runtime.inner.coordination.maintenance.read().unwrap();

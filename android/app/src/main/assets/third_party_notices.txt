@@ -23,8 +23,8 @@ Generator schema: 2
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 7001a4117e71d63c36e4db3bd914282dd21f811cb00a7a836313a72a17e4ac8e
   scripts/verify_cargo_git_policy.py = ab1914031ba0b2cb73b1c5a613fea6c934497f1adf945723541a409b677b33d2
-  rust/Cargo.toml = 6a8764d11a45d85c91b5dacd77b1f11c1f85adbf92b862e7fbb0eb392605769d
-  rust/Cargo.lock = 5156c0c106bab5af1c67a43a85629a9a6be359f973a42f79407141959474a42b
+  rust/Cargo.toml = 74db48339b2b1602708e67afe6f0d7eb27a4b4092cd3adaa622e6fc8d06b207a
+  rust/Cargo.lock = 74a144ceb8d9a61d418c7dafaf262139f242f8e6c6bf9cb58a23663d6a7d955b
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
@@ -36,7 +36,7 @@ Generated input SHA-256:
   rust/crates/hns-dnssec/Cargo.toml = 06c0ed11d5b80a3ff2f1780e9642e9986b13ecf1f34755cf1cd1d94b6a043cf0
   rust/crates/hns-gateway/Cargo.toml = 7da94da767d3633a7c151faea18aad4c023de9070cd8155f76d33af4cb535231
   rust/crates/hns-loopback-proxy/Cargo.toml = da48eea5d1c1c56d5722974946017b5a06b6b5891358b1f8d6c8362e2dff2145
-  rust/crates/hns-mobile-platform-runtime/Cargo.toml = ffaeca8d74058d17d24addcb260c2bf0eedb910bf32c31603b1cab8f8b2e1881
+  rust/crates/hns-mobile-platform-runtime/Cargo.toml = 7d0b8589876711d1f1b66d218b62a57f46f7238034e47a685758a9e0fbc63d31
   rust/crates/hns-p2p/Cargo.toml = cdb80d118d0a68dba48c5bb71f9ce69e09e3807b904318693dab0096a8af04e9
   rust/crates/hns-resolver/Cargo.toml = 49abf4892555a38b6d02bff84c3fc07f88e380ec00ffe8e843faaf774bff26d8
   rust/crates/hns-sync/Cargo.toml = e573dd5bb30b3a6f89a00cb01929b268849e5d54b7c4b9cebad6dc937d8fa2e3

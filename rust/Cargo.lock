@@ -683,6 +683,7 @@ dependencies = [
  "hns-transport",
  "hns-urkel",
  "httparse",
+ "libc",
  "rusqlite",
  "sha2",
  "thiserror 2.0.19",
