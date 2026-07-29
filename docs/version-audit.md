@@ -11,7 +11,7 @@ This table records the versions actually configured for the shipping build. Andr
 | iOS app | `0.5.5` / build `57` (unchanged) | `ios/project.yml` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
-| Canonical engine contracts | `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` | Cargo manifests and lock |
+| Canonical engine contracts | crates.io `0.1.0` | Cargo manifests and lock |
 | Android SDK | compile/target `37`, minimum `34` | `android/app/build.gradle.kts` |
 | iOS deployment floor | `17.0` | `ios/project.yml` |
 | Android Gradle Plugin | `9.2.1` | https://developer.android.com/build/releases/agp-9-2-0-release-notes |

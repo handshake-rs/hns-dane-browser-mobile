@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Switched the five canonical `hns-dane-engine` contracts from the reviewed
+  Git revision to exact, checksum-verified crates.io `0.1.0` packages.
+- Marked all 15 mobile Rust application packages non-publishable.
+
 ## 0.5.6 - 2026-07-29
 
 ### Changed

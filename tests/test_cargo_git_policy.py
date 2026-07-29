@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,19 +10,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from verify_cargo_git_policy import (  # noqa: E402
-    ALLOWED_ENGINE_PACKAGES,
-    CargoGitPolicyError,
-    ENGINE_GIT_URL,
-    ENGINE_LOCK_SOURCE,
-    ENGINE_REVISION,
+    CRATES_IO_SOURCE,
+    ENGINE_PACKAGES,
+    ENGINE_REQUIREMENT,
+    ENGINE_VERSION,
+    CargoSourcePolicyError,
     verify_repository,
 )
 
 
-class CargoGitPolicyTests(unittest.TestCase):
-    def test_reviewed_engine_package_set_is_explicit(self) -> None:
+class CargoSourcePolicyTests(unittest.TestCase):
+    def test_qualified_engine_package_set_is_explicit(self) -> None:
         self.assertEqual(
-            ALLOWED_ENGINE_PACKAGES,
+            ENGINE_PACKAGES,
             {
                 "hns-browser-observability",
                 "hns-browser-runtime",
@@ -40,9 +39,8 @@ class CargoGitPolicyTests(unittest.TestCase):
         (root / "tools/hns-header-snapshot-exporter").mkdir(parents=True)
 
         dependencies = "\n".join(
-            f'{package} = {{ git = "{ENGINE_GIT_URL}", '
-            f'rev = "{ENGINE_REVISION}" }}'
-            for package in sorted(ALLOWED_ENGINE_PACKAGES)
+            f'{package} = "{ENGINE_REQUIREMENT}"'
+            for package in sorted(ENGINE_PACKAGES)
         )
         (root / "rust/Cargo.toml").write_text(
             f"[workspace.dependencies]\n{dependencies}\n",
@@ -51,9 +49,10 @@ class CargoGitPolicyTests(unittest.TestCase):
         locked_packages = "\n".join(
             "[[package]]\n"
             f'name = "{package}"\n'
-            'version = "0.1.0"\n'
-            f'source = "{ENGINE_LOCK_SOURCE}"\n'
-            for package in sorted(ALLOWED_ENGINE_PACKAGES)
+            f'version = "{ENGINE_VERSION}"\n'
+            f'source = "{CRATES_IO_SOURCE}"\n'
+            f'checksum = "{"a" * 64}"\n'
+            for package in sorted(ENGINE_PACKAGES)
         )
         (root / "rust/Cargo.lock").write_text(
             f"version = 4\n\n{locked_packages}",
@@ -66,8 +65,9 @@ class CargoGitPolicyTests(unittest.TestCase):
             "version = 4\n\n"
             "[[package]]\n"
             'name = "hns-namespace-resolution"\n'
-            'version = "0.1.0"\n'
-            f'source = "{ENGINE_LOCK_SOURCE}"\n',
+            f'version = "{ENGINE_VERSION}"\n'
+            f'source = "{CRATES_IO_SOURCE}"\n'
+            f'checksum = "{"b" * 64}"\n',
             encoding="utf-8",
         )
         return temporary, root
@@ -75,82 +75,84 @@ class CargoGitPolicyTests(unittest.TestCase):
     def verify_fixture(self, root: Path) -> None:
         verify_repository(root, [Path("rust/Cargo.toml")])
 
-    def test_accepts_only_the_exact_engine_packages_and_revision(self) -> None:
+    def test_accepts_exact_registry_engine_packages(self) -> None:
         temporary, root = self.create_fixture()
         with temporary:
             self.verify_fixture(root)
 
-    def test_rejects_unpinned_manifest_dependency(self) -> None:
+    def test_rejects_git_manifest_dependency(self) -> None:
         temporary, root = self.create_fixture()
         with temporary:
             manifest = root / "rust/Cargo.toml"
             manifest.write_text(
                 manifest.read_text(encoding="utf-8").replace(
-                    f', rev = "{ENGINE_REVISION}"', "", 1
-                ),
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(
-                CargoGitPolicyError, "expected exact Git revision"
-            ):
-                self.verify_fixture(root)
-
-    def test_rejects_noncanonical_manifest_url(self) -> None:
-        temporary, root = self.create_fixture()
-        with temporary:
-            manifest = root / "rust/Cargo.toml"
-            manifest.write_text(
-                manifest.read_text(encoding="utf-8").replace(
-                    ENGINE_GIT_URL,
-                    "https://example.invalid/hns-dane-engine.git",
+                    f'"{ENGINE_REQUIREMENT}"',
+                    '{ git = "https://example.invalid/engine.git" }',
                     1,
                 ),
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(
-                CargoGitPolicyError, "expected canonical Git URL"
+                CargoSourcePolicyError, "Git dependencies are not allowed"
             ):
                 self.verify_fixture(root)
 
-    def test_rejects_wrong_locked_revision(self) -> None:
+    def test_rejects_moving_engine_requirement(self) -> None:
+        temporary, root = self.create_fixture()
+        with temporary:
+            manifest = root / "rust/Cargo.toml"
+            manifest.write_text(
+                manifest.read_text(encoding="utf-8").replace(
+                    ENGINE_REQUIREMENT, ENGINE_VERSION, 1
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(CargoSourcePolicyError, "must be pinned"):
+                self.verify_fixture(root)
+
+    def test_rejects_wrong_locked_version(self) -> None:
         temporary, root = self.create_fixture()
         with temporary:
             lockfile = root / "rust/Cargo.lock"
             lockfile.write_text(
                 lockfile.read_text(encoding="utf-8").replace(
-                    ENGINE_REVISION, "0" * 40, 1
+                    f'version = "{ENGINE_VERSION}"',
+                    'version = "0.1.1"',
+                    1,
                 ),
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(CargoGitPolicyError, "must lock to"):
+            with self.assertRaisesRegex(CargoSourcePolicyError, "must lock to"):
                 self.verify_fixture(root)
 
-    def test_rejects_wrong_transitive_tool_revision(self) -> None:
-        temporary, root = self.create_fixture()
-        with temporary:
-            lockfile = root / "tools/hns-header-snapshot-exporter/Cargo.lock"
-            lockfile.write_text(
-                lockfile.read_text(encoding="utf-8").replace(
-                    ENGINE_REVISION, "0" * 40, 1
-                ),
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(CargoGitPolicyError, "must lock to"):
-                self.verify_fixture(root)
-
-    def test_rejects_other_package_from_the_allowed_repository(self) -> None:
+    def test_rejects_non_registry_engine_source(self) -> None:
         temporary, root = self.create_fixture()
         with temporary:
             lockfile = root / "rust/Cargo.lock"
+            lockfile.write_text(
+                lockfile.read_text(encoding="utf-8").replace(
+                    CRATES_IO_SOURCE,
+                    "registry+https://example.invalid/index",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(CargoSourcePolicyError, "crates.io"):
+                self.verify_fixture(root)
+
+    def test_rejects_any_locked_git_package(self) -> None:
+        temporary, root = self.create_fixture()
+        with temporary:
+            lockfile = root / "rust/fuzz/Cargo.lock"
             lockfile.write_text(
                 lockfile.read_text(encoding="utf-8")
                 + "\n[[package]]\n"
-                + 'name = "unreviewed-engine-crate"\n'
-                + 'version = "0.1.0"\n'
-                + f'source = "{ENGINE_LOCK_SOURCE}"\n',
+                + 'name = "unreviewed-git-crate"\n'
+                + 'version = "1.0.0"\n'
+                + 'source = "git+https://example.invalid/crate#deadbeef"\n',
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(CargoGitPolicyError, "is not allowed"):
+            with self.assertRaisesRegex(CargoSourcePolicyError, "not allowed"):
                 self.verify_fixture(root)
 
 

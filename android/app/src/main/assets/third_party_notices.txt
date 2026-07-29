@@ -15,34 +15,33 @@ Shipped Rust target closure counts:
   x86_64-apple-ios: 164 third-party components
 
 License expressions are the declarations in the verified package metadata. The reproduced
-texts come from checksum-verified Cargo registry packages, the exact-revision canonical
-engine Git checkout, or dependency-verified Android artifacts. Inclusion here does not
-imply endorsement by the component authors.
+texts come from checksum-verified Cargo registry packages or dependency-verified Android
+artifacts. Inclusion here does not imply endorsement by the component authors.
 
 Generator schema: 2
 Generated input SHA-256:
-  scripts/generate-third-party-notices.py = 7001a4117e71d63c36e4db3bd914282dd21f811cb00a7a836313a72a17e4ac8e
-  scripts/verify_cargo_git_policy.py = ab1914031ba0b2cb73b1c5a613fea6c934497f1adf945723541a409b677b33d2
-  rust/Cargo.toml = 08c774978d309007c590086ea37d85bdae18e08ec7189d9604a65fb357bbef2a
-  rust/Cargo.lock = 98f8b8f75e59930a0183067d50e6ad5a67b5a9116025c7ad7cc271dffc505fbb
+  scripts/generate-third-party-notices.py = 5bfb4b422622d8f13eca3419af22e914c59a0e28826621e25bf84205151f0084
+  scripts/verify_cargo_git_policy.py = 269e25b8e8bf5e56a472337bd0531cb3b144b64241d252a83dca8f4888ba5d36
+  rust/Cargo.toml = 0f14e6878a80575e26c064cb1992de8dddc02c4a274f68abced6d8bff415dad1
+  rust/Cargo.lock = 35f03bb518f9839965090424fef45b003ec0ecab4da9df4fd9aa24710abed189
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
-  rust/crates/android-ffi/Cargo.toml = f716f5ea8073656fd606f87e88181e797c47bb4eaf0cc457e2e8555976472278
-  rust/crates/hns-cache/Cargo.toml = ecb37feb5e48f51bc3f4e8319aa3e8edca4178f419a3390215640e2e7c2ff058
-  rust/crates/hns-chain/Cargo.toml = 0fdd59304d88167acd7cf0a0ceb2c333aa5cc79d45c46a26828d9788df944814
-  rust/crates/hns-core/Cargo.toml = 0d2b63145e61850dc9c243cfd483a92cb7157672f87fcaa7879d7b42c0c91a6d
-  rust/crates/hns-dane/Cargo.toml = e101a2c614120830bc2ead4b56f1cb7604cef15fda4104bc819060a562aa8d29
-  rust/crates/hns-dnssec/Cargo.toml = 06c0ed11d5b80a3ff2f1780e9642e9986b13ecf1f34755cf1cd1d94b6a043cf0
-  rust/crates/hns-gateway/Cargo.toml = 7da94da767d3633a7c151faea18aad4c023de9070cd8155f76d33af4cb535231
-  rust/crates/hns-loopback-proxy/Cargo.toml = da48eea5d1c1c56d5722974946017b5a06b6b5891358b1f8d6c8362e2dff2145
-  rust/crates/hns-mobile-platform-runtime/Cargo.toml = 7d0b8589876711d1f1b66d218b62a57f46f7238034e47a685758a9e0fbc63d31
-  rust/crates/hns-p2p/Cargo.toml = cdb80d118d0a68dba48c5bb71f9ce69e09e3807b904318693dab0096a8af04e9
-  rust/crates/hns-resolver/Cargo.toml = 49abf4892555a38b6d02bff84c3fc07f88e380ec00ffe8e843faaf774bff26d8
-  rust/crates/hns-sync/Cargo.toml = e573dd5bb30b3a6f89a00cb01929b268849e5d54b7c4b9cebad6dc937d8fa2e3
-  rust/crates/hns-transport/Cargo.toml = b5c696c3b7f3b1f54a3835a95d029d35642f7a6ea9c895edd299e723209f305d
-  rust/crates/hns-urkel/Cargo.toml = 83ddd253d6a3699205df6647d894fcb2f081857c96fa272627b18aad1f34eb88
-  rust/crates/ios-ffi/Cargo.toml = 4ac4642f48a2e7c793f18bb90151fb7a22bcb470f29f3e81de0e3bb9fb93f18b
+  rust/crates/android-ffi/Cargo.toml = aa1a41a1d91ad5b0e1a7e965b1e82747911ba56a943260340f076d8aa326af9a
+  rust/crates/hns-cache/Cargo.toml = 60eb2e666fdd49dfd32c115c2a3bc3d29080ba92b83fc4d297a3d41d9254621a
+  rust/crates/hns-chain/Cargo.toml = a7db4eb3b37f994f68acf5e48d39455cba78add03688596fc8cb2531919bef34
+  rust/crates/hns-core/Cargo.toml = ebc166811c9108f7bf3155fd406d8738175ad94c837c2fdc64185822d4b9f36e
+  rust/crates/hns-dane/Cargo.toml = ca345da82395e3ec7d92a34378a43d4bf24bc60cff58074f2543684fb4f36cdf
+  rust/crates/hns-dnssec/Cargo.toml = 73f64744b69691ff4d75e3765fb3e53e033ef198742b876b2c7de208ef1e97f1
+  rust/crates/hns-gateway/Cargo.toml = 864fdfd7ce8eee3e2c93b8a2b818073668670e9b4b4973bb45026e6c38a20561
+  rust/crates/hns-loopback-proxy/Cargo.toml = 26d4ad459ad7880a561a81b10bae34b9a423a7b8c2f11c6cc98e0e41b2018b53
+  rust/crates/hns-mobile-platform-runtime/Cargo.toml = fdf5059e58c584da311a418140179659744e5959df272c6c8f512ba77e446bce
+  rust/crates/hns-p2p/Cargo.toml = 2cdb5bb438729b0c819e9ef0c3b3ca3de8110915ed78a9e194b4c44a963f5f94
+  rust/crates/hns-resolver/Cargo.toml = 5180bce68a68ae93be659a35e85f8aba8d8969569616a271e2b2548f11bf597a
+  rust/crates/hns-sync/Cargo.toml = 5fc5ae1ef8d0d3352b19eced94f39d0bf3dcbf0ff6f1453b081b7d43af6f6441
+  rust/crates/hns-transport/Cargo.toml = 4049209252226b0329091a7be06cf579c617c33a0adbe9c3ae84d34067a761e2
+  rust/crates/hns-urkel/Cargo.toml = 76b3b0aca54eb15bed7dd5c39f42444ba08ee428a4d1a89c9d8a3935dc38c3a6
+  rust/crates/ios-ffi/Cargo.toml = a7a7e59af8c8a90209a9166038d4737d4dba53e4728f4509b552b03852d05241
 
 ANDROID RUNTIME COMPONENTS (40)
   androidx.activity:activity-ktx:1.13.0 | Apache-2.0
@@ -349,10 +348,16 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 05fa1ba3228aab8d2bf637f286d7579ed76256c1dab3fa955c2489b920ffeb35
 Applies to:
+  - Rust crate hns-browser-observability 0.1.0
+  - Rust crate hns-browser-runtime 0.1.0
+  - Rust crate hns-icann-dane 0.1.0
+  - Rust crate hns-namespace-resolution 0.1.0
+  - Rust crate hns-resolution-policy 0.1.0
   - Rust crate quinn 0.11.11
   - Rust crate quinn-proto 0.11.15
   - Rust crate quinn-udp 0.5.14
 Source file names:
+  - canonical MIT OR Apache-2.0 text from quinn 0.11.11/LICENSE-MIT
   - LICENSE-MIT
 --------------------------------------------------------------------------------
 Copyright (c) 2018 The quinn Developers
@@ -1168,6 +1173,11 @@ limitations under the License.
 ================================================================================
 Notice SHA-256: 283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b
 Applies to:
+  - Rust crate hns-browser-observability 0.1.0
+  - Rust crate hns-browser-runtime 0.1.0
+  - Rust crate hns-icann-dane 0.1.0
+  - Rust crate hns-namespace-resolution 0.1.0
+  - Rust crate hns-resolution-policy 0.1.0
   - Rust crate lru-slab 0.1.2
   - Rust crate quinn 0.11.11
   - Rust crate quinn-proto 0.11.15
@@ -1176,6 +1186,7 @@ Applies to:
   - Rust crate utf8_iter 1.0.4
   - Rust crate zeroize 1.9.0
 Source file names:
+  - canonical MIT OR Apache-2.0 text from quinn 0.11.11/LICENSE-APACHE
   - LICENSE-APACHE
   - LICENSE-APACHE.md
 --------------------------------------------------------------------------------
@@ -2532,11 +2543,6 @@ Applies to:
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0
   - org.jetbrains:annotations:23.0.0
   - org.jspecify:jspecify:1.0.0
-  - Rust crate hns-browser-observability 0.1.0
-  - Rust crate hns-browser-runtime 0.1.0
-  - Rust crate hns-icann-dane 0.1.0
-  - Rust crate hns-namespace-resolution 0.1.0
-  - Rust crate hns-resolution-policy 0.1.0
   - Rust crate num-conv 0.2.2
   - Rust crate pin-project-lite 0.2.17
   - Rust crate time 0.3.51
@@ -2544,7 +2550,6 @@ Applies to:
   - Rust crate time-macros 0.2.30
 Source file names:
   - Apache-2.0 license text from a locked Android artifact
-  - canonical engine workspace/LICENSE-APACHE
   - LICENSE-APACHE
   - LICENSE-Apache
 --------------------------------------------------------------------------------
@@ -8613,39 +8618,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
-
-================================================================================
-Notice SHA-256: f9165598d16dd8f69f8b1ff9a0e2871821b9f7e6c0bece512dfd4de11e613ae5
-Applies to:
-  - Rust crate hns-browser-observability 0.1.0
-  - Rust crate hns-browser-runtime 0.1.0
-  - Rust crate hns-icann-dane 0.1.0
-  - Rust crate hns-namespace-resolution 0.1.0
-  - Rust crate hns-resolution-policy 0.1.0
-Source file names:
-  - canonical engine workspace/LICENSE-MIT
---------------------------------------------------------------------------------
-MIT License
-
-Copyright (c) 2026 Denuo Web, LLC
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 ================================================================================
 Notice SHA-256: f98a51ab06f4771e0707c5a2c9b23ad837862e51623ac35cd1cd667477144926

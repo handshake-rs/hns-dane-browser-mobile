@@ -326,7 +326,8 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5#7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f19eda78ba171a1063ea6d157973749847460c6fd6dabee6e589bd5f79112ab"
 
 [[package]]
 name = "hns-p2p"

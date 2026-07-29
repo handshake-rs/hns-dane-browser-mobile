@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Enforce the narrow, revision-pinned Cargo Git dependency exception."""
+"""Require registry-only Cargo inputs and the qualified engine release."""
 
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tomllib
@@ -12,12 +13,10 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
-ENGINE_REVISION = "7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5"
-ENGINE_LOCK_SOURCE = (
-    f"git+{ENGINE_GIT_URL}?rev={ENGINE_REVISION}#{ENGINE_REVISION}"
-)
-ALLOWED_ENGINE_PACKAGES = frozenset(
+ENGINE_VERSION = "0.1.0"
+ENGINE_REQUIREMENT = f"={ENGINE_VERSION}"
+CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
+ENGINE_PACKAGES = frozenset(
     {
         "hns-browser-observability",
         "hns-browser-runtime",
@@ -32,10 +31,11 @@ LOCKFILES = (
     Path("rust/fuzz/Cargo.lock"),
     Path("tools/hns-header-snapshot-exporter/Cargo.lock"),
 )
+CHECKSUM = re.compile(r"^[0-9a-f]{64}$")
 
 
-class CargoGitPolicyError(RuntimeError):
-    """A Cargo manifest or lockfile violates the Git source policy."""
+class CargoSourcePolicyError(RuntimeError):
+    """A Cargo manifest or lockfile violates the registry-only source policy."""
 
 
 def tracked_cargo_manifests(root: Path) -> list[Path]:
@@ -71,97 +71,89 @@ def load_toml(path: Path) -> dict[str, Any]:
 
 
 def validate_manifests(root: Path, manifests: list[Path]) -> None:
-    declarations: dict[str, int] = {
-        package: 0 for package in ALLOWED_ENGINE_PACKAGES
-    }
-
     for relative_path in manifests:
         document = load_toml(root / relative_path)
-        for location, specification in git_specs(document):
-            dependency = location[-1] if location else "<unknown>"
+        for location, _specification in git_specs(document):
             rendered_location = ".".join(location) or "<document root>"
-            if dependency not in ALLOWED_ENGINE_PACKAGES:
-                raise CargoGitPolicyError(
-                    f"{relative_path}:{rendered_location}: Cargo Git dependency "
-                    f"{dependency!r} is not allowed"
-                )
-            if relative_path != ROOT_MANIFEST or location != (
-                "workspace",
-                "dependencies",
-                dependency,
-            ):
-                raise CargoGitPolicyError(
-                    f"{relative_path}:{rendered_location}: allowed engine Git "
-                    "dependencies must be declared once in "
-                    "rust/Cargo.toml [workspace.dependencies]"
-                )
-            if specification.get("git") != ENGINE_GIT_URL:
-                raise CargoGitPolicyError(
-                    f"{relative_path}:{rendered_location}: expected canonical "
-                    f"Git URL {ENGINE_GIT_URL!r}"
-                )
-            if specification.get("rev") != ENGINE_REVISION:
-                raise CargoGitPolicyError(
-                    f"{relative_path}:{rendered_location}: expected exact Git "
-                    f"revision {ENGINE_REVISION}"
-                )
-            if "branch" in specification or "tag" in specification:
-                raise CargoGitPolicyError(
-                    f"{relative_path}:{rendered_location}: branch and tag Git "
-                    "selectors are not allowed"
-                )
-            package_override = specification.get("package")
-            if package_override not in (None, dependency):
-                raise CargoGitPolicyError(
-                    f"{relative_path}:{rendered_location}: dependency renaming "
-                    "is not allowed for the engine Git exception"
-                )
-            declarations[dependency] += 1
+            raise CargoSourcePolicyError(
+                f"{relative_path}:{rendered_location}: Cargo Git dependencies "
+                "are not allowed; use a qualified crates.io release"
+            )
 
-    for dependency, count in sorted(declarations.items()):
-        if count != 1:
-            raise CargoGitPolicyError(
-                f"{ROOT_MANIFEST}: expected exactly one pinned declaration for "
-                f"{dependency}, found {count}"
+    root_document = load_toml(root / ROOT_MANIFEST)
+    dependencies = root_document.get("workspace", {}).get("dependencies", {})
+    if not isinstance(dependencies, Mapping):
+        raise CargoSourcePolicyError(
+            f"{ROOT_MANIFEST}: [workspace.dependencies] is missing"
+        )
+    for package in sorted(ENGINE_PACKAGES):
+        specification = dependencies.get(package)
+        if isinstance(specification, str):
+            requirement = specification
+        elif isinstance(specification, Mapping):
+            requirement = specification.get("version")
+            forbidden = {
+                "git",
+                "path",
+                "registry",
+                "branch",
+                "tag",
+                "rev",
+                "package",
+            }.intersection(specification)
+            if forbidden:
+                raise CargoSourcePolicyError(
+                    f"{ROOT_MANIFEST}: {package} must use the default crates.io "
+                    f"registry without source selectors: {sorted(forbidden)}"
+                )
+        else:
+            requirement = None
+        if requirement != ENGINE_REQUIREMENT:
+            raise CargoSourcePolicyError(
+                f"{ROOT_MANIFEST}: {package} must be pinned to "
+                f"{ENGINE_REQUIREMENT!r}, found {requirement!r}"
             )
 
 
 def validate_lockfiles(root: Path) -> None:
-    root_packages: dict[str, int] = {
-        package: 0 for package in ALLOWED_ENGINE_PACKAGES
-    }
+    root_packages: dict[str, int] = {package: 0 for package in ENGINE_PACKAGES}
 
     for relative_path in LOCKFILES:
         document = load_toml(root / relative_path)
         for package in document.get("package", []):
             source = package.get("source")
-            if not isinstance(source, str) or not source.startswith("git+"):
-                continue
             name = package.get("name", "<unknown>")
-            if name not in ALLOWED_ENGINE_PACKAGES:
-                raise CargoGitPolicyError(
+            if isinstance(source, str) and source.startswith("git+"):
+                raise CargoSourcePolicyError(
                     f"{relative_path}: locked Cargo Git package {name!r} is "
                     "not allowed"
                 )
-            if source != ENGINE_LOCK_SOURCE:
-                raise CargoGitPolicyError(
-                    f"{relative_path}: {name} must lock to "
-                    f"{ENGINE_LOCK_SOURCE!r}, found {source!r}"
+            if name not in ENGINE_PACKAGES:
+                continue
+            version = package.get("version")
+            checksum = package.get("checksum")
+            if version != ENGINE_VERSION:
+                raise CargoSourcePolicyError(
+                    f"{relative_path}: {name} must lock to {ENGINE_VERSION}, "
+                    f"found {version!r}"
                 )
-            # Standalone tools use their own lockfiles while consuming local
-            # workspace crates. If one of those crates reaches the shared
-            # engine transitively, Cargo must record the same exact canonical
-            # package and revision there too. Only the root lock is required
-            # to contain all reviewed packages; every lock remains constrained
-            # to the same five names and immutable source above.
+            if source != CRATES_IO_SOURCE:
+                raise CargoSourcePolicyError(
+                    f"{relative_path}: {name} must come from crates.io, "
+                    f"found {source!r}"
+                )
+            if not isinstance(checksum, str) or CHECKSUM.fullmatch(checksum) is None:
+                raise CargoSourcePolicyError(
+                    f"{relative_path}: {name} is missing a valid registry checksum"
+                )
             if relative_path == Path("rust/Cargo.lock"):
                 root_packages[name] += 1
 
     for package, count in sorted(root_packages.items()):
         if count != 1:
-            raise CargoGitPolicyError(
-                "rust/Cargo.lock: expected exactly one locked package for "
-                f"{package}, found {count}"
+            raise CargoSourcePolicyError(
+                "rust/Cargo.lock: expected exactly one crates.io package for "
+                f"{package} {ENGINE_VERSION}, found {count}"
             )
 
 
@@ -179,16 +171,16 @@ def main() -> int:
     try:
         verify_repository()
     except (
-        CargoGitPolicyError,
+        CargoSourcePolicyError,
         OSError,
         subprocess.CalledProcessError,
         tomllib.TOMLDecodeError,
     ) as error:
-        print(f"Cargo Git dependency policy failed: {error}", file=sys.stderr)
+        print(f"Cargo source policy failed: {error}", file=sys.stderr)
         return 1
     print(
-        "Cargo Git dependency policy permits only the five canonical "
-        f"hns-dane-engine packages at {ENGINE_REVISION}."
+        "Cargo source policy permits registry inputs only and pins the five "
+        f"canonical hns-dane-engine packages to crates.io {ENGINE_VERSION}."
     )
     return 0
 

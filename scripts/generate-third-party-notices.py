@@ -22,10 +22,7 @@ import sys
 import xml.etree.ElementTree as ElementTree
 import zipfile
 
-from verify_cargo_git_policy import (
-    ALLOWED_ENGINE_PACKAGES,
-    ENGINE_LOCK_SOURCE,
-)
+from verify_cargo_git_policy import CRATES_IO_SOURCE
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,6 +59,14 @@ RUST_SHIPPING_TARGETS = (
 RUST_LICENSE_FILE_FALLBACKS = {
     ("asn1-rs-impl", "0.2.0"): ("asn1-rs", "0.7.2"),
     ("jni-sys-macros", "0.4.1"): ("jni-sys", "0.4.1"),
+}
+
+# The published engine crates declare the workspace MIT/Apache expression but
+# intentionally contain no duplicate workspace-level license files. Reuse the
+# same canonical texts from a checksum-verified package in the locked shipping
+# closure.
+DECLARED_LICENSE_FILE_FALLBACKS = {
+    "MIT OR Apache-2.0": ("quinn", "0.11.11"),
 }
 
 
@@ -396,53 +401,13 @@ def registry_license_files(package: dict) -> list[tuple[str, str]]:
 
 def rust_package_license_files(package: dict) -> list[tuple[str, str]]:
     source = package.get("source")
-    if not isinstance(source, str) or not source.startswith("git+"):
-        return registry_license_files(package)
-
-    name = package["name"]
-    if source != ENGINE_LOCK_SOURCE or name not in ALLOWED_ENGINE_PACKAGES:
+    if source != CRATES_IO_SOURCE:
         raise RuntimeError(
-            f"Unreviewed Cargo Git source for {name} {package['version']}: "
+            f"Unreviewed non-crates.io source for {package['name']} "
+            f"{package['version']}: "
             f"{source}"
         )
-
-    package_dir = Path(package["manifest_path"]).resolve().parent
-    checkout_root = package_dir.parents[1]
-    expected_package_dir = checkout_root / "crates" / name
-    if package_dir != expected_package_dir:
-        raise RuntimeError(
-            f"Unexpected canonical engine package location for {name}: "
-            f"{package_dir}"
-        )
-
-    files: list[tuple[str, str]] = []
-    for candidate in sorted(checkout_root.iterdir()):
-        if (
-            candidate.is_symlink()
-            or not candidate.is_file()
-            or not candidate.name.upper().startswith(LICENSE_FILE_PREFIXES)
-        ):
-            continue
-        size = candidate.stat().st_size
-        if not 0 <= size <= MAX_NOTICE_FILE_SIZE:
-            raise RuntimeError(
-                f"Engine license file has an unexpected size: {candidate}"
-            )
-        try:
-            content = (
-                candidate.read_text(encoding="utf-8")
-                .replace("\r\n", "\n")
-                .strip()
-            )
-        except UnicodeDecodeError as error:
-            raise RuntimeError(
-                f"Engine license file is not UTF-8 text: {candidate}"
-            ) from error
-        if content:
-            files.append(
-                (f"canonical engine workspace/{candidate.name}", content)
-            )
-    return files
+    return registry_license_files(package)
 
 
 def sqlite_public_domain_notice(rust_packages: list[dict]) -> tuple[str, str] | None:
@@ -509,6 +474,28 @@ def generate() -> str:
                 (f"companion {fallback[0]} {fallback[1]}/{name}", content)
                 for name, content in fallback_files
             ]
+    for package in rust_packages:
+        key = (package["name"], package["version"])
+        if package_license_files[key]:
+            continue
+        fallback = DECLARED_LICENSE_FILE_FALLBACKS.get(package.get("license"))
+        fallback_files = (
+            package_license_files.get(fallback) if fallback is not None else None
+        )
+        if not fallback_files:
+            raise RuntimeError(
+                f"No reviewed canonical license files exist for "
+                f"{package['name']} {package['version']} "
+                f"({package.get('license')!r})."
+            )
+        package_license_files[key] = [
+            (
+                f"canonical {package['license']} text from "
+                f"{fallback[0]} {fallback[1]}/{name}",
+                content,
+            )
+            for name, content in fallback_files
+        ]
 
     for package in rust_packages:
         key = (package["name"], package["version"])
@@ -543,9 +530,8 @@ def generate() -> str:
         ),
         "",
         "License expressions are the declarations in the verified package metadata. The reproduced",
-        "texts come from checksum-verified Cargo registry packages, the exact-revision canonical",
-        "engine Git checkout, or dependency-verified Android artifacts. Inclusion here does not",
-        "imply endorsement by the component authors.",
+        "texts come from checksum-verified Cargo registry packages or dependency-verified Android",
+        "artifacts. Inclusion here does not imply endorsement by the component authors.",
         "",
         f"Generator schema: {SCHEMA}",
         "Generated input SHA-256:",

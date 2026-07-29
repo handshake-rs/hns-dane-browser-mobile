@@ -561,7 +561,8 @@ dependencies = [
 [[package]]
 name = "hns-browser-observability"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5#7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "961b3c3347058e148c5c126ef90ee833f6b8e5ca70dc6c6b0ad2485901edc91b"
 dependencies = [
  "hns-browser-runtime",
  "hns-icann-dane",
@@ -573,7 +574,8 @@ dependencies = [
 [[package]]
 name = "hns-browser-runtime"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5#7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62f12c26a15b0bb9291cf89186811e72b8132060b3cfadf70d2f97dadc375daf"
 
 [[package]]
 name = "hns-cache"
@@ -643,7 +645,8 @@ dependencies = [
 [[package]]
 name = "hns-icann-dane"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5#7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4b1c58b5f0a3def68f41a6994e5b14b79734e812f54b6ae4fb4c06439381da0"
 
 [[package]]
 name = "hns-loopback-proxy"
@@ -692,7 +695,8 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5#7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f19eda78ba171a1063ea6d157973749847460c6fd6dabee6e589bd5f79112ab"
 
 [[package]]
 name = "hns-p2p"
@@ -709,7 +713,8 @@ dependencies = [
 [[package]]
 name = "hns-resolution-policy"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5#7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "068514eb6d0bcb739b27fb7d1ffd39fdf5935a01bd711f59f14a050eeb86ea28"
 
 [[package]]
 name = "hns-resolver"

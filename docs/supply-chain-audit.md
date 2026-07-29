@@ -19,10 +19,10 @@ Last audited: 2026-07-29
   Those remain historical runs; no completed remote run is claimed for the
   current `0.5.6` hotfix source.
 - Dependabot watches GitHub Actions, Gradle, and all three Cargo lockfile roots weekly.
-- Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums; the only locked Git packages are the five exact-revision engine exceptions detailed below.
+- Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums, and Cargo Git dependencies are denied.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
 - Gradle 9.6.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
-- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. Cargo Git inputs are denied except for `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` from the canonical `handshake-rs/hns-dane-engine` repository: every manifest revision and locked source must equal the reviewed `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` commit, and focused policy tests reject alternate URLs, moving selectors, mismatched lock revisions, or any additional Git package. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
+- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` are pinned to the checksum-verified crates.io `0.1.0` release; focused policy tests reject Git inputs, moving requirements, alternate registries, invalid checksums, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
 - Android JNI release builds reject unknown profiles, compiler/linker/profile overrides, and unexpected cargo-ndk/NDK versions; use `--locked`; force the release profile; require both ABI outputs; and restrict cleanup to `android/app/build`. Path-prefix maps remove checkout, home, Cargo, Rustup, and NDK paths while retaining line-table debug information for AGP. Gradle pins AGP to NDK `28.2.13676358`, treats the NDK location and `source.properties` as incremental inputs, and includes Rust `.txt` data files such as the ICANN TLD snapshot.
 - The required Android job now enables KVM and runs the focused fresh-runtime
   regression plus paired HNS/ICANN Proof Details activity instrumentation on a
@@ -75,9 +75,8 @@ Last audited: 2026-07-29
   regressions; the remote result remains pending.
 - No signed code 47 APK/AAB, Google Play upload/track assignment, GitHub tag or
   Release, or completed remote CI run is claimed at this checkpoint.
-- The five engine crates remain pinned to reviewed immutable
-  `handshake-rs/hns-dane-engine` commit
-  `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
+- The five engine crates are pinned to the exact, checksum-verified crates.io
+  `0.1.0` release.
 
 ### Historical `0.5.5` Release Evidence
 
