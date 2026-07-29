@@ -56,6 +56,30 @@ final class NavigationReplayPolicyTests: XCTestCase {
 final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
     private let policy = ProvisionalNavigationFailureRecoveryPolicy()
 
+    func testAutomaticReplayAndInterveningActionsPreserveOneShotBoundary() {
+        XCTAssertEqual(
+            policy.evaluateNavigationAction(
+                isAutomaticFailureReplay: true,
+                hasActiveOneShotRecovery: true
+            ),
+            .preserveOneShotState
+        )
+        XCTAssertEqual(
+            policy.evaluateNavigationAction(
+                isAutomaticFailureReplay: false,
+                hasActiveOneShotRecovery: true
+            ),
+            .invalidateQueuedReplay
+        )
+        XCTAssertEqual(
+            policy.evaluateNavigationAction(
+                isAutomaticFailureReplay: false,
+                hasActiveOneShotRecovery: false
+            ),
+            .reset
+        )
+    }
+
     func testFirstConnectionLostFailureReplaysGetAndHead() {
         let error = NSError(
             domain: NSURLErrorDomain,

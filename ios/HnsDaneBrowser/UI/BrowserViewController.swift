@@ -1546,6 +1546,22 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
         showError(error)
     }
 
+    func proxyCoordinator(
+        _ coordinator: BrowserProxyCoordinator,
+        scheduleAfterSyncMaintenance callback: @escaping () -> Void
+    ) -> Bool {
+        guard !isDestroyed, self.coordinator === coordinator else { return false }
+        return process.performAtSyncMaintenanceSafePoint { [weak self, weak coordinator] in
+            guard let self,
+                  let coordinator,
+                  !self.isDestroyed,
+                  self.coordinator === coordinator else {
+                return
+            }
+            callback()
+        }
+    }
+
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, didFinishDownloadAt url: URL) {
         BrowserDownloadStore.record(
             fileURL: url,

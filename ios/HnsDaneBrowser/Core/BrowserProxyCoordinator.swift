@@ -17,6 +17,10 @@ protocol BrowserProxyCoordinatorDelegate: AnyObject {
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, didUpdateSync summary: BrowserSyncSummary)
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, didFail error: Error)
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, didFinishDownloadAt url: URL)
+    func proxyCoordinator(
+        _ coordinator: BrowserProxyCoordinator,
+        scheduleAfterSyncMaintenance callback: @escaping () -> Void
+    ) -> Bool
 }
 
 @MainActor
@@ -78,6 +82,9 @@ final class BrowserProxyCoordinator: NSObject {
     // NSError failing-URL metadata is optional. WKNavigation identity binds recovery to the
     // exact main-frame load without relying on that metadata.
     private var trackedProvisionalNavigation: WKNavigation?
+    // Retain the recovered original after the retry becomes tracked so only late callbacks for
+    // that original are suppressed; a failure for the retry remains reportable.
+    private var suppressedRecoveredProvisionalNavigation: WKNavigation?
 
     init(runtime: BrowserRuntime, profile: PersistentWebKitProfile) {
         self.runtime = runtime
@@ -116,6 +123,7 @@ final class BrowserProxyCoordinator: NSObject {
 
     func suspend() {
         guard !destroyed else { return }
+        resetProvisionalFailureRecovery()
         discardUnsafePendingReplay()
         if pendingNavigation == nil,
            let lastNavigation,
@@ -128,6 +136,7 @@ final class BrowserProxyCoordinator: NSObject {
     func destroy() {
         guard !destroyed else { return }
         destroyed = true
+        resetProvisionalFailureRecovery()
         pendingNavigation = nil
         lastNavigation = nil
         execute(machine.destroy())
@@ -164,6 +173,7 @@ final class BrowserProxyCoordinator: NSObject {
     }
 
     func stopLoading() {
+        resetProvisionalFailureRecovery()
         webView?.stopLoading()
         delegate?.proxyCoordinator(
             self,
@@ -414,6 +424,13 @@ final class BrowserProxyCoordinator: NSObject {
         provisionalFailureRecoveryGeneration &+= 1
         pendingAutomaticProvisionalFailureReplay = nil
         trackedProvisionalNavigation = nil
+        suppressedRecoveredProvisionalNavigation = nil
+    }
+
+    private func invalidateQueuedRecoveryPreservingOneShotState() {
+        provisionalFailureRecoveryGeneration &+= 1
+        pendingAutomaticProvisionalFailureReplay = nil
+        trackedProvisionalNavigation = nil
     }
 
     private func requestsMatchForProvisionalFailureRecovery(
@@ -432,13 +449,16 @@ final class BrowserProxyCoordinator: NSObject {
     ) -> Bool {
         guard self.webView === webView,
               !destroyed,
-              let lastNavigation else {
+              let lastNavigation,
+              let navigation else {
             return false
+        }
+        if suppressedRecoveredProvisionalNavigation === navigation {
+            return true
         }
         switch provisionalFailureRecoveryPolicy.evaluate(
             error: error as NSError,
-            matchesTrackedNavigation: navigation != nil
-                && trackedProvisionalNavigation === navigation,
+            matchesTrackedNavigation: trackedProvisionalNavigation === navigation,
             httpMethod: lastNavigation.request.httpMethod,
             automaticReplayCount: provisionalFailureAutomaticReplayCount
         ) {
@@ -448,28 +468,39 @@ final class BrowserProxyCoordinator: NSObject {
             break
         }
 
+        guard let delegate else { return false }
         provisionalFailureAutomaticReplayCount += 1
+        suppressedRecoveredProvisionalNavigation = navigation
         let request = lastNavigation.request
         let destination = lastNavigation.destination
         let recoveryGeneration = provisionalFailureRecoveryGeneration
-        DispatchQueue.main.async { [weak self, weak webView] in
-            guard let self,
-                  let webView,
-                  !self.destroyed,
-                  self.webView === webView,
-                  self.provisionalFailureRecoveryGeneration == recoveryGeneration,
-                  let lastNavigation = self.lastNavigation,
-                  lastNavigation.destination == destination,
-                  self.requestsMatchForProvisionalFailureRecovery(
-                      lastNavigation.request,
-                      request
-                  ) else {
-                return
+        let scheduled = delegate.proxyCoordinator(
+            self,
+            scheduleAfterSyncMaintenance: { [weak self, weak webView] in
+                DispatchQueue.main.async { [weak self, weak webView] in
+                    guard let self,
+                          let webView,
+                          !self.destroyed,
+                          self.webView === webView,
+                          self.provisionalFailureRecoveryGeneration == recoveryGeneration,
+                          let lastNavigation = self.lastNavigation,
+                          lastNavigation.destination == destination,
+                          self.requestsMatchForProvisionalFailureRecovery(
+                              lastNavigation.request,
+                              request
+                          ) else {
+                        return
+                    }
+                    self.pendingAutomaticProvisionalFailureReplay = request
+                    self.trackedProvisionalNavigation = webView.load(request)
+                }
             }
-            self.pendingAutomaticProvisionalFailureReplay = request
-            self.trackedProvisionalNavigation = webView.load(request)
+        )
+        if !scheduled {
+            provisionalFailureAutomaticReplayCount = 0
+            suppressedRecoveredProvisionalNavigation = nil
         }
-        return true
+        return scheduled
     }
 
     private func makeWebView() -> WKWebView {
@@ -484,6 +515,7 @@ final class BrowserProxyCoordinator: NSObject {
     }
 
     private func revokeWebView() {
+        resetProvisionalFailureRecovery()
         guard let webView else { return }
         webView.stopLoading()
         webView.navigationDelegate = nil
@@ -684,7 +716,16 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
                     )
                 } ?? false
                 pendingAutomaticProvisionalFailureReplay = nil
-                if !isAutomaticFailureReplay {
+                switch provisionalFailureRecoveryPolicy.evaluateNavigationAction(
+                    isAutomaticFailureReplay: isAutomaticFailureReplay,
+                    hasActiveOneShotRecovery:
+                        suppressedRecoveredProvisionalNavigation != nil
+                ) {
+                case .preserveOneShotState:
+                    break
+                case .invalidateQueuedReplay:
+                    invalidateQueuedRecoveryPreservingOneShotState()
+                case .reset:
                     resetProvisionalFailureRecovery()
                 }
                 let historyTarget: Int?
@@ -784,8 +825,7 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
         ) {
             return
         }
-        pendingAutomaticProvisionalFailureReplay = nil
-        trackedProvisionalNavigation = nil
+        resetProvisionalFailureRecovery()
         if let url = lastNavigation?.destination.url ?? webView.url {
             updateSecurity(for: url)
         }
@@ -803,8 +843,11 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
         didFail navigation: WKNavigation?,
         withError error: Error
     ) {
-        pendingAutomaticProvisionalFailureReplay = nil
-        trackedProvisionalNavigation = nil
+        if let navigation,
+           suppressedRecoveredProvisionalNavigation === navigation {
+            return
+        }
+        resetProvisionalFailureRecovery()
         if let url = lastNavigation?.destination.url ?? webView.url {
             updateSecurity(for: url)
         }
@@ -819,6 +862,7 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         guard self.webView === webView else { return }
+        resetProvisionalFailureRecovery()
         discardUnsafePendingReplay()
         if pendingNavigation == nil,
            let lastNavigation,

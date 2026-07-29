@@ -1053,6 +1053,126 @@ final class BrowserRuntimeControlTests: XCTestCase {
         await fulfillment(of: [reuseCompleted], timeout: 2)
         XCTAssertTrue(reusedEnvironment?.runtime === previousEnvironment.runtime)
     }
+
+    @MainActor
+    func testSyncMaintenanceSafePointRunsImmediatelyWhenIdle() {
+        let process = BrowserProcess(
+            initialNetwork: .testnet,
+            persistNetwork: { _ in }
+        )
+        defer { process.close() }
+        var callbackCount = 0
+
+        XCTAssertTrue(
+            process.performAtSyncMaintenanceSafePoint {
+                callbackCount += 1
+            }
+        )
+        XCTAssertEqual(callbackCount, 1)
+    }
+
+    @MainActor
+    func testSyncMaintenanceSafePointsWaitForSyncAndDrainOnceInOrder() async throws {
+        let runtime = NetworkSwitchRuntimeStub(network: .testnet, rejectsPolicy: false)
+        let syncStarted = expectation(description: "sync entered runtime")
+        let allowSyncToFinish = DispatchSemaphore(value: 0)
+        runtime.onSyncStart = { syncStarted.fulfill() }
+        runtime.syncGate = allowSyncToFinish
+        let process = BrowserProcess(
+            runtimeFactory: { _, _ in runtime },
+            initialNetwork: .testnet,
+            persistNetwork: { _ in }
+        )
+        defer {
+            allowSyncToFinish.signal()
+            process.close()
+        }
+
+        let preparationCompleted = expectation(description: "runtime prepared")
+        var preparationResult: Result<BrowserProcess.Environment, Error>?
+        process.prepare {
+            preparationResult = $0
+            preparationCompleted.fulfill()
+        }
+        await fulfillment(of: [preparationCompleted], timeout: 2)
+        _ = try XCTUnwrap(preparationResult).get()
+
+        let syncCompleted = expectation(description: "sync completed")
+        process.syncNow { _ in syncCompleted.fulfill() }
+        await fulfillment(of: [syncStarted], timeout: 2)
+
+        var callbackOrder: [Int] = []
+        let firstSafePoint = expectation(description: "first safe point")
+        let secondSafePoint = expectation(description: "second safe point")
+        XCTAssertTrue(
+            process.performAtSyncMaintenanceSafePoint {
+                XCTAssertFalse(runtime.isSyncRunning)
+                callbackOrder.append(1)
+                firstSafePoint.fulfill()
+            }
+        )
+        XCTAssertTrue(
+            process.performAtSyncMaintenanceSafePoint {
+                XCTAssertFalse(runtime.isSyncRunning)
+                callbackOrder.append(2)
+                secondSafePoint.fulfill()
+            }
+        )
+        XCTAssertTrue(callbackOrder.isEmpty)
+
+        allowSyncToFinish.signal()
+        await fulfillment(
+            of: [firstSafePoint, secondSafePoint, syncCompleted],
+            timeout: 2
+        )
+        XCTAssertEqual(callbackOrder, [1, 2])
+    }
+
+    @MainActor
+    func testClosingProcessDropsQueuedSyncMaintenanceSafePoint() async throws {
+        let runtime = NetworkSwitchRuntimeStub(network: .testnet, rejectsPolicy: false)
+        let syncStarted = expectation(description: "sync entered runtime")
+        let runtimeClosed = expectation(description: "runtime closed")
+        let allowSyncToFinish = DispatchSemaphore(value: 0)
+        runtime.onSyncStart = { syncStarted.fulfill() }
+        runtime.syncGate = allowSyncToFinish
+        runtime.onClose = { runtimeClosed.fulfill() }
+        let process = BrowserProcess(
+            runtimeFactory: { _, _ in runtime },
+            initialNetwork: .testnet,
+            persistNetwork: { _ in }
+        )
+
+        let preparationCompleted = expectation(description: "runtime prepared")
+        var preparationResult: Result<BrowserProcess.Environment, Error>?
+        process.prepare {
+            preparationResult = $0
+            preparationCompleted.fulfill()
+        }
+        await fulfillment(of: [preparationCompleted], timeout: 2)
+        _ = try XCTUnwrap(preparationResult).get()
+
+        process.syncNow { _ in }
+        await fulfillment(of: [syncStarted], timeout: 2)
+        var callbackCount = 0
+        XCTAssertTrue(
+            process.performAtSyncMaintenanceSafePoint {
+                callbackCount += 1
+            }
+        )
+
+        process.close()
+        allowSyncToFinish.signal()
+        await fulfillment(of: [runtimeClosed], timeout: 2)
+        await Task.yield()
+        XCTAssertEqual(callbackCount, 0)
+        XCTAssertFalse(
+            process.performAtSyncMaintenanceSafePoint {
+                callbackCount += 1
+            }
+        )
+        XCTAssertEqual(callbackCount, 0)
+    }
 }
 
 @MainActor
@@ -1110,9 +1230,12 @@ private final class NetworkSwitchRuntimeStub: BrowserRuntime {
     let network: BrowserHandshakeNetwork
     let rejectsPolicy: Bool
     var onClose: (() -> Void)?
+    var onSyncStart: (() -> Void)?
+    var syncGate: DispatchSemaphore?
 
     private let lock = NSLock()
     private var closed = false
+    private var syncRunning = false
 
     init(network: BrowserHandshakeNetwork, rejectsPolicy: Bool) {
         self.network = network
@@ -1123,6 +1246,12 @@ private final class NetworkSwitchRuntimeStub: BrowserRuntime {
         lock.lock()
         defer { lock.unlock() }
         return closed
+    }
+
+    var isSyncRunning: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return syncRunning
     }
 
     func classifyNavigation(_ rawValue: String) throws -> BrowserDestination {
@@ -1144,7 +1273,19 @@ private final class NetworkSwitchRuntimeStub: BrowserRuntime {
         return 1
     }
 
-    func syncOnce() throws -> BrowserSyncSummary { syncSummary() }
+    func syncOnce() throws -> BrowserSyncSummary {
+        lock.lock()
+        syncRunning = true
+        lock.unlock()
+        defer {
+            lock.lock()
+            syncRunning = false
+            lock.unlock()
+        }
+        onSyncStart?()
+        syncGate?.wait()
+        return syncSummary()
+    }
 
     func syncSummary() -> BrowserSyncSummary {
         BrowserSyncSummary(

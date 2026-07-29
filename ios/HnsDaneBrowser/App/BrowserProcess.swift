@@ -34,6 +34,7 @@ final class BrowserProcess {
     private var syncScheduleGeneration: UInt64 = 0
     private var syncInFlight = false
     private var syncCompletions: [((Result<BrowserSyncSummary, Error>) -> Void)] = []
+    private var syncMaintenanceSafePointCallbacks: [(() -> Void)] = []
     private var consecutiveSyncFailures = 0
     private var networkSwitchInFlight = false
     private var networkSwitchGeneration: UInt64 = 0
@@ -219,6 +220,19 @@ final class BrowserProcess {
         startSyncIfNeeded(environment: environment)
     }
 
+    /// Runs work only after the currently executing `syncOnce()` has returned and released
+    /// runtime header maintenance. This does not wait for a future scheduled sync.
+    @discardableResult
+    func performAtSyncMaintenanceSafePoint(_ callback: @escaping () -> Void) -> Bool {
+        if case .closed = state { return false }
+        guard syncInFlight else {
+            callback()
+            return true
+        }
+        syncMaintenanceSafePointCallbacks.append(callback)
+        return true
+    }
+
     func addStaticRelayPeer(
         _ endpoint: String,
         completion: @escaping (Result<BrowserSyncSummary, Error>) -> Void
@@ -299,6 +313,7 @@ final class BrowserProcess {
         suspendForegroundSync()
         networkSwitchInFlight = false
         networkSwitchGeneration &+= 1
+        drainSyncMaintenanceSafePoints(runCallbacks: false)
         let pendingSyncCompletions = syncCompletions
         syncCompletions.removeAll()
         let closedError = BrowserCoreError.runtimeUnavailable("process is closed")
@@ -403,6 +418,7 @@ final class BrowserProcess {
 
     private func finishSync(_ result: Result<BrowserSyncSummary, Error>) {
         syncInFlight = false
+        drainSyncMaintenanceSafePoints(runCallbacks: true)
         let callbacks = syncCompletions
         syncCompletions.removeAll()
 
@@ -424,6 +440,16 @@ final class BrowserProcess {
             scheduleForegroundSync(after: delay)
         }
         callbacks.forEach { $0(result) }
+    }
+
+    private func drainSyncMaintenanceSafePoints(runCallbacks: Bool) {
+        let callbacks = syncMaintenanceSafePointCallbacks
+        syncMaintenanceSafePointCallbacks.removeAll()
+        guard runCallbacks else { return }
+        for callback in callbacks {
+            if case .closed = state { return }
+            callback()
+        }
     }
 
     private func scheduleForegroundSync(after delay: TimeInterval) {

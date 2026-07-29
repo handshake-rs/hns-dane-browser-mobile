@@ -330,8 +330,22 @@ enum ProvisionalNavigationFailureRecoveryDecision: Equatable {
     case report
 }
 
+enum ProvisionalNavigationActionRecoveryDecision: Equatable {
+    case preserveOneShotState
+    case invalidateQueuedReplay
+    case reset
+}
+
 struct ProvisionalNavigationFailureRecoveryPolicy {
     private let replayPolicy = NavigationReplayPolicy()
+
+    func evaluateNavigationAction(
+        isAutomaticFailureReplay: Bool,
+        hasActiveOneShotRecovery: Bool
+    ) -> ProvisionalNavigationActionRecoveryDecision {
+        if isAutomaticFailureReplay { return .preserveOneShotState }
+        return hasActiveOneShotRecovery ? .invalidateQueuedReplay : .reset
+    }
 
     func evaluate(
         error: NSError,
