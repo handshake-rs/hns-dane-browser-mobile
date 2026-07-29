@@ -75,6 +75,9 @@ final class BrowserProxyCoordinator: NSObject {
     private var provisionalFailureAutomaticReplayCount = 0
     private var provisionalFailureRecoveryGeneration: UInt64 = 0
     private var pendingAutomaticProvisionalFailureReplay: URLRequest?
+    // NSError failing-URL metadata is optional. WKNavigation identity binds recovery to the
+    // exact main-frame load without relying on that metadata.
+    private var trackedProvisionalNavigation: WKNavigation?
 
     init(runtime: BrowserRuntime, profile: PersistentWebKitProfile) {
         self.runtime = runtime
@@ -157,7 +160,7 @@ final class BrowserProxyCoordinator: NSObject {
             return
         }
         resetProvisionalFailureRecovery()
-        webView.reload()
+        trackedProvisionalNavigation = webView.reload()
     }
 
     func stopLoading() {
@@ -403,13 +406,14 @@ final class BrowserProxyCoordinator: NSObject {
             isLoading: true
         )
         _ = activeProxy
-        webView.load(pendingNavigation.request)
+        trackedProvisionalNavigation = webView.load(pendingNavigation.request)
     }
 
     private func resetProvisionalFailureRecovery() {
         provisionalFailureAutomaticReplayCount = 0
         provisionalFailureRecoveryGeneration &+= 1
         pendingAutomaticProvisionalFailureReplay = nil
+        trackedProvisionalNavigation = nil
     }
 
     private func requestsMatchForProvisionalFailureRecovery(
@@ -423,6 +427,7 @@ final class BrowserProxyCoordinator: NSObject {
 
     private func recoverProvisionalNavigationIfAllowed(
         in webView: WKWebView,
+        navigation: WKNavigation?,
         error: Error
     ) -> Bool {
         guard self.webView === webView,
@@ -432,7 +437,8 @@ final class BrowserProxyCoordinator: NSObject {
         }
         switch provisionalFailureRecoveryPolicy.evaluate(
             error: error as NSError,
-            requestURL: lastNavigation.request.url,
+            matchesTrackedNavigation: navigation != nil
+                && trackedProvisionalNavigation === navigation,
             httpMethod: lastNavigation.request.httpMethod,
             automaticReplayCount: provisionalFailureAutomaticReplayCount
         ) {
@@ -461,7 +467,7 @@ final class BrowserProxyCoordinator: NSObject {
                 return
             }
             self.pendingAutomaticProvisionalFailureReplay = request
-            webView.load(request)
+            self.trackedProvisionalNavigation = webView.load(request)
         }
         return true
     }
@@ -743,6 +749,9 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation?) {
+        if self.webView === webView, let navigation {
+            trackedProvisionalNavigation = navigation
+        }
         delegate?.proxyCoordinator(
             self,
             canGoBack: historyIndex > 0,
@@ -768,10 +777,15 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
         didFailProvisionalNavigation navigation: WKNavigation?,
         withError error: Error
     ) {
-        if recoverProvisionalNavigationIfAllowed(in: webView, error: error) {
+        if recoverProvisionalNavigationIfAllowed(
+            in: webView,
+            navigation: navigation,
+            error: error
+        ) {
             return
         }
         pendingAutomaticProvisionalFailureReplay = nil
+        trackedProvisionalNavigation = nil
         if let url = lastNavigation?.destination.url ?? webView.url {
             updateSecurity(for: url)
         }
@@ -790,6 +804,7 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
         withError error: Error
     ) {
         pendingAutomaticProvisionalFailureReplay = nil
+        trackedProvisionalNavigation = nil
         if let url = lastNavigation?.destination.url ?? webView.url {
             updateSecurity(for: url)
         }

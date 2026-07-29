@@ -57,17 +57,15 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
     private let policy = ProvisionalNavigationFailureRecoveryPolicy()
 
     func testFirstConnectionLostFailureReplaysGetAndHead() {
-        let url = URL(string: "https://example.com/")!
         let error = NSError(
             domain: NSURLErrorDomain,
-            code: NSURLErrorNetworkConnectionLost,
-            userInfo: [NSURLErrorFailingURLErrorKey: url]
+            code: NSURLErrorNetworkConnectionLost
         )
 
         XCTAssertEqual(
             policy.evaluate(
                 error: error,
-                requestURL: url,
+                matchesTrackedNavigation: true,
                 httpMethod: "GET",
                 automaticReplayCount: 0
             ),
@@ -76,7 +74,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 error: error,
-                requestURL: url,
+                matchesTrackedNavigation: true,
                 httpMethod: "head",
                 automaticReplayCount: 0
             ),
@@ -85,7 +83,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 error: error,
-                requestURL: url,
+                matchesTrackedNavigation: true,
                 httpMethod: nil,
                 automaticReplayCount: 0
             ),
@@ -94,17 +92,15 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
     }
 
     func testConnectionLostFailureIsNeverReplayedTwice() {
-        let url = URL(string: "https://example.com/")!
         let error = NSError(
             domain: NSURLErrorDomain,
-            code: NSURLErrorNetworkConnectionLost,
-            userInfo: [NSURLErrorFailingURLErrorKey: url]
+            code: NSURLErrorNetworkConnectionLost
         )
 
         XCTAssertEqual(
             policy.evaluate(
                 error: error,
-                requestURL: url,
+                matchesTrackedNavigation: true,
                 httpMethod: "GET",
                 automaticReplayCount: 1
             ),
@@ -113,17 +109,15 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
     }
 
     func testConnectionLostFailureDoesNotReplayUnsafeMethods() {
-        let url = URL(string: "https://example.com/")!
         let error = NSError(
             domain: NSURLErrorDomain,
-            code: NSURLErrorNetworkConnectionLost,
-            userInfo: [NSURLErrorFailingURLErrorKey: url]
+            code: NSURLErrorNetworkConnectionLost
         )
 
         XCTAssertEqual(
             policy.evaluate(
                 error: error,
-                requestURL: url,
+                matchesTrackedNavigation: true,
                 httpMethod: "POST",
                 automaticReplayCount: 0
             ),
@@ -132,7 +126,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
         XCTAssertEqual(
             policy.evaluate(
                 error: error,
-                requestURL: url,
+                matchesTrackedNavigation: true,
                 httpMethod: "PUT",
                 automaticReplayCount: 0
             ),
@@ -141,15 +135,13 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
     }
 
     func testOtherFailuresRemainReportable() {
-        let url = URL(string: "https://example.com/")!
         XCTAssertEqual(
             policy.evaluate(
                 error: NSError(
                     domain: "example.failure",
-                    code: NSURLErrorNetworkConnectionLost,
-                    userInfo: [NSURLErrorFailingURLErrorKey: url]
+                    code: NSURLErrorNetworkConnectionLost
                 ),
-                requestURL: url,
+                matchesTrackedNavigation: true,
                 httpMethod: "GET",
                 automaticReplayCount: 0
             ),
@@ -159,10 +151,9 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
             policy.evaluate(
                 error: NSError(
                     domain: NSURLErrorDomain,
-                    code: NSURLErrorTimedOut,
-                    userInfo: [NSURLErrorFailingURLErrorKey: url]
+                    code: NSURLErrorTimedOut
                 ),
-                requestURL: url,
+                matchesTrackedNavigation: true,
                 httpMethod: "GET",
                 automaticReplayCount: 0
             ),
@@ -170,30 +161,14 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
         )
     }
 
-    func testFailureMustIdentifyTheRetainedRequestURL() {
-        let url = URL(string: "https://example.com/")!
-        let otherURL = URL(string: "https://example.net/")!
-
-        XCTAssertEqual(
-            policy.evaluate(
-                error: NSError(
-                    domain: NSURLErrorDomain,
-                    code: NSURLErrorNetworkConnectionLost,
-                    userInfo: [NSURLErrorFailingURLErrorKey: otherURL]
-                ),
-                requestURL: url,
-                httpMethod: "GET",
-                automaticReplayCount: 0
-            ),
-            .report
-        )
+    func testFailureMustMatchTheTrackedNavigation() {
         XCTAssertEqual(
             policy.evaluate(
                 error: NSError(
                     domain: NSURLErrorDomain,
                     code: NSURLErrorNetworkConnectionLost
                 ),
-                requestURL: url,
+                matchesTrackedNavigation: false,
                 httpMethod: "GET",
                 automaticReplayCount: 0
             ),

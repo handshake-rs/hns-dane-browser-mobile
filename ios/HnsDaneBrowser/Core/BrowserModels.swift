@@ -335,16 +335,11 @@ struct ProvisionalNavigationFailureRecoveryPolicy {
 
     func evaluate(
         error: NSError,
-        requestURL: URL?,
+        matchesTrackedNavigation: Bool,
         httpMethod: String?,
         automaticReplayCount: Int
     ) -> ProvisionalNavigationFailureRecoveryDecision {
-        let failingURL = (error.userInfo[NSURLErrorFailingURLErrorKey] as? URL)
-            ?? (error.userInfo[NSURLErrorFailingURLStringErrorKey] as? String)
-                .flatMap { URL(string: $0) }
-        guard let requestURL,
-              let failingURL,
-              failingURL == requestURL,
+        guard matchesTrackedNavigation,
               error.domain == NSURLErrorDomain,
               error.code == NSURLErrorNetworkConnectionLost,
               automaticReplayCount == 0,
