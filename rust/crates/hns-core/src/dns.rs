@@ -606,7 +606,8 @@ fn normalize_record_rdata(
     rdata: &[u8],
 ) -> Result<Vec<u8>, ParseError> {
     match record_type {
-        RecordType::Cname => normalize_exact_name_rdata(message, start, end),
+        RecordType::Ns | RecordType::Cname => normalize_exact_name_rdata(message, start, end),
+        RecordType::Soa => normalize_soa_rdata(message, start, end),
         RecordType::Rrsig if rdata.get(18).is_some_and(|byte| byte & 0xc0 == 0xc0) => {
             normalize_prefixed_name_rdata(message, start, end, 18)
         }
@@ -629,6 +630,36 @@ fn normalize_exact_name_rdata(
 
     let mut out = Vec::new();
     name.encode_wire(&mut out)?;
+    Ok(out)
+}
+
+fn normalize_soa_rdata(message: &[u8], start: usize, end: usize) -> Result<Vec<u8>, ParseError> {
+    let (mname, rname_start) = DnsName::parse_wire(message, start)?;
+    if rname_start > end {
+        return Err(ParseError::UnexpectedEof);
+    }
+    let (rname, fixed_start) = DnsName::parse_wire(message, rname_start)?;
+    if fixed_start > end {
+        return Err(ParseError::UnexpectedEof);
+    }
+
+    match end
+        .checked_sub(fixed_start)
+        .ok_or(ParseError::LengthLimit)?
+    {
+        0..=19 => return Err(ParseError::UnexpectedEof),
+        20 => {}
+        _ => return Err(ParseError::TrailingBytes),
+    }
+
+    let mut out = Vec::new();
+    mname.encode_wire(&mut out)?;
+    rname.encode_wire(&mut out)?;
+    out.extend(
+        message
+            .get(fixed_start..end)
+            .ok_or(ParseError::UnexpectedEof)?,
+    );
     Ok(out)
 }
 
@@ -883,6 +914,99 @@ mod tests {
         let message = b"\x12\x34\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01\xc0\x0c\x00\x05\x00\x01\x00\x00\x00\x3c\x00\x08\x04edge\xc0\x0c\x00";
 
         assert_eq!(DnsMessage::parse(message), Err(ParseError::TrailingBytes));
+    }
+
+    #[test]
+    fn expands_compressed_ns_target_in_rdata() {
+        let message = b"\x12\x34\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00\x07example\x03com\x00\x00\x02\x00\x01\xc0\x0c\x00\x02\x00\x01\x00\x00\x00\x3c\x00\x06\x03ns1\xc0\x0c";
+        let parsed = DnsMessage::parse(message).unwrap();
+
+        assert_eq!(parsed.answers.len(), 1);
+        assert_eq!(parsed.answers[0].record_type, RecordType::Ns);
+        assert_eq!(
+            parsed.answers[0].rdata,
+            b"\x03ns1\x07example\x03com\x00".to_vec(),
+        );
+    }
+
+    #[test]
+    fn expands_compressed_soa_names_in_rdata() {
+        let mut message = Vec::new();
+        message.extend(b"\x12\x34\x81\xa0\x00\x01\x00\x00\x00\x01\x00\x00");
+        DnsName::from_ascii("denuoweb.com")
+            .unwrap()
+            .encode_wire(&mut message)
+            .unwrap();
+        write_u16_be(&mut message, RecordType::Aaaa.code());
+        write_u16_be(&mut message, 1);
+        message.extend(b"\xc0\x0c");
+        write_u16_be(&mut message, RecordType::Soa.code());
+        write_u16_be(&mut message, 1);
+        write_u32_be(&mut message, 900);
+        let rdlength_offset = message.len();
+        write_u16_be(&mut message, 0);
+        let rdata_start = message.len();
+        message.extend(b"\x02ns\xc0\x0c");
+        message.extend(b"\x0ahostmaster\xc0\x0c");
+        for value in [1_u32, 60, 120, 300, 45] {
+            write_u32_be(&mut message, value);
+        }
+        let rdlength = u16::try_from(message.len() - rdata_start).unwrap();
+        message[rdlength_offset..rdlength_offset + 2].copy_from_slice(&rdlength.to_be_bytes());
+
+        let parsed = DnsMessage::parse(&message).unwrap();
+        let soa = &parsed.authorities[0];
+        let (mname, cursor) = DnsName::parse_wire(&soa.rdata, 0).unwrap();
+        let (rname, cursor) = DnsName::parse_wire(&soa.rdata, cursor).unwrap();
+
+        assert_eq!(soa.record_type, RecordType::Soa);
+        assert_eq!(mname.to_string(), "ns.denuoweb.com");
+        assert_eq!(rname.to_string(), "hostmaster.denuoweb.com");
+        assert_eq!(soa.rdata.len() - cursor, 20);
+        assert_eq!(
+            &soa.rdata[soa.rdata.len() - 4..],
+            45_u32.to_be_bytes().as_slice(),
+        );
+
+        let encoded = parsed.encode(&DnsEncodeConfig::default()).unwrap();
+        let reparsed = DnsMessage::parse(&encoded).unwrap();
+        assert_eq!(reparsed.authorities[0].rdata, soa.rdata);
+    }
+
+    #[test]
+    fn rejects_malformed_compressed_soa_tail_lengths() {
+        fn message_with_soa_tail(tail: &[u8]) -> Vec<u8> {
+            let mut message = Vec::new();
+            message.extend(b"\x12\x34\x81\xa0\x00\x01\x00\x00\x00\x01\x00\x00");
+            DnsName::from_ascii("example.com")
+                .unwrap()
+                .encode_wire(&mut message)
+                .unwrap();
+            write_u16_be(&mut message, RecordType::Aaaa.code());
+            write_u16_be(&mut message, 1);
+            message.extend(b"\xc0\x0c");
+            write_u16_be(&mut message, RecordType::Soa.code());
+            write_u16_be(&mut message, 1);
+            write_u32_be(&mut message, 900);
+            let rdlength_offset = message.len();
+            write_u16_be(&mut message, 0);
+            let rdata_start = message.len();
+            message.extend(b"\x02ns\xc0\x0c");
+            message.extend(b"\x0ahostmaster\xc0\x0c");
+            message.extend(tail);
+            let rdlength = u16::try_from(message.len() - rdata_start).unwrap();
+            message[rdlength_offset..rdlength_offset + 2].copy_from_slice(&rdlength.to_be_bytes());
+            message
+        }
+
+        assert_eq!(
+            DnsMessage::parse(&message_with_soa_tail(&[0; 19])),
+            Err(ParseError::UnexpectedEof),
+        );
+        assert_eq!(
+            DnsMessage::parse(&message_with_soa_tail(&[0; 21])),
+            Err(ParseError::TrailingBytes),
+        );
     }
 
     #[test]

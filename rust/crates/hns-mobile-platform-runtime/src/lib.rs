@@ -6066,7 +6066,7 @@ fn build_root_plan(
     namespace: Namespace,
     query: &OriginQuery,
     origin: &NamespaceOriginContext,
-    now: u64,
+    build_started_at_unix: u64,
     hns_evidence: &HnsProofEvidenceRecorder,
     icann_evidence: &IcannEvidenceRecorder,
 ) -> RootPlanBuild {
@@ -6075,7 +6075,7 @@ fn build_root_plan(
         namespace,
         query,
         origin,
-        now,
+        build_started_at_unix,
         hns_evidence,
         icann_evidence,
     ) {
@@ -6092,7 +6092,7 @@ fn build_present_root_plan(
     namespace: Namespace,
     query: &OriginQuery,
     origin: &NamespaceOriginContext,
-    now: u64,
+    build_started_at_unix: u64,
     hns_evidence: &HnsProofEvidenceRecorder,
     icann_evidence: &IcannEvidenceRecorder,
 ) -> Result<RootPlanBuild, (RootFailure, HashMap<ResolutionRequest, ResolutionAnswer>)> {
@@ -6462,10 +6462,11 @@ fn build_present_root_plan(
             answers.clone(),
         )
     })?;
+    let freshness_now = now_unix_seconds().max(build_started_at_unix);
     let freshness = root_freshness(
         namespace,
         &answers,
-        now,
+        freshness_now,
         query,
         hns_evidence,
         icann_evidence,
@@ -22381,6 +22382,7 @@ mod tests {
     #[test]
     fn icann_secure_udp_tlsa_absence_retains_http3_webpki_plan() {
         let now = now_unix_seconds();
+        let build_started_at_unix = now.saturating_sub(1);
         let host = "origin.example";
         let udp_tlsa_owner = format!("_443._udp.{host}");
         let tcp_tlsa_owner = format!("_443._tcp.{host}");
@@ -22486,7 +22488,7 @@ mod tests {
             Namespace::Icann,
             &query,
             &origin,
-            now,
+            build_started_at_unix,
             &HnsProofEvidenceRecorder::default(),
             &evidence,
         )
@@ -23089,6 +23091,37 @@ mod tests {
         assert_eq!(observation.kind, IcannResponseKind::NoData);
         assert!(observation.secure);
         assert_eq!(observation.expires_at_unix, soa_signature_expiry);
+    }
+
+    #[test]
+    fn parsed_compressed_soa_retains_negative_ttl() {
+        let mut wire = Vec::new();
+        wire.extend(b"\x00\x00\x81\xa3\x00\x01\x00\x00\x00\x01\x00\x00");
+        DnsName::from_ascii("denuoweb.com")
+            .unwrap()
+            .encode_wire(&mut wire)
+            .unwrap();
+        wire.extend(RecordType::Tlsa.code().to_be_bytes());
+        wire.extend(DNS_CLASS_IN.to_be_bytes());
+        wire.extend(b"\xc0\x0c");
+        wire.extend(RecordType::Soa.code().to_be_bytes());
+        wire.extend(DNS_CLASS_IN.to_be_bytes());
+        wire.extend(900_u32.to_be_bytes());
+        let rdlength_offset = wire.len();
+        wire.extend(0_u16.to_be_bytes());
+        let rdata_start = wire.len();
+        wire.extend(b"\x02ns\xc0\x0c");
+        wire.extend(b"\x0ahostmaster\xc0\x0c");
+        for value in [1_u32, 60, 120, 300, 45] {
+            wire.extend(value.to_be_bytes());
+        }
+        let rdlength = u16::try_from(wire.len() - rdata_start).unwrap();
+        wire[rdlength_offset..rdlength_offset + 2].copy_from_slice(&rdlength.to_be_bytes());
+
+        let message = DnsMessage::parse(&wire).unwrap();
+
+        assert_eq!(message.header.flags.rcode(), DNS_RCODE_NXDOMAIN);
+        assert_eq!(dns_negative_ttl(&message.authorities), Some(45));
     }
 
     #[test]
