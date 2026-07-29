@@ -72,8 +72,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let proofEvidence = try openProofDetails(timeout: 60)
         capture(named: "LIVE_APPSTORE_SCREENSHOT_03_PROOF_DETAILS")
 
-        app.terminate()
-        launchShippingRuntime(requireCurrentHeaders: false)
+        dismissProofDetailsAndSettings(timeout: 20)
         let webPKIEvidence = try navigateAndWait(
             to: Self.webPKIURL,
             expectedHost: "denuoweb.com",
@@ -299,6 +298,55 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             "sourceRequestedURL": Self.hnsURL,
             "contentAccessibilityLabel": proofContent.label,
         ]
+    }
+
+    private func dismissProofDetailsAndSettings(timeout: TimeInterval) {
+        // Keep the live Release process and its validated Handshake proof peer
+        // alive for the ICANN capture. Relaunching here discarded that
+        // in-memory peer immediately before the dual-root comparison.
+        let proofContent = app.textViews["browser-proof-details.content"]
+        let proofClose = app.navigationBars.buttons["Close"].firstMatch
+        XCTAssertTrue(
+            proofClose.waitForExistence(timeout: timeout),
+            "Proof Details close control did not appear"
+        )
+        proofClose.tap()
+        XCTAssertTrue(
+            waitUntil(
+                description: "Proof Details dismissal",
+                timeout: timeout,
+                condition: {
+                    !proofContent.exists
+                        && (
+                            self.app.textFields["app-store-screenshot.address"].exists
+                                || self.app.tables["settings.table"].exists
+                        )
+                }
+            )
+        )
+
+        // Settings is normally dismissed before Proof Details is presented.
+        // Keep the fallback explicit so this remains robust if that changes.
+        let settingsTable = app.tables["settings.table"]
+        if settingsTable.exists {
+            let settingsClose = app.buttons["settings.close"]
+            XCTAssertTrue(
+                settingsClose.waitForExistence(timeout: timeout),
+                "Settings close control did not appear"
+            )
+            settingsClose.tap()
+        }
+        XCTAssertTrue(
+            waitUntil(
+                description: "browser restoration after Proof Details",
+                timeout: timeout,
+                condition: {
+                    !settingsTable.exists
+                        && self.app.textFields["app-store-screenshot.address"].exists
+                }
+            )
+        )
+        assertNoNavigationAlert()
     }
 
     private func scrollUp(
