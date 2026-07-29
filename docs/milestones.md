@@ -102,7 +102,8 @@
 - Added the macOS ABI, XCFramework, application, and simulator test gate against the stable iOS 26.5 SDK, accepting Xcode 26.5 or 26.6. The iOS 17.0 deployment floor, including support for the iOS 18 generation, remains independent of that build SDK.
 - Published the iPhone app on the Apple App Store; version `0.5.0` was the
   public baseline observed on 2026-07-28. Version `0.5.4` / build `48` is
-  predecessor upload evidence, while `0.5.5` / build `49` is the current source
+  predecessor upload evidence, and `0.5.5` / build `49` is a superseded App
+  Store Connect upload. Version `0.5.5` / build `50` is the current source
   update candidate.
 - Installed-device qualification gate: run and document the signed
   physical-device WebKit matrix for main frames, subresources, Service Workers,

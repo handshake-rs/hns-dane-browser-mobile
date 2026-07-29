@@ -32,17 +32,21 @@ Last audited: 2026-07-28
 ### Current `0.5.5` Candidate
 
 - Android declares `0.5.5` / code 45, the shared Rust workspace declares
-  `0.5.5`, and iOS declares `0.5.5` / build 49. The Apple shell now accepts the
+  `0.5.5`, and iOS declares `0.5.5` / build 50. The Apple shell now accepts the
   valid zero revision returned when a fresh runtime reapplies its unchanged
   default policy, so first-install preparation does not fail before browsing.
+  It also retries exactly once when an idempotent main-frame load encounters
+  WebKit's transient connection-lost result during validated header
+  publication; unsafe methods and repeated failures remain reportable.
 - The five engine crates are pinned to reviewed immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
 - The exact `0.5.4` candidate commit `8ffc296` passed the complete portable
   Rust/supply-chain, Android build/test/lint/bundle-structure, and Apple
   ABI/XCFramework/XCTest/simulator/device-link matrix in CI run 30402803553.
 - Signed `0.5.4` Android and iOS packages were produced and verified as
-  predecessor release evidence. They do not identify the `0.5.5` source; exact
-  code 45/build 49 gates, signing, artifact verification, and store upload must
-  be repeated.
+  predecessor release evidence. iOS `0.5.5` build 49 was uploaded to App Store
+  Connect before the bounded navigation-recovery fix and is retained as
+  superseded upload evidence. Exact code 45/build 50 gates, signing, artifact
+  verification, and store upload must be repeated.
 
 ### Historical `0.5.0` Evidence
 

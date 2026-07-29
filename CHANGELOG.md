@@ -9,13 +9,17 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Prepared the coordinated public update as shared Rust engine `0.5.5`,
-  Android `0.5.5` (build 45), and iOS `0.5.5` (build 49).
+  Android `0.5.5` (build 45), and iOS `0.5.5` (build 50).
 
 ### Fixed
 
 - Accepted revision `0` from the Apple Rust bridge when the unchanged default
   runtime policy is reapplied. Fresh iOS installs now finish secure-browser
   preparation instead of showing `Unable to prepare secure browsing`.
+- Replays one idempotent iOS main-frame request when validated header
+  maintenance closes a stale unpublished proxy response and WebKit reports a
+  transient connection loss. Unsafe methods and repeated failures remain
+  visible rather than being replayed.
 
 ## 0.5.4 - 2026-07-28
 
