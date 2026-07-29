@@ -9,7 +9,7 @@ It does not claim that the coordination-wide PDF is complete.
 
 - Repository: `https://github.com/handshake-rs/hns-dane-browser-mobile.git`
 - Starting commit: `6c1d7888ae804a29ab34051cb1267057942ad0a0`
-- Working branch: `codex/shared-engine-p2p-privacy-transports`
+- Working branch: `main`
 - Platforms in scope: Android WebView/JNI and iOS WKWebView/Apple C ABI
 
 ## Requirement Status
@@ -83,8 +83,9 @@ It does not claim that the coordination-wide PDF is complete.
 - A successfully bound listener is not proof of authority readiness. Fresh or
   stale local state leaves the listener degraded and non-admitting until
   a current non-genesis header on every network, proof storage, a policy
-  transport, and the active bridge are factual; requests retry readiness
-  without replacing the platform endpoint.
+  transport, and the active bridge are factual. The iOS shell additionally
+  keeps navigation queued and the proxy coordinator suspended until matching
+  schema-v2 currentness, revoking it again if that evidence expires.
 - One authority stamp is minted at whole-request entry before DNS or
   classification and carried unchanged through origin transport, status, and
   the result publication capability. Sticky namespace binding and response or
@@ -110,10 +111,10 @@ It does not claim that the coordination-wide PDF is complete.
 
 Portable Rust, Android source, and host Apple-ABI checks can run on Linux. The
 complete iOS gate still requires macOS, Xcode 26.5/26.6, the iOS 26.5 SDK, and
-an iOS simulator; signed device behavior requires a physical or external
-TestFlight pass. Android instrumentation requires an installed SDK/NDK and a
-device or emulator. Store binaries and previously recorded hashes must be
-rebuilt after this source checkpoint before they can be release evidence.
+an iOS simulator; signed device behavior requires a separate physical-device
+pass. Android instrumentation requires an installed SDK/NDK and a device or
+emulator. Store binaries and previously recorded hashes must be rebuilt after
+this source checkpoint before they can be release evidence.
 
 The five shared engine crates resolve from immutable
 `handshake-rs/hns-dane-engine` commit

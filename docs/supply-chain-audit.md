@@ -32,10 +32,13 @@ Last audited: 2026-07-28
 ### Current `0.5.5` Candidate
 
 - Android declares `0.5.5` / code 45, the shared Rust workspace declares
-  `0.5.5`, and iOS declares `0.5.5` / build 54. The Apple shell now accepts the
+  `0.5.5`, and iOS declares `0.5.5` / build 55. The Apple shell now accepts the
   valid zero revision returned when a fresh runtime reapplies its unchanged
   default policy, so first-install preparation does not fail before browsing.
-  It also recovers at most twice when an idempotent main-frame load encounters
+  Proxy admission now remains suspended until a matching schema-v2 status
+  proves the exact non-genesis header prerequisite enforced by Rust, and it
+  returns to suspension if currentness expires, fails, or changes network. It
+  also recovers at most twice when an admitted idempotent main-frame load encounters
   WebKit's transient provisional connection-lost result. Each attempt waits for
   the current sync to release maintenance, then replaces both the native proxy
   generation and `WKWebView`; the second adds a bounded backoff and fresh safe
@@ -56,9 +59,10 @@ Last audited: 2026-07-28
   reproduced two consecutive provisional `-1005` failures and its Apple upload
   workflow was canceled before credentials, signing, or upload. Build 53 passed
   exact CI in run 30420194567, but live run 30421038307 exhausted two bounded
-  same-WebView and same-proxy recovery attempts; no upload ran. Exact code
-  45/build 54 gates, signing, artifact verification, and store upload must be
-  repeated.
+  same-WebView and same-proxy recovery attempts; no upload ran. Build 54 was
+  superseded before live capture after the pre-currentness admission gap was
+  identified. Exact code 45/build 55 gates, signing, artifact verification,
+  and store upload must be repeated.
 
 ### Historical `0.5.0` Evidence
 

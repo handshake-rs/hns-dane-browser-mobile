@@ -8,7 +8,7 @@ This table records the versions actually configured for the shipping build. Andr
 | --- | --- | --- |
 | Android app | `0.5.5` / code `45` | `android/app/build.gradle.kts` |
 | Shared Rust workspace | `0.5.5` | `rust/Cargo.toml` |
-| iOS app | `0.5.5` / build `54` | `ios/project.yml` |
+| iOS app | `0.5.5` / build `55` | `ios/project.yml` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Canonical engine contracts | `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` | Cargo manifests and lock |
 | Android SDK | compile/target `37`, minimum `34` | `android/app/build.gradle.kts` |

@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Prepared the coordinated public update as shared Rust engine `0.5.5`,
-  Android `0.5.5` (build 45), and iOS `0.5.5` (build 54).
+  Android `0.5.5` (build 45), and iOS `0.5.5` (build 55).
 
 ### Fixed
 
@@ -23,6 +23,10 @@ All notable changes to this project will be documented in this file.
   attempt uses a short bounded backoff and fresh safe point, and recovery remains
   bound to the exact failed `WKNavigation` identities. Unsafe methods and a
   failed final attempt remain visible rather than being replayed.
+- Keeps the iOS proxy and WebView suspended until the matching schema-v2
+  Handshake status proves non-genesis authoritative header readiness. A stale,
+  failed, or wrong-network status revokes admission and retains only a
+  replay-safe navigation; renewed currentness starts a fresh proxy context.
 
 ## 0.5.4 - 2026-07-28
 

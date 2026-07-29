@@ -23,12 +23,12 @@ The first command is the portable repository check. The second is the same compl
 
 ## Signed Physical-Device Qualification
 
-No physical-device pass is currently claimed. If an external TestFlight tester
-with an iPhone running iOS 17.0 or later is available, capture the applicable
-evidence below. The user who builds and submits the app does not need to own
-that device. The absence of this matrix is not an App Store submission blocker;
-it remains an explicit installed-device qualification gap and may be completed
-after submission.
+No physical-device pass is currently claimed. If an independently installed
+signed build and an iPhone running iOS 17.0 or later are available, capture the
+applicable evidence below. The user who builds and submits the app does not need
+to own that device. The absence of this matrix is not an App Store submission
+blocker; it remains an explicit installed-device qualification gap and may be
+completed after submission.
 
 ### Proxy isolation
 

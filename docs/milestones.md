@@ -110,7 +110,10 @@
   reproduced a second bounded startup connection loss and its upload was
   canceled. Version `0.5.5` / build `53` passed exact CI, but its live capture
   exhausted two same-connection recovery attempts and it was not uploaded.
-  Version `0.5.5` / build `54` is the current source update candidate.
+  Version `0.5.5` / build `54` was superseded before live capture after deeper
+  analysis showed that the proxy must remain suspended until factual header
+  currentness. Build `55` adds that bidirectional readiness gate and is the
+  current source update candidate.
 - Installed-device qualification gate: run and document the signed
   physical-device WebKit matrix for main frames, subresources, Service Workers,
   WebSockets, downloads, background/resume, and renderer/network-process
