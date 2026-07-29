@@ -93,7 +93,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
                 httpMethod: "GET",
                 automaticReplayCount: 0
             ),
-            .replay(afterBackoff: 0)
+            .rotateProxyAndWebView(afterBackoff: 0)
         )
         XCTAssertEqual(
             policy.evaluate(
@@ -102,7 +102,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
                 httpMethod: "head",
                 automaticReplayCount: 0
             ),
-            .replay(afterBackoff: 0)
+            .rotateProxyAndWebView(afterBackoff: 0)
         )
         XCTAssertEqual(
             policy.evaluate(
@@ -111,7 +111,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
                 httpMethod: nil,
                 automaticReplayCount: 0
             ),
-            .replay(afterBackoff: 0)
+            .rotateProxyAndWebView(afterBackoff: 0)
         )
         XCTAssertEqual(
             policy.evaluate(
@@ -120,7 +120,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
                 httpMethod: "GET",
                 automaticReplayCount: 1
             ),
-            .replay(afterBackoff: 0.5)
+            .rotateProxyAndWebView(afterBackoff: 0.5)
         )
     }
 

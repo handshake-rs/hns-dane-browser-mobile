@@ -160,6 +160,22 @@ struct BrowserProxyStateMachine: Equatable {
         return actions
     }
 
+    /// Replaces the complete WebKit-to-native-proxy connection context after an exact,
+    /// replay-safe provisional connection loss. Unlike a same-scope navigation, recovery must
+    /// not reuse the active listener, credentials, WebView, or WebKit connection pool.
+    mutating func recoverProvisionalNavigation(scope: BrowserProxyScope) -> [Action] {
+        guard isForeground,
+              case .active(_, let activeScope) = phase,
+              activeScope == scope else {
+            return []
+        }
+        pendingScope = scope
+        epoch = nextEpoch(epoch)
+        phase = .idle
+        let start = beginStart(scope: scope)
+        return [.revokeWebView, .requestStopActiveProxy] + start
+    }
+
     mutating func destroy() -> [Action] {
         guard phase != .destroyed else { return [] }
         let hadLiveProxy: Bool

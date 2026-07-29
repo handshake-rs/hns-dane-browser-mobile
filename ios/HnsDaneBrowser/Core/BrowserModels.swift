@@ -326,7 +326,7 @@ struct NavigationReplayPolicy {
 }
 
 enum ProvisionalNavigationFailureRecoveryDecision: Equatable {
-    case replay(afterBackoff: TimeInterval)
+    case rotateProxyAndWebView(afterBackoff: TimeInterval)
     case report
 }
 
@@ -363,7 +363,7 @@ struct ProvisionalNavigationFailureRecoveryPolicy {
             return .report
         }
         let backoff = automaticReplayCount == 0 ? 0 : Self.secondReplayBackoff
-        return .replay(afterBackoff: backoff)
+        return .rotateProxyAndWebView(afterBackoff: backoff)
     }
 }
 

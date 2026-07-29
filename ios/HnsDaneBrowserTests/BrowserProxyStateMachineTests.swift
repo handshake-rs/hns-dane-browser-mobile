@@ -124,6 +124,35 @@ final class BrowserProxyStateMachineTests: XCTestCase {
         XCTAssertEqual(machine.phase, .starting(3, scope))
     }
 
+    func testProvisionalConnectionRecoveryReplacesExactActiveConnectionContext() {
+        let scope = BrowserProxyScope.icann
+        var machine = makeActiveMachine(scope: scope)
+
+        XCTAssertEqual(
+            machine.recoverProvisionalNavigation(scope: scope),
+            [.revokeWebView, .requestStopActiveProxy, .startProxy(3, scope)]
+        )
+        XCTAssertEqual(machine.phase, .starting(3, scope))
+        XCTAssertEqual(machine.pendingScope, scope)
+    }
+
+    func testProvisionalConnectionRecoveryRejectsStaleOrNonActiveScope() {
+        let activeScope = BrowserProxyScope.icann
+        var machine = makeActiveMachine(scope: activeScope)
+
+        XCTAssertEqual(
+            machine.recoverProvisionalNavigation(
+                scope: .handshakeRoot("woodburn")
+            ),
+            []
+        )
+        XCTAssertEqual(machine.phase, .active(1, activeScope))
+
+        _ = machine.suspend(retaining: activeScope)
+        XCTAssertEqual(machine.recoverProvisionalNavigation(scope: activeScope), [])
+        XCTAssertEqual(machine.phase, .suspended)
+    }
+
     private func makeActiveMachine(scope: BrowserProxyScope) -> BrowserProxyStateMachine {
         var machine = BrowserProxyStateMachine()
         _ = machine.queueNavigation(scope: scope)
