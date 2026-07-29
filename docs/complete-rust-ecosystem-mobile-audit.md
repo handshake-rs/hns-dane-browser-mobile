@@ -136,7 +136,9 @@ WebKit network-process behavior.
 
 Post-fix validation against engine revision
 `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` remains subject to the fresh
-`0.5.4` gates below. The preceding engine revision passed on Linux on
+`0.5.5` gates below. The `0.5.4` candidate passed the complete hosted
+Rust/Android/Apple matrix before this Apple-shell fix. The preceding engine
+revision passed on Linux on
 2026-07-26:
 
 - The affected library suites passed: `hns-dnssec` (60 tests),

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.5 - 2026-07-28
+
+### Changed
+
+- Prepared the coordinated public update as shared Rust engine `0.5.5`,
+  Android `0.5.5` (build 45), and iOS `0.5.5` (build 49).
+
+### Fixed
+
+- Accepted revision `0` from the Apple Rust bridge when the unchanged default
+  runtime policy is reapplied. Fresh iOS installs now finish secure-browser
+  preparation instead of showing `Unable to prepare secure browsing`.
+
 ## 0.5.4 - 2026-07-28
 
 ### Changed

@@ -2,7 +2,7 @@
 
 This directory contains the source text and field checklist for the Google
 Play Console update to package `com.denuoweb.hnsdane`. The repository update
-candidate is `0.5.4` / code `44`. The public listing reported the July 16,
+candidate is `0.5.5` / code `45`. The public listing reported the July 16,
 2026 release when checked on 2026-07-28. Google Play's public page does not
 expose an authoritative `versionCode`; confirm the live release identity in
 Play Console.
@@ -12,7 +12,7 @@ Play Console.
 - App name: `en-US/title.txt`
 - Short description: `en-US/short-description.txt`
 - Full description: `en-US/full-description.txt`
-- 0.5.4 release notes: `en-US/release-notes.txt`
+- 0.5.5 release notes: `en-US/release-notes.txt`
 
 ## Store Assets
 
@@ -27,13 +27,13 @@ Play Console.
 - Ads declaration: No ads
 - Privacy policy URL: `https://denuoweb.com/work/hns-dane-browser/privacy`
 - Expected closed-testing upload artifact:
-  `../hns-dane-browser-v0.5.4-play-upload-signed.aab`
+  `../hns-dane-browser-v0.5.5-play-upload-signed.aab`
 - Foreground service type: none; remove any stale `dataSync` declaration because sync is application-foreground scoped and the manifest declares no service.
 
 CI run
 [30323566765](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30323566765)
-passed the preceding code 43 Android build/tests/lint and unsigned
-release-bundle structure gate. Code 44 must pass the same gate before
-publication. The upload-signed AAB is generated and signature-verified only in
-the credentialed release process and is intentionally not committed. Do not
-reuse the dated code-40 AAB as the v0.5.4 candidate.
+passed the earlier code 43 Android build/tests/lint and unsigned release-bundle
+structure gate. The signed code 44 packages are predecessor release evidence;
+code 45 must pass the same gates before publication. The
+upload-signed AAB is generated and signature-verified only in the credentialed
+release process and is intentionally not committed.

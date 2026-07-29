@@ -1,1 +1,1 @@
-Keeps browsing responsive during validated Handshake header sync, publishes header and peer state atomically, and adds a hardened owner-recovery page for confirmed DNS interception.
+Fixes secure-browser startup on fresh iOS installs when the default protection policy is already active. Also keeps browsing responsive during validated Handshake header sync, publishes header and peer state atomically, and adds hardened recovery for confirmed DNS interception.

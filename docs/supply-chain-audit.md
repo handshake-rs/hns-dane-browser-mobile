@@ -29,29 +29,20 @@ Last audited: 2026-07-28
 
 ## Audit Results
 
-### Current `0.5.4` Candidate
+### Current `0.5.5` Candidate
 
-- Android declares `0.5.4` / code 44, the shared Rust workspace declares
-  `0.5.4`, and iOS declares `0.5.4` / build 48. This is not a metadata-only
-  release: it adds generation-bound explicit recursive HNS DoH recovery,
-  independent native consent controls, a permanent legacy-key tombstone,
-  endpoint/bootstrap constraints, the hardened interception recovery page, and
-  private staged synchronization with atomic header/peer/readiness
-  publication.
+- Android declares `0.5.5` / code 45, the shared Rust workspace declares
+  `0.5.5`, and iOS declares `0.5.5` / build 49. The Apple shell now accepts the
+  valid zero revision returned when a fresh runtime reapplies its unchanged
+  default policy, so first-install preparation does not fail before browsing.
 - The five engine crates are pinned to reviewed immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
-- The complete portable `scripts/check.sh` gate passed for feature commit
-  `14edcaf` in CI run 30323566765.
-- Android `assembleDebug`, unit tests, lint, runtime-boundary checks, and
-  unsigned release-bundle structure passed for predecessor code 43 in that
-  run. The complete Apple ABI/XCFramework/XCTest/simulator/device-link gate
-  passed for predecessor build 47. The exact code 44/build 48 gates remain
-  required.
-- The docs-only HEAD then passed the path-policy and required-result jobs; its
-  Rust, Android, and Apple jobs were correctly skipped because no product
-  source changed.
-- No signed `0.5.4` APK/AAB is retained yet. Release signing,
-  signature-aware bundle verification, signed-device acceptance, and Play
-  upload remain intentional external gates.
+- The exact `0.5.4` candidate commit `8ffc296` passed the complete portable
+  Rust/supply-chain, Android build/test/lint/bundle-structure, and Apple
+  ABI/XCFramework/XCTest/simulator/device-link matrix in CI run 30402803553.
+- Signed `0.5.4` Android and iOS packages were produced and verified as
+  predecessor release evidence. They do not identify the `0.5.5` source; exact
+  code 45/build 49 gates, signing, artifact verification, and store upload must
+  be repeated.
 
 ### Historical `0.5.0` Evidence
 
@@ -61,7 +52,7 @@ Last audited: 2026-07-28
 - The upload-signed code 40 APK used the established RSA-4096 signer, passed APK Signature Scheme v2 and 16 KiB ZIP alignment, and had SHA-256 `bff5ba468b0c5ad2d134603127f089ad6fdc9e9b5ceab921825e570cfefd60fb`.
 - The upload-signed AAB passed content-signature, ABI, 16 KiB ELF-alignment, hardening, stripping, matching-symbol, local-path, mapping, and notices gates and had SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0`.
 - The separate debug test APK used package `com.denuoweb.hnsdane.relaytest`, version `0.5.0-relay-test` / code 40, and SHA-256 `019aeb82b84de878716637fd053321a4590e0c384de3010e885af7e154803990`.
-- Those artifacts predate the current source and do not validate or identify the `0.5.4` candidate.
+- Those artifacts predate the current source and do not validate or identify the `0.5.5` candidate.
 
 ### Historical `0.4.1` Evidence
 

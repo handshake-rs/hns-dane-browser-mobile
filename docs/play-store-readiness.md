@@ -7,28 +7,26 @@ and identifies the Play Console fields that must be reconciled outside the
 repository. The public listing reported display version `0.5.0`, updated July
 16, 2026, when checked on 2026-07-28. The public page does not expose an
 authoritative `versionCode`; verify that value in Play Console. Current source
-declares Android `0.5.4` (`versionCode 44`) with shared Rust engine `0.5.4`.
-The complete Rust/supply-chain, Android build/test/lint/unsigned-bundle, and
-Apple gates passed for the preceding `0.5.3` feature commit `14edcaf` in
-[CI run 30323566765](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30323566765);
-the docs-only HEAD `153db03` then passed repository policy and Required CI in
-[run 30393560141](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30393560141).
-Explicit recursive recovery, the hardened recovery page, and private staged
-header publication still postdate retained signed artifacts, so candidate
-signing, signed-artifact verification, release-device acceptance, and store
-submission remain open.
-Earlier `0.5.1`, `0.5.0`, and `0.4.1` results remain dated historical evidence.
+declares Android `0.5.5` (`versionCode 45`) with shared Rust engine `0.5.5`.
+The exact `0.5.4` predecessor passed the complete Rust/supply-chain, Android
+build/test/lint/unsigned-bundle, and Apple gates in
+[CI run 30402803553](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30402803553),
+and its signed Android packages passed signature-aware release verification.
+The coordinated code 45 candidate must repeat those gates, signed-artifact
+verification, release-device acceptance, and store submission.
+Earlier `0.5.4`, `0.5.1`, `0.5.0`, and `0.4.1` results remain dated historical
+evidence.
 
 ## Current Repo Status
 
 | Area | Status | Evidence / Action |
 | --- | --- | --- |
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
-| Android App Bundle | Predecessor structure passed; signed candidate required | Package identity remains `com.denuoweb.hnsdane`. CI run 30323566765 passed `verifyReleaseBundleStructure` for predecessor code 43; code 44 must pass the same gate. The earlier code 40 upload-signed AAB with SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0` is dated v0.5.0 evidence, not the 0.5.4 upload artifact. |
-| 64-bit / 16 KiB native code | Predecessor unsigned gate passed; signed verification pending | The code 43 CI bundle passed the exact `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, and path-sanitization structure gate. Repeat both the unsigned structure and signature-aware bundle gates plus the APK ZIP-alignment check on code 44. |
+| Android App Bundle | Predecessor signed release passed; new candidate required | Package identity remains `com.denuoweb.hnsdane`. Code 44 passed `verifyReleaseBundleStructure` and the signature-aware bundle gate; code 45 must pass both before upload. The earlier code 40 upload-signed AAB with SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0` remains dated v0.5.0 evidence. |
+| 64-bit / 16 KiB native code | Predecessor signed gates passed | The code 44 packages passed the exact `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, signature, and APK ZIP-alignment gates. Repeat them for code 45. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
-| Privacy policy | Repository updated; hosted reconciliation required | Keep `https://denuoweb.com/work/hns-dane-browser/privacy` as the canonical URL, but publish the revised policy that discloses the independently opt-in P2P requester and user-configured recursive HNS DoH recovery, operator-visible qnames/qtypes/timing/source IP, blank/off defaults, validating ICANN bootstrap, the permanent legacy-key tombstone, and continued prohibition on HNS WebPKI fallback before submitting `0.5.4`. |
+| Privacy policy | Repository updated; hosted reconciliation required | Keep `https://denuoweb.com/work/hns-dane-browser/privacy` as the canonical URL, but publish the revised policy that discloses the independently opt-in P2P requester and user-configured recursive HNS DoH recovery, operator-visible qnames/qtypes/timing/source IP, blank/off defaults, validating ICANN bootstrap, the permanent legacy-key tombstone, and continued prohibition on HNS WebPKI fallback before submitting `0.5.5`. |
 | Data safety form | Live reconciliation required | The current `No data collected / No data shared` posture is consistent with Google's open-web, on-device, and user-initiated-transfer exclusions. Confirm current WebView-provider Safe Browsing guidance before resubmission. |
 | Ads declaration | Ready | Declare “No ads.” Donations do not unlock features. |
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
@@ -123,7 +121,7 @@ Use an active, publicly accessible, non-PDF URL. Current hosted URL:
 
 <https://denuoweb.com/work/hns-dane-browser/privacy>
 
-On 2026-07-14 the route rendered the policy accepted for the historical `0.4.1` audit after the site application loaded. That copy predates the `0.5.4` candidate's relay requester, dual-root behavior, and configured-recursive recovery disclosure and must be replaced with the current repository policy before submission. Change the existing Play listing from its older `/hns-dane-browser/privacy/` URL to this canonical route, and keep the live Data safety answers consistent with the updated policy and actual app behavior.
+On 2026-07-14 the route rendered the policy accepted for the historical `0.4.1` audit after the site application loaded. That copy predates the `0.5.5` candidate's relay requester, dual-root behavior, and configured-recursive recovery disclosure and must be replaced with the current repository policy before submission. Change the existing Play listing from its older `/hns-dane-browser/privacy/` URL to this canonical route, and keep the live Data safety answers consistent with the updated policy and actual app behavior.
 
 ### Content Rating
 
@@ -146,10 +144,10 @@ track when useful to validate the candidate, then promote or submit the
 verified update:
 
 1. Regenerate the third-party notices and release notes after any version or dependency change.
-2. Rebuild and verify `dist/play-store/hns-dane-browser-v0.5.4-play-upload-signed.aab` from the exact candidate commit; the automated gate covers 16 KiB alignment, required ABIs, native hardening/symbols, R8 mapping, notices, and upload signing. No earlier artifact is valid for this filename or checkpoint.
+2. Rebuild and verify `dist/play-store/hns-dane-browser-v0.5.5-play-upload-signed.aab` from the exact candidate commit; the automated gate covers 16 KiB alignment, required ABIs, native hardening/symbols, R8 mapping, notices, and upload signing. No earlier artifact is valid for this filename or checkpoint.
 3. Compare the configured upload-certificate fingerprint with Play Console.
-   Install the exact signed `0.5.4` APK on the connected device, verify the code
-   44 upgrade and cold launch, and exercise private staged header publication,
+   Install the exact signed `0.5.5` APK on the connected device, verify the code
+   45 upgrade and cold launch, and exercise private staged header publication,
    atomic header/peer/readiness visibility, interrupted-sync recovery,
    permanent legacy-key tombstoning, blank/off recovery, default-off requester
    relay consumption, independent explicit opt-ins, configured-endpoint
@@ -161,7 +159,7 @@ verified update:
 
 ## Store Listing Draft
 
-The repository draft copy lives under `dist/play-store/metadata/en-US/`. Compare it field-by-field with the existing public listing before treating it as Console-ready, and regenerate release notes after the `0.5.4` candidate is verified.
+The repository draft copy lives under `dist/play-store/metadata/en-US/`. Compare it field-by-field with the existing public listing before treating it as Console-ready, and regenerate release notes after the `0.5.5` candidate is verified.
 
 Short description, 80 characters max:
 

@@ -1,6 +1,6 @@
 # App Store submission checklist
 
-Canonical update-candidate values: iOS version `0.5.4`, build `48`, bundle ID
+Canonical update-candidate values: iOS version `0.5.5`, build `49`, bundle ID
 `com.denuoweb.hnsdane.ios`, iPhone only, Utilities, Free, manual release. The
 public baseline observed on 2026-07-28 is version `0.5.0`.
 
@@ -13,7 +13,7 @@ public baseline observed on 2026-07-28 is version `0.5.0`.
 - [ ] The app's in-app Privacy Policy and Source Code actions open those live pages.
 - [ ] Paste the update fields listed in `metadata/README.md`, including
   `metadata/en-US/whats-new.txt` under **What's New in This Version**.
-- [ ] Set the version to `0.5.4`, select build `48`, and leave Routing App Coverage
+- [ ] Set the version to `0.5.5`, select build `49`, and leave Routing App Coverage
   empty.
 
 ## Screenshots
@@ -52,7 +52,7 @@ public baseline observed on 2026-07-28 is version `0.5.0`.
 
 - [ ] Enter a real review contact name, phone number, and email address.
 - [ ] Paste `metadata/en-US/review-notes.txt`; do not enable the sign-in fields.
-- [ ] Confirm build `48` has finished processing and its export-compliance status is
+- [ ] Confirm build `49` has finished processing and its export-compliance status is
   resolved.
 - [ ] Confirm the metadata, privacy answers, age rating, content rights, pricing,
   availability, screenshots, and build are all attached to the same submission.
