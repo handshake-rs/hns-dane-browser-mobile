@@ -105,7 +105,8 @@
   predecessor upload evidence, and `0.5.5` / build `49` is a superseded App
   Store Connect upload. Version `0.5.5` / build `50` reproduced the transient
   connection-loss alert in a clean simulator run and was not uploaded. Version
-  `0.5.5` / build `51` is the current source update candidate.
+  `0.5.5` / build `51` was pushed, but validation was canceled and it was not
+  uploaded. Version `0.5.5` / build `52` is the current source update candidate.
 - Installed-device qualification gate: run and document the signed
   physical-device WebKit matrix for main frames, subresources, Service Workers,
   WebSockets, downloads, background/resume, and renderer/network-process

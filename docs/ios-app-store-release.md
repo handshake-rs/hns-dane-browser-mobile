@@ -9,9 +9,10 @@ The committed application identity is:
 - Display name: `HNS DANE Browser`
 - Deployment floor: iOS 17.0
 - Public App Store baseline observed 2026-07-28: `0.5.0`
-- Current iOS release candidate: `0.5.5` (`51`); build `48` is predecessor,
+- Current iOS release candidate: `0.5.5` (`52`); build `48` is predecessor,
   build `49` is superseded App Store Connect upload evidence, and build `50`
-  failed the clean simulator run before upload
+  failed the clean simulator run before upload; build `51` was pushed, but its
+  validation was canceled and it was not uploaded
 - Device family: iPhone
 
 ## One-time Apple setup
@@ -69,17 +70,18 @@ The workflow then:
 3. verifies the identity and profile against the fixed team and bundle IDs, then creates a Release archive using manual App Store distribution signing in a disposable keychain;
 4. verifies the archived app identity and compiled AppIcon catalog, then
    exports the signed IPA, validates/exports the archive with App Store Connect
-   authentication, uploads build `51`, and retains
+   authentication, uploads build `52`, and retains
    `ios-app-store-ipa-<commit>` for release publication;
 5. deletes the temporary keychain, installed profile, API key, `.p12`, and profile while GitHub discards the runner.
 
 Apple associates the uploaded build with the app record using its bundle ID,
 version, and build number. Build `49` has already been uploaded. Build `50`
-remained a simulator-only candidate and was not uploaded; this corrected
-navigation-recovery update uses build `51`. A rerun after Apple accepts build
-`51` requires another higher build number.
+remained a simulator-only candidate, and build `51` validation was canceled;
+neither was uploaded. This maintenance-safe navigation-recovery update uses
+build `52`. A rerun after Apple accepts build `52` requires another higher
+build number.
 
-Build `51` declares `ITSAppUsesNonExemptEncryption = false` because the
+Build `52` declares `ITSAppUsesNonExemptEncryption = false` because the
 candidate uses only industry-standard cryptography and excludes France from
 App Store availability. Do not add an export-compliance code to this build.
 Before enabling France, complete the French encryption declaration; after

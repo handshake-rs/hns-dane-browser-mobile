@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Prepared the coordinated public update as shared Rust engine `0.5.5`,
-  Android `0.5.5` (build 45), and iOS `0.5.5` (build 51).
+  Android `0.5.5` (build 45), and iOS `0.5.5` (build 52).
 
 ### Fixed
 
@@ -18,9 +18,10 @@ All notable changes to this project will be documented in this file.
   preparation instead of showing `Unable to prepare secure browsing`.
 - Replays one idempotent iOS main-frame request when validated header
   maintenance closes a stale unpublished proxy response and WebKit reports a
-  transient connection loss. Recovery is bound to the exact failed
-  `WKNavigation` object instead of optional URL metadata; unsafe methods and
-  repeated or unrelated failures remain visible rather than being replayed.
+  transient connection loss. The replay waits for the active sync to release
+  maintenance, remains bound to the exact failed `WKNavigation`, and suppresses
+  duplicate callbacks only for that original failure. Unsafe methods and a
+  failed retry remain visible rather than being replayed.
 
 ## 0.5.4 - 2026-07-28
 
