@@ -56,31 +56,31 @@ final class NavigationReplayPolicyTests: XCTestCase {
 final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
     private let policy = ProvisionalNavigationFailureRecoveryPolicy()
 
-    func testAutomaticReplayAndInterveningActionsPreserveOneShotBoundary() {
+    func testAutomaticReplayAndInterveningActionsPreserveRecoveryBoundary() {
         XCTAssertEqual(
             policy.evaluateNavigationAction(
                 isAutomaticFailureReplay: true,
-                hasActiveOneShotRecovery: true
+                hasActiveRecovery: true
             ),
-            .preserveOneShotState
+            .preserveRecoveryState
         )
         XCTAssertEqual(
             policy.evaluateNavigationAction(
                 isAutomaticFailureReplay: false,
-                hasActiveOneShotRecovery: true
+                hasActiveRecovery: true
             ),
             .invalidateQueuedReplay
         )
         XCTAssertEqual(
             policy.evaluateNavigationAction(
                 isAutomaticFailureReplay: false,
-                hasActiveOneShotRecovery: false
+                hasActiveRecovery: false
             ),
             .reset
         )
     }
 
-    func testFirstConnectionLostFailureReplaysGetAndHead() {
+    func testConnectionLostFailureReplaysGetAndHeadWithBoundedBackoff() {
         let error = NSError(
             domain: NSURLErrorDomain,
             code: NSURLErrorNetworkConnectionLost
@@ -93,7 +93,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
                 httpMethod: "GET",
                 automaticReplayCount: 0
             ),
-            .replayOnce
+            .replay(afterBackoff: 0)
         )
         XCTAssertEqual(
             policy.evaluate(
@@ -102,7 +102,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
                 httpMethod: "head",
                 automaticReplayCount: 0
             ),
-            .replayOnce
+            .replay(afterBackoff: 0)
         )
         XCTAssertEqual(
             policy.evaluate(
@@ -111,11 +111,20 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
                 httpMethod: nil,
                 automaticReplayCount: 0
             ),
-            .replayOnce
+            .replay(afterBackoff: 0)
+        )
+        XCTAssertEqual(
+            policy.evaluate(
+                error: error,
+                matchesTrackedNavigation: true,
+                httpMethod: "GET",
+                automaticReplayCount: 1
+            ),
+            .replay(afterBackoff: 0.5)
         )
     }
 
-    func testConnectionLostFailureIsNeverReplayedTwice() {
+    func testConnectionLostFailureIsNeverReplayedMoreThanTwice() {
         let error = NSError(
             domain: NSURLErrorDomain,
             code: NSURLErrorNetworkConnectionLost
@@ -126,7 +135,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
                 error: error,
                 matchesTrackedNavigation: true,
                 httpMethod: "GET",
-                automaticReplayCount: 1
+                automaticReplayCount: 2
             ),
             .report
         )

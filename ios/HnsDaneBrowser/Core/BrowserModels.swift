@@ -326,25 +326,27 @@ struct NavigationReplayPolicy {
 }
 
 enum ProvisionalNavigationFailureRecoveryDecision: Equatable {
-    case replayOnce
+    case replay(afterBackoff: TimeInterval)
     case report
 }
 
 enum ProvisionalNavigationActionRecoveryDecision: Equatable {
-    case preserveOneShotState
+    case preserveRecoveryState
     case invalidateQueuedReplay
     case reset
 }
 
 struct ProvisionalNavigationFailureRecoveryPolicy {
+    private static let maximumAutomaticReplayCount = 2
+    private static let secondReplayBackoff: TimeInterval = 0.5
     private let replayPolicy = NavigationReplayPolicy()
 
     func evaluateNavigationAction(
         isAutomaticFailureReplay: Bool,
-        hasActiveOneShotRecovery: Bool
+        hasActiveRecovery: Bool
     ) -> ProvisionalNavigationActionRecoveryDecision {
-        if isAutomaticFailureReplay { return .preserveOneShotState }
-        return hasActiveOneShotRecovery ? .invalidateQueuedReplay : .reset
+        if isAutomaticFailureReplay { return .preserveRecoveryState }
+        return hasActiveRecovery ? .invalidateQueuedReplay : .reset
     }
 
     func evaluate(
@@ -356,11 +358,12 @@ struct ProvisionalNavigationFailureRecoveryPolicy {
         guard matchesTrackedNavigation,
               error.domain == NSURLErrorDomain,
               error.code == NSURLErrorNetworkConnectionLost,
-              automaticReplayCount == 0,
+              (0..<Self.maximumAutomaticReplayCount).contains(automaticReplayCount),
               replayPolicy.allowsAutomaticReplay(httpMethod: httpMethod) else {
             return .report
         }
-        return .replayOnce
+        let backoff = automaticReplayCount == 0 ? 0 : Self.secondReplayBackoff
+        return .replay(afterBackoff: backoff)
     }
 }
 
