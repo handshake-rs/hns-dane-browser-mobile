@@ -332,12 +332,18 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         // alive for the ICANN capture. Relaunching here discarded that
         // in-memory peer immediately before the dual-root comparison.
         let proofContent = app.textViews["browser-proof-details.content"]
-        let proofClose = app.navigationBars.buttons["Close"].firstMatch
         XCTAssertTrue(
-            proofClose.waitForExistence(timeout: timeout),
-            "Proof Details close control did not appear"
+            proofContent.waitForExistence(timeout: timeout),
+            "Proof Details content disappeared before dismissal"
         )
-        proofClose.tap()
+        // The Release sheet's UIKit navigation items are visible but are not
+        // represented as NavigationBar or Button elements in the XCUI
+        // hierarchy. This verified 6.5-inch capture coordinate targets the
+        // top-left close item without changing the shipping app solely for
+        // screenshot automation.
+        app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.10, dy: 0.097)
+        ).tap()
         XCTAssertTrue(
             waitUntil(
                 description: "Proof Details dismissal",
