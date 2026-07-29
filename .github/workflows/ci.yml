@@ -147,9 +147,12 @@ jobs:
       - name: Install pinned Android SDK components
         run: |
           "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+            "cmdline-tools;22.0" \
             "platforms;android-37.0" \
             "build-tools;36.0.0" \
             "ndk;28.2.13676358"
+          # The runner's command-line tools 12 miswrite android-37.0 AVD targets.
+          echo "${ANDROID_SDK_ROOT}/cmdline-tools/22.0/bin" >> "$GITHUB_PATH"
 
       - name: Enable KVM group permissions
         run: |
