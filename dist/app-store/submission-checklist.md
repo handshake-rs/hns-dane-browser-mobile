@@ -1,6 +1,6 @@
 # App Store submission checklist
 
-Canonical update-candidate values: iOS version `0.5.5`, build `52`, bundle ID
+Canonical update-candidate values: iOS version `0.5.5`, build `53`, bundle ID
 `com.denuoweb.hnsdane.ios`, iPhone only, Utilities, Free, manual release. The
 public baseline observed on 2026-07-28 is version `0.5.0`.
 
@@ -13,7 +13,7 @@ public baseline observed on 2026-07-28 is version `0.5.0`.
 - [ ] The app's in-app Privacy Policy and Source Code actions open those live pages.
 - [ ] Paste the update fields listed in `metadata/README.md`, including
   `metadata/en-US/whats-new.txt` under **What's New in This Version**.
-- [ ] Set the version to `0.5.5`, select build `52`, and leave Routing App Coverage
+- [ ] Set the version to `0.5.5`, select build `53`, and leave Routing App Coverage
   empty.
 
 ## Screenshots
@@ -52,13 +52,12 @@ public baseline observed on 2026-07-28 is version `0.5.0`.
 
 - [ ] Enter a real review contact name, phone number, and email address.
 - [ ] Paste `metadata/en-US/review-notes.txt`; do not enable the sign-in fields.
-- [ ] Confirm build `52` has finished processing and its export-compliance status is
+- [ ] Confirm build `53` has finished processing and its export-compliance status is
   resolved.
 - [ ] Confirm the metadata, privacy answers, age rating, content rights, pricing,
   availability, screenshots, and build are all attached to the same submission.
 - [ ] Choose **Manually release this version**, save, then add the app version and
   build for review.
-- [ ] Record whether an external-TestFlight real-iPhone qualification pass was
-  available. If none was available, record that limitation; it does not block
-  App Store submission, but installed-iOS and ecosystem qualification remain
-  open.
+- [ ] Record that no TestFlight distribution is part of this release. This does
+  not block App Store submission, but installed-iOS and ecosystem qualification
+  remain open until a separate physical-device matrix is completed.

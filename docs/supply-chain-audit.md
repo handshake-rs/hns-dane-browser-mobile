@@ -32,15 +32,14 @@ Last audited: 2026-07-28
 ### Current `0.5.5` Candidate
 
 - Android declares `0.5.5` / code 45, the shared Rust workspace declares
-  `0.5.5`, and iOS declares `0.5.5` / build 52. The Apple shell now accepts the
+  `0.5.5`, and iOS declares `0.5.5` / build 53. The Apple shell now accepts the
   valid zero revision returned when a fresh runtime reapplies its unchanged
   default policy, so first-install preparation does not fail before browsing.
-  It also retries exactly once when an idempotent main-frame load encounters
-  WebKit's transient connection-lost result during validated header
-  publication. The retry waits for the current sync to return and
-  release maintenance, remains bound to the exact failed `WKNavigation`, and
-  suppresses only duplicate callbacks for the original failure. Unsafe methods
-  and a failed retry remain reportable.
+  It also retries at most twice when an idempotent main-frame load encounters
+  WebKit's transient connection-lost result. Each retry waits for the current
+  sync to release maintenance, the second adds a bounded backoff and fresh safe
+  point, and recovery remains bound to the exact failed `WKNavigation`
+  identities. Unsafe methods and a failed final retry remain reportable.
 - The five engine crates are pinned to reviewed immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
 - The exact `0.5.4` candidate commit `8ffc296` passed the complete portable
   Rust/supply-chain, Android build/test/lint/bundle-structure, and Apple
@@ -52,8 +51,11 @@ Last audited: 2026-07-28
   30414784116 retained two main-frame `NSURLErrorDomain` code `-1005` events
   221 milliseconds apart, so next-main-turn replay timing did not recover.
   Build 51 was pushed, but its validation was canceled and it was not uploaded.
-  Exact code 45/build 52 gates, signing, artifact verification, and store upload
-  must be repeated.
+  Build 52 passed exact CI in run 30417946199, but live run 30417953393
+  reproduced two consecutive provisional `-1005` failures and its Apple upload
+  workflow was canceled before credentials, signing, or upload. Exact code
+  45/build 53 gates, signing, artifact verification, and store upload must be
+  repeated.
 
 ### Historical `0.5.0` Evidence
 

@@ -11,10 +11,12 @@ and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 
 Both public listings reported version `0.5.0` on 2026-07-28. This repository is
-the `0.5.5` update candidate (Android build `45`, iOS build `52`). The matching
+the `0.5.5` update candidate (Android build `45`, iOS build `53`). The matching
 `0.5.4` packages, superseded iOS build `49` App Store Connect upload, and
-simulator-only build `50` failure are retained as earlier release evidence.
-Build `51` was pushed, but its validation was canceled and it was not uploaded.
+non-uploaded iOS candidates `50`–`52` are retained as earlier release evidence.
+Build `51` validation was canceled; build `52` passed exact CI but its live
+capture reproduced a second bounded startup connection loss. Neither was
+uploaded.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).

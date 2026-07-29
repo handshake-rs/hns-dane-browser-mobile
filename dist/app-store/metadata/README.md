@@ -1,12 +1,13 @@
 # App Store metadata
 
 This directory is the reviewed source for the next iOS App Store update. It is
-not uploaded automatically by the TestFlight workflow. Version `0.5.0` was
+not uploaded automatically by the binary upload workflow. Version `0.5.0` was
 public on the Apple App Store when checked on 2026-07-28; the source candidate
-is `0.5.5` (build `52`). Build `48` is retained as predecessor upload evidence,
+is `0.5.5` (build `53`). Build `48` is retained as predecessor upload evidence,
 build `49` as superseded `0.5.5` upload evidence, and build `50` as a
 simulator-only failed candidate that was not uploaded. Build `51` was pushed,
-but its validation was canceled and it was not uploaded.
+but its validation was canceled. Build `52` passed exact CI, but a live capture
+reproduced a second bounded startup connection loss. Neither was uploaded.
 
 ## App record
 
@@ -18,7 +19,7 @@ but its validation was canceled and it was not uploaded.
 - Apple Team ID: `45NQQK3G3S`
 - User access: Full Access
 - Version: `0.5.5`
-- Build: `52`
+- Build: `53`
 - Primary category: Utilities
 - Price: Free
 
@@ -60,11 +61,11 @@ python3 dist/app-store/validate.py
 1. Publish the current cross-platform privacy policy at the URL in `en-US/privacy-policy-url.txt`.
 2. Complete App Store Connect's app-privacy, age-rating, content-rights, and export-compliance questionnaires from the app's actual behavior. Do not answer the encryption question by assumption: the Rust runtime implements industry-standard TLS, DNSSEC, and DANE cryptography outside Apple's operating-system crypto APIs.
 3. Generate current iPhone simulator screenshots from the iOS shell. Do not reuse Android screenshots.
-4. If an iPhone tester becomes available, run the external-TestFlight
-   physical-device matrix. An owned or borrowed iPhone is not an App Store
-   submission requirement, so the pass may follow submission; until it is
-   recorded, installed-iOS and ecosystem qualification remain open.
+4. No TestFlight distribution is required for this release. If an iPhone
+   tester becomes available in a future qualification cycle, run the optional
+   external-TestFlight physical-device matrix. Until it is recorded,
+   installed-iOS and ecosystem qualification remain open.
 5. Supply App Review with the notes in `en-US/review-notes.txt`; no login is required.
-6. Complete every item in `../submission-checklist.md`, select build `52`, and choose manual release before adding the version for review.
+6. Complete every item in `../submission-checklist.md`, select build `53`, and choose manual release before adding the version for review.
 
 The API private key used by CI must exist only in the protected GitHub `app-store` environment and must never be committed or uploaded as a workflow artifact.

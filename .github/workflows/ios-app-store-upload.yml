@@ -1,4 +1,4 @@
-name: iOS TestFlight
+name: iOS App Store Upload
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-testflight
+  group: ios-app-store-upload
   cancel-in-progress: false
 
 jobs:
@@ -68,7 +68,7 @@ jobs:
           HNS_ASC_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           HNS_IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
           HNS_IOS_IPA_OUTPUT_PATH: ${{ runner.temp }}/hns-dane-browser-ios-app-store.ipa
-        run: ./scripts/upload-ios-testflight.sh
+        run: ./scripts/upload-ios-app-store.sh
 
       - name: Retain the signed App Store IPA for release publication
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -124,7 +124,7 @@ classify_path() {
       scripts/build-ios.sh | \
       scripts/build-rust-ios.sh | \
       scripts/run-ios-gate.sh | \
-      scripts/upload-ios-testflight.sh | \
+      scripts/upload-ios-app-store.sh | \
       scripts/select_ios_simulator.py | \
       scripts/test_select_ios_simulator.py)
       ios=true

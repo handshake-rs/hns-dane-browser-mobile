@@ -97,13 +97,13 @@ class CiChangedTargetsTests(unittest.TestCase):
     def test_ios_only_change_skips_android(self) -> None:
         for path in (
             "ios/HnsDaneBrowser/App/AppDelegate.swift",
-            "scripts/upload-ios-testflight.sh",
+            "scripts/upload-ios-app-store.sh",
             "scripts/generate-ios-app-store-screenshots.sh",
             "scripts/ios_screenshot_tools.py",
             "scripts/stage-ios-app-store-screenshots.sh",
             "tests/test_ios_screenshot_tools.py",
             ".github/workflows/ios-screenshots.yml",
-            ".github/workflows/ios-testflight.yml",
+            ".github/workflows/ios-app-store-upload.yml",
         ):
             with self.subTest(path=path):
                 self.assert_targets(
