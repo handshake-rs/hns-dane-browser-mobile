@@ -22,6 +22,7 @@ final class BrowserViewController: UIViewController {
 #endif
 
     private let process: BrowserProcess
+    private let authorityAdmissionPolicy = BrowserAuthorityAdmissionPolicy()
 
     private let backButton = UIButton(type: .system)
     private let forwardButton = UIButton(type: .system)
@@ -43,7 +44,9 @@ final class BrowserViewController: UIViewController {
     private var isPreparing = false
     private var isLoading = false
     private var isControlOperationInFlight = false
+    private var isHeaderResetInFlight = false
     private var isDestroyed = false
+    private var isProxyAdmissionGranted = false
     private var latestSyncSummary = BrowserSyncSummary.unavailable
     private var resolverCacheSummary = "Ready to clear cached resolver values."
     private weak var settingsViewController: BrowserSettingsViewController?
@@ -86,7 +89,9 @@ final class BrowserViewController: UIViewController {
 #if DEBUG && targetEnvironment(simulator)
         if appStoreScreenshotScene != nil { return }
 #endif
-        coordinator?.resume()
+        if let environment {
+            updateSyncSummary(environment.runtime.syncSummary())
+        }
         startSyncStatusPolling()
         process.resumeForegroundSync { [weak self] summary in
             self?.updateSyncSummary(summary)
@@ -96,6 +101,7 @@ final class BrowserViewController: UIViewController {
     func suspendBrowsing() {
         guard !isDestroyed else { return }
         isForeground = false
+        isProxyAdmissionGranted = false
         stopSyncStatusPolling()
 #if DEBUG && targetEnvironment(simulator)
         if appStoreScreenshotScene != nil { return }
@@ -116,6 +122,7 @@ final class BrowserViewController: UIViewController {
         process.suspendForegroundSync()
         coordinator?.destroy()
         coordinator = nil
+        isProxyAdmissionGranted = false
         environment = nil
         progressObservation = nil
     }
@@ -477,7 +484,6 @@ final class BrowserViewController: UIViewController {
                 self.environment = environment
                 let coordinator = self.installCoordinator(environment: environment)
                 self.placeholderLabel.text = "Enter an address to begin"
-                self.updateSyncSummary(environment.runtime.syncSummary())
                 if self.isForeground {
                     coordinator.refreshSyncStatus()
                 }
@@ -507,9 +513,8 @@ final class BrowserViewController: UIViewController {
         )
         coordinator.delegate = self
         self.coordinator = coordinator
-        if isForeground {
-            coordinator.resume()
-        }
+        isProxyAdmissionGranted = false
+        updateSyncSummary(environment.runtime.syncSummary())
         if let replayAddress {
             coordinator.navigate(rawValue: replayAddress)
         }
@@ -914,6 +919,7 @@ final class BrowserViewController: UIViewController {
         addressField.isEnabled = false
         coordinator?.destroy()
         coordinator = nil
+        isProxyAdmissionGranted = false
         progressObservation = nil
         placeholderLabel.isHidden = false
         placeholderLabel.text = "Switching to \(network.title)…"
@@ -932,14 +938,12 @@ final class BrowserViewController: UIViewController {
                 )
                 self.resolverCacheSummary =
                     "Ready to clear cached resolver values for \(network.title)."
-                self.updateSyncSummary(environment.runtime.syncSummary())
             case .failure(let error):
                 self.environment = previousEnvironment
                 self.installCoordinator(
                     environment: previousEnvironment,
                     replayAddress: replayAddress
                 )
-                self.updateSyncSummary(previousEnvironment.runtime.syncSummary())
                 self.showOperationError(
                     title: "Network change failed",
                     error: error,
@@ -1007,6 +1011,7 @@ final class BrowserViewController: UIViewController {
         addressField.isEnabled = false
         coordinator?.destroy()
         coordinator = nil
+        isProxyAdmissionGranted = false
         progressObservation = nil
         placeholderLabel.isHidden = false
         placeholderLabel.text = "Applying runtime policy…"
@@ -1088,10 +1093,16 @@ final class BrowserViewController: UIViewController {
 
     private func resetHeadersFromPeers(presenter: UIViewController? = nil) {
         guard beginControlOperation() else { return }
+        isHeaderResetInFlight = true
+        if isProxyAdmissionGranted {
+            isProxyAdmissionGranted = false
+            coordinator?.suspend()
+        }
         syncLabel.text = "Resetting Handshake headers…"
         refreshSettingsIfPresented()
         process.resetHeadersFromPeers { [weak self, weak presenter] result in
             guard let self, !self.isDestroyed else { return }
+            self.isHeaderResetInFlight = false
             self.setControlOperationInFlight(false)
             switch result {
             case .success(let summary):
@@ -1103,6 +1114,9 @@ final class BrowserViewController: UIViewController {
                     }
                 }
             case .failure(let error):
+                if let environment = self.environment {
+                    self.updateSyncSummary(environment.runtime.syncSummary())
+                }
                 self.showOperationError(
                     title: "Header resync did not start",
                     error: error,
@@ -1264,6 +1278,25 @@ final class BrowserViewController: UIViewController {
         latestSyncSummary = summary
         syncLabel.text = summary.headline
         syncLabel.accessibilityLabel = "\(summary.headline). \(summary.detail)"
+        guard let coordinator else {
+            refreshSettingsIfPresented()
+            return
+        }
+        switch authorityAdmissionPolicy.reconciliationAction(
+            network: process.currentNetwork,
+            isForeground: isForeground && !isHeaderResetInFlight,
+            syncSummary: summary,
+            isAdmissionGranted: isProxyAdmissionGranted
+        ) {
+        case .resume:
+            isProxyAdmissionGranted = true
+            coordinator.resume()
+        case .suspend:
+            isProxyAdmissionGranted = false
+            coordinator.suspend()
+        case .unchanged:
+            break
+        }
         refreshSettingsIfPresented()
     }
 

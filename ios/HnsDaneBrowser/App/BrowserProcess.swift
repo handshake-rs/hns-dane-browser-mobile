@@ -349,9 +349,9 @@ final class BrowserProcess {
             )
             state = .ready(environment)
             callbacks.forEach { $0(.success(environment)) }
-            // Network synchronization is deliberately not a readiness gate. Foreground
-            // scheduling starts only after the exact bundled snapshot and persisted policy are
-            // installed, so snapshot-backed verification is available immediately.
+            // Runtime preparation remains independent from network synchronization. The view
+            // controller keeps proxy admission suspended until this foreground scheduler reports
+            // the exact header-currentness prerequisite enforced by Rust.
             if isForegroundSyncEnabled {
                 scheduleForegroundSync(after: 0)
             }

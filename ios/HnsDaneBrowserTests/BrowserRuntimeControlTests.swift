@@ -752,6 +752,276 @@ final class BrowserRuntimeControlTests: XCTestCase {
         }
     }
 
+    func testAuthorityAdmissionRequiresForegroundAuthoritativeCurrentness() {
+        let policy = BrowserAuthorityAdmissionPolicy()
+        let current = BrowserSyncSummary(
+            headline: "Handshake headers current",
+            detail: "Current",
+            syncStatusSchemaVersion: 2,
+            status: "up_to_date",
+            network: "mainnet",
+            bestHeight: 339_308,
+            effectiveTargetHeight: 339_308,
+            lagBlocks: 0,
+            freshness: "current",
+            freshnessThresholdBlocks: 2,
+            targetSource: "corroboratedPeers",
+            targetPeerGroups: 3,
+            targetEvidenceExpired: false
+        )
+
+        for network in [BrowserHandshakeNetwork.mainnet, .testnet] {
+            let networkCurrent = BrowserSyncSummary(
+                headline: current.headline,
+                detail: current.detail,
+                syncStatusSchemaVersion: current.syncStatusSchemaVersion,
+                status: current.status,
+                network: network.rawValue,
+                bestHeight: current.bestHeight,
+                effectiveTargetHeight: current.effectiveTargetHeight,
+                lagBlocks: current.lagBlocks,
+                freshness: current.freshness,
+                freshnessThresholdBlocks: current.freshnessThresholdBlocks,
+                targetSource: current.targetSource,
+                targetPeerGroups: current.targetPeerGroups,
+                targetEvidenceExpired: current.targetEvidenceExpired
+            )
+            XCTAssertTrue(
+                policy.allowsProxyResume(
+                    network: network,
+                    isForeground: true,
+                    syncSummary: networkCurrent
+                )
+            )
+            XCTAssertFalse(
+                policy.allowsProxyResume(
+                    network: network,
+                    isForeground: false,
+                    syncSummary: networkCurrent
+                )
+            )
+            XCTAssertFalse(
+                policy.allowsProxyResume(
+                    network: network,
+                    isForeground: true,
+                    syncSummary: .unavailable
+                )
+            )
+        }
+    }
+
+    func testAuthorityAdmissionRejectsStaleGenesisAndLegacyPublicNetworkState() {
+        let policy = BrowserAuthorityAdmissionPolicy()
+        for network in [BrowserHandshakeNetwork.mainnet, .testnet] {
+            let summaries = [
+                BrowserSyncSummary(
+                    headline: "Stale",
+                    detail: "Stale",
+                    syncStatusSchemaVersion: 2,
+                    network: network.rawValue,
+                    bestHeight: 339_000,
+                    effectiveTargetHeight: 339_308,
+                    lagBlocks: 308,
+                    freshness: "stale",
+                    freshnessThresholdBlocks: 2,
+                    targetSource: "corroboratedPeers",
+                    targetPeerGroups: 3,
+                    targetEvidenceExpired: false
+                ),
+                BrowserSyncSummary(
+                    headline: "Genesis",
+                    detail: "Genesis",
+                    syncStatusSchemaVersion: 2,
+                    network: network.rawValue,
+                    bestHeight: 0,
+                    effectiveTargetHeight: 0,
+                    lagBlocks: 0,
+                    freshness: "current",
+                    freshnessThresholdBlocks: 2,
+                    targetSource: "corroboratedPeers",
+                    targetPeerGroups: 3,
+                    targetEvidenceExpired: false
+                ),
+                BrowserSyncSummary(
+                    headline: "Legacy",
+                    detail: "Legacy",
+                    network: network.rawValue,
+                    bestHeight: 339_308,
+                    freshness: "current"
+                ),
+            ]
+            for summary in summaries {
+                XCTAssertFalse(
+                    policy.allowsProxyResume(
+                        network: network,
+                        isForeground: true,
+                        syncSummary: summary
+                    )
+                )
+            }
+        }
+    }
+
+    func testRegtestAuthorityAdmissionMatchesRustReadinessPrerequisites() {
+        let policy = BrowserAuthorityAdmissionPolicy()
+        let nonGenesis = BrowserSyncSummary(
+            headline: "Ready",
+            detail: "Ready",
+            syncStatusSchemaVersion: 2,
+            status: "up_to_date",
+            network: "regtest",
+            bestHeight: 1,
+            freshness: "unknown"
+        )
+        let stale = BrowserSyncSummary(
+            headline: "Stale",
+            detail: "Stale",
+            syncStatusSchemaVersion: 2,
+            status: "syncing",
+            network: "regtest",
+            bestHeight: 1,
+            freshness: "stale"
+        )
+        let genesis = BrowserSyncSummary(
+            headline: "Genesis",
+            detail: "Genesis",
+            syncStatusSchemaVersion: 2,
+            status: "syncing",
+            network: "regtest",
+            bestHeight: 0,
+            freshness: "unknown"
+        )
+
+        XCTAssertTrue(
+            policy.allowsProxyResume(
+                network: .regtest,
+                isForeground: true,
+                syncSummary: nonGenesis
+            )
+        )
+        XCTAssertFalse(
+            policy.allowsProxyResume(
+                network: .regtest,
+                isForeground: false,
+                syncSummary: nonGenesis
+            )
+        )
+        XCTAssertFalse(
+            policy.allowsProxyResume(
+                network: .regtest,
+                isForeground: true,
+                syncSummary: stale
+            )
+        )
+        XCTAssertFalse(
+            policy.allowsProxyResume(
+                network: .regtest,
+                isForeground: true,
+                syncSummary: genesis
+            )
+        )
+    }
+
+    func testAuthorityAdmissionRejectsWrongNetworkMissingSchemaAndErrors() {
+        let policy = BrowserAuthorityAdmissionPolicy()
+        let wrongNetwork = BrowserSyncSummary(
+            headline: "Ready",
+            detail: "Ready",
+            syncStatusSchemaVersion: 2,
+            status: "up_to_date",
+            network: "mainnet",
+            bestHeight: 1,
+            freshness: "unknown"
+        )
+        let missingSchema = BrowserSyncSummary(
+            headline: "Ready",
+            detail: "Ready",
+            status: "up_to_date",
+            network: "regtest",
+            bestHeight: 1,
+            freshness: "unknown"
+        )
+        let failed = BrowserSyncSummary(
+            headline: "Failed",
+            detail: "Failed",
+            syncStatusSchemaVersion: 2,
+            status: "error",
+            network: "regtest",
+            bestHeight: 1,
+            freshness: "unknown",
+            error: "sync failed"
+        )
+
+        for summary in [wrongNetwork, missingSchema, failed] {
+            XCTAssertFalse(
+                policy.allowsProxyResume(
+                    network: .regtest,
+                    isForeground: true,
+                    syncSummary: summary
+                )
+            )
+        }
+    }
+
+    func testAuthorityAdmissionReconciliationIsBidirectionalAndIdempotent() {
+        let policy = BrowserAuthorityAdmissionPolicy()
+        let ready = BrowserSyncSummary(
+            headline: "Ready",
+            detail: "Ready",
+            syncStatusSchemaVersion: 2,
+            status: "up_to_date",
+            network: "regtest",
+            bestHeight: 1,
+            freshness: "unknown"
+        )
+        let stale = BrowserSyncSummary(
+            headline: "Stale",
+            detail: "Stale",
+            syncStatusSchemaVersion: 2,
+            status: "syncing",
+            network: "regtest",
+            bestHeight: 1,
+            freshness: "stale"
+        )
+
+        XCTAssertEqual(
+            policy.reconciliationAction(
+                network: .regtest,
+                isForeground: true,
+                syncSummary: ready,
+                isAdmissionGranted: false
+            ),
+            .resume
+        )
+        XCTAssertEqual(
+            policy.reconciliationAction(
+                network: .regtest,
+                isForeground: true,
+                syncSummary: ready,
+                isAdmissionGranted: true
+            ),
+            .unchanged
+        )
+        XCTAssertEqual(
+            policy.reconciliationAction(
+                network: .regtest,
+                isForeground: true,
+                syncSummary: stale,
+                isAdmissionGranted: true
+            ),
+            .suspend
+        )
+        XCTAssertEqual(
+            policy.reconciliationAction(
+                network: .regtest,
+                isForeground: true,
+                syncSummary: stale,
+                isAdmissionGranted: false
+            ),
+            .unchanged
+        )
+    }
+
     func testSyncSummaryRejectsMalformedUnsignedNumbers() throws {
         let malformedValues: [NSNumber] = [
             NSNumber(value: -1),

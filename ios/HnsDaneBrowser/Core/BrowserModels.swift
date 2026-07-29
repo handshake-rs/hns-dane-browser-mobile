@@ -514,6 +514,54 @@ struct BrowserSyncSummary: Equatable, Sendable {
     }
 }
 
+/// Mirrors the Rust authority-readiness prerequisites before UIKit may start a
+/// loopback proxy generation and admit queued WebKit navigation.
+struct BrowserAuthorityAdmissionPolicy: Equatable, Sendable {
+    enum ReconciliationAction: Equatable, Sendable {
+        case unchanged
+        case resume
+        case suspend
+    }
+
+    func allowsProxyResume(
+        network: BrowserHandshakeNetwork,
+        isForeground: Bool,
+        syncSummary: BrowserSyncSummary
+    ) -> Bool {
+        guard isForeground,
+              syncSummary.syncStatusSchemaVersion == 2,
+              syncSummary.network == network.rawValue,
+              syncSummary.error == nil else {
+            return false
+        }
+        switch network {
+        case .mainnet, .testnet:
+            return syncSummary.hasAuthoritativeCurrentness
+        case .regtest:
+            return syncSummary.bestHeight.map { $0 > 0 } == true
+                && syncSummary.freshness != "stale"
+        }
+    }
+
+    func reconciliationAction(
+        network: BrowserHandshakeNetwork,
+        isForeground: Bool,
+        syncSummary: BrowserSyncSummary,
+        isAdmissionGranted: Bool
+    ) -> ReconciliationAction {
+        let shouldGrant = allowsProxyResume(
+            network: network,
+            isForeground: isForeground,
+            syncSummary: syncSummary
+        )
+        switch (isAdmissionGranted, shouldGrant) {
+        case (false, true): return .resume
+        case (true, false): return .suspend
+        case (false, false), (true, true): return .unchanged
+        }
+    }
+}
+
 struct BrowserProofDetails: Equatable, Sendable {
     let headline: String
     let detail: String
