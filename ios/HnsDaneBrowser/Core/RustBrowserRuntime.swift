@@ -140,9 +140,6 @@ final class RustBrowserRuntime: BrowserRuntime {
             return hns_browser_runtime_set_policy(handle, &nativePolicy, &revision)
         }
         try RustBridge.check(result, operation: "runtime policy update")
-        guard revision != 0 else {
-            throw RustBridgeError.invalidOutput("policy revision is zero")
-        }
         return revision
     }
 

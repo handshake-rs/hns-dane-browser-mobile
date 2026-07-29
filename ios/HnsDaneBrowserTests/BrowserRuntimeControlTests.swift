@@ -153,6 +153,21 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(policy.legacyHNSDoHCompatibility)
     }
 
+    func testFreshNativeRuntimeAcceptsZeroRevisionForDefaultPolicy() throws {
+        let dataDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("RustBrowserRuntimeTests.\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: dataDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: dataDirectory) }
+
+        let runtime = try RustBrowserRuntime(dataDirectory.path, network: .regtest)
+        defer { runtime.close() }
+
+        XCTAssertEqual(try runtime.updatePolicy(.default), 0)
+    }
+
     func testRecoveryURLValidationRejectsUnsafeAndSpecialUseEndpoints() {
         XCTAssertEqual(BrowserRuntimePolicy.normalizeHNSDoHRecoveryURL("  "), "")
         XCTAssertEqual(
