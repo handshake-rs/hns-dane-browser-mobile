@@ -14,7 +14,9 @@ carrying the shared dual-root negative-evidence fix, passed the exact signed
 APK/AAB release gates and completed production deployment through committed
 Play edit `17438779769069438085`; the `generatedApks/46` readback returned HTTP
 `200`. Code `47` fixes Android runtime opening under Rust 1.92 but has not yet
-produced a claimed signed artifact or Play upload.
+produced a claimed signed artifact or Play upload. It also corrects Android
+Proof Details so HNS-versus-ICANN presentation follows Rust's retained
+dual-root decision rather than the namespace-agnostic native gateway route.
 Earlier `0.5.4`, `0.5.1`, `0.5.0`, and `0.4.1` results remain dated historical
 evidence.
 
@@ -25,6 +27,7 @@ evidence.
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 release artifact pending; code 46 remains production | Current source declares package `com.denuoweb.hnsdane` code `47`, but no signed code `47` AAB or Play upload is claimed. Historical release evidence: code `46` completed production through committed edit `17438779769069438085`, with HTTP `200` from `generatedApks/46`; its verified AAB SHA-256 is `728d8892e180d954652668a4e53a7e2d6c7542e9d36330f4803cdecdb34598b0`. |
 | Android runtime hotfix | Debug-device validation complete; remote/release gates pending | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the already locked `libc 0.2.186` Android `flock` path while retaining the same lock semantics. Upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. A connected Pixel 9 opened fresh regtest storage at height `0` with no error, recovered preserved data to snapshot height `300000`, and reported manual **Run** as `syncing` with `error: null`. |
+| Proof Details namespace | Fixed and paired physical-device regression passed; remote CI pending | Every canonical DNS host uses the native dual-root gateway, so that route cannot identify HNS versus ICANN. Before the fix, physical Pixel 9 API 37 instrumentation reproduced an HNS-selected trace being shown as DNSSEC with synthetic ICANN details. Proof Details now consumes the strict retained `namespaceResolution` decision; paired HNS-proof and ICANN-DNSSEC activity tests pass on that device. |
 | 64-bit / 16 KiB native code | Code 47 signed gates pending; code 46 historical gates passed | Code `47` must pass the signed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, signature, R8, and APK ZIP-alignment gates. Historical code `46` passed them; its APK SHA-256 is `b36a4346ffcba14c081500ef3dc7c5012cabd30f42cdaa80a354eefb5da210ba` and its upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
@@ -35,7 +38,7 @@ evidence.
 | App category | Recommended: Tools or Communication | Avoid Finance classification; the app is not a wallet, exchange, lender, or financial service. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
 | Release track | Code 46 production; code 47 pending | The Android Publisher API committed code `46` edit `17438779769069438085` with production status `completed`; `generatedApks/46` returned HTTP `200`. Code `47` has not been uploaded or assigned to a track. This remains an update to a public listing, not a first closed-test launch. |
-| CI regression | Required API 37 emulator configured; remote completion not yet claimed | The Android job now runs the fresh native-runtime instrumentation test on a Google APIs API 37 x86_64 emulator. The release checkpoint still requires a successful remote run; merely adding the required job is not completion evidence. |
+| CI regression | Required API 37 emulator configured; remote completion not yet claimed | The Android job now runs the fresh native-runtime test and both Proof Details namespace activity tests on a Google APIs API 37 x86_64 emulator. The release checkpoint still requires a successful remote run; merely adding the required job is not completion evidence. |
 | Store assets | Reconciliation required | Local icon, feature graphic, screenshots, and listing text exist in `dist/play-store/`, but they must be compared with the live listing. Recapture stale screenshots, including the diagnostic image showing an older version, against the code `47` release candidate before upload. |
 
 ## Release Signing
@@ -158,21 +161,28 @@ Current source is the `0.5.6` / code `47` Android hotfix with shared Rust
 `ErrorKind::Unsupported` for standard-library Android file locking, so fresh
 runtime creation failed before sync could report heights. The target-local
 `libc::flock` shim restores the same advisory lock operations; upstream's
-equivalent standard-library fix is in the Rust 1.98 release train.
+equivalent standard-library fix is in the Rust 1.98 release train. Proof
+Details also now uses the retained dual-root decision rather than mistaking the
+native gateway used by every DNS host for an ICANN selection.
 
 Connected Pixel 9 debug validation has already proved fresh regtest open at
 height `0` with `error: null`, preserved-data recovery to snapshot height
-`300000`, and a manual **Run** result of `syncing` with `error: null`. Required
-CI now contains the focused API 37 emulator regression. These checks do not
-replace the remaining signed code `47` package gates, remote CI completion,
-full exact-artifact device matrix, Play upload, or production assignment.
+`300000`, and a manual **Run** result of `syncing` with `error: null`. On the
+physical Pixel 9 running API 37, the new HNS Proof Details test first failed
+against the pre-fix path because it received DNSSEC/synthetic ICANN details;
+after the correction, paired HNS and ICANN activity tests pass. Required CI now
+contains the fresh-runtime and paired proof-details API 37 emulator
+regressions, but no remote result is claimed. These checks do not replace the
+remaining signed code `47` package gates, full exact-artifact device matrix,
+Play upload, or production assignment.
 
 ## Store Listing Draft
 
 The repository listing copy used by the deployed code `46` update lives under
 `dist/play-store/metadata/en-US/`. Compare it field-by-field with the public
 listing before the code `47` update; the lock hotfix does not itself change the
-declared product behavior.
+declared data-handling posture, and the Proof Details correction restores the
+already declared HNS/ICANN diagnostic behavior.
 
 Short description, 80 characters max:
 

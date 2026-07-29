@@ -1,1 +1,1 @@
-0.5.6 fixes an Android runtime startup failure caused by Rust 1.92's unsupported File::lock path. Header coordination now uses Android's libc::flock path instead. The iOS app is unchanged.
+0.5.6 fixes an Android runtime startup failure caused by Rust 1.92's unsupported File::lock path. It also keeps HNS Proof Details from relabeling valid Handshake results as ICANN DNS. The iOS app is unchanged.

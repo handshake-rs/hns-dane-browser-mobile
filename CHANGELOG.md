@@ -24,6 +24,9 @@ All notable changes to this project will be documented in this file.
 - Uses Android bionic `libc::flock` for shared, exclusive, nonblocking, and
   unlock operations while retaining the same fail-closed coordination
   protocol.
+- Keeps HNS Proof Details bound to Rust's retained dual-root namespace
+  selection. Native-gateway routing is required for every DNS hostname and no
+  longer causes valid Handshake results to be relabeled as ICANN DNS.
 
 ## 0.5.5 - 2026-07-29
 

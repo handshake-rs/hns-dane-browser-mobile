@@ -18,7 +18,7 @@ It does not claim that the coordination-wide PDF is complete.
 | --- | --- | --- |
 | Retain Android, iOS, Kotlin, Swift, JNI, Apple ABI, WebView, WKWebView, lifecycle, packaging, store metadata, and CI | Retained | The existing platform shells and release workflows remain. The JNI and C ABI keep their legacy field layout for upgrade compatibility. |
 | Atomic staged header synchronization | Implemented locally | Network I/O, quorum collection, snapshot preparation, and peer merging occur in a private SQLite stage. Generation-and-tip-bound publication atomically exposes headers, peers, and readiness under cross-process locks; unchanged-header peer refresh does not invalidate active requests, and incomplete or superseded state fails closed. On Android, the pinned Rust 1.92 toolchain requires the target-local `libc::flock` shim because its stable `File::lock` implementation returns `Unsupported`; equivalent upstream support is merged for Rust 1.98. |
-| Full-host dual-root namespace decision | Implemented through the standalone engine contract | Android and iOS send every canonical DNS host to one retained Rust preparation boundary. HNS and ICANN independently resolve the complete host, A and AAAA endpoint sets, aliases, HTTPS/SVCB service policy, and transport-aware TLSA owner. The engine distinguishes HNS only, ICANN only, convergent, divergent, and neither; explicit pin precedes sticky success and the ICANN default. The selected immutable plan is the sole source of endpoints, protocol, trust, trace, and errors, and later DNS is rejected. The IANA list is no longer an authoritative browser classifier. |
+| Full-host dual-root namespace decision | Implemented through the standalone engine contract | Android and iOS send every canonical DNS host to one retained Rust preparation boundary. HNS and ICANN independently resolve the complete host, A and AAAA endpoint sets, aliases, HTTPS/SVCB service policy, and transport-aware TLSA owner. The engine distinguishes HNS only, ICANN only, convergent, divergent, and neither; explicit pin precedes sticky success and the ICANN default. The selected immutable plan is the sole source of endpoints, protocol, trust, trace, and errors, and later DNS is rejected. Android Proof Details now also consumes this retained decision instead of treating the namespace-agnostic native gateway as ICANN. The IANA list is no longer an authoritative browser classifier. |
 | HNS HTTPS never falls back to WebPKI | Implemented locally | The selected HNS plan requires secure TLSA/DANE. Missing, insecure, bogus, or mismatched evidence remains fail-closed. Secure HNS address presence without the required TLSA is a root failure, not authenticated namespace absence, so an ICANN plan cannot hide the unresolved HNS trust policy. |
 | Automatic ICANN DANE with constrained WebPKI | Implemented through the standalone engine contract | Every DNS-named HTTPS/WSS request enters the dual-root gateway. `hns-icann-dane` derives `_port._tcp.host.` or `_port._udp.host.` from the actual retained service plan, enforces DNSSEC-secure TLSA, and admits WebPKI only for authenticated denial or a proven insecure delegation. ICANN DoH connects only to pinned bootstrap addresses while authenticating the configured hostname. Bogus/indeterminate DNSSEC, malformed TLSA, timeout, resolver error, and invalid owner derivation fail closed. |
 | No implicit/default recursive HNS resolver; explicit recovery is constrained | Implemented locally | Blank is the default and makes no recovery request. A separately configured bounded HTTPS RFC 8484 endpoint is eligible only after direct authoritative UDP/TCP, owner-published proof-anchored authoritative DoH, and any independently opted-in P2P requester path encounter interception or transport failure. Its hostname is bootstrapped only through validating ICANN DoH, connections require public addresses and WebPKI, and every returned HNS answer still passes local proof, DNSSEC, TLSA, and DANE validation. Bogus DNSSEC, invalid DNS, DNS response codes, and stale or missing HNS proof state are terminal. |
@@ -29,7 +29,7 @@ It does not claim that the coordination-wide PDF is complete.
 | Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), while the normalized recovery URL maps to generation-bound `user_configured_recursive_hns_doh`. Live resolution follows direct authority UDP/TCP → owner-published authenticated authoritative DoH → independently admitted relay → configured recursive recovery; unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
 | Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
-| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. A connected Pixel 9 debug run now covers fresh native-runtime opening, preserved sync-state recovery, and manual sync after the Android lock hotfix; exact signed code 47 physical Android and mobile-network qualification remains a release gate. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
+| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. A connected Pixel 9 debug run now covers fresh native-runtime opening, preserved sync-state recovery, manual sync, and paired HNS/ICANN Proof Details selection after reproducing the pre-fix HNS-to-synthetic-ICANN failure; exact signed code 47 physical Android and mobile-network qualification remains a release gate. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
 
 ## Security Invariants for the Current Feature Set
 
@@ -113,10 +113,11 @@ Portable Rust, Android source, and host Apple-ABI checks can run on Linux. The
 complete iOS gate still requires macOS, Xcode 26.5/26.6, the iOS 26.5 SDK, and
 an iOS simulator; signed device behavior requires a separate physical-device
 pass. Android instrumentation requires an installed SDK/NDK and a device or
-emulator. Required CI now includes the focused fresh-runtime regression on an
-API 37 x86_64 emulator, but no completed remote run is claimed for the current
-hotfix source. Store binaries and previously recorded hashes must be rebuilt
-after this source checkpoint before they can be release evidence.
+emulator. Required CI now includes the focused fresh-runtime regression and
+paired HNS/ICANN Proof Details activity tests on an API 37 x86_64 emulator, but
+no completed remote run is claimed for the current hotfix source. Store
+binaries and previously recorded hashes must be rebuilt after this source
+checkpoint before they can be release evidence.
 
 The five shared engine crates resolve from immutable
 `handshake-rs/hns-dane-engine` commit
@@ -155,9 +156,15 @@ revision
 - Connected Pixel 9 debug validation opened fresh regtest storage at height `0`
   with `error: null`, recovered preserved data to snapshot height
   `300000`, and returned `syncing` with `error: null` after manual **Run**.
-- Required CI now runs the focused fresh-runtime instrumentation test on an API
-  37 Google APIs x86_64 emulator. Remote completion remains pending. No signed
-  code `47` artifact, Play upload, GitHub tag, or GitHub Release is claimed.
+- Android Proof Details now selects HNS proof versus ICANN DNSSEC presentation
+  only from Rust's strict retained `namespaceResolution`. Physical Pixel 9 API
+  37 instrumentation first failed against the pre-fix HNS path because it
+  showed DNSSEC/synthetic ICANN details; the corrected build passes paired HNS
+  and ICANN activity tests.
+- Required CI now runs the fresh-runtime and paired proof-details regressions on
+  an API 37 Google APIs x86_64 emulator. Remote completion remains pending. No
+  signed code `47` artifact, Play upload, GitHub tag, or GitHub Release is
+  claimed.
 
 ### Historical `0.5.5` Release Evidence
 

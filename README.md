@@ -16,8 +16,14 @@ Current source is preparing Android `0.5.6` / code `47` with shared Rust engine
 `57`. Rust 1.92's `std::fs::File::lock` is unsupported on Android, causing the
 `0.5.5` runtime to report `rust-core-unavailable` before synchronization could
 start; the hotfix uses Android bionic `libc::flock` for the same advisory-lock
-coordination. Signed code 47 artifacts, the Google Play upload, the `v0.5.6`
-tag, and GitHub Release publication remain pending.
+coordination. It also makes Android Proof Details follow Rust's retained
+dual-root namespace decision instead of treating namespace-agnostic native
+gateway routing as ICANN. On a physical Pixel 9 running API 37, the new HNS
+activity regression failed against the pre-fix path by showing DNSSEC/synthetic
+ICANN details; after the correction, the paired HNS and ICANN activity tests
+pass. Required emulator CI is configured for both regressions, but its remote
+result remains pending. Signed code 47 artifacts, the Google Play upload, the
+`v0.5.6` tag, and GitHub Release publication remain pending.
 
 The currently published Google Play production release remains `0.5.5` / code
 `46`, built from source

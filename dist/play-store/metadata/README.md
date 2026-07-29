@@ -3,10 +3,20 @@
 This directory contains the source text and field checklist for the Google
 Play Console update to package `com.denuoweb.hnsdane`. The current package
 being prepared is the Android-only `0.5.6` hotfix, code `47`, with shared Rust
-engine `0.5.6`; the iOS app is unchanged. Rust 1.92's `std::fs::File::lock` is
-unsupported on Android, which caused the previous Android runtime to report
-`rust-core-unavailable` before HNS synchronization could start. The hotfix
-preserves the coordination protocol using Android bionic `libc::flock`.
+engine `0.5.6`; the iOS app is unchanged at its existing build `57`. Rust
+1.92's `std::fs::File::lock` is unsupported on Android, which caused the
+previous Android runtime to report `rust-core-unavailable` before HNS
+synchronization could start. The hotfix preserves the coordination protocol
+using Android bionic `libc::flock`. It also keeps proof diagnostics tied to
+Rust's retained dual-root decision, so an HNS-selected result is no longer
+mislabeled as ICANN merely because all DNS traffic uses the native gateway.
+
+On a physical Pixel 9 running API 37, the new HNS Proof Details activity test
+first failed against the pre-fix behavior by showing DNSSEC/synthetic ICANN
+details. After the selector correction, paired HNS-proof and ICANN-DNSSEC
+activity tests pass. Required CI is configured to run those tests with the
+fresh-runtime regression on an API 37 x86_64 emulator, but no completed remote
+result is recorded.
 
 No signed code 47 APK or AAB, Play edit/upload/commit, `v0.5.6` tag, or GitHub
 Release is recorded as completed yet. The historical Google Play production
@@ -54,5 +64,7 @@ gates. Evidence:
 
 Code 47 evidence will be added only after its build, signing, verification, and
 upload complete. The credentialed upload AAB is intentionally not committed.
-Physical-device upgrade, cold-launch, and behavior qualification remain open.
-The canonical hosted privacy policy is aligned with the repository disclosure.
+The focused Pixel 9 debug regressions do not replace physical-device upgrade,
+cold-launch, exact-artifact, or broader behavior qualification, which remain
+open. The canonical hosted privacy policy is aligned with the repository
+disclosure.

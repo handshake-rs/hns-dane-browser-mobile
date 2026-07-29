@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import com.denuoweb.hnsdane.R
-import com.denuoweb.hnsdane.core.HnsHostPolicy
 import com.denuoweb.hnsdane.net.NativeBridge
 import org.json.JSONArray
 import org.json.JSONObject
@@ -24,8 +23,7 @@ class HnsProofDetailsActivity : ComponentActivity() {
 
         val host = proofHost()
         val trace = parsedTrace()
-        val isIcann =
-            HnsResolutionTraceFormat.isIcann(trace) || HnsHostPolicy.isNativeGatewayHost(host, NativeBridge)
+        val isIcann = proofDetailsUsesIcann(traceJson)
         val detailsJson = if (host.isBlank()) {
             """{"host":"","name":null,"nameHash":null,"hnsProof":"error","proofStatus":"error","secure":null,"exists":null,"treeRoot":null,"blockHeight":null,"cacheStatus":"invalid_input","resourceValueHex":null,"recordTypes":[],"resourceRecords":[],"currentTip":null,"error":"no_hns_host_available"}"""
         } else if (isIcann) {

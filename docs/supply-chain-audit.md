@@ -25,7 +25,8 @@ Last audited: 2026-07-29
 - `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. Cargo Git inputs are denied except for `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` from the canonical `handshake-rs/hns-dane-engine` repository: every manifest revision and locked source must equal the reviewed `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` commit, and focused policy tests reject alternate URLs, moving selectors, mismatched lock revisions, or any additional Git package. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
 - Android JNI release builds reject unknown profiles, compiler/linker/profile overrides, and unexpected cargo-ndk/NDK versions; use `--locked`; force the release profile; require both ABI outputs; and restrict cleanup to `android/app/build`. Path-prefix maps remove checkout, home, Cargo, Rustup, and NDK paths while retaining line-table debug information for AGP. Gradle pins AGP to NDK `28.2.13676358`, treats the NDK location and `source.properties` as incremental inputs, and includes Rust `.txt` data files such as the ICANN TLD snapshot.
 - The required Android job now enables KVM and runs the focused fresh-runtime
-  instrumentation regression on a Google APIs API 37 x86_64 emulator through
+  regression plus paired HNS/ICANN Proof Details activity instrumentation on a
+  Google APIs API 37 x86_64 emulator through
   `ReactiveCircus/android-emulator-runner` pinned to full commit
   `e89f39f1abbbd05b1113a29cf4db69e7540cae5a`. Adding the job is not remote
   completion evidence; its successful run remains a release gate.
@@ -57,11 +58,21 @@ Last audited: 2026-07-29
   support in
   [rust-lang/rust#157038](https://github.com/rust-lang/rust/pull/157038) for
   Rust 1.98, after this workspace's pinned toolchain.
+- Android Proof Details previously combined the retained trace with
+  native-gateway routing when choosing HNS versus ICANN presentation. Because
+  every canonical DNS host enters that namespace-agnostic gateway, a retained
+  HNS selection was replaced with DNSSEC/synthetic ICANN details. The selector
+  now accepts only an outcome-consistent ICANN decision from Rust's retained
+  `namespaceResolution`; malformed, legacy-only, contradictory, and oversized
+  traces do not authorize ICANN presentation.
 - Connected Pixel 9 debug validation opened fresh regtest storage at height `0`
   with `error: null`, recovered preserved data to snapshot height
-  `300000`, and returned `syncing` with `error: null` after manual **Run**.
-  Required CI now contains a focused API 37 emulator test for the fresh native
-  runtime path.
+  `300000`, and returned `syncing` with `error: null` after manual **Run**. On
+  the physical Pixel 9 running API 37, the HNS Proof Details instrumentation
+  failed against the pre-fix path with DNSSEC/synthetic ICANN details and then
+  passed beside the paired ICANN case after the correction. Required CI now
+  contains the fresh-runtime and paired proof-details API 37 emulator
+  regressions; the remote result remains pending.
 - No signed code 47 APK/AAB, Google Play upload/track assignment, GitHub tag or
   Release, or completed remote CI run is claimed at this checkpoint.
 - The five engine crates remain pinned to reviewed immutable
