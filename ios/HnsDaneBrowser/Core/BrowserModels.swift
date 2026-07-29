@@ -341,6 +341,18 @@ struct ProvisionalNavigationFailureRecoveryPolicy {
     private static let secondReplayBackoff: TimeInterval = 0.5
     private let replayPolicy = NavigationReplayPolicy()
 
+    func suppressesSupersededPolicyInterruption(
+        error: NSError,
+        isSupersededNavigation: Bool
+    ) -> Bool {
+        // WebKit's legacy error domain reports an intentionally superseded provisional
+        // main-frame load as FrameLoadInterruptedByPolicyChange (102). Suppress only a
+        // stale navigation identity; the same error for the current load remains visible.
+        isSupersededNavigation
+            && error.domain == "WebKitErrorDomain"
+            && error.code == 102
+    }
+
     func evaluateNavigationAction(
         isAutomaticFailureReplay: Bool,
         hasActiveRecovery: Bool

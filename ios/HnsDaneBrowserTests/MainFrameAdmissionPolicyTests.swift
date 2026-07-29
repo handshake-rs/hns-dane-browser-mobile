@@ -56,6 +56,38 @@ final class NavigationReplayPolicyTests: XCTestCase {
 final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
     private let policy = ProvisionalNavigationFailureRecoveryPolicy()
 
+    func testSupersededPolicyInterruptionIsSuppressedOnlyForStaleNavigation() {
+        let interruption = NSError(
+            domain: "WebKitErrorDomain",
+            code: 102
+        )
+
+        XCTAssertTrue(
+            policy.suppressesSupersededPolicyInterruption(
+                error: interruption,
+                isSupersededNavigation: true
+            )
+        )
+        XCTAssertFalse(
+            policy.suppressesSupersededPolicyInterruption(
+                error: interruption,
+                isSupersededNavigation: false
+            )
+        )
+        XCTAssertFalse(
+            policy.suppressesSupersededPolicyInterruption(
+                error: NSError(domain: "WebKitErrorDomain", code: 101),
+                isSupersededNavigation: true
+            )
+        )
+        XCTAssertFalse(
+            policy.suppressesSupersededPolicyInterruption(
+                error: NSError(domain: NSURLErrorDomain, code: 102),
+                isSupersededNavigation: true
+            )
+        )
+    }
+
     func testAutomaticReplayAndInterveningActionsPreserveRecoveryBoundary() {
         XCTAssertEqual(
             policy.evaluateNavigationAction(

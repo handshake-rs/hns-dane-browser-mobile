@@ -926,6 +926,14 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
         withError error: Error
     ) {
         guard self.webView === webView else { return }
+        if let navigation,
+           let trackedProvisionalNavigation,
+           provisionalFailureRecoveryPolicy.suppressesSupersededPolicyInterruption(
+               error: error as NSError,
+               isSupersededNavigation: trackedProvisionalNavigation !== navigation
+           ) {
+            return
+        }
         if recoverProvisionalNavigationIfAllowed(
             in: webView,
             navigation: navigation,
