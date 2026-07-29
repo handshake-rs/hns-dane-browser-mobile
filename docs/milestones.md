@@ -103,8 +103,9 @@
 - Published the iPhone app on the Apple App Store; version `0.5.0` was the
   public baseline observed on 2026-07-28. Version `0.5.4` / build `48` is
   predecessor upload evidence, and `0.5.5` / build `49` is a superseded App
-  Store Connect upload. Version `0.5.5` / build `50` is the current source
-  update candidate.
+  Store Connect upload. Version `0.5.5` / build `50` reproduced the transient
+  connection-loss alert in a clean simulator run and was not uploaded. Version
+  `0.5.5` / build `51` is the current source update candidate.
 - Installed-device qualification gate: run and document the signed
   physical-device WebKit matrix for main frames, subresources, Service Workers,
   WebSockets, downloads, background/resume, and renderer/network-process
