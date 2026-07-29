@@ -9,19 +9,20 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Prepared the coordinated public update as shared Rust engine `0.5.5`,
-  Android `0.5.5` (build 45), and iOS `0.5.5` (build 53).
+  Android `0.5.5` (build 45), and iOS `0.5.5` (build 54).
 
 ### Fixed
 
 - Accepted revision `0` from the Apple Rust bridge when the unchanged default
   runtime policy is reapplied. Fresh iOS installs now finish secure-browser
   preparation instead of showing `Unable to prepare secure browsing`.
-- Replays an idempotent iOS main-frame request at most twice when WebKit reports
-  a transient connection loss. Each replay waits for the active sync to release
-  maintenance, the second uses a short bounded backoff and fresh safe point,
-  and recovery remains bound to the exact failed `WKNavigation` identities.
-  Unsafe methods and a failed final retry remain visible rather than being
-  replayed.
+- Recovers an idempotent iOS main-frame request at most twice when WebKit
+  reports a transient provisional connection loss. Each attempt waits for the
+  active sync to release maintenance, then replaces the native proxy generation
+  and `WKWebView` instead of reusing a poisoned connection context. The second
+  attempt uses a short bounded backoff and fresh safe point, and recovery remains
+  bound to the exact failed `WKNavigation` identities. Unsafe methods and a
+  failed final attempt remain visible rather than being replayed.
 
 ## 0.5.4 - 2026-07-28
 

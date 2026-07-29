@@ -108,7 +108,9 @@
   `0.5.5` / build `51` was pushed, but validation was canceled and it was not
   uploaded. Version `0.5.5` / build `52` passed exact CI, but a live capture
   reproduced a second bounded startup connection loss and its upload was
-  canceled. Version `0.5.5` / build `53` is the current source update candidate.
+  canceled. Version `0.5.5` / build `53` passed exact CI, but its live capture
+  exhausted two same-connection recovery attempts and it was not uploaded.
+  Version `0.5.5` / build `54` is the current source update candidate.
 - Installed-device qualification gate: run and document the signed
   physical-device WebKit matrix for main frames, subresources, Service Workers,
   WebSockets, downloads, background/resume, and renderer/network-process

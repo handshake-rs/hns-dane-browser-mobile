@@ -9,11 +9,12 @@ The committed application identity is:
 - Display name: `HNS DANE Browser`
 - Deployment floor: iOS 17.0
 - Public App Store baseline observed 2026-07-28: `0.5.0`
-- Current iOS release candidate: `0.5.5` (`53`); build `48` is predecessor,
+- Current iOS release candidate: `0.5.5` (`54`); build `48` is predecessor,
   build `49` is superseded App Store Connect upload evidence, and build `50`
   failed the clean simulator run before upload; build `51` was pushed, but its
   validation was canceled, while build `52` passed exact CI but failed its live
-  startup capture; neither was uploaded
+  startup capture; build `53` passed exact CI but exhausted its bounded
+  same-connection recovery during live capture; none was uploaded
 - Device family: iPhone
 
 ## One-time Apple setup
@@ -71,7 +72,7 @@ The workflow then:
 3. verifies the identity and profile against the fixed team and bundle IDs, then creates a Release archive using manual App Store distribution signing in a disposable keychain;
 4. verifies the archived app identity and compiled AppIcon catalog, then
    exports the signed IPA, validates/exports the archive with App Store Connect
-   authentication, uploads build `53`, and retains
+   authentication, uploads build `54`, and retains
    `ios-app-store-ipa-<commit>` for release publication;
 5. deletes the temporary keychain, installed profile, API key, `.p12`, and profile while GitHub discards the runner.
 
@@ -79,10 +80,12 @@ Apple associates the uploaded build with the app record using its bundle ID,
 version, and build number. Build `49` has already been uploaded. Build `50`
 remained a simulator-only candidate, build `51` validation was canceled, and
 build `52` passed exact CI but failed its live startup capture; none was
-uploaded. This bounded navigation-recovery update uses build `53`. A rerun
-after Apple accepts build `53` requires another higher build number.
+uploaded. Build `53` passed exact CI but its live capture showed that retrying
+the same WebKit/proxy connection context was insufficient. This bounded
+fresh-connection recovery update uses build `54`. A rerun after Apple accepts
+build `54` requires another higher build number.
 
-Build `53` declares `ITSAppUsesNonExemptEncryption = false` because the
+Build `54` declares `ITSAppUsesNonExemptEncryption = false` because the
 candidate uses only industry-standard cryptography and excludes France from
 App Store availability. Do not add an export-compliance code to this build.
 Before enabling France, complete the French encryption declaration; after
