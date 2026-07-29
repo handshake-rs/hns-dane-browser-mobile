@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.6 - 2026-07-29
+
+### Changed
+
+- Prepared the Android-only `0.5.6` hotfix (`versionCode 47`) with shared Rust
+  engine `0.5.6`. iOS remains unchanged at `0.5.5` (build 57).
+- Signed code 47 artifacts, Google Play upload and commit, the `v0.5.6` tag,
+  and GitHub Release publication remain pending and are not recorded here as
+  completed.
+
+### Fixed
+
+- Fixed Android native-runtime startup after the cross-process header
+  coordination added in `0.5.4`. Rust 1.92 does not implement
+  `std::fs::File::lock` on Android, so the `0.5.5` release returned
+  `Unsupported` while opening `.header-state.lock`; JNI then reported
+  `rust-core-unavailable` before HNS synchronization could start.
+- Uses Android bionic `libc::flock` for shared, exclusive, nonblocking, and
+  unlock operations while retaining the same fail-closed coordination
+  protocol.
+
 ## 0.5.5 - 2026-07-29
 
 ### Changed

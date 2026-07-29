@@ -11,7 +11,16 @@ and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 - [GitHub Release v0.5.5](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.5)
 
-Google Play production contains `0.5.5` / code `46`, built from source
+Current source is preparing Android `0.5.6` / code `47` with shared Rust engine
+`0.5.6` as an Android-only hotfix. iOS remains unchanged at `0.5.5` / build
+`57`. Rust 1.92's `std::fs::File::lock` is unsupported on Android, causing the
+`0.5.5` runtime to report `rust-core-unavailable` before synchronization could
+start; the hotfix uses Android bionic `libc::flock` for the same advisory-lock
+coordination. Signed code 47 artifacts, the Google Play upload, the `v0.5.6`
+tag, and GitHub Release publication remain pending.
+
+The currently published Google Play production release remains `0.5.5` / code
+`46`, built from source
 `d24f85158854abb8be4a7bb9e914aebe5e7e4679`. The Apple App Store baseline
 observed on 2026-07-28 was `0.5.0`; iOS `0.5.5` / build `57` is the matching
 update. Apple source `d926561091634cd69fc9b7e79a4b76003fa4ee47` adds the

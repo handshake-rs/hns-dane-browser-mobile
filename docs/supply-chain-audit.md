@@ -16,12 +16,19 @@ Last audited: 2026-07-29
   [run 30323566765](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30323566765),
   and docs-only HEAD `153db03` passed repository policy and Required CI in
   [run 30393560141](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/30393560141).
+  Those remain historical runs; no completed remote run is claimed for the
+  current `0.5.6` hotfix source.
 - Dependabot watches GitHub Actions, Gradle, and all three Cargo lockfile roots weekly.
 - Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums; the only locked Git packages are the five exact-revision engine exceptions detailed below.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
 - Gradle 9.6.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
 - `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. Cargo Git inputs are denied except for `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` from the canonical `handshake-rs/hns-dane-engine` repository: every manifest revision and locked source must equal the reviewed `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` commit, and focused policy tests reject alternate URLs, moving selectors, mismatched lock revisions, or any additional Git package. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
 - Android JNI release builds reject unknown profiles, compiler/linker/profile overrides, and unexpected cargo-ndk/NDK versions; use `--locked`; force the release profile; require both ABI outputs; and restrict cleanup to `android/app/build`. Path-prefix maps remove checkout, home, Cargo, Rustup, and NDK paths while retaining line-table debug information for AGP. Gradle pins AGP to NDK `28.2.13676358`, treats the NDK location and `source.properties` as incremental inputs, and includes Rust `.txt` data files such as the ICANN TLD snapshot.
+- The required Android job now enables KVM and runs the focused fresh-runtime
+  instrumentation regression on a Google APIs API 37 x86_64 emulator through
+  `ReactiveCircus/android-emulator-runner` pinned to full commit
+  `e89f39f1abbbd05b1113a29cf4db69e7540cae5a`. Adding the job is not remote
+  completion evidence; its successful run remains a release gate.
 - The unsigned bundle gate requires an exact two-library ABI inventory, `PAGE_ALIGNMENT_16K`, bounds-safe ELF64 ET_DYN files with the expected machine, 16 KiB PT_LOAD alignment, RELRO, one non-executable GNU stack, immediate binding, no text relocations, SHA-1 Build IDs, stripped shipping libraries, matching FULL debug metadata, no local paths, a non-empty R8 mapping, and non-empty third-party notices.
 - The signed Play bundle gate reads every content entry through Java's verifying `JarFile`, rejects bad digests, unsigned entries, mixed signers, or a signer that does not match `HNS_DANE_BROWSER_UPLOAD_CERTIFICATE_SHA256`, and depends on the unsigned structural gate.
 - The third-party notices generator derives the locked Android release-runtime inventory and the shipping Rust dependency closures for both Android and Apple targets, reproduces available license/notice text, commits a full-asset SHA-256, and is checked by `scripts/check.sh` without requiring dependency resolution in CI. The same reviewed notice asset is packaged by both application shells, and both FFI manifests are included in its input fingerprint.
@@ -29,10 +36,42 @@ Last audited: 2026-07-29
 
 ## Audit Results
 
-### Current `0.5.5` Release Checkpoint
+### Current `0.5.6` Android Hotfix Checkpoint
 
-- Android declares `0.5.5` / code 46, the shared Rust workspace declares
-  `0.5.5`, and iOS declares `0.5.5` / build 57. The Apple shell now accepts the
+- Android declares `0.5.6` / code 47 and the shared Rust workspace declares
+  `0.5.6`. iOS is deliberately unchanged at `0.5.5` / build 57.
+- Root cause analysis found a target-support defect rather than a bad cache,
+  missing native library, or stale app data. Rust 1.92's stable
+  `std::fs::File::{lock, lock_shared, try_lock_shared, unlock}` implementation
+  omitted Android from the targets that call `flock`, so the first exclusive
+  header-state lock returned `ErrorKind::Unsupported`. Fresh
+  `BrowserRuntime::open` therefore failed during header-state initialization,
+  JNI returned no runtime handle, and the Kotlin fallback exposed unknown
+  height/target/freshness values.
+- The hotfix keeps Rust 1.92 and routes Android lock operations through
+  `libc::flock`, including EINTR retry and explicit WouldBlock handling for the
+  nonblocking shared probe. `libc 0.2.186` was already checksum-locked and
+  present in the shipping dependency inventory, so the direct target
+  dependency adds no new registry package; the generated notice fingerprints
+  and asset digest were refreshed. Rust merged the equivalent standard-library
+  support in
+  [rust-lang/rust#157038](https://github.com/rust-lang/rust/pull/157038) for
+  Rust 1.98, after this workspace's pinned toolchain.
+- Connected Pixel 9 debug validation opened fresh regtest storage at height `0`
+  with `error: null`, recovered preserved data to snapshot height
+  `300000`, and returned `syncing` with `error: null` after manual **Run**.
+  Required CI now contains a focused API 37 emulator test for the fresh native
+  runtime path.
+- No signed code 47 APK/AAB, Google Play upload/track assignment, GitHub tag or
+  Release, or completed remote CI run is claimed at this checkpoint.
+- The five engine crates remain pinned to reviewed immutable
+  `handshake-rs/hns-dane-engine` commit
+  `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
+
+### Historical `0.5.5` Release Evidence
+
+- Android `0.5.5` / code 46 and shared Rust `0.5.5` were released while iOS
+  `0.5.5` / build 57 remained the Apple submission. The Apple shell accepts the
   valid zero revision returned when a fresh runtime reapplies its unchanged
   default policy, so first-install preparation does not fail before browsing.
   Proxy admission now remains suspended until a matching schema-v2 status
@@ -51,7 +90,6 @@ Last audited: 2026-07-29
   summary-only sync polling, and Reload now forces origin revalidation through
   the active proxy so a cached main frame cannot be presented as newly trusted
   without an exact Rust status.
-- The five engine crates are pinned to reviewed immutable `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
 - The exact `0.5.4` candidate commit `8ffc296` passed the complete portable
   Rust/supply-chain, Android build/test/lint/bundle-structure, and Apple
   ABI/XCFramework/XCTest/simulator/device-link matrix in CI run 30402803553.
@@ -89,7 +127,8 @@ Last audited: 2026-07-29
 - The upload-signed code 40 APK used the established RSA-4096 signer, passed APK Signature Scheme v2 and 16 KiB ZIP alignment, and had SHA-256 `bff5ba468b0c5ad2d134603127f089ad6fdc9e9b5ceab921825e570cfefd60fb`.
 - The upload-signed AAB passed content-signature, ABI, 16 KiB ELF-alignment, hardening, stripping, matching-symbol, local-path, mapping, and notices gates and had SHA-256 `96c5926c559881ba74e380eea062dce3de6cefaf91d3753882e528cccc96e1d0`.
 - The separate debug test APK used package `com.denuoweb.hnsdane.relaytest`, version `0.5.0-relay-test` / code 40, and SHA-256 `019aeb82b84de878716637fd053321a4590e0c384de3010e885af7e154803990`.
-- Those artifacts predate the current source and do not validate or identify the `0.5.5` release.
+- Those artifacts predate both the historical `0.5.5` release and the current
+  `0.5.6` source checkpoint; they validate neither.
 
 ### Historical `0.4.1` Evidence
 
@@ -111,3 +150,6 @@ Last audited: 2026-07-29
 - Code 46 was accepted by Google Play with the established upload identity.
   The signature-aware bundle gate remains the local fail-closed check for
   future uploads.
+- Code 47 still requires completed remote gates, signed artifact verification,
+  exact-artifact device qualification, Play upload, and post-commit API
+  readback before it can replace code 46 as production evidence.

@@ -23,8 +23,8 @@ Generator schema: 2
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 7001a4117e71d63c36e4db3bd914282dd21f811cb00a7a836313a72a17e4ac8e
   scripts/verify_cargo_git_policy.py = ab1914031ba0b2cb73b1c5a613fea6c934497f1adf945723541a409b677b33d2
-  rust/Cargo.toml = 74db48339b2b1602708e67afe6f0d7eb27a4b4092cd3adaa622e6fc8d06b207a
-  rust/Cargo.lock = 74a144ceb8d9a61d418c7dafaf262139f242f8e6c6bf9cb58a23663d6a7d955b
+  rust/Cargo.toml = 08c774978d309007c590086ea37d85bdae18e08ec7189d9604a65fb357bbef2a
+  rust/Cargo.lock = 98f8b8f75e59930a0183067d50e6ad5a67b5a9116025c7ad7cc271dffc505fbb
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d

@@ -1,1 +1,1 @@
-0.5.5 retains responsive validated Handshake header sync, atomic header and peer publication, and hardened owner recovery. It also fixes dual-root ICANN browsing when validating DNS replies contain compressed negative records or resolution spans a clock tick.
+0.5.6 fixes an Android runtime startup failure caused by Rust 1.92's unsupported File::lock path. Header coordination now uses Android's libc::flock path instead. The iOS app is unchanged.

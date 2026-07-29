@@ -6,10 +6,11 @@ This table records the versions actually configured for the shipping build. Andr
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `0.5.5` / code `46` | `android/app/build.gradle.kts` |
-| Shared Rust workspace | `0.5.5` | `rust/Cargo.toml` |
-| iOS app | `0.5.5` / build `57` | `ios/project.yml` |
+| Android app | `0.5.6` / code `47` | `android/app/build.gradle.kts` |
+| Shared Rust workspace | `0.5.6` | `rust/Cargo.toml` |
+| iOS app | `0.5.5` / build `57` (unchanged) | `ios/project.yml` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
+| Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
 | Canonical engine contracts | `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5` | Cargo manifests and lock |
 | Android SDK | compile/target `37`, minimum `34` | `android/app/build.gradle.kts` |
 | iOS deployment floor | `17.0` | `ios/project.yml` |
@@ -61,6 +62,24 @@ Notes:
   headers, peer evidence, and readiness; unchanged-header peer refreshes do
   not invalidate active requests, and incomplete or superseded state fails
   closed.
+- Android `0.5.6` / code `47` is a focused runtime-opening hotfix. Rust 1.92's
+  stable `std::fs::File` locking implementation omitted Android from its
+  supported target list, so the first exclusive header-state lock returned
+  `Unsupported` even though Android provides `flock(2)`. That prevented
+  `BrowserRuntime::open` from completing and left sync status at unknown
+  heights. The workspace now uses the already locked `libc 0.2.186` to call
+  Android `flock` for shared, exclusive, nonblocking, and unlock operations.
+- The equivalent standard-library Android support was merged upstream in
+  [rust-lang/rust#157038](https://github.com/rust-lang/rust/pull/157038) for
+  Rust 1.98. This project remains pinned to Rust 1.92, so the target-local shim
+  remains necessary until a separately reviewed toolchain upgrade removes it.
+- Connected Pixel 9 debug validation covered a fresh regtest runtime at height
+  `0` with `error: null`, recovery of preserved data to snapshot height
+  `300000`, and a manual **Run** transition to `syncing` with `error: null`.
+  Required CI now includes the fresh-runtime regression on an API 37 x86_64
+  Android emulator. These are source and debug-device checks only: no signed
+  code `47` artifact, Play upload, GitHub tag/release, or completed remote CI
+  run is claimed here.
 - Gateway-generated HNS error pages now include the requested URL above the status line so repeated 502 validation pages show which address failed.
 - Gateway failure diagnostics are now persisted in app-private storage as a bounded, sanitized recent-event log containing only stage, host, status, and reason. URL paths, query strings, headers, and bodies are not written to the default diagnostic log.
 - An Android instrumentation test now validates the real HNS CONNECT termination path on-device: the loopback proxy generates a native per-host TLS certificate, completes a TLS handshake, pins the certificate fingerprint for WebView SSL policy, rejects an ICANN URL for that pinned certificate, and forwards a bounded HNS HTTPS POST body through the native gateway bridge.

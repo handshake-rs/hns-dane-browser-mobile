@@ -1,6 +1,6 @@
 # Complete Rust Handshake Ecosystem: Mobile Delta Audit
 
-Last audited: 2026-07-28
+Last audited: 2026-07-29
 
 This audit maps this checkout only to `Complete Rust Handshake Ecosystem.pdf`
 (57 pages, SHA-256
@@ -17,7 +17,7 @@ It does not claim that the coordination-wide PDF is complete.
 | PDF requirement | Status in this checkpoint | Evidence or remaining work |
 | --- | --- | --- |
 | Retain Android, iOS, Kotlin, Swift, JNI, Apple ABI, WebView, WKWebView, lifecycle, packaging, store metadata, and CI | Retained | The existing platform shells and release workflows remain. The JNI and C ABI keep their legacy field layout for upgrade compatibility. |
-| Atomic staged header synchronization | Implemented locally | Network I/O, quorum collection, snapshot preparation, and peer merging occur in a private SQLite stage. Generation-and-tip-bound publication atomically exposes headers, peers, and readiness under cross-process locks; unchanged-header peer refresh does not invalidate active requests, and incomplete or superseded state fails closed. |
+| Atomic staged header synchronization | Implemented locally | Network I/O, quorum collection, snapshot preparation, and peer merging occur in a private SQLite stage. Generation-and-tip-bound publication atomically exposes headers, peers, and readiness under cross-process locks; unchanged-header peer refresh does not invalidate active requests, and incomplete or superseded state fails closed. On Android, the pinned Rust 1.92 toolchain requires the target-local `libc::flock` shim because its stable `File::lock` implementation returns `Unsupported`; equivalent upstream support is merged for Rust 1.98. |
 | Full-host dual-root namespace decision | Implemented through the standalone engine contract | Android and iOS send every canonical DNS host to one retained Rust preparation boundary. HNS and ICANN independently resolve the complete host, A and AAAA endpoint sets, aliases, HTTPS/SVCB service policy, and transport-aware TLSA owner. The engine distinguishes HNS only, ICANN only, convergent, divergent, and neither; explicit pin precedes sticky success and the ICANN default. The selected immutable plan is the sole source of endpoints, protocol, trust, trace, and errors, and later DNS is rejected. The IANA list is no longer an authoritative browser classifier. |
 | HNS HTTPS never falls back to WebPKI | Implemented locally | The selected HNS plan requires secure TLSA/DANE. Missing, insecure, bogus, or mismatched evidence remains fail-closed. Secure HNS address presence without the required TLSA is a root failure, not authenticated namespace absence, so an ICANN plan cannot hide the unresolved HNS trust policy. |
 | Automatic ICANN DANE with constrained WebPKI | Implemented through the standalone engine contract | Every DNS-named HTTPS/WSS request enters the dual-root gateway. `hns-icann-dane` derives `_port._tcp.host.` or `_port._udp.host.` from the actual retained service plan, enforces DNSSEC-secure TLSA, and admits WebPKI only for authenticated denial or a proven insecure delegation. ICANN DoH connects only to pinned bootstrap addresses while authenticating the configured hostname. Bogus/indeterminate DNSSEC, malformed TLSA, timeout, resolver error, and invalid owner derivation fail closed. |
@@ -29,7 +29,7 @@ It does not claim that the coordination-wide PDF is complete.
 | Consume the standalone `hns-dane-engine` | Integrated through immutable canonical source | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact `handshake-rs/hns-dane-engine` commit `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`; the lockfile records the same source. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), while the normalized recovery URL maps to generation-bound `user_configured_recursive_hns_doh`. Live resolution follows direct authority UDP/TCP → owner-published authenticated authoritative DoH → independently admitted relay → configured recursive recovery; unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
 | Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
-| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Exact-build physical Android and mobile-network qualification remains a release gate. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
+| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. A connected Pixel 9 debug run now covers fresh native-runtime opening, preserved sync-state recovery, and manual sync after the Android lock hotfix; exact signed code 47 physical Android and mobile-network qualification remains a release gate. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
 
 ## Security Invariants for the Current Feature Set
 
@@ -113,8 +113,10 @@ Portable Rust, Android source, and host Apple-ABI checks can run on Linux. The
 complete iOS gate still requires macOS, Xcode 26.5/26.6, the iOS 26.5 SDK, and
 an iOS simulator; signed device behavior requires a separate physical-device
 pass. Android instrumentation requires an installed SDK/NDK and a device or
-emulator. Store binaries and previously recorded hashes must be rebuilt after
-this source checkpoint before they can be release evidence.
+emulator. Required CI now includes the focused fresh-runtime regression on an
+API 37 x86_64 emulator, but no completed remote run is claimed for the current
+hotfix source. Store binaries and previously recorded hashes must be rebuilt
+after this source checkpoint before they can be release evidence.
 
 The five shared engine crates resolve from immutable
 `handshake-rs/hns-dane-engine` commit
@@ -135,8 +137,29 @@ WebKit network-process behavior.
 
 ## Checkpoint Verification
 
-The `0.5.5` release source continues to pin engine revision
+### Current `0.5.6` Android Hotfix
+
+Current source declares Android `0.5.6` / code `47` and shared Rust `0.5.6`,
+while iOS remains unchanged at `0.5.5` / build `57`. It continues to pin engine
+revision
 `7f7bb8fa100c2393f2cd5a64c64bf5e20a0f3ab5`.
+
+- Rust 1.92 omitted Android from the standard `File::lock`,
+  `lock_shared`, `try_lock_shared`, and `unlock` implementation, causing the
+  first header-state lock to return `Unsupported` and native runtime creation
+  to fail. The Android target now calls the already locked `libc 0.2.186`
+  `flock` implementation with the same shared/exclusive/nonblocking/unlock
+  semantics. Rust's equivalent upstream change
+  [rust-lang/rust#157038](https://github.com/rust-lang/rust/pull/157038) is in
+  the Rust 1.98 release train; this workspace remains on Rust 1.92.
+- Connected Pixel 9 debug validation opened fresh regtest storage at height `0`
+  with `error: null`, recovered preserved data to snapshot height
+  `300000`, and returned `syncing` with `error: null` after manual **Run**.
+- Required CI now runs the focused fresh-runtime instrumentation test on an API
+  37 Google APIs x86_64 emulator. Remote completion remains pending. No signed
+  code `47` artifact, Play upload, GitHub tag, or GitHub Release is claimed.
+
+### Historical `0.5.5` Release Evidence
 
 - Local Rust validation passed 764 tests with no failures and one ignored
   benchmark; strict Clippy, formatting, and workspace checks passed.
@@ -165,9 +188,10 @@ The `0.5.5` release source continues to pin engine revision
   build 57 IPA at annotated tag source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`.
 
-These gates verify portable, Android package, hosted Apple build, and live
-simulator behavior. They do not prove the separate signed physical Android or
+Those historical gates verify the `0.5.5` portable, Android package, hosted
+Apple build, and live simulator behavior. They do not validate the current code
+`47` release artifact or prove the separate signed physical Android or
 real-iPhone matrices for WebView/WebKit process restarts, lifecycle changes,
-Service Workers, downloads, WebSockets, and cross-origin subresources. Those
-installed-device rows remain open and are not prerequisites for App Store
-Connect upload or direct App Review submission, both of which are complete.
+Service Workers, downloads, WebSockets, and cross-origin subresources. The
+installed-device rows remain open. The unchanged iOS `0.5.5` / build `57` App
+Store Connect upload and direct App Review submission remain complete.
