@@ -276,12 +276,39 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             scrollUp(in: table, untilFullyVisible: proofRow),
             "HNS proof details setting did not become visible"
         )
-        proofRow.tap()
 
-        let identifiedContent = app.textViews["browser-proof-details.content"]
-        let proofContent = identifiedContent.waitForExistence(timeout: timeout)
-            ? identifiedContent
-            : app.textViews.firstMatch
+        // The foreground sync poll refreshes and reloads Settings every two
+        // seconds. Anchor the tap to the stable table coordinate so a recycled
+        // cell cannot invalidate the activation point between lookup and tap.
+        let rowFrame = proofRow.frame
+        let tableFrame = table.frame
+        XCTAssertFalse(rowFrame.isEmpty, "HNS proof details row had no frame")
+        XCTAssertFalse(tableFrame.isEmpty, "Settings table had no frame")
+        XCTAssertTrue(
+            rowFrame.midY.isFinite
+                && tableFrame.minY.isFinite
+                && tableFrame.height.isFinite,
+            "HNS proof details geometry was not finite"
+        )
+        let normalizedY = (rowFrame.midY - tableFrame.minY) / tableFrame.height
+        XCTAssertTrue(
+            (0.0...1.0).contains(normalizedY),
+            "HNS proof details row was outside the Settings table"
+        )
+        table.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: normalizedY)
+        ).tap()
+        XCTAssertTrue(
+            waitUntil(
+                description: "HNS proof action selection",
+                timeout: 10,
+                condition: {
+                    !self.app.tables["settings.table"].exists
+                }
+            )
+        )
+
+        let proofContent = app.textViews["browser-proof-details.content"]
         XCTAssertTrue(
             waitUntil(
                 description: "live proof details",
@@ -361,6 +388,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                 let elementFrame = element.frame
                 let viewport = table.frame
                 if !elementFrame.isEmpty,
+                   element.isHittable,
                    elementFrame.minY >= viewport.minY,
                    elementFrame.maxY <= viewport.maxY {
                     return true
