@@ -151,8 +151,13 @@ jobs:
             "platforms;android-37.0" \
             "build-tools;36.0.0" \
             "ndk;28.2.13676358"
-          # The runner's command-line tools 12 miswrite android-37.0 AVD targets.
-          echo "${ANDROID_SDK_ROOT}/cmdline-tools/22.0/bin" >> "$GITHUB_PATH"
+          # The action prepends cmdline-tools/latest, so promote the pinned
+          # version over the runner's v12 directory that miswrites API 37 AVDs.
+          mv "${ANDROID_SDK_ROOT}/cmdline-tools/latest" \
+            "${RUNNER_TEMP}/android-cmdline-tools-preinstalled"
+          ln -s "${ANDROID_SDK_ROOT}/cmdline-tools/22.0" \
+            "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
+          [[ "$("${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --version)" == "22.0" ]]
 
       - name: Enable KVM group permissions
         run: |
