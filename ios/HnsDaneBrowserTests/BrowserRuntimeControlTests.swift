@@ -472,6 +472,45 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
+    func testIOSSettingsDoNotReloadForSyncSummaryOnlyUpdates() {
+        let settings = BrowserSettingsViewController(
+            policy: .default,
+            runtimeControlsAreAvailable: true,
+            syncSummary: .unavailable
+        )
+        settings.loadViewIfNeeded()
+        let table = ReloadCountingTableView(frame: .zero, style: .insetGrouped)
+        settings.tableView = table
+        let initialReloadCount = table.reloadDataCallCount
+
+        for height in 1...3 {
+            settings.update(
+                policy: .default,
+                runtimeControlsAreAvailable: true,
+                isOperationInFlight: false,
+                syncSummary: BrowserSyncSummary(
+                    headline: "Handshake sync \(height)",
+                    detail: "Local height \(height)",
+                    status: "syncing",
+                    network: "mainnet",
+                    bestHeight: UInt64(height)
+                )
+            )
+        }
+
+        XCTAssertEqual(table.reloadDataCallCount, initialReloadCount)
+
+        settings.update(
+            policy: .default,
+            runtimeControlsAreAvailable: true,
+            isOperationInFlight: false,
+            syncSummary: .unavailable,
+            historyCount: 1
+        )
+        XCTAssertEqual(table.reloadDataCallCount, initialReloadCount + 1)
+    }
+
+    @MainActor
     func testIOSSettingsUseBackedAndroidDefaultsAndActionLabels() throws {
         let settings = BrowserSettingsViewController(
             policy: .default,
@@ -1442,6 +1481,16 @@ final class BrowserRuntimeControlTests: XCTestCase {
             }
         )
         XCTAssertEqual(callbackCount, 0)
+    }
+}
+
+@MainActor
+private final class ReloadCountingTableView: UITableView {
+    private(set) var reloadDataCallCount = 0
+
+    override func reloadData() {
+        reloadDataCallCount += 1
+        super.reloadData()
     }
 }
 

@@ -348,53 +348,60 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
 
     private func openProofDetails(timeout: TimeInterval) throws -> [String: Any] {
         let table = app.tables["settings.table"]
-        let proofRow = table.cells["browser-settings.proof-details"]
+        let proofRowIdentifier = "browser-settings.proof-details"
+        let proofRow = table.cells[proofRowIdentifier]
         XCTAssertTrue(
-            scrollUp(in: table, untilFullyVisible: proofRow),
+            scrollUp(
+                in: table,
+                untilFullyVisible: proofRow,
+                maximumNormalizedMidY: 0.75
+            ),
             "HNS proof details setting did not become visible"
         )
 
-        // The foreground sync poll refreshes and reloads Settings every two
-        // seconds. Anchor the tap to the stable table coordinate so a recycled
-        // cell cannot invalidate the activation point between lookup and tap.
-        let rowFrame = proofRow.frame
-        let tableFrame = table.frame
-        XCTAssertFalse(rowFrame.isEmpty, "HNS proof details row had no frame")
-        XCTAssertFalse(tableFrame.isEmpty, "Settings table had no frame")
-        XCTAssertTrue(
-            rowFrame.midY.isFinite
-                && tableFrame.minY.isFinite
-                && tableFrame.height.isFinite,
-            "HNS proof details geometry was not finite"
-        )
-        let normalizedY = (rowFrame.midY - tableFrame.minY) / tableFrame.height
-        XCTAssertTrue(
-            (0.0...1.0).contains(normalizedY),
-            "HNS proof details row was outside the Settings table"
-        )
-        table.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: normalizedY)
-        ).tap()
+        // Resolve the semantic row again immediately before activation. A
+        // table-relative coordinate can silently select an adjacent action if
+        // UIKit refreshes or reuses cells between geometry queries.
+        let currentProofRow = table.cells[proofRowIdentifier]
         XCTAssertTrue(
             waitUntil(
-                description: "HNS proof action selection",
+                description: "hittable HNS proof details setting",
                 timeout: 10,
                 condition: {
-                    !self.app.tables["settings.table"].exists
+                    currentProofRow.exists && currentProofRow.isHittable
                 }
             )
         )
+        currentProofRow.tap()
 
         let proofContent = app.textViews["browser-proof-details.content"]
+        var unexpectedDestination: String?
         XCTAssertTrue(
             waitUntil(
                 description: "live proof details",
                 timeout: timeout,
                 condition: {
-                    proofContent.exists
-                        && proofContent.label == "Handshake proof details for denuoweb"
+                    if proofContent.exists
+                        && proofContent.label == "Handshake proof details for denuoweb" {
+                        return true
+                    }
+                    if self.app.navigationBars["TLSA / DANE Inspector"].exists {
+                        unexpectedDestination = "TLSA / DANE Inspector"
+                        return true
+                    }
+                    return false
                 }
             )
+        )
+        XCTAssertNil(
+            unexpectedDestination,
+            "HNS proof details selection opened \(unexpectedDestination ?? "an unexpected destination")"
+        )
+        guard unexpectedDestination == nil else { return [:] }
+        XCTAssertEqual(
+            proofContent.label,
+            "Handshake proof details for denuoweb",
+            "HNS proof details content did not match the live HNS navigation"
         )
         assertNoNavigationAlert()
 
@@ -463,6 +470,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
     private func scrollUp(
         in table: XCUIElement,
         untilFullyVisible element: XCUIElement,
+        maximumNormalizedMidY: CGFloat = 1.0,
         maxSwipes: Int = 10
     ) -> Bool {
         for attempt in 0...maxSwipes {
@@ -473,8 +481,12 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                 let viewport = table.frame
                 if !elementFrame.isEmpty,
                    element.isHittable,
+                   viewport.height.isFinite,
+                   viewport.height > 0,
                    elementFrame.minY >= viewport.minY,
-                   elementFrame.maxY <= viewport.maxY {
+                   elementFrame.maxY <= viewport.maxY,
+                   (elementFrame.midY - viewport.minY) / viewport.height
+                       <= maximumNormalizedMidY {
                     return true
                 }
             }

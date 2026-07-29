@@ -289,21 +289,40 @@ final class BrowserSettingsViewController: UITableViewController {
         themeMode: BrowserThemeMode? = nil,
         handshakeNetwork: BrowserHandshakeNetwork? = nil
     ) {
+        let nextResolverCacheSummary = resolverCacheSummary ?? self.resolverCacheSummary
+        let nextCurrentPageURL = Self.supportedCurrentPageURL(currentPageURL)
+        let nextHomepage = homepage ?? self.homepage
+        let nextHistoryCount = historyCount ?? self.historyCount
+        let nextDownloadCount = downloadCount ?? self.downloadCount
+        let nextThemeMode = themeMode ?? self.themeMode
+        let nextHandshakeNetwork = handshakeNetwork ?? self.handshakeNetwork
+        let tableStateChanged =
+            self.policy != policy
+            || self.runtimeControlsAreAvailable != runtimeControlsAreAvailable
+            || self.isOperationInFlight != isOperationInFlight
+            || self.resolverCacheSummary != nextResolverCacheSummary
+            || self.currentPageURL != nextCurrentPageURL
+            || self.homepage != nextHomepage
+            || self.historyCount != nextHistoryCount
+            || self.downloadCount != nextDownloadCount
+            || self.themeMode != nextThemeMode
+            || self.handshakeNetwork != nextHandshakeNetwork
+
         self.policy = policy
         self.runtimeControlsAreAvailable = runtimeControlsAreAvailable
         self.isOperationInFlight = isOperationInFlight
         self.syncSummary = syncSummary
-        if let resolverCacheSummary {
-            self.resolverCacheSummary = resolverCacheSummary
-        }
-        self.currentPageURL = Self.supportedCurrentPageURL(currentPageURL)
-        if let homepage { self.homepage = homepage }
-        if let historyCount { self.historyCount = historyCount }
-        if let downloadCount { self.downloadCount = downloadCount }
-        if let themeMode { self.themeMode = themeMode }
-        if let handshakeNetwork { self.handshakeNetwork = handshakeNetwork }
+        self.resolverCacheSummary = nextResolverCacheSummary
+        self.currentPageURL = nextCurrentPageURL
+        self.homepage = nextHomepage
+        self.historyCount = nextHistoryCount
+        self.downloadCount = nextDownloadCount
+        self.themeMode = nextThemeMode
+        self.handshakeNetwork = nextHandshakeNetwork
         guard isViewLoaded else { return }
-        tableView.reloadData()
+        if tableStateChanged {
+            tableView.reloadData()
+        }
         hnsSyncViewController?.update(
             summary: syncSummary,
             runtimeControlsAreAvailable: runtimeControlsAreAvailable,
