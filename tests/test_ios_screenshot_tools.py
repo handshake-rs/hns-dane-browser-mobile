@@ -8,6 +8,7 @@ from scripts.ios_screenshot_tools import (
     LIVE_CAPTURE_MODE,
     LIVE_PROVENANCE_SCHEMA_VERSION,
     RETRYABLE_DUAL_ROOT_SECURITY_LABEL,
+    RETRYABLE_MISSING_STATUS_SECURITY_LABEL,
     SCREENSHOTS,
     ScreenshotToolError,
     collect_attachments,
@@ -367,13 +368,16 @@ class ScreenshotManifestTests(unittest.TestCase):
                 provenance["webPKINavigation"]["securityLabel"] = security_label
                 self.assertEqual(validate_live_provenance(provenance), provenance)
 
-    def test_accepts_one_exact_bounded_dual_root_retry(self) -> None:
-        provenance = live_provenance()
-        provenance["webPKINavigation"]["navigationAttemptCount"] = 2
-        provenance["webPKINavigation"][
-            "retryReason"
-        ] = RETRYABLE_DUAL_ROOT_SECURITY_LABEL
-        self.assertEqual(validate_live_provenance(provenance), provenance)
+    def test_accepts_one_exact_bounded_icann_retry(self) -> None:
+        for retry_reason in (
+            RETRYABLE_DUAL_ROOT_SECURITY_LABEL,
+            RETRYABLE_MISSING_STATUS_SECURITY_LABEL,
+        ):
+            with self.subTest(retry_reason=retry_reason):
+                provenance = live_provenance()
+                provenance["webPKINavigation"]["navigationAttemptCount"] = 2
+                provenance["webPKINavigation"]["retryReason"] = retry_reason
+                self.assertEqual(validate_live_provenance(provenance), provenance)
 
     def test_rejects_unbounded_or_inexact_navigation_retry_evidence(self) -> None:
         provenance = live_provenance()
@@ -384,7 +388,7 @@ class ScreenshotManifestTests(unittest.TestCase):
         provenance = live_provenance()
         provenance["webPKINavigation"]["navigationAttemptCount"] = 2
         provenance["webPKINavigation"]["retryReason"] = "another failure"
-        with self.assertRaisesRegex(ScreenshotToolError, "exact dual-root"):
+        with self.assertRaisesRegex(ScreenshotToolError, "bounded ICANN"):
             validate_live_provenance(provenance)
 
         provenance = live_provenance()
@@ -392,7 +396,7 @@ class ScreenshotManifestTests(unittest.TestCase):
         provenance["hnsNavigation"][
             "retryReason"
         ] = RETRYABLE_DUAL_ROOT_SECURITY_LABEL
-        with self.assertRaisesRegex(ScreenshotToolError, "exact dual-root"):
+        with self.assertRaisesRegex(ScreenshotToolError, "bounded ICANN"):
             validate_live_provenance(provenance)
 
         provenance = live_provenance()

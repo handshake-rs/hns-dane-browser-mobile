@@ -10,7 +10,13 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
     private static let webPKIURL = "https://denuoweb.com/work/hns-dane-browser"
     private static let retryableDualRootSecurityLabel =
         "The Rust proxy rejected the dual-root response · Dual-root validation failed"
-    private static let retryableDualRootObservationSeconds: TimeInterval = 1.25
+    private static let retryableMissingStatusSecurityLabel =
+        "No exact Rust proxy security result was available"
+    private static let retryableICANNSecurityLabels = [
+        retryableDualRootSecurityLabel,
+        retryableMissingStatusSecurityLabel,
+    ]
+    private static let retryableICANNObservationSeconds: TimeInterval = 1.25
 
     private enum SubmissionSecurityExpectation {
         case hnsDANE
@@ -88,7 +94,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             expectedHost: "denuoweb.com",
             expectedSecurity: .icannAuthenticated,
             timeout: 90,
-            allowBoundedDualRootRetry: true
+            allowBoundedICANNRetry: true
         )
         capture(named: "LIVE_APPSTORE_SCREENSHOT_04_WEBPKI")
 
@@ -143,7 +149,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         expectedHost: String,
         expectedSecurity: SubmissionSecurityExpectation,
         timeout: TimeInterval,
-        allowBoundedDualRootRetry: Bool = false
+        allowBoundedICANNRetry: Bool = false
     ) throws -> [String: Any] {
         let address = app.textFields["app-store-screenshot.address"]
         address.tap()
@@ -209,8 +215,8 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                     if expectedSecurity.matches(label) {
                         return true
                     }
-                    guard allowBoundedDualRootRetry,
-                          label == Self.retryableDualRootSecurityLabel else {
+                    guard allowBoundedICANNRetry,
+                          Self.retryableICANNSecurityLabels.contains(label) else {
                         retryableFailureObservedAt = nil
                         return false
                     }
@@ -219,7 +225,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                         retryableFailureObservedAt = now
                         return false
                     }
-                    return now - observedAt >= Self.retryableDualRootObservationSeconds
+                    return now - observedAt >= Self.retryableICANNObservationSeconds
                 }
             )
         )
@@ -227,15 +233,14 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         var navigationAttemptCount = 1
         var retryReason: String?
         if !expectedSecurity.matches(lastSecurityLabel) {
-            XCTAssertEqual(
-                lastSecurityLabel,
-                Self.retryableDualRootSecurityLabel,
-                "Only the exact dual-root indeterminate result may be retried"
+            XCTAssertTrue(
+                Self.retryableICANNSecurityLabels.contains(lastSecurityLabel),
+                "Only an exact bounded ICANN recovery result may be retried"
             )
             let reload = app.buttons["Reload"].firstMatch
             XCTAssertTrue(
                 waitUntil(
-                    description: "hittable Reload control for bounded dual-root retry",
+                    description: "hittable Reload control for bounded ICANN recovery",
                     timeout: 10,
                     condition: {
                         reload.exists && reload.isHittable
@@ -244,7 +249,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             )
             retryReason = lastSecurityLabel
             navigationAttemptCount = 2
-            print("Retrying the exact dual-root indeterminate result once.")
+            print("Retrying the exact ICANN recovery result once from origin.")
             reload.tap()
 
             lastSecurityLabel = ""

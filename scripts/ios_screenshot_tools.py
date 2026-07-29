@@ -52,6 +52,13 @@ LIVE_PROVENANCE_SCHEMA_VERSION = 2
 RETRYABLE_DUAL_ROOT_SECURITY_LABEL = (
     "The Rust proxy rejected the dual-root response · Dual-root validation failed"
 )
+RETRYABLE_MISSING_STATUS_SECURITY_LABEL = (
+    "No exact Rust proxy security result was available"
+)
+RETRYABLE_ICANN_SECURITY_LABELS = {
+    RETRYABLE_DUAL_ROOT_SECURITY_LABEL,
+    RETRYABLE_MISSING_STATUS_SECURITY_LABEL,
+}
 LIVE_TARGETS = {
     "hnsNavigation": "https://denuoweb/",
     "settings": "https://denuoweb/",
@@ -330,10 +337,10 @@ def validate_live_provenance(document: Any) -> dict[str, Any]:
             )
         if attempt_count == 2 and (
             section != "webPKINavigation"
-            or retry_reason != RETRYABLE_DUAL_ROOT_SECURITY_LABEL
+            or retry_reason not in RETRYABLE_ICANN_SECURITY_LABELS
         ):
             raise ScreenshotToolError(
-                f"{section} may retry only the exact dual-root indeterminate result"
+                f"{section} may retry only an exact bounded ICANN recovery result"
             )
 
     hns_security = document["hnsNavigation"]["securityLabel"]

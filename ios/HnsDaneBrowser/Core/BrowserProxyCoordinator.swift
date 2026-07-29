@@ -173,7 +173,10 @@ final class BrowserProxyCoordinator: NSObject {
             return
         }
         resetProvisionalFailureRecovery()
-        trackedProvisionalNavigation = webView.reload()
+        // A cache-only main-frame finish has no new Rust proxy status to bind
+        // to the toolbar. Reload through the origin so trust is re-established
+        // by the active proxy instead of reusing an unprovable cached response.
+        trackedProvisionalNavigation = webView.reloadFromOrigin()
     }
 
     func stopLoading() {

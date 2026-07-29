@@ -41,16 +41,26 @@ verified, and accepts the public product page only when the app reports either
 an ICANN DANE result or the narrowly gated validating-DoH/WebPKI result.
 `manifest.json` records the exact visible labels.
 
+The public product page is also the default homepage. If its later same-process
+navigation is served entirely from WebKit cache, no new Rust main-frame status
+exists to bind to the toolbar. The capture may therefore retry once only for
+that exact missing-status result or the exact dual-root indeterminate result.
+Reload forces end-to-end origin revalidation through the active proxy and must
+finish with an accepted live ICANN DANE or validating-DoH/WebPKI label. The
+manifest records the attempt count and exact retry reason.
+
 The capture fails instead of producing an artifact when:
 
 - the first launch does not report `Handshake headers current` within 20
   minutes (the HNS page is never captured against merely prepared or stale
   headers);
-- runtime preparation for the WebPKI launch does not finish within 120 seconds;
 - the HNS page does not finish within 180 seconds;
 - either final address differs from its exact requested submission URL;
 - the HNS page is not DANE verified or the public page reports neither ICANN
   DANE nor validated WebPKI;
+- one origin reload does not recover either an exact cache-without-status result
+  or the exact dual-root indeterminate result into ICANN DANE or validated
+  WebPKI;
 - Proof Details does not open within 60 seconds;
 - Proof Details does not identify the same `denuoweb` HNS navigation;
 - the public WebPKI page does not finish within 90 seconds;
