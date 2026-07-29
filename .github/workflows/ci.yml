@@ -169,6 +169,7 @@ jobs:
           target: google_apis
           arch: x86_64
           channel: stable
+          pre-emulator-launch-script: adb start-server
           working-directory: android
           script: |
             ./gradlew :app:connectedDebugAndroidTest \
