@@ -10,9 +10,9 @@ fi
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
 track_name="${PLAY_TRACK:-alpha}"
 release_status="${PLAY_RELEASE_STATUS:-completed}"
-aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.6-play-upload-signed.aab}"
-release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.6}"
-release_notes="${PLAY_RELEASE_NOTES:-0.5.6 fixes the Android runtime startup failure by replacing the unsupported Rust 1.92 File::lock path with Android libc::flock; the iOS app is unchanged.}"
+aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.7-play-upload-signed.aab}"
+release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.7}"
+release_notes="${PLAY_RELEASE_NOTES:-0.5.7 lowers Android compatibility to Android 11 / API 30 while preserving explicit UTF-8 search encoding; the shared Rust engine and iOS app are unchanged.}"
 
 if [[ ! "$package_name" =~ ^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$ ]]; then
   echo "Invalid Play package name: $package_name" >&2

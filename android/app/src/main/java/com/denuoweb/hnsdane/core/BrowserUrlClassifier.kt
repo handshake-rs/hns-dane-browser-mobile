@@ -144,7 +144,7 @@ class BrowserUrlClassifier(
     }
 
     private fun search(query: String): BrowserTarget {
-        val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8)
+        val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8.name())
         val searchHost = runCatching {
             URI(searchBaseUrl).httpAuthority()?.host
         }.getOrNull()

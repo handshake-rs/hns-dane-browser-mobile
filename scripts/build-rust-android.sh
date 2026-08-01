@@ -86,7 +86,7 @@ ARGS=(
   ndk
   -t arm64-v8a
   -t x86_64
-  -P 34
+  -P 30
   -o "$OUT_DIR"
   build
   -p android-ffi

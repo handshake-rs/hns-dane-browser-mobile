@@ -1,18 +1,19 @@
 # Version Audit
 
-Audit date: 2026-07-29.
+Audit date: 2026-07-31.
 
 This table records the versions actually configured for the shipping build. Android runtime dependencies use stable releases; separate build-tool transitive dependencies may carry preview labels selected by AGP and are not packaged into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `0.5.6` / code `47` | `android/app/build.gradle.kts` |
+| Android app | `0.5.7` / code `48` | `android/app/build.gradle.kts` |
 | Shared Rust workspace | `0.5.6` | `rust/Cargo.toml` |
 | iOS app | `0.5.5` / build `57` (unchanged) | `ios/project.yml` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
 | Canonical engine contracts | crates.io `0.1.0` | Cargo manifests and lock |
-| Android SDK | compile/target `37`, minimum `34` | `android/app/build.gradle.kts` |
+| Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
+| Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |
 | iOS deployment floor | `17.0` | `ios/project.yml` |
 | Android Gradle Plugin | `9.2.1` | https://developer.android.com/build/releases/agp-9-2-0-release-notes |
 | Gradle distribution | `9.6.1` | https://gradle.org/releases/ |
@@ -31,6 +32,10 @@ This table records the versions actually configured for the shipping build. Andr
 
 Notes:
 
+- Android `0.5.7` / code `48` is an Android-only compatibility release. It
+  lowers both the application and NDK platform floor to API 30, retains
+  explicit UTF-8 form encoding through the older `URLEncoder` overload, and
+  leaves the shared Rust engine and iOS app unchanged.
 - AndroidX Activity, Core, and WebKit are pinned to their stable lines. The Gradle lock resolves Core to the same declared `1.18.0` version instead of relying on Activity's transitive upgrade.
 - Gradle is pinned to the current `9.6.1` stable patch release, with both distribution and wrapper-JAR checksums verified. AGP is pinned to the current `9.2.1` stable patch release.
 - AGP 9 has built-in Kotlin support, so the Android module intentionally does not apply `org.jetbrains.kotlin.android`. See https://developer.android.com/build/migrate-to-built-in-kotlin.

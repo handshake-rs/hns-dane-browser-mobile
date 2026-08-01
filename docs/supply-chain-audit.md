@@ -1,6 +1,10 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-07-29
+Last audited: 2026-07-31
+
+Current Android source is `0.5.7` / code `48`. This Android-only compatibility
+release lowers the application and cargo-ndk platform floor to API 30; the
+shared Rust engine and iOS versions are unchanged.
 
 ## Configured and Local Gates
 

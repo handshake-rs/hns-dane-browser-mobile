@@ -4,39 +4,22 @@ Cross-platform Handshake-first browser core with local HNS proofs,
 authoritative DNS, an experimental requester-only HNS P2P DNS relay, optional
 user-configured recovery DoH, DNSSEC, and DANE diagnostics. Android and iOS are
 publicly distributed; Android remains the deepest release-device validation
-baseline. The native iOS shell supports iOS 17.0 or later, and its Apple build
-and simulator gate uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
+baseline. The Android shell supports Android 11 / API 30 or later. The native
+iOS shell supports iOS 17.0 or later, and its Apple build and simulator gate
+uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 
 - [Google Play Store](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
-- [GitHub Release v0.5.6](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6)
+- [GitHub Release v0.5.7](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.7)
 
-Android `0.5.6` / code `47`, with shared Rust engine `0.5.6`, is released as an
-Android-only hotfix from shipping source
-`417af67efd68198de4871c0a339d1e456b60cb68`. iOS remains unchanged at `0.5.5`
-/ build `57`. Rust 1.92's `std::fs::File::lock` is unsupported on Android, so
-the hotfix uses Android bionic `libc::flock` for the same advisory-lock
-coordination. Android Proof Details also follows Rust's retained dual-root
-namespace decision instead of treating namespace-agnostic native-gateway
-routing as ICANN.
+Android `0.5.7` / code `48`, with shared Rust engine `0.5.6`, is an Android-only
+compatibility release. It lowers the application and native NDK floor from API
+34 to API 30 while preserving explicit UTF-8 search-query encoding. iOS remains
+unchanged at `0.5.5` / build `57`.
 
-The signed 51,323,995-byte APK has SHA-256
-`46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the
-signed 60,276,192-byte Play AAB has SHA-256
-`de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`.
-On a Pixel 9 running Android 17 / API 37, that exact signed APK upgraded code
-`46` to code `47` without clearing data, cold-launched successfully, reached
-`up_to_date` at height `340348` with lag `0`, freshness `current`, and
-`error: null`, and passed manual sync plus HNS browsing and proof-presentation
-checks. Required CI completed in run `30484282637` on workflow-only
-descendant `cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`; that descendant does not
-replace the exact shipping source or artifact provenance above.
-
-Google Play production received code `47` with status `completed` through edit
-`07330408575596336357`, and `generatedApks/47` returned HTTP `200`. GitHub Release
-[`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes only the verified APK from the
-shipping-source tag; the Play AAB and an unchanged iOS asset are intentionally
-not attached.
+GitHub Release [`v0.5.7`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.7)
+publishes only the signed Android APK. Google Play production remains on
+`0.5.6` / code `47`; no AAB is part of this GitHub-only compatibility release.
 
 The Apple App Store baseline observed on 2026-07-28 was `0.5.0`; iOS `0.5.5` /
 build `57` is the pending Apple update. Apple source

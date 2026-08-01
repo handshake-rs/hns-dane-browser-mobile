@@ -260,12 +260,15 @@ Use these from the first sprint because parsers and proofs are hostile-input sur
 
 ## Minimum App Requirements
 
-Recommended starting target:
+Configured baseline:
 
 ### Android
 
-- minSdk: 26 or 29
-- targetSdk: latest stable Android target at implementation time
+- minSdk: 30 (Android 11), the lowest level supported by the current code
+  because `WindowInsets.getInsets` and `WindowInsets.Type` are used directly;
+  search queries use the older explicit-UTF-8 URL-encoder overload
+- compileSdk and targetSdk: 37
+- native NDK API: 30, aligned with the application minSdk
 - primary architecture: arm64-v8a
 - secondary architectures: x86_64 for emulator, armeabi-v7a only if needed
 

@@ -4,8 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.7 - 2026-07-31
+
 ### Changed
 
+- Released Android `0.5.7` (`versionCode 48`) as an Android-only compatibility
+  update; the shared Rust engine and iOS app are unchanged.
+- Lowered the Android and native NDK application floor from API 34 to API 30
+  (Android 11), the lowest level supported by the platform APIs used by the
+  app.
+- Kept search-query encoding explicitly bound to UTF-8 while using the
+  API-compatible `URLEncoder` overload. Regression coverage confirms Unicode
+  and query delimiters retain their form-encoded representation.
 - Switched the five canonical `hns-dane-engine` contracts from the reviewed
   Git revision to exact, checksum-verified crates.io `0.1.0` packages.
 - Marked all 15 mobile Rust application packages non-publishable.

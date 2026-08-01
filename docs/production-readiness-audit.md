@@ -1,6 +1,11 @@
 # Production Readiness Audit
 
-Last audited: 2026-07-29
+Last audited: 2026-07-31
+
+Current Android source is `0.5.7` (`versionCode 48`) for an APK-only GitHub
+compatibility release. It lowers the Android and native NDK floor to API 30;
+Google Play production remains on `0.5.6` / code `47`, and the shared Rust and
+iOS versions are unchanged.
 
 This audit records the release checkpoint for the existing public
 Google Play and Apple App Store apps. Google Play production contains Android
@@ -16,6 +21,7 @@ Details fixes.
 
 | Area | Status | Finding |
 | --- | --- | --- |
+| Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 47 production complete | Android Publisher edit `07330408575596336357` committed code `47` directly to production with status `completed`; `generatedApks/47` returned HTTP `200`. |
 | App Store update | Public `0.5.0`; build 57 is `WAITING_FOR_REVIEW`; device qualification tracked separately | Apple reported public version `0.5.0` on 2026-07-28. Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). App Store Connect reports the build `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`. No TestFlight distribution is part of this release, and a real-iPhone pass remains a separate qualification item. |

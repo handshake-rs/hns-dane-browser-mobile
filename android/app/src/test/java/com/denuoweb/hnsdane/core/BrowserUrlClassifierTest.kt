@@ -202,6 +202,17 @@ class BrowserUrlClassifierTest {
     }
 
     @Test
+    fun searchEscapesUnicodeAndQueryDelimitersWithUtf8() {
+        val target = classifier.classify("café & tea=100% + #1")
+
+        assertEquals(BrowserTargetKind.Search, target.kind)
+        assertEquals(
+            "https://duckduckgo.com/?q=caf%C3%A9+%26+tea%3D100%25+%2B+%231",
+            target.url,
+        )
+    }
+
+    @Test
     fun unavailableRustAdmissionFailsClosed() {
         val classifier = BrowserUrlClassifier(
             FixedBrowserNamespacePolicy(emptyMap(), BrowserNamespaceClass.Unavailable),

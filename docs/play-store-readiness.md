@@ -1,6 +1,11 @@
 # Google Play Readiness Checklist
 
-Last audited: 2026-07-29
+Last audited: 2026-07-31
+
+Current Android source is `0.5.7` (`versionCode 48`) and supports Android 11 /
+API 30 or later. This compatibility release is scoped to a GitHub APK; Google
+Play production remains on `0.5.6` / code `47` until a separate AAB release is
+prepared and submitted.
 
 This checklist maps HNS DANE Browser to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
@@ -20,6 +25,7 @@ historical evidence.
 
 | Area | Status | Evidence / Action |
 | --- | --- | --- |
+| Minimum API level | Ready in code 48 | `minSdk = 30`, with cargo-ndk platform 30. Full debug lint passes after retaining explicit UTF-8 search encoding through the compatible `URLEncoder` overload. |
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 production complete | The signed 60,276,192-byte AAB has SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`. Edit `07330408575596336357` assigned code `47` to production with status `completed`, and `generatedApks/47` returned HTTP `200`. |
 | Android runtime hotfix | Shipped and exact-artifact validated | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the locked `libc 0.2.186` Android `flock` path with the same lock semantics; upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. The exact signed APK upgraded a Pixel 9 from code `46` with data preserved, cold-launched, and reached `up_to_date` at height `340348`, lag `0`, freshness `current`, and `error: null` after manual sync. |
