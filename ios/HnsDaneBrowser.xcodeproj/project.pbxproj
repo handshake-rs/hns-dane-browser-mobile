@@ -41,6 +41,11 @@
 		B10000000000000000000026 /* BrowserRuntimeControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000028 /* BrowserRuntimeControlTests.swift */; };
 		B10000000000000000000028 /* AppStoreScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002B /* AppStoreScreenshotTests.swift */; };
 		B10000000000000000000029 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000024 /* XCTest.framework */; };
+		B20000000000000000000001 /* WalletKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* WalletKeychainStore.swift */; };
+		B20000000000000000000002 /* WalletProviderProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000002 /* WalletProviderProtocol.swift */; };
+		B20000000000000000000003 /* WalletUIState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* WalletUIState.swift */; };
+		B20000000000000000000004 /* WalletWebKitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000004 /* WalletWebKitBridge.swift */; };
+		B20000000000000000000005 /* WalletProviderProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000005 /* WalletProviderProtocolTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -99,6 +104,11 @@
 		F1000000000000000000002A /* HnsDaneBrowserScreenshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HnsDaneBrowserScreenshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1000000000000000000002B /* AppStoreScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshotTests.swift; sourceTree = "<group>"; };
 		F1000000000000000000002C /* BrowserSettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserSettingsViewController.swift; sourceTree = "<group>"; };
+		F20000000000000000000001 /* WalletKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletKeychainStore.swift; sourceTree = "<group>"; };
+		F20000000000000000000002 /* WalletProviderProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletProviderProtocol.swift; sourceTree = "<group>"; };
+		F20000000000000000000003 /* WalletUIState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletUIState.swift; sourceTree = "<group>"; };
+		F20000000000000000000004 /* WalletWebKitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletWebKitBridge.swift; sourceTree = "<group>"; };
+		F20000000000000000000005 /* WalletProviderProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletProviderProtocolTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,6 +161,7 @@
 				G10000000000000000000003 /* App */,
 				G10000000000000000000004 /* Core */,
 				G10000000000000000000005 /* UI */,
+				G20000000000000000000001 /* Wallet */,
 				G10000000000000000000006 /* Support */,
 			);
 			path = HnsDaneBrowser;
@@ -204,6 +215,17 @@
 			path = Support;
 			sourceTree = "<group>";
 		};
+		G20000000000000000000001 /* Wallet */ = {
+			isa = PBXGroup;
+			children = (
+				F20000000000000000000001 /* WalletKeychainStore.swift */,
+				F20000000000000000000002 /* WalletProviderProtocol.swift */,
+				F20000000000000000000003 /* WalletUIState.swift */,
+				F20000000000000000000004 /* WalletWebKitBridge.swift */,
+			);
+			path = Wallet;
+			sourceTree = "<group>";
+		};
 		G10000000000000000000007 /* HnsDaneBrowserTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -213,6 +235,7 @@
 				F10000000000000000000023 /* MainFrameAdmissionPolicyTests.swift */,
 				F10000000000000000000026 /* BrowserNavigationParserTests.swift */,
 				F10000000000000000000028 /* BrowserRuntimeControlTests.swift */,
+				F20000000000000000000005 /* WalletProviderProtocolTests.swift */,
 			);
 			path = HnsDaneBrowserTests;
 			sourceTree = "<group>";
@@ -405,6 +428,10 @@
 				B1000000000000000000002A /* BrowserSettingsViewController.swift in Sources */,
 				B10000000000000000000016 /* BrowserNavigationParser.swift in Sources */,
 				B10000000000000000000017 /* BrowserRuntimePolicyStore.swift in Sources */,
+				B20000000000000000000001 /* WalletKeychainStore.swift in Sources */,
+				B20000000000000000000002 /* WalletProviderProtocol.swift in Sources */,
+				B20000000000000000000003 /* WalletUIState.swift in Sources */,
+				B20000000000000000000004 /* WalletWebKitBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -418,6 +445,7 @@
 				B10000000000000000000023 /* MainFrameAdmissionPolicyTests.swift in Sources */,
 				B10000000000000000000025 /* BrowserNavigationParserTests.swift in Sources */,
 				B10000000000000000000026 /* BrowserRuntimeControlTests.swift in Sources */,
+				B20000000000000000000005 /* WalletProviderProtocolTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
