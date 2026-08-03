@@ -67,8 +67,8 @@ Run the deterministic package checks before entering metadata, and run the full
 check again after screenshots are added:
 
 ```sh
-python3 dist/app-store/validate.py --metadata-only
-python3 dist/app-store/validate.py
+python3 store-assets/app-store/validate.py --metadata-only
+python3 store-assets/app-store/validate.py
 ```
 
 ## Submission controls

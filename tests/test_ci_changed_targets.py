@@ -127,7 +127,8 @@ class CiChangedTargetsTests(unittest.TestCase):
             (
                 "README.md",
                 "docs/architecture.md",
-                "dist/play-store/metadata/en-US/release-notes.txt",
+                "dist/play-store/generated-release.aab",
+                "store-assets/play-store/metadata/en-US/release-notes.txt",
             ),
             rust=False,
             android=False,

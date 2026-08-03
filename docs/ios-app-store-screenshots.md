@@ -93,12 +93,13 @@ qualification matrix in `docs/ios-device-validation.md`.
 
    ```sh
    ./scripts/stage-ios-app-store-screenshots.sh
-   python3 dist/app-store/validate.py
+   python3 store-assets/app-store/validate.py
    ```
 
    The staging script verifies every digest, replaces
-   `dist/app-store/screenshots/en-US/` with only the four live JPEGs, and writes
-   the adjacent `dist/app-store/screenshots/manifest.json` provenance gate. Do
+   `store-assets/app-store/screenshots/en-US/` with only the four live JPEGs,
+   and writes the adjacent `store-assets/app-store/screenshots/manifest.json`
+   provenance gate. Do
    not copy or rename fixture images into the upload folder.
 4. Upload the four approved JPEGs to App Store Connect's 6.5-inch iPhone slot
    in numerical order, either through the guarded release client or directly

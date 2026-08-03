@@ -31,7 +31,7 @@ replace this preparation text with exact artifact and deployment evidence.
 - Ads declaration: No ads
 - Privacy policy URL: `https://denuoweb.com/work/hns-dane-browser/privacy`
 - Future production upload artifact (signed, verified, and intentionally
-  untracked): `../hns-dane-browser-v0.5.7-play-upload-signed.aab`
+  untracked): `dist/play-store/hns-dane-browser-v0.5.7-play-upload-signed.aab`
 - Foreground service type: none; remove any stale `dataSync` declaration
   because sync is application-foreground scoped and the manifest declares no
   service.

@@ -89,7 +89,7 @@ export DEVELOPER_DIR="$developer_dir"
 
 cd "$ROOT_DIR"
 ./scripts/check-version-consistency.sh
-python3 ./dist/app-store/validate.py --metadata-only
+python3 ./store-assets/app-store/validate.py --metadata-only
 
 version="$(sed -n 's/^[[:space:]]*MARKETING_VERSION: \([^[:space:]]*\).*/\1/p' ios/project.yml)"
 build="$(sed -n 's/^[[:space:]]*CURRENT_PROJECT_VERSION: \([0-9][0-9]*\).*/\1/p' ios/project.yml)"

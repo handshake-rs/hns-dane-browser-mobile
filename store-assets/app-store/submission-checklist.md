@@ -36,7 +36,7 @@ blockers.
 - [x] Show: ordinary authenticated ICANN browsing, a developer-controlled
   Handshake page with its DANE path, Browser Settings, and Proof Details. Do not
   use a splash or empty start screen.
-- [x] Run `python3 dist/app-store/validate.py` successfully.
+- [x] Run `python3 store-assets/app-store/validate.py` successfully.
 
 ## App Store questionnaires
 

@@ -41,7 +41,7 @@ historical evidence.
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
 | Release track | Code 47 production complete | The Android Publisher API committed edit `07330408575596336357` with production status `completed`; `generatedApks/47` returned HTTP `200`. This was an update to an existing public listing, not a first closed-test launch. |
 | CI regression | Required CI passed | Run `30484282637` passed the fresh native-runtime and paired Proof Details namespace tests on a Google APIs API 37 x86_64 emulator. It ran on workflow-only descendant `cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`; the exact tag and shipping artifacts remain sourced from `417af67efd68198de4871c0a339d1e456b60cb68`. |
-| Store assets | Reconciliation required | Local icon, feature graphic, screenshots, and listing text exist in `dist/play-store/`, but they must be compared with the live listing. Recapture stale screenshots, including the diagnostic image showing an older version, before the next listing-asset update. |
+| Store assets | Reconciliation required | Local icon, feature graphic, screenshots, and listing text exist in `store-assets/play-store/`, but they must be compared with the live listing. Recapture stale screenshots, including the diagnostic image showing an older version, before the next listing-asset update. |
 
 ## Release Signing
 
@@ -184,7 +184,7 @@ cross-origin physical-device matrix.
 ## Store Listing Draft
 
 The repository listing copy used by the deployed code `47` update lives under
-`dist/play-store/metadata/en-US/`. Continue to compare it field-by-field with
+`store-assets/play-store/metadata/en-US/`. Continue to compare it field-by-field with
 the public listing; the lock hotfix does not change the declared data-handling
 posture, and the Proof Details correction restores the already declared
 HNS/ICANN diagnostic behavior.
@@ -213,8 +213,8 @@ Full description draft:
 
 ## Store Asset Checklist
 
-- App icon: 512×512 PNG for Play Console: `dist/play-store/hns-dane-browser-play-icon-512.png`.
-- Feature graphic: 1024×500 PNG24, no alpha: `dist/play-store/hns-dane-browser-feature-graphic-1024x500.png`.
+- App icon: 512×512 PNG for Play Console: `store-assets/play-store/hns-dane-browser-play-icon-512.png`.
+- Feature graphic: 1024×500 PNG24, no alpha: `store-assets/play-store/hns-dane-browser-feature-graphic-1024x500.png`.
 - Phone screenshots: compare the local set with the live listing and recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, and diagnostics against code `47`. The current diagnostics screenshot visibly reports an older app version and must be replaced before the next listing-asset update.
 - Tablet screenshots: recommended if tablet distribution remains enabled.
 - Privacy policy URL: the canonical route is selected and the hosted relay-aware policy is aligned; keep the existing Play listing on that route.

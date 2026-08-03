@@ -32,7 +32,7 @@ APP_ICON_SET = (
 APP_ICON = APP_ICON_SET / "AppIcon.png"
 PLAY_ICON = (
     REPOSITORY_ROOT
-    / "dist"
+    / "store-assets"
     / "play-store"
     / "hns-dane-browser-play-icon-512.png"
 )

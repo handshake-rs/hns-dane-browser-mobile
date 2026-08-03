@@ -140,6 +140,7 @@ classify_path() {
       README.md | \
       docs/* | \
       dist/* | \
+      store-assets/* | \
       fixtures/*.md | \
       scripts/audit-versions.sh)
       ;;

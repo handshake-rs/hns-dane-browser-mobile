@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_REQUESTED="${1:-$ROOT_DIR/build/app-store-live-screenshots}"
-SCREENSHOT_ROOT="$ROOT_DIR/dist/app-store/screenshots"
+SCREENSHOT_ROOT="$ROOT_DIR/store-assets/app-store/screenshots"
 DESTINATION="$SCREENSHOT_ROOT/en-US"
 MANIFEST_DESTINATION="$SCREENSHOT_ROOT/manifest.json"
 

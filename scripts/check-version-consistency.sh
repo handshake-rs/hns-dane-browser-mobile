@@ -32,8 +32,8 @@ android_expected_files=(
   "$android_gradle"
   "CHANGELOG.md"
   "scripts/play-upload-closed-testing.sh"
-  "dist/play-store/metadata/README.md"
-  "dist/play-store/metadata/en-US/release-notes.txt"
+  "store-assets/play-store/metadata/README.md"
+  "store-assets/play-store/metadata/en-US/release-notes.txt"
   "docs/play-store-readiness.md"
   "docs/production-readiness-audit.md"
   "docs/supply-chain-audit.md"
@@ -54,9 +54,9 @@ android_exact_checks=(
   "CHANGELOG.md:## ${android_version} -"
   "scripts/play-upload-closed-testing.sh:${android_artifact}"
   "scripts/play-upload-closed-testing.sh:HNS DANE Browser ${android_version}"
-  "dist/play-store/metadata/README.md:${android_version} release notes"
-  "dist/play-store/metadata/README.md:${android_artifact}"
-  "dist/play-store/metadata/en-US/release-notes.txt:${android_version} "
+  "store-assets/play-store/metadata/README.md:${android_version} release notes"
+  "store-assets/play-store/metadata/README.md:${android_artifact}"
+  "store-assets/play-store/metadata/en-US/release-notes.txt:${android_version} "
   "${diagnostic_test}:debug ${android_version} (${android_build})"
 )
 
@@ -71,8 +71,8 @@ done
 
 android_current_only_files=(
   "scripts/play-upload-closed-testing.sh"
-  "dist/play-store/metadata/README.md"
-  "dist/play-store/metadata/en-US/release-notes.txt"
+  "store-assets/play-store/metadata/README.md"
+  "store-assets/play-store/metadata/en-US/release-notes.txt"
 )
 
 for file in "${android_current_only_files[@]}"; do
