@@ -7,7 +7,7 @@ import WebKit
 final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
     private struct Session {
         let browser: WalletBrowserAuthority
-        let capabilities: WalletCapabilitiesV1
+        let capabilities: WalletCapabilitiesV2
         var lastSequence: UInt64
         var seenRequestIDs: Set<String> = []
         var requestIDOrder: [String] = []
@@ -16,9 +16,9 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 
     private static let handlerName = "hnsWalletNativeV1"
-    // Intentionally not injectable: approval UI and permission persistence must land before the
-    // product can replace this source-level fail-closed adapter with a generated ABI binding.
-    private let wallet: MobileWalletABIV1 = UnavailableMobileWalletABIV1()
+    // Intentionally not injectable: reviewed generated bindings and every independent release
+    // gate must land before this source-level fail-closed ABI-v2 adapter can be replaced.
+    private let wallet: MobileWalletABIV2 = UnavailableMobileWalletABIV2()
     private let authorityForFrame: (WKFrameInfo) -> WalletBrowserAuthority?
     private var session: Session?
 
@@ -26,7 +26,10 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
         self.authorityForFrame = authorityForFrame
     }
 
-    func install(in configuration: WKWebViewConfiguration) {
+    @discardableResult
+    func install(in configuration: WKWebViewConfiguration) -> Bool {
+        // This guard must precede every read or mutation of the WebKit configuration.
+        guard WalletNativeReleaseGates.providerBridgeReleaseQualified else { return false }
         let controller = configuration.userContentController
         controller.addScriptMessageHandler(self, contentWorld: .page, name: Self.handlerName)
         controller.addUserScript(
@@ -37,31 +40,51 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
                 in: .page
             )
         )
+        return true
     }
 
-    func invalidate() {
+    private func invalidateCurrent() {
         session = nil
     }
 
     func retryBootstrap(in webView: WKWebView) {
+        guard WalletNativeReleaseGates.providerBridgeReleaseQualified else { return }
         webView.evaluateJavaScript("window.__hnsWalletMobileBootstrapV1?.()", in: nil, in: .page)
     }
 
     func emitEvent(
-        authority: WalletBrowserAuthority,
-        event: String,
-        payload: Any?,
+        authority: WalletProviderAuthority,
+        nativePayload: Any,
         in webView: WKWebView
     ) {
-        guard session?.browser == authority,
-              let frame = try? WalletProviderProtocolV1.event(event, payload: payload) else { return }
+        guard let current = session else { return }
+        guard WalletNativeReleaseGates.walletRuntimeReleaseQualified else {
+            invalidateCurrent()
+            return
+        }
+        let currentAuthority = WalletProviderAuthority(
+            browser: current.browser,
+            walletSession: current.capabilities.walletSession,
+            permissionGeneration: current.capabilities.permissionGeneration
+        )
+        // A delayed callback from an older provider session must not revoke a newer one.
+        guard currentAuthority == authority else { return }
+        guard let frame = try? WalletNativeEventProjectionV2.project(nativePayload) else {
+            invalidateCurrent()
+            return
+        }
+        let event = frame["event"] as? String
+        guard event == "disconnect" || authority.browser.isCurrent(nowUnixMs: Self.currentUnixMs()) else {
+            invalidateCurrent()
+            return
+        }
         webView.callAsyncJavaScript(
             "globalThis.__hnsWalletMobileDispatchV1?.(message)",
             arguments: ["message": frame],
             in: nil,
             in: .page
         ) { _ in }
-        if event == "disconnect" { invalidate() }
+        if event == "disconnect" { invalidateCurrent() }
     }
 
     func userContentController(
@@ -74,8 +97,9 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
               let sourceOrigin = Self.canonicalOrigin(message.frameInfo.securityOrigin),
               let authority = authorityForFrame(message.frameInfo),
               authority.origin == sourceOrigin,
+              authority.isCurrent(nowUnixMs: Self.currentUnixMs()),
               let frame = message.body as? [String: Any],
-              frame["schemaVersion"] as? Int == 1 else {
+              WalletProviderProtocolV1.hasExactProviderSchemaVersion(frame["schemaVersion"]) else {
             replyHandler(
                 WalletProviderProtocolV1.response(
                     error: WalletProviderError(
@@ -100,8 +124,14 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
                 )
                 return
             }
-            if session?.browser != authority { invalidate() }
+            if session?.browser != authority { invalidateCurrent() }
             do {
+                guard WalletNativeReleaseGates.walletRuntimeReleaseQualified else {
+                    throw WalletProviderError(
+                        code: "walletUnavailable",
+                        message: "Mobile wallet ABI v2 is unavailable"
+                    )
+                }
                 let capabilities = try WalletProviderProtocolV1.validateCapabilities(
                     wallet.capabilities(authority: authority)
                 )
@@ -110,13 +140,13 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
                 }
                 replyHandler(
                     WalletProviderProtocolV1.response(result: [
-                        "providerApiVersion": 1,
+                        "providerApiVersion": WalletProviderProtocolV1.providerAPIVersion,
                         "methods": capabilities.methods.sorted(),
                     ]),
                     nil
                 )
             } catch {
-                invalidate()
+                invalidateCurrent()
                 replyHandler(WalletProviderProtocolV1.response(error: error), nil)
             }
             return
@@ -150,11 +180,11 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
                 wallet.capabilities(authority: current.browser)
             )
             guard fresh.walletSession == current.capabilities.walletSession else {
-                invalidate()
+                invalidateCurrent()
                 throw WalletProviderError(code: "walletSessionChanged", message: "Wallet session changed")
             }
             guard fresh.permissionGeneration == current.capabilities.permissionGeneration else {
-                invalidate()
+                invalidateCurrent()
                 throw WalletProviderError(
                     code: "permissionGenerationChanged",
                     message: "Wallet permissions changed"
@@ -163,6 +193,7 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
             guard fresh.methods.contains(request.method) else {
                 throw WalletProviderError(code: "permissionDenied", message: "Wallet method was not negotiated")
             }
+            try WalletProviderProtocolV1.requireMethodReleaseQualified(request.method)
             let result = try wallet.request(
                 authority: WalletProviderAuthority(
                     browser: current.browser,
@@ -204,6 +235,10 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
             : "https://\(host):\(origin.port)"
     }
 
+    private static func currentUnixMs() -> UInt64 {
+        UInt64(Date().timeIntervalSince1970 * 1_000)
+    }
+
     private static let maximumSeenRequestIDs = 512
     private static let globalRequestsPerMinute = 120
     private static let methodRequestsPerMinute = 60
@@ -218,7 +253,6 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
         "swap_publishMarketIntent", "swap_cancelMarketIntent", "swap_requestMatch",
         "swap_acceptFill", "swap_redeem", "swap_refund",
     ]
-
     private static let providerScript = #"""
     (() => {
       'use strict';

@@ -41,7 +41,7 @@ The Android WebView shell follows a hardened browser profile derived from Androi
 
 Applied WebView controls:
 
-- JavaScript is enabled for the main browser WebView because general web compatibility requires it, but no JavaScript/native bridge is exposed to untrusted content and default bridge names are removed.
+- JavaScript is enabled for the main browser WebView because general web compatibility requires it, but no JavaScript/native bridge is installed or exposed to untrusted content and default bridge names are removed. Dormant wallet-provider source returns before WebView mutation behind an immutable false release gate.
 - Local file access, file-origin cross-access, universal file-origin access, and content-provider access are disabled.
 - Mixed active/passive content is blocked with `WebSettings.MIXED_CONTENT_NEVER_ALLOW`.
 - Safe Browsing is explicitly enabled where supported by the platform WebView.
@@ -64,7 +64,7 @@ The app follows the Android security checklist as a platform baseline:
 - App backup and device-transfer extraction are disabled for files, databases, shared preferences, root storage, and external app data. Browser history, download records, diagnostics, resolver cache, and sync/cache state remain app-local unless the user explicitly exports or shares data.
 - Normal browsing does not enable `file://` or `content://` WebView access. User-initiated downloads use Android DownloadManager into public Downloads, but the system-visible download description does not include the full URL.
 - Network Security Config denies cleartext by default and allows cleartext only for the loopback gateway. The gateway binds randomized `127.0.0.1` ports only while browser proxy support is needed.
-- WebView JavaScript is enabled for browser compatibility, but no `addJavascriptInterface` or `WebMessageListener` bridge is exposed to untrusted content. WebSockets remain Chromium-native and traverse the same Rust proxy; the document-start marker performs no hostname classification, and Rust applies the retained per-origin namespace decision before network admission.
+- WebView JavaScript is enabled for browser compatibility, but no `addJavascriptInterface` or `WebMessageListener` bridge is installed or exposed to untrusted content. The dormant wallet-provider adapter returns before listener/script mutation while its immutable bridge gate is false. WebSockets remain Chromium-native and traverse the same Rust proxy; the document-start marker performs no hostname classification, and Rust applies the retained per-origin namespace decision before network admission.
 - Gateway diagnostic persistence is bounded and stores sanitized stage, host, status, and reason fields only; URL paths, query strings, headers, and bodies are not persisted in default diagnostics.
 - Release builds are non-debuggable, minified, resource-shrunk, and require upload-signing configuration before Play release bundle verification can pass.
 
@@ -94,6 +94,26 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
   preferences and file timestamps. Physical-device traffic/challenge
   qualification remains unverified; it is not an App Store submission
   prerequisite, but it remains an installed-iOS and ecosystem gate.
+
+## Dormant mobile wallet boundary
+
+The Android and iOS wallet-provider sources are containment projections, not an
+installed wallet runtime. Website schema 1, private native ABI 2, and public
+approval schema 2 are independent version domains. Provider installation,
+wallet operations, approval dispatch, and value movement each have an immutable
+false gate; both adapters are hardwired to the unavailable implementation and
+absent from browser-controller lifecycle code.
+
+Approval display accepts only twelve closed typed summary kinds with bounded
+canonical fields and locally derived rows. Provider events accept only thirteen
+closed typed payloads through their dedicated event path. Page-visible results
+reject inline events and secret/private-field names. Raw approval prompts,
+authority handles/revisions, wallet or service sessions, channel identifiers,
+event sequences, seeds, keys, passphrases, preimages, and database/capability
+secrets cannot enter the public projection. Enabling the bridge requires a
+generated wallet binding and a canonical typed engine-authority join; mobile
+must not synthesize authority from URLs, security UI, proxy state, booleans, or
+page data.
 
 ## Experimental P2P DNS relay trust boundary
 
@@ -340,7 +360,7 @@ does not by itself change peer score or start a cooldown. See
 - No decoded chunked origin response should be exposed to WebView with stale `Transfer-Encoding` or mismatched `Content-Length` framing; native gateway file-backed bodies are returned with fixed decoded lengths.
 - No WebView SSL error should call `proceed()` unless the requested URL is an admitted HNS or DNS-named ICANN HTTPS URL and the presented certificate's full DER bytes match the exact host and currently published Rust proxy generation.
 - No HNS WebSocket or HTTP Upgrade request should be silently downgraded to a normal GET by stripping hop-by-hop Upgrade headers; these requests must enter the native stream tunnel after HNS resolution, HTTPS/SVCB policy, and DANE validation, and fail closed if the native tunnel path is unavailable or validation fails.
-- No WebView JavaScript/native bridge should be exposed to untrusted web content; browser UI/native operations must remain outside page script reachability.
+- No WebView/WKWebView wallet bridge may be installed while any release gate is false or without the generated wallet binding and canonical typed engine-authority join. Dormant projection source is not provider availability; browser UI/native operations remain outside page script reachability.
 - No WebView `file://` or `content://` access should be enabled for normal browsing; app assets must use safe app-asset origins or native response interception.
 - No main-frame non-HTTP(S) URL should be passed through to WebView except `about:blank`; external schemes require explicit Android intent handling and unsupported schemes are blocked.
 - No mixed-content downgrade should be allowed inside the WebView.

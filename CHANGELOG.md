@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Replaced the unreleased Android/iOS private wallet ABI-v1 scaffold with a
+  fail-closed ABI-v2 public-projection boundary while retaining website Provider
+  API schema and `providerApiVersion` 1.
+- Added closed browser-owned approval-schema-v2 and typed event projections.
+  Private authority/session/channel fields and inline native events cannot enter
+  page-visible results or approval display rows.
+- Kept provider installation, wallet operations, approval dispatch, and value
+  movement behind immutable false gates. The controllers remain unwired, no
+  provider is announced, and no wallet runtime or value path is enabled.
+
 ## 0.5.7 - 2026-07-31
 
 ### Changed

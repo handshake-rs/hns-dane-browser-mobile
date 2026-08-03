@@ -13,7 +13,16 @@ internal data class WalletUiState(
     val walletAvailable: Boolean = false,
     val locked: Boolean = true,
     val busy: Boolean = false,
-    val publicStatus: String = "Native wallet ABI v1 is unavailable",
+    val publicStatus: String = "Native wallet ABI v2 is unavailable",
 ) {
-    fun allowsValueAction(): Boolean = walletAvailable && !locked && !busy
+    fun allowsValueAction(): Boolean =
+        MobileWalletProviderProtocol.VALUE_RUNTIME_RELEASE_QUALIFIED &&
+            MobileWalletProviderProtocol.APPROVAL_RUNTIME_RELEASE_QUALIFIED &&
+            MobileWalletProviderProtocol.WALLET_RUNTIME_RELEASE_QUALIFIED &&
+            walletAvailable && !locked && !busy
+
+    fun allowsApprovalAction(): Boolean =
+        MobileWalletProviderProtocol.APPROVAL_RUNTIME_RELEASE_QUALIFIED &&
+            MobileWalletProviderProtocol.WALLET_RUNTIME_RELEASE_QUALIFIED &&
+            walletAvailable && !locked && !busy
 }

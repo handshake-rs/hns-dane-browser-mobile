@@ -13,7 +13,13 @@ struct WalletUIState {
     var walletAvailable = false
     var locked = true
     var busy = false
-    var publicStatus = "Native wallet ABI v1 is unavailable"
+    var publicStatus = "Native wallet ABI v2 is unavailable"
 
-    var allowsValueAction: Bool { walletAvailable && !locked && !busy }
+    var allowsValueAction: Bool {
+        WalletNativeReleaseGates.valueActionsAvailable && walletAvailable && !locked && !busy
+    }
+
+    var allowsApprovalAction: Bool {
+        WalletNativeReleaseGates.approvalDispatchAvailable && walletAvailable && !locked && !busy
+    }
 }

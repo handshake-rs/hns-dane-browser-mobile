@@ -7,11 +7,31 @@ internal data class WalletBrowserAuthority(
     val origin: String,
     val namespace: String,
     val browserAuthoritySession: String,
+    val runtimeGeneration: Long,
     val policyGeneration: Long,
     val navigationGeneration: Long,
-)
+    val decisionFingerprint: String,
+    val validUntilUnixMs: Long,
+    val engineContext: WalletEngineAuthorityContext,
+) {
+    fun isCurrent(nowUnixMs: Long): Boolean =
+        (namespace == "hns" || namespace == "icann") && browserAuthoritySession.isNotBlank() &&
+            browserAuthoritySession.length <= 160 && runtimeGeneration > 0 &&
+            policyGeneration > 0 && navigationGeneration > 0 &&
+            decisionFingerprint.length == 64 &&
+            decisionFingerprint.all { it in '0'..'9' || it in 'a'..'f' } &&
+            decisionFingerprint.any { it != '0' } &&
+            validUntilUnixMs > nowUnixMs &&
+            validUntilUnixMs <= MobileWalletProviderProtocol.MAX_SAFE_JSON_INTEGER
+}
 
-internal data class WalletCapabilitiesV1(
+/**
+ * Opaque browser-engine authority capability. This final token deliberately retains identity
+ * equality so an implementation cannot make two unrelated authority contexts compare equal.
+ */
+internal class WalletEngineAuthorityContext
+
+internal data class WalletCapabilitiesV2(
     val available: Boolean,
     val abiVersion: Int,
     val walletSession: String,
@@ -32,23 +52,23 @@ internal data class WalletProviderRequest(
     val params: Any?,
 )
 
-internal interface MobileWalletAbiV1 {
-    fun capabilities(authority: WalletBrowserAuthority): WalletCapabilitiesV1
+internal interface MobileWalletAbiV2 {
+    fun capabilities(authority: WalletBrowserAuthority): WalletCapabilitiesV2
     fun request(authority: WalletProviderAuthority, request: WalletProviderRequest): Any?
 }
 
-internal object UnavailableMobileWalletAbiV1 : MobileWalletAbiV1 {
-    override fun capabilities(authority: WalletBrowserAuthority): WalletCapabilitiesV1 =
-        WalletCapabilitiesV1(
+internal object UnavailableMobileWalletAbiV2 : MobileWalletAbiV2 {
+    override fun capabilities(authority: WalletBrowserAuthority): WalletCapabilitiesV2 =
+        WalletCapabilitiesV2(
             available = false,
-            abiVersion = 1,
+            abiVersion = MobileWalletProviderProtocol.WALLET_NATIVE_ABI_VERSION,
             walletSession = "",
             permissionGeneration = 0,
             methods = emptySet(),
         )
 
     override fun request(authority: WalletProviderAuthority, request: WalletProviderRequest): Any? =
-        throw WalletProviderException("walletUnavailable", "Mobile wallet ABI v1 is unavailable")
+        throw WalletProviderException("walletUnavailable", "Mobile wallet ABI v2 is unavailable")
 }
 
 internal class WalletProviderException(
@@ -56,9 +76,24 @@ internal class WalletProviderException(
     message: String,
 ) : IllegalArgumentException(message)
 
+internal enum class WalletMethodReleaseClass {
+    NoApproval,
+    ApprovalOnly,
+    ApprovalAndValue,
+}
+
 internal object MobileWalletProviderProtocol {
+    /** Website-facing provider frames and the announced API deliberately remain version 1. */
     const val SCHEMA_VERSION = 1
-    const val ABI_VERSION = 1
+    const val WALLET_NATIVE_ABI_VERSION = 2
+
+    // Production wiring may replace these only after the corresponding release gates are
+    // qualified together. Caller-provided availability booleans cannot override them.
+    const val PROVIDER_BRIDGE_RELEASE_QUALIFIED = false
+    const val WALLET_RUNTIME_RELEASE_QUALIFIED = false
+    const val APPROVAL_RUNTIME_RELEASE_QUALIFIED = false
+    const val VALUE_RUNTIME_RELEASE_QUALIFIED = false
+
     const val MAX_MESSAGE_BYTES = 64 * 1024
     const val MAX_RESULT_BYTES = 256 * 1024
     const val MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991L
@@ -102,9 +137,21 @@ internal object MobileWalletProviderProtocol {
         "swap_getSupportedPairs", "swap_listMarketIntents",
     )
     private val sensitiveFields = setOf(
+        "protocolversion", "requestnonce", "walletsession",
+        "authorityhandle", "authorityrevision", "hostsessionid", "servicesessionid",
+        "runtimesessionid", "browserruntimesessionid", "browserauthoritysession",
+        "restartgeneration", "channelsequence", "eventsequence",
+        "runtimegeneration", "policygeneration", "navigationgeneration",
+        "decisionfingerprint", "validuntilunixms", "enginecontext", "approvalrequired",
         "recoveryphrase", "mnemonic", "seed", "seedbytes", "privatekey", "passphrase",
         "databaseencryptionkey", "encryptionkey", "htlcpreimage", "preimage",
         "providercapabilitysecret", "sessionauthorizationtoken",
+    )
+    private val nativeRoutingFields = setOf("event", "events", "approvalrequired")
+    private val approvalRoutingFields = setOf("approvalid", "expiresatunixms", "summary")
+    private val permissionResultMethods = setOf(
+        "wallet_getPermissions", "wallet_revokePermissions",
+        "wallet_requestPermissions", "hns_requestAccounts",
     )
 
     fun parseRequest(raw: String): WalletProviderRequest {
@@ -115,24 +162,24 @@ internal object MobileWalletProviderProtocol {
         val value = runCatching { JSONObject(raw) }.getOrElse {
             fail("invalidRequest", "Wallet provider frame is not a JSON object")
         }
-        if (value.optInt("schemaVersion", -1) != SCHEMA_VERSION || value.optString("kind") != "request") {
+        if (value.opt("schemaVersion") != SCHEMA_VERSION) {
             fail("unsupportedVersion", "Unsupported wallet provider frame")
         }
-        val requestId = value.optString("requestId")
+        if (value.opt("kind") !is String || value.opt("kind") != "request") {
+            fail("invalidRequest", "Wallet provider frame kind is invalid")
+        }
+        val requestId = value.opt("requestId") as? String
+            ?: fail("invalidRequest", "Invalid wallet provider request identifier")
         if (!requestId.matches(Regex("[A-Za-z0-9._:-]{1,96}"))) {
             fail("invalidRequest", "Invalid wallet provider request identifier")
         }
-        val rawSequence = value.opt("sequence") as? Number
-        val sequenceDouble = rawSequence?.toDouble()
-        if (
-            sequenceDouble == null || !sequenceDouble.isFinite() ||
-            sequenceDouble < 1.0 || sequenceDouble > MAX_SAFE_JSON_INTEGER.toDouble() ||
-            sequenceDouble % 1.0 != 0.0
-        ) {
-            fail("invalidRequest", "Invalid wallet provider request sequence")
-        }
-        val sequence = sequenceDouble.toLong()
-        val method = value.optString("method")
+        val sequence = positiveSafeInteger(
+            value.opt("sequence"),
+            "invalidRequest",
+            "Invalid wallet provider request sequence",
+        )
+        val method = value.opt("method") as? String
+            ?: fail("invalidRequest", "Wallet provider method is invalid")
         if (method in forbiddenMethods) {
             fail("forbiddenMethod", "$method is intentionally unavailable")
         }
@@ -148,7 +195,7 @@ internal object MobileWalletProviderProtocol {
             fail("invalidParams", "$method does not accept parameters")
         }
         if (method in assetMethods) {
-            val module = (params as? JSONObject)?.optString("module")
+            val module = (params as? JSONObject)?.opt("module") as? String
             if (module != "bitcoin" && module != "ethereum") {
                 fail("invalidParams", "$method requires bitcoin or ethereum module")
             }
@@ -156,15 +203,57 @@ internal object MobileWalletProviderProtocol {
         return WalletProviderRequest(requestId, sequence, method, params)
     }
 
-    fun validateCapabilities(value: WalletCapabilitiesV1): WalletCapabilitiesV1 {
+    fun validateCapabilities(value: WalletCapabilitiesV2): WalletCapabilitiesV2 {
         if (
-            !value.available || value.abiVersion != ABI_VERSION ||
+            !WALLET_RUNTIME_RELEASE_QUALIFIED ||
+            !value.available || value.abiVersion != WALLET_NATIVE_ABI_VERSION ||
             value.walletSession.isBlank() || value.walletSession.length > 160 ||
             value.permissionGeneration < 1 || !methods.containsAll(value.methods)
         ) {
-            fail("walletUnavailable", "Native wallet ABI v1 is unavailable")
+            fail("walletUnavailable", "Native wallet ABI v2 is unavailable")
         }
         return value
+    }
+
+    fun methodReleaseClass(method: String): WalletMethodReleaseClass = when (method) {
+        "wallet_getCapabilities", "wallet_getEnabledModules", "wallet_getPermissions",
+        "wallet_revokePermissions", "wallet_lock", "wallet_getStatus", "hns_accounts",
+        "hns_getBalance", "hns_getTransactions", "hns_getReceiveAddress", "hns_getNames",
+        "hns_getName", "hns_importKnownName", "asset_getAccount", "asset_getBalance",
+        "asset_getTransactions", "asset_getReceiveTarget", "nameMarket_listOffers",
+        "nameMarket_getSession", "swap_getSupportedPairs", "swap_getPriceRound",
+        "swap_listMarketIntents", "swap_getSession" -> WalletMethodReleaseClass.NoApproval
+
+        "wallet_enableModule", "wallet_disableModule", "wallet_requestPermissions",
+        "hns_requestAccounts", "hns_signTypedMessage" -> WalletMethodReleaseClass.ApprovalOnly
+
+        "hns_send", "hns_transferName", "hns_finalizeName", "asset_send",
+        "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
+        "nameMarket_acceptOffer", "nameMarket_finalizePurchase", "nameMarket_recoverName",
+        "swap_publishMarketIntent", "swap_cancelMarketIntent", "swap_requestMatch",
+        "swap_acceptFill", "swap_redeem", "swap_refund" ->
+            WalletMethodReleaseClass.ApprovalAndValue
+
+        else -> fail("unsupportedMethod", "Unsupported wallet provider method")
+    }
+
+    fun requireMethodReleaseQualified(method: String) {
+        val releaseClass = methodReleaseClass(method)
+        if (!WALLET_RUNTIME_RELEASE_QUALIFIED) {
+            fail("walletUnavailable", "Mobile wallet runtime is unavailable")
+        }
+        if (
+            releaseClass != WalletMethodReleaseClass.NoApproval &&
+            !APPROVAL_RUNTIME_RELEASE_QUALIFIED
+        ) {
+            fail("walletUnavailable", "Mobile wallet approval runtime is unavailable")
+        }
+        if (
+            releaseClass == WalletMethodReleaseClass.ApprovalAndValue &&
+            !VALUE_RUNTIME_RELEASE_QUALIFIED
+        ) {
+            fail("walletUnavailable", "Mobile wallet value runtime is unavailable")
+        }
     }
 
     fun response(request: WalletProviderRequest?, result: Any? = null, error: Throwable? = null): String {
@@ -174,6 +263,9 @@ internal object MobileWalletProviderProtocol {
                 depth = 0,
                 invalidCode = "invalidResult",
                 sizeCode = "resultTooLarge",
+                rejectNativeRouting = true,
+                allowPermissionGenerationAtRoot =
+                    request?.method?.let(permissionResultMethods::contains) == true,
             )
         }
         val value = JSONObject()
@@ -202,19 +294,22 @@ internal object MobileWalletProviderProtocol {
         return encoded
     }
 
-    fun event(event: String, payload: Any?): String {
-        if (event !in events) fail("invalidEvent", "Unsupported wallet provider event")
+    fun event(nativePayload: JSONObject): String {
+        val projected = MobileWalletEventProjection.project(nativePayload)
+        if (projected.event !in events) fail("invalidEvent", "Unsupported wallet provider event")
         validateJson(
-            payload,
+            projected.payload,
             depth = 0,
             invalidCode = "invalidEvent",
             sizeCode = "eventTooLarge",
+            allowPermissionGenerationAtRoot =
+                projected.event == "connect" || projected.event == "permissionsChanged",
         )
         val encoded = JSONObject()
             .put("schemaVersion", SCHEMA_VERSION)
             .put("kind", "event")
-            .put("event", event)
-            .put("payload", payload ?: JSONObject.NULL)
+            .put("event", projected.event)
+            .put("payload", projected.payload)
             .toString()
         if (encoded.toByteArray(Charsets.UTF_8).size > MAX_MESSAGE_BYTES) {
             fail("eventTooLarge", "Native wallet event exceeds its byte limit")
@@ -227,11 +322,13 @@ internal object MobileWalletProviderProtocol {
         depth: Int,
         invalidCode: String,
         sizeCode: String,
+        rejectNativeRouting: Boolean = false,
+        allowPermissionGenerationAtRoot: Boolean = false,
     ) {
         if (depth > 12) fail(sizeCode, "Wallet provider frame is nested too deeply")
         when (value) {
             null, JSONObject.NULL, is Boolean -> Unit
-            is String -> if (value.length > 16 * 1024) {
+            is String -> if (value.toByteArray(Charsets.UTF_8).size > 16 * 1024) {
                 fail(sizeCode, "Wallet provider string exceeds its limit")
             }
             is Byte, is Short, is Int, is Long -> if (
@@ -243,20 +340,51 @@ internal object MobileWalletProviderProtocol {
             is JSONArray -> {
                 if (value.length() > 128) fail(sizeCode, "Too many array values")
                 repeat(value.length()) {
-                    validateJson(value.get(it), depth + 1, invalidCode, sizeCode)
+                    validateJson(
+                        value.get(it),
+                        depth + 1,
+                        invalidCode,
+                        sizeCode,
+                        rejectNativeRouting,
+                        allowPermissionGenerationAtRoot,
+                    )
                 }
             }
             is JSONObject -> {
                 if (value.length() > 128) fail(sizeCode, "Too many object fields")
+                val normalizedFields = mutableSetOf<String>()
+                for (key in value.keys()) {
+                    normalizedFields += key.lowercase().filter(Char::isLetterOrDigit)
+                }
+                if (
+                    rejectNativeRouting &&
+                    (
+                        normalizedFields.any { it in nativeRoutingFields } ||
+                            approvalRoutingFields.all(normalizedFields::contains)
+                    )
+                ) {
+                    fail(invalidCode, "Native events and approval prompts require private routing")
+                }
                 for (key in value.keys()) {
                     val normalizedKey = key.lowercase().filter(Char::isLetterOrDigit)
                     if (
                         key in setOf("__proto__", "prototype", "constructor") ||
-                        normalizedKey in sensitiveFields
+                        normalizedKey in sensitiveFields ||
+                        (
+                            normalizedKey == "permissiongeneration" &&
+                                (!allowPermissionGenerationAtRoot || depth != 0)
+                        )
                     ) {
                         fail(invalidCode, "Forbidden wallet provider field")
                     }
-                    validateJson(value.get(key), depth + 1, invalidCode, sizeCode)
+                    validateJson(
+                        value.get(key),
+                        depth + 1,
+                        invalidCode,
+                        sizeCode,
+                        rejectNativeRouting,
+                        allowPermissionGenerationAtRoot,
+                    )
                 }
             }
             else -> fail(invalidCode, "Wallet provider frame contains a non-JSON value")
@@ -264,8 +392,9 @@ internal object MobileWalletProviderProtocol {
     }
 
     private val publicErrorCodes = setOf(
-        "browserAuthorityDenied", "eventTooLarge", "forbiddenMethod", "internalError",
-        "invalidEvent", "invalidOrigin", "invalidParams", "invalidRequest", "invalidResult",
+        "approvalTooLarge", "browserAuthorityDenied", "eventTooLarge", "forbiddenMethod",
+        "internalError", "invalidApproval", "invalidEvent", "invalidOrigin", "invalidParams",
+        "invalidRequest", "invalidResult",
         "originMismatch", "permissionDenied", "permissionGenerationChanged", "rateLimited",
         "replay", "requestTooLarge", "resultTooLarge", "staleContext", "unsupportedMethod",
         "unsupportedVersion", "userRejected", "walletLocked", "walletSessionChanged",
@@ -273,9 +402,11 @@ internal object MobileWalletProviderProtocol {
     )
 
     private fun publicErrorMessage(code: String): String = when (code) {
+        "approvalTooLarge" -> "Wallet approval exceeded its byte limit"
         "browserAuthorityDenied" -> "Browser trust did not approve this document"
         "eventTooLarge" -> "Wallet event exceeded its byte limit"
         "forbiddenMethod" -> "The requested signing method is intentionally unavailable"
+        "invalidApproval" -> "Native wallet approval prompt was invalid"
         "invalidEvent" -> "Native wallet event was invalid"
         "invalidOrigin" -> "Wallet provider requires an exact HTTPS main frame"
         "invalidParams" -> "Wallet provider parameters were invalid"
@@ -300,4 +431,16 @@ internal object MobileWalletProviderProtocol {
 
     private fun fail(code: String, message: String): Nothing =
         throw WalletProviderException(code, message)
+
+    private fun positiveSafeInteger(candidate: Any?, code: String, message: String): Long {
+        val value = when (candidate) {
+            is Byte -> candidate.toLong()
+            is Short -> candidate.toLong()
+            is Int -> candidate.toLong()
+            is Long -> candidate
+            else -> fail(code, message)
+        }
+        if (value < 1L || value > MAX_SAFE_JSON_INTEGER) fail(code, message)
+        return value
+    }
 }

@@ -8,6 +8,7 @@ import androidx.webkit.ScriptHandler
 import androidx.webkit.WebMessageCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -19,11 +20,11 @@ internal class AndroidWalletProviderBridge(
 ) : AutoCloseable {
     // Intentionally not injectable: approval UI and permission persistence must land before the
     // product can replace this source-level fail-closed adapter with a generated ABI binding.
-    private val wallet: MobileWalletAbiV1 = UnavailableMobileWalletAbiV1
+    private val wallet: MobileWalletAbiV2 = UnavailableMobileWalletAbiV2
 
     private data class Session(
         val browser: WalletBrowserAuthority,
-        val capabilities: WalletCapabilitiesV1,
+        val capabilities: WalletCapabilitiesV2,
         var lastSequence: Long,
         var reply: JavaScriptReplyProxy,
         val seenRequestIds: LinkedHashSet<String> = linkedSetOf(),
@@ -36,6 +37,8 @@ internal class AndroidWalletProviderBridge(
     private var session: Session? = null
 
     fun install(webView: WebView): Boolean {
+        // This immutable release gate is checked before any WebView or bridge state is mutated.
+        if (!MobileWalletProviderProtocol.PROVIDER_BRIDGE_RELEASE_QUALIFIED) return false
         if (
             !WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) ||
             !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
@@ -56,24 +59,52 @@ internal class AndroidWalletProviderBridge(
         return true
     }
 
-    fun invalidate() {
+    private fun invalidateCurrent() {
         session = null
     }
 
     fun retryBootstrap() {
+        if (!MobileWalletProviderProtocol.PROVIDER_BRIDGE_RELEASE_QUALIFIED) return
         webView?.evaluateJavascript("window.__hnsWalletMobileBootstrapV1?.()", null)
     }
 
-    fun emitEvent(authority: WalletBrowserAuthority, event: String, payload: Any?) {
+    fun emitEvent(authority: WalletProviderAuthority, nativePayload: JSONObject) {
         val current = session ?: return
-        if (current.browser != authority) return
-        runCatching { MobileWalletProviderProtocol.event(event, payload) }
-            .onSuccess(current.reply::postMessage)
-        if (event == "disconnect") invalidate()
+        if (!MobileWalletProviderProtocol.WALLET_RUNTIME_RELEASE_QUALIFIED) {
+            invalidateCurrent()
+            return
+        }
+        if (
+            current.browser != authority.browser ||
+            current.capabilities.walletSession != authority.walletSession ||
+            current.capabilities.permissionGeneration != authority.permissionGeneration
+        ) {
+            // A delayed callback from an older provider session must not revoke a newer one.
+            return
+        }
+        val encoded = runCatching { MobileWalletProviderProtocol.event(nativePayload) }
+            .getOrElse {
+                invalidateCurrent()
+                return
+            }
+        val disconnect = nativePayload.opt("event") == "disconnect"
+        if (!disconnect && !authority.browser.isCurrent(System.currentTimeMillis())) {
+            invalidateCurrent()
+            return
+        }
+        if (disconnect) {
+            try {
+                current.reply.postMessage(encoded)
+            } finally {
+                invalidateCurrent()
+            }
+        } else {
+            current.reply.postMessage(encoded)
+        }
     }
 
     override fun close() {
-        invalidate()
+        invalidateCurrent()
         scriptHandler?.remove()
         scriptHandler = null
         webView?.let { runCatching { WebViewCompat.removeWebMessageListener(it, BRIDGE_NAME) } }
@@ -93,22 +124,26 @@ internal class AndroidWalletProviderBridge(
             return
         }
         val authority = authorityForOrigin(sourceOrigin)
-        if (authority == null || authority.origin != sourceOriginValue) {
+        if (
+            authority == null || authority.origin != sourceOriginValue ||
+            !authority.isCurrent(System.currentTimeMillis())
+        ) {
             reply.postMessage(error("browserAuthorityDenied", "Browser trust did not approve this document"))
             return
         }
         val raw = message.data ?: ""
         val frame = runCatching { JSONObject(raw) }.getOrNull()
-        if (frame?.optInt("schemaVersion", -1) != 1) {
+        if (frame == null || !hasExactProviderSchema(frame)) {
             reply.postMessage(error("unsupportedVersion", "Unsupported wallet bridge frame"))
             return
         }
-        if (frame.optString("kind") == "initialize") {
-            if (frame.optString("origin") != authority.origin) {
+        if (isExactInitializeFrame(frame)) {
+            val frameOrigin = exactStringField(frame, "origin")
+            if (frameOrigin == null || frameOrigin != authority.origin) {
                 reply.postMessage(error("originMismatch", "Wallet frame origin does not match source"))
                 return
             }
-            if (session?.browser != authority) invalidate()
+            if (session?.browser != authority) invalidateCurrent()
             runCatching {
                 val capabilities = MobileWalletProviderProtocol.validateCapabilities(
                     wallet.capabilities(authority),
@@ -121,14 +156,12 @@ internal class AndroidWalletProviderBridge(
                 }
                 MobileWalletProviderProtocol.response(
                     request = null,
-                    result = JSONObject()
-                        .put("providerApiVersion", 1)
-                        .put("methods", capabilities.methods.sorted()),
+                    result = initializationResult(capabilities.methods),
                 )
             }.fold(
                 onSuccess = { reply.postMessage(it) },
                 onFailure = {
-                    invalidate()
+                    invalidateCurrent()
                     reply.postMessage(error(it))
                 },
             )
@@ -173,6 +206,7 @@ internal class AndroidWalletProviderBridge(
             if (request.method !in fresh.methods) {
                 throw WalletProviderException("permissionDenied", "Wallet method was not negotiated")
             }
+            MobileWalletProviderProtocol.requireMethodReleaseQualified(request.method)
             val result = wallet.request(
                 WalletProviderAuthority(
                     browser = current.browser,
@@ -221,6 +255,7 @@ internal class AndroidWalletProviderBridge(
         MobileWalletProviderProtocol.response(request = request, error = error)
 
     companion object {
+        // This page bridge name follows provider schema v1; its private adapter speaks ABI v2.
         private const val BRIDGE_NAME = "hnsWalletNativeV1"
         private const val MAX_SEEN_REQUEST_IDS = 512
         private const val GLOBAL_REQUESTS_PER_MINUTE = 120
@@ -243,6 +278,20 @@ internal class AndroidWalletProviderBridge(
             val port = uri.port
             return if (port == -1 || port == 443) "https://$host" else "https://$host:$port"
         }
+
+        internal fun hasExactProviderSchema(frame: JSONObject): Boolean =
+            frame.opt("schemaVersion") == MobileWalletProviderProtocol.SCHEMA_VERSION
+
+        internal fun isExactInitializeFrame(frame: JSONObject): Boolean =
+            frame.opt("kind") is String && frame.opt("kind") == "initialize"
+
+        internal fun exactStringField(frame: JSONObject, field: String): String? =
+            frame.opt(field) as? String
+
+        internal fun initializationResult(methods: Set<String>): JSONObject =
+            JSONObject()
+                .put("providerApiVersion", 1)
+                .put("methods", JSONArray(methods.sorted()))
 
         private val PROVIDER_SCRIPT = """
             (() => {

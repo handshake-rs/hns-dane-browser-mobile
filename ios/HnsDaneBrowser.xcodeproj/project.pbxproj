@@ -46,6 +46,8 @@
 		B20000000000000000000003 /* WalletUIState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000003 /* WalletUIState.swift */; };
 		B20000000000000000000004 /* WalletWebKitBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000004 /* WalletWebKitBridge.swift */; };
 		B20000000000000000000005 /* WalletProviderProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000005 /* WalletProviderProtocolTests.swift */; };
+		B20000000000000000000006 /* WalletApprovalProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000006 /* WalletApprovalProjection.swift */; };
+		B20000000000000000000007 /* WalletEventProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000007 /* WalletEventProjection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -109,6 +111,8 @@
 		F20000000000000000000003 /* WalletUIState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletUIState.swift; sourceTree = "<group>"; };
 		F20000000000000000000004 /* WalletWebKitBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletWebKitBridge.swift; sourceTree = "<group>"; };
 		F20000000000000000000005 /* WalletProviderProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletProviderProtocolTests.swift; sourceTree = "<group>"; };
+		F20000000000000000000006 /* WalletApprovalProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletApprovalProjection.swift; sourceTree = "<group>"; };
+		F20000000000000000000007 /* WalletEventProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletEventProjection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -218,6 +222,8 @@
 		G20000000000000000000001 /* Wallet */ = {
 			isa = PBXGroup;
 			children = (
+				F20000000000000000000006 /* WalletApprovalProjection.swift */,
+				F20000000000000000000007 /* WalletEventProjection.swift */,
 				F20000000000000000000001 /* WalletKeychainStore.swift */,
 				F20000000000000000000002 /* WalletProviderProtocol.swift */,
 				F20000000000000000000003 /* WalletUIState.swift */,
@@ -428,6 +434,8 @@
 				B1000000000000000000002A /* BrowserSettingsViewController.swift in Sources */,
 				B10000000000000000000016 /* BrowserNavigationParser.swift in Sources */,
 				B10000000000000000000017 /* BrowserRuntimePolicyStore.swift in Sources */,
+				B20000000000000000000006 /* WalletApprovalProjection.swift in Sources */,
+				B20000000000000000000007 /* WalletEventProjection.swift in Sources */,
 				B20000000000000000000001 /* WalletKeychainStore.swift in Sources */,
 				B20000000000000000000002 /* WalletProviderProtocol.swift in Sources */,
 				B20000000000000000000003 /* WalletUIState.swift in Sources */,
