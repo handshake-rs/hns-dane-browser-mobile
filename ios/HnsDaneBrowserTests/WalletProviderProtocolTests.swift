@@ -712,6 +712,15 @@ final class WalletProviderProtocolTests: XCTestCase {
         )) { error in
             XCTAssertEqual((error as? WalletProviderError)?.code, "walletUnavailable")
         }
+        XCTAssertTrue(WalletProviderProtocolV1.hasValidCapabilitySnapshot(
+            WalletCapabilitiesV2(
+                available: true,
+                abiVersion: 2,
+                walletSession: "never-authorized-session",
+                permissionGeneration: 0,
+                methods: ["wallet_getCapabilities", "wallet_requestPermissions"]
+            )
+        ))
     }
 
     func testEngineAuthorityShapeIsCurrentOnlyForCanonicalLiveEvidence() {

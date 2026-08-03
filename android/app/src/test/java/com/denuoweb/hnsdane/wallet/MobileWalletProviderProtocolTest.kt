@@ -304,6 +304,28 @@ class MobileWalletProviderProtocolTest {
                 ),
             )
         }
+        assertTrue(
+            MobileWalletProviderProtocol.hasValidCapabilitySnapshot(
+                WalletCapabilitiesV2(
+                    available = true,
+                    abiVersion = 2,
+                    walletSession = "never-authorized-session",
+                    permissionGeneration = 0,
+                    methods = setOf("wallet_getCapabilities", "wallet_requestPermissions"),
+                ),
+            ),
+        )
+        assertFalse(
+            MobileWalletProviderProtocol.hasValidCapabilitySnapshot(
+                WalletCapabilitiesV2(
+                    available = true,
+                    abiVersion = 2,
+                    walletSession = "invalid-session",
+                    permissionGeneration = -1,
+                    methods = setOf("wallet_requestPermissions"),
+                ),
+            ),
+        )
         val browserAuthority = WalletBrowserAuthority(
             origin = "https://example.test",
             namespace = "hns",

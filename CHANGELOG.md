@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 - Added closed browser-owned approval-schema-v2 and typed event projections.
   Private authority/session/channel fields and inline native events cannot enter
   page-visible results or approval display rows.
+- Accept permission generation zero in a private capability snapshot for a
+  never-authorized origin while retaining positive generations for
+  permission-bearing events and exact wallet-session binding.
 - Kept provider installation, wallet operations, approval dispatch, and value
   movement behind immutable false gates. The controllers remain unwired, no
   provider is announced, and no wallet runtime or value path is enabled.

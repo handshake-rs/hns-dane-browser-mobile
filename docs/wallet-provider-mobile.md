@@ -23,6 +23,13 @@ of results for the four canonical permission methods and in its two typed event
 shapes. The checked-in adapter is hardwired to an unavailable ABI-v2 interface,
 advertises no methods, and cannot dispatch.
 
+A private capability snapshot may carry permission generation zero when the
+exact origin has never had a permission record or tombstone. Its negotiated
+method set may still contain non-permissioned bootstrap methods such as the
+permission request; methods describe runtime support, not grants. The first
+grant is generation one. Permission-bearing public events continue to require
+a positive generation and the exact wallet-session binding.
+
 Provider-bridge installation, wallet operations, approval dispatch, and value
 movement are each guarded by immutable false release gates. Android returns
 before adding a document-start script or `WebMessageListener`; iOS returns

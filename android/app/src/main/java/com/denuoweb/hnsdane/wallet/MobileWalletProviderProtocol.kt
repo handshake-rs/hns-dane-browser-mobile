@@ -205,15 +205,17 @@ internal object MobileWalletProviderProtocol {
 
     fun validateCapabilities(value: WalletCapabilitiesV2): WalletCapabilitiesV2 {
         if (
-            !WALLET_RUNTIME_RELEASE_QUALIFIED ||
-            !value.available || value.abiVersion != WALLET_NATIVE_ABI_VERSION ||
-            value.walletSession.isBlank() || value.walletSession.length > 160 ||
-            value.permissionGeneration < 1 || !methods.containsAll(value.methods)
+            !WALLET_RUNTIME_RELEASE_QUALIFIED || !hasValidCapabilitySnapshot(value)
         ) {
             fail("walletUnavailable", "Native wallet ABI v2 is unavailable")
         }
         return value
     }
+
+    internal fun hasValidCapabilitySnapshot(value: WalletCapabilitiesV2): Boolean =
+        value.available && value.abiVersion == WALLET_NATIVE_ABI_VERSION &&
+            value.walletSession.isNotBlank() && value.walletSession.length <= 160 &&
+            value.permissionGeneration >= 0 && methods.containsAll(value.methods)
 
     fun methodReleaseClass(method: String): WalletMethodReleaseClass = when (method) {
         "wallet_getCapabilities", "wallet_getEnabledModules", "wallet_getPermissions",

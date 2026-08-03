@@ -305,12 +305,16 @@ enum WalletProviderProtocolV1 {
 
     static func validateCapabilities(_ value: WalletCapabilitiesV2) throws -> WalletCapabilitiesV2 {
         guard WalletNativeReleaseGates.walletRuntimeReleaseQualified,
-              value.available, value.abiVersion == nativeABIVersion,
-              !value.walletSession.isEmpty, value.walletSession.count <= 160,
-              value.permissionGeneration > 0, value.methods.isSubset(of: methods) else {
+              hasValidCapabilitySnapshot(value) else {
             throw WalletProviderError(code: "walletUnavailable", message: "Native wallet ABI v2 is unavailable")
         }
         return value
+    }
+
+    static func hasValidCapabilitySnapshot(_ value: WalletCapabilitiesV2) -> Bool {
+        value.available && value.abiVersion == nativeABIVersion
+            && !value.walletSession.isEmpty && value.walletSession.count <= 160
+            && value.methods.isSubset(of: methods)
     }
 
     static func response(
