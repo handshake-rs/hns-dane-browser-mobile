@@ -167,7 +167,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Run native runtime and proof-details instrumentation regressions
-        uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/28.2.13676358
           ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/28.2.13676358
