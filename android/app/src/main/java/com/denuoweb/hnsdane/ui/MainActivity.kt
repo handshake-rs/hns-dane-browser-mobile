@@ -355,22 +355,35 @@ class MainActivity : ComponentActivity() {
             enqueueNavigation(target) { webView.reload() }
         }
         proxyCoordinator.resume(proxyConfigForUrl(pendingMainFrameUrl ?: activeMainFrameUrl ?: resumeUrl))
-        lastSyncSnapshot = HnsSyncSnapshot(
-            statusJson = NativeBridge.syncStatus(
-                filesDir.absolutePath,
-                HnsResolutionPreferences.handshakeNetworkId(this),
-            ),
-            updatedAtMillis = System.currentTimeMillis(),
-        )
         refreshSecurityState()
         refreshSyncProgress()
+        syncStatusExecutor.execute {
+            val snapshot = HnsSyncSnapshot(
+                statusJson = NativeBridge.syncStatus(
+                    filesDir.absolutePath,
+                    HnsResolutionPreferences.handshakeNetworkId(this),
+                ),
+                updatedAtMillis = System.currentTimeMillis(),
+            )
+            runOnUiThread {
+                if (activityDestroyed) {
+                    return@runOnUiThread
+                }
+                lastSyncSnapshot = snapshot
+                refreshSecurityState()
+                refreshSyncProgress()
+            }
+        }
         observeForegroundSync()
         startSyncStatusPolling()
     }
 
     override fun onStop() {
         gatewayInterceptionEnabled = false
-        reloadHnsPageOnNextStart = currentNativeGatewayHostForUrl(activeMainFrameUrl) != null
+        // Only a page interrupted mid-load needs a reload after the proxy
+        // suspension below; a fully loaded page survives backgrounding intact.
+        reloadHnsPageOnNextStart = currentNativeGatewayHostForUrl(activeMainFrameUrl) != null &&
+            ::webView.isInitialized && webView.progress < 100
         if (::webView.isInitialized) {
             webView.stopLoading()
         }
