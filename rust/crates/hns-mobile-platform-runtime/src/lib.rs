@@ -218,6 +218,7 @@ const DEFAULT_GATEWAY_PROOF_PEERS: usize = 8;
 const DEFAULT_GATEWAY_PROOF_TIMEOUT: Duration = Duration::from_secs(3);
 const GATEWAY_RESOLVER_CACHE_ENTRIES: usize = 1_024;
 const GATEWAY_RESOLVER_CACHE_TTL: Duration = Duration::from_secs(300);
+const GATEWAY_NEGATIVE_ANSWER_CACHE_TTL: Duration = Duration::from_secs(30);
 const NAMESPACE_EVIDENCE_MAX_TTL_SECONDS: u64 = 30;
 const DNS_INTERCEPTION_PROBE_TIMEOUT: Duration = Duration::from_millis(350);
 const DNS_INTERCEPTION_PROBE_ID: u16 = 0x484a;
@@ -10716,6 +10717,12 @@ fn persistent_gateway_resolver_stack(
 /// evidence layers. Keyed by both the resolution request and a fingerprint of
 /// the live delegation so an answer resolved under superseded root records can
 /// never satisfy a query made under the current delegation.
+///
+/// Positive answers are held no longer than their minimum record TTL, so a
+/// zone can rotate short-TTL data (A, TLSA) without changing its delegation
+/// and still be re-queried on time. Negative and no-data answers use a fixed
+/// conservative lifetime because `ResolverError::NameNotFound` carries no
+/// authenticated SOA at this boundary from which to derive the negative TTL.
 struct CachedDelegatedResolver<R> {
     inner: R,
     cache: Mutex<TtlCache<(ResolutionRequest, [u8; 32]), CachedDelegatedResolution>>,
@@ -10735,6 +10742,19 @@ impl<R> CachedDelegatedResolver<R> {
             cache: Mutex::new(TtlCache::new(max_entries)),
             ttl,
         }
+    }
+
+    fn positive_cache_ttl(&self, answer: &ResolutionAnswer) -> Duration {
+        match answer.records.iter().map(|record| record.ttl).min() {
+            Some(min_record_ttl) => self.ttl.min(Duration::from_secs(u64::from(min_record_ttl))),
+            // An answer with no records is a no-data result; hold it only as
+            // long as a negative answer.
+            None => self.negative_cache_ttl(),
+        }
+    }
+
+    fn negative_cache_ttl(&self) -> Duration {
+        self.ttl.min(GATEWAY_NEGATIVE_ANSWER_CACHE_TTL)
     }
 }
 
@@ -10775,21 +10795,19 @@ impl<R: DelegatedResolver> DelegatedResolver for CachedDelegatedResolver<R> {
 
         match self.inner.resolve_delegated(request, delegation) {
             Ok(answer) => {
+                let ttl = self.positive_cache_ttl(&answer);
                 self.cache
                     .lock()
                     .map_err(|_| ResolverError::CachePoisoned)?
-                    .insert(
-                        key,
-                        CachedDelegatedResolution::Answer(answer.clone()),
-                        self.ttl,
-                    );
+                    .insert(key, CachedDelegatedResolution::Answer(answer.clone()), ttl);
                 Ok(answer)
             }
             Err(ResolverError::NameNotFound) => {
+                let ttl = self.negative_cache_ttl();
                 self.cache
                     .lock()
                     .map_err(|_| ResolverError::CachePoisoned)?
-                    .insert(key, CachedDelegatedResolution::NameNotFound, self.ttl);
+                    .insert(key, CachedDelegatedResolution::NameNotFound, ttl);
                 Err(ResolverError::NameNotFound)
             }
             Err(error) => Err(error),
@@ -14622,6 +14640,7 @@ mod tests {
     use hns_resolver::{HnsResourceValueProvider, VerifiedResourceValue};
     use std::io::{Read, Write};
     use std::net::{Shutdown, TcpListener, TcpStream};
+    use std::sync::atomic::AtomicUsize;
     use std::thread;
 
     #[test]
@@ -23952,6 +23971,189 @@ mod tests {
         assert!(!marker.used());
         assert!(!marker.uses_p2p_fallback(&request));
         assert!(!marker.uses_recovery_fallback(&request));
+    }
+
+    struct ScriptedDelegatedResolver {
+        calls: AtomicUsize,
+        response: Box<dyn Fn() -> Result<ResolutionAnswer, ResolverError> + Send + Sync>,
+    }
+
+    impl ScriptedDelegatedResolver {
+        fn new(
+            response: impl Fn() -> Result<ResolutionAnswer, ResolverError> + Send + Sync + 'static,
+        ) -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                response: Box::new(response),
+            }
+        }
+    }
+
+    impl DelegatedResolver for &ScriptedDelegatedResolver {
+        fn resolve_delegated(
+            &self,
+            _request: &ResolutionRequest,
+            _delegation: &HnsDelegation,
+        ) -> Result<ResolutionAnswer, ResolverError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            (self.response)()
+        }
+    }
+
+    fn cache_test_request(qtype: RecordType) -> ResolutionRequest {
+        ResolutionRequest {
+            qname: "app.pirate".to_owned(),
+            qtype: qtype.code(),
+        }
+    }
+
+    fn cache_test_delegation(ns_rdata: &[u8]) -> HnsDelegation {
+        HnsDelegation {
+            root_name: "pirate".to_owned(),
+            owner: DnsName::from_ascii("pirate").unwrap(),
+            records: vec![ResourceRecord {
+                name: DnsName::from_ascii("pirate").unwrap(),
+                record_type: RecordType::Ns,
+                class: 1,
+                ttl: 21_600,
+                rdata: ns_rdata.to_vec(),
+            }],
+        }
+    }
+
+    fn cache_test_answer(ttl: u32) -> ResolutionAnswer {
+        ResolutionAnswer {
+            name: DnsName::from_ascii("app.pirate").unwrap(),
+            records: vec![ResourceRecord {
+                name: DnsName::from_ascii("app.pirate").unwrap(),
+                record_type: RecordType::A,
+                class: 1,
+                ttl,
+                rdata: vec![94, 103, 168, 161],
+            }],
+            secure: true,
+        }
+    }
+
+    #[test]
+    fn cached_delegated_resolver_hits_on_identical_request_and_delegation() {
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(300)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+        let delegation = cache_test_delegation(b"ns1");
+
+        let first = cached.resolve_delegated(&request, &delegation).unwrap();
+        let second = cached.resolve_delegated(&request, &delegation).unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_misses_on_changed_delegation_fingerprint() {
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(300)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+
+        cached
+            .resolve_delegated(&request, &cache_test_delegation(b"ns1"))
+            .unwrap();
+        cached
+            .resolve_delegated(&request, &cache_test_delegation(b"ns2"))
+            .unwrap();
+
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_misses_on_different_query_type() {
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(300)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let delegation = cache_test_delegation(b"ns1");
+
+        cached
+            .resolve_delegated(&cache_test_request(RecordType::A), &delegation)
+            .unwrap();
+        cached
+            .resolve_delegated(&cache_test_request(RecordType::Tlsa), &delegation)
+            .unwrap();
+
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_caches_name_not_found() {
+        let inner = ScriptedDelegatedResolver::new(|| Err(ResolverError::NameNotFound));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+        let delegation = cache_test_delegation(b"ns1");
+
+        for _ in 0..2 {
+            assert!(matches!(
+                cached.resolve_delegated(&request, &delegation),
+                Err(ResolverError::NameNotFound)
+            ));
+        }
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_does_not_cache_other_errors() {
+        let inner = ScriptedDelegatedResolver::new(|| Err(ResolverError::NoNameserverAddress));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+        let delegation = cache_test_delegation(b"ns1");
+
+        for _ in 0..2 {
+            assert!(matches!(
+                cached.resolve_delegated(&request, &delegation),
+                Err(ResolverError::NoNameserverAddress)
+            ));
+        }
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_expires_with_the_answer_record_ttl() {
+        // A zero-TTL record must never be served from cache, so both calls
+        // reach the inner resolver.
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(0)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+        let delegation = cache_test_delegation(b"ns1");
+
+        cached.resolve_delegated(&request, &delegation).unwrap();
+        cached.resolve_delegated(&request, &delegation).unwrap();
+
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_bounds_lifetimes_by_record_and_negative_ttls() {
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(300)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+
+        assert_eq!(
+            cached.positive_cache_ttl(&cache_test_answer(7)),
+            Duration::from_secs(7)
+        );
+        assert_eq!(
+            cached.positive_cache_ttl(&cache_test_answer(86_400)),
+            GATEWAY_RESOLVER_CACHE_TTL
+        );
+        let no_data = ResolutionAnswer {
+            name: DnsName::from_ascii("app.pirate").unwrap(),
+            records: Vec::new(),
+            secure: true,
+        };
+        assert_eq!(
+            cached.positive_cache_ttl(&no_data),
+            GATEWAY_NEGATIVE_ANSWER_CACHE_TTL
+        );
+        assert_eq!(
+            cached.negative_cache_ttl(),
+            GATEWAY_NEGATIVE_ANSWER_CACHE_TTL
+        );
     }
 
     #[test]
