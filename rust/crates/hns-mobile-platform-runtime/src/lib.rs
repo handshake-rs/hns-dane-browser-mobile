@@ -18,6 +18,7 @@ use hns_browser_runtime::{
     AuthorityState, BrowserRuntime as CanonicalAuthorityRuntime,
     RuntimeSessionId as CanonicalRuntimeSessionId, RuntimeStamp,
 };
+use hns_cache::TtlCache;
 use hns_chain::{
     DifficultyPolicy, HeaderChain, HeaderStore, SqliteHeaderStore, mainnet_sync_checkpoints,
 };
@@ -215,6 +216,8 @@ const DNSSEC_DO_FLAG: u32 = 0x8000;
 const DEFAULT_DNS_UDP_PAYLOAD: usize = 1232;
 const DEFAULT_GATEWAY_PROOF_PEERS: usize = 8;
 const DEFAULT_GATEWAY_PROOF_TIMEOUT: Duration = Duration::from_secs(3);
+const GATEWAY_RESOLVER_CACHE_ENTRIES: usize = 1_024;
+const GATEWAY_RESOLVER_CACHE_TTL: Duration = Duration::from_secs(300);
 const NAMESPACE_EVIDENCE_MAX_TTL_SECONDS: u64 = 30;
 const DNS_INTERCEPTION_PROBE_TIMEOUT: Duration = Duration::from_millis(350);
 const DNS_INTERCEPTION_PROBE_ID: u16 = 0x484a;
@@ -1455,6 +1458,7 @@ struct RuntimeInner {
     canonical_statuses: CanonicalStatusRegistry,
     latest_canonical_status: RwLock<CanonicalStatusAvailability>,
     namespace_plans: SharedNamespacePlans,
+    gateway_resolvers: Mutex<HashMap<GatewayResolverKey, Arc<PersistentGatewayResolver>>>,
     operation: Mutex<()>,
 }
 
@@ -1899,6 +1903,7 @@ impl BrowserRuntime {
                 canonical_statuses: CanonicalStatusRegistry::default(),
                 latest_canonical_status: RwLock::new(CanonicalStatusAvailability::Pending),
                 namespace_plans: Arc::new(Mutex::new(HashMap::new())),
+                gateway_resolvers: Mutex::new(HashMap::new()),
                 operation: Mutex::new(()),
             }),
         })
@@ -2960,6 +2965,11 @@ impl BrowserRuntime {
             HeaderStateFileLock::exclusive(&self.inner.coordination.header_state_lock_path)
                 .map_err(RuntimeError::Operation)?;
         self.inner.coordination.begin_maintenance(&maintenance)?;
+        self.inner
+            .gateway_resolvers
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("gateway resolver cache"))?
+            .clear();
         clear_resolver_cache_inner(&self.inner.data_dir, self.inner.configuration.network)
             .map_err(RuntimeError::Operation)
     }
@@ -3394,18 +3404,84 @@ struct PreparedRuntimeGateway {
     request_plan: SharedRequestNamespacePlan,
     authority_binding: RuntimeAuthorityBinding,
     authority_stamp: RuntimeStamp,
+    persistent: Arc<PersistentGatewayResolver>,
+}
+
+impl Drop for PreparedRuntimeGateway {
+    fn drop(&mut self) {
+        self.persistent.reset_request_state();
+    }
+}
+
+/// Cache key for one persistent gateway resolver stack. The chain tip pins the
+/// resolver to the exact synced header state so a sync invalidates every
+/// resolver built against the previous tip.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct GatewayResolverKey {
+    base: PathBuf,
+    chain_tip: Option<(u32, String)>,
+    resolution_mode: &'static str,
+    hns_doh_resolver: Option<String>,
+    experimental_p2p_dns_relay: bool,
+    legacy_hns_doh_compatibility: bool,
+}
+
+fn gateway_resolver_mode_key(mode: ResolutionMode) -> &'static str {
+    match mode {
+        ResolutionMode::Strict => "strict",
+        ResolutionMode::Compatibility => "compatibility",
+    }
+}
+
+/// One pooled resolver stack shared by every proxied request whose policy and
+/// chain tip match. The recorders carried here are wired into the stack and
+/// hold request-scoped diagnostics keyed by thread, so concurrent requests do
+/// not observe each other's traces, fallback decisions, or evidence.
+struct PersistentGatewayResolver {
+    hns: Arc<dyn Resolver + Send + Sync>,
+    icann: Arc<dyn Resolver + Send + Sync>,
+    hns_evidence: HnsProofEvidenceRecorder,
+    icann_evidence: IcannEvidenceRecorder,
+    fallback_marker: FallbackMarker,
+    dns_trace: DnsTraceRecorder,
+}
+
+impl PersistentGatewayResolver {
+    fn reset_request_state(&self) {
+        self.fallback_marker.reset();
+        self.dns_trace.reset();
+        self.hns_evidence.reset();
+        self.icann_evidence.reset();
+    }
 }
 
 #[derive(Clone)]
 struct NamespacePublicationSelection {
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
-    dns_trace: DnsTraceRecorder,
+    selected: Option<Namespace>,
 }
 
 impl NamespacePublicationSelection {
+    fn from_trace(
+        origin: NamespaceOriginContext,
+        plans: SharedNamespacePlans,
+        dns_trace: &DnsTraceRecorder,
+    ) -> Self {
+        // The selected namespace must be captured while the resolving
+        // request's thread-scoped trace is still live; publication may be
+        // authorized later, after the prepared gateway reset the trace.
+        Self {
+            origin,
+            plans,
+            selected: dns_trace
+                .namespace_snapshot()
+                .and_then(|metadata| metadata.selected),
+        }
+    }
+
     fn record(&self) -> Result<(), ResolverError> {
-        record_successful_namespace_selection(&self.origin, &self.plans, &self.dns_trace)
+        record_selected_namespace(&self.origin, &self.plans, self.selected)
     }
 }
 
@@ -3555,11 +3631,11 @@ fn runtime_success_publication_capability(
         stamp: Some(prepared.authority_stamp),
         maintenance_epoch,
         storage_identity: Some(storage_identity),
-        selection: Some(NamespacePublicationSelection {
-            origin: prepared.origin.clone(),
-            plans: Arc::clone(&prepared.plans),
-            dns_trace: prepared.dns_trace.clone(),
-        }),
+        selection: Some(NamespacePublicationSelection::from_trace(
+            prepared.origin.clone(),
+            Arc::clone(&prepared.plans),
+            &prepared.dns_trace,
+        )),
     })
 }
 
@@ -4224,10 +4300,21 @@ impl BrowserRuntime {
         fs::create_dir_all(&base).map_err(|error| {
             RuntimeError::Operation(format!("create gateway directory: {error}"))
         })?;
-        let values = SqliteResourceValueProvider::open(base.join("resources.sqlite"))
-            .map_err(|error| RuntimeError::Operation(format!("open resource cache: {error}")))?;
-        let fallback_marker = FallbackMarker::default();
-        let dns_trace = DnsTraceRecorder::default();
+        let persistent = self.persistent_gateway_resolver(
+            base.clone(),
+            GatewayResolverContext {
+                network,
+                runtime_policy,
+                peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
+                relay: Some(self.inner.coordination.relay.clone()),
+                http: self.inner.transport.clone(),
+            },
+        )?;
+        // The stack outlives this request; clear any request-scoped state a
+        // previous request left behind on this thread.
+        persistent.reset_request_state();
+        let fallback_marker = persistent.fallback_marker.clone();
+        let dns_trace = persistent.dns_trace.clone();
         let origin = namespace_origin_context(
             base.clone(),
             network,
@@ -4237,18 +4324,8 @@ impl BrowserRuntime {
             self.inner.policy_revision.load(Ordering::Acquire),
         )
         .map_err(|error| RuntimeError::InvalidConfiguration(error.to_string()))?;
-        let resolver = android_gateway_resolver(
-            base.clone(),
-            values,
-            GatewayResolverContext {
-                network,
-                runtime_policy,
-                peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
-                relay: Some(self.inner.coordination.relay.clone()),
-                http: self.inner.transport.clone(),
-            },
-            dns_trace.clone(),
-            fallback_marker.clone(),
+        let resolver = gateway_resolver_from_stack(
+            &persistent,
             origin.clone(),
             Arc::clone(&self.inner.namespace_plans),
         );
@@ -4286,7 +4363,51 @@ impl BrowserRuntime {
             request_plan,
             authority_binding,
             authority_stamp,
+            persistent,
         })
+    }
+
+    /// Returns the pooled resolver stack for `base` under the current policy
+    /// and chain tip, building and caching one when absent. Entries for the
+    /// same base built against a different chain tip are evicted so a header
+    /// sync immediately retires resolvers anchored to the stale tip.
+    fn persistent_gateway_resolver(
+        &self,
+        base: PathBuf,
+        context: GatewayResolverContext,
+    ) -> Result<Arc<PersistentGatewayResolver>, RuntimeError> {
+        let chain_tip = best_synced_header(&base, context.network)
+            .ok()
+            .map(|best| (best.height.0, best.header.tree_root.to_string()));
+        let key = GatewayResolverKey {
+            base: base.clone(),
+            chain_tip: chain_tip.clone(),
+            resolution_mode: gateway_resolver_mode_key(context.runtime_policy.resolution_mode),
+            hns_doh_resolver: context.runtime_policy.hns_doh_resolver.clone(),
+            experimental_p2p_dns_relay: context.runtime_policy.experimental_p2p_dns_relay,
+            legacy_hns_doh_compatibility: context.runtime_policy.legacy_hns_doh_compatibility,
+        };
+        let mut resolvers = self
+            .inner
+            .gateway_resolvers
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("gateway resolver cache"))?;
+        resolvers.retain(|existing, _| existing.base != base || existing.chain_tip == chain_tip);
+        if let Some(resolver) = resolvers.get(&key) {
+            return Ok(Arc::clone(resolver));
+        }
+
+        let values = SqliteResourceValueProvider::open(base.join("resources.sqlite"))
+            .map_err(|error| RuntimeError::Operation(format!("open resource cache: {error}")))?;
+        let persistent = Arc::new(persistent_gateway_resolver_stack(
+            base,
+            values,
+            context,
+            DnsTraceRecorder::default(),
+            FallbackMarker::default(),
+        ));
+        resolvers.insert(key, Arc::clone(&persistent));
+        Ok(persistent)
     }
 }
 
@@ -5257,23 +5378,28 @@ struct HnsProofObservation {
     expires_at_unix: u64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct HnsProofEvidenceState {
     observations: HashMap<String, HnsProofObservation>,
     conflicts: HashSet<String>,
 }
 
+/// Request-scoped HNS proof evidence shared through a pooled resolver stack.
+/// Evidence is keyed by the recording thread so a concurrent request's proof
+/// observations can never satisfy (or conflict with) this request's namespace
+/// plan build.
 #[derive(Clone, Debug, Default)]
 struct HnsProofEvidenceRecorder {
-    state: Arc<Mutex<HnsProofEvidenceState>>,
+    states: Arc<Mutex<HashMap<thread::ThreadId, HnsProofEvidenceState>>>,
 }
 
 impl HnsProofEvidenceRecorder {
     fn begin(&self) -> Result<(), ResolverError> {
-        let mut state = self
-            .state
+        let mut states = self
+            .states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?;
+        let state = states.entry(thread::current().id()).or_default();
         state.observations.clear();
         state.conflicts.clear();
         Ok(())
@@ -5285,10 +5411,11 @@ impl HnsProofEvidenceRecorder {
         observation: HnsProofObservation,
     ) -> Result<(), ResolverError> {
         let root_name = root_name.to_ascii_lowercase();
-        let mut state = self
-            .state
+        let mut states = self
+            .states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?;
+        let state = states.entry(thread::current().id()).or_default();
         if let Some(previous) = state.observations.get_mut(&root_name) {
             if previous.anchor != observation.anchor
                 || previous.exists != observation.exists
@@ -5307,14 +5434,23 @@ impl HnsProofEvidenceRecorder {
 
     fn observation(&self, root_name: &str) -> Result<Option<HnsProofObservation>, ResolverError> {
         let root_name = root_name.to_ascii_lowercase();
-        let state = self
-            .state
+        let states = self
+            .states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?;
+        let Some(state) = states.get(&thread::current().id()) else {
+            return Ok(None);
+        };
         if state.conflicts.contains(&root_name) {
             return Err(ResolverError::ProofNameMismatch);
         }
         Ok(state.observations.get(&root_name).copied())
+    }
+
+    fn reset(&self) {
+        if let Ok(mut states) = self.states.lock() {
+            states.remove(&thread::current().id());
+        }
     }
 }
 
@@ -5776,10 +5912,21 @@ fn record_successful_namespace_selection(
     plans: &SharedNamespacePlans,
     trace: &DnsTraceRecorder,
 ) -> Result<(), ResolverError> {
-    let selected = trace
-        .namespace_snapshot()
-        .and_then(|metadata| metadata.selected)
-        .ok_or(ResolverError::InvalidNamespacePlan)?;
+    record_selected_namespace(
+        origin,
+        plans,
+        trace
+            .namespace_snapshot()
+            .and_then(|metadata| metadata.selected),
+    )
+}
+
+fn record_selected_namespace(
+    origin: &NamespaceOriginContext,
+    plans: &SharedNamespacePlans,
+    selected: Option<Namespace>,
+) -> Result<(), ResolverError> {
+    let selected = selected.ok_or(ResolverError::InvalidNamespacePlan)?;
     if !persist_successful_namespace_binding(origin, selected)? {
         return Ok(());
     }
@@ -5824,8 +5971,8 @@ type SharedNamespacePlans = Arc<Mutex<HashMap<NamespaceOriginKey, CachedNamespac
 type SharedRequestNamespacePlan = Arc<Mutex<Option<CachedNamespacePlan>>>;
 
 struct AndroidGatewayResolver {
-    hns: Box<dyn Resolver>,
-    icann: Box<dyn Resolver>,
+    hns: Arc<dyn Resolver + Send + Sync>,
+    icann: Arc<dyn Resolver + Send + Sync>,
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
     hns_evidence: HnsProofEvidenceRecorder,
@@ -5836,9 +5983,10 @@ struct AndroidGatewayResolver {
 }
 
 impl AndroidGatewayResolver {
-    fn new(
-        hns: impl Resolver + 'static,
-        icann: impl Resolver + 'static,
+    #[allow(clippy::too_many_arguments)]
+    fn from_shared(
+        hns: Arc<dyn Resolver + Send + Sync>,
+        icann: Arc<dyn Resolver + Send + Sync>,
         origin: NamespaceOriginContext,
         plans: SharedNamespacePlans,
         hns_evidence: HnsProofEvidenceRecorder,
@@ -5846,8 +5994,8 @@ impl AndroidGatewayResolver {
         trace: DnsTraceRecorder,
     ) -> Self {
         Self {
-            hns: Box::new(hns),
-            icann: Box::new(icann),
+            hns,
+            icann,
             origin,
             plans,
             hns_evidence,
@@ -7273,11 +7421,11 @@ fn application_protocol_candidates(
 }
 
 struct BoxedDelegatedResolver {
-    inner: Box<dyn DelegatedResolver>,
+    inner: Box<dyn DelegatedResolver + Send + Sync>,
 }
 
 impl BoxedDelegatedResolver {
-    fn new(inner: impl DelegatedResolver + 'static) -> Self {
+    fn new(inner: impl DelegatedResolver + Send + Sync + 'static) -> Self {
         Self {
             inner: Box::new(inner),
         }
@@ -7300,64 +7448,91 @@ struct AuthenticatedHnsDelegationEvidence {
     nameservers: Vec<String>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct AuthenticatedHnsDelegationEvidenceState {
     observation: Option<AuthenticatedHnsDelegationEvidence>,
     conflicted: bool,
 }
 
+/// Request-scoped diagnostics recorder shared through a pooled resolver
+/// stack. State is keyed by the recording thread so concurrent requests
+/// resolving through the same persistent resolver never observe each other's
+/// traces; the prepared gateway resets its thread's state per request.
 #[derive(Clone, Debug, Default)]
 struct DnsTraceRecorder {
-    events: Arc<Mutex<Vec<DnsTraceEvent>>>,
-    relay: Arc<Mutex<Option<DnsRelayTraceMetadata>>>,
-    namespace: Arc<Mutex<Option<NamespaceResolutionMetadata>>>,
-    authenticated_hns_delegation: Arc<Mutex<AuthenticatedHnsDelegationEvidenceState>>,
+    traces: Arc<Mutex<HashMap<thread::ThreadId, DnsTraceState>>>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct DnsTraceState {
+    events: Vec<DnsTraceEvent>,
+    relay: Option<DnsRelayTraceMetadata>,
+    namespace: Option<NamespaceResolutionMetadata>,
+    authenticated_hns_delegation: AuthenticatedHnsDelegationEvidenceState,
 }
 
 impl DnsTraceRecorder {
     fn push(&self, event: DnsTraceEvent) {
-        if let Ok(mut events) = self.events.lock() {
-            events.push(event);
+        if let Ok(mut traces) = self.traces.lock() {
+            traces
+                .entry(thread::current().id())
+                .or_default()
+                .events
+                .push(event);
         }
     }
 
     fn snapshot(&self) -> Vec<DnsTraceEvent> {
-        self.events
+        self.traces
             .lock()
-            .map(|events| events.clone())
+            .ok()
+            .and_then(|traces| {
+                traces
+                    .get(&thread::current().id())
+                    .map(|trace| trace.events.clone())
+            })
             .unwrap_or_default()
     }
 
     fn record_relay(&self, metadata: DnsRelayTraceMetadata) {
-        if let Ok(mut relay) = self.relay.lock() {
-            *relay = Some(metadata);
+        if let Ok(mut traces) = self.traces.lock() {
+            traces.entry(thread::current().id()).or_default().relay = Some(metadata);
         }
     }
 
     fn relay_snapshot(&self) -> Option<DnsRelayTraceMetadata> {
-        self.relay.lock().ok().and_then(|relay| relay.clone())
+        self.traces.lock().ok().and_then(|traces| {
+            traces
+                .get(&thread::current().id())
+                .and_then(|trace| trace.relay.clone())
+        })
     }
 
     fn record_namespace(&self, metadata: NamespaceResolutionMetadata) {
-        if let Ok(mut namespace) = self.namespace.lock() {
-            *namespace = Some(metadata);
+        if let Ok(mut traces) = self.traces.lock() {
+            traces.entry(thread::current().id()).or_default().namespace = Some(metadata);
         }
     }
 
     fn namespace_snapshot(&self) -> Option<NamespaceResolutionMetadata> {
-        self.namespace
-            .lock()
-            .ok()
-            .and_then(|namespace| namespace.clone())
+        self.traces.lock().ok().and_then(|traces| {
+            traces
+                .get(&thread::current().id())
+                .and_then(|trace| trace.namespace.clone())
+        })
     }
 
     fn record_authenticated_hns_delegation(&self, delegation: &HnsDelegation) {
         let Some(observation) = authenticated_hns_delegation_evidence(delegation) else {
             return;
         };
-        let Ok(mut state) = self.authenticated_hns_delegation.lock() else {
+        let Ok(mut traces) = self.traces.lock() else {
             return;
         };
+        let state = &mut traces
+            .entry(thread::current().id())
+            .or_default()
+            .authenticated_hns_delegation;
         if state.conflicted {
             return;
         }
@@ -7372,11 +7547,22 @@ impl DnsTraceRecorder {
     }
 
     fn authenticated_hns_delegation_snapshot(&self) -> Option<AuthenticatedHnsDelegationEvidence> {
-        self.authenticated_hns_delegation
-            .lock()
-            .ok()
-            .and_then(|state| (!state.conflicted).then(|| state.observation.clone()))
-            .flatten()
+        self.traces.lock().ok().and_then(|traces| {
+            traces
+                .get(&thread::current().id())
+                .map(|trace| &trace.authenticated_hns_delegation)
+                .and_then(|state| {
+                    (!state.conflicted)
+                        .then(|| state.observation.clone())
+                        .flatten()
+                })
+        })
+    }
+
+    fn reset(&self) {
+        if let Ok(mut traces) = self.traces.lock() {
+            traces.remove(&thread::current().id());
+        }
     }
 }
 
@@ -8387,26 +8573,92 @@ impl Resolver for AndroidGatewayResolver {
 
 #[derive(Clone, Debug, Default)]
 struct FallbackMarker {
-    used: Arc<AtomicBool>,
-    reason: Arc<Mutex<Option<&'static str>>>,
+    states: Arc<Mutex<HashMap<thread::ThreadId, FallbackState>>>,
+}
+
+/// Per-thread (per-request) fallback bookkeeping. The per-root memories keep a
+/// known-unusable transport from being retried for every record family within
+/// one gateway request, while staying request-scoped so a transient failure
+/// never permanently pins later requests to a fallback path.
+#[derive(Clone, Debug, Default)]
+struct FallbackState {
+    used: bool,
+    reason: Option<&'static str>,
+    p2p_roots: HashSet<String>,
+    recovery_roots: HashSet<String>,
 }
 
 impl FallbackMarker {
     fn mark(&self, reason: &'static str) {
-        self.used.store(true, Ordering::Relaxed);
-        if let Ok(mut fallback_reason) = self.reason.lock()
-            && fallback_reason.is_none()
-        {
-            *fallback_reason = Some(reason);
+        if let Ok(mut states) = self.states.lock() {
+            let state = states.entry(thread::current().id()).or_default();
+            state.used = true;
+            if state.reason.is_none() {
+                state.reason = Some(reason);
+            }
         }
     }
 
     fn used(&self) -> bool {
-        self.used.load(Ordering::Relaxed)
+        self.states
+            .lock()
+            .ok()
+            .and_then(|states| states.get(&thread::current().id()).map(|state| state.used))
+            .unwrap_or(false)
     }
 
     fn reason(&self) -> Option<&'static str> {
-        self.reason.lock().ok().and_then(|reason| *reason)
+        self.states.lock().ok().and_then(|states| {
+            states
+                .get(&thread::current().id())
+                .and_then(|state| state.reason)
+        })
+    }
+
+    fn uses_p2p_fallback(&self, request: &ResolutionRequest) -> bool {
+        let root = fallback_cache_root(request);
+        self.states.lock().is_ok_and(|states| {
+            states
+                .get(&thread::current().id())
+                .is_some_and(|state| state.p2p_roots.contains(&root))
+        })
+    }
+
+    fn remember_p2p_fallback(&self, request: &ResolutionRequest) {
+        let root = fallback_cache_root(request);
+        if let Ok(mut states) = self.states.lock() {
+            states
+                .entry(thread::current().id())
+                .or_default()
+                .p2p_roots
+                .insert(root);
+        }
+    }
+
+    fn uses_recovery_fallback(&self, request: &ResolutionRequest) -> bool {
+        let root = fallback_cache_root(request);
+        self.states.lock().is_ok_and(|states| {
+            states
+                .get(&thread::current().id())
+                .is_some_and(|state| state.recovery_roots.contains(&root))
+        })
+    }
+
+    fn remember_recovery_fallback(&self, request: &ResolutionRequest) {
+        let root = fallback_cache_root(request);
+        if let Ok(mut states) = self.states.lock() {
+            states
+                .entry(thread::current().id())
+                .or_default()
+                .recovery_roots
+                .insert(root);
+        }
+    }
+
+    fn reset(&self) {
+        if let Ok(mut states) = self.states.lock() {
+            states.remove(&thread::current().id());
+        }
     }
 }
 
@@ -8532,30 +8784,24 @@ where
 struct P2pFallbackDelegatedResolver<P, F> {
     primary: P,
     fallback: F,
-    fallback_roots: Arc<Mutex<HashSet<String>>>,
+    fallback_marker: FallbackMarker,
 }
 
 impl<P, F> P2pFallbackDelegatedResolver<P, F> {
-    fn new(primary: P, fallback: F) -> Self {
+    fn new(primary: P, fallback: F, fallback_marker: FallbackMarker) -> Self {
         Self {
             primary,
             fallback,
-            fallback_roots: Arc::new(Mutex::new(HashSet::new())),
+            fallback_marker,
         }
     }
 
     fn uses_fallback(&self, request: &ResolutionRequest) -> bool {
-        let root = fallback_cache_root(request);
-        self.fallback_roots
-            .lock()
-            .is_ok_and(|roots| roots.contains(&root))
+        self.fallback_marker.uses_p2p_fallback(request)
     }
 
     fn remember_fallback(&self, request: &ResolutionRequest) {
-        let root = fallback_cache_root(request);
-        if let Ok(mut roots) = self.fallback_roots.lock() {
-            roots.insert(root);
-        }
+        self.fallback_marker.remember_p2p_fallback(request);
     }
 }
 
@@ -8606,30 +8852,24 @@ fn relay_dnssec_result(
 struct RecoveryDohFallbackDelegatedResolver<P, F> {
     primary: P,
     fallback: F,
-    fallback_roots: Arc<Mutex<HashSet<String>>>,
+    fallback_marker: FallbackMarker,
 }
 
 impl<P, F> RecoveryDohFallbackDelegatedResolver<P, F> {
-    fn new(primary: P, fallback: F) -> Self {
+    fn new(primary: P, fallback: F, fallback_marker: FallbackMarker) -> Self {
         Self {
             primary,
             fallback,
-            fallback_roots: Arc::new(Mutex::new(HashSet::new())),
+            fallback_marker,
         }
     }
 
     fn uses_fallback(&self, request: &ResolutionRequest) -> bool {
-        let root = fallback_cache_root(request);
-        self.fallback_roots
-            .lock()
-            .is_ok_and(|roots| roots.contains(&root))
+        self.fallback_marker.uses_recovery_fallback(request)
     }
 
     fn remember_fallback(&self, request: &ResolutionRequest) {
-        let root = fallback_cache_root(request);
-        if let Ok(mut roots) = self.fallback_roots.lock() {
-            roots.insert(root);
-        }
+        self.fallback_marker.remember_recovery_fallback(request);
     }
 }
 
@@ -8681,18 +8921,30 @@ struct IcannResponseObservation {
     expires_at_unix: u64,
 }
 
+/// Request-scoped ICANN DoH evidence shared through a pooled resolver stack;
+/// keyed by the recording thread for the same isolation reasons as
+/// [`HnsProofEvidenceRecorder`].
 #[derive(Clone, Debug, Default)]
 struct IcannEvidenceRecorder {
-    observations: Arc<Mutex<HashMap<ResolutionRequest, IcannResponseObservation>>>,
+    states:
+        Arc<Mutex<HashMap<thread::ThreadId, HashMap<ResolutionRequest, IcannResponseObservation>>>>,
 }
 
 impl IcannEvidenceRecorder {
     fn begin(&self) -> Result<(), ResolverError> {
-        self.observations
+        self.states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?
+            .entry(thread::current().id())
+            .or_default()
             .clear();
         Ok(())
+    }
+
+    fn reset(&self) {
+        if let Ok(mut states) = self.states.lock() {
+            states.remove(&thread::current().id());
+        }
     }
 
     fn record_response(
@@ -8744,9 +8996,11 @@ impl IcannEvidenceRecorder {
                 return Ok(());
             }
         }
-        self.observations
+        self.states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?
+            .entry(thread::current().id())
+            .or_default()
             .insert(
                 request.clone(),
                 IcannResponseObservation {
@@ -8764,11 +9018,26 @@ impl IcannEvidenceRecorder {
         request: &ResolutionRequest,
     ) -> Result<Option<IcannResponseObservation>, ResolverError> {
         Ok(self
-            .observations
+            .states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?
-            .get(request)
+            .get(&thread::current().id())
+            .and_then(|observations| observations.get(request))
             .copied())
+    }
+
+    #[cfg(test)]
+    fn insert_observation(
+        &self,
+        request: ResolutionRequest,
+        observation: IcannResponseObservation,
+    ) {
+        self.states
+            .lock()
+            .unwrap()
+            .entry(thread::current().id())
+            .or_default()
+            .insert(request, observation);
     }
 
     #[cfg(test)]
@@ -8777,9 +9046,11 @@ impl IcannEvidenceRecorder {
         request: &ResolutionRequest,
     ) -> Result<(), ResolverError> {
         let observed_at_unix = now_unix_seconds();
-        self.observations
+        self.states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?
+            .entry(thread::current().id())
+            .or_default()
             .insert(
                 request.clone(),
                 IcannResponseObservation {
@@ -9736,11 +10007,9 @@ fn prepare_gateway_http_response_with_transport(
                     security_path,
                     &trace,
                 ),
-                selection: Some(NamespacePublicationSelection {
-                    origin,
-                    plans,
-                    dns_trace,
-                }),
+                selection: Some(NamespacePublicationSelection::from_trace(
+                    origin, plans, &dns_trace,
+                )),
             }
         }
         Err(error) => {
@@ -9951,11 +10220,9 @@ fn prepare_gateway_http_response_body_to_file_with_transport(
                     security_path,
                     &trace,
                 ),
-                selection: Some(NamespacePublicationSelection {
-                    origin,
-                    plans,
-                    dns_trace,
-                }),
+                selection: Some(NamespacePublicationSelection::from_trace(
+                    origin, plans, &dns_trace,
+                )),
             })
         }
         Err(error) => {
@@ -10321,6 +10588,38 @@ fn android_gateway_resolver(
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
 ) -> AndroidGatewayResolver {
+    let stack =
+        persistent_gateway_resolver_stack(base, values, context, dns_trace, fallback_marker);
+    gateway_resolver_from_stack(&stack, origin, plans)
+}
+
+/// Builds the per-origin gateway resolver adapter over a (possibly pooled)
+/// resolver stack. Only the cheap per-request adapter state is constructed
+/// here; the resolver chain, its transports, and the SQLite resource provider
+/// are shared through the stack.
+fn gateway_resolver_from_stack(
+    stack: &PersistentGatewayResolver,
+    origin: NamespaceOriginContext,
+    plans: SharedNamespacePlans,
+) -> AndroidGatewayResolver {
+    AndroidGatewayResolver::from_shared(
+        Arc::clone(&stack.hns),
+        Arc::clone(&stack.icann),
+        origin,
+        plans,
+        stack.hns_evidence.clone(),
+        stack.icann_evidence.clone(),
+        stack.dns_trace.clone(),
+    )
+}
+
+fn persistent_gateway_resolver_stack(
+    base: PathBuf,
+    values: SqliteResourceValueProvider,
+    context: GatewayResolverContext,
+    dns_trace: DnsTraceRecorder,
+    fallback_marker: FallbackMarker,
+) -> PersistentGatewayResolver {
     let GatewayResolverContext {
         network,
         runtime_policy,
@@ -10356,8 +10655,11 @@ fn android_gateway_resolver(
                 .without_authoritative_doh(),
             relay_feedback,
         );
-        delegated =
-            BoxedDelegatedResolver::new(P2pFallbackDelegatedResolver::new(delegated, relay));
+        delegated = BoxedDelegatedResolver::new(P2pFallbackDelegatedResolver::new(
+            delegated,
+            relay,
+            fallback_marker.clone(),
+        ));
     }
 
     if let Some(endpoint) = runtime_policy
@@ -10370,12 +10672,14 @@ fn android_gateway_resolver(
             dns_trace.clone(),
             http.clone(),
             endpoint_policy,
-            fallback_marker,
+            fallback_marker.clone(),
         );
         let recovery = AuthoritativeDnssecResolver::new(recovery_transport, SystemDnssecVerifier)
             .without_authoritative_doh();
         delegated = BoxedDelegatedResolver::new(RecoveryDohFallbackDelegatedResolver::new(
-            delegated, recovery,
+            delegated,
+            recovery,
+            fallback_marker.clone(),
         ));
     }
 
@@ -10386,18 +10690,111 @@ fn android_gateway_resolver(
         .with_peer_state(peer_state)
         .with_proof_peer(proof_peer)
         .with_evidence(hns_evidence.clone());
+    // Authoritative answers below the proof/evidence layer are cached so a
+    // pooled stack stops repeating the same serialized delegated DNS queries
+    // for every namespace plan rebuild. The proof provider still runs per
+    // query, so request-scoped proof evidence stays live and fresh.
+    let delegated = CachedDelegatedResolver::new(
+        delegated,
+        GATEWAY_RESOLVER_CACHE_ENTRIES,
+        GATEWAY_RESOLVER_CACHE_TTL,
+    );
     let delegated = AuthenticatedHnsDelegationRecordingResolver::new(delegated, dns_trace.clone());
     let primary = DelegatingResolver::new(proof_provider, delegated);
     let icann = IcannDohResolver::new(dns_trace.clone(), http, icann_evidence.clone(), fixture_key);
-    AndroidGatewayResolver::new(
-        primary,
-        icann,
-        origin,
-        plans,
+    PersistentGatewayResolver {
+        hns: Arc::new(primary),
+        icann: Arc::new(icann),
         hns_evidence,
         icann_evidence,
+        fallback_marker,
         dns_trace,
-    )
+    }
+}
+
+/// Caches validated delegated authoritative answers below the proof and
+/// evidence layers. Keyed by both the resolution request and a fingerprint of
+/// the live delegation so an answer resolved under superseded root records can
+/// never satisfy a query made under the current delegation.
+struct CachedDelegatedResolver<R> {
+    inner: R,
+    cache: Mutex<TtlCache<(ResolutionRequest, [u8; 32]), CachedDelegatedResolution>>,
+    ttl: Duration,
+}
+
+#[derive(Clone)]
+enum CachedDelegatedResolution {
+    Answer(ResolutionAnswer),
+    NameNotFound,
+}
+
+impl<R> CachedDelegatedResolver<R> {
+    fn new(inner: R, max_entries: usize, ttl: Duration) -> Self {
+        Self {
+            inner,
+            cache: Mutex::new(TtlCache::new(max_entries)),
+            ttl,
+        }
+    }
+}
+
+fn delegation_fingerprint(delegation: &HnsDelegation) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(delegation.root_name.as_bytes());
+    hasher.update([0]);
+    hasher.update(delegation.owner.to_string().as_bytes());
+    for record in &delegation.records {
+        hasher.update([0]);
+        hasher.update(record.name.to_string().as_bytes());
+        hasher.update(record.record_type.code().to_be_bytes());
+        hasher.update(record.class.to_be_bytes());
+        hasher.update((record.rdata.len() as u64).to_be_bytes());
+        hasher.update(&record.rdata);
+    }
+    hasher.finalize().into()
+}
+
+impl<R: DelegatedResolver> DelegatedResolver for CachedDelegatedResolver<R> {
+    fn resolve_delegated(
+        &self,
+        request: &ResolutionRequest,
+        delegation: &HnsDelegation,
+    ) -> Result<ResolutionAnswer, ResolverError> {
+        let key = (request.clone(), delegation_fingerprint(delegation));
+        if let Some(cached) = self
+            .cache
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .get(&key)
+        {
+            return match cached {
+                CachedDelegatedResolution::Answer(answer) => Ok(answer),
+                CachedDelegatedResolution::NameNotFound => Err(ResolverError::NameNotFound),
+            };
+        }
+
+        match self.inner.resolve_delegated(request, delegation) {
+            Ok(answer) => {
+                self.cache
+                    .lock()
+                    .map_err(|_| ResolverError::CachePoisoned)?
+                    .insert(
+                        key,
+                        CachedDelegatedResolution::Answer(answer.clone()),
+                        self.ttl,
+                    );
+                Ok(answer)
+            }
+            Err(ResolverError::NameNotFound) => {
+                self.cache
+                    .lock()
+                    .map_err(|_| ResolverError::CachePoisoned)?
+                    .insert(key, CachedDelegatedResolution::NameNotFound, self.ttl);
+                Err(ResolverError::NameNotFound)
+            }
+            Err(error) => Err(error),
+        }
+    }
 }
 
 struct GatewayResolverContext {
@@ -14290,12 +14687,11 @@ mod tests {
         port: u16,
         namespace: Namespace,
     ) -> NamespacePublicationSelection {
-        NamespacePublicationSelection {
-            origin: namespace_origin_context(base.to_path_buf(), network, scheme, host, port, 0)
-                .unwrap(),
-            plans: Arc::new(Mutex::new(HashMap::new())),
-            dns_trace: trace_recorder_for_selection(namespace),
-        }
+        NamespacePublicationSelection::from_trace(
+            namespace_origin_context(base.to_path_buf(), network, scheme, host, port, 0).unwrap(),
+            Arc::new(Mutex::new(HashMap::new())),
+            &trace_recorder_for_selection(namespace),
+        )
     }
 
     fn test_cleartext_origin_plan(
@@ -19955,6 +20351,7 @@ mod tests {
                 ResolverError::DnsTransport("authoritative UDP timed out".to_owned())
             }),
             TestDelegatedResolver::answer(answer.clone()),
+            FallbackMarker::default(),
         );
         let request = ResolutionRequest {
             qname: "legacy.relaytest".to_owned(),
@@ -19971,6 +20368,7 @@ mod tests {
         let intercepted = P2pFallbackDelegatedResolver::new(
             TestDelegatedResolver::error(|| ResolverError::Port53InterceptionDetected),
             TestDelegatedResolver::answer(answer.clone()),
+            FallbackMarker::default(),
         );
         assert_eq!(
             intercepted
@@ -19994,6 +20392,7 @@ mod tests {
                     calls: Arc::clone(&fallback_calls),
                     answer: answer.clone(),
                 },
+                FallbackMarker::default(),
             );
             assert_eq!(
                 gated
@@ -20040,6 +20439,7 @@ mod tests {
                     calls: Arc::clone(&fallback_calls),
                     answer: answer.clone(),
                 },
+                FallbackMarker::default(),
             );
             assert_eq!(
                 resolver.resolve_delegated(&request, &delegation).unwrap(),
@@ -20063,6 +20463,7 @@ mod tests {
                     calls: Arc::clone(&fallback_calls),
                     answer: answer.clone(),
                 },
+                FallbackMarker::default(),
             );
             assert_eq!(
                 resolver
@@ -20093,6 +20494,7 @@ mod tests {
                 calls: Arc::clone(&fallback_calls),
                 answer,
             },
+            FallbackMarker::default(),
         );
         let delegation = test_delegation("recoverytest");
 
@@ -20136,6 +20538,7 @@ mod tests {
                         _ => unreachable!(),
                     }),
                 },
+                FallbackMarker::default(),
             );
             assert_eq!(
                 resolver
@@ -20148,6 +20551,7 @@ mod tests {
         let bogus = RecoveryDohFallbackDelegatedResolver::new(
             TestDelegatedResolver::error(|| ResolverError::Port53InterceptionDetected),
             TestDelegatedResolver::error(|| ResolverError::DnssecFailed),
+            FallbackMarker::default(),
         );
         assert_eq!(
             bogus.resolve_delegated(&request, &delegation).unwrap_err(),
@@ -20287,6 +20691,7 @@ mod tests {
                 },
                 feedback.clone(),
             ),
+            FallbackMarker::default(),
         );
 
         assert_eq!(
@@ -21792,19 +22197,16 @@ mod tests {
             )
             .unwrap();
         let icann_evidence = IcannEvidenceRecorder::default();
-        {
-            let mut observations = icann_evidence.observations.lock().unwrap();
-            for request in [&a_request, &aaaa_request] {
-                observations.insert(
-                    request.clone(),
-                    IcannResponseObservation {
-                        kind: IcannResponseKind::Answer,
-                        secure: true,
-                        observed_at_unix: now,
-                        expires_at_unix: now.saturating_add(60),
-                    },
-                );
-            }
+        for request in [&a_request, &aaaa_request] {
+            icann_evidence.insert_observation(
+                request.clone(),
+                IcannResponseObservation {
+                    kind: IcannResponseKind::Answer,
+                    secure: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            );
         }
         let base = temp_dir_path("dual-root-aaaa-divergence");
         let origin = NamespaceOriginContext {
@@ -22561,7 +22963,7 @@ mod tests {
             (https_request, IcannResponseKind::Answer),
             (udp_tlsa_request, IcannResponseKind::NoData),
         ] {
-            evidence.observations.lock().unwrap().insert(
+            evidence.insert_observation(
                 request,
                 IcannResponseObservation {
                     kind,
@@ -22890,7 +23292,7 @@ mod tests {
             (&https_request, IcannResponseKind::NoData),
             (&tlsa_request, IcannResponseKind::Answer),
         ] {
-            evidence.observations.lock().unwrap().insert(
+            evidence.insert_observation(
                 request.clone(),
                 IcannResponseObservation {
                     kind,
@@ -22953,7 +23355,7 @@ mod tests {
                 Vec::new()
             };
             answers.insert(request.clone(), resolution_answer(owner, records, true));
-            evidence.observations.lock().unwrap().insert(
+            evidence.insert_observation(
                 request,
                 IcannResponseObservation {
                     kind,
@@ -23450,5 +23852,151 @@ mod tests {
 
     fn cleanup_dir(path: &std::path::Path) {
         let _ = std::fs::remove_dir_all(path);
+    }
+
+    fn persistent_pool_context(
+        runtime: &BrowserRuntime,
+        experimental_p2p_dns_relay: bool,
+    ) -> GatewayResolverContext {
+        GatewayResolverContext {
+            network: NetworkKind::Regtest,
+            runtime_policy: RuntimePolicy {
+                resolution_mode: ResolutionMode::Strict,
+                hns_doh_resolver: None,
+                experimental_p2p_dns_relay,
+                legacy_hns_doh_compatibility: false,
+                stateless_dane_certificates: false,
+            },
+            peer_state: Some(Arc::clone(&runtime.inner.coordination.peer_state)),
+            relay: Some(runtime.inner.coordination.relay.clone()),
+            http: runtime.inner.transport.clone(),
+        }
+    }
+
+    #[test]
+    fn browser_runtime_reuses_gateway_resolver_for_matching_policy() {
+        let data_dir = temp_dir_path("persistent-gateway-resolver");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let base = network_base_path(&runtime.inner.data_dir, NetworkKind::Regtest);
+        fs::create_dir_all(&base).unwrap();
+
+        let first = runtime
+            .persistent_gateway_resolver(base.clone(), persistent_pool_context(&runtime, false))
+            .unwrap();
+        let second = runtime
+            .persistent_gateway_resolver(base.clone(), persistent_pool_context(&runtime, false))
+            .unwrap();
+        let relayed = runtime
+            .persistent_gateway_resolver(base.clone(), persistent_pool_context(&runtime, true))
+            .unwrap();
+
+        assert!(Arc::ptr_eq(&first, &second));
+        assert!(!Arc::ptr_eq(&first, &relayed));
+        assert_eq!(runtime.inner.gateway_resolvers.lock().unwrap().len(), 2);
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn clearing_the_resolver_cache_drops_pooled_gateway_resolvers() {
+        let data_dir = temp_dir_path("persistent-gateway-resolver-clear");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let base = network_base_path(&runtime.inner.data_dir, NetworkKind::Regtest);
+        fs::create_dir_all(&base).unwrap();
+        runtime
+            .persistent_gateway_resolver(base, persistent_pool_context(&runtime, false))
+            .unwrap();
+        assert_eq!(runtime.inner.gateway_resolvers.lock().unwrap().len(), 1);
+
+        runtime.clear_resolver_cache().unwrap();
+        assert!(runtime.inner.gateway_resolvers.lock().unwrap().is_empty());
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn persistent_resolver_diagnostics_are_thread_scoped() {
+        let marker = FallbackMarker::default();
+        let request = ResolutionRequest {
+            qname: "app.pirate".to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        marker.mark("main-thread");
+        marker.remember_p2p_fallback(&request);
+        marker.remember_recovery_fallback(&request);
+        let other = marker.clone();
+        thread::spawn(move || {
+            let request = ResolutionRequest {
+                qname: "app.pirate".to_owned(),
+                qtype: RecordType::A.code(),
+            };
+            assert!(!other.used());
+            assert_eq!(other.reason(), None);
+            assert!(!other.uses_p2p_fallback(&request));
+            assert!(!other.uses_recovery_fallback(&request));
+            other.mark("worker-thread");
+            assert_eq!(other.reason(), Some("worker-thread"));
+            other.reset();
+            assert!(!other.used());
+        })
+        .join()
+        .unwrap();
+
+        assert!(marker.used());
+        assert_eq!(marker.reason(), Some("main-thread"));
+        assert!(marker.uses_p2p_fallback(&request));
+        assert!(marker.uses_recovery_fallback(&request));
+        marker.reset();
+        assert!(!marker.used());
+        assert!(!marker.uses_p2p_fallback(&request));
+        assert!(!marker.uses_recovery_fallback(&request));
+    }
+
+    #[test]
+    fn persistent_resolver_trace_and_evidence_are_thread_scoped() {
+        let trace = DnsTraceRecorder::default();
+        trace.push(DnsTraceEvent {
+            protocol: "udp",
+            server: "192.0.2.53:53".to_owned(),
+            question_name: Some("app.pirate".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "success".to_owned(),
+            elapsed_ms: 1,
+            error: None,
+        });
+        let evidence = HnsProofEvidenceRecorder::default();
+        evidence
+            .record(
+                "pirate",
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: hns_core::Hash::from_hex(&"11".repeat(32)).unwrap(),
+                        height: Height(7),
+                    },
+                    exists: true,
+                    has_delegation: true,
+                    observed_at_unix: now_unix_seconds(),
+                    expires_at_unix: now_unix_seconds() + 30,
+                },
+            )
+            .unwrap();
+        assert_eq!(trace.snapshot().len(), 1);
+        assert!(evidence.observation("pirate").unwrap().is_some());
+
+        let other_trace = trace.clone();
+        let other_evidence = evidence.clone();
+        thread::spawn(move || {
+            assert!(other_trace.snapshot().is_empty());
+            assert!(other_evidence.observation("pirate").unwrap().is_none());
+        })
+        .join()
+        .unwrap();
+
+        trace.reset();
+        evidence.reset();
+        assert!(trace.snapshot().is_empty());
+        assert!(evidence.observation("pirate").unwrap().is_none());
     }
 }
