@@ -1494,12 +1494,13 @@ struct RuntimeInner {
     latest_canonical_status: RwLock<CanonicalStatusAvailability>,
     namespace_plans: SharedNamespacePlans,
     gateway_resolvers: Mutex<HashMap<GatewayResolverKey, Arc<PersistentGatewayResolver>>>,
-    /// Gates policy transitions against policy-scoped operations. Operations
-    /// whose requested policy already matches the live policy share the read
-    /// side and overlap; a policy transition takes the write side and waits
-    /// for every in-flight operation so no request observes a policy change
-    /// mid-flight.
-    operation: RwLock<()>,
+    /// Serializes policy-scoped runtime operations end to end. Overlap is
+    /// deliberately disabled: concurrent interceptor requests stretch each
+    /// other's uncached ICANN legs past the one-second delegated-HNS evidence
+    /// freshness window (see `hns_observation_freshness`), which flips
+    /// namespace plans to Indeterminate under request bursts. The lock still
+    /// guarantees no request observes a policy transition mid-flight.
+    operation: Mutex<()>,
     operation_metrics: PolicyOperationMetrics,
 }
 
@@ -1945,7 +1946,7 @@ impl BrowserRuntime {
                 latest_canonical_status: RwLock::new(CanonicalStatusAvailability::Pending),
                 namespace_plans: Arc::new(Mutex::new(HashMap::new())),
                 gateway_resolvers: Mutex::new(HashMap::new()),
-                operation: RwLock::new(()),
+                operation: Mutex::new(()),
                 operation_metrics: PolicyOperationMetrics::default(),
             }),
         })
@@ -1980,7 +1981,7 @@ impl BrowserRuntime {
         let _operation = self
             .inner
             .operation
-            .write()
+            .lock()
             .map_err(|_| RuntimeError::Synchronization("runtime operation lock"))?;
         self.set_policy_locked(policy)
     }
@@ -2031,29 +2032,16 @@ impl BrowserRuntime {
         operation: impl FnOnce(&BrowserRuntime) -> Result<T, RuntimeError>,
     ) -> Result<T, RuntimeError> {
         let policy = policy.enforce_hns_trust_policy()?;
-        // An operation whose requested policy already matches the live policy
-        // cannot transition anything, so it only needs the shared read gate
-        // and its resolver/network work overlaps with other same-policy
-        // operations. The policy is re-checked under the gate so a transition
-        // can never slip in between the check and the operation.
-        {
-            let gate = self
-                .inner
-                .operation
-                .read()
-                .map_err(|_| RuntimeError::Synchronization("runtime operation lock"))?;
-            if self.policy()? == policy {
-                let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
-                return operation(self);
-            }
-            drop(gate);
-        }
-        // A policy transition must exclude every in-flight operation so no
-        // request observes the runtime policy changing mid-flight.
-        let _gate = self
+        // Operations stay serialized even when the requested policy already
+        // matches: concurrent gateway requests contend for the uncached ICANN
+        // absence leg, and a stretched leg outlives the one-second
+        // delegated-HNS evidence freshness window, flipping namespace plans
+        // to Indeterminate (503). The metrics still record admission so any
+        // future overlap experiment is measurable.
+        let _operation = self
             .inner
             .operation
-            .write()
+            .lock()
             .map_err(|_| RuntimeError::Synchronization("runtime operation lock"))?;
         if self.policy()? != policy {
             self.set_policy_locked(policy)?;
@@ -24275,20 +24263,32 @@ mod tests {
     }
 
     #[test]
-    fn same_policy_raw_gateway_requests_overlap() {
-        let (data_dir, runtime) = runtime_with_cached_loopback_name("runtime-raw-gateway-overlap");
+    fn same_policy_raw_gateway_requests_remain_serialized() {
+        let (data_dir, runtime) = runtime_with_cached_loopback_name("runtime-raw-gateway-serial");
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        // The origin holds each response until both in-flight requests have
-        // arrived; under end-to-end serialization the second request never
-        // reaches the origin while the first is still waiting.
-        let barrier = Arc::new(std::sync::Barrier::new(3));
-        let (arrived_tx, arrived_rx) = std::sync::mpsc::channel();
-        let server_barrier = Arc::clone(&barrier);
-        let server = spawn_loopback_origin(listener, 2, move |stream| {
-            arrived_tx.send(()).unwrap();
-            server_barrier.wait();
-            write_ok_body_response(stream);
+        // The origin holds the first response until released; if runtime
+        // operations overlap, the second request reaches the origin while the
+        // first is still held.
+        let (first_arrived_tx, first_arrived_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let (second_arrived_tx, second_arrived_rx) = std::sync::mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut first, _) = listener.accept().unwrap();
+            first
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _head = read_test_http_head(&mut first).unwrap();
+            first_arrived_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(5)).ok();
+            write_ok_body_response(&mut first);
+            let (mut second, _) = listener.accept().unwrap();
+            second
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _head = read_test_http_head(&mut second).unwrap();
+            second_arrived_tx.send(()).unwrap();
+            write_ok_body_response(&mut second);
         });
 
         let first_runtime = runtime.clone();
@@ -24297,32 +24297,38 @@ mod tests {
                 .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
                 .map(GatewayHttpResponse::into_bytes)
         });
+        first_arrived_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("first request reached the origin");
         let second_runtime = runtime.clone();
         let second = thread::spawn(move || {
             second_runtime
                 .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
                 .map(GatewayHttpResponse::into_bytes)
         });
-
-        arrived_rx
-            .recv_timeout(Duration::from_secs(10))
-            .expect("first interceptor request reached the origin");
-        arrived_rx
-            .recv_timeout(Duration::from_secs(10))
-            .expect("second interceptor request overlapped the first");
-        barrier.wait();
+        // The second request must still be gated while the first is held.
+        assert!(
+            second_arrived_rx
+                .recv_timeout(Duration::from_millis(300))
+                .is_err(),
+            "second request overlapped the first in-flight operation"
+        );
+        release_tx.send(()).unwrap();
 
         let first = first.join().unwrap().unwrap();
         let second = second.join().unwrap().unwrap();
         assert!(first.starts_with(b"HTTP/1.1 200 OK\r\n"));
         assert!(second.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        second_arrived_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("second request reached the origin after the first");
         assert_eq!(
             runtime
                 .inner
                 .operation_metrics
                 .max_in_flight
                 .load(Ordering::SeqCst),
-            2
+            1
         );
         server.join().unwrap();
         cleanup_dir(&data_dir);
@@ -24365,6 +24371,425 @@ mod tests {
         );
         assert!(pooled_gateway_resolver_stacks(&runtime).is_empty());
         assert_eq!(runtime.policy().unwrap(), RuntimePolicy::compatibility());
+        cleanup_dir(&data_dir);
+    }
+
+    /// A scripted ICANN resolver that records authenticated absence after a
+    /// controllable delay, so tests can reproduce plan builds whose ICANN leg
+    /// finishes after the HNS evidence freshness window has closed.
+    struct ScriptedAbsentIcannResolver {
+        evidence: IcannEvidenceRecorder,
+        delay_millis: Arc<AtomicU64>,
+    }
+
+    impl Resolver for ScriptedAbsentIcannResolver {
+        fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+            let delay = self.delay_millis.load(Ordering::SeqCst);
+            if delay > 0 {
+                thread::sleep(Duration::from_millis(delay));
+            }
+            self.evidence.record_authenticated_absence(request)?;
+            Err(ResolverError::NameNotFound)
+        }
+    }
+
+    /// A scripted ICANN resolver whose authenticated-absence leg stretches
+    /// past the delegated-HNS evidence freshness window when another runtime
+    /// operation is in flight, modeling how concurrent interceptor requests
+    /// contend for the uncached ICANN network path.
+    struct ContentionAwareAbsentIcannResolver {
+        evidence: IcannEvidenceRecorder,
+        inner: Arc<RuntimeInner>,
+    }
+
+    impl Resolver for ContentionAwareAbsentIcannResolver {
+        fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+            if self
+                .inner
+                .operation_metrics
+                .in_flight
+                .load(Ordering::SeqCst)
+                > 1
+            {
+                thread::sleep(Duration::from_millis(1_100));
+            }
+            self.evidence.record_authenticated_absence(request)?;
+            Err(ResolverError::NameNotFound)
+        }
+    }
+
+    /// A scripted delegated resolver that answers the origin host with a
+    /// loopback A record and counts every query reaching it, so tests can
+    /// distinguish live delegated DNS from pooled delegated-cache hits.
+    struct LoopbackCountingDelegatedResolver {
+        calls: Arc<AtomicUsize>,
+        host: String,
+    }
+
+    impl DelegatedResolver for LoopbackCountingDelegatedResolver {
+        fn resolve_delegated(
+            &self,
+            request: &ResolutionRequest,
+            _delegation: &HnsDelegation,
+        ) -> Result<ResolutionAnswer, ResolverError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let records = match RecordType::from_code(request.qtype) {
+                RecordType::A => vec![address_record(&self.host, [127, 0, 0, 1])],
+                _ => Vec::new(),
+            };
+            Ok(ResolutionAnswer {
+                name: DnsName::from_ascii(&self.host).unwrap(),
+                records,
+                secure: true,
+            })
+        }
+    }
+
+    /// Opens a regtest runtime for a delegated (non-glue) HNS name whose
+    /// resource carries a secure delegation. Returns the runtime, the network
+    /// base path, and the origin host.
+    fn delegated_loopback_runtime(label: &str) -> (PathBuf, BrowserRuntime, PathBuf, String) {
+        let data_dir = temp_dir_path(label);
+        let base = data_dir.join("hns-regtest");
+        std::fs::create_dir_all(&base).unwrap();
+        let resources = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
+        let root_name = "delegated".to_owned();
+        let host = format!("app.{root_name}");
+        let name_hash = NameHash::from_name(&root_name).unwrap();
+        let anchor_root = Hash::new([34; 32]);
+        let anchor_height =
+            store_best_header_for_network_with_tree_root(&base, NetworkKind::Regtest, anchor_root);
+        resources
+            .insert(
+                VerifiedResourceValue::inclusion(
+                    root_name.clone(),
+                    name_hash,
+                    owner_ds_glue4_resource(&root_name, [203, 0, 113, 53]),
+                )
+                .with_anchor(anchor_root, anchor_height),
+            )
+            .unwrap();
+        drop(resources);
+        let runtime = BrowserRuntime::open(
+            RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest).with_initial_policy(
+                RuntimePolicy {
+                    resolution_mode: ResolutionMode::Strict,
+                    hns_doh_resolver: None,
+                    experimental_p2p_dns_relay: false,
+                    legacy_hns_doh_compatibility: false,
+                    stateless_dane_certificates: false,
+                },
+            ),
+        )
+        .unwrap();
+        (data_dir, runtime, base, host)
+    }
+
+    /// Pre-seeds the resolver pool with the exact production stack
+    /// composition, except the wire delegated resolver is replaced by a
+    /// counting loopback fake and the ICANN resolver by the supplied fake.
+    /// The pool key matches what the FFI gateway path computes, so
+    /// `raw_gateway_request` reuses this stack.
+    fn seed_delegated_pool(
+        runtime: &BrowserRuntime,
+        base: &Path,
+        host: &str,
+        icann: impl FnOnce(IcannEvidenceRecorder) -> Arc<dyn Resolver + Send + Sync>,
+    ) -> Arc<AtomicUsize> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let hns_evidence = HnsProofEvidenceRecorder::default();
+        let icann_evidence = IcannEvidenceRecorder::default();
+        let dns_trace = DnsTraceRecorder::default();
+        let values = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
+        let proof_provider =
+            GatewayProofProvider::new(base.to_path_buf(), values, NetworkKind::Regtest)
+                .with_evidence(hns_evidence.clone());
+        let delegated = CachedDelegatedResolver::new(
+            LoopbackCountingDelegatedResolver {
+                calls: Arc::clone(&calls),
+                host: host.to_owned(),
+            },
+            GATEWAY_RESOLVER_CACHE_ENTRIES,
+            GATEWAY_RESOLVER_CACHE_TTL,
+        );
+        let hns = DelegatingResolver::new(proof_provider, delegated);
+        let tip = best_synced_header(base, NetworkKind::Regtest).unwrap();
+        let key = GatewayResolverKey {
+            base: base.to_path_buf(),
+            chain_tip: Some((tip.height.0, tip.header.tree_root.to_string())),
+            resolution_mode: gateway_resolver_mode_key(ResolutionMode::Strict),
+            hns_doh_resolver: None,
+            experimental_p2p_dns_relay: false,
+            legacy_hns_doh_compatibility: false,
+        };
+        runtime.inner.gateway_resolvers.lock().unwrap().insert(
+            key,
+            Arc::new(PersistentGatewayResolver {
+                hns: Arc::new(hns),
+                icann: icann(icann_evidence.clone()),
+                hns_evidence,
+                icann_evidence,
+                fallback_marker: FallbackMarker::default(),
+                dns_trace,
+            }),
+        );
+        calls
+    }
+
+    fn runtime_with_delegated_loopback_name(
+        label: &str,
+    ) -> (PathBuf, BrowserRuntime, Arc<AtomicUsize>, Arc<AtomicU64>) {
+        let (data_dir, runtime, base, host) = delegated_loopback_runtime(label);
+        let icann_delay_millis = Arc::new(AtomicU64::new(0));
+        let delay = Arc::clone(&icann_delay_millis);
+        let calls = seed_delegated_pool(&runtime, &base, &host, move |evidence| {
+            Arc::new(ScriptedAbsentIcannResolver {
+                evidence,
+                delay_millis: delay,
+            })
+        });
+        (data_dir, runtime, calls, icann_delay_millis)
+    }
+
+    fn raw_delegated_request(port: u16) -> RawGatewayHttpRequest {
+        RawGatewayHttpRequest {
+            method: "GET".to_owned(),
+            scheme: "http".to_owned(),
+            host: "app.delegated".to_owned(),
+            port: i32::from(port),
+            path_and_query: "/".to_owned(),
+            header_text: String::new(),
+            body: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn pooled_raw_gateway_requests_rebuild_complete_plans_on_delegated_cache_hits() {
+        let (data_dir, runtime, delegated_calls, _icann_delay) =
+            runtime_with_delegated_loopback_name("runtime-raw-gateway-cache-hit-rebuild");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
+
+        // The first request resolves the delegated name live.
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "first delegated request failed: {}",
+            String::from_utf8_lossy(&response)
+        );
+        let live_calls = delegated_calls.load(Ordering::SeqCst);
+        assert_eq!(live_calls, 2);
+
+        // Force a namespace-plan rebuild (plan expiry/eviction) while the
+        // delegated answer cache stays warm: the rebuild must still produce a
+        // complete, evidence-backed plan from cached answers.
+        runtime.inner.namespace_plans.lock().unwrap().clear();
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "delegated-cache-hit rebuild failed: {}",
+            String::from_utf8_lossy(&response)
+        );
+        assert_eq!(delegated_calls.load(Ordering::SeqCst), live_calls);
+
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn delayed_icann_leg_after_a_delegated_cache_hit_flips_the_plan_indeterminate() {
+        let (data_dir, runtime, _delegated_calls, icann_delay) =
+            runtime_with_delegated_loopback_name("runtime-raw-gateway-slow-icann");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 1, write_ok_body_response);
+
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        server.join().unwrap();
+
+        // Force a plan rebuild with a warm delegated cache, but let the ICANN
+        // absence leg outlive the delegated HNS evidence freshness window.
+        runtime.inner.namespace_plans.lock().unwrap().clear();
+        icann_delay.store(1_100, Ordering::SeqCst);
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 503 Namespace Resolution Indeterminate\r\n"),
+            "expected indeterminate response, got: {}",
+            String::from_utf8_lossy(&response)
+        );
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn overlapping_interceptor_requests_keep_evidence_fresh() {
+        let (data_dir, runtime, base, host) =
+            delegated_loopback_runtime("runtime-raw-gateway-overlap-freshness");
+        let delegated_calls = seed_delegated_pool(&runtime, &base, &host, |evidence| {
+            Arc::new(ContentionAwareAbsentIcannResolver {
+                evidence,
+                inner: Arc::clone(&runtime.inner),
+            })
+        });
+
+        // Prime the delegated answer cache so later plan builds resolve the
+        // HNS side instantly from cached answers.
+        let primer_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let primer_port = primer_listener.local_addr().unwrap().port();
+        let primer = spawn_loopback_origin(primer_listener, 1, write_ok_body_response);
+        let response = runtime
+            .raw_gateway_request(
+                raw_delegated_request(primer_port),
+                RuntimePolicy::compatibility(),
+            )
+            .unwrap()
+            .into_bytes();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        primer.join().unwrap();
+
+        // Hold the first request at the origin until the second request has
+        // started, so both are gated in flight together when same-policy
+        // operations are allowed to overlap.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (blocked_tx, blocked_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut first, _) = listener.accept().unwrap();
+            first
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _head = read_test_http_head(&mut first).unwrap();
+            blocked_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(5)).ok();
+            write_ok_body_response(&mut first);
+            let (mut second, _) = listener.accept().unwrap();
+            second
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _head = read_test_http_head(&mut second).unwrap();
+            write_ok_body_response(&mut second);
+        });
+
+        let first_runtime = runtime.clone();
+        let first = thread::spawn(move || {
+            first_runtime
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+        blocked_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("first request reached the origin");
+        // Force the second request to rebuild its namespace plan from the
+        // warm delegated cache while the first request is still in flight.
+        runtime.inner.namespace_plans.lock().unwrap().clear();
+        let second_runtime = runtime.clone();
+        let second = thread::spawn(move || {
+            second_runtime
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+        thread::sleep(Duration::from_millis(100));
+        release_tx.send(()).unwrap();
+
+        let first = first.join().unwrap().unwrap();
+        let second = second.join().unwrap().unwrap();
+        assert!(
+            first.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "held request failed: {}",
+            String::from_utf8_lossy(&first)
+        );
+        assert!(
+            second.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "overlapping request failed: {}",
+            String::from_utf8_lossy(&second)
+        );
+        // Both rebuilds were served from the warm delegated cache.
+        assert_eq!(delegated_calls.load(Ordering::SeqCst), 2);
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn concurrent_raw_gateway_requests_build_complete_plans() {
+        let (data_dir, runtime, _delegated_calls, _icann_delay) =
+            runtime_with_delegated_loopback_name("runtime-raw-gateway-concurrent-plans");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
+
+        let first_runtime = runtime.clone();
+        let first = thread::spawn(move || {
+            first_runtime
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+        let second_runtime = runtime.clone();
+        let second = thread::spawn(move || {
+            second_runtime
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+
+        let first = first.join().unwrap().unwrap();
+        let second = second.join().unwrap().unwrap();
+        assert!(
+            first.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "first concurrent request failed: {}",
+            String::from_utf8_lossy(&first)
+        );
+        assert!(
+            second.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "second concurrent request failed: {}",
+            String::from_utf8_lossy(&second)
+        );
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn raw_gateway_request_after_prepare_drop_cycle_reuses_the_cached_plan() {
+        let (data_dir, runtime, delegated_calls, _icann_delay) =
+            runtime_with_delegated_loopback_name("runtime-raw-gateway-drop-cycle");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
+
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let live_calls = delegated_calls.load(Ordering::SeqCst);
+
+        // A follow-up request for the same origin, after the first request's
+        // prepare/reset cycle fully completed, must reuse the cached namespace
+        // plan without rebuilding or re-querying.
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "request after prepare/drop cycle failed: {}",
+            String::from_utf8_lossy(&response)
+        );
+        assert_eq!(delegated_calls.load(Ordering::SeqCst), live_calls);
+
+        server.join().unwrap();
         cleanup_dir(&data_dir);
     }
 
