@@ -1027,6 +1027,34 @@ class HnsWebViewGatewayInterceptorTest {
         )
     }
 
+    @Test
+    fun completedFileBackedAssetIsPublishedBeforeReturningToWebView() {
+        val body = "file-backed module".toByteArray()
+        val bridge = FileGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: application/javascript\r\n" +
+                    "Content-Length: ${body.size}\r\n\r\n"
+            ).toByteArray(StandardCharsets.ISO_8859_1),
+            body,
+        )
+        val dataDir = createTempDirectory("hns-validated-file-asset-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir = dataDir,
+            hnsGatewayBridge = bridge,
+            namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
+            chainTipToken = { "100:hash:root" },
+        )
+        val url = "https://app.pirate/assets/client-Bk8h6irO.js"
+
+        val first = requireNotNull(interceptor.intercept("GET", url, emptyMap()))
+        assertEquals("file-backed module", first.openBodyStream().use { it.readBytes() }.decodeToString())
+        val second = requireNotNull(interceptor.intercept("GET", url, emptyMap()))
+        assertEquals("file-backed module", second.openBodyStream().use { it.readBytes() }.decodeToString())
+        assertEquals(1, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
     private data class GatewayCall(
         val dataDir: String,
         val method: String,

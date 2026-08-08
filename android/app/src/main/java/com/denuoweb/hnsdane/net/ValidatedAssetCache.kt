@@ -78,6 +78,38 @@ internal class ValidatedAssetCache(
         )
     }
 
+    fun storeCompletedFile(
+        url: String,
+        scope: String,
+        response: HnsInterceptedResponse,
+    ): HnsInterceptedResponse? {
+        val sourceFile = response.bodyFile ?: return null
+        if (sourceFile.length() > maxEntryBytes) return null
+        val directory = synchronized(lock) {
+            activateScope(scope)
+            File(root, scope).also { it.mkdirs() }
+        }
+        val entryKey = digest(url)
+        val temporaryBody = File(directory, ".$entryKey.${UUID.randomUUID()}.body.tmp")
+        val copied = runCatching {
+            FileInputStream(sourceFile).use { input ->
+                BufferedOutputStream(FileOutputStream(temporaryBody)).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            temporaryBody.length() <= maxEntryBytes
+        }.getOrDefault(false)
+        if (!copied) {
+            temporaryBody.delete()
+            return null
+        }
+
+        publish(directory, entryKey, temporaryBody, CachedMetadata.from(response))
+        val cached = lookup(url, scope) ?: return null
+        response.discardBody()
+        return cached
+    }
+
     private fun publish(
         directory: File,
         entryKey: String,
