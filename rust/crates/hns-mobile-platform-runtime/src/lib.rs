@@ -3318,6 +3318,24 @@ impl BrowserRuntime {
             .map_err(RuntimeError::Operation)
     }
 
+    /// Returns the exact local Handshake chain tip used to scope validated HTTP objects.
+    pub fn chain_tip_token(&self) -> Result<String, RuntimeError> {
+        let _maintenance = self
+            .inner
+            .coordination
+            .maintenance
+            .read()
+            .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        let _header_state_lock = self.acquire_ready_header_state()?;
+        let base = network_base_path(&self.inner.data_dir, self.inner.configuration.network);
+        let best = best_synced_header(&base, self.inner.configuration.network)
+            .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        Ok(format!(
+            "{}:{}:{}",
+            best.height.0, best.hash, best.header.tree_root
+        ))
+    }
+
     /// Verifies and persists one explicitly configured relay-capable Handshake peer.
     ///
     /// The live version handshake happens before the shared peer-store lock is acquired. The

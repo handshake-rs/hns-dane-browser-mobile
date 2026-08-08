@@ -150,6 +150,13 @@ object NativeBridge :
         block = ::nativeRuntimeSyncStatus,
     )
 
+    fun chainTipToken(dataDir: String, network: String = DEFAULT_NETWORK): String? = withRuntime(
+        dataDir = dataDir,
+        network = network,
+        unavailable = "",
+        block = ::nativeRuntimeChainTipToken,
+    ).takeIf { it.isNotBlank() }
+
     fun addStaticRelayPeer(dataDir: String, network: String, endpoint: String): String = withRuntime(
         dataDir = dataDir,
         network = network,
@@ -472,6 +479,8 @@ object NativeBridge :
     private external fun nativeRuntimeSyncOnce(handle: Long): String
 
     private external fun nativeRuntimeSyncStatus(handle: Long): String
+
+    private external fun nativeRuntimeChainTipToken(handle: Long): String
 
     private external fun nativeRuntimeAddStaticRelayPeer(handle: Long, endpoint: String): String
 
