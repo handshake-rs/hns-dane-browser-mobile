@@ -167,6 +167,7 @@ class MainActivity : ComponentActivity() {
             experimentalP2pDnsRelay = { HnsResolutionPreferences.experimentalP2pDnsRelay(this) },
             legacyHnsDohCompatibility = { HnsResolutionPreferences.legacyHnsDohCompatibility(this) },
             handshakeNetwork = { HnsResolutionPreferences.handshakeNetworkId(this) },
+            chainTipToken = { network -> NativeBridge.chainTipToken(filesDir.absolutePath, network) },
             onMainFrameHnsStatusForUrl = { url, statusCode, tlsPolicy, resolverPolicy, securityPath, traceJson ->
                 runOnUiThread {
                     val target = classifier.classify(url)

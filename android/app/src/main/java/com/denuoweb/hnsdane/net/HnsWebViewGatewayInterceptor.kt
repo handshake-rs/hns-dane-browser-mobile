@@ -27,10 +27,13 @@ class HnsWebViewGatewayInterceptor(
     private val experimentalP2pDnsRelay: () -> Boolean = { false },
     private val legacyHnsDohCompatibility: () -> Boolean = { false },
     private val handshakeNetwork: () -> String = { DEFAULT_NETWORK },
+    private val chainTipToken: (String) -> String? = { null },
     private val reportAllHnsStatuses: Boolean = false,
     private val onMainFrameHnsStatus: (Int, HnsPageTlsPolicy?, HnsPageResolverPolicy?, HnsPageSecurityPath?, String?) -> Unit = { _, _, _, _, _ -> },
     private val onMainFrameHnsStatusForUrl: (String, Int, HnsPageTlsPolicy?, HnsPageResolverPolicy?, HnsPageSecurityPath?, String?) -> Unit = { _, _, _, _, _, _ -> },
 ) {
+    private val validatedAssetCache = ValidatedAssetCache(dataDir)
+
     fun intercept(request: WebResourceRequest): WebResourceResponse? {
         return intercept(
             method = request.method,
@@ -133,6 +136,20 @@ class HnsWebViewGatewayInterceptor(
 
         val headers = gatewayHeaders(requestHeaders)
         val runtimeConfig = gatewayRuntimeConfig()
+        val assetCacheScope = if (
+            normalizedMethod == "GET" && ValidatedAssetCache.eligible(url)
+        ) {
+            chainTipToken(runtimeConfig.network)?.let { token ->
+                ValidatedAssetCache.scope(runtimeConfig, token)
+            }
+        } else {
+            null
+        }
+        if (assetCacheScope != null) {
+            validatedAssetCache.lookup(url, assetCacheScope)?.let { cached ->
+                return cached
+            }
+        }
         val streamingResponse = if (preferStreaming) {
             hnsGatewayBridge.httpResponseStreaming(
                 dataDir = dataDir.absolutePath,
@@ -202,8 +219,9 @@ class HnsWebViewGatewayInterceptor(
         }
 
         val policyCheckedResponse = response.rejectDisabledTrustStatus(host = target.host)
+        val cacheableDirectResponse = policyCheckedResponse.statusCode == 200
 
-        return policyCheckedResponse.followHnsRedirects(
+        val finalResponse = policyCheckedResponse.followHnsRedirects(
             method = normalizedMethod,
             target = target,
             requestHeaders = requestHeaders,
@@ -211,6 +229,13 @@ class HnsWebViewGatewayInterceptor(
             allowBodyRequestProxyFallback = allowBodyRequestProxyFallback,
             preferStreaming = preferStreaming,
         )
+        return if (
+            assetCacheScope != null && cacheableDirectResponse && finalResponse.statusCode == 200
+        ) {
+            validatedAssetCache.storeAfterComplete(url, assetCacheScope, finalResponse)
+        } else {
+            finalResponse
+        }
     }
 
     private fun HnsInterceptedResponse.rejectDisabledTrustStatus(
@@ -360,7 +385,7 @@ internal data class HnsInterceptedResponse(
     val headers: Map<String, String>,
     val body: ByteArray,
     private val bodyFile: File? = null,
-    private val bodyStream: InputStream? = null,
+    internal val bodyStream: InputStream? = null,
 ) {
     fun toWebResourceResponse(): WebResourceResponse {
         val webStatusCode = if (statusCode in 100..299 || statusCode in 400..599) {
@@ -384,6 +409,16 @@ internal data class HnsInterceptedResponse(
 
     internal fun openBodyStream(): InputStream =
         bodyStream ?: bodyFile?.let(GatewayResponseBodyStore::openReleasing) ?: ByteArrayInputStream(body)
+
+    internal fun withBodyStream(stream: InputStream): HnsInterceptedResponse = HnsInterceptedResponse(
+        statusCode = statusCode,
+        reason = reason,
+        mimeType = mimeType,
+        encoding = encoding,
+        headers = headers,
+        body = ByteArray(0),
+        bodyStream = stream,
+    )
 
     internal fun discardBody() {
         bodyStream?.close()
