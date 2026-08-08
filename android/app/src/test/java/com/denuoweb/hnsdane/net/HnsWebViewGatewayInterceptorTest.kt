@@ -905,11 +905,23 @@ class HnsWebViewGatewayInterceptorTest {
         val url = "https://app.pirate/assets/client-Bk8h6irO.js"
 
         val first = requireNotNull(
-            interceptor.intercept("GET", url, emptyMap(), preferStreaming = true),
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
         )
         assertEquals("cached module", first.openBodyStream().use { it.readBytes() }.decodeToString())
         val second = requireNotNull(
-            interceptor.intercept("GET", url, emptyMap(), preferStreaming = true),
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
         )
         assertEquals("cached module", second.openBodyStream().use { it.readBytes() }.decodeToString())
         assertEquals(1, bridge.calls)
@@ -928,10 +940,26 @@ class HnsWebViewGatewayInterceptorTest {
         )
         val url = "https://app.pirate/assets/client-Bk8h6irO.js"
 
-        requireNotNull(interceptor.intercept("GET", url, emptyMap(), preferStreaming = true))
+        requireNotNull(
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
             .openBodyStream()
             .use { it.read() }
-        requireNotNull(interceptor.intercept("GET", url, emptyMap(), preferStreaming = true))
+        requireNotNull(
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
             .openBodyStream()
             .use { it.readBytes() }
 
@@ -952,11 +980,27 @@ class HnsWebViewGatewayInterceptorTest {
         )
         val url = "https://app.pirate/assets/client-Bk8h6irO.js"
 
-        requireNotNull(interceptor.intercept("GET", url, emptyMap(), preferStreaming = true))
+        requireNotNull(
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
             .openBodyStream()
             .use { it.readBytes() }
         tip = "101:next-hash:next-root"
-        requireNotNull(interceptor.intercept("GET", url, emptyMap(), preferStreaming = true))
+        requireNotNull(
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
             .openBodyStream()
             .use { it.readBytes() }
 
