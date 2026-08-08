@@ -220,6 +220,7 @@ const GATEWAY_RESOLVER_CACHE_ENTRIES: usize = 1_024;
 const GATEWAY_RESOLVER_CACHE_TTL: Duration = Duration::from_secs(300);
 const GATEWAY_NEGATIVE_ANSWER_CACHE_TTL: Duration = Duration::from_secs(30);
 const NAMESPACE_EVIDENCE_MAX_TTL_SECONDS: u64 = 30;
+const MAX_CONCURRENT_ADMITTED_DELIVERIES: usize = 8;
 const DNS_INTERCEPTION_PROBE_TIMEOUT: Duration = Duration::from_millis(350);
 const DNS_INTERCEPTION_PROBE_ID: u16 = 0x484a;
 const DNS_INTERCEPTION_PROBE_NAME: &str = "hns-dns-interception-probe.invalid";
@@ -1606,11 +1607,56 @@ struct RuntimeInner {
     /// namespace plans to Indeterminate under request bursts. The lock still
     /// guarantees no request observes a policy transition mid-flight.
     operation: Mutex<()>,
+    admitted_delivery: AdmittedDeliveryConcurrency,
     operation_metrics: PolicyOperationMetrics,
     request_metrics_observer: RwLock<Arc<dyn BrowserRequestMetricsObserver>>,
     request_metrics_sequence: AtomicU64,
     active_request_metrics: AtomicUsize,
     queued_request_metrics: AtomicUsize,
+}
+
+struct AdmittedDeliveryConcurrency {
+    active: Mutex<usize>,
+    available: Condvar,
+}
+
+impl Default for AdmittedDeliveryConcurrency {
+    fn default() -> Self {
+        Self {
+            active: Mutex::new(0),
+            available: Condvar::new(),
+        }
+    }
+}
+
+struct AdmittedDeliveryPermit<'a> {
+    concurrency: &'a AdmittedDeliveryConcurrency,
+}
+
+impl AdmittedDeliveryConcurrency {
+    fn acquire(&self) -> Result<AdmittedDeliveryPermit<'_>, RuntimeError> {
+        let mut active = self
+            .active
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("admitted delivery lock"))?;
+        while *active >= MAX_CONCURRENT_ADMITTED_DELIVERIES {
+            active = self
+                .available
+                .wait(active)
+                .map_err(|_| RuntimeError::Synchronization("admitted delivery lock"))?;
+        }
+        *active += 1;
+        Ok(AdmittedDeliveryPermit { concurrency: self })
+    }
+}
+
+impl Drop for AdmittedDeliveryPermit<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.concurrency.active.lock() {
+            *active = active.saturating_sub(1);
+            self.concurrency.available.notify_one();
+        }
+    }
 }
 
 struct RuntimeCoordination {
@@ -2121,6 +2167,7 @@ impl BrowserRuntime {
                 namespace_plans: Arc::new(Mutex::new(HashMap::new())),
                 gateway_resolvers: Mutex::new(HashMap::new()),
                 operation: Mutex::new(()),
+                admitted_delivery: AdmittedDeliveryConcurrency::default(),
                 operation_metrics: PolicyOperationMetrics::default(),
                 request_metrics_observer: RwLock::new(Arc::new(NoopBrowserRequestMetricsObserver)),
                 request_metrics_sequence: AtomicU64::new(0),
@@ -2272,6 +2319,80 @@ impl BrowserRuntime {
         }
         let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
         operation(self, admission_wait_ms, queued_requests)
+    }
+
+    fn with_timed_gateway_operation<T>(
+        &self,
+        has_current_namespace_plan: bool,
+        policy: RuntimePolicy,
+        operation: impl FnOnce(&BrowserRuntime, u64, usize, Option<u64>) -> Result<T, RuntimeError>,
+    ) -> Result<T, RuntimeError> {
+        let policy = policy.enforce_hns_trust_policy()?;
+        let (current_policy, policy_revision) = self.policy_snapshot()?;
+        if current_policy == policy && has_current_namespace_plan {
+            // The namespace decision was already built under the serialized
+            // admission gate. Bound only origin/body delivery here; it cannot
+            // mutate root evidence or commit a policy transition, and the
+            // authority stamp inside the gateway still suppresses publication
+            // if either changes while delivery is in flight.
+            let _permit = self.inner.admitted_delivery.acquire()?;
+            let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
+            return operation(self, 0, 0, Some(policy_revision));
+        }
+        self.with_timed_policy_operation(policy, |runtime, wait_ms, queued| {
+            operation(runtime, wait_ms, queued, None)
+        })
+    }
+
+    fn has_current_namespace_plan(&self, request: &GatewayHttpRequest) -> bool {
+        let header_text = match self.gateway_header_text(&request.headers) {
+            Ok(headers) => headers,
+            Err(_) => return false,
+        };
+        let parsed = match parse_gateway_headers(&header_text) {
+            Ok(headers) => headers,
+            Err(_) => return false,
+        };
+        let base = network_base_path(&self.inner.data_dir, parsed.network);
+        let origin = match namespace_origin_context(
+            base.clone(),
+            parsed.network,
+            &request.scheme,
+            &request.host,
+            request.port,
+            self.inner.policy_revision.load(Ordering::Acquire),
+        ) {
+            Ok(origin) => origin,
+            Err(_) => return false,
+        };
+        let now = now_unix_seconds();
+        let plan = {
+            let mut plans = match self.inner.namespace_plans.lock() {
+                Ok(plans) => plans,
+                Err(_) => return false,
+            };
+            plans.retain(|_, plan| plan.expires_at_unix > now);
+            plans.get(&origin.key).cloned()
+        };
+        let Some(plan) = plan else {
+            return false;
+        };
+        if let Some(observation) = plan.hns_observation {
+            hns_anchor_is_current(&base, parsed.network, observation.anchor).unwrap_or(false)
+                && !local_chain_is_stale_for_current_resolution(&base, parsed.network)
+                    .unwrap_or(true)
+        } else {
+            true
+        }
+    }
+
+    fn require_policy_revision(&self, expected: Option<u64>) -> Result<(), RuntimeError> {
+        if expected.is_some_and(|revision| self.policy_revision() != revision) {
+            return Err(RuntimeError::Operation(
+                "policy changed after namespace-plan admission".to_owned(),
+            ));
+        }
+        Ok(())
     }
 
     pub fn policy_revision(&self) -> u64 {
@@ -3426,9 +3547,18 @@ impl BrowserRuntime {
         &self,
         request: GatewayHttpRequest,
     ) -> Result<GatewayHttpResponse, RuntimeError> {
+        self.gateway_request_at_revision(request, None)
+    }
+
+    fn gateway_request_at_revision(
+        &self,
+        request: GatewayHttpRequest,
+        expected_policy_revision: Option<u64>,
+    ) -> Result<GatewayHttpResponse, RuntimeError> {
         self.validate_gateway_request(&request)?;
         let authority_binding = self.ensure_authority_active(0)?;
         let authority_stamp = self.admit_authority_work(authority_binding)?;
+        self.require_policy_revision(expected_policy_revision)?;
         (|| {
             let _maintenance = self
                 .inner
@@ -3474,9 +3604,19 @@ impl BrowserRuntime {
         request: GatewayHttpRequest,
         body_path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, RuntimeError> {
+        self.gateway_request_body_to_file_at_revision(request, body_path, None)
+    }
+
+    fn gateway_request_body_to_file_at_revision(
+        &self,
+        request: GatewayHttpRequest,
+        body_path: impl AsRef<Path>,
+        expected_policy_revision: Option<u64>,
+    ) -> Result<Vec<u8>, RuntimeError> {
         self.validate_gateway_request(&request)?;
         let authority_binding = self.ensure_authority_active(0)?;
         let authority_stamp = self.admit_authority_work(authority_binding)?;
+        self.require_policy_revision(expected_policy_revision)?;
         (|| {
             let _maintenance = self
                 .inner
@@ -3550,9 +3690,11 @@ impl BrowserRuntime {
         };
         let host = request.host.clone();
         let method = request.method.clone();
-        self.with_timed_policy_operation(
+        let has_current_namespace_plan = self.has_current_namespace_plan(&request);
+        self.with_timed_gateway_operation(
+            has_current_namespace_plan,
             policy,
-            move |runtime, admission_wait_ms, queued_requests| {
+            move |runtime, admission_wait_ms, queued_requests, expected_policy_revision| {
                 let mut metrics = RequestMetricsCapture::begin(
                     runtime,
                     BrowserRequestMetricsRoute::CompatibilityInterceptor,
@@ -3562,7 +3704,7 @@ impl BrowserRuntime {
                     admission_wait_ms,
                 );
                 let gateway_started = Instant::now();
-                let result = runtime.gateway_request(request);
+                let result = runtime.gateway_request_at_revision(request, expected_policy_revision);
                 metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
                 match &result {
                     Ok(response) => {
@@ -3599,9 +3741,11 @@ impl BrowserRuntime {
         };
         let host = request.host.clone();
         let method = request.method.clone();
-        self.with_timed_policy_operation(
+        let has_current_namespace_plan = self.has_current_namespace_plan(&request);
+        self.with_timed_gateway_operation(
+            has_current_namespace_plan,
             policy,
-            move |runtime, admission_wait_ms, queued_requests| {
+            move |runtime, admission_wait_ms, queued_requests, expected_policy_revision| {
                 let mut metrics = RequestMetricsCapture::begin(
                     runtime,
                     BrowserRequestMetricsRoute::CompatibilityInterceptor,
@@ -3611,7 +3755,11 @@ impl BrowserRuntime {
                     admission_wait_ms,
                 );
                 let gateway_started = Instant::now();
-                let result = runtime.gateway_request_body_to_file(request, body_path);
+                let result = runtime.gateway_request_body_to_file_at_revision(
+                    request,
+                    body_path,
+                    expected_policy_revision,
+                );
                 metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
                 match &result {
                     Ok(head) => {
@@ -24575,8 +24723,8 @@ mod tests {
     }
 
     #[test]
-    fn same_policy_raw_gateway_requests_remain_serialized() {
-        let (data_dir, runtime) = runtime_with_cached_loopback_name("runtime-raw-gateway-serial");
+    fn admitted_same_policy_raw_gateway_deliveries_overlap() {
+        let (data_dir, runtime) = runtime_with_cached_loopback_name("runtime-raw-gateway-delivery");
         let observed_metrics = Arc::new(Mutex::new(Vec::<BrowserRequestMetrics>::new()));
         let metrics_sink = Arc::clone(&observed_metrics);
         runtime
@@ -24586,9 +24734,9 @@ mod tests {
             .unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        // The origin holds the first response until released; if runtime
-        // operations overlap, the second request reaches the origin while the
-        // first is still held.
+        // The namespace plan is already cached. Hold the first origin response
+        // and prove the second admitted delivery reaches the origin without
+        // rebuilding evidence or waiting on the policy-operation lock.
         let (first_arrived_tx, first_arrived_rx) = std::sync::mpsc::channel();
         let (release_tx, release_rx) = std::sync::mpsc::channel();
         let (second_arrived_tx, second_arrived_rx) = std::sync::mpsc::channel();
@@ -24599,8 +24747,6 @@ mod tests {
                 .unwrap();
             let _head = read_test_http_head(&mut first).unwrap();
             first_arrived_tx.send(()).unwrap();
-            release_rx.recv_timeout(Duration::from_secs(5)).ok();
-            write_ok_body_response(&mut first);
             let (mut second, _) = listener.accept().unwrap();
             second
                 .set_read_timeout(Some(Duration::from_secs(5)))
@@ -24608,6 +24754,8 @@ mod tests {
             let _head = read_test_http_head(&mut second).unwrap();
             second_arrived_tx.send(()).unwrap();
             write_ok_body_response(&mut second);
+            release_rx.recv_timeout(Duration::from_secs(5)).ok();
+            write_ok_body_response(&mut first);
         });
 
         let first_runtime = runtime.clone();
@@ -24625,29 +24773,22 @@ mod tests {
                 .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
                 .map(GatewayHttpResponse::into_bytes)
         });
-        // The second request must still be gated while the first is held.
-        assert!(
-            second_arrived_rx
-                .recv_timeout(Duration::from_millis(300))
-                .is_err(),
-            "second request overlapped the first in-flight operation"
-        );
+        second_arrived_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("second admitted delivery overlapped the first");
         release_tx.send(()).unwrap();
 
         let first = first.join().unwrap().unwrap();
         let second = second.join().unwrap().unwrap();
         assert!(first.starts_with(b"HTTP/1.1 200 OK\r\n"));
         assert!(second.starts_with(b"HTTP/1.1 200 OK\r\n"));
-        second_arrived_rx
-            .recv_timeout(Duration::from_secs(5))
-            .expect("second request reached the origin after the first");
         assert_eq!(
             runtime
                 .inner
                 .operation_metrics
                 .max_in_flight
                 .load(Ordering::SeqCst),
-            1
+            2
         );
         let metrics = observed_metrics.lock().unwrap();
         assert_eq!(metrics.len(), 2);
@@ -24659,11 +24800,36 @@ mod tests {
                 && !entry.origin_timing_available
                 && entry.gateway_ms <= entry.total_ms
         }));
-        assert!(metrics.iter().any(|entry| entry.admission_wait_ms >= 250));
-        assert!(metrics.iter().any(|entry| entry.queued_requests >= 1));
+        assert!(metrics.iter().all(|entry| entry.admission_wait_ms == 0));
+        assert!(metrics.iter().all(|entry| entry.queued_requests <= 1));
         drop(metrics);
         server.join().unwrap();
         cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn admitted_delivery_concurrency_is_bounded() {
+        let concurrency = Arc::new(AdmittedDeliveryConcurrency::default());
+        let mut permits = (0..MAX_CONCURRENT_ADMITTED_DELIVERIES)
+            .map(|_| concurrency.acquire().unwrap())
+            .collect::<Vec<_>>();
+        let (acquired_tx, acquired_rx) = std::sync::mpsc::channel();
+        let waiting = Arc::clone(&concurrency);
+        let waiter = thread::spawn(move || {
+            let _permit = waiting.acquire().unwrap();
+            acquired_tx.send(()).unwrap();
+        });
+
+        assert!(
+            acquired_rx
+                .recv_timeout(Duration::from_millis(100))
+                .is_err()
+        );
+        drop(permits.pop());
+        acquired_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("released delivery permit wakes one waiter");
+        waiter.join().unwrap();
     }
 
     #[test]
