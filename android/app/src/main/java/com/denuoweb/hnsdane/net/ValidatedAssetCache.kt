@@ -67,6 +67,7 @@ internal class ValidatedAssetCache(
                 source = source,
                 output = output,
                 maxBytes = maxEntryBytes,
+                expectedBytes = declaredLength?.takeIf { it >= 0L },
                 onComplete = {
                     publish(directory, entryKey, temporaryBody, metadata)
                 },
@@ -235,6 +236,7 @@ private class PublishingInputStream(
     source: InputStream,
     private val output: BufferedOutputStream,
     private val maxBytes: Long,
+    private val expectedBytes: Long?,
     private val onComplete: () -> Unit,
     private val onAbort: () -> Unit,
 ) : FilterInputStream(source) {
@@ -290,6 +292,9 @@ private class PublishingInputStream(
     override fun close() {
         if (closed) return
         closed = true
+        if (!complete && cacheable && expectedBytes == bytesWritten) {
+            finish()
+        }
         runCatching { super.close() }
         if (!complete) {
             runCatching { output.close() }

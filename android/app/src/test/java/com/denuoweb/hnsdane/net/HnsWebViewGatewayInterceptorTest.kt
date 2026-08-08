@@ -913,7 +913,11 @@ class HnsWebViewGatewayInterceptorTest {
                 preferStreaming = true,
             ),
         )
-        assertEquals("cached module", first.openBodyStream().use { it.readBytes() }.decodeToString())
+        val firstBytes = ByteArray("cached module".toByteArray().size)
+        first.openBodyStream().use { input ->
+            assertEquals(firstBytes.size, input.read(firstBytes))
+        }
+        assertEquals("cached module", firstBytes.decodeToString())
         val second = requireNotNull(
             interceptor.intercept(
                 "GET",
