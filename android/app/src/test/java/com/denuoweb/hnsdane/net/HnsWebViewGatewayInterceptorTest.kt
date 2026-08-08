@@ -10,6 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.charset.StandardCharsets
 import kotlin.io.path.createTempDirectory
@@ -89,6 +90,55 @@ class HnsWebViewGatewayInterceptorTest {
         assertEquals("streamed", streamed)
         assertFalse(bridge.bodyFile.exists())
         assertEquals(1, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun serviceWorkerPathReturnsValidatedHeadBeforeConsumingStreamingBody() {
+        val responseBody = ByteArrayInputStream("streamed".toByteArray(StandardCharsets.UTF_8))
+        val bridge = object : HnsGatewayBridge {
+            override fun httpResponse(
+                dataDir: String,
+                config: HnsGatewayRuntimeConfig,
+                method: String,
+                scheme: String,
+                host: String,
+                port: Int,
+                pathAndQuery: String,
+                headers: List<Pair<String, String>>,
+                body: ByteArray,
+            ): ByteArray = error("buffered fallback should not be used")
+
+            override fun httpResponseStreaming(
+                dataDir: String,
+                config: HnsGatewayRuntimeConfig,
+                method: String,
+                scheme: String,
+                host: String,
+                port: Int,
+                pathAndQuery: String,
+                headers: List<Pair<String, String>>,
+                body: ByteArray,
+            ) = HnsGatewayStreamingResponse(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8\r\n\r\n"
+                    .toByteArray(StandardCharsets.ISO_8859_1),
+                responseBody,
+            )
+        }
+        val dataDir = createTempDirectory("hns-webview-streaming-body-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = interceptor.intercept(
+            method = "GET",
+            url = "https://welcome/stream",
+            requestHeaders = emptyMap(),
+            isForMainFrame = false,
+            preferStreaming = true,
+        )
+
+        requireNotNull(response)
+        assertEquals(200, response.statusCode)
+        assertEquals("streamed", response.openBodyStream().readBytes().toString(StandardCharsets.UTF_8))
         dataDir.deleteRecursively()
     }
 

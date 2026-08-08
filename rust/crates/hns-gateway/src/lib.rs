@@ -234,6 +234,34 @@ where
         })
     }
 
+    pub fn handle_to_writer_streaming(
+        &self,
+        request: &GatewayRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&GatewayResponseHead) -> Result<(), TransportError>,
+    ) -> Result<GatewayResponseHead, GatewayError> {
+        self.authorize(request)?;
+        let (resolution, origin_request) =
+            self.resolve_origin_request(request, &self.config.supported_origin_protocols)?;
+        let observed_resolution = resolution.clone();
+        let observed_request = origin_request.clone();
+        let mut observe_origin = |origin: &OriginResponseHead| {
+            on_head(&GatewayResponseHead {
+                resolution: observed_resolution.clone(),
+                origin_request: observed_request.clone(),
+                origin: origin.clone(),
+            })
+        };
+        let origin =
+            self.transport
+                .fetch_to_writer_streaming(&origin_request, body, &mut observe_origin)?;
+        Ok(GatewayResponseHead {
+            resolution,
+            origin_request,
+            origin,
+        })
+    }
+
     pub fn handle_tunnel(&self, request: &GatewayRequest) -> Result<GatewayTunnel, GatewayError> {
         self.authorize(request)?;
         let (resolution, origin_request) =

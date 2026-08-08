@@ -51,6 +51,7 @@ class HnsWebViewGatewayInterceptor(
             // requests because they have no WebContents. Body-bearing HNS service-worker
             // requests therefore fail closed instead of falling through to the proxy.
             allowBodyRequestProxyFallback = false,
+            preferStreaming = true,
         )?.toWebResourceResponse()
 
     internal fun intercept(
@@ -67,8 +68,16 @@ class HnsWebViewGatewayInterceptor(
         requestHeaders: Map<String, String>,
         isForMainFrame: Boolean,
         allowBodyRequestProxyFallback: Boolean = allowProxyFallbackForBodyRequests(),
+        preferStreaming: Boolean = false,
     ): HnsInterceptedResponse? {
-        val response = interceptInternal(method, url, requestHeaders, MAX_HNS_REDIRECTS, allowBodyRequestProxyFallback)
+        val response = interceptInternal(
+            method,
+            url,
+            requestHeaders,
+            MAX_HNS_REDIRECTS,
+            allowBodyRequestProxyFallback,
+            preferStreaming,
+        )
         if (response != null && (isForMainFrame || reportAllHnsStatuses)) {
             onMainFrameHnsStatus(
                 response.statusCode,
@@ -95,6 +104,7 @@ class HnsWebViewGatewayInterceptor(
         requestHeaders: Map<String, String>,
         redirectsRemaining: Int,
         allowBodyRequestProxyFallback: Boolean,
+        preferStreaming: Boolean,
     ): HnsInterceptedResponse? {
         val target = HnsWebViewTarget.parse(url) ?: return null
         when (HnsHostPolicy.nativeGatewayDecision(target.host, namespacePolicy)) {
@@ -123,7 +133,29 @@ class HnsWebViewGatewayInterceptor(
 
         val headers = gatewayHeaders(requestHeaders)
         val runtimeConfig = gatewayRuntimeConfig()
-        val response = hnsGatewayBridge.httpResponseBodyFile(
+        val streamingResponse = if (preferStreaming) {
+            hnsGatewayBridge.httpResponseStreaming(
+                dataDir = dataDir.absolutePath,
+                config = runtimeConfig,
+                method = normalizedMethod,
+                scheme = target.scheme,
+                host = target.host,
+                port = target.port,
+                pathAndQuery = target.pathAndQuery,
+                headers = headers,
+                body = ByteArray(0),
+            )?.let { streamed ->
+                parseGatewayHttpStreamingResponse(streamed.head, streamed.bodyStream)
+                    ?.also { recordGatewayStatus(target.host, it, "webview_native_streaming_response") }
+                    ?: run {
+                        streamed.bodyStream.close()
+                        null
+                    }
+            }
+        } else {
+            null
+        }
+        val response = streamingResponse ?: hnsGatewayBridge.httpResponseBodyFile(
             dataDir = dataDir.absolutePath,
             config = runtimeConfig,
             method = normalizedMethod,
@@ -177,6 +209,7 @@ class HnsWebViewGatewayInterceptor(
             requestHeaders = requestHeaders,
             redirectsRemaining = redirectsRemaining,
             allowBodyRequestProxyFallback = allowBodyRequestProxyFallback,
+            preferStreaming = preferStreaming,
         )
     }
 
@@ -201,7 +234,7 @@ class HnsWebViewGatewayInterceptor(
             return this
         }
 
-        discardBodyFile()
+        discardBody()
         GatewayEventLog.record(
             "webview_trust_policy",
             host,
@@ -240,11 +273,12 @@ class HnsWebViewGatewayInterceptor(
         requestHeaders: Map<String, String>,
         redirectsRemaining: Int,
         allowBodyRequestProxyFallback: Boolean,
+        preferStreaming: Boolean,
     ): HnsInterceptedResponse {
         if (statusCode !in REDIRECT_STATUS_CODES) {
             return this
         }
-        discardBodyFile()
+        discardBody()
         if (redirectsRemaining <= 0) {
             GatewayEventLog.record("webview_redirect", target.host, 508, "HNS Redirect Loop")
             return plainInterceptResponse(
@@ -295,6 +329,7 @@ class HnsWebViewGatewayInterceptor(
             requestHeaders = requestHeaders,
             redirectsRemaining = redirectsRemaining - 1,
             allowBodyRequestProxyFallback = allowBodyRequestProxyFallback,
+            preferStreaming = preferStreaming,
         ) ?: plainInterceptResponse(
             statusCode = 502,
             reason = "HNS Redirect Unsupported",
@@ -325,6 +360,7 @@ internal data class HnsInterceptedResponse(
     val headers: Map<String, String>,
     val body: ByteArray,
     private val bodyFile: File? = null,
+    private val bodyStream: InputStream? = null,
 ) {
     fun toWebResourceResponse(): WebResourceResponse {
         val webStatusCode = if (statusCode in 100..299 || statusCode in 400..599) {
@@ -347,9 +383,10 @@ internal data class HnsInterceptedResponse(
         headers.filterKeys { name -> !name.startsWith(HNS_INTERNAL_HEADER_PREFIX, ignoreCase = true) }
 
     internal fun openBodyStream(): InputStream =
-        bodyFile?.let(GatewayResponseBodyStore::openReleasing) ?: ByteArrayInputStream(body)
+        bodyStream ?: bodyFile?.let(GatewayResponseBodyStore::openReleasing) ?: ByteArrayInputStream(body)
 
-    internal fun discardBodyFile() {
+    internal fun discardBody() {
+        bodyStream?.close()
         bodyFile?.let(GatewayResponseBodyStore::release)
     }
 
@@ -385,7 +422,8 @@ internal data class HnsInterceptedResponse(
             encoding == other.encoding &&
             headers == other.headers &&
             body.contentEquals(other.body) &&
-            bodyFile == other.bodyFile
+            bodyFile == other.bodyFile &&
+            bodyStream === other.bodyStream
     }
 
     override fun hashCode(): Int {
@@ -396,6 +434,7 @@ internal data class HnsInterceptedResponse(
         result = 31 * result + headers.hashCode()
         result = 31 * result + body.contentHashCode()
         result = 31 * result + (bodyFile?.hashCode() ?: 0)
+        result = 31 * result + System.identityHashCode(bodyStream)
         return result
     }
 }
@@ -467,6 +506,22 @@ private fun parseGatewayHttpFileResponse(responseHead: ByteArray, bodyFile: File
         parsed.headers,
         ByteArray(0),
         bodyFile,
+    )
+}
+
+private fun parseGatewayHttpStreamingResponse(
+    responseHead: ByteArray,
+    bodyStream: InputStream,
+): HnsInterceptedResponse? {
+    val parsed = parseGatewayHttpResponseHead(responseHead) ?: return null
+    return HnsInterceptedResponse(
+        parsed.statusCode,
+        parsed.reason,
+        parsed.mimeType,
+        parsed.encoding,
+        parsed.headers,
+        ByteArray(0),
+        bodyStream = bodyStream,
     )
 }
 
