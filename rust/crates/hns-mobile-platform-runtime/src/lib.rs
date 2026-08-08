@@ -1470,6 +1470,64 @@ impl OriginTransport for MobileOriginTransport {
         }
         Ok(response)
     }
+
+    fn fetch_to_writer_streaming(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<OriginResponseHead, TransportError> {
+        let started = Instant::now();
+        self.authorize_bound_work()?;
+        let mut observe_head = |head: &OriginResponseHead| {
+            self.authorize_bound_work()?;
+            on_head(head)
+        };
+        let response = if let Some(authority) = &self.authority {
+            let mut guarded_body = AuthorityBoundWriter {
+                inner: body,
+                authority: authority.clone(),
+            };
+            self.inner
+                .fetch_to_writer_streaming(request, &mut guarded_body, &mut observe_head)
+        } else {
+            self.inner
+                .fetch_to_writer_streaming(request, body, &mut observe_head)
+        };
+        self.record_elapsed(started);
+        let response = response?;
+        self.authorize_bound_work()?;
+        Ok(response)
+    }
+}
+
+struct AuthorityBoundWriter<'a> {
+    inner: &'a mut dyn Write,
+    authority: BoundOriginAuthority,
+}
+
+impl Write for AuthorityBoundWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if !self
+            .authority
+            .runtime
+            .authority_binding_is_current(self.authority.binding)
+            || !self
+                .authority
+                .runtime
+                .authority_admits(self.authority.binding, self.authority.stamp)
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "runtime authority changed during response streaming",
+            ));
+        }
+        self.inner.write(bytes)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
 }
 
 struct AuthorityBoundTunnel {
@@ -3769,6 +3827,111 @@ impl BrowserRuntime {
                     Err(_) => metrics.metrics.outcome = "runtime_error",
                 }
                 result
+            },
+        )
+    }
+
+    pub fn raw_gateway_request_body_streaming(
+        &self,
+        request: RawGatewayHttpRequest,
+        policy: RuntimePolicy,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(Vec<u8>) -> Result<(), RuntimeError>,
+    ) -> Result<(), RuntimeError> {
+        let request = prepare_raw_gateway_request(request).map_err(|rejection| {
+            RuntimeError::Operation(format!(
+                "streaming gateway request rejected: {} {}",
+                rejection.status, rejection.reason
+            ))
+        })?;
+        let host = request.host.clone();
+        let method = request.method.clone();
+        let has_current_namespace_plan = self.has_current_namespace_plan(&request);
+        if !has_current_namespace_plan {
+            return Err(RuntimeError::Operation(
+                "streaming requires an admitted current namespace plan".to_owned(),
+            ));
+        }
+        self.with_timed_gateway_operation(
+            has_current_namespace_plan,
+            policy,
+            move |runtime, admission_wait_ms, queued_requests, expected_policy_revision| {
+                let mut metrics = RequestMetricsCapture::begin(
+                    runtime,
+                    BrowserRequestMetricsRoute::CompatibilityInterceptor,
+                    host,
+                    method,
+                    queued_requests,
+                    admission_wait_ms,
+                );
+                let authority_binding = runtime.ensure_authority_active(0)?;
+                let authority_stamp = runtime.admit_authority_work(authority_binding)?;
+                runtime.require_policy_revision(expected_policy_revision)?;
+                let maintenance = runtime
+                    .inner
+                    .coordination
+                    .maintenance
+                    .read()
+                    .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+                let _header_state_lock = runtime.acquire_ready_header_state()?;
+                let prepare_started = Instant::now();
+                let prepared =
+                    runtime.prepare_proxy_gateway(&request, authority_binding, authority_stamp)?;
+                metrics.metrics.prepare_ms = elapsed_millis(prepare_started);
+                metrics.attach_dns_trace(prepared.dns_trace.clone());
+                let gateway_started = Instant::now();
+                let mut publish_head = |response: &hns_gateway::GatewayResponseHead| {
+                    if !runtime.authority_admits(authority_binding, authority_stamp) {
+                        return Err(TransportError::InvalidRequest);
+                    }
+                    let input = runtime_gateway_input(runtime, &request);
+                    let security_path = security_path_name(
+                        &input,
+                        response.origin_request.port,
+                        response.origin_request.tls.service_transport,
+                        &response.origin.dane_decision,
+                        &prepared.dns_trace.snapshot(),
+                    );
+                    let trace = resolution_trace_json(
+                        &input,
+                        prepared.network,
+                        prepared.mode,
+                        Some(&response.resolution),
+                        TlsTraceInput {
+                            validation: Some(&response.origin_request.tls),
+                            decision: Some(&response.origin.dane_decision),
+                            inspection: response.origin.tls_inspection.as_ref(),
+                            origin_address: response.origin_request.connect_host.as_deref(),
+                        },
+                        None,
+                        &prepared.fallback_marker,
+                        &prepared.dns_trace,
+                    );
+                    let encoded = origin_response_head_with_resolver_policy_and_trace(
+                        response.origin.clone(),
+                        resolver_policy_for_recovery(&prepared.fallback_marker),
+                        security_path,
+                        &trace,
+                    );
+                    on_head(encoded).map_err(|_| TransportError::Io("head receiver closed".into()))
+                };
+                let response = prepared
+                    .gateway
+                    .handle_to_writer_streaming(&prepared.request, body, &mut publish_head)
+                    .map_err(|error| RuntimeError::Operation(format!("stream gateway: {error}")))?;
+                metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+                metrics.metrics.origin_ms = prepared.origin_metrics.load(Ordering::Acquire);
+                metrics.metrics.origin_timing_available = true;
+                if !runtime.authority_admits(authority_binding, authority_stamp) {
+                    return Err(RuntimeError::Operation(
+                        "stream authority changed during body delivery".to_owned(),
+                    ));
+                }
+                drop(maintenance);
+                prepared.persistent.reset_request_state();
+                metrics.metrics.status_code = Some(response.origin.status);
+                metrics.metrics.outcome = "success";
+                Ok(())
             },
         )
     }

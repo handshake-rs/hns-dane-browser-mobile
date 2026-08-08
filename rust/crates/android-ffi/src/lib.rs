@@ -10,10 +10,12 @@ use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use std::collections::HashMap;
+use std::os::fd::{FromRawFd, RawFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::time::Duration;
 
 const MAX_LOCAL_CERTIFICATE_DER_BYTES: usize = 64 * 1024;
 const MAX_BROWSER_NAMESPACE_INPUT_BYTES: usize = 1_024;
@@ -31,6 +33,34 @@ const MAX_PROXY_STATUS_RETAINED_TRACE_BYTES: usize = 64 * 1024;
 const MAX_ANDROID_PROXY_HANDLES: usize = 8;
 static NEXT_PROXY_HANDLE: AtomicU64 = AtomicU64::new(1);
 static PROXY_HANDLES: OnceLock<Mutex<HashMap<jlong, Arc<AndroidProxyRecord>>>> = OnceLock::new();
+const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
+static STREAMING_GATEWAY_REQUESTS: OnceLock<(Mutex<usize>, Condvar)> = OnceLock::new();
+
+struct StreamingGatewayPermit;
+
+impl StreamingGatewayPermit {
+    fn acquire() -> Option<Self> {
+        let (active, available) =
+            STREAMING_GATEWAY_REQUESTS.get_or_init(|| (Mutex::new(0), Condvar::new()));
+        let mut active = active.lock().ok()?;
+        while *active >= MAX_STREAMING_GATEWAY_REQUESTS {
+            active = available.wait(active).ok()?;
+        }
+        *active += 1;
+        Some(Self)
+    }
+}
+
+impl Drop for StreamingGatewayPermit {
+    fn drop(&mut self) {
+        let (active, available) =
+            STREAMING_GATEWAY_REQUESTS.get_or_init(|| (Mutex::new(0), Condvar::new()));
+        if let Ok(mut active) = active.lock() {
+            *active = active.saturating_sub(1);
+            available.notify_one();
+        }
+    }
+}
 
 struct AndroidRuntimeRecord {
     runtime: BrowserRuntime,
@@ -1071,6 +1101,101 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
     }))
     .unwrap_or_else(|panic| {
         log_panic_payload("nativeRuntimeGatewayHttpResponseBodyToFile", &*panic);
+        std::ptr::null_mut()
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeGatewayHttpResponseStreaming(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    strict_hns_mode: jboolean,
+    doh_resolver_url: JString<'_>,
+    stateless_dane_certificates: jboolean,
+    experimental_p2p_dns_relay: jboolean,
+    legacy_hns_doh_compatibility: jboolean,
+    method: JString<'_>,
+    scheme: JString<'_>,
+    host: JString<'_>,
+    port: jint,
+    path_and_query: JString<'_>,
+    header_text: JString<'_>,
+    body: JByteArray<'_>,
+    write_fd: jint,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let writer = (write_fd >= 0).then(|| {
+            // Ownership was transferred by ParcelFileDescriptor.detachFd().
+            unsafe { std::fs::File::from_raw_fd(write_fd as RawFd) }
+        });
+        let inputs = runtime_from_handle(handle)
+            .zip(runtime_gateway_policy(
+                &mut env,
+                RuntimeGatewayPolicyInput {
+                    strict_hns_mode,
+                    doh_resolver_url,
+                    stateless_dane_certificates,
+                    experimental_p2p_dns_relay,
+                    legacy_hns_doh_compatibility,
+                },
+            ))
+            .zip(jni_runtime_gateway_request(
+                &mut env,
+                JniRuntimeGatewayHttpRequest {
+                    method,
+                    scheme,
+                    host,
+                    port,
+                    path_and_query,
+                    header_text,
+                    body,
+                },
+            ))
+            .zip(writer);
+        let Some((((runtime, policy), request), mut writer)) = inputs else {
+            return std::ptr::null_mut();
+        };
+        let Some(permit) = StreamingGatewayPermit::acquire() else {
+            return std::ptr::null_mut();
+        };
+        let (head_tx, head_rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(1);
+        std::thread::spawn(move || {
+            let _permit = permit;
+            let mut head_sent = false;
+            let result = runtime.raw_gateway_request_body_streaming(
+                request,
+                policy,
+                &mut writer,
+                &mut |head| {
+                    head_tx.send(head).map_err(|_| {
+                        RuntimeError::Operation("stream head receiver closed".into())
+                    })?;
+                    head_sent = true;
+                    Ok(())
+                },
+            );
+            if let Err(error) = result
+                && !head_sent
+            {
+                android_log_error(&format!(
+                    "raw_gateway_request_body_streaming failed before head: {}",
+                    runtime_error_message(error),
+                ));
+            }
+        });
+        match head_rx
+            .recv_timeout(Duration::from_secs(30))
+            .ok()
+            .and_then(|head| env.byte_array_from_slice(&head).ok())
+        {
+            Some(array) => array.into_raw(),
+            None => std::ptr::null_mut(),
+        }
+    }))
+    .unwrap_or_else(|panic| {
+        log_panic_payload("nativeRuntimeGatewayHttpResponseStreaming", &*panic);
         std::ptr::null_mut()
     })
 }

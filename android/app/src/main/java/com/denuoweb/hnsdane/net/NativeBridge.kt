@@ -1,5 +1,6 @@
 package com.denuoweb.hnsdane.net
 
+import android.os.ParcelFileDescriptor
 import com.denuoweb.hnsdane.core.BrowserNamespaceClass
 import com.denuoweb.hnsdane.core.BrowserNamespacePolicy
 import com.denuoweb.hnsdane.core.BrowserWebSocketScopePolicySource
@@ -41,6 +42,18 @@ interface HnsGatewayBridge {
         body: ByteArray,
     ): HnsGatewayFileResponse? = null
 
+    fun httpResponseStreaming(
+        dataDir: String,
+        config: HnsGatewayRuntimeConfig,
+        method: String,
+        scheme: String,
+        host: String,
+        port: Int,
+        pathAndQuery: String,
+        headers: List<Pair<String, String>>,
+        body: ByteArray,
+    ): HnsGatewayStreamingResponse? = null
+
 }
 
 data class HnsGatewayRuntimeConfig(
@@ -68,6 +81,11 @@ data class HnsGatewayFileResponse(
         GatewayResponseBodyStore.release(bodyFile)
     }
 }
+
+data class HnsGatewayStreamingResponse(
+    val head: ByteArray,
+    val bodyStream: InputStream,
+)
 
 object NativeBridge :
     HnsGatewayBridge,
@@ -265,6 +283,61 @@ object NativeBridge :
         return HnsGatewayFileResponse(head, bodyFile)
     }
 
+    override fun httpResponseStreaming(
+        dataDir: String,
+        config: HnsGatewayRuntimeConfig,
+        method: String,
+        scheme: String,
+        host: String,
+        port: Int,
+        pathAndQuery: String,
+        headers: List<Pair<String, String>>,
+        body: ByteArray,
+    ): HnsGatewayStreamingResponse? {
+        if (!isLoaded) return null
+        val pipe = runCatching { ParcelFileDescriptor.createPipe() }.getOrNull() ?: return null
+        val readSide = pipe[0]
+        val writeSide = pipe[1]
+        val writeFd = runCatching { writeSide.detachFd() }.getOrElse {
+            readSide.close()
+            writeSide.close()
+            return null
+        }
+        writeSide.close()
+        val head = runCatching {
+            withRuntime(
+                dataDir = dataDir,
+                network = config.network,
+                unavailable = null,
+            ) { handle ->
+                nativeRuntimeGatewayHttpResponseStreaming(
+                    handle,
+                    config.strictHnsMode,
+                    config.dohResolverUrl,
+                    config.statelessDaneCertificates,
+                    config.experimentalP2pDnsRelay,
+                    config.legacyHnsDohCompatibility,
+                    method,
+                    scheme,
+                    host,
+                    port,
+                    pathAndQuery,
+                    serializeHeaders(headers),
+                    body,
+                    writeFd,
+                )
+            }
+        }.getOrNull()
+        if (head == null) {
+            readSide.close()
+            return null
+        }
+        return HnsGatewayStreamingResponse(
+            head = head,
+            bodyStream = ParcelFileDescriptor.AutoCloseInputStream(readSide),
+        )
+    }
+
     internal fun startRustProxy(config: RustBrowserProxyConfig): LocalBrowserProxyEndpoint? = withRuntime(
         dataDir = config.dataDir,
         network = config.network,
@@ -451,6 +524,23 @@ object NativeBridge :
         headerText: String,
         body: ByteArray,
         bodyPath: String,
+    ): ByteArray?
+
+    private external fun nativeRuntimeGatewayHttpResponseStreaming(
+        handle: Long,
+        strictHnsMode: Boolean,
+        dohResolverUrl: String,
+        statelessDaneCertificates: Boolean,
+        experimentalP2pDnsRelay: Boolean,
+        legacyHnsDohCompatibility: Boolean,
+        method: String,
+        scheme: String,
+        host: String,
+        port: Int,
+        pathAndQuery: String,
+        headerText: String,
+        body: ByteArray,
+        writeFd: Int,
     ): ByteArray?
 
     private external fun nativeProxyRequestStop(
