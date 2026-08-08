@@ -3951,7 +3951,7 @@ impl BrowserRuntime {
                     &prepared.fallback_marker,
                     &prepared.dns_trace,
                 );
-                let encoded = origin_response_head_with_resolver_policy_and_trace(
+                let encoded = origin_streaming_response_head_with_resolver_policy_and_trace(
                     response.origin.clone(),
                     resolver_policy_for_recovery(&prepared.fallback_marker),
                     security_path,
@@ -11764,7 +11764,45 @@ fn origin_response_head_with_resolver_policy_and_trace(
     security_path: Option<&str>,
     trace_json: &str,
 ) -> Vec<u8> {
-    let mut out = response_head(response.status, "OK", None, response.body_len);
+    origin_response_head_with_optional_length(
+        response,
+        resolver_policy,
+        security_path,
+        trace_json,
+        |response| Some(response.body_len),
+    )
+}
+
+fn origin_streaming_response_head_with_resolver_policy_and_trace(
+    response: OriginResponseHead,
+    resolver_policy: Option<&str>,
+    security_path: Option<&str>,
+    trace_json: &str,
+) -> Vec<u8> {
+    origin_response_head_with_optional_length(
+        response,
+        resolver_policy,
+        security_path,
+        trace_json,
+        |response| {
+            response
+                .headers
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+                .and_then(|(_, value)| value.trim().parse().ok())
+        },
+    )
+}
+
+fn origin_response_head_with_optional_length(
+    response: OriginResponseHead,
+    resolver_policy: Option<&str>,
+    security_path: Option<&str>,
+    trace_json: &str,
+    body_len: impl FnOnce(&OriginResponseHead) -> Option<usize>,
+) -> Vec<u8> {
+    let mut out =
+        response_head_with_optional_length(response.status, "OK", None, body_len(&response));
     for (name, value) in response.headers {
         if suppressed_origin_response_header(&name) {
             continue;
@@ -13934,10 +13972,19 @@ fn response_head(
     content_type: Option<&str>,
     body_len: usize,
 ) -> Vec<u8> {
-    let mut out = format!(
-        "HTTP/1.1 {status} {reason}\r\nConnection: close\r\nContent-Length: {body_len}\r\n"
-    )
-    .into_bytes();
+    response_head_with_optional_length(status, reason, content_type, Some(body_len))
+}
+
+fn response_head_with_optional_length(
+    status: u16,
+    reason: &str,
+    content_type: Option<&str>,
+    body_len: Option<usize>,
+) -> Vec<u8> {
+    let mut out = format!("HTTP/1.1 {status} {reason}\r\nConnection: close\r\n").into_bytes();
+    if let Some(body_len) = body_len {
+        out.extend(format!("Content-Length: {body_len}\r\n").as_bytes());
+    }
     if let Some(content_type) = content_type {
         out.extend(format!("Content-Type: {content_type}\r\n").as_bytes());
     }
@@ -18571,6 +18618,45 @@ mod tests {
         assert!(head.contains(&format!("Content-Length: {}\r\n", body.len())));
         assert!(head.ends_with("\r\n\r\n"));
         cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn streaming_head_omits_synthetic_length_for_unknown_body_size() {
+        let encoded = origin_streaming_response_head_with_resolver_policy_and_trace(
+            OriginResponseHead {
+                status: 200,
+                headers: vec![("Content-Type".to_owned(), "text/plain".to_owned())],
+                body_len: 0,
+                dane_decision: DaneDecision::NoTlsa,
+                tls_inspection: None,
+            },
+            None,
+            None,
+            "{}",
+        );
+        let encoded = String::from_utf8(encoded).unwrap();
+
+        assert!(!encoded.contains("Content-Length:"));
+        assert!(encoded.ends_with("\r\n\r\n"));
+    }
+
+    #[test]
+    fn streaming_head_preserves_known_origin_length() {
+        let encoded = origin_streaming_response_head_with_resolver_policy_and_trace(
+            OriginResponseHead {
+                status: 200,
+                headers: vec![("Content-Length".to_owned(), "4".to_owned())],
+                body_len: 4,
+                dane_decision: DaneDecision::NoTlsa,
+                tls_inspection: None,
+            },
+            None,
+            None,
+            "{}",
+        );
+        let encoded = String::from_utf8(encoded).unwrap();
+
+        assert_eq!(encoded.matches("Content-Length: 4\r\n").count(), 1);
     }
 
     #[test]
