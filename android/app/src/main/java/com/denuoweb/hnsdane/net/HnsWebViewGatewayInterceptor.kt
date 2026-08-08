@@ -150,7 +150,7 @@ class HnsWebViewGatewayInterceptor(
                 return cached
             }
         }
-        val streamingResponse = if (preferStreaming) {
+        val streamingResponse = if (preferStreaming && assetCacheScope == null) {
             hnsGatewayBridge.httpResponseStreaming(
                 dataDir = dataDir.absolutePath,
                 config = runtimeConfig,
@@ -232,7 +232,8 @@ class HnsWebViewGatewayInterceptor(
         return if (
             assetCacheScope != null && cacheableDirectResponse && finalResponse.statusCode == 200
         ) {
-            validatedAssetCache.storeAfterComplete(url, assetCacheScope, finalResponse)
+            validatedAssetCache.storeCompletedFile(url, assetCacheScope, finalResponse)
+                ?: validatedAssetCache.storeAfterComplete(url, assetCacheScope, finalResponse)
         } else {
             finalResponse
         }
@@ -384,7 +385,7 @@ internal data class HnsInterceptedResponse(
     val encoding: String?,
     val headers: Map<String, String>,
     val body: ByteArray,
-    private val bodyFile: File? = null,
+    internal val bodyFile: File? = null,
     internal val bodyStream: InputStream? = null,
 ) {
     fun toWebResourceResponse(): WebResourceResponse {
