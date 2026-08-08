@@ -41,6 +41,37 @@ struct AndroidProxyRecord {
     statuses: Arc<AndroidProxyStatusMailbox>,
 }
 
+struct AndroidRequestMetricsObserver;
+
+impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
+    fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics) {
+        android_log_request_metrics(&format!(
+            "request_id={} route={:?} host={} method={} active={} queued={} admission_wait_ms={} prepare_ms={} dns_timings_available={} hns_dns_ms={} icann_dns_ms={} gateway_ms={} origin_timing_available={} origin_ms={} publish_ms={} total_ms={} status={} outcome={}",
+            metrics.request_id,
+            metrics.route,
+            metrics.host,
+            metrics.method,
+            metrics.active_requests,
+            metrics.queued_requests,
+            metrics.admission_wait_ms,
+            metrics.prepare_ms,
+            metrics.dns_timings_available,
+            metrics.hns_dns_ms,
+            metrics.icann_dns_ms,
+            metrics.gateway_ms,
+            metrics.origin_timing_available,
+            metrics.origin_ms,
+            metrics.publish_ms,
+            metrics.total_ms,
+            metrics
+                .status_code
+                .map(|status| status.to_string())
+                .unwrap_or_else(|| "none".to_owned()),
+            metrics.outcome,
+        ));
+    }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 struct AndroidProxyStatus {
     generation: u64,
@@ -237,6 +268,70 @@ fn runtime_error_message(error: RuntimeError) -> String {
         | RuntimeError::PublicationSuppressed(message) => message,
         error @ RuntimeError::Synchronization(_) => error.to_string(),
     }
+}
+
+// Diagnostic-only logging: the JNI boundary maps every failure to null, which
+// makes device-side failures indistinguishable. Log the real error to logcat
+// (tag hns-ffi) before discarding it. No-op formatting guarantees apply.
+#[cfg(target_os = "android")]
+fn android_log_error(message: &str) {
+    use std::ffi::CString;
+    #[link(name = "log")]
+    unsafe extern "C" {
+        fn __android_log_write(
+            prio: i32,
+            tag: *const std::ffi::c_char,
+            text: *const std::ffi::c_char,
+        ) -> i32;
+    }
+    const ANDROID_LOG_ERROR: i32 = 6;
+    let (Ok(tag), Ok(text)) = (CString::new("hns-ffi"), CString::new(message)) else {
+        return;
+    };
+    // SAFETY: tag and text are valid NUL-terminated strings for the call.
+    unsafe {
+        __android_log_write(ANDROID_LOG_ERROR, tag.as_ptr(), text.as_ptr());
+    }
+}
+
+#[cfg(target_os = "android")]
+fn android_log_request_metrics(message: &str) {
+    use std::ffi::CString;
+    #[link(name = "log")]
+    unsafe extern "C" {
+        fn __android_log_write(
+            prio: i32,
+            tag: *const std::ffi::c_char,
+            text: *const std::ffi::c_char,
+        ) -> i32;
+    }
+    const ANDROID_LOG_INFO: i32 = 4;
+    let (Ok(tag), Ok(text)) = (CString::new("hns-request-metrics"), CString::new(message)) else {
+        return;
+    };
+    // SAFETY: tag and text are valid NUL-terminated strings for the call.
+    unsafe {
+        __android_log_write(ANDROID_LOG_INFO, tag.as_ptr(), text.as_ptr());
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn android_log_error(message: &str) {
+    eprintln!("hns-ffi: {message}");
+}
+
+#[cfg(not(target_os = "android"))]
+fn android_log_request_metrics(message: &str) {
+    eprintln!("hns-request-metrics: {message}");
+}
+
+fn log_panic_payload(context: &str, payload: &(dyn std::any::Any + Send)) {
+    let detail = payload
+        .downcast_ref::<&str>()
+        .map(|value| (*value).to_owned())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "non-string payload".to_owned());
+    android_log_error(&format!("panic in {context}: {detail}"));
 }
 
 fn runtime_status_json(network: NetworkKind, result: Result<SyncStatus, RuntimeError>) -> String {
@@ -619,17 +714,34 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeC
     network: JString<'_>,
 ) -> jlong {
     let (Ok(data_dir), Ok(network)) = (env.get_string(&data_dir), env.get_string(&network)) else {
+        android_log_error("runtime create failed: unreadable data dir or network argument");
         return 0;
     };
     let Ok(network) = parse_network_kind(&network.to_string_lossy()) else {
+        android_log_error("runtime create failed: unknown network");
         return 0;
     };
-    let Ok(runtime) = BrowserRuntime::open(RuntimeConfiguration::new(
+    let runtime = match BrowserRuntime::open(RuntimeConfiguration::new(
         data_dir.to_string_lossy().into_owned(),
         network,
-    )) else {
-        return 0;
+    )) {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            android_log_error(&format!(
+                "runtime create failed: {}",
+                runtime_error_message(error),
+            ));
+            return 0;
+        }
     };
+    if let Err(error) =
+        runtime.set_request_metrics_observer(Arc::new(AndroidRequestMetricsObserver))
+    {
+        android_log_error(&format!(
+            "runtime create failed to install request metrics observer: {}",
+            runtime_error_message(error),
+        ));
+    }
     Box::into_raw(Box::new(AndroidRuntimeRecord { runtime })) as usize as jlong
 }
 
@@ -865,17 +977,26 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
                 },
             ))
             .and_then(|((runtime, policy), request)| {
-                runtime
-                    .raw_gateway_request(request, policy)
-                    .ok()
-                    .map(GatewayHttpResponse::into_bytes)
+                match runtime.raw_gateway_request(request, policy) {
+                    Ok(response) => Some(GatewayHttpResponse::into_bytes(response)),
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "raw_gateway_request failed: {}",
+                            runtime_error_message(error),
+                        ));
+                        None
+                    }
+                }
             });
         match response.and_then(|bytes| env.byte_array_from_slice(&bytes).ok()) {
             Some(array) => array.into_raw(),
             None => std::ptr::null_mut(),
         }
     }))
-    .unwrap_or(std::ptr::null_mut())
+    .unwrap_or_else(|panic| {
+        log_panic_payload("nativeRuntimeGatewayHttpResponse", &*panic);
+        std::ptr::null_mut()
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -928,16 +1049,30 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
             ))
             .zip(body_path)
             .and_then(|(((runtime, policy), request), body_path)| {
-                runtime
-                    .raw_gateway_request_body_to_file(request, policy, Path::new(&body_path))
-                    .ok()
+                match runtime.raw_gateway_request_body_to_file(
+                    request,
+                    policy,
+                    Path::new(&body_path),
+                ) {
+                    Ok(head) => Some(head),
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "raw_gateway_request_body_to_file failed: {}",
+                            runtime_error_message(error),
+                        ));
+                        None
+                    }
+                }
             });
         match response.and_then(|bytes| env.byte_array_from_slice(&bytes).ok()) {
             Some(array) => array.into_raw(),
             None => std::ptr::null_mut(),
         }
     }))
-    .unwrap_or(std::ptr::null_mut())
+    .unwrap_or_else(|panic| {
+        log_panic_payload("nativeRuntimeGatewayHttpResponseBodyToFile", &*panic);
+        std::ptr::null_mut()
+    })
 }
 
 #[unsafe(no_mangle)]

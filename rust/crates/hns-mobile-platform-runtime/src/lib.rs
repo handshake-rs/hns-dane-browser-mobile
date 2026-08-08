@@ -742,6 +742,57 @@ impl BrowserProxyStatusObserver for NoopBrowserProxyStatusObserver {
     fn observe_status(&self, _status: &BrowserProxyStatus) {}
 }
 
+/// The request entry point that produced one timing observation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BrowserRequestMetricsRoute {
+    NativeProxy,
+    CompatibilityInterceptor,
+}
+
+/// Privacy-bounded, per-request stage timings. Paths, queries, headers, and
+/// payloads are deliberately excluded so this record is safe for diagnostics.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BrowserRequestMetrics {
+    pub request_id: u64,
+    pub route: BrowserRequestMetricsRoute,
+    pub host: String,
+    pub method: String,
+    pub active_requests: usize,
+    pub queued_requests: usize,
+    pub admission_wait_ms: u64,
+    pub prepare_ms: u64,
+    pub dns_timings_available: bool,
+    pub hns_dns_ms: u64,
+    pub icann_dns_ms: u64,
+    pub gateway_ms: u64,
+    pub origin_timing_available: bool,
+    pub origin_ms: u64,
+    pub publish_ms: u64,
+    pub total_ms: u64,
+    pub status_code: Option<u16>,
+    pub outcome: &'static str,
+}
+
+pub trait BrowserRequestMetricsObserver: Send + Sync + 'static {
+    fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics);
+}
+
+impl<F> BrowserRequestMetricsObserver for F
+where
+    F: Fn(&BrowserRequestMetrics) + Send + Sync + 'static,
+{
+    fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics) {
+        self(metrics);
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoopBrowserRequestMetricsObserver;
+
+impl BrowserRequestMetricsObserver for NoopBrowserRequestMetricsObserver {
+    fn observe_request_metrics(&self, _metrics: &BrowserRequestMetrics) {}
+}
+
 fn parse_browser_proxy_tls_policy(value: Option<&str>) -> Option<BrowserProxyTlsPolicy> {
     match value.map(str::trim) {
         Some(value) if value.eq_ignore_ascii_case("dane") => Some(BrowserProxyTlsPolicy::Dane),
@@ -1292,6 +1343,7 @@ impl CanonicalStatusRegistry {
 struct MobileOriginTransport {
     inner: TcpHttpTransport,
     authority: Option<BoundOriginAuthority>,
+    elapsed_metrics: Option<Arc<AtomicU64>>,
 }
 
 #[derive(Clone)]
@@ -1306,6 +1358,7 @@ impl MobileOriginTransport {
         Self {
             inner,
             authority: None,
+            elapsed_metrics: None,
         }
     }
 
@@ -1322,6 +1375,18 @@ impl MobileOriginTransport {
                 binding,
                 stamp,
             }),
+            elapsed_metrics: None,
+        }
+    }
+
+    fn with_elapsed_metrics(mut self, metrics: Arc<AtomicU64>) -> Self {
+        self.elapsed_metrics = Some(metrics);
+        self
+    }
+
+    fn record_elapsed(&self, started: Instant) {
+        if let Some(metrics) = &self.elapsed_metrics {
+            metrics.fetch_add(elapsed_millis(started), Ordering::AcqRel);
         }
     }
 
@@ -1348,15 +1413,21 @@ impl MobileOriginTransport {
 
 impl OriginTransport for MobileOriginTransport {
     fn fetch(&self, request: &OriginRequest) -> Result<OriginResponse, TransportError> {
+        let started = Instant::now();
         self.authorize_bound_work()?;
-        let response = self.inner.fetch(request)?;
+        let response = self.inner.fetch(request);
+        self.record_elapsed(started);
+        let response = response?;
         self.authorize_bound_work()?;
         Ok(response)
     }
 
     fn open_tunnel(&self, request: &OriginRequest) -> Result<OriginTunnel, TransportError> {
+        let started = Instant::now();
         self.authorize_bound_work()?;
-        let mut tunnel = self.inner.open_tunnel(request)?;
+        let tunnel = self.inner.open_tunnel(request);
+        self.record_elapsed(started);
+        let mut tunnel = tunnel?;
         self.authorize_bound_work()?;
         if let Some(authority) = &self.authority {
             tunnel.stream = Box::new(AuthorityBoundTunnel {
@@ -1373,12 +1444,15 @@ impl OriginTransport for MobileOriginTransport {
         request: &OriginRequest,
         body: &mut dyn Write,
     ) -> Result<OriginResponseHead, TransportError> {
+        let started = Instant::now();
         self.authorize_bound_work()?;
         // Keep download bytes private until origin I/O and the post-I/O
         // authority check both succeed. TcpHttpTransport enforces the bounded
         // response size before this buffer can be published.
         let mut staged = Vec::new();
-        let response = self.inner.fetch_to_writer(request, &mut staged)?;
+        let response = self.inner.fetch_to_writer(request, &mut staged);
+        self.record_elapsed(started);
+        let response = response?;
         self.authorize_bound_work()?;
         if let Some(authority) = &self.authority {
             authority.runtime.with_authorized_publication(
@@ -1477,6 +1551,37 @@ impl Drop for PolicyOperationInFlight<'_> {
     }
 }
 
+struct RequestMetricsInFlight<'a> {
+    counter: &'a AtomicUsize,
+}
+
+impl<'a> RequestMetricsInFlight<'a> {
+    fn enter(counter: &'a AtomicUsize) -> (Self, usize) {
+        let active = counter.fetch_add(1, Ordering::AcqRel) + 1;
+        (Self { counter }, active)
+    }
+}
+
+impl Drop for RequestMetricsInFlight<'_> {
+    fn drop(&mut self) {
+        self.counter.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+fn next_request_metrics_id(inner: &RuntimeInner) -> u64 {
+    inner
+        .request_metrics_sequence
+        .fetch_add(1, Ordering::AcqRel)
+        .wrapping_add(1)
+}
+
+fn dns_stage_millis(events: &[DnsTraceEvent], root: &str) -> u64 {
+    events
+        .iter()
+        .filter(|event| dns_trace_event_root(event) == root)
+        .fold(0_u64, |total, event| total.saturating_add(event.elapsed_ms))
+}
+
 struct RuntimeInner {
     configuration: RuntimeConfiguration,
     policy: RwLock<RuntimePolicy>,
@@ -1502,6 +1607,10 @@ struct RuntimeInner {
     /// guarantees no request observes a policy transition mid-flight.
     operation: Mutex<()>,
     operation_metrics: PolicyOperationMetrics,
+    request_metrics_observer: RwLock<Arc<dyn BrowserRequestMetricsObserver>>,
+    request_metrics_sequence: AtomicU64,
+    active_request_metrics: AtomicUsize,
+    queued_request_metrics: AtomicUsize,
 }
 
 struct RuntimeCoordination {
@@ -1513,6 +1622,71 @@ struct RuntimeCoordination {
     header_sync_lock_path: PathBuf,
     peer_state: Arc<Mutex<()>>,
     relay: SharedDnsRelayState,
+}
+
+struct RequestMetricsCapture<'a> {
+    runtime: &'a BrowserRuntime,
+    started: Instant,
+    metrics: BrowserRequestMetrics,
+    dns_trace: Option<DnsTraceRecorder>,
+    _active: RequestMetricsInFlight<'a>,
+}
+
+impl<'a> RequestMetricsCapture<'a> {
+    fn begin(
+        runtime: &'a BrowserRuntime,
+        route: BrowserRequestMetricsRoute,
+        host: String,
+        method: String,
+        queued_requests: usize,
+        admission_wait_ms: u64,
+    ) -> Self {
+        let (_active, active_requests) =
+            RequestMetricsInFlight::enter(&runtime.inner.active_request_metrics);
+        Self {
+            runtime,
+            started: Instant::now(),
+            metrics: BrowserRequestMetrics {
+                request_id: next_request_metrics_id(&runtime.inner),
+                route,
+                host,
+                method,
+                active_requests,
+                queued_requests,
+                admission_wait_ms,
+                prepare_ms: 0,
+                dns_timings_available: false,
+                hns_dns_ms: 0,
+                icann_dns_ms: 0,
+                gateway_ms: 0,
+                origin_timing_available: false,
+                origin_ms: 0,
+                publish_ms: 0,
+                total_ms: 0,
+                status_code: None,
+                outcome: "incomplete",
+            },
+            dns_trace: None,
+            _active,
+        }
+    }
+
+    fn attach_dns_trace(&mut self, trace: DnsTraceRecorder) {
+        self.dns_trace = Some(trace);
+        self.metrics.dns_timings_available = true;
+    }
+}
+
+impl Drop for RequestMetricsCapture<'_> {
+    fn drop(&mut self) {
+        if let Some(trace) = &self.dns_trace {
+            let events = trace.snapshot();
+            self.metrics.hns_dns_ms = dns_stage_millis(&events, "hns");
+            self.metrics.icann_dns_ms = dns_stage_millis(&events, "icann");
+        }
+        self.metrics.total_ms = elapsed_millis(self.started);
+        self.runtime.observe_request_metrics(self.metrics.clone());
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1948,8 +2122,32 @@ impl BrowserRuntime {
                 gateway_resolvers: Mutex::new(HashMap::new()),
                 operation: Mutex::new(()),
                 operation_metrics: PolicyOperationMetrics::default(),
+                request_metrics_observer: RwLock::new(Arc::new(NoopBrowserRequestMetricsObserver)),
+                request_metrics_sequence: AtomicU64::new(0),
+                active_request_metrics: AtomicUsize::new(0),
+                queued_request_metrics: AtomicUsize::new(0),
             }),
         })
+    }
+
+    /// Installs a process-local diagnostic sink. Observations contain no URL
+    /// path, query, headers, credentials, or payload data.
+    pub fn set_request_metrics_observer(
+        &self,
+        observer: Arc<dyn BrowserRequestMetricsObserver>,
+    ) -> Result<(), RuntimeError> {
+        *self
+            .inner
+            .request_metrics_observer
+            .write()
+            .map_err(|_| RuntimeError::Synchronization("request metrics observer"))? = observer;
+        Ok(())
+    }
+
+    fn observe_request_metrics(&self, metrics: BrowserRequestMetrics) {
+        if let Ok(observer) = self.inner.request_metrics_observer.read() {
+            observer.observe_request_metrics(&metrics);
+        }
     }
 
     pub fn configuration(&self) -> Result<RuntimeConfiguration, RuntimeError> {
@@ -2048,6 +2246,32 @@ impl BrowserRuntime {
         }
         let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
         operation(self)
+    }
+
+    fn with_timed_policy_operation<T>(
+        &self,
+        policy: RuntimePolicy,
+        operation: impl FnOnce(&BrowserRuntime, u64, usize) -> Result<T, RuntimeError>,
+    ) -> Result<T, RuntimeError> {
+        let policy = policy.enforce_hns_trust_policy()?;
+        let queued_requests = self
+            .inner
+            .queued_request_metrics
+            .fetch_add(1, Ordering::AcqRel)
+            + 1;
+        let wait_started = Instant::now();
+        let operation_guard = self.inner.operation.lock();
+        self.inner
+            .queued_request_metrics
+            .fetch_sub(1, Ordering::AcqRel);
+        let _operation =
+            operation_guard.map_err(|_| RuntimeError::Synchronization("runtime operation lock"))?;
+        let admission_wait_ms = elapsed_millis(wait_started);
+        if self.policy()? != policy {
+            self.set_policy_locked(policy)?;
+        }
+        let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
+        operation(self, admission_wait_ms, queued_requests)
     }
 
     pub fn policy_revision(&self) -> u64 {
@@ -3324,7 +3548,32 @@ impl BrowserRuntime {
                 });
             }
         };
-        self.with_policy_operation(policy, move |runtime| runtime.gateway_request(request))
+        let host = request.host.clone();
+        let method = request.method.clone();
+        self.with_timed_policy_operation(
+            policy,
+            move |runtime, admission_wait_ms, queued_requests| {
+                let mut metrics = RequestMetricsCapture::begin(
+                    runtime,
+                    BrowserRequestMetricsRoute::CompatibilityInterceptor,
+                    host,
+                    method,
+                    queued_requests,
+                    admission_wait_ms,
+                );
+                let gateway_started = Instant::now();
+                let result = runtime.gateway_request(request);
+                metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+                match &result {
+                    Ok(response) => {
+                        metrics.metrics.status_code = encoded_http_status(&response.encoded_http);
+                        metrics.metrics.outcome = "success";
+                    }
+                    Err(_) => metrics.metrics.outcome = "runtime_error",
+                }
+                result
+            },
+        )
     }
 
     pub fn raw_gateway_request_body_to_file(
@@ -3348,9 +3597,32 @@ impl BrowserRuntime {
                 .map_err(RuntimeError::Operation);
             }
         };
-        self.with_policy_operation(policy, move |runtime| {
-            runtime.gateway_request_body_to_file(request, body_path)
-        })
+        let host = request.host.clone();
+        let method = request.method.clone();
+        self.with_timed_policy_operation(
+            policy,
+            move |runtime, admission_wait_ms, queued_requests| {
+                let mut metrics = RequestMetricsCapture::begin(
+                    runtime,
+                    BrowserRequestMetricsRoute::CompatibilityInterceptor,
+                    host,
+                    method,
+                    queued_requests,
+                    admission_wait_ms,
+                );
+                let gateway_started = Instant::now();
+                let result = runtime.gateway_request_body_to_file(request, body_path);
+                metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+                match &result {
+                    Ok(head) => {
+                        metrics.metrics.status_code = encoded_http_status(head);
+                        metrics.metrics.outcome = "success";
+                    }
+                    Err(_) => metrics.metrics.outcome = "runtime_error",
+                }
+                result
+            },
+        )
     }
 
     fn validate_gateway_request(&self, request: &GatewayHttpRequest) -> Result<(), RuntimeError> {
@@ -3452,6 +3724,15 @@ fn prepare_raw_gateway_request(
     })
 }
 
+fn encoded_http_status(bytes: &[u8]) -> Option<u16> {
+    let line_end = bytes.windows(2).position(|window| window == b"\r\n")?;
+    let line = std::str::from_utf8(&bytes[..line_end]).ok()?;
+    let mut parts = line.split_ascii_whitespace();
+    (parts.next()? == "HTTP/1.1")
+        .then(|| parts.next()?.parse::<u16>().ok())
+        .flatten()
+}
+
 fn parse_untrusted_gateway_headers(
     header_text: &str,
 ) -> Result<Vec<(String, String)>, &'static str> {
@@ -3496,6 +3777,7 @@ struct PreparedRuntimeGateway {
     mode: GatewayResolutionMode,
     fallback_marker: FallbackMarker,
     dns_trace: DnsTraceRecorder,
+    origin_metrics: Arc<AtomicU64>,
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
     request_plan: SharedRequestNamespacePlan,
@@ -4447,12 +4729,14 @@ impl BrowserRuntime {
         let request_plan = resolver.retained_request_plan();
         let stateless_dane =
             stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
+        let origin_metrics = Arc::new(AtomicU64::new(0));
         let origin_transport = MobileOriginTransport::bound(
             self.inner.transport.clone(),
             self.clone(),
             authority_binding,
             authority_stamp,
-        );
+        )
+        .with_elapsed_metrics(Arc::clone(&origin_metrics));
         let gateway = Gateway::new(
             GatewayConfig {
                 stateless_dane,
@@ -4473,6 +4757,7 @@ impl BrowserRuntime {
             mode,
             fallback_marker,
             dns_trace,
+            origin_metrics,
             origin,
             plans: Arc::clone(&self.inner.namespace_plans),
             request_plan,
@@ -4532,7 +4817,16 @@ impl ProxyBackend for RuntimeProxyBackend {
         request: LoopbackProxyRequest,
         cancellation: &ProxyCancellationToken,
     ) -> Result<ProxyResponse, ProxyBackendError> {
+        let mut request_metrics = RequestMetricsCapture::begin(
+            &self.runtime,
+            BrowserRequestMetricsRoute::NativeProxy,
+            request.host.clone(),
+            request.method.clone(),
+            0,
+            0,
+        );
         if cancellation.is_cancelled() {
+            request_metrics.metrics.outcome = "cancelled";
             return Err(ProxyBackendError::Cancelled);
         }
         let authority_binding = match self.authority_binding {
@@ -4550,17 +4844,26 @@ impl ProxyBackend for RuntimeProxyBackend {
         let maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
         let maintenance_epoch = maintenance.epoch();
         let storage_identity = maintenance.storage_identity();
+        let prepare_started = Instant::now();
         let prepared = self
             .runtime
             .prepare_proxy_gateway(&request, authority_binding, authority_stamp)
             .map_err(runtime_error_to_proxy_backend)?;
+        request_metrics.metrics.prepare_ms = elapsed_millis(prepare_started);
+        request_metrics.attach_dns_trace(prepared.dns_trace.clone());
         if cancellation.is_cancelled() {
+            request_metrics.metrics.outcome = "cancelled";
             return Err(ProxyBackendError::Cancelled);
         }
+        let gateway_started = Instant::now();
         let response = match prepared.gateway.handle(&prepared.request) {
             Ok(response) => response,
             Err(error) => {
+                request_metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+                request_metrics.metrics.origin_ms = prepared.origin_metrics.load(Ordering::Acquire);
+                request_metrics.metrics.origin_timing_available = true;
                 if cancellation.is_cancelled() {
+                    request_metrics.metrics.outcome = "cancelled";
                     return Err(ProxyBackendError::Cancelled);
                 }
                 let mut response = proxy_error_response_from_gateway(
@@ -4591,9 +4894,14 @@ impl ProxyBackend for RuntimeProxyBackend {
                     maintenance_epoch,
                     storage_identity,
                 );
+                request_metrics.metrics.status_code = Some(response.head.status_code);
+                request_metrics.metrics.outcome = "gateway_error";
                 return Ok(response);
             }
         };
+        request_metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+        request_metrics.metrics.origin_ms = prepared.origin_metrics.load(Ordering::Acquire);
+        request_metrics.metrics.origin_timing_available = true;
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
         }
@@ -4613,6 +4921,7 @@ impl ProxyBackend for RuntimeProxyBackend {
             },
             prepared.authority_stamp,
         );
+        let publish_started = Instant::now();
         let mut proxy_response = proxy_response_from_gateway(
             &self.runtime,
             &request,
@@ -4631,6 +4940,9 @@ impl ProxyBackend for RuntimeProxyBackend {
         proxy_response.head.observation_id = Some(observation_id);
         proxy_response.publication =
             runtime_success_publication_capability(&prepared, maintenance_epoch, storage_identity);
+        request_metrics.metrics.publish_ms = elapsed_millis(publish_started);
+        request_metrics.metrics.status_code = Some(proxy_response.head.status_code);
+        request_metrics.metrics.outcome = "success";
         Ok(proxy_response)
     }
 
@@ -24265,6 +24577,13 @@ mod tests {
     #[test]
     fn same_policy_raw_gateway_requests_remain_serialized() {
         let (data_dir, runtime) = runtime_with_cached_loopback_name("runtime-raw-gateway-serial");
+        let observed_metrics = Arc::new(Mutex::new(Vec::<BrowserRequestMetrics>::new()));
+        let metrics_sink = Arc::clone(&observed_metrics);
+        runtime
+            .set_request_metrics_observer(Arc::new(move |metrics: &BrowserRequestMetrics| {
+                metrics_sink.lock().unwrap().push(metrics.clone());
+            }))
+            .unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         // The origin holds the first response until released; if runtime
@@ -24330,6 +24649,19 @@ mod tests {
                 .load(Ordering::SeqCst),
             1
         );
+        let metrics = observed_metrics.lock().unwrap();
+        assert_eq!(metrics.len(), 2);
+        assert!(metrics.iter().all(|entry| {
+            entry.route == BrowserRequestMetricsRoute::CompatibilityInterceptor
+                && entry.status_code == Some(200)
+                && entry.outcome == "success"
+                && !entry.dns_timings_available
+                && !entry.origin_timing_available
+                && entry.gateway_ms <= entry.total_ms
+        }));
+        assert!(metrics.iter().any(|entry| entry.admission_wait_ms >= 250));
+        assert!(metrics.iter().any(|entry| entry.queued_requests >= 1));
+        drop(metrics);
         server.join().unwrap();
         cleanup_dir(&data_dir);
     }

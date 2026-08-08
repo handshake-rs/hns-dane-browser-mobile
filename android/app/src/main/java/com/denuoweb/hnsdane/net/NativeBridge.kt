@@ -8,6 +8,14 @@ import java.io.InputStream
 import java.util.Locale
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
+// Diagnostic-only: the gateway bridge nulls are indistinguishable from the
+// interceptor's perspective; tag each early return so logcat shows the origin.
+private const val GATEWAY_DIAG_TAG = "hns-gateway-diag"
+
+private fun gatewayDiag(message: String) {
+    android.util.Log.e(GATEWAY_DIAG_TAG, message)
+}
+
 interface HnsGatewayBridge {
     fun httpResponse(
         dataDir: String,
@@ -175,9 +183,12 @@ object NativeBridge :
         headers: List<Pair<String, String>>,
         body: ByteArray,
     ): ByteArray? {
-        if (!isLoaded) return null
+        if (!isLoaded) {
+            gatewayDiag("httpResponse: native library not loaded")
+            return null
+        }
         val headerText = serializeHeaders(headers)
-        return withRuntime(
+        val result = withRuntime(
             dataDir = dataDir,
             network = config.network,
             unavailable = null,
@@ -198,6 +209,8 @@ object NativeBridge :
                 body,
             )
         }
+        if (result == null) gatewayDiag("httpResponse: null for host=$host (runtime or FFI)")
+        return result
     }
 
     override fun httpResponseBodyFile(
@@ -212,10 +225,14 @@ object NativeBridge :
         body: ByteArray,
     ): HnsGatewayFileResponse? {
         if (!isLoaded) {
+            gatewayDiag("httpResponseBodyFile: native library not loaded")
             return null
         }
         val headerText = serializeHeaders(headers)
-        val bodyFile = GatewayResponseBodyStore.create(dataDir) ?: return null
+        val bodyFile = GatewayResponseBodyStore.create(dataDir) ?: run {
+            gatewayDiag("httpResponseBodyFile: body store create failed")
+            return null
+        }
         val head = runCatching {
             withRuntime(
                 dataDir = dataDir,
@@ -241,6 +258,7 @@ object NativeBridge :
             }
         }.getOrNull()
         if (head == null || !GatewayResponseBodyStore.retainCompleted(bodyFile)) {
+            gatewayDiag("httpResponseBodyFile: null head=${head == null} for host=$host")
             GatewayResponseBodyStore.release(bodyFile)
             return null
         }
@@ -335,7 +353,10 @@ object NativeBridge :
         unavailable: T,
         block: (Long) -> T,
     ): T {
-        if (!isLoaded) return unavailable
+        if (!isLoaded) {
+            gatewayDiag("withRuntime: native library not loaded")
+            return unavailable
+        }
         val canonicalNetwork = canonicalRuntimeNetwork(network)
         val key = RuntimeKey(dataDir, canonicalNetwork)
         val readLock = runtimeLifecycleLock.readLock()
@@ -352,7 +373,10 @@ object NativeBridge :
             val existing = runtimeHandles[key]
             if (existing != null) return block(existing)
             val created = nativeRuntimeCreate(dataDir, canonicalNetwork)
-            if (created == INVALID_RUNTIME_HANDLE) return unavailable
+            if (created == INVALID_RUNTIME_HANDLE) {
+                gatewayDiag("withRuntime: runtime create returned invalid handle")
+                return unavailable
+            }
             runtimeHandles[key] = created
             return block(created)
         } finally {
