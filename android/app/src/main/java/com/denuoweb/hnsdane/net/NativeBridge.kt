@@ -150,12 +150,16 @@ object NativeBridge :
         block = ::nativeRuntimeSyncStatus,
     )
 
-    fun chainTipToken(dataDir: String, network: String = DEFAULT_NETWORK): String? = withRuntime(
-        dataDir = dataDir,
-        network = network,
-        unavailable = "",
-        block = ::nativeRuntimeChainTipToken,
-    ).takeIf { it.isNotBlank() }
+    fun chainTipToken(dataDir: String, network: String = DEFAULT_NETWORK): String? {
+        val token = withRuntime(
+            dataDir = dataDir,
+            network = network,
+            unavailable = "",
+            block = ::nativeRuntimeChainTipToken,
+        ).takeIf { it.isNotBlank() }
+        if (token == null) gatewayDiag("chainTipToken: unavailable for network=$network")
+        return token
+    }
 
     fun addStaticRelayPeer(dataDir: String, network: String, endpoint: String): String = withRuntime(
         dataDir = dataDir,
