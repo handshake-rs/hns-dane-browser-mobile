@@ -8,9 +8,10 @@ internal object GatewayResponseBodyStore {
     private const val DIRECTORY = "hns/response-bodies"
     private const val PREFIX = "hns-gateway-"
     private const val SUFFIX = ".body"
-    private const val MAX_FILES = 64
+    private const val MAX_FILES = 256
     private const val MAX_TOTAL_BYTES = 256L * 1024 * 1024
     private const val MAX_FILE_BYTES = 8L * 1024 * 1024
+    private const val MAX_CONCURRENT_WRITERS = 8
     private const val MAX_AGE_MILLIS = 24L * 60 * 60 * 1_000
     private val activeFiles = linkedSetOf<String>()
 
@@ -23,14 +24,12 @@ internal object GatewayResponseBodyStore {
         }
         pruneDirectory(directory)
         val files = matchingFiles(directory)
-        val inactiveBytes = files
-            .filterNot { it.absolutePath in activeFiles }
-            .sumOf { it.length() }
-        val reservedBytes = activeFiles.size.toLong() * MAX_FILE_BYTES
+        val retainedBytes = files.sumOf { it.length().coerceAtLeast(0L) }
+        val writerHeadroom = MAX_CONCURRENT_WRITERS.toLong() * MAX_FILE_BYTES
         if (
             files.size >= MAX_FILES ||
             activeFiles.size >= MAX_FILES ||
-            inactiveBytes > MAX_TOTAL_BYTES - reservedBytes - MAX_FILE_BYTES
+            retainedBytes > MAX_TOTAL_BYTES - writerHeadroom - MAX_FILE_BYTES
         ) {
             return null
         }

@@ -18,6 +18,7 @@ use hns_browser_runtime::{
     AuthorityState, BrowserRuntime as CanonicalAuthorityRuntime,
     RuntimeSessionId as CanonicalRuntimeSessionId, RuntimeStamp,
 };
+use hns_cache::TtlCache;
 use hns_chain::{
     DifficultyPolicy, HeaderChain, HeaderStore, SqliteHeaderStore, mainnet_sync_checkpoints,
 };
@@ -100,7 +101,7 @@ use std::num::NonZeroU16;
 #[cfg(target_os = "android")]
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{
     Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard,
     TryLockError, Weak,
@@ -215,7 +216,11 @@ const DNSSEC_DO_FLAG: u32 = 0x8000;
 const DEFAULT_DNS_UDP_PAYLOAD: usize = 1232;
 const DEFAULT_GATEWAY_PROOF_PEERS: usize = 8;
 const DEFAULT_GATEWAY_PROOF_TIMEOUT: Duration = Duration::from_secs(3);
+const GATEWAY_RESOLVER_CACHE_ENTRIES: usize = 1_024;
+const GATEWAY_RESOLVER_CACHE_TTL: Duration = Duration::from_secs(300);
+const GATEWAY_NEGATIVE_ANSWER_CACHE_TTL: Duration = Duration::from_secs(30);
 const NAMESPACE_EVIDENCE_MAX_TTL_SECONDS: u64 = 30;
+const MAX_CONCURRENT_ADMITTED_DELIVERIES: usize = 8;
 const DNS_INTERCEPTION_PROBE_TIMEOUT: Duration = Duration::from_millis(350);
 const DNS_INTERCEPTION_PROBE_ID: u16 = 0x484a;
 const DNS_INTERCEPTION_PROBE_NAME: &str = "hns-dns-interception-probe.invalid";
@@ -736,6 +741,57 @@ pub struct NoopBrowserProxyStatusObserver;
 
 impl BrowserProxyStatusObserver for NoopBrowserProxyStatusObserver {
     fn observe_status(&self, _status: &BrowserProxyStatus) {}
+}
+
+/// The request entry point that produced one timing observation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BrowserRequestMetricsRoute {
+    NativeProxy,
+    CompatibilityInterceptor,
+}
+
+/// Privacy-bounded, per-request stage timings. Paths, queries, headers, and
+/// payloads are deliberately excluded so this record is safe for diagnostics.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BrowserRequestMetrics {
+    pub request_id: u64,
+    pub route: BrowserRequestMetricsRoute,
+    pub host: String,
+    pub method: String,
+    pub active_requests: usize,
+    pub queued_requests: usize,
+    pub admission_wait_ms: u64,
+    pub prepare_ms: u64,
+    pub dns_timings_available: bool,
+    pub hns_dns_ms: u64,
+    pub icann_dns_ms: u64,
+    pub gateway_ms: u64,
+    pub origin_timing_available: bool,
+    pub origin_ms: u64,
+    pub publish_ms: u64,
+    pub total_ms: u64,
+    pub status_code: Option<u16>,
+    pub outcome: &'static str,
+}
+
+pub trait BrowserRequestMetricsObserver: Send + Sync + 'static {
+    fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics);
+}
+
+impl<F> BrowserRequestMetricsObserver for F
+where
+    F: Fn(&BrowserRequestMetrics) + Send + Sync + 'static,
+{
+    fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics) {
+        self(metrics);
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoopBrowserRequestMetricsObserver;
+
+impl BrowserRequestMetricsObserver for NoopBrowserRequestMetricsObserver {
+    fn observe_request_metrics(&self, _metrics: &BrowserRequestMetrics) {}
 }
 
 fn parse_browser_proxy_tls_policy(value: Option<&str>) -> Option<BrowserProxyTlsPolicy> {
@@ -1288,6 +1344,7 @@ impl CanonicalStatusRegistry {
 struct MobileOriginTransport {
     inner: TcpHttpTransport,
     authority: Option<BoundOriginAuthority>,
+    elapsed_metrics: Option<Arc<AtomicU64>>,
 }
 
 #[derive(Clone)]
@@ -1302,6 +1359,7 @@ impl MobileOriginTransport {
         Self {
             inner,
             authority: None,
+            elapsed_metrics: None,
         }
     }
 
@@ -1318,6 +1376,18 @@ impl MobileOriginTransport {
                 binding,
                 stamp,
             }),
+            elapsed_metrics: None,
+        }
+    }
+
+    fn with_elapsed_metrics(mut self, metrics: Arc<AtomicU64>) -> Self {
+        self.elapsed_metrics = Some(metrics);
+        self
+    }
+
+    fn record_elapsed(&self, started: Instant) {
+        if let Some(metrics) = &self.elapsed_metrics {
+            metrics.fetch_add(elapsed_millis(started), Ordering::AcqRel);
         }
     }
 
@@ -1344,15 +1414,21 @@ impl MobileOriginTransport {
 
 impl OriginTransport for MobileOriginTransport {
     fn fetch(&self, request: &OriginRequest) -> Result<OriginResponse, TransportError> {
+        let started = Instant::now();
         self.authorize_bound_work()?;
-        let response = self.inner.fetch(request)?;
+        let response = self.inner.fetch(request);
+        self.record_elapsed(started);
+        let response = response?;
         self.authorize_bound_work()?;
         Ok(response)
     }
 
     fn open_tunnel(&self, request: &OriginRequest) -> Result<OriginTunnel, TransportError> {
+        let started = Instant::now();
         self.authorize_bound_work()?;
-        let mut tunnel = self.inner.open_tunnel(request)?;
+        let tunnel = self.inner.open_tunnel(request);
+        self.record_elapsed(started);
+        let mut tunnel = tunnel?;
         self.authorize_bound_work()?;
         if let Some(authority) = &self.authority {
             tunnel.stream = Box::new(AuthorityBoundTunnel {
@@ -1369,12 +1445,15 @@ impl OriginTransport for MobileOriginTransport {
         request: &OriginRequest,
         body: &mut dyn Write,
     ) -> Result<OriginResponseHead, TransportError> {
+        let started = Instant::now();
         self.authorize_bound_work()?;
         // Keep download bytes private until origin I/O and the post-I/O
         // authority check both succeed. TcpHttpTransport enforces the bounded
         // response size before this buffer can be published.
         let mut staged = Vec::new();
-        let response = self.inner.fetch_to_writer(request, &mut staged)?;
+        let response = self.inner.fetch_to_writer(request, &mut staged);
+        self.record_elapsed(started);
+        let response = response?;
         self.authorize_bound_work()?;
         if let Some(authority) = &self.authority {
             authority.runtime.with_authorized_publication(
@@ -1390,6 +1469,64 @@ impl OriginTransport for MobileOriginTransport {
                 .map_err(|error| TransportError::Io(error.to_string()))?;
         }
         Ok(response)
+    }
+
+    fn fetch_to_writer_streaming(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<OriginResponseHead, TransportError> {
+        let started = Instant::now();
+        self.authorize_bound_work()?;
+        let mut observe_head = |head: &OriginResponseHead| {
+            self.authorize_bound_work()?;
+            on_head(head)
+        };
+        let response = if let Some(authority) = &self.authority {
+            let mut guarded_body = AuthorityBoundWriter {
+                inner: body,
+                authority: authority.clone(),
+            };
+            self.inner
+                .fetch_to_writer_streaming(request, &mut guarded_body, &mut observe_head)
+        } else {
+            self.inner
+                .fetch_to_writer_streaming(request, body, &mut observe_head)
+        };
+        self.record_elapsed(started);
+        let response = response?;
+        self.authorize_bound_work()?;
+        Ok(response)
+    }
+}
+
+struct AuthorityBoundWriter<'a> {
+    inner: &'a mut dyn Write,
+    authority: BoundOriginAuthority,
+}
+
+impl Write for AuthorityBoundWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if !self
+            .authority
+            .runtime
+            .authority_binding_is_current(self.authority.binding)
+            || !self
+                .authority
+                .runtime
+                .authority_admits(self.authority.binding, self.authority.stamp)
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "runtime authority changed during response streaming",
+            ));
+        }
+        self.inner.write(bytes)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
     }
 }
 
@@ -1439,6 +1576,71 @@ impl Write for AuthorityBoundTunnel {
     }
 }
 
+/// Concurrency instrumentation for the policy-operation gate. The counters
+/// make end-to-end serialization (or its absence) of runtime operations
+/// observable in tests and diagnostics: `max_in_flight` only rises above one
+/// when same-policy operations genuinely overlap.
+#[derive(Default)]
+struct PolicyOperationMetrics {
+    /// Operations currently holding the policy-operation gate.
+    in_flight: AtomicUsize,
+    /// High-water mark of concurrently gated operations.
+    max_in_flight: AtomicUsize,
+    /// Total operations admitted through the gate.
+    admitted: AtomicUsize,
+}
+
+/// RAII token accounting one gated policy operation against the metrics.
+struct PolicyOperationInFlight<'a> {
+    metrics: &'a PolicyOperationMetrics,
+}
+
+impl<'a> PolicyOperationInFlight<'a> {
+    fn enter(metrics: &'a PolicyOperationMetrics) -> Self {
+        let in_flight = metrics.in_flight.fetch_add(1, Ordering::AcqRel) + 1;
+        metrics.admitted.fetch_add(1, Ordering::AcqRel);
+        metrics.max_in_flight.fetch_max(in_flight, Ordering::AcqRel);
+        Self { metrics }
+    }
+}
+
+impl Drop for PolicyOperationInFlight<'_> {
+    fn drop(&mut self) {
+        self.metrics.in_flight.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+struct RequestMetricsInFlight<'a> {
+    counter: &'a AtomicUsize,
+}
+
+impl<'a> RequestMetricsInFlight<'a> {
+    fn enter(counter: &'a AtomicUsize) -> (Self, usize) {
+        let active = counter.fetch_add(1, Ordering::AcqRel) + 1;
+        (Self { counter }, active)
+    }
+}
+
+impl Drop for RequestMetricsInFlight<'_> {
+    fn drop(&mut self) {
+        self.counter.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+fn next_request_metrics_id(inner: &RuntimeInner) -> u64 {
+    inner
+        .request_metrics_sequence
+        .fetch_add(1, Ordering::AcqRel)
+        .wrapping_add(1)
+}
+
+fn dns_stage_millis(events: &[DnsTraceEvent], root: &str) -> u64 {
+    events
+        .iter()
+        .filter(|event| dns_trace_event_root(event) == root)
+        .fold(0_u64, |total, event| total.saturating_add(event.elapsed_ms))
+}
+
 struct RuntimeInner {
     configuration: RuntimeConfiguration,
     policy: RwLock<RuntimePolicy>,
@@ -1455,7 +1657,64 @@ struct RuntimeInner {
     canonical_statuses: CanonicalStatusRegistry,
     latest_canonical_status: RwLock<CanonicalStatusAvailability>,
     namespace_plans: SharedNamespacePlans,
+    gateway_resolvers: Mutex<HashMap<GatewayResolverKey, Arc<PersistentGatewayResolver>>>,
+    /// Serializes policy-scoped runtime operations end to end. Overlap is
+    /// deliberately disabled: concurrent interceptor requests stretch each
+    /// other's uncached ICANN legs past the one-second delegated-HNS evidence
+    /// freshness window (see `hns_observation_freshness`), which flips
+    /// namespace plans to Indeterminate under request bursts. The lock still
+    /// guarantees no request observes a policy transition mid-flight.
     operation: Mutex<()>,
+    admitted_delivery: AdmittedDeliveryConcurrency,
+    operation_metrics: PolicyOperationMetrics,
+    request_metrics_observer: RwLock<Arc<dyn BrowserRequestMetricsObserver>>,
+    request_metrics_sequence: AtomicU64,
+    active_request_metrics: AtomicUsize,
+    queued_request_metrics: AtomicUsize,
+}
+
+struct AdmittedDeliveryConcurrency {
+    active: Mutex<usize>,
+    available: Condvar,
+}
+
+impl Default for AdmittedDeliveryConcurrency {
+    fn default() -> Self {
+        Self {
+            active: Mutex::new(0),
+            available: Condvar::new(),
+        }
+    }
+}
+
+struct AdmittedDeliveryPermit<'a> {
+    concurrency: &'a AdmittedDeliveryConcurrency,
+}
+
+impl AdmittedDeliveryConcurrency {
+    fn acquire(&self) -> Result<AdmittedDeliveryPermit<'_>, RuntimeError> {
+        let mut active = self
+            .active
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("admitted delivery lock"))?;
+        while *active >= MAX_CONCURRENT_ADMITTED_DELIVERIES {
+            active = self
+                .available
+                .wait(active)
+                .map_err(|_| RuntimeError::Synchronization("admitted delivery lock"))?;
+        }
+        *active += 1;
+        Ok(AdmittedDeliveryPermit { concurrency: self })
+    }
+}
+
+impl Drop for AdmittedDeliveryPermit<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.concurrency.active.lock() {
+            *active = active.saturating_sub(1);
+            self.concurrency.available.notify_one();
+        }
+    }
 }
 
 struct RuntimeCoordination {
@@ -1467,6 +1726,71 @@ struct RuntimeCoordination {
     header_sync_lock_path: PathBuf,
     peer_state: Arc<Mutex<()>>,
     relay: SharedDnsRelayState,
+}
+
+struct RequestMetricsCapture<'a> {
+    runtime: &'a BrowserRuntime,
+    started: Instant,
+    metrics: BrowserRequestMetrics,
+    dns_trace: Option<DnsTraceRecorder>,
+    _active: RequestMetricsInFlight<'a>,
+}
+
+impl<'a> RequestMetricsCapture<'a> {
+    fn begin(
+        runtime: &'a BrowserRuntime,
+        route: BrowserRequestMetricsRoute,
+        host: String,
+        method: String,
+        queued_requests: usize,
+        admission_wait_ms: u64,
+    ) -> Self {
+        let (_active, active_requests) =
+            RequestMetricsInFlight::enter(&runtime.inner.active_request_metrics);
+        Self {
+            runtime,
+            started: Instant::now(),
+            metrics: BrowserRequestMetrics {
+                request_id: next_request_metrics_id(&runtime.inner),
+                route,
+                host,
+                method,
+                active_requests,
+                queued_requests,
+                admission_wait_ms,
+                prepare_ms: 0,
+                dns_timings_available: false,
+                hns_dns_ms: 0,
+                icann_dns_ms: 0,
+                gateway_ms: 0,
+                origin_timing_available: false,
+                origin_ms: 0,
+                publish_ms: 0,
+                total_ms: 0,
+                status_code: None,
+                outcome: "incomplete",
+            },
+            dns_trace: None,
+            _active,
+        }
+    }
+
+    fn attach_dns_trace(&mut self, trace: DnsTraceRecorder) {
+        self.dns_trace = Some(trace);
+        self.metrics.dns_timings_available = true;
+    }
+}
+
+impl Drop for RequestMetricsCapture<'_> {
+    fn drop(&mut self) {
+        if let Some(trace) = &self.dns_trace {
+            let events = trace.snapshot();
+            self.metrics.hns_dns_ms = dns_stage_millis(&events, "hns");
+            self.metrics.icann_dns_ms = dns_stage_millis(&events, "icann");
+        }
+        self.metrics.total_ms = elapsed_millis(self.started);
+        self.runtime.observe_request_metrics(self.metrics.clone());
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1899,9 +2223,36 @@ impl BrowserRuntime {
                 canonical_statuses: CanonicalStatusRegistry::default(),
                 latest_canonical_status: RwLock::new(CanonicalStatusAvailability::Pending),
                 namespace_plans: Arc::new(Mutex::new(HashMap::new())),
+                gateway_resolvers: Mutex::new(HashMap::new()),
                 operation: Mutex::new(()),
+                admitted_delivery: AdmittedDeliveryConcurrency::default(),
+                operation_metrics: PolicyOperationMetrics::default(),
+                request_metrics_observer: RwLock::new(Arc::new(NoopBrowserRequestMetricsObserver)),
+                request_metrics_sequence: AtomicU64::new(0),
+                active_request_metrics: AtomicUsize::new(0),
+                queued_request_metrics: AtomicUsize::new(0),
             }),
         })
+    }
+
+    /// Installs a process-local diagnostic sink. Observations contain no URL
+    /// path, query, headers, credentials, or payload data.
+    pub fn set_request_metrics_observer(
+        &self,
+        observer: Arc<dyn BrowserRequestMetricsObserver>,
+    ) -> Result<(), RuntimeError> {
+        *self
+            .inner
+            .request_metrics_observer
+            .write()
+            .map_err(|_| RuntimeError::Synchronization("request metrics observer"))? = observer;
+        Ok(())
+    }
+
+    fn observe_request_metrics(&self, metrics: BrowserRequestMetrics) {
+        if let Ok(observer) = self.inner.request_metrics_observer.read() {
+            observer.observe_request_metrics(&metrics);
+        }
     }
 
     pub fn configuration(&self) -> Result<RuntimeConfiguration, RuntimeError> {
@@ -1984,6 +2335,12 @@ impl BrowserRuntime {
         operation: impl FnOnce(&BrowserRuntime) -> Result<T, RuntimeError>,
     ) -> Result<T, RuntimeError> {
         let policy = policy.enforce_hns_trust_policy()?;
+        // Operations stay serialized even when the requested policy already
+        // matches: concurrent gateway requests contend for the uncached ICANN
+        // absence leg, and a stretched leg outlives the one-second
+        // delegated-HNS evidence freshness window, flipping namespace plans
+        // to Indeterminate (503). The metrics still record admission so any
+        // future overlap experiment is measurable.
         let _operation = self
             .inner
             .operation
@@ -1992,7 +2349,108 @@ impl BrowserRuntime {
         if self.policy()? != policy {
             self.set_policy_locked(policy)?;
         }
+        let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
         operation(self)
+    }
+
+    fn with_timed_policy_operation<T>(
+        &self,
+        policy: RuntimePolicy,
+        operation: impl FnOnce(&BrowserRuntime, u64, usize) -> Result<T, RuntimeError>,
+    ) -> Result<T, RuntimeError> {
+        let policy = policy.enforce_hns_trust_policy()?;
+        let queued_requests = self
+            .inner
+            .queued_request_metrics
+            .fetch_add(1, Ordering::AcqRel)
+            + 1;
+        let wait_started = Instant::now();
+        let operation_guard = self.inner.operation.lock();
+        self.inner
+            .queued_request_metrics
+            .fetch_sub(1, Ordering::AcqRel);
+        let _operation =
+            operation_guard.map_err(|_| RuntimeError::Synchronization("runtime operation lock"))?;
+        let admission_wait_ms = elapsed_millis(wait_started);
+        if self.policy()? != policy {
+            self.set_policy_locked(policy)?;
+        }
+        let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
+        operation(self, admission_wait_ms, queued_requests)
+    }
+
+    fn with_timed_gateway_operation<T>(
+        &self,
+        has_current_namespace_plan: bool,
+        policy: RuntimePolicy,
+        operation: impl FnOnce(&BrowserRuntime, u64, usize, Option<u64>) -> Result<T, RuntimeError>,
+    ) -> Result<T, RuntimeError> {
+        let policy = policy.enforce_hns_trust_policy()?;
+        let (current_policy, policy_revision) = self.policy_snapshot()?;
+        if current_policy == policy && has_current_namespace_plan {
+            // The namespace decision was already built under the serialized
+            // admission gate. Bound only origin/body delivery here; it cannot
+            // mutate root evidence or commit a policy transition, and the
+            // authority stamp inside the gateway still suppresses publication
+            // if either changes while delivery is in flight.
+            let _permit = self.inner.admitted_delivery.acquire()?;
+            let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
+            return operation(self, 0, 0, Some(policy_revision));
+        }
+        self.with_timed_policy_operation(policy, |runtime, wait_ms, queued| {
+            operation(runtime, wait_ms, queued, None)
+        })
+    }
+
+    fn has_current_namespace_plan(&self, request: &GatewayHttpRequest) -> bool {
+        let header_text = match self.gateway_header_text(&request.headers) {
+            Ok(headers) => headers,
+            Err(_) => return false,
+        };
+        let parsed = match parse_gateway_headers(&header_text) {
+            Ok(headers) => headers,
+            Err(_) => return false,
+        };
+        let base = network_base_path(&self.inner.data_dir, parsed.network);
+        let origin = match namespace_origin_context(
+            base.clone(),
+            parsed.network,
+            &request.scheme,
+            &request.host,
+            request.port,
+            self.inner.policy_revision.load(Ordering::Acquire),
+        ) {
+            Ok(origin) => origin,
+            Err(_) => return false,
+        };
+        let now = now_unix_seconds();
+        let plan = {
+            let mut plans = match self.inner.namespace_plans.lock() {
+                Ok(plans) => plans,
+                Err(_) => return false,
+            };
+            plans.retain(|_, plan| plan.expires_at_unix > now);
+            plans.get(&origin.key).cloned()
+        };
+        let Some(plan) = plan else {
+            return false;
+        };
+        if let Some(observation) = plan.hns_observation {
+            hns_anchor_is_current(&base, parsed.network, observation.anchor).unwrap_or(false)
+                && !local_chain_is_stale_for_current_resolution(&base, parsed.network)
+                    .unwrap_or(true)
+        } else {
+            true
+        }
+    }
+
+    fn require_policy_revision(&self, expected: Option<u64>) -> Result<(), RuntimeError> {
+        if expected.is_some_and(|revision| self.policy_revision() != revision) {
+            return Err(RuntimeError::Operation(
+                "policy changed after namespace-plan admission".to_owned(),
+            ));
+        }
+        Ok(())
     }
 
     pub fn policy_revision(&self) -> u64 {
@@ -2860,6 +3318,24 @@ impl BrowserRuntime {
             .map_err(RuntimeError::Operation)
     }
 
+    /// Returns the exact local Handshake chain tip used to scope validated HTTP objects.
+    pub fn chain_tip_token(&self) -> Result<String, RuntimeError> {
+        let _maintenance = self
+            .inner
+            .coordination
+            .maintenance
+            .read()
+            .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+        let _header_state_lock = self.acquire_ready_header_state()?;
+        let base = network_base_path(&self.inner.data_dir, self.inner.configuration.network);
+        let best = best_synced_header(&base, self.inner.configuration.network)
+            .map_err(|error| RuntimeError::Operation(error.to_string()))?;
+        Ok(format!(
+            "{}:{}:{}",
+            best.height.0, best.hash, best.header.tree_root
+        ))
+    }
+
     /// Verifies and persists one explicitly configured relay-capable Handshake peer.
     ///
     /// The live version handshake happens before the shared peer-store lock is acquired. The
@@ -2960,6 +3436,11 @@ impl BrowserRuntime {
             HeaderStateFileLock::exclusive(&self.inner.coordination.header_state_lock_path)
                 .map_err(RuntimeError::Operation)?;
         self.inner.coordination.begin_maintenance(&maintenance)?;
+        self.inner
+            .gateway_resolvers
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("gateway resolver cache"))?
+            .clear();
         clear_resolver_cache_inner(&self.inner.data_dir, self.inner.configuration.network)
             .map_err(RuntimeError::Operation)
     }
@@ -3101,13 +3582,59 @@ impl BrowserRuntime {
         ))
     }
 
+    /// Returns the pooled resolver stack for one FFI gateway request, keyed
+    /// exactly like the loopback-proxy path (storage base, policy, and the
+    /// exact chain tip) so interceptor and proxied requests share one stack.
+    fn pooled_gateway_resolver(
+        &self,
+        header_text: &str,
+    ) -> Result<Arc<PersistentGatewayResolver>, RuntimeError> {
+        let parsed_headers = parse_gateway_headers(header_text)
+            .map_err(|error| RuntimeError::InvalidConfiguration(error.to_owned()))?;
+        let network = parsed_headers.network;
+        let base = network_base_path(&self.inner.data_dir, network);
+        fs::create_dir_all(&base).map_err(|error| {
+            RuntimeError::Operation(format!("create gateway directory: {error}"))
+        })?;
+        self.persistent_gateway_resolver(
+            base,
+            GatewayResolverContext {
+                network,
+                runtime_policy: parsed_headers.runtime_policy(),
+                peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
+                relay: Some(self.inner.coordination.relay.clone()),
+                http: self.inner.transport.clone(),
+            },
+        )
+    }
+
+    fn pooled_gateway_resolver_reuse<'a>(
+        &'a self,
+        persistent: &'a PersistentGatewayResolver,
+    ) -> GatewayResolverReuse<'a> {
+        GatewayResolverReuse {
+            stack: persistent,
+            plans: Arc::clone(&self.inner.namespace_plans),
+            policy_revision: self.inner.policy_revision.load(Ordering::Acquire),
+        }
+    }
+
     pub fn gateway_request(
         &self,
         request: GatewayHttpRequest,
     ) -> Result<GatewayHttpResponse, RuntimeError> {
+        self.gateway_request_at_revision(request, None)
+    }
+
+    fn gateway_request_at_revision(
+        &self,
+        request: GatewayHttpRequest,
+        expected_policy_revision: Option<u64>,
+    ) -> Result<GatewayHttpResponse, RuntimeError> {
         self.validate_gateway_request(&request)?;
         let authority_binding = self.ensure_authority_active(0)?;
         let authority_stamp = self.admit_authority_work(authority_binding)?;
+        self.require_policy_revision(expected_policy_revision)?;
         (|| {
             let _maintenance = self
                 .inner
@@ -3117,6 +3644,10 @@ impl BrowserRuntime {
                 .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
             let _header_state_lock = self.acquire_ready_header_state()?;
             let header_text = self.gateway_header_text(&request.headers)?;
+            let persistent = self.pooled_gateway_resolver(&header_text)?;
+            // The stack outlives this request; clear any request-scoped state
+            // a previous request left behind on this thread.
+            persistent.reset_request_state();
             let prepared = prepare_gateway_http_response_with_transport(
                 GatewayHttpRequestInput {
                     data_dir: &self.inner.data_dir,
@@ -3134,8 +3665,9 @@ impl BrowserRuntime {
                     authority_binding,
                     authority_stamp,
                 ),
-                Some(Arc::clone(&self.inner.coordination.peer_state)),
+                GatewayResolverSource::Pooled(self.pooled_gateway_resolver_reuse(&persistent)),
             );
+            persistent.reset_request_state();
             let encoded_http =
                 self.publish_gateway_http_response(prepared, authority_binding, authority_stamp)?;
             Ok(GatewayHttpResponse { encoded_http })
@@ -3148,9 +3680,19 @@ impl BrowserRuntime {
         request: GatewayHttpRequest,
         body_path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, RuntimeError> {
+        self.gateway_request_body_to_file_at_revision(request, body_path, None)
+    }
+
+    fn gateway_request_body_to_file_at_revision(
+        &self,
+        request: GatewayHttpRequest,
+        body_path: impl AsRef<Path>,
+        expected_policy_revision: Option<u64>,
+    ) -> Result<Vec<u8>, RuntimeError> {
         self.validate_gateway_request(&request)?;
         let authority_binding = self.ensure_authority_active(0)?;
         let authority_stamp = self.admit_authority_work(authority_binding)?;
+        self.require_policy_revision(expected_policy_revision)?;
         (|| {
             let _maintenance = self
                 .inner
@@ -3160,6 +3702,10 @@ impl BrowserRuntime {
                 .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
             let _header_state_lock = self.acquire_ready_header_state()?;
             let header_text = self.gateway_header_text(&request.headers)?;
+            let persistent = self.pooled_gateway_resolver(&header_text)?;
+            // The stack outlives this request; clear any request-scoped state
+            // a previous request left behind on this thread.
+            persistent.reset_request_state();
             let sequence = self
                 .inner
                 .staged_body_generation
@@ -3184,9 +3730,10 @@ impl BrowserRuntime {
                     authority_binding,
                     authority_stamp,
                 ),
-                Some(Arc::clone(&self.inner.coordination.peer_state)),
+                GatewayResolverSource::Pooled(self.pooled_gateway_resolver_reuse(&persistent)),
             )
             .map_err(RuntimeError::Operation)?;
+            persistent.reset_request_state();
             self.publish_gateway_file_response(
                 response,
                 staged,
@@ -3217,7 +3764,34 @@ impl BrowserRuntime {
                 });
             }
         };
-        self.with_policy_operation(policy, move |runtime| runtime.gateway_request(request))
+        let host = request.host.clone();
+        let method = request.method.clone();
+        let has_current_namespace_plan = self.has_current_namespace_plan(&request);
+        self.with_timed_gateway_operation(
+            has_current_namespace_plan,
+            policy,
+            move |runtime, admission_wait_ms, queued_requests, expected_policy_revision| {
+                let mut metrics = RequestMetricsCapture::begin(
+                    runtime,
+                    BrowserRequestMetricsRoute::CompatibilityInterceptor,
+                    host,
+                    method,
+                    queued_requests,
+                    admission_wait_ms,
+                );
+                let gateway_started = Instant::now();
+                let result = runtime.gateway_request_at_revision(request, expected_policy_revision);
+                metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+                match &result {
+                    Ok(response) => {
+                        metrics.metrics.status_code = encoded_http_status(&response.encoded_http);
+                        metrics.metrics.outcome = "success";
+                    }
+                    Err(_) => metrics.metrics.outcome = "runtime_error",
+                }
+                result
+            },
+        )
     }
 
     pub fn raw_gateway_request_body_to_file(
@@ -3241,9 +3815,186 @@ impl BrowserRuntime {
                 .map_err(RuntimeError::Operation);
             }
         };
-        self.with_policy_operation(policy, move |runtime| {
-            runtime.gateway_request_body_to_file(request, body_path)
-        })
+        let host = request.host.clone();
+        let method = request.method.clone();
+        let has_current_namespace_plan = self.has_current_namespace_plan(&request);
+        self.with_timed_gateway_operation(
+            has_current_namespace_plan,
+            policy,
+            move |runtime, admission_wait_ms, queued_requests, expected_policy_revision| {
+                let mut metrics = RequestMetricsCapture::begin(
+                    runtime,
+                    BrowserRequestMetricsRoute::CompatibilityInterceptor,
+                    host,
+                    method,
+                    queued_requests,
+                    admission_wait_ms,
+                );
+                let gateway_started = Instant::now();
+                let result = runtime.gateway_request_body_to_file_at_revision(
+                    request,
+                    body_path,
+                    expected_policy_revision,
+                );
+                metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+                match &result {
+                    Ok(head) => {
+                        metrics.metrics.status_code = encoded_http_status(head);
+                        metrics.metrics.outcome = "success";
+                    }
+                    Err(_) => metrics.metrics.outcome = "runtime_error",
+                }
+                result
+            },
+        )
+    }
+
+    pub fn raw_gateway_request_body_streaming(
+        &self,
+        request: RawGatewayHttpRequest,
+        policy: RuntimePolicy,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(Vec<u8>) -> Result<(), RuntimeError>,
+    ) -> Result<(), RuntimeError> {
+        let request = prepare_raw_gateway_request(request).map_err(|rejection| {
+            RuntimeError::Operation(format!(
+                "streaming gateway request rejected: {} {}",
+                rejection.status, rejection.reason
+            ))
+        })?;
+        let host = request.host.clone();
+        let method = request.method.clone();
+        let has_current_namespace_plan = self.has_current_namespace_plan(&request);
+        let policy = policy.enforce_hns_trust_policy()?;
+        let (current_policy, policy_revision) = self.policy_snapshot()?;
+        let mut admission_guard = None;
+        let mut delivery_permit = None;
+        let (admission_wait_ms, queued_requests, expected_policy_revision) =
+            if current_policy == policy && has_current_namespace_plan {
+                delivery_permit = Some(self.inner.admitted_delivery.acquire()?);
+                (0, 0, Some(policy_revision))
+            } else {
+                let queued_requests = self
+                    .inner
+                    .queued_request_metrics
+                    .fetch_add(1, Ordering::AcqRel)
+                    + 1;
+                let wait_started = Instant::now();
+                let guard = self.inner.operation.lock();
+                self.inner
+                    .queued_request_metrics
+                    .fetch_sub(1, Ordering::AcqRel);
+                admission_guard = Some(
+                    guard.map_err(|_| RuntimeError::Synchronization("runtime operation lock"))?,
+                );
+                let admission_wait_ms = elapsed_millis(wait_started);
+                if self.policy()? != policy {
+                    self.set_policy_locked(policy)?;
+                }
+                (admission_wait_ms, queued_requests, None)
+            };
+        let _in_flight = PolicyOperationInFlight::enter(&self.inner.operation_metrics);
+        (|| {
+            let mut metrics = RequestMetricsCapture::begin(
+                self,
+                BrowserRequestMetricsRoute::CompatibilityInterceptor,
+                host,
+                method,
+                queued_requests,
+                admission_wait_ms,
+            );
+            let authority_binding = self.ensure_authority_active(0)?;
+            let authority_stamp = self.admit_authority_work(authority_binding)?;
+            self.require_policy_revision(expected_policy_revision)?;
+            let maintenance = self
+                .inner
+                .coordination
+                .maintenance
+                .read()
+                .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
+            let _header_state_lock = self.acquire_ready_header_state()?;
+            let prepare_started = Instant::now();
+            let prepared =
+                self.prepare_proxy_gateway(&request, authority_binding, authority_stamp)?;
+            metrics.metrics.prepare_ms = elapsed_millis(prepare_started);
+            metrics.attach_dns_trace(prepared.dns_trace.clone());
+            let gateway_started = Instant::now();
+            let mut namespace_published = false;
+            let mut publish_head = |response: &hns_gateway::GatewayResponseHead| {
+                if !self.authority_admits(authority_binding, authority_stamp) {
+                    return Err(TransportError::InvalidRequest);
+                }
+                if !namespace_published {
+                    let selection = NamespacePublicationSelection::from_trace(
+                        prepared.origin.clone(),
+                        Arc::clone(&prepared.plans),
+                        &prepared.dns_trace,
+                    );
+                    self.with_authorized_publication(authority_binding, authority_stamp, || {
+                        selection.record().map_err(|error| {
+                            TransportError::Io(format!("persist namespace binding: {error}"))
+                        })
+                    })?;
+                    namespace_published = true;
+                }
+                if delivery_permit.is_none() {
+                    delivery_permit = Some(
+                        self.inner
+                            .admitted_delivery
+                            .acquire()
+                            .map_err(|error| TransportError::Io(error.to_string()))?,
+                    );
+                }
+                drop(admission_guard.take());
+                let input = runtime_gateway_input(self, &request);
+                let security_path = security_path_name(
+                    &input,
+                    response.origin_request.port,
+                    response.origin_request.tls.service_transport,
+                    &response.origin.dane_decision,
+                    &prepared.dns_trace.snapshot(),
+                );
+                let trace = resolution_trace_json(
+                    &input,
+                    prepared.network,
+                    prepared.mode,
+                    Some(&response.resolution),
+                    TlsTraceInput {
+                        validation: Some(&response.origin_request.tls),
+                        decision: Some(&response.origin.dane_decision),
+                        inspection: response.origin.tls_inspection.as_ref(),
+                        origin_address: response.origin_request.connect_host.as_deref(),
+                    },
+                    None,
+                    &prepared.fallback_marker,
+                    &prepared.dns_trace,
+                );
+                let encoded = origin_streaming_response_head_with_resolver_policy_and_trace(
+                    response.origin.clone(),
+                    resolver_policy_for_recovery(&prepared.fallback_marker),
+                    security_path,
+                    &trace,
+                );
+                on_head(encoded).map_err(|_| TransportError::Io("head receiver closed".into()))
+            };
+            let response = prepared
+                .gateway
+                .handle_to_writer_streaming(&prepared.request, body, &mut publish_head)
+                .map_err(|error| RuntimeError::Operation(format!("stream gateway: {error}")))?;
+            metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+            metrics.metrics.origin_ms = prepared.origin_metrics.load(Ordering::Acquire);
+            metrics.metrics.origin_timing_available = true;
+            if !self.authority_admits(authority_binding, authority_stamp) {
+                return Err(RuntimeError::Operation(
+                    "stream authority changed during body delivery".to_owned(),
+                ));
+            }
+            drop(maintenance);
+            prepared.persistent.reset_request_state();
+            metrics.metrics.status_code = Some(response.origin.status);
+            metrics.metrics.outcome = "success";
+            Ok(())
+        })()
     }
 
     fn validate_gateway_request(&self, request: &GatewayHttpRequest) -> Result<(), RuntimeError> {
@@ -3345,6 +4096,15 @@ fn prepare_raw_gateway_request(
     })
 }
 
+fn encoded_http_status(bytes: &[u8]) -> Option<u16> {
+    let line_end = bytes.windows(2).position(|window| window == b"\r\n")?;
+    let line = std::str::from_utf8(&bytes[..line_end]).ok()?;
+    let mut parts = line.split_ascii_whitespace();
+    (parts.next()? == "HTTP/1.1")
+        .then(|| parts.next()?.parse::<u16>().ok())
+        .flatten()
+}
+
 fn parse_untrusted_gateway_headers(
     header_text: &str,
 ) -> Result<Vec<(String, String)>, &'static str> {
@@ -3389,24 +4149,109 @@ struct PreparedRuntimeGateway {
     mode: GatewayResolutionMode,
     fallback_marker: FallbackMarker,
     dns_trace: DnsTraceRecorder,
+    origin_metrics: Arc<AtomicU64>,
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
     request_plan: SharedRequestNamespacePlan,
     authority_binding: RuntimeAuthorityBinding,
     authority_stamp: RuntimeStamp,
+    persistent: Arc<PersistentGatewayResolver>,
+}
+
+impl Drop for PreparedRuntimeGateway {
+    fn drop(&mut self) {
+        self.persistent.reset_request_state();
+    }
+}
+
+/// Cache key for one persistent gateway resolver stack. The chain tip pins the
+/// resolver to the exact synced header state so a sync invalidates every
+/// resolver built against the previous tip.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct GatewayResolverKey {
+    base: PathBuf,
+    chain_tip: Option<(u32, String)>,
+    resolution_mode: &'static str,
+    hns_doh_resolver: Option<String>,
+    experimental_p2p_dns_relay: bool,
+    legacy_hns_doh_compatibility: bool,
+}
+
+fn gateway_resolver_mode_key(mode: ResolutionMode) -> &'static str {
+    match mode {
+        ResolutionMode::Strict => "strict",
+        ResolutionMode::Compatibility => "compatibility",
+    }
+}
+
+/// One pooled resolver stack shared by every proxied request whose policy and
+/// chain tip match. The recorders carried here are wired into the stack and
+/// hold request-scoped diagnostics keyed by thread, so concurrent requests do
+/// not observe each other's traces, fallback decisions, or evidence.
+struct PersistentGatewayResolver {
+    hns: Arc<dyn Resolver + Send + Sync>,
+    icann: Arc<dyn Resolver + Send + Sync>,
+    hns_evidence: HnsProofEvidenceRecorder,
+    icann_evidence: IcannEvidenceRecorder,
+    fallback_marker: FallbackMarker,
+    dns_trace: DnsTraceRecorder,
+}
+
+impl PersistentGatewayResolver {
+    fn reset_request_state(&self) {
+        self.fallback_marker.reset();
+        self.dns_trace.reset();
+        self.hns_evidence.reset();
+        self.icann_evidence.reset();
+    }
 }
 
 #[derive(Clone)]
 struct NamespacePublicationSelection {
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
-    dns_trace: DnsTraceRecorder,
+    selected: Option<Namespace>,
 }
 
 impl NamespacePublicationSelection {
-    fn record(&self) -> Result<(), ResolverError> {
-        record_successful_namespace_selection(&self.origin, &self.plans, &self.dns_trace)
+    fn from_trace(
+        origin: NamespaceOriginContext,
+        plans: SharedNamespacePlans,
+        dns_trace: &DnsTraceRecorder,
+    ) -> Self {
+        // The selected namespace must be captured while the resolving
+        // request's thread-scoped trace is still live; publication may be
+        // authorized later, after the prepared gateway reset the trace.
+        Self {
+            origin,
+            plans,
+            selected: dns_trace
+                .namespace_snapshot()
+                .and_then(|metadata| metadata.selected),
+        }
     }
+
+    fn record(&self) -> Result<(), ResolverError> {
+        record_selected_namespace(&self.origin, &self.plans, self.selected)
+    }
+}
+
+/// Resolver stack backing for one prepared gateway response. Runtime entry
+/// points borrow the pooled stack so interceptor requests share the resolver
+/// chain (and its delegated-answer cache) across requests; the standalone
+/// entry points have no runtime to pool against and keep building an
+/// ephemeral stack per request.
+enum GatewayResolverSource<'a> {
+    Pooled(GatewayResolverReuse<'a>),
+    Ephemeral { peer_state: Option<Arc<Mutex<()>>> },
+}
+
+/// A pooled resolver stack borrowed for one gateway request, together with
+/// the namespace plan store and policy revision the request runs under.
+struct GatewayResolverReuse<'a> {
+    stack: &'a PersistentGatewayResolver,
+    plans: SharedNamespacePlans,
+    policy_revision: u64,
 }
 
 struct PreparedGatewayHttpResponse {
@@ -3555,11 +4400,11 @@ fn runtime_success_publication_capability(
         stamp: Some(prepared.authority_stamp),
         maintenance_epoch,
         storage_identity: Some(storage_identity),
-        selection: Some(NamespacePublicationSelection {
-            origin: prepared.origin.clone(),
-            plans: Arc::clone(&prepared.plans),
-            dns_trace: prepared.dns_trace.clone(),
-        }),
+        selection: Some(NamespacePublicationSelection::from_trace(
+            prepared.origin.clone(),
+            Arc::clone(&prepared.plans),
+            &prepared.dns_trace,
+        )),
     })
 }
 
@@ -4224,10 +5069,21 @@ impl BrowserRuntime {
         fs::create_dir_all(&base).map_err(|error| {
             RuntimeError::Operation(format!("create gateway directory: {error}"))
         })?;
-        let values = SqliteResourceValueProvider::open(base.join("resources.sqlite"))
-            .map_err(|error| RuntimeError::Operation(format!("open resource cache: {error}")))?;
-        let fallback_marker = FallbackMarker::default();
-        let dns_trace = DnsTraceRecorder::default();
+        let persistent = self.persistent_gateway_resolver(
+            base.clone(),
+            GatewayResolverContext {
+                network,
+                runtime_policy,
+                peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
+                relay: Some(self.inner.coordination.relay.clone()),
+                http: self.inner.transport.clone(),
+            },
+        )?;
+        // The stack outlives this request; clear any request-scoped state a
+        // previous request left behind on this thread.
+        persistent.reset_request_state();
+        let fallback_marker = persistent.fallback_marker.clone();
+        let dns_trace = persistent.dns_trace.clone();
         let origin = namespace_origin_context(
             base.clone(),
             network,
@@ -4237,30 +5093,22 @@ impl BrowserRuntime {
             self.inner.policy_revision.load(Ordering::Acquire),
         )
         .map_err(|error| RuntimeError::InvalidConfiguration(error.to_string()))?;
-        let resolver = android_gateway_resolver(
-            base.clone(),
-            values,
-            GatewayResolverContext {
-                network,
-                runtime_policy,
-                peer_state: Some(Arc::clone(&self.inner.coordination.peer_state)),
-                relay: Some(self.inner.coordination.relay.clone()),
-                http: self.inner.transport.clone(),
-            },
-            dns_trace.clone(),
-            fallback_marker.clone(),
+        let resolver = gateway_resolver_from_stack(
+            &persistent,
             origin.clone(),
             Arc::clone(&self.inner.namespace_plans),
         );
         let request_plan = resolver.retained_request_plan();
         let stateless_dane =
             stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
+        let origin_metrics = Arc::new(AtomicU64::new(0));
         let origin_transport = MobileOriginTransport::bound(
             self.inner.transport.clone(),
             self.clone(),
             authority_binding,
             authority_stamp,
-        );
+        )
+        .with_elapsed_metrics(Arc::clone(&origin_metrics));
         let gateway = Gateway::new(
             GatewayConfig {
                 stateless_dane,
@@ -4281,12 +5129,57 @@ impl BrowserRuntime {
             mode,
             fallback_marker,
             dns_trace,
+            origin_metrics,
             origin,
             plans: Arc::clone(&self.inner.namespace_plans),
             request_plan,
             authority_binding,
             authority_stamp,
+            persistent,
         })
+    }
+
+    /// Returns the pooled resolver stack for `base` under the current policy
+    /// and chain tip, building and caching one when absent. Entries for the
+    /// same base built against a different chain tip are evicted so a header
+    /// sync immediately retires resolvers anchored to the stale tip.
+    fn persistent_gateway_resolver(
+        &self,
+        base: PathBuf,
+        context: GatewayResolverContext,
+    ) -> Result<Arc<PersistentGatewayResolver>, RuntimeError> {
+        let chain_tip = best_synced_header(&base, context.network)
+            .ok()
+            .map(|best| (best.height.0, best.header.tree_root.to_string()));
+        let key = GatewayResolverKey {
+            base: base.clone(),
+            chain_tip: chain_tip.clone(),
+            resolution_mode: gateway_resolver_mode_key(context.runtime_policy.resolution_mode),
+            hns_doh_resolver: context.runtime_policy.hns_doh_resolver.clone(),
+            experimental_p2p_dns_relay: context.runtime_policy.experimental_p2p_dns_relay,
+            legacy_hns_doh_compatibility: context.runtime_policy.legacy_hns_doh_compatibility,
+        };
+        let mut resolvers = self
+            .inner
+            .gateway_resolvers
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("gateway resolver cache"))?;
+        resolvers.retain(|existing, _| existing.base != base || existing.chain_tip == chain_tip);
+        if let Some(resolver) = resolvers.get(&key) {
+            return Ok(Arc::clone(resolver));
+        }
+
+        let values = SqliteResourceValueProvider::open(base.join("resources.sqlite"))
+            .map_err(|error| RuntimeError::Operation(format!("open resource cache: {error}")))?;
+        let persistent = Arc::new(persistent_gateway_resolver_stack(
+            base,
+            values,
+            context,
+            DnsTraceRecorder::default(),
+            FallbackMarker::default(),
+        ));
+        resolvers.insert(key, Arc::clone(&persistent));
+        Ok(persistent)
     }
 }
 
@@ -4296,7 +5189,16 @@ impl ProxyBackend for RuntimeProxyBackend {
         request: LoopbackProxyRequest,
         cancellation: &ProxyCancellationToken,
     ) -> Result<ProxyResponse, ProxyBackendError> {
+        let mut request_metrics = RequestMetricsCapture::begin(
+            &self.runtime,
+            BrowserRequestMetricsRoute::NativeProxy,
+            request.host.clone(),
+            request.method.clone(),
+            0,
+            0,
+        );
         if cancellation.is_cancelled() {
+            request_metrics.metrics.outcome = "cancelled";
             return Err(ProxyBackendError::Cancelled);
         }
         let authority_binding = match self.authority_binding {
@@ -4314,17 +5216,26 @@ impl ProxyBackend for RuntimeProxyBackend {
         let maintenance = self.runtime.acquire_proxy_maintenance(cancellation)?;
         let maintenance_epoch = maintenance.epoch();
         let storage_identity = maintenance.storage_identity();
+        let prepare_started = Instant::now();
         let prepared = self
             .runtime
             .prepare_proxy_gateway(&request, authority_binding, authority_stamp)
             .map_err(runtime_error_to_proxy_backend)?;
+        request_metrics.metrics.prepare_ms = elapsed_millis(prepare_started);
+        request_metrics.attach_dns_trace(prepared.dns_trace.clone());
         if cancellation.is_cancelled() {
+            request_metrics.metrics.outcome = "cancelled";
             return Err(ProxyBackendError::Cancelled);
         }
+        let gateway_started = Instant::now();
         let response = match prepared.gateway.handle(&prepared.request) {
             Ok(response) => response,
             Err(error) => {
+                request_metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+                request_metrics.metrics.origin_ms = prepared.origin_metrics.load(Ordering::Acquire);
+                request_metrics.metrics.origin_timing_available = true;
                 if cancellation.is_cancelled() {
+                    request_metrics.metrics.outcome = "cancelled";
                     return Err(ProxyBackendError::Cancelled);
                 }
                 let mut response = proxy_error_response_from_gateway(
@@ -4355,9 +5266,14 @@ impl ProxyBackend for RuntimeProxyBackend {
                     maintenance_epoch,
                     storage_identity,
                 );
+                request_metrics.metrics.status_code = Some(response.head.status_code);
+                request_metrics.metrics.outcome = "gateway_error";
                 return Ok(response);
             }
         };
+        request_metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
+        request_metrics.metrics.origin_ms = prepared.origin_metrics.load(Ordering::Acquire);
+        request_metrics.metrics.origin_timing_available = true;
         if cancellation.is_cancelled() {
             return Err(ProxyBackendError::Cancelled);
         }
@@ -4377,6 +5293,7 @@ impl ProxyBackend for RuntimeProxyBackend {
             },
             prepared.authority_stamp,
         );
+        let publish_started = Instant::now();
         let mut proxy_response = proxy_response_from_gateway(
             &self.runtime,
             &request,
@@ -4395,6 +5312,9 @@ impl ProxyBackend for RuntimeProxyBackend {
         proxy_response.head.observation_id = Some(observation_id);
         proxy_response.publication =
             runtime_success_publication_capability(&prepared, maintenance_epoch, storage_identity);
+        request_metrics.metrics.publish_ms = elapsed_millis(publish_started);
+        request_metrics.metrics.status_code = Some(proxy_response.head.status_code);
+        request_metrics.metrics.outcome = "success";
         Ok(proxy_response)
     }
 
@@ -5257,23 +6177,28 @@ struct HnsProofObservation {
     expires_at_unix: u64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct HnsProofEvidenceState {
     observations: HashMap<String, HnsProofObservation>,
     conflicts: HashSet<String>,
 }
 
+/// Request-scoped HNS proof evidence shared through a pooled resolver stack.
+/// Evidence is keyed by the recording thread so a concurrent request's proof
+/// observations can never satisfy (or conflict with) this request's namespace
+/// plan build.
 #[derive(Clone, Debug, Default)]
 struct HnsProofEvidenceRecorder {
-    state: Arc<Mutex<HnsProofEvidenceState>>,
+    states: Arc<Mutex<HashMap<thread::ThreadId, HnsProofEvidenceState>>>,
 }
 
 impl HnsProofEvidenceRecorder {
     fn begin(&self) -> Result<(), ResolverError> {
-        let mut state = self
-            .state
+        let mut states = self
+            .states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?;
+        let state = states.entry(thread::current().id()).or_default();
         state.observations.clear();
         state.conflicts.clear();
         Ok(())
@@ -5285,10 +6210,11 @@ impl HnsProofEvidenceRecorder {
         observation: HnsProofObservation,
     ) -> Result<(), ResolverError> {
         let root_name = root_name.to_ascii_lowercase();
-        let mut state = self
-            .state
+        let mut states = self
+            .states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?;
+        let state = states.entry(thread::current().id()).or_default();
         if let Some(previous) = state.observations.get_mut(&root_name) {
             if previous.anchor != observation.anchor
                 || previous.exists != observation.exists
@@ -5307,14 +6233,23 @@ impl HnsProofEvidenceRecorder {
 
     fn observation(&self, root_name: &str) -> Result<Option<HnsProofObservation>, ResolverError> {
         let root_name = root_name.to_ascii_lowercase();
-        let state = self
-            .state
+        let states = self
+            .states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?;
+        let Some(state) = states.get(&thread::current().id()) else {
+            return Ok(None);
+        };
         if state.conflicts.contains(&root_name) {
             return Err(ResolverError::ProofNameMismatch);
         }
         Ok(state.observations.get(&root_name).copied())
+    }
+
+    fn reset(&self) {
+        if let Ok(mut states) = self.states.lock() {
+            states.remove(&thread::current().id());
+        }
     }
 }
 
@@ -5776,10 +6711,21 @@ fn record_successful_namespace_selection(
     plans: &SharedNamespacePlans,
     trace: &DnsTraceRecorder,
 ) -> Result<(), ResolverError> {
-    let selected = trace
-        .namespace_snapshot()
-        .and_then(|metadata| metadata.selected)
-        .ok_or(ResolverError::InvalidNamespacePlan)?;
+    record_selected_namespace(
+        origin,
+        plans,
+        trace
+            .namespace_snapshot()
+            .and_then(|metadata| metadata.selected),
+    )
+}
+
+fn record_selected_namespace(
+    origin: &NamespaceOriginContext,
+    plans: &SharedNamespacePlans,
+    selected: Option<Namespace>,
+) -> Result<(), ResolverError> {
+    let selected = selected.ok_or(ResolverError::InvalidNamespacePlan)?;
     if !persist_successful_namespace_binding(origin, selected)? {
         return Ok(());
     }
@@ -5824,8 +6770,8 @@ type SharedNamespacePlans = Arc<Mutex<HashMap<NamespaceOriginKey, CachedNamespac
 type SharedRequestNamespacePlan = Arc<Mutex<Option<CachedNamespacePlan>>>;
 
 struct AndroidGatewayResolver {
-    hns: Box<dyn Resolver>,
-    icann: Box<dyn Resolver>,
+    hns: Arc<dyn Resolver + Send + Sync>,
+    icann: Arc<dyn Resolver + Send + Sync>,
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
     hns_evidence: HnsProofEvidenceRecorder,
@@ -5836,9 +6782,10 @@ struct AndroidGatewayResolver {
 }
 
 impl AndroidGatewayResolver {
-    fn new(
-        hns: impl Resolver + 'static,
-        icann: impl Resolver + 'static,
+    #[allow(clippy::too_many_arguments)]
+    fn from_shared(
+        hns: Arc<dyn Resolver + Send + Sync>,
+        icann: Arc<dyn Resolver + Send + Sync>,
         origin: NamespaceOriginContext,
         plans: SharedNamespacePlans,
         hns_evidence: HnsProofEvidenceRecorder,
@@ -5846,8 +6793,8 @@ impl AndroidGatewayResolver {
         trace: DnsTraceRecorder,
     ) -> Self {
         Self {
-            hns: Box::new(hns),
-            icann: Box::new(icann),
+            hns,
+            icann,
             origin,
             plans,
             hns_evidence,
@@ -7273,11 +8220,11 @@ fn application_protocol_candidates(
 }
 
 struct BoxedDelegatedResolver {
-    inner: Box<dyn DelegatedResolver>,
+    inner: Box<dyn DelegatedResolver + Send + Sync>,
 }
 
 impl BoxedDelegatedResolver {
-    fn new(inner: impl DelegatedResolver + 'static) -> Self {
+    fn new(inner: impl DelegatedResolver + Send + Sync + 'static) -> Self {
         Self {
             inner: Box::new(inner),
         }
@@ -7300,64 +8247,91 @@ struct AuthenticatedHnsDelegationEvidence {
     nameservers: Vec<String>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct AuthenticatedHnsDelegationEvidenceState {
     observation: Option<AuthenticatedHnsDelegationEvidence>,
     conflicted: bool,
 }
 
+/// Request-scoped diagnostics recorder shared through a pooled resolver
+/// stack. State is keyed by the recording thread so concurrent requests
+/// resolving through the same persistent resolver never observe each other's
+/// traces; the prepared gateway resets its thread's state per request.
 #[derive(Clone, Debug, Default)]
 struct DnsTraceRecorder {
-    events: Arc<Mutex<Vec<DnsTraceEvent>>>,
-    relay: Arc<Mutex<Option<DnsRelayTraceMetadata>>>,
-    namespace: Arc<Mutex<Option<NamespaceResolutionMetadata>>>,
-    authenticated_hns_delegation: Arc<Mutex<AuthenticatedHnsDelegationEvidenceState>>,
+    traces: Arc<Mutex<HashMap<thread::ThreadId, DnsTraceState>>>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct DnsTraceState {
+    events: Vec<DnsTraceEvent>,
+    relay: Option<DnsRelayTraceMetadata>,
+    namespace: Option<NamespaceResolutionMetadata>,
+    authenticated_hns_delegation: AuthenticatedHnsDelegationEvidenceState,
 }
 
 impl DnsTraceRecorder {
     fn push(&self, event: DnsTraceEvent) {
-        if let Ok(mut events) = self.events.lock() {
-            events.push(event);
+        if let Ok(mut traces) = self.traces.lock() {
+            traces
+                .entry(thread::current().id())
+                .or_default()
+                .events
+                .push(event);
         }
     }
 
     fn snapshot(&self) -> Vec<DnsTraceEvent> {
-        self.events
+        self.traces
             .lock()
-            .map(|events| events.clone())
+            .ok()
+            .and_then(|traces| {
+                traces
+                    .get(&thread::current().id())
+                    .map(|trace| trace.events.clone())
+            })
             .unwrap_or_default()
     }
 
     fn record_relay(&self, metadata: DnsRelayTraceMetadata) {
-        if let Ok(mut relay) = self.relay.lock() {
-            *relay = Some(metadata);
+        if let Ok(mut traces) = self.traces.lock() {
+            traces.entry(thread::current().id()).or_default().relay = Some(metadata);
         }
     }
 
     fn relay_snapshot(&self) -> Option<DnsRelayTraceMetadata> {
-        self.relay.lock().ok().and_then(|relay| relay.clone())
+        self.traces.lock().ok().and_then(|traces| {
+            traces
+                .get(&thread::current().id())
+                .and_then(|trace| trace.relay.clone())
+        })
     }
 
     fn record_namespace(&self, metadata: NamespaceResolutionMetadata) {
-        if let Ok(mut namespace) = self.namespace.lock() {
-            *namespace = Some(metadata);
+        if let Ok(mut traces) = self.traces.lock() {
+            traces.entry(thread::current().id()).or_default().namespace = Some(metadata);
         }
     }
 
     fn namespace_snapshot(&self) -> Option<NamespaceResolutionMetadata> {
-        self.namespace
-            .lock()
-            .ok()
-            .and_then(|namespace| namespace.clone())
+        self.traces.lock().ok().and_then(|traces| {
+            traces
+                .get(&thread::current().id())
+                .and_then(|trace| trace.namespace.clone())
+        })
     }
 
     fn record_authenticated_hns_delegation(&self, delegation: &HnsDelegation) {
         let Some(observation) = authenticated_hns_delegation_evidence(delegation) else {
             return;
         };
-        let Ok(mut state) = self.authenticated_hns_delegation.lock() else {
+        let Ok(mut traces) = self.traces.lock() else {
             return;
         };
+        let state = &mut traces
+            .entry(thread::current().id())
+            .or_default()
+            .authenticated_hns_delegation;
         if state.conflicted {
             return;
         }
@@ -7372,11 +8346,22 @@ impl DnsTraceRecorder {
     }
 
     fn authenticated_hns_delegation_snapshot(&self) -> Option<AuthenticatedHnsDelegationEvidence> {
-        self.authenticated_hns_delegation
-            .lock()
-            .ok()
-            .and_then(|state| (!state.conflicted).then(|| state.observation.clone()))
-            .flatten()
+        self.traces.lock().ok().and_then(|traces| {
+            traces
+                .get(&thread::current().id())
+                .map(|trace| &trace.authenticated_hns_delegation)
+                .and_then(|state| {
+                    (!state.conflicted)
+                        .then(|| state.observation.clone())
+                        .flatten()
+                })
+        })
+    }
+
+    fn reset(&self) {
+        if let Ok(mut traces) = self.traces.lock() {
+            traces.remove(&thread::current().id());
+        }
     }
 }
 
@@ -8387,26 +9372,92 @@ impl Resolver for AndroidGatewayResolver {
 
 #[derive(Clone, Debug, Default)]
 struct FallbackMarker {
-    used: Arc<AtomicBool>,
-    reason: Arc<Mutex<Option<&'static str>>>,
+    states: Arc<Mutex<HashMap<thread::ThreadId, FallbackState>>>,
+}
+
+/// Per-thread (per-request) fallback bookkeeping. The per-root memories keep a
+/// known-unusable transport from being retried for every record family within
+/// one gateway request, while staying request-scoped so a transient failure
+/// never permanently pins later requests to a fallback path.
+#[derive(Clone, Debug, Default)]
+struct FallbackState {
+    used: bool,
+    reason: Option<&'static str>,
+    p2p_roots: HashSet<String>,
+    recovery_roots: HashSet<String>,
 }
 
 impl FallbackMarker {
     fn mark(&self, reason: &'static str) {
-        self.used.store(true, Ordering::Relaxed);
-        if let Ok(mut fallback_reason) = self.reason.lock()
-            && fallback_reason.is_none()
-        {
-            *fallback_reason = Some(reason);
+        if let Ok(mut states) = self.states.lock() {
+            let state = states.entry(thread::current().id()).or_default();
+            state.used = true;
+            if state.reason.is_none() {
+                state.reason = Some(reason);
+            }
         }
     }
 
     fn used(&self) -> bool {
-        self.used.load(Ordering::Relaxed)
+        self.states
+            .lock()
+            .ok()
+            .and_then(|states| states.get(&thread::current().id()).map(|state| state.used))
+            .unwrap_or(false)
     }
 
     fn reason(&self) -> Option<&'static str> {
-        self.reason.lock().ok().and_then(|reason| *reason)
+        self.states.lock().ok().and_then(|states| {
+            states
+                .get(&thread::current().id())
+                .and_then(|state| state.reason)
+        })
+    }
+
+    fn uses_p2p_fallback(&self, request: &ResolutionRequest) -> bool {
+        let root = fallback_cache_root(request);
+        self.states.lock().is_ok_and(|states| {
+            states
+                .get(&thread::current().id())
+                .is_some_and(|state| state.p2p_roots.contains(&root))
+        })
+    }
+
+    fn remember_p2p_fallback(&self, request: &ResolutionRequest) {
+        let root = fallback_cache_root(request);
+        if let Ok(mut states) = self.states.lock() {
+            states
+                .entry(thread::current().id())
+                .or_default()
+                .p2p_roots
+                .insert(root);
+        }
+    }
+
+    fn uses_recovery_fallback(&self, request: &ResolutionRequest) -> bool {
+        let root = fallback_cache_root(request);
+        self.states.lock().is_ok_and(|states| {
+            states
+                .get(&thread::current().id())
+                .is_some_and(|state| state.recovery_roots.contains(&root))
+        })
+    }
+
+    fn remember_recovery_fallback(&self, request: &ResolutionRequest) {
+        let root = fallback_cache_root(request);
+        if let Ok(mut states) = self.states.lock() {
+            states
+                .entry(thread::current().id())
+                .or_default()
+                .recovery_roots
+                .insert(root);
+        }
+    }
+
+    fn reset(&self) {
+        if let Ok(mut states) = self.states.lock() {
+            states.remove(&thread::current().id());
+        }
     }
 }
 
@@ -8532,30 +9583,24 @@ where
 struct P2pFallbackDelegatedResolver<P, F> {
     primary: P,
     fallback: F,
-    fallback_roots: Arc<Mutex<HashSet<String>>>,
+    fallback_marker: FallbackMarker,
 }
 
 impl<P, F> P2pFallbackDelegatedResolver<P, F> {
-    fn new(primary: P, fallback: F) -> Self {
+    fn new(primary: P, fallback: F, fallback_marker: FallbackMarker) -> Self {
         Self {
             primary,
             fallback,
-            fallback_roots: Arc::new(Mutex::new(HashSet::new())),
+            fallback_marker,
         }
     }
 
     fn uses_fallback(&self, request: &ResolutionRequest) -> bool {
-        let root = fallback_cache_root(request);
-        self.fallback_roots
-            .lock()
-            .is_ok_and(|roots| roots.contains(&root))
+        self.fallback_marker.uses_p2p_fallback(request)
     }
 
     fn remember_fallback(&self, request: &ResolutionRequest) {
-        let root = fallback_cache_root(request);
-        if let Ok(mut roots) = self.fallback_roots.lock() {
-            roots.insert(root);
-        }
+        self.fallback_marker.remember_p2p_fallback(request);
     }
 }
 
@@ -8606,30 +9651,24 @@ fn relay_dnssec_result(
 struct RecoveryDohFallbackDelegatedResolver<P, F> {
     primary: P,
     fallback: F,
-    fallback_roots: Arc<Mutex<HashSet<String>>>,
+    fallback_marker: FallbackMarker,
 }
 
 impl<P, F> RecoveryDohFallbackDelegatedResolver<P, F> {
-    fn new(primary: P, fallback: F) -> Self {
+    fn new(primary: P, fallback: F, fallback_marker: FallbackMarker) -> Self {
         Self {
             primary,
             fallback,
-            fallback_roots: Arc::new(Mutex::new(HashSet::new())),
+            fallback_marker,
         }
     }
 
     fn uses_fallback(&self, request: &ResolutionRequest) -> bool {
-        let root = fallback_cache_root(request);
-        self.fallback_roots
-            .lock()
-            .is_ok_and(|roots| roots.contains(&root))
+        self.fallback_marker.uses_recovery_fallback(request)
     }
 
     fn remember_fallback(&self, request: &ResolutionRequest) {
-        let root = fallback_cache_root(request);
-        if let Ok(mut roots) = self.fallback_roots.lock() {
-            roots.insert(root);
-        }
+        self.fallback_marker.remember_recovery_fallback(request);
     }
 }
 
@@ -8681,18 +9720,30 @@ struct IcannResponseObservation {
     expires_at_unix: u64,
 }
 
+/// Request-scoped ICANN DoH evidence shared through a pooled resolver stack;
+/// keyed by the recording thread for the same isolation reasons as
+/// [`HnsProofEvidenceRecorder`].
 #[derive(Clone, Debug, Default)]
 struct IcannEvidenceRecorder {
-    observations: Arc<Mutex<HashMap<ResolutionRequest, IcannResponseObservation>>>,
+    states:
+        Arc<Mutex<HashMap<thread::ThreadId, HashMap<ResolutionRequest, IcannResponseObservation>>>>,
 }
 
 impl IcannEvidenceRecorder {
     fn begin(&self) -> Result<(), ResolverError> {
-        self.observations
+        self.states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?
+            .entry(thread::current().id())
+            .or_default()
             .clear();
         Ok(())
+    }
+
+    fn reset(&self) {
+        if let Ok(mut states) = self.states.lock() {
+            states.remove(&thread::current().id());
+        }
     }
 
     fn record_response(
@@ -8744,9 +9795,11 @@ impl IcannEvidenceRecorder {
                 return Ok(());
             }
         }
-        self.observations
+        self.states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?
+            .entry(thread::current().id())
+            .or_default()
             .insert(
                 request.clone(),
                 IcannResponseObservation {
@@ -8764,11 +9817,26 @@ impl IcannEvidenceRecorder {
         request: &ResolutionRequest,
     ) -> Result<Option<IcannResponseObservation>, ResolverError> {
         Ok(self
-            .observations
+            .states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?
-            .get(request)
+            .get(&thread::current().id())
+            .and_then(|observations| observations.get(request))
             .copied())
+    }
+
+    #[cfg(test)]
+    fn insert_observation(
+        &self,
+        request: ResolutionRequest,
+        observation: IcannResponseObservation,
+    ) {
+        self.states
+            .lock()
+            .unwrap()
+            .entry(thread::current().id())
+            .or_default()
+            .insert(request, observation);
     }
 
     #[cfg(test)]
@@ -8777,9 +9845,11 @@ impl IcannEvidenceRecorder {
         request: &ResolutionRequest,
     ) -> Result<(), ResolverError> {
         let observed_at_unix = now_unix_seconds();
-        self.observations
+        self.states
             .lock()
             .map_err(|_| ResolverError::CachePoisoned)?
+            .entry(thread::current().id())
+            .or_default()
             .insert(
                 request.clone(),
                 IcannResponseObservation {
@@ -9590,7 +10660,11 @@ fn gateway_http_response_with_transport(
     transport: MobileOriginTransport,
     peer_state: Option<Arc<Mutex<()>>>,
 ) -> Vec<u8> {
-    let prepared = prepare_gateway_http_response_with_transport(input, transport, peer_state);
+    let prepared = prepare_gateway_http_response_with_transport(
+        input,
+        transport,
+        GatewayResolverSource::Ephemeral { peer_state },
+    );
     if let Some(selection) = prepared.selection
         && let Err(error) = selection.record()
     {
@@ -9607,7 +10681,7 @@ fn gateway_http_response_with_transport(
 fn prepare_gateway_http_response_with_transport(
     input: GatewayHttpRequestInput<'_>,
     transport: MobileOriginTransport,
-    peer_state: Option<Arc<Mutex<()>>>,
+    resolver_source: GatewayResolverSource<'_>,
 ) -> PreparedGatewayHttpResponse {
     let parsed_headers = match parse_gateway_headers(input.header_text) {
         Ok(headers) => headers,
@@ -9624,7 +10698,6 @@ fn prepare_gateway_http_response_with_transport(
     let network = parsed_headers.network;
     let mode = GatewayResolutionMode::Strict;
     let request = gateway_request(&input, parsed_headers.headers);
-    let dns_trace = DnsTraceRecorder::default();
 
     let base = network_base_path(input.data_dir, network);
     if let Err(error) = fs::create_dir_all(&base) {
@@ -9635,25 +10708,60 @@ fn prepare_gateway_http_response_with_transport(
             &format!("create gateway directory: {error}"),
         ));
     }
-    let values = match SqliteResourceValueProvider::open(base.join("resources.sqlite")) {
-        Ok(values) => values,
-        Err(error) => {
-            return PreparedGatewayHttpResponse::without_selection(plain_response_for_request(
-                &input,
-                500,
-                "Gateway Storage Error",
-                &format!("open resource cache: {error}"),
-            ));
+    let ephemeral_stack;
+    let (stack, dns_trace, fallback_marker, plans, policy_revision) = match resolver_source {
+        GatewayResolverSource::Pooled(reuse) => (
+            reuse.stack,
+            reuse.stack.dns_trace.clone(),
+            reuse.stack.fallback_marker.clone(),
+            reuse.plans,
+            reuse.policy_revision,
+        ),
+        GatewayResolverSource::Ephemeral { peer_state } => {
+            let values = match SqliteResourceValueProvider::open(base.join("resources.sqlite")) {
+                Ok(values) => values,
+                Err(error) => {
+                    return PreparedGatewayHttpResponse::without_selection(
+                        plain_response_for_request(
+                            &input,
+                            500,
+                            "Gateway Storage Error",
+                            &format!("open resource cache: {error}"),
+                        ),
+                    );
+                }
+            };
+            let dns_trace = DnsTraceRecorder::default();
+            let fallback_marker = FallbackMarker::default();
+            ephemeral_stack = persistent_gateway_resolver_stack(
+                base.clone(),
+                values,
+                GatewayResolverContext {
+                    network,
+                    runtime_policy,
+                    peer_state,
+                    relay: None,
+                    http: transport.resolver_transport(),
+                },
+                dns_trace.clone(),
+                fallback_marker.clone(),
+            );
+            (
+                &ephemeral_stack,
+                dns_trace,
+                fallback_marker,
+                shared_direct_namespace_plans(),
+                0,
+            )
         }
     };
-    let fallback_marker = FallbackMarker::default();
     let origin = match namespace_origin_context(
         base.clone(),
         network,
         input.scheme,
         input.host,
         input.port,
-        0,
+        policy_revision,
     ) {
         Ok(origin) => origin,
         Err(error) => {
@@ -9665,22 +10773,7 @@ fn prepare_gateway_http_response_with_transport(
             ));
         }
     };
-    let plans = shared_direct_namespace_plans();
-    let resolver = android_gateway_resolver(
-        base.clone(),
-        values,
-        GatewayResolverContext {
-            network,
-            runtime_policy,
-            peer_state,
-            relay: None,
-            http: transport.resolver_transport(),
-        },
-        dns_trace.clone(),
-        fallback_marker.clone(),
-        origin.clone(),
-        Arc::clone(&plans),
-    );
+    let resolver = gateway_resolver_from_stack(stack, origin.clone(), Arc::clone(&plans));
     let stateless_dane = stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
     let gateway = match Gateway::new(
         GatewayConfig {
@@ -9736,11 +10829,9 @@ fn prepare_gateway_http_response_with_transport(
                     security_path,
                     &trace,
                 ),
-                selection: Some(NamespacePublicationSelection {
-                    origin,
-                    plans,
-                    dns_trace,
-                }),
+                selection: Some(NamespacePublicationSelection::from_trace(
+                    origin, plans, &dns_trace,
+                )),
             }
         }
         Err(error) => {
@@ -9786,7 +10877,10 @@ fn gateway_http_response_body_to_file_with_transport(
     peer_state: Option<Arc<Mutex<()>>>,
 ) -> Result<Vec<u8>, String> {
     let prepared = prepare_gateway_http_response_body_to_file_with_transport(
-        input, body_path, transport, peer_state,
+        input,
+        body_path,
+        transport,
+        GatewayResolverSource::Ephemeral { peer_state },
     )?;
     if let Some(selection) = prepared.selection
         && let Err(error) = selection.record()
@@ -9806,7 +10900,7 @@ fn prepare_gateway_http_response_body_to_file_with_transport(
     input: GatewayHttpRequestInput<'_>,
     body_path: &Path,
     transport: MobileOriginTransport,
-    peer_state: Option<Arc<Mutex<()>>>,
+    resolver_source: GatewayResolverSource<'_>,
 ) -> Result<PreparedGatewayFileResponse, String> {
     let parsed_headers = match parse_gateway_headers(input.header_text) {
         Ok(headers) => headers,
@@ -9825,7 +10919,6 @@ fn prepare_gateway_http_response_body_to_file_with_transport(
     let network = parsed_headers.network;
     let mode = GatewayResolutionMode::Strict;
     let request = gateway_request(&input, parsed_headers.headers);
-    let dns_trace = DnsTraceRecorder::default();
 
     let base = network_base_path(input.data_dir, network);
     if let Err(error) = fs::create_dir_all(&base) {
@@ -9838,27 +10931,60 @@ fn prepare_gateway_http_response_body_to_file_with_transport(
         )
         .map(PreparedGatewayFileResponse::without_selection);
     }
-    let values = match SqliteResourceValueProvider::open(base.join("resources.sqlite")) {
-        Ok(values) => values,
-        Err(error) => {
-            return plain_response_to_file_for_request(
-                &input,
-                500,
-                "Gateway Storage Error",
-                &format!("open resource cache: {error}"),
-                body_path,
+    let ephemeral_stack;
+    let (stack, dns_trace, fallback_marker, plans, policy_revision) = match resolver_source {
+        GatewayResolverSource::Pooled(reuse) => (
+            reuse.stack,
+            reuse.stack.dns_trace.clone(),
+            reuse.stack.fallback_marker.clone(),
+            reuse.plans,
+            reuse.policy_revision,
+        ),
+        GatewayResolverSource::Ephemeral { peer_state } => {
+            let values = match SqliteResourceValueProvider::open(base.join("resources.sqlite")) {
+                Ok(values) => values,
+                Err(error) => {
+                    return plain_response_to_file_for_request(
+                        &input,
+                        500,
+                        "Gateway Storage Error",
+                        &format!("open resource cache: {error}"),
+                        body_path,
+                    )
+                    .map(PreparedGatewayFileResponse::without_selection);
+                }
+            };
+            let dns_trace = DnsTraceRecorder::default();
+            let fallback_marker = FallbackMarker::default();
+            ephemeral_stack = persistent_gateway_resolver_stack(
+                base.clone(),
+                values,
+                GatewayResolverContext {
+                    network,
+                    runtime_policy,
+                    peer_state,
+                    relay: None,
+                    http: transport.resolver_transport(),
+                },
+                dns_trace.clone(),
+                fallback_marker.clone(),
+            );
+            (
+                &ephemeral_stack,
+                dns_trace,
+                fallback_marker,
+                shared_direct_namespace_plans(),
+                0,
             )
-            .map(PreparedGatewayFileResponse::without_selection);
         }
     };
-    let fallback_marker = FallbackMarker::default();
     let origin = match namespace_origin_context(
         base.clone(),
         network,
         input.scheme,
         input.host,
         input.port,
-        0,
+        policy_revision,
     ) {
         Ok(origin) => origin,
         Err(error) => {
@@ -9872,22 +10998,7 @@ fn prepare_gateway_http_response_body_to_file_with_transport(
             .map(PreparedGatewayFileResponse::without_selection);
         }
     };
-    let plans = shared_direct_namespace_plans();
-    let resolver = android_gateway_resolver(
-        base.clone(),
-        values,
-        GatewayResolverContext {
-            network,
-            runtime_policy,
-            peer_state,
-            relay: None,
-            http: transport.resolver_transport(),
-        },
-        dns_trace.clone(),
-        fallback_marker.clone(),
-        origin.clone(),
-        Arc::clone(&plans),
-    );
+    let resolver = gateway_resolver_from_stack(stack, origin.clone(), Arc::clone(&plans));
     let stateless_dane = stateless_dane_config(&base, parsed_headers.stateless_dane_certificates);
     let gateway = match Gateway::new(
         GatewayConfig {
@@ -9951,11 +11062,9 @@ fn prepare_gateway_http_response_body_to_file_with_transport(
                     security_path,
                     &trace,
                 ),
-                selection: Some(NamespacePublicationSelection {
-                    origin,
-                    plans,
-                    dns_trace,
-                }),
+                selection: Some(NamespacePublicationSelection::from_trace(
+                    origin, plans, &dns_trace,
+                )),
             })
         }
         Err(error) => {
@@ -10321,6 +11430,38 @@ fn android_gateway_resolver(
     origin: NamespaceOriginContext,
     plans: SharedNamespacePlans,
 ) -> AndroidGatewayResolver {
+    let stack =
+        persistent_gateway_resolver_stack(base, values, context, dns_trace, fallback_marker);
+    gateway_resolver_from_stack(&stack, origin, plans)
+}
+
+/// Builds the per-origin gateway resolver adapter over a (possibly pooled)
+/// resolver stack. Only the cheap per-request adapter state is constructed
+/// here; the resolver chain, its transports, and the SQLite resource provider
+/// are shared through the stack.
+fn gateway_resolver_from_stack(
+    stack: &PersistentGatewayResolver,
+    origin: NamespaceOriginContext,
+    plans: SharedNamespacePlans,
+) -> AndroidGatewayResolver {
+    AndroidGatewayResolver::from_shared(
+        Arc::clone(&stack.hns),
+        Arc::clone(&stack.icann),
+        origin,
+        plans,
+        stack.hns_evidence.clone(),
+        stack.icann_evidence.clone(),
+        stack.dns_trace.clone(),
+    )
+}
+
+fn persistent_gateway_resolver_stack(
+    base: PathBuf,
+    values: SqliteResourceValueProvider,
+    context: GatewayResolverContext,
+    dns_trace: DnsTraceRecorder,
+    fallback_marker: FallbackMarker,
+) -> PersistentGatewayResolver {
     let GatewayResolverContext {
         network,
         runtime_policy,
@@ -10356,8 +11497,11 @@ fn android_gateway_resolver(
                 .without_authoritative_doh(),
             relay_feedback,
         );
-        delegated =
-            BoxedDelegatedResolver::new(P2pFallbackDelegatedResolver::new(delegated, relay));
+        delegated = BoxedDelegatedResolver::new(P2pFallbackDelegatedResolver::new(
+            delegated,
+            relay,
+            fallback_marker.clone(),
+        ));
     }
 
     if let Some(endpoint) = runtime_policy
@@ -10370,12 +11514,14 @@ fn android_gateway_resolver(
             dns_trace.clone(),
             http.clone(),
             endpoint_policy,
-            fallback_marker,
+            fallback_marker.clone(),
         );
         let recovery = AuthoritativeDnssecResolver::new(recovery_transport, SystemDnssecVerifier)
             .without_authoritative_doh();
         delegated = BoxedDelegatedResolver::new(RecoveryDohFallbackDelegatedResolver::new(
-            delegated, recovery,
+            delegated,
+            recovery,
+            fallback_marker.clone(),
         ));
     }
 
@@ -10386,18 +11532,128 @@ fn android_gateway_resolver(
         .with_peer_state(peer_state)
         .with_proof_peer(proof_peer)
         .with_evidence(hns_evidence.clone());
+    // Authoritative answers below the proof/evidence layer are cached so a
+    // pooled stack stops repeating the same serialized delegated DNS queries
+    // for every namespace plan rebuild. The proof provider still runs per
+    // query, so request-scoped proof evidence stays live and fresh.
+    let delegated = CachedDelegatedResolver::new(
+        delegated,
+        GATEWAY_RESOLVER_CACHE_ENTRIES,
+        GATEWAY_RESOLVER_CACHE_TTL,
+    );
     let delegated = AuthenticatedHnsDelegationRecordingResolver::new(delegated, dns_trace.clone());
     let primary = DelegatingResolver::new(proof_provider, delegated);
     let icann = IcannDohResolver::new(dns_trace.clone(), http, icann_evidence.clone(), fixture_key);
-    AndroidGatewayResolver::new(
-        primary,
-        icann,
-        origin,
-        plans,
+    PersistentGatewayResolver {
+        hns: Arc::new(primary),
+        icann: Arc::new(icann),
         hns_evidence,
         icann_evidence,
+        fallback_marker,
         dns_trace,
-    )
+    }
+}
+
+/// Caches validated delegated authoritative answers below the proof and
+/// evidence layers. Keyed by both the resolution request and a fingerprint of
+/// the live delegation so an answer resolved under superseded root records can
+/// never satisfy a query made under the current delegation.
+///
+/// Positive answers are held no longer than their minimum record TTL, so a
+/// zone can rotate short-TTL data (A, TLSA) without changing its delegation
+/// and still be re-queried on time. Negative and no-data answers use a fixed
+/// conservative lifetime because `ResolverError::NameNotFound` carries no
+/// authenticated SOA at this boundary from which to derive the negative TTL.
+struct CachedDelegatedResolver<R> {
+    inner: R,
+    cache: Mutex<TtlCache<(ResolutionRequest, [u8; 32]), CachedDelegatedResolution>>,
+    ttl: Duration,
+}
+
+#[derive(Clone)]
+enum CachedDelegatedResolution {
+    Answer(ResolutionAnswer),
+    NameNotFound,
+}
+
+impl<R> CachedDelegatedResolver<R> {
+    fn new(inner: R, max_entries: usize, ttl: Duration) -> Self {
+        Self {
+            inner,
+            cache: Mutex::new(TtlCache::new(max_entries)),
+            ttl,
+        }
+    }
+
+    fn positive_cache_ttl(&self, answer: &ResolutionAnswer) -> Duration {
+        match answer.records.iter().map(|record| record.ttl).min() {
+            Some(min_record_ttl) => self.ttl.min(Duration::from_secs(u64::from(min_record_ttl))),
+            // An answer with no records is a no-data result; hold it only as
+            // long as a negative answer.
+            None => self.negative_cache_ttl(),
+        }
+    }
+
+    fn negative_cache_ttl(&self) -> Duration {
+        self.ttl.min(GATEWAY_NEGATIVE_ANSWER_CACHE_TTL)
+    }
+}
+
+fn delegation_fingerprint(delegation: &HnsDelegation) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(delegation.root_name.as_bytes());
+    hasher.update([0]);
+    hasher.update(delegation.owner.to_string().as_bytes());
+    for record in &delegation.records {
+        hasher.update([0]);
+        hasher.update(record.name.to_string().as_bytes());
+        hasher.update(record.record_type.code().to_be_bytes());
+        hasher.update(record.class.to_be_bytes());
+        hasher.update((record.rdata.len() as u64).to_be_bytes());
+        hasher.update(&record.rdata);
+    }
+    hasher.finalize().into()
+}
+
+impl<R: DelegatedResolver> DelegatedResolver for CachedDelegatedResolver<R> {
+    fn resolve_delegated(
+        &self,
+        request: &ResolutionRequest,
+        delegation: &HnsDelegation,
+    ) -> Result<ResolutionAnswer, ResolverError> {
+        let key = (request.clone(), delegation_fingerprint(delegation));
+        if let Some(cached) = self
+            .cache
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .get(&key)
+        {
+            return match cached {
+                CachedDelegatedResolution::Answer(answer) => Ok(answer),
+                CachedDelegatedResolution::NameNotFound => Err(ResolverError::NameNotFound),
+            };
+        }
+
+        match self.inner.resolve_delegated(request, delegation) {
+            Ok(answer) => {
+                let ttl = self.positive_cache_ttl(&answer);
+                self.cache
+                    .lock()
+                    .map_err(|_| ResolverError::CachePoisoned)?
+                    .insert(key, CachedDelegatedResolution::Answer(answer.clone()), ttl);
+                Ok(answer)
+            }
+            Err(ResolverError::NameNotFound) => {
+                let ttl = self.negative_cache_ttl();
+                self.cache
+                    .lock()
+                    .map_err(|_| ResolverError::CachePoisoned)?
+                    .insert(key, CachedDelegatedResolution::NameNotFound, ttl);
+                Err(ResolverError::NameNotFound)
+            }
+            Err(error) => Err(error),
+        }
+    }
 }
 
 struct GatewayResolverContext {
@@ -10526,7 +11782,45 @@ fn origin_response_head_with_resolver_policy_and_trace(
     security_path: Option<&str>,
     trace_json: &str,
 ) -> Vec<u8> {
-    let mut out = response_head(response.status, "OK", None, response.body_len);
+    origin_response_head_with_optional_length(
+        response,
+        resolver_policy,
+        security_path,
+        trace_json,
+        |response| Some(response.body_len),
+    )
+}
+
+fn origin_streaming_response_head_with_resolver_policy_and_trace(
+    response: OriginResponseHead,
+    resolver_policy: Option<&str>,
+    security_path: Option<&str>,
+    trace_json: &str,
+) -> Vec<u8> {
+    origin_response_head_with_optional_length(
+        response,
+        resolver_policy,
+        security_path,
+        trace_json,
+        |response| {
+            response
+                .headers
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+                .and_then(|(_, value)| value.trim().parse().ok())
+        },
+    )
+}
+
+fn origin_response_head_with_optional_length(
+    response: OriginResponseHead,
+    resolver_policy: Option<&str>,
+    security_path: Option<&str>,
+    trace_json: &str,
+    body_len: impl FnOnce(&OriginResponseHead) -> Option<usize>,
+) -> Vec<u8> {
+    let mut out =
+        response_head_with_optional_length(response.status, "OK", None, body_len(&response));
     for (name, value) in response.headers {
         if suppressed_origin_response_header(&name) {
             continue;
@@ -12696,10 +13990,19 @@ fn response_head(
     content_type: Option<&str>,
     body_len: usize,
 ) -> Vec<u8> {
-    let mut out = format!(
-        "HTTP/1.1 {status} {reason}\r\nConnection: close\r\nContent-Length: {body_len}\r\n"
-    )
-    .into_bytes();
+    response_head_with_optional_length(status, reason, content_type, Some(body_len))
+}
+
+fn response_head_with_optional_length(
+    status: u16,
+    reason: &str,
+    content_type: Option<&str>,
+    body_len: Option<usize>,
+) -> Vec<u8> {
+    let mut out = format!("HTTP/1.1 {status} {reason}\r\nConnection: close\r\n").into_bytes();
+    if let Some(body_len) = body_len {
+        out.extend(format!("Content-Length: {body_len}\r\n").as_bytes());
+    }
     if let Some(content_type) = content_type {
         out.extend(format!("Content-Type: {content_type}\r\n").as_bytes());
     }
@@ -14225,6 +15528,7 @@ mod tests {
     use hns_resolver::{HnsResourceValueProvider, VerifiedResourceValue};
     use std::io::{Read, Write};
     use std::net::{Shutdown, TcpListener, TcpStream};
+    use std::sync::atomic::AtomicUsize;
     use std::thread;
 
     #[test]
@@ -14290,12 +15594,11 @@ mod tests {
         port: u16,
         namespace: Namespace,
     ) -> NamespacePublicationSelection {
-        NamespacePublicationSelection {
-            origin: namespace_origin_context(base.to_path_buf(), network, scheme, host, port, 0)
-                .unwrap(),
-            plans: Arc::new(Mutex::new(HashMap::new())),
-            dns_trace: trace_recorder_for_selection(namespace),
-        }
+        NamespacePublicationSelection::from_trace(
+            namespace_origin_context(base.to_path_buf(), network, scheme, host, port, 0).unwrap(),
+            Arc::new(Mutex::new(HashMap::new())),
+            &trace_recorder_for_selection(namespace),
+        )
     }
 
     fn test_cleartext_origin_plan(
@@ -17336,6 +18639,45 @@ mod tests {
     }
 
     #[test]
+    fn streaming_head_omits_synthetic_length_for_unknown_body_size() {
+        let encoded = origin_streaming_response_head_with_resolver_policy_and_trace(
+            OriginResponseHead {
+                status: 200,
+                headers: vec![("Content-Type".to_owned(), "text/plain".to_owned())],
+                body_len: 0,
+                dane_decision: DaneDecision::NoTlsa,
+                tls_inspection: None,
+            },
+            None,
+            None,
+            "{}",
+        );
+        let encoded = String::from_utf8(encoded).unwrap();
+
+        assert!(!encoded.contains("Content-Length:"));
+        assert!(encoded.ends_with("\r\n\r\n"));
+    }
+
+    #[test]
+    fn streaming_head_preserves_known_origin_length() {
+        let encoded = origin_streaming_response_head_with_resolver_policy_and_trace(
+            OriginResponseHead {
+                status: 200,
+                headers: vec![("Content-Length".to_owned(), "4".to_owned())],
+                body_len: 4,
+                dane_decision: DaneDecision::NoTlsa,
+                tls_inspection: None,
+            },
+            None,
+            None,
+            "{}",
+        );
+        let encoded = String::from_utf8(encoded).unwrap();
+
+        assert_eq!(encoded.matches("Content-Length: 4\r\n").count(), 1);
+    }
+
+    #[test]
     fn raw_gateway_runtime_failures_are_propagated_without_output() {
         let data_dir = temp_dir_path("browser-runtime-raw-failure-propagation");
         let runtime =
@@ -19955,6 +21297,7 @@ mod tests {
                 ResolverError::DnsTransport("authoritative UDP timed out".to_owned())
             }),
             TestDelegatedResolver::answer(answer.clone()),
+            FallbackMarker::default(),
         );
         let request = ResolutionRequest {
             qname: "legacy.relaytest".to_owned(),
@@ -19971,6 +21314,7 @@ mod tests {
         let intercepted = P2pFallbackDelegatedResolver::new(
             TestDelegatedResolver::error(|| ResolverError::Port53InterceptionDetected),
             TestDelegatedResolver::answer(answer.clone()),
+            FallbackMarker::default(),
         );
         assert_eq!(
             intercepted
@@ -19994,6 +21338,7 @@ mod tests {
                     calls: Arc::clone(&fallback_calls),
                     answer: answer.clone(),
                 },
+                FallbackMarker::default(),
             );
             assert_eq!(
                 gated
@@ -20040,6 +21385,7 @@ mod tests {
                     calls: Arc::clone(&fallback_calls),
                     answer: answer.clone(),
                 },
+                FallbackMarker::default(),
             );
             assert_eq!(
                 resolver.resolve_delegated(&request, &delegation).unwrap(),
@@ -20063,6 +21409,7 @@ mod tests {
                     calls: Arc::clone(&fallback_calls),
                     answer: answer.clone(),
                 },
+                FallbackMarker::default(),
             );
             assert_eq!(
                 resolver
@@ -20093,6 +21440,7 @@ mod tests {
                 calls: Arc::clone(&fallback_calls),
                 answer,
             },
+            FallbackMarker::default(),
         );
         let delegation = test_delegation("recoverytest");
 
@@ -20136,6 +21484,7 @@ mod tests {
                         _ => unreachable!(),
                     }),
                 },
+                FallbackMarker::default(),
             );
             assert_eq!(
                 resolver
@@ -20148,6 +21497,7 @@ mod tests {
         let bogus = RecoveryDohFallbackDelegatedResolver::new(
             TestDelegatedResolver::error(|| ResolverError::Port53InterceptionDetected),
             TestDelegatedResolver::error(|| ResolverError::DnssecFailed),
+            FallbackMarker::default(),
         );
         assert_eq!(
             bogus.resolve_delegated(&request, &delegation).unwrap_err(),
@@ -20287,6 +21637,7 @@ mod tests {
                 },
                 feedback.clone(),
             ),
+            FallbackMarker::default(),
         );
 
         assert_eq!(
@@ -21792,19 +23143,16 @@ mod tests {
             )
             .unwrap();
         let icann_evidence = IcannEvidenceRecorder::default();
-        {
-            let mut observations = icann_evidence.observations.lock().unwrap();
-            for request in [&a_request, &aaaa_request] {
-                observations.insert(
-                    request.clone(),
-                    IcannResponseObservation {
-                        kind: IcannResponseKind::Answer,
-                        secure: true,
-                        observed_at_unix: now,
-                        expires_at_unix: now.saturating_add(60),
-                    },
-                );
-            }
+        for request in [&a_request, &aaaa_request] {
+            icann_evidence.insert_observation(
+                request.clone(),
+                IcannResponseObservation {
+                    kind: IcannResponseKind::Answer,
+                    secure: true,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            );
         }
         let base = temp_dir_path("dual-root-aaaa-divergence");
         let origin = NamespaceOriginContext {
@@ -22561,7 +23909,7 @@ mod tests {
             (https_request, IcannResponseKind::Answer),
             (udp_tlsa_request, IcannResponseKind::NoData),
         ] {
-            evidence.observations.lock().unwrap().insert(
+            evidence.insert_observation(
                 request,
                 IcannResponseObservation {
                     kind,
@@ -22890,7 +24238,7 @@ mod tests {
             (&https_request, IcannResponseKind::NoData),
             (&tlsa_request, IcannResponseKind::Answer),
         ] {
-            evidence.observations.lock().unwrap().insert(
+            evidence.insert_observation(
                 request.clone(),
                 IcannResponseObservation {
                     kind,
@@ -22953,7 +24301,7 @@ mod tests {
                 Vec::new()
             };
             answers.insert(request.clone(), resolution_answer(owner, records, true));
-            evidence.observations.lock().unwrap().insert(
+            evidence.insert_observation(
                 request,
                 IcannResponseObservation {
                     kind,
@@ -23450,5 +24798,1073 @@ mod tests {
 
     fn cleanup_dir(path: &std::path::Path) {
         let _ = std::fs::remove_dir_all(path);
+    }
+
+    fn persistent_pool_context(
+        runtime: &BrowserRuntime,
+        experimental_p2p_dns_relay: bool,
+    ) -> GatewayResolverContext {
+        GatewayResolverContext {
+            network: NetworkKind::Regtest,
+            runtime_policy: RuntimePolicy {
+                resolution_mode: ResolutionMode::Strict,
+                hns_doh_resolver: None,
+                experimental_p2p_dns_relay,
+                legacy_hns_doh_compatibility: false,
+                stateless_dane_certificates: false,
+            },
+            peer_state: Some(Arc::clone(&runtime.inner.coordination.peer_state)),
+            relay: Some(runtime.inner.coordination.relay.clone()),
+            http: runtime.inner.transport.clone(),
+        }
+    }
+
+    #[test]
+    fn browser_runtime_reuses_gateway_resolver_for_matching_policy() {
+        let data_dir = temp_dir_path("persistent-gateway-resolver");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let base = network_base_path(&runtime.inner.data_dir, NetworkKind::Regtest);
+        fs::create_dir_all(&base).unwrap();
+
+        let first = runtime
+            .persistent_gateway_resolver(base.clone(), persistent_pool_context(&runtime, false))
+            .unwrap();
+        let second = runtime
+            .persistent_gateway_resolver(base.clone(), persistent_pool_context(&runtime, false))
+            .unwrap();
+        let relayed = runtime
+            .persistent_gateway_resolver(base.clone(), persistent_pool_context(&runtime, true))
+            .unwrap();
+
+        assert!(Arc::ptr_eq(&first, &second));
+        assert!(!Arc::ptr_eq(&first, &relayed));
+        assert_eq!(runtime.inner.gateway_resolvers.lock().unwrap().len(), 2);
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn clearing_the_resolver_cache_drops_pooled_gateway_resolvers() {
+        let data_dir = temp_dir_path("persistent-gateway-resolver-clear");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let base = network_base_path(&runtime.inner.data_dir, NetworkKind::Regtest);
+        fs::create_dir_all(&base).unwrap();
+        runtime
+            .persistent_gateway_resolver(base, persistent_pool_context(&runtime, false))
+            .unwrap();
+        assert_eq!(runtime.inner.gateway_resolvers.lock().unwrap().len(), 1);
+
+        runtime.clear_resolver_cache().unwrap();
+        assert!(runtime.inner.gateway_resolvers.lock().unwrap().is_empty());
+        cleanup_dir(&data_dir);
+    }
+
+    fn raw_welcome_request(port: u16) -> RawGatewayHttpRequest {
+        RawGatewayHttpRequest {
+            method: "GET".to_owned(),
+            scheme: "http".to_owned(),
+            host: "welcome".to_owned(),
+            port: i32::from(port),
+            path_and_query: "/".to_owned(),
+            header_text: String::new(),
+            body: Vec::new(),
+        }
+    }
+
+    fn pooled_gateway_resolver_stacks(
+        runtime: &BrowserRuntime,
+    ) -> Vec<Arc<PersistentGatewayResolver>> {
+        runtime
+            .inner
+            .gateway_resolvers
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect()
+    }
+
+    fn spawn_loopback_origin(
+        listener: TcpListener,
+        connections: usize,
+        respond: impl Fn(&mut TcpStream) + Send + Sync + 'static,
+    ) -> thread::JoinHandle<()> {
+        let respond = Arc::new(respond);
+        thread::spawn(move || {
+            let mut handlers = Vec::new();
+            for _ in 0..connections {
+                let (mut stream, _) = listener.accept().unwrap();
+                let respond = Arc::clone(&respond);
+                handlers.push(thread::spawn(move || {
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(10)))
+                        .unwrap();
+                    let request =
+                        String::from_utf8(read_test_http_head(&mut stream).unwrap()).unwrap();
+                    assert!(request.starts_with("GET / HTTP/1.1\r\n"));
+                    respond(&mut stream);
+                }));
+            }
+            for handler in handlers {
+                handler.join().unwrap();
+            }
+        })
+    }
+
+    fn write_ok_body_response(stream: &mut TcpStream) {
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nok",
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn raw_gateway_requests_share_the_pooled_resolver_stack() {
+        let (data_dir, runtime) = runtime_with_cached_loopback_name("runtime-raw-gateway-pool");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
+
+        // The first interceptor request builds the pooled resolver stack.
+        let response = runtime
+            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let pooled = pooled_gateway_resolver_stacks(&runtime);
+        assert_eq!(pooled.len(), 1);
+        let stack = Arc::clone(&pooled[0]);
+
+        // A subsequent request at the same chain tip reuses the pooled stack,
+        // including across the file-body FFI variant.
+        let body_path = data_dir.join("pooled.body");
+        let head = runtime
+            .raw_gateway_request_body_to_file(
+                raw_welcome_request(port),
+                RuntimePolicy::compatibility(),
+                &body_path,
+            )
+            .unwrap();
+        assert!(
+            String::from_utf8(head)
+                .unwrap()
+                .starts_with("HTTP/1.1 200 OK\r\n")
+        );
+        assert_eq!(fs::read(&body_path).unwrap(), b"ok");
+        let pooled = pooled_gateway_resolver_stacks(&runtime);
+        assert_eq!(pooled.len(), 1);
+        assert!(Arc::ptr_eq(&pooled[0], &stack));
+
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn raw_gateway_requests_rebuild_the_pooled_resolver_after_a_chain_tip_change() {
+        let (data_dir, runtime) = runtime_with_cached_loopback_name("runtime-raw-gateway-tip");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
+
+        let response = runtime
+            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let pooled = pooled_gateway_resolver_stacks(&runtime);
+        assert_eq!(pooled.len(), 1);
+        let stale_stack = Arc::clone(&pooled[0]);
+
+        // Advancing the synced chain tip must retire the resolver anchored to
+        // the previous tip even though the request policy is unchanged. The
+        // resource is re-anchored at the new tip exactly as a completed sync
+        // would publish it.
+        let base = network_base_path(&runtime.inner.data_dir, NetworkKind::Regtest);
+        store_canonical_headers_for_network_with_tree_roots(
+            &base,
+            NetworkKind::Regtest,
+            &[Hash::new([42; 32]), Hash::new([43; 32])],
+        );
+        let resources = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
+        let root_name = "welcome".to_owned();
+        resources
+            .insert(
+                VerifiedResourceValue::inclusion(
+                    root_name.clone(),
+                    NameHash::from_name(&root_name).unwrap(),
+                    owner_dual_stack_glue_resource(
+                        &root_name,
+                        [127, 0, 0, 1],
+                        Ipv6Addr::LOCALHOST.octets(),
+                    ),
+                )
+                .with_anchor(Hash::new([43; 32]), Height(2)),
+            )
+            .unwrap();
+        drop(resources);
+        let mut header_state_lock =
+            HeaderStateFileLock::exclusive(&runtime.inner.coordination.header_state_lock_path)
+                .unwrap();
+        let identity =
+            read_header_sync_storage_identity(&runtime.inner.coordination.header_state_base)
+                .unwrap();
+        header_state_lock.mark_ready(identity).unwrap();
+        drop(header_state_lock);
+
+        let response = runtime
+            .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "unexpected response after chain tip change: {}",
+            String::from_utf8_lossy(&response)
+        );
+        let pooled = pooled_gateway_resolver_stacks(&runtime);
+        assert_eq!(pooled.len(), 1);
+        assert!(!Arc::ptr_eq(&pooled[0], &stale_stack));
+
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn admitted_same_policy_raw_gateway_deliveries_overlap() {
+        let (data_dir, runtime) = runtime_with_cached_loopback_name("runtime-raw-gateway-delivery");
+        let observed_metrics = Arc::new(Mutex::new(Vec::<BrowserRequestMetrics>::new()));
+        let metrics_sink = Arc::clone(&observed_metrics);
+        runtime
+            .set_request_metrics_observer(Arc::new(move |metrics: &BrowserRequestMetrics| {
+                metrics_sink.lock().unwrap().push(metrics.clone());
+            }))
+            .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        // The namespace plan is already cached. Hold the first origin response
+        // and prove the second admitted delivery reaches the origin without
+        // rebuilding evidence or waiting on the policy-operation lock.
+        let (first_arrived_tx, first_arrived_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let (second_arrived_tx, second_arrived_rx) = std::sync::mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut first, _) = listener.accept().unwrap();
+            first
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _head = read_test_http_head(&mut first).unwrap();
+            first_arrived_tx.send(()).unwrap();
+            let (mut second, _) = listener.accept().unwrap();
+            second
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _head = read_test_http_head(&mut second).unwrap();
+            second_arrived_tx.send(()).unwrap();
+            write_ok_body_response(&mut second);
+            release_rx.recv_timeout(Duration::from_secs(5)).ok();
+            write_ok_body_response(&mut first);
+        });
+
+        let first_runtime = runtime.clone();
+        let first = thread::spawn(move || {
+            first_runtime
+                .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+        first_arrived_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("first request reached the origin");
+        let second_runtime = runtime.clone();
+        let second = thread::spawn(move || {
+            second_runtime
+                .raw_gateway_request(raw_welcome_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+        second_arrived_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("second admitted delivery overlapped the first");
+        release_tx.send(()).unwrap();
+
+        let first = first.join().unwrap().unwrap();
+        let second = second.join().unwrap().unwrap();
+        assert!(first.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        assert!(second.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        assert_eq!(
+            runtime
+                .inner
+                .operation_metrics
+                .max_in_flight
+                .load(Ordering::SeqCst),
+            2
+        );
+        let metrics = observed_metrics.lock().unwrap();
+        assert_eq!(metrics.len(), 2);
+        assert!(metrics.iter().all(|entry| {
+            entry.route == BrowserRequestMetricsRoute::CompatibilityInterceptor
+                && entry.status_code == Some(200)
+                && entry.outcome == "success"
+                && !entry.dns_timings_available
+                && !entry.origin_timing_available
+                && entry.gateway_ms <= entry.total_ms
+        }));
+        assert!(metrics.iter().all(|entry| entry.admission_wait_ms == 0));
+        assert!(metrics.iter().all(|entry| entry.queued_requests <= 1));
+        drop(metrics);
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn admitted_delivery_concurrency_is_bounded() {
+        let concurrency = Arc::new(AdmittedDeliveryConcurrency::default());
+        let mut permits = (0..MAX_CONCURRENT_ADMITTED_DELIVERIES)
+            .map(|_| concurrency.acquire().unwrap())
+            .collect::<Vec<_>>();
+        let (acquired_tx, acquired_rx) = std::sync::mpsc::channel();
+        let waiting = Arc::clone(&concurrency);
+        let waiter = thread::spawn(move || {
+            let _permit = waiting.acquire().unwrap();
+            acquired_tx.send(()).unwrap();
+        });
+
+        assert!(
+            acquired_rx
+                .recv_timeout(Duration::from_millis(100))
+                .is_err()
+        );
+        drop(permits.pop());
+        acquired_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("released delivery permit wakes one waiter");
+        waiter.join().unwrap();
+    }
+
+    #[test]
+    fn rejected_raw_gateway_policy_operations_fail_closed() {
+        let (data_dir, runtime) =
+            runtime_with_cached_loopback_name("runtime-raw-gateway-fail-closed");
+        let rejected_policy = RuntimePolicy {
+            hns_doh_resolver: Some("http://resolver.example.net/dns-query".to_owned()),
+            ..RuntimePolicy::compatibility()
+        };
+
+        let error = runtime
+            .raw_gateway_request(raw_welcome_request(8080), rejected_policy.clone())
+            .unwrap_err();
+        assert!(matches!(error, RuntimeError::InvalidConfiguration(_)));
+
+        let body_path = data_dir.join("rejected.body");
+        let error = runtime
+            .raw_gateway_request_body_to_file(
+                raw_welcome_request(8080),
+                rejected_policy,
+                &body_path,
+            )
+            .unwrap_err();
+        assert!(matches!(error, RuntimeError::InvalidConfiguration(_)));
+        assert!(!body_path.exists());
+
+        // The rejection happens before admission: no operation was gated, no
+        // resolver stack was built, and the live policy is untouched.
+        assert_eq!(
+            runtime
+                .inner
+                .operation_metrics
+                .admitted
+                .load(Ordering::SeqCst),
+            0
+        );
+        assert!(pooled_gateway_resolver_stacks(&runtime).is_empty());
+        assert_eq!(runtime.policy().unwrap(), RuntimePolicy::compatibility());
+        cleanup_dir(&data_dir);
+    }
+
+    /// A scripted ICANN resolver that records authenticated absence after a
+    /// controllable delay, so tests can reproduce plan builds whose ICANN leg
+    /// finishes after the HNS evidence freshness window has closed.
+    struct ScriptedAbsentIcannResolver {
+        evidence: IcannEvidenceRecorder,
+        delay_millis: Arc<AtomicU64>,
+    }
+
+    impl Resolver for ScriptedAbsentIcannResolver {
+        fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+            let delay = self.delay_millis.load(Ordering::SeqCst);
+            if delay > 0 {
+                thread::sleep(Duration::from_millis(delay));
+            }
+            self.evidence.record_authenticated_absence(request)?;
+            Err(ResolverError::NameNotFound)
+        }
+    }
+
+    /// A scripted ICANN resolver whose authenticated-absence leg stretches
+    /// past the delegated-HNS evidence freshness window when another runtime
+    /// operation is in flight, modeling how concurrent interceptor requests
+    /// contend for the uncached ICANN network path.
+    struct ContentionAwareAbsentIcannResolver {
+        evidence: IcannEvidenceRecorder,
+        inner: Arc<RuntimeInner>,
+    }
+
+    impl Resolver for ContentionAwareAbsentIcannResolver {
+        fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+            if self
+                .inner
+                .operation_metrics
+                .in_flight
+                .load(Ordering::SeqCst)
+                > 1
+            {
+                thread::sleep(Duration::from_millis(1_100));
+            }
+            self.evidence.record_authenticated_absence(request)?;
+            Err(ResolverError::NameNotFound)
+        }
+    }
+
+    /// A scripted delegated resolver that answers the origin host with a
+    /// loopback A record and counts every query reaching it, so tests can
+    /// distinguish live delegated DNS from pooled delegated-cache hits.
+    struct LoopbackCountingDelegatedResolver {
+        calls: Arc<AtomicUsize>,
+        host: String,
+    }
+
+    impl DelegatedResolver for LoopbackCountingDelegatedResolver {
+        fn resolve_delegated(
+            &self,
+            request: &ResolutionRequest,
+            _delegation: &HnsDelegation,
+        ) -> Result<ResolutionAnswer, ResolverError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let records = match RecordType::from_code(request.qtype) {
+                RecordType::A => vec![address_record(&self.host, [127, 0, 0, 1])],
+                _ => Vec::new(),
+            };
+            Ok(ResolutionAnswer {
+                name: DnsName::from_ascii(&self.host).unwrap(),
+                records,
+                secure: true,
+            })
+        }
+    }
+
+    /// Opens a regtest runtime for a delegated (non-glue) HNS name whose
+    /// resource carries a secure delegation. Returns the runtime, the network
+    /// base path, and the origin host.
+    fn delegated_loopback_runtime(label: &str) -> (PathBuf, BrowserRuntime, PathBuf, String) {
+        let data_dir = temp_dir_path(label);
+        let base = data_dir.join("hns-regtest");
+        std::fs::create_dir_all(&base).unwrap();
+        let resources = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
+        let root_name = "delegated".to_owned();
+        let host = format!("app.{root_name}");
+        let name_hash = NameHash::from_name(&root_name).unwrap();
+        let anchor_root = Hash::new([34; 32]);
+        let anchor_height =
+            store_best_header_for_network_with_tree_root(&base, NetworkKind::Regtest, anchor_root);
+        resources
+            .insert(
+                VerifiedResourceValue::inclusion(
+                    root_name.clone(),
+                    name_hash,
+                    owner_ds_glue4_resource(&root_name, [203, 0, 113, 53]),
+                )
+                .with_anchor(anchor_root, anchor_height),
+            )
+            .unwrap();
+        drop(resources);
+        let runtime = BrowserRuntime::open(
+            RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest).with_initial_policy(
+                RuntimePolicy {
+                    resolution_mode: ResolutionMode::Strict,
+                    hns_doh_resolver: None,
+                    experimental_p2p_dns_relay: false,
+                    legacy_hns_doh_compatibility: false,
+                    stateless_dane_certificates: false,
+                },
+            ),
+        )
+        .unwrap();
+        (data_dir, runtime, base, host)
+    }
+
+    /// Pre-seeds the resolver pool with the exact production stack
+    /// composition, except the wire delegated resolver is replaced by a
+    /// counting loopback fake and the ICANN resolver by the supplied fake.
+    /// The pool key matches what the FFI gateway path computes, so
+    /// `raw_gateway_request` reuses this stack.
+    fn seed_delegated_pool(
+        runtime: &BrowserRuntime,
+        base: &Path,
+        host: &str,
+        icann: impl FnOnce(IcannEvidenceRecorder) -> Arc<dyn Resolver + Send + Sync>,
+    ) -> Arc<AtomicUsize> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let hns_evidence = HnsProofEvidenceRecorder::default();
+        let icann_evidence = IcannEvidenceRecorder::default();
+        let dns_trace = DnsTraceRecorder::default();
+        let values = SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap();
+        let proof_provider =
+            GatewayProofProvider::new(base.to_path_buf(), values, NetworkKind::Regtest)
+                .with_evidence(hns_evidence.clone());
+        let delegated = CachedDelegatedResolver::new(
+            LoopbackCountingDelegatedResolver {
+                calls: Arc::clone(&calls),
+                host: host.to_owned(),
+            },
+            GATEWAY_RESOLVER_CACHE_ENTRIES,
+            GATEWAY_RESOLVER_CACHE_TTL,
+        );
+        let hns = DelegatingResolver::new(proof_provider, delegated);
+        let tip = best_synced_header(base, NetworkKind::Regtest).unwrap();
+        let key = GatewayResolverKey {
+            base: base.to_path_buf(),
+            chain_tip: Some((tip.height.0, tip.header.tree_root.to_string())),
+            resolution_mode: gateway_resolver_mode_key(ResolutionMode::Strict),
+            hns_doh_resolver: None,
+            experimental_p2p_dns_relay: false,
+            legacy_hns_doh_compatibility: false,
+        };
+        runtime.inner.gateway_resolvers.lock().unwrap().insert(
+            key,
+            Arc::new(PersistentGatewayResolver {
+                hns: Arc::new(hns),
+                icann: icann(icann_evidence.clone()),
+                hns_evidence,
+                icann_evidence,
+                fallback_marker: FallbackMarker::default(),
+                dns_trace,
+            }),
+        );
+        calls
+    }
+
+    fn runtime_with_delegated_loopback_name(
+        label: &str,
+    ) -> (PathBuf, BrowserRuntime, Arc<AtomicUsize>, Arc<AtomicU64>) {
+        let (data_dir, runtime, base, host) = delegated_loopback_runtime(label);
+        let icann_delay_millis = Arc::new(AtomicU64::new(0));
+        let delay = Arc::clone(&icann_delay_millis);
+        let calls = seed_delegated_pool(&runtime, &base, &host, move |evidence| {
+            Arc::new(ScriptedAbsentIcannResolver {
+                evidence,
+                delay_millis: delay,
+            })
+        });
+        (data_dir, runtime, calls, icann_delay_millis)
+    }
+
+    fn raw_delegated_request(port: u16) -> RawGatewayHttpRequest {
+        RawGatewayHttpRequest {
+            method: "GET".to_owned(),
+            scheme: "http".to_owned(),
+            host: "app.delegated".to_owned(),
+            port: i32::from(port),
+            path_and_query: "/".to_owned(),
+            header_text: String::new(),
+            body: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn pooled_raw_gateway_requests_rebuild_complete_plans_on_delegated_cache_hits() {
+        let (data_dir, runtime, delegated_calls, _icann_delay) =
+            runtime_with_delegated_loopback_name("runtime-raw-gateway-cache-hit-rebuild");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
+
+        // The first request resolves the delegated name live.
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "first delegated request failed: {}",
+            String::from_utf8_lossy(&response)
+        );
+        let live_calls = delegated_calls.load(Ordering::SeqCst);
+        assert_eq!(live_calls, 2);
+
+        // Force a namespace-plan rebuild (plan expiry/eviction) while the
+        // delegated answer cache stays warm: the rebuild must still produce a
+        // complete, evidence-backed plan from cached answers.
+        runtime.inner.namespace_plans.lock().unwrap().clear();
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "delegated-cache-hit rebuild failed: {}",
+            String::from_utf8_lossy(&response)
+        );
+        assert_eq!(delegated_calls.load(Ordering::SeqCst), live_calls);
+
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn delayed_icann_leg_after_a_delegated_cache_hit_flips_the_plan_indeterminate() {
+        let (data_dir, runtime, _delegated_calls, icann_delay) =
+            runtime_with_delegated_loopback_name("runtime-raw-gateway-slow-icann");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 1, write_ok_body_response);
+
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        server.join().unwrap();
+
+        // Force a plan rebuild with a warm delegated cache, but let the ICANN
+        // absence leg outlive the delegated HNS evidence freshness window.
+        runtime.inner.namespace_plans.lock().unwrap().clear();
+        icann_delay.store(1_100, Ordering::SeqCst);
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 503 Namespace Resolution Indeterminate\r\n"),
+            "expected indeterminate response, got: {}",
+            String::from_utf8_lossy(&response)
+        );
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn overlapping_interceptor_requests_keep_evidence_fresh() {
+        let (data_dir, runtime, base, host) =
+            delegated_loopback_runtime("runtime-raw-gateway-overlap-freshness");
+        let delegated_calls = seed_delegated_pool(&runtime, &base, &host, |evidence| {
+            Arc::new(ContentionAwareAbsentIcannResolver {
+                evidence,
+                inner: Arc::clone(&runtime.inner),
+            })
+        });
+
+        // Prime the delegated answer cache so later plan builds resolve the
+        // HNS side instantly from cached answers.
+        let primer_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let primer_port = primer_listener.local_addr().unwrap().port();
+        let primer = spawn_loopback_origin(primer_listener, 1, write_ok_body_response);
+        let response = runtime
+            .raw_gateway_request(
+                raw_delegated_request(primer_port),
+                RuntimePolicy::compatibility(),
+            )
+            .unwrap()
+            .into_bytes();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        primer.join().unwrap();
+
+        // Hold the first request at the origin until the second request has
+        // started, so both are gated in flight together when same-policy
+        // operations are allowed to overlap.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (blocked_tx, blocked_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut first, _) = listener.accept().unwrap();
+            first
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _head = read_test_http_head(&mut first).unwrap();
+            blocked_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(5)).ok();
+            write_ok_body_response(&mut first);
+            let (mut second, _) = listener.accept().unwrap();
+            second
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let _head = read_test_http_head(&mut second).unwrap();
+            write_ok_body_response(&mut second);
+        });
+
+        let first_runtime = runtime.clone();
+        let first = thread::spawn(move || {
+            first_runtime
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+        blocked_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("first request reached the origin");
+        // Force the second request to rebuild its namespace plan from the
+        // warm delegated cache while the first request is still in flight.
+        runtime.inner.namespace_plans.lock().unwrap().clear();
+        let second_runtime = runtime.clone();
+        let second = thread::spawn(move || {
+            second_runtime
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+        thread::sleep(Duration::from_millis(100));
+        release_tx.send(()).unwrap();
+
+        let first = first.join().unwrap().unwrap();
+        let second = second.join().unwrap().unwrap();
+        assert!(
+            first.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "held request failed: {}",
+            String::from_utf8_lossy(&first)
+        );
+        assert!(
+            second.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "overlapping request failed: {}",
+            String::from_utf8_lossy(&second)
+        );
+        // Both rebuilds were served from the warm delegated cache.
+        assert_eq!(delegated_calls.load(Ordering::SeqCst), 2);
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn concurrent_raw_gateway_requests_build_complete_plans() {
+        let (data_dir, runtime, _delegated_calls, _icann_delay) =
+            runtime_with_delegated_loopback_name("runtime-raw-gateway-concurrent-plans");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
+
+        let first_runtime = runtime.clone();
+        let first = thread::spawn(move || {
+            first_runtime
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+        let second_runtime = runtime.clone();
+        let second = thread::spawn(move || {
+            second_runtime
+                .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+                .map(GatewayHttpResponse::into_bytes)
+        });
+
+        let first = first.join().unwrap().unwrap();
+        let second = second.join().unwrap().unwrap();
+        assert!(
+            first.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "first concurrent request failed: {}",
+            String::from_utf8_lossy(&first)
+        );
+        assert!(
+            second.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "second concurrent request failed: {}",
+            String::from_utf8_lossy(&second)
+        );
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn raw_gateway_request_after_prepare_drop_cycle_reuses_the_cached_plan() {
+        let (data_dir, runtime, delegated_calls, _icann_delay) =
+            runtime_with_delegated_loopback_name("runtime-raw-gateway-drop-cycle");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
+
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let live_calls = delegated_calls.load(Ordering::SeqCst);
+
+        // A follow-up request for the same origin, after the first request's
+        // prepare/reset cycle fully completed, must reuse the cached namespace
+        // plan without rebuilding or re-querying.
+        let response = runtime
+            .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
+            .unwrap()
+            .into_bytes();
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "request after prepare/drop cycle failed: {}",
+            String::from_utf8_lossy(&response)
+        );
+        assert_eq!(delegated_calls.load(Ordering::SeqCst), live_calls);
+
+        server.join().unwrap();
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn persistent_resolver_diagnostics_are_thread_scoped() {
+        let marker = FallbackMarker::default();
+        let request = ResolutionRequest {
+            qname: "app.pirate".to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        marker.mark("main-thread");
+        marker.remember_p2p_fallback(&request);
+        marker.remember_recovery_fallback(&request);
+        let other = marker.clone();
+        thread::spawn(move || {
+            let request = ResolutionRequest {
+                qname: "app.pirate".to_owned(),
+                qtype: RecordType::A.code(),
+            };
+            assert!(!other.used());
+            assert_eq!(other.reason(), None);
+            assert!(!other.uses_p2p_fallback(&request));
+            assert!(!other.uses_recovery_fallback(&request));
+            other.mark("worker-thread");
+            assert_eq!(other.reason(), Some("worker-thread"));
+            other.reset();
+            assert!(!other.used());
+        })
+        .join()
+        .unwrap();
+
+        assert!(marker.used());
+        assert_eq!(marker.reason(), Some("main-thread"));
+        assert!(marker.uses_p2p_fallback(&request));
+        assert!(marker.uses_recovery_fallback(&request));
+        marker.reset();
+        assert!(!marker.used());
+        assert!(!marker.uses_p2p_fallback(&request));
+        assert!(!marker.uses_recovery_fallback(&request));
+    }
+
+    struct ScriptedDelegatedResolver {
+        calls: AtomicUsize,
+        response: Box<dyn Fn() -> Result<ResolutionAnswer, ResolverError> + Send + Sync>,
+    }
+
+    impl ScriptedDelegatedResolver {
+        fn new(
+            response: impl Fn() -> Result<ResolutionAnswer, ResolverError> + Send + Sync + 'static,
+        ) -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                response: Box::new(response),
+            }
+        }
+    }
+
+    impl DelegatedResolver for &ScriptedDelegatedResolver {
+        fn resolve_delegated(
+            &self,
+            _request: &ResolutionRequest,
+            _delegation: &HnsDelegation,
+        ) -> Result<ResolutionAnswer, ResolverError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            (self.response)()
+        }
+    }
+
+    fn cache_test_request(qtype: RecordType) -> ResolutionRequest {
+        ResolutionRequest {
+            qname: "app.pirate".to_owned(),
+            qtype: qtype.code(),
+        }
+    }
+
+    fn cache_test_delegation(ns_rdata: &[u8]) -> HnsDelegation {
+        HnsDelegation {
+            root_name: "pirate".to_owned(),
+            owner: DnsName::from_ascii("pirate").unwrap(),
+            records: vec![ResourceRecord {
+                name: DnsName::from_ascii("pirate").unwrap(),
+                record_type: RecordType::Ns,
+                class: 1,
+                ttl: 21_600,
+                rdata: ns_rdata.to_vec(),
+            }],
+        }
+    }
+
+    fn cache_test_answer(ttl: u32) -> ResolutionAnswer {
+        ResolutionAnswer {
+            name: DnsName::from_ascii("app.pirate").unwrap(),
+            records: vec![ResourceRecord {
+                name: DnsName::from_ascii("app.pirate").unwrap(),
+                record_type: RecordType::A,
+                class: 1,
+                ttl,
+                rdata: vec![94, 103, 168, 161],
+            }],
+            secure: true,
+        }
+    }
+
+    #[test]
+    fn cached_delegated_resolver_hits_on_identical_request_and_delegation() {
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(300)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+        let delegation = cache_test_delegation(b"ns1");
+
+        let first = cached.resolve_delegated(&request, &delegation).unwrap();
+        let second = cached.resolve_delegated(&request, &delegation).unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_misses_on_changed_delegation_fingerprint() {
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(300)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+
+        cached
+            .resolve_delegated(&request, &cache_test_delegation(b"ns1"))
+            .unwrap();
+        cached
+            .resolve_delegated(&request, &cache_test_delegation(b"ns2"))
+            .unwrap();
+
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_misses_on_different_query_type() {
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(300)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let delegation = cache_test_delegation(b"ns1");
+
+        cached
+            .resolve_delegated(&cache_test_request(RecordType::A), &delegation)
+            .unwrap();
+        cached
+            .resolve_delegated(&cache_test_request(RecordType::Tlsa), &delegation)
+            .unwrap();
+
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_caches_name_not_found() {
+        let inner = ScriptedDelegatedResolver::new(|| Err(ResolverError::NameNotFound));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+        let delegation = cache_test_delegation(b"ns1");
+
+        for _ in 0..2 {
+            assert!(matches!(
+                cached.resolve_delegated(&request, &delegation),
+                Err(ResolverError::NameNotFound)
+            ));
+        }
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_does_not_cache_other_errors() {
+        let inner = ScriptedDelegatedResolver::new(|| Err(ResolverError::NoNameserverAddress));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+        let delegation = cache_test_delegation(b"ns1");
+
+        for _ in 0..2 {
+            assert!(matches!(
+                cached.resolve_delegated(&request, &delegation),
+                Err(ResolverError::NoNameserverAddress)
+            ));
+        }
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_expires_with_the_answer_record_ttl() {
+        // A zero-TTL record must never be served from cache, so both calls
+        // reach the inner resolver.
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(0)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+        let request = cache_test_request(RecordType::A);
+        let delegation = cache_test_delegation(b"ns1");
+
+        cached.resolve_delegated(&request, &delegation).unwrap();
+        cached.resolve_delegated(&request, &delegation).unwrap();
+
+        assert_eq!(inner.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn cached_delegated_resolver_bounds_lifetimes_by_record_and_negative_ttls() {
+        let inner = ScriptedDelegatedResolver::new(|| Ok(cache_test_answer(300)));
+        let cached = CachedDelegatedResolver::new(&inner, 16, Duration::from_secs(300));
+
+        assert_eq!(
+            cached.positive_cache_ttl(&cache_test_answer(7)),
+            Duration::from_secs(7)
+        );
+        assert_eq!(
+            cached.positive_cache_ttl(&cache_test_answer(86_400)),
+            GATEWAY_RESOLVER_CACHE_TTL
+        );
+        let no_data = ResolutionAnswer {
+            name: DnsName::from_ascii("app.pirate").unwrap(),
+            records: Vec::new(),
+            secure: true,
+        };
+        assert_eq!(
+            cached.positive_cache_ttl(&no_data),
+            GATEWAY_NEGATIVE_ANSWER_CACHE_TTL
+        );
+        assert_eq!(
+            cached.negative_cache_ttl(),
+            GATEWAY_NEGATIVE_ANSWER_CACHE_TTL
+        );
+    }
+
+    #[test]
+    fn persistent_resolver_trace_and_evidence_are_thread_scoped() {
+        let trace = DnsTraceRecorder::default();
+        trace.push(DnsTraceEvent {
+            protocol: "udp",
+            server: "192.0.2.53:53".to_owned(),
+            question_name: Some("app.pirate".to_owned()),
+            question_type: Some(RecordType::A.code()),
+            status: "success".to_owned(),
+            elapsed_ms: 1,
+            error: None,
+        });
+        let evidence = HnsProofEvidenceRecorder::default();
+        evidence
+            .record(
+                "pirate",
+                HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: hns_core::Hash::from_hex(&"11".repeat(32)).unwrap(),
+                        height: Height(7),
+                    },
+                    exists: true,
+                    has_delegation: true,
+                    observed_at_unix: now_unix_seconds(),
+                    expires_at_unix: now_unix_seconds() + 30,
+                },
+            )
+            .unwrap();
+        assert_eq!(trace.snapshot().len(), 1);
+        assert!(evidence.observation("pirate").unwrap().is_some());
+
+        let other_trace = trace.clone();
+        let other_evidence = evidence.clone();
+        thread::spawn(move || {
+            assert!(other_trace.snapshot().is_empty());
+            assert!(other_evidence.observation("pirate").unwrap().is_none());
+        })
+        .join()
+        .unwrap();
+
+        trace.reset();
+        evidence.reset();
+        assert!(trace.snapshot().is_empty());
+        assert!(evidence.observation("pirate").unwrap().is_none());
     }
 }

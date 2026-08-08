@@ -96,4 +96,16 @@ class GatewayResponseBodyStoreTest {
         requireNotNull(finalBody).let(GatewayResponseBodyStore::release)
         dataDir.deleteRecursively()
     }
+
+    @Test
+    fun burstOfSmallResponsesIsNotRejectedByLegacyFileCeiling() {
+        val dataDir = createTempDirectory("gateway-body-burst-test").toFile()
+
+        val bodies = List(128) {
+            requireNotNull(GatewayResponseBodyStore.create(dataDir.absolutePath))
+        }
+
+        bodies.forEach(GatewayResponseBodyStore::release)
+        dataDir.deleteRecursively()
+    }
 }

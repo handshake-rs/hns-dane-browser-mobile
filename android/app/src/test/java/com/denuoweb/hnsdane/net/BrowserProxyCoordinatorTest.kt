@@ -219,7 +219,12 @@ class BrowserProxyCoordinatorTest {
         assertTrue(fixture.loads.isEmpty())
         assertEquals(listOf(43210 to "alpha"), fixture.overrideController.applyCalls)
         assertFalse(fixture.coordinator.isProxyAvailable)
-        assertEquals(BrowserProxyRoute.Block, fixture.coordinator.routeForHnsHost("alpha"))
+        // The start/apply window admits the fail-closed runtime gateway instead of
+        // synthesizing blocks for requests that race the transition.
+        assertEquals(
+            BrowserProxyRoute.CompatibilityInterceptor,
+            fixture.coordinator.routeForHnsHost("alpha"),
+        )
         assertSame(
             proxy.endpoint.authorization,
             fixture.coordinator.authorizationForChallenge("127.0.0.1", proxy.endpoint.authorization.realm),
@@ -365,6 +370,55 @@ class BrowserProxyCoordinatorTest {
         assertEquals(0, first.stopCalls)
         assertEquals(0, fixture.overrideController.clearCalls)
         assertEquals(1, fixture.overrideController.applyCalls.size)
+    }
+
+    @Test
+    fun resumeRestoreAdmitsCompatibilityRouteBeforeBindingPublishes() {
+        val fixture = Fixture()
+        val stale = fixture.activate("alpha")
+        assertEquals(BrowserProxyRoute.Proxy, fixture.coordinator.routeForHnsHost("alpha"))
+
+        fixture.coordinator.suspend()
+        assertEquals(BrowserProxyRoute.Block, fixture.coordinator.routeForHnsHost("alpha"))
+
+        val restored = fixture.proxy("alpha", port = 43211)
+        fixture.factory.results += restored
+        fixture.coordinator.resume(fixture.config("alpha"))
+
+        // Requests racing the restore must not see a synthetic block: the fail-closed
+        // runtime gateway serves the scope until the fresh binding is published.
+        assertFalse(fixture.coordinator.isProxyAvailable)
+        assertEquals(
+            BrowserProxyRoute.CompatibilityInterceptor,
+            fixture.coordinator.routeForHnsHost("alpha"),
+        )
+
+        fixture.worker.runNext()
+        assertEquals(1, stale.joinCalls)
+        fixture.overrideController.completeClear()
+        fixture.worker.runNext()
+        fixture.overrideController.completeApply(true)
+        assertTrue(fixture.coordinator.isProxyAvailable)
+        assertEquals(BrowserProxyRoute.Proxy, fixture.coordinator.routeForHnsHost("alpha"))
+    }
+
+    @Test
+    fun failedResumeRestoreStaysOnTheFailClosedCompatibilityRoute() {
+        val fixture = Fixture()
+        fixture.activate("alpha")
+        fixture.coordinator.suspend()
+
+        fixture.factory.results += null
+        fixture.coordinator.resume(fixture.config("alpha"))
+        fixture.worker.runNext()
+        fixture.overrideController.completeClear()
+        fixture.worker.runNext()
+
+        assertFalse(fixture.coordinator.isProxyAvailable)
+        assertEquals(
+            BrowserProxyRoute.CompatibilityInterceptor,
+            fixture.coordinator.routeForHnsHost("alpha"),
+        )
     }
 
     @Test

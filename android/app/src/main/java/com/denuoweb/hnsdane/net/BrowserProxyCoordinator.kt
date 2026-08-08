@@ -327,6 +327,7 @@ internal class BrowserProxyCoordinator(
 
     private fun reconcile() {
         revokeIncompatibleBindings()
+        publishRestoreCompatibilityScope()
         if (phase != Phase.Idle) return
 
         if (ownershipRevokedGate) {
@@ -616,6 +617,20 @@ internal class BrowserProxyCoordinator(
             publishAvailability(null)
             statusContext = null
         }
+    }
+
+    /**
+     * While a desired proxy generation has no live binding (cold start, resume restore, or
+     * policy rotation), in-scope requests route through the fail-closed runtime gateway
+     * instead of a synthetic block. Without this, interception is already armed while a
+     * restore is still acquiring ownership, starting, or applying the proxy, and immediate
+     * service-worker requests would surface as [BrowserProxyRoute.Block]. Publishing a live
+     * binding or revoking trust replaces this snapshot, so fail-closed behavior is kept.
+     */
+    private fun publishRestoreCompatibilityScope() {
+        val desired = desiredConfig ?: return
+        if (destroyed || !enabled || ownershipRevokedGate || activeBinding != null) return
+        publishCompatibilityScope(desired.scopeHost)
     }
 
     private fun publishCompatibilityScope(scope: String?): Boolean = synchronized(publicationLock) {

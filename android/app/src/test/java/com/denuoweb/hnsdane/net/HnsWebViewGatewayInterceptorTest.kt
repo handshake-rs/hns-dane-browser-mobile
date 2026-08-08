@@ -10,6 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.charset.StandardCharsets
 import kotlin.io.path.createTempDirectory
@@ -89,6 +90,55 @@ class HnsWebViewGatewayInterceptorTest {
         assertEquals("streamed", streamed)
         assertFalse(bridge.bodyFile.exists())
         assertEquals(1, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun serviceWorkerPathReturnsValidatedHeadBeforeConsumingStreamingBody() {
+        val responseBody = ByteArrayInputStream("streamed".toByteArray(StandardCharsets.UTF_8))
+        val bridge = object : HnsGatewayBridge {
+            override fun httpResponse(
+                dataDir: String,
+                config: HnsGatewayRuntimeConfig,
+                method: String,
+                scheme: String,
+                host: String,
+                port: Int,
+                pathAndQuery: String,
+                headers: List<Pair<String, String>>,
+                body: ByteArray,
+            ): ByteArray = error("buffered fallback should not be used")
+
+            override fun httpResponseStreaming(
+                dataDir: String,
+                config: HnsGatewayRuntimeConfig,
+                method: String,
+                scheme: String,
+                host: String,
+                port: Int,
+                pathAndQuery: String,
+                headers: List<Pair<String, String>>,
+                body: ByteArray,
+            ) = HnsGatewayStreamingResponse(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8\r\n\r\n"
+                    .toByteArray(StandardCharsets.ISO_8859_1),
+                responseBody,
+            )
+        }
+        val dataDir = createTempDirectory("hns-webview-streaming-body-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = interceptor.intercept(
+            method = "GET",
+            url = "https://welcome/stream",
+            requestHeaders = emptyMap(),
+            isForMainFrame = false,
+            preferStreaming = true,
+        )
+
+        requireNotNull(response)
+        assertEquals(200, response.statusCode)
+        assertEquals("streamed", response.openBodyStream().readBytes().toString(StandardCharsets.UTF_8))
         dataDir.deleteRecursively()
     }
 
@@ -842,6 +892,146 @@ class HnsWebViewGatewayInterceptorTest {
         dataDir.deleteRecursively()
     }
 
+    @Test
+    fun completedValidatedHashedAssetIsServedFromTheAppCache() {
+        val body = "cached module".toByteArray()
+        val bridge = FileGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: application/javascript\r\n" +
+                    "Content-Length: ${body.size}\r\n\r\n"
+            ).toByteArray(StandardCharsets.ISO_8859_1),
+            body,
+        )
+        val dataDir = createTempDirectory("hns-validated-asset-cache-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir = dataDir,
+            hnsGatewayBridge = bridge,
+            namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
+            chainTipToken = { "100:hash:root" },
+        )
+        val url = "https://app.pirate/assets/client-Bk8h6irO.js"
+
+        val first = requireNotNull(
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
+        val firstBytes = ByteArray("cached module".toByteArray().size)
+        first.openBodyStream().use { input ->
+            assertEquals(firstBytes.size, input.read(firstBytes))
+        }
+        assertEquals("cached module", firstBytes.decodeToString())
+        val second = requireNotNull(
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
+        assertEquals("cached module", second.openBodyStream().use { it.readBytes() }.decodeToString())
+        assertEquals(1, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun chainTipChangeInvalidatesValidatedHashedAssets() {
+        val body = "tip-bound module".toByteArray()
+        val bridge = FileGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: application/javascript\r\n" +
+                    "Content-Length: ${body.size}\r\n\r\n"
+            ).toByteArray(StandardCharsets.ISO_8859_1),
+            body,
+        )
+        val dataDir = createTempDirectory("hns-validated-asset-tip-test").toFile()
+        var tip = "100:hash:root"
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir = dataDir,
+            hnsGatewayBridge = bridge,
+            namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
+            chainTipToken = { tip },
+        )
+        val url = "https://app.pirate/assets/client-Bk8h6irO.js"
+
+        requireNotNull(
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
+            .openBodyStream()
+            .use { it.readBytes() }
+        tip = "101:next-hash:next-root"
+        requireNotNull(
+            interceptor.intercept(
+                "GET",
+                url,
+                emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
+            .openBodyStream()
+            .use { it.readBytes() }
+
+        assertEquals(2, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun resolverPolicyChangesProduceDifferentValidatedAssetScopes() {
+        val config = HnsGatewayRuntimeConfig(
+            network = "mainnet",
+            strictHnsMode = true,
+            dohResolverUrl = "https://resolver.invalid/dns-query",
+            statelessDaneCertificates = false,
+        )
+
+        assertFalse(
+            ValidatedAssetCache.scope(config, "100:hash:root") ==
+                ValidatedAssetCache.scope(config.copy(strictHnsMode = false), "100:hash:root"),
+        )
+    }
+
+    @Test
+    fun completedFileBackedAssetIsPublishedBeforeReturningToWebView() {
+        val body = "file-backed module".toByteArray()
+        val bridge = FileGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: application/javascript\r\n" +
+                    "Content-Length: ${body.size}\r\n\r\n"
+            ).toByteArray(StandardCharsets.ISO_8859_1),
+            body,
+        )
+        val dataDir = createTempDirectory("hns-validated-file-asset-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir = dataDir,
+            hnsGatewayBridge = bridge,
+            namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
+            chainTipToken = { "100:hash:root" },
+        )
+        val url = "https://app.pirate/assets/client-Bk8h6irO.js"
+
+        val first = requireNotNull(interceptor.intercept("GET", url, emptyMap()))
+        assertEquals("file-backed module", first.openBodyStream().use { it.readBytes() }.decodeToString())
+        val second = requireNotNull(interceptor.intercept("GET", url, emptyMap()))
+        assertEquals("file-backed module", second.openBodyStream().use { it.readBytes() }.decodeToString())
+        assertEquals(1, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
     private data class GatewayCall(
         val dataDir: String,
         val method: String,
@@ -946,6 +1136,45 @@ class HnsWebViewGatewayInterceptorTest {
                 body.toString(StandardCharsets.ISO_8859_1),
             )
             return HnsGatewayFileResponse(responseHead, bodyFile)
+        }
+    }
+
+    private class StreamingAssetGatewayBridge(body: String) : HnsGatewayBridge {
+        private val responseBody = body.toByteArray(StandardCharsets.UTF_8)
+        var calls = 0
+
+        override fun httpResponse(
+            dataDir: String,
+            config: HnsGatewayRuntimeConfig,
+            method: String,
+            scheme: String,
+            host: String,
+            port: Int,
+            pathAndQuery: String,
+            headers: List<Pair<String, String>>,
+            body: ByteArray,
+        ): ByteArray = error("buffered fallback should not be used")
+
+        override fun httpResponseStreaming(
+            dataDir: String,
+            config: HnsGatewayRuntimeConfig,
+            method: String,
+            scheme: String,
+            host: String,
+            port: Int,
+            pathAndQuery: String,
+            headers: List<Pair<String, String>>,
+            body: ByteArray,
+        ): HnsGatewayStreamingResponse {
+            calls += 1
+            return HnsGatewayStreamingResponse(
+                (
+                    "HTTP/1.1 200 OK\r\n" +
+                        "Content-Type: application/javascript\r\n" +
+                        "Content-Length: ${responseBody.size}\r\n\r\n"
+                ).toByteArray(StandardCharsets.ISO_8859_1),
+                ByteArrayInputStream(responseBody),
+            )
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.denuoweb.hnsdane.net
 
+import android.os.ParcelFileDescriptor
 import com.denuoweb.hnsdane.core.BrowserNamespaceClass
 import com.denuoweb.hnsdane.core.BrowserNamespacePolicy
 import com.denuoweb.hnsdane.core.BrowserWebSocketScopePolicySource
@@ -7,6 +8,14 @@ import java.io.File
 import java.io.InputStream
 import java.util.Locale
 import java.util.concurrent.locks.ReentrantReadWriteLock
+
+// Diagnostic-only: the gateway bridge nulls are indistinguishable from the
+// interceptor's perspective; tag each early return so logcat shows the origin.
+private const val GATEWAY_DIAG_TAG = "hns-gateway-diag"
+
+private fun gatewayDiag(message: String) {
+    android.util.Log.e(GATEWAY_DIAG_TAG, message)
+}
 
 interface HnsGatewayBridge {
     fun httpResponse(
@@ -32,6 +41,18 @@ interface HnsGatewayBridge {
         headers: List<Pair<String, String>>,
         body: ByteArray,
     ): HnsGatewayFileResponse? = null
+
+    fun httpResponseStreaming(
+        dataDir: String,
+        config: HnsGatewayRuntimeConfig,
+        method: String,
+        scheme: String,
+        host: String,
+        port: Int,
+        pathAndQuery: String,
+        headers: List<Pair<String, String>>,
+        body: ByteArray,
+    ): HnsGatewayStreamingResponse? = null
 
 }
 
@@ -60,6 +81,11 @@ data class HnsGatewayFileResponse(
         GatewayResponseBodyStore.release(bodyFile)
     }
 }
+
+data class HnsGatewayStreamingResponse(
+    val head: ByteArray,
+    val bodyStream: InputStream,
+)
 
 object NativeBridge :
     HnsGatewayBridge,
@@ -124,6 +150,17 @@ object NativeBridge :
         block = ::nativeRuntimeSyncStatus,
     )
 
+    fun chainTipToken(dataDir: String, network: String = DEFAULT_NETWORK): String? {
+        val token = withRuntime(
+            dataDir = dataDir,
+            network = network,
+            unavailable = "",
+            block = ::nativeRuntimeChainTipToken,
+        ).takeIf { it.isNotBlank() }
+        if (token == null) gatewayDiag("chainTipToken: unavailable for network=$network")
+        return token
+    }
+
     fun addStaticRelayPeer(dataDir: String, network: String, endpoint: String): String = withRuntime(
         dataDir = dataDir,
         network = network,
@@ -175,9 +212,12 @@ object NativeBridge :
         headers: List<Pair<String, String>>,
         body: ByteArray,
     ): ByteArray? {
-        if (!isLoaded) return null
+        if (!isLoaded) {
+            gatewayDiag("httpResponse: native library not loaded")
+            return null
+        }
         val headerText = serializeHeaders(headers)
-        return withRuntime(
+        val result = withRuntime(
             dataDir = dataDir,
             network = config.network,
             unavailable = null,
@@ -198,6 +238,8 @@ object NativeBridge :
                 body,
             )
         }
+        if (result == null) gatewayDiag("httpResponse: null for host=$host (runtime or FFI)")
+        return result
     }
 
     override fun httpResponseBodyFile(
@@ -212,10 +254,14 @@ object NativeBridge :
         body: ByteArray,
     ): HnsGatewayFileResponse? {
         if (!isLoaded) {
+            gatewayDiag("httpResponseBodyFile: native library not loaded")
             return null
         }
         val headerText = serializeHeaders(headers)
-        val bodyFile = GatewayResponseBodyStore.create(dataDir) ?: return null
+        val bodyFile = GatewayResponseBodyStore.create(dataDir) ?: run {
+            gatewayDiag("httpResponseBodyFile: body store create failed")
+            return null
+        }
         val head = runCatching {
             withRuntime(
                 dataDir = dataDir,
@@ -241,10 +287,66 @@ object NativeBridge :
             }
         }.getOrNull()
         if (head == null || !GatewayResponseBodyStore.retainCompleted(bodyFile)) {
+            gatewayDiag("httpResponseBodyFile: null head=${head == null} for host=$host")
             GatewayResponseBodyStore.release(bodyFile)
             return null
         }
         return HnsGatewayFileResponse(head, bodyFile)
+    }
+
+    override fun httpResponseStreaming(
+        dataDir: String,
+        config: HnsGatewayRuntimeConfig,
+        method: String,
+        scheme: String,
+        host: String,
+        port: Int,
+        pathAndQuery: String,
+        headers: List<Pair<String, String>>,
+        body: ByteArray,
+    ): HnsGatewayStreamingResponse? {
+        if (!isLoaded) return null
+        val pipe = runCatching { ParcelFileDescriptor.createPipe() }.getOrNull() ?: return null
+        val readSide = pipe[0]
+        val writeSide = pipe[1]
+        val writeFd = runCatching { writeSide.detachFd() }.getOrElse {
+            readSide.close()
+            writeSide.close()
+            return null
+        }
+        writeSide.close()
+        val head = runCatching {
+            withRuntime(
+                dataDir = dataDir,
+                network = config.network,
+                unavailable = null,
+            ) { handle ->
+                nativeRuntimeGatewayHttpResponseStreaming(
+                    handle,
+                    config.strictHnsMode,
+                    config.dohResolverUrl,
+                    config.statelessDaneCertificates,
+                    config.experimentalP2pDnsRelay,
+                    config.legacyHnsDohCompatibility,
+                    method,
+                    scheme,
+                    host,
+                    port,
+                    pathAndQuery,
+                    serializeHeaders(headers),
+                    body,
+                    writeFd,
+                )
+            }
+        }.getOrNull()
+        if (head == null) {
+            readSide.close()
+            return null
+        }
+        return HnsGatewayStreamingResponse(
+            head = head,
+            bodyStream = ParcelFileDescriptor.AutoCloseInputStream(readSide),
+        )
     }
 
     internal fun startRustProxy(config: RustBrowserProxyConfig): LocalBrowserProxyEndpoint? = withRuntime(
@@ -335,7 +437,10 @@ object NativeBridge :
         unavailable: T,
         block: (Long) -> T,
     ): T {
-        if (!isLoaded) return unavailable
+        if (!isLoaded) {
+            gatewayDiag("withRuntime: native library not loaded")
+            return unavailable
+        }
         val canonicalNetwork = canonicalRuntimeNetwork(network)
         val key = RuntimeKey(dataDir, canonicalNetwork)
         val readLock = runtimeLifecycleLock.readLock()
@@ -352,7 +457,10 @@ object NativeBridge :
             val existing = runtimeHandles[key]
             if (existing != null) return block(existing)
             val created = nativeRuntimeCreate(dataDir, canonicalNetwork)
-            if (created == INVALID_RUNTIME_HANDLE) return unavailable
+            if (created == INVALID_RUNTIME_HANDLE) {
+                gatewayDiag("withRuntime: runtime create returned invalid handle")
+                return unavailable
+            }
             runtimeHandles[key] = created
             return block(created)
         } finally {
@@ -375,6 +483,8 @@ object NativeBridge :
     private external fun nativeRuntimeSyncOnce(handle: Long): String
 
     private external fun nativeRuntimeSyncStatus(handle: Long): String
+
+    private external fun nativeRuntimeChainTipToken(handle: Long): String
 
     private external fun nativeRuntimeAddStaticRelayPeer(handle: Long, endpoint: String): String
 
@@ -427,6 +537,23 @@ object NativeBridge :
         headerText: String,
         body: ByteArray,
         bodyPath: String,
+    ): ByteArray?
+
+    private external fun nativeRuntimeGatewayHttpResponseStreaming(
+        handle: Long,
+        strictHnsMode: Boolean,
+        dohResolverUrl: String,
+        statelessDaneCertificates: Boolean,
+        experimentalP2pDnsRelay: Boolean,
+        legacyHnsDohCompatibility: Boolean,
+        method: String,
+        scheme: String,
+        host: String,
+        port: Int,
+        pathAndQuery: String,
+        headerText: String,
+        body: ByteArray,
+        writeFd: Int,
     ): ByteArray?
 
     private external fun nativeProxyRequestStop(

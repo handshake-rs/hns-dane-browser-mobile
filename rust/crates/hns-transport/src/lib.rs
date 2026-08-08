@@ -169,7 +169,31 @@ pub trait OriginTransport {
         body.write_all(&response.body).map_err(io_error)?;
         Ok(response.into_head())
     }
+
+    /// Publishes a fully validated immutable response head before body bytes
+    /// are written when the transport supports streaming. The default keeps
+    /// compatibility for buffered transports while preserving ordering.
+    fn fetch_to_writer_streaming(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<OriginResponseHead, TransportError> {
+        let response = self.fetch(request)?;
+        let head = OriginResponseHead {
+            status: response.status,
+            headers: response.headers.clone(),
+            body_len: response.body.len(),
+            dane_decision: response.dane_decision.clone(),
+            tls_inspection: response.tls_inspection.clone(),
+        };
+        on_head(&head)?;
+        body.write_all(&response.body).map_err(io_error)?;
+        Ok(head)
+    }
 }
+
+type OriginHeadObserver<'a> = &'a mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>;
 
 pub trait ReadWrite: Read + Write + Send {}
 
@@ -629,6 +653,51 @@ impl TcpHttpTransport {
         Ok(head)
     }
 
+    fn fetch_http11_to_writer_streaming(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<OriginResponseHead, TransportError> {
+        validate_request(request, self.limits)?;
+        let key = self.http11_pool_key(request);
+        if let Some(PooledHttp11Connection::Plain(mut stream)) = self.take_http11_connection(&key)
+            && let Ok((head, reusable)) = self.send_http11_streaming(
+                &mut stream,
+                request,
+                body,
+                DaneDecision::NoTlsa,
+                None,
+                on_head,
+            )
+        {
+            if reusable {
+                self.put_http11_connection(key, PooledHttp11Connection::Plain(stream));
+            }
+            return Ok(head);
+        }
+        let connection_host = request.connect_host.as_deref().unwrap_or(&request.host);
+        let mut stream = connect(connection_host, request.port, self.connect_timeout)?;
+        stream
+            .set_read_timeout(Some(self.read_timeout))
+            .map_err(io_error)?;
+        stream
+            .set_write_timeout(Some(self.read_timeout))
+            .map_err(io_error)?;
+        let (head, reusable) = self.send_http11_streaming(
+            &mut stream,
+            request,
+            body,
+            DaneDecision::NoTlsa,
+            None,
+            on_head,
+        )?;
+        if reusable {
+            self.put_http11_connection(key, PooledHttp11Connection::Plain(stream));
+        }
+        Ok(head)
+    }
+
     fn fetch_https_http11(
         &self,
         request: &OriginRequest,
@@ -718,6 +787,85 @@ impl TcpHttpTransport {
         Ok(head)
     }
 
+    fn fetch_https_http11_to_writer_streaming(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<OriginResponseHead, TransportError> {
+        validate_request(request, self.limits)?;
+        let key = self.http11_pool_key(request);
+        if let Some(PooledHttp11Connection::Tls {
+            mut stream,
+            dane_decision,
+            tls_inspection,
+        }) = self.take_http11_connection(&key)
+            && let Ok((head, reusable)) = self.send_http11_streaming(
+                stream.as_mut(),
+                request,
+                body,
+                dane_decision.clone(),
+                tls_inspection.clone(),
+                on_head,
+            )
+        {
+            if reusable {
+                self.put_http11_connection(
+                    key,
+                    PooledHttp11Connection::Tls {
+                        stream,
+                        dane_decision,
+                        tls_inspection,
+                    },
+                );
+            }
+            return Ok(head);
+        }
+
+        let connection_host = request.connect_host.as_deref().unwrap_or(&request.host);
+        let stream = connect(connection_host, request.port, self.connect_timeout)?;
+        stream
+            .set_read_timeout(Some(self.read_timeout))
+            .map_err(io_error)?;
+        stream
+            .set_write_timeout(Some(self.read_timeout))
+            .map_err(io_error)?;
+        let (config, verifier) = self.client_config(request.tls.clone(), Vec::new())?;
+        let server_name = ServerName::try_from(request.host.clone())
+            .map_err(|_| TransportError::InvalidRequest)?;
+        verifier.begin_handshake(&request.host);
+        let connection = ClientConnection::new(Arc::new(config), server_name).map_err(tls_error)?;
+        let mut tls_stream = StreamOwned::new(connection, stream);
+        while tls_stream.conn.is_handshaking() {
+            tls_stream
+                .conn
+                .complete_io(&mut tls_stream.sock)
+                .map_err(|error| {
+                    verifier.classify_handshake_error(&request.host, io_error(error))
+                })?;
+        }
+        let (dane_decision, tls_inspection) = verifier.finish_handshake(&request.host)?;
+        let (head, reusable) = self.send_http11_streaming(
+            &mut tls_stream,
+            request,
+            body,
+            dane_decision.clone(),
+            tls_inspection.clone(),
+            on_head,
+        )?;
+        if reusable {
+            self.put_http11_connection(
+                key,
+                PooledHttp11Connection::Tls {
+                    stream: Box::new(tls_stream),
+                    dane_decision,
+                    tls_inspection,
+                },
+            );
+        }
+        Ok(head)
+    }
+
     fn fetch_https_http2(&self, request: &OriginRequest) -> Result<OriginResponse, TransportError> {
         let mut body = Vec::new();
         let head = self.fetch_https_http2_to_writer(request, &mut body)?;
@@ -741,17 +889,33 @@ impl TcpHttpTransport {
             .enable_time()
             .build()
             .map_err(io_error)?;
-        runtime.block_on(self.fetch_https_http2_to_writer_async(request, body))
+        runtime.block_on(self.fetch_https_http2_to_writer_async(request, body, None))
+    }
+
+    fn fetch_https_http2_to_writer_streaming(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<OriginResponseHead, TransportError> {
+        validate_request(request, self.limits)?;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_io()
+            .enable_time()
+            .build()
+            .map_err(io_error)?;
+        runtime.block_on(self.fetch_https_http2_to_writer_async(request, body, Some(on_head)))
     }
 
     async fn fetch_https_http2_to_writer_async(
         &self,
         request: &OriginRequest,
         body: &mut dyn Write,
+        on_head: Option<OriginHeadObserver<'_>>,
     ) -> Result<OriginResponseHead, TransportError> {
         tokio::time::timeout(
             self.read_timeout,
-            self.fetch_https_http2_to_writer_inner(request, body),
+            self.fetch_https_http2_to_writer_inner(request, body, on_head),
         )
         .await
         .map_err(|_| TransportError::Io("HTTP/2 origin request timed out".to_owned()))?
@@ -761,6 +925,7 @@ impl TcpHttpTransport {
         &self,
         request: &OriginRequest,
         body: &mut dyn Write,
+        on_head: Option<OriginHeadObserver<'_>>,
     ) -> Result<OriginResponseHead, TransportError> {
         let connection_host = request.connect_host.as_deref().unwrap_or(&request.host);
         let stream = connect_async(connection_host, request.port, self.connect_timeout).await?;
@@ -803,6 +968,16 @@ impl TcpHttpTransport {
             return Err(TransportError::MalformedResponse);
         }
         let expected_body_len = content_length(&headers)?;
+        let (dane_decision, tls_inspection) = verifier.finish_handshake(&request.host)?;
+        if let Some(on_head) = on_head {
+            on_head(&OriginResponseHead {
+                status,
+                headers: headers.clone(),
+                body_len: expected_body_len.unwrap_or(0),
+                dane_decision: dane_decision.clone(),
+                tls_inspection: tls_inspection.clone(),
+            })?;
+        }
         let mut response_body = response.into_body();
         let no_body = response_has_no_body(&request.method, status);
         let body_len = if no_body {
@@ -821,7 +996,6 @@ impl TcpHttpTransport {
         }
         connection_task.abort();
 
-        let (dane_decision, tls_inspection) = verifier.finish_handshake(&request.host)?;
         Ok(OriginResponseHead {
             status,
             headers,
@@ -854,21 +1028,39 @@ impl TcpHttpTransport {
             .enable_time()
             .build()
             .map_err(io_error)?;
-        runtime.block_on(self.fetch_https_http3_to_writer_async(request, body))
+        runtime.block_on(self.fetch_https_http3_to_writer_async(request, body, None))
+    }
+
+    fn fetch_https_http3_to_writer_streaming(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<OriginResponseHead, TransportError> {
+        validate_request(request, self.limits)?;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_io()
+            .enable_time()
+            .build()
+            .map_err(io_error)?;
+        runtime.block_on(self.fetch_https_http3_to_writer_async(request, body, Some(on_head)))
     }
 
     async fn fetch_https_http3_to_writer_async(
         &self,
         request: &OriginRequest,
         body: &mut dyn Write,
+        on_head: Option<OriginHeadObserver<'_>>,
     ) -> Result<OriginResponseHead, TransportError> {
-        self.fetch_https_http3_to_writer_inner(request, body).await
+        self.fetch_https_http3_to_writer_inner(request, body, on_head)
+            .await
     }
 
     async fn fetch_https_http3_to_writer_inner(
         &self,
         request: &OriginRequest,
         body: &mut dyn Write,
+        on_head: Option<OriginHeadObserver<'_>>,
     ) -> Result<OriginResponseHead, TransportError> {
         let connection_host = request.connect_host.as_deref().unwrap_or(&request.host);
         let remote = resolve_socket_addr_async(connection_host, request.port).await?;
@@ -936,6 +1128,16 @@ impl TcpHttpTransport {
             return Err(TransportError::MalformedResponse);
         }
         let expected_body_len = content_length(&headers)?;
+        let (dane_decision, tls_inspection) = verifier.finish_handshake(&request.host)?;
+        if let Some(on_head) = on_head {
+            on_head(&OriginResponseHead {
+                status,
+                headers: headers.clone(),
+                body_len: expected_body_len.unwrap_or(0),
+                dane_decision: dane_decision.clone(),
+                tls_inspection: tls_inspection.clone(),
+            })?;
+        }
         let no_body = response_has_no_body(&request.method, status);
         let body_len = if no_body {
             http3_timeout(
@@ -964,7 +1166,6 @@ impl TcpHttpTransport {
         driver_task.abort();
         close_connection.close(0u32.into(), b"done");
 
-        let (dane_decision, tls_inspection) = verifier.finish_handshake(&request.host)?;
         Ok(OriginResponseHead {
             status,
             headers,
@@ -1312,8 +1513,38 @@ impl TcpHttpTransport {
         let request_bytes = build_http_request(request, true)?;
         stream.write_all(&request_bytes).map_err(io_error)?;
         stream.flush().map_err(io_error)?;
-        let (head, reusable) =
-            parse_http_response_to_writer_reusable(stream, self.limits, &request.method, body)?;
+        let (head, reusable) = parse_http_response_to_writer_reusable(
+            stream,
+            self.limits,
+            &request.method,
+            body,
+            None,
+            None,
+        )?;
+        self.record_alt_svc(request, &head.headers);
+        Ok((head, reusable))
+    }
+
+    fn send_http11_streaming(
+        &self,
+        stream: &mut impl ReadWrite,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        dane_decision: DaneDecision,
+        tls_inspection: Option<TlsCertificateInspection>,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<(OriginResponseHead, bool), TransportError> {
+        let request_bytes = build_http_request(request, true)?;
+        stream.write_all(&request_bytes).map_err(io_error)?;
+        stream.flush().map_err(io_error)?;
+        let (head, reusable) = parse_http_response_to_writer_reusable(
+            stream,
+            self.limits,
+            &request.method,
+            body,
+            Some((dane_decision, tls_inspection)),
+            Some(on_head),
+        )?;
         self.record_alt_svc(request, &head.headers);
         Ok((head, reusable))
     }
@@ -1377,6 +1608,34 @@ impl OriginTransport for TcpHttpTransport {
                 self.fetch_unpromoted_to_writer(request, attempted_body.inner_mut())
             }
             Err(error) => Err(error),
+        }
+    }
+
+    fn fetch_to_writer_streaming(
+        &self,
+        request: &OriginRequest,
+        body: &mut dyn Write,
+        on_head: &mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>,
+    ) -> Result<OriginResponseHead, TransportError> {
+        let promoted = self.promoted_request(request);
+        match (
+            promoted.scheme.to_ascii_lowercase().as_str(),
+            promoted.protocol,
+        ) {
+            ("http", OriginProtocol::Http11) => {
+                self.fetch_http11_to_writer_streaming(&promoted, body, on_head)
+            }
+            ("https", OriginProtocol::Http11) => {
+                self.fetch_https_http11_to_writer_streaming(&promoted, body, on_head)
+            }
+            ("https", OriginProtocol::Http2) => {
+                self.fetch_https_http2_to_writer_streaming(&promoted, body, on_head)
+            }
+            ("https", OriginProtocol::Http3) => {
+                self.fetch_https_http3_to_writer_streaming(&promoted, body, on_head)
+            }
+            ("http", _) => Err(TransportError::UnsupportedTransport),
+            _ => Err(TransportError::UnsupportedScheme),
         }
     }
 }
@@ -2059,6 +2318,8 @@ fn parse_http_response_to_writer_reusable(
     limits: TransportLimits,
     request_method: &str,
     body: &mut dyn Write,
+    security: Option<(DaneDecision, Option<TlsCertificateInspection>)>,
+    mut on_head: Option<OriginHeadObserver<'_>>,
 ) -> Result<(OriginResponseHead, bool), TransportError> {
     let mut remaining_header_bytes = limits.max_response_header_bytes;
     let mut informational_count = 0usize;
@@ -2101,6 +2362,17 @@ fn parse_http_response_to_writer_reusable(
         break (version, status, headers);
     };
 
+    let (dane_decision, tls_inspection) = security.unwrap_or((DaneDecision::NoTlsa, None));
+    if let Some(observer) = on_head.as_mut() {
+        observer(&OriginResponseHead {
+            status,
+            headers: headers.clone(),
+            body_len: content_length(&headers)?.unwrap_or(0),
+            dane_decision: dane_decision.clone(),
+            tls_inspection: tls_inspection.clone(),
+        })?;
+    }
+
     let mut self_delimited = response_has_no_body(request_method, status);
     let body_len = if self_delimited {
         0
@@ -2132,8 +2404,8 @@ fn parse_http_response_to_writer_reusable(
             status,
             headers,
             body_len,
-            dane_decision: DaneDecision::NoTlsa,
-            tls_inspection: None,
+            dane_decision,
+            tls_inspection,
         },
         reusable,
     ))
@@ -3055,6 +3327,44 @@ mod tests {
             ]
         );
         assert_eq!(streamed, body);
+    }
+
+    #[test]
+    fn streaming_publishes_validated_head_before_reading_body() {
+        let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
+        let address = listener.local_addr().unwrap();
+        let (release_tx, release_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let _request = read_test_http_head(&mut stream);
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n")
+                .unwrap();
+            stream.flush().unwrap();
+            release_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+            stream.write_all(b"body").unwrap();
+        });
+        let transport = TcpHttpTransport::new(
+            Duration::from_secs(1),
+            Duration::from_secs(2),
+            TransportLimits::default(),
+        );
+        let mut body = Vec::new();
+        let mut observed = false;
+
+        let head = transport
+            .fetch_to_writer_streaming(&request(address), &mut body, &mut |head| {
+                observed = true;
+                assert_eq!(head.status, 200);
+                release_tx.send(()).unwrap();
+                Ok(())
+            })
+            .unwrap();
+
+        assert!(observed);
+        assert_eq!(head.body_len, 4);
+        assert_eq!(body, b"body");
+        server.join().unwrap();
     }
 
     #[test]
