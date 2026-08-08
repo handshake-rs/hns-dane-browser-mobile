@@ -193,6 +193,8 @@ pub trait OriginTransport {
     }
 }
 
+type OriginHeadObserver<'a> = &'a mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>;
+
 pub trait ReadWrite: Read + Write + Send {}
 
 impl<T: Read + Write + Send> ReadWrite for T {}
@@ -659,23 +661,20 @@ impl TcpHttpTransport {
     ) -> Result<OriginResponseHead, TransportError> {
         validate_request(request, self.limits)?;
         let key = self.http11_pool_key(request);
-        if let Some(PooledHttp11Connection::Plain(mut stream)) = self.take_http11_connection(&key) {
-            match self.send_http11_streaming(
+        if let Some(PooledHttp11Connection::Plain(mut stream)) = self.take_http11_connection(&key)
+            && let Ok((head, reusable)) = self.send_http11_streaming(
                 &mut stream,
                 request,
                 body,
                 DaneDecision::NoTlsa,
                 None,
                 on_head,
-            ) {
-                Ok((head, reusable)) => {
-                    if reusable {
-                        self.put_http11_connection(key, PooledHttp11Connection::Plain(stream));
-                    }
-                    return Ok(head);
-                }
-                Err(_) => {}
+            )
+        {
+            if reusable {
+                self.put_http11_connection(key, PooledHttp11Connection::Plain(stream));
             }
+            return Ok(head);
         }
         let connection_host = request.connect_host.as_deref().unwrap_or(&request.host);
         let mut stream = connect(connection_host, request.port, self.connect_timeout)?;
@@ -801,30 +800,26 @@ impl TcpHttpTransport {
             dane_decision,
             tls_inspection,
         }) = self.take_http11_connection(&key)
-        {
-            match self.send_http11_streaming(
+            && let Ok((head, reusable)) = self.send_http11_streaming(
                 stream.as_mut(),
                 request,
                 body,
                 dane_decision.clone(),
                 tls_inspection.clone(),
                 on_head,
-            ) {
-                Ok((head, reusable)) => {
-                    if reusable {
-                        self.put_http11_connection(
-                            key,
-                            PooledHttp11Connection::Tls {
-                                stream,
-                                dane_decision,
-                                tls_inspection,
-                            },
-                        );
-                    }
-                    return Ok(head);
-                }
-                Err(_) => {}
+            )
+        {
+            if reusable {
+                self.put_http11_connection(
+                    key,
+                    PooledHttp11Connection::Tls {
+                        stream,
+                        dane_decision,
+                        tls_inspection,
+                    },
+                );
             }
+            return Ok(head);
         }
 
         let connection_host = request.connect_host.as_deref().unwrap_or(&request.host);
@@ -916,7 +911,7 @@ impl TcpHttpTransport {
         &self,
         request: &OriginRequest,
         body: &mut dyn Write,
-        on_head: Option<&mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>>,
+        on_head: Option<OriginHeadObserver<'_>>,
     ) -> Result<OriginResponseHead, TransportError> {
         tokio::time::timeout(
             self.read_timeout,
@@ -930,7 +925,7 @@ impl TcpHttpTransport {
         &self,
         request: &OriginRequest,
         body: &mut dyn Write,
-        on_head: Option<&mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>>,
+        on_head: Option<OriginHeadObserver<'_>>,
     ) -> Result<OriginResponseHead, TransportError> {
         let connection_host = request.connect_host.as_deref().unwrap_or(&request.host);
         let stream = connect_async(connection_host, request.port, self.connect_timeout).await?;
@@ -1055,7 +1050,7 @@ impl TcpHttpTransport {
         &self,
         request: &OriginRequest,
         body: &mut dyn Write,
-        on_head: Option<&mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>>,
+        on_head: Option<OriginHeadObserver<'_>>,
     ) -> Result<OriginResponseHead, TransportError> {
         self.fetch_https_http3_to_writer_inner(request, body, on_head)
             .await
@@ -1065,7 +1060,7 @@ impl TcpHttpTransport {
         &self,
         request: &OriginRequest,
         body: &mut dyn Write,
-        on_head: Option<&mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>>,
+        on_head: Option<OriginHeadObserver<'_>>,
     ) -> Result<OriginResponseHead, TransportError> {
         let connection_host = request.connect_host.as_deref().unwrap_or(&request.host);
         let remote = resolve_socket_addr_async(connection_host, request.port).await?;
@@ -2324,7 +2319,7 @@ fn parse_http_response_to_writer_reusable(
     request_method: &str,
     body: &mut dyn Write,
     security: Option<(DaneDecision, Option<TlsCertificateInspection>)>,
-    mut on_head: Option<&mut dyn FnMut(&OriginResponseHead) -> Result<(), TransportError>>,
+    mut on_head: Option<OriginHeadObserver<'_>>,
 ) -> Result<(OriginResponseHead, bool), TransportError> {
     let mut remaining_header_bytes = limits.max_response_header_bytes;
     let mut informational_count = 0usize;
