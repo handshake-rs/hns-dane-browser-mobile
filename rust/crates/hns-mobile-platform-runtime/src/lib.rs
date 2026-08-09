@@ -1663,12 +1663,9 @@ struct RuntimeInner {
     latest_canonical_status: RwLock<CanonicalStatusAvailability>,
     namespace_plans: SharedNamespacePlans,
     gateway_resolvers: Mutex<HashMap<GatewayResolverKey, Arc<PersistentGatewayResolver>>>,
-    /// Serializes policy-scoped runtime operations end to end. Overlap is
-    /// deliberately disabled: concurrent interceptor requests stretch each
-    /// other's uncached ICANN legs past the one-second delegated-HNS evidence
-    /// freshness window (see `hns_observation_freshness`), which flips
-    /// namespace plans to Indeterminate under request bursts. The lock still
-    /// guarantees no request observes a policy transition mid-flight.
+    /// Serializes policy-scoped runtime operations end to end. The lock
+    /// guarantees no request observes a policy transition mid-flight while
+    /// the admitted-delivery layer measures and bounds request pressure.
     operation: Mutex<()>,
     admitted_delivery: AdmittedDeliveryConcurrency,
     operation_metrics: PolicyOperationMetrics,
@@ -2341,11 +2338,9 @@ impl BrowserRuntime {
     ) -> Result<T, RuntimeError> {
         let policy = policy.enforce_hns_trust_policy()?;
         // Operations stay serialized even when the requested policy already
-        // matches: concurrent gateway requests contend for the uncached ICANN
-        // absence leg, and a stretched leg outlives the one-second
-        // delegated-HNS evidence freshness window, flipping namespace plans
-        // to Indeterminate (503). The metrics still record admission so any
-        // future overlap experiment is measurable.
+        // matches so a request cannot observe a policy transition mid-flight.
+        // Admission metrics remain independent so later overlap work stays
+        // measurable.
         let _operation = self
             .inner
             .operation
@@ -6992,7 +6987,20 @@ fn build_namespace_plan(
                 Some(Namespace::Icann) => icann_build.answers,
                 None => HashMap::new(),
             };
-            let expires_at_unix = outcome.expires_at_unix();
+            // Delegated-HNS proof evidence is request-scoped and must remain
+            // valid long enough to classify it against the independently
+            // resolved ICANN root. Keep the completed plan deliberately
+            // ephemeral instead: this preserves rapid revalidation without
+            // letting a slow ICANN leg invalidate the proof that this same
+            // plan build just authenticated.
+            let expires_at_unix =
+                if hns_observation.is_some_and(|observation| observation.has_delegation) {
+                    outcome
+                        .expires_at_unix()
+                        .min(decision_now.saturating_add(1))
+                } else {
+                    outcome.expires_at_unix()
+                };
             let state_fingerprint = metadata.fingerprint.clone();
             CachedNamespacePlan {
                 metadata,
@@ -7838,18 +7846,7 @@ fn consistent_icann_negative_observation(
 }
 
 fn hns_observation_freshness(observation: HnsProofObservation) -> Result<Freshness, ()> {
-    let now = now_unix_seconds();
-    let observed_at_unix = if observation.has_delegation {
-        now
-    } else {
-        observation.observed_at_unix
-    };
-    let expires_at_unix = if observation.has_delegation {
-        observation.expires_at_unix.min(now.saturating_add(1))
-    } else {
-        observation.expires_at_unix
-    };
-    Freshness::new(observed_at_unix, expires_at_unix).map_err(|_| ())
+    Freshness::new(observation.observed_at_unix, observation.expires_at_unix).map_err(|_| ())
 }
 
 fn icann_observation_freshness(observation: IcannResponseObservation) -> Result<Freshness, ()> {
@@ -25417,22 +25414,23 @@ mod tests {
     }
 
     #[test]
-    fn delayed_icann_leg_after_a_delegated_cache_hit_flips_the_plan_indeterminate() {
+    fn delayed_icann_leg_does_not_expire_request_scoped_hns_evidence() {
         let (data_dir, runtime, _delegated_calls, icann_delay) =
             runtime_with_delegated_loopback_name("runtime-raw-gateway-slow-icann");
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        let server = spawn_loopback_origin(listener, 1, write_ok_body_response);
+        let server = spawn_loopback_origin(listener, 2, write_ok_body_response);
 
         let response = runtime
             .raw_gateway_request(raw_delegated_request(port), RuntimePolicy::compatibility())
             .unwrap()
             .into_bytes();
         assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
-        server.join().unwrap();
 
-        // Force a plan rebuild with a warm delegated cache, but let the ICANN
-        // absence leg outlive the delegated HNS evidence freshness window.
+        // Force a plan rebuild with a warm delegated cache, then stretch the
+        // independent ICANN absence leg past one second. The HNS proof was
+        // authenticated for this same build and must remain eligible for the
+        // final classification; only the completed plan cache is ephemeral.
         runtime.inner.namespace_plans.lock().unwrap().clear();
         icann_delay.store(1_100, Ordering::SeqCst);
         let response = runtime
@@ -25440,10 +25438,11 @@ mod tests {
             .unwrap()
             .into_bytes();
         assert!(
-            response.starts_with(b"HTTP/1.1 503 Namespace Resolution Indeterminate\r\n"),
-            "expected indeterminate response, got: {}",
+            response.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "request-scoped proof expired during its own plan build: {}",
             String::from_utf8_lossy(&response)
         );
+        server.join().unwrap();
         cleanup_dir(&data_dir);
     }
 
