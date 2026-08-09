@@ -53,8 +53,8 @@
     <string name="security_failed">Validation failed</string>
     <string name="security_proof_unavailable">Proof unavailable</string>
     <string name="security_status_content_description">Open resolver trace</string>
-    <string name="navigation_timeout_title">Page took too long to load</string>
-    <string name="navigation_timeout_message">The secure page did not finish loading. The request was stopped so it cannot keep spinning.</string>
+    <string name="navigation_timeout_title">Secure page did not load</string>
+    <string name="navigation_timeout_message">The secure request did not finish. Try again while the resolver catches up.</string>
     <string name="navigation_timeout_retry">Try again</string>
     <string name="navigation_timeout_address_bar">You can also enter another address above.</string>
     <string name="http_transport_warning">Not secure: HTTP traffic is not encrypted</string>

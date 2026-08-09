@@ -26,6 +26,7 @@ import android.webkit.HttpAuthHandler
 import android.webkit.WebChromeClient
 import android.webkit.SslErrorHandler
 import android.webkit.URLUtil
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -783,31 +784,7 @@ class MainActivity : ComponentActivity() {
                 return@Runnable
             }
 
-            navigationTimeoutRunnable = null
-            showingNavigationTimeout = true
-            pendingMainFrameUrl = null
-            admittedMainFrameUrl = target.url
-            activeMainFrameUrl = target.url
-            currentTargetKind = target.kind
-            pageIsLoading = false
-            pageLoadProgress = 0
-            webView.stopLoading()
-            webView.loadDataWithBaseURL(
-                "about:blank",
-                navigationTimeoutDocument(
-                    targetUrl = target.url,
-                    title = getString(R.string.navigation_timeout_title),
-                    message = getString(R.string.navigation_timeout_message),
-                    retryLabel = getString(R.string.navigation_timeout_retry),
-                    addressBarMessage = getString(R.string.navigation_timeout_address_bar),
-                ),
-                "text/html",
-                "UTF-8",
-                null,
-            )
-            refreshSecurityState()
-            refreshPageProgress()
-            refreshTransportWarning()
+            showNavigationFailure(target)
         }
         navigationTimeoutRunnable = timeout
         mainHandler.postDelayed(timeout, NAVIGATION_TIMEOUT_MS)
@@ -816,6 +793,34 @@ class MainActivity : ComponentActivity() {
     private fun cancelNavigationDeadline() {
         navigationTimeoutRunnable?.let(mainHandler::removeCallbacks)
         navigationTimeoutRunnable = null
+    }
+
+    private fun showNavigationFailure(target: BrowserTarget) {
+        cancelNavigationDeadline()
+        showingNavigationTimeout = true
+        pendingMainFrameUrl = null
+        admittedMainFrameUrl = target.url
+        activeMainFrameUrl = target.url
+        currentTargetKind = target.kind
+        pageIsLoading = false
+        pageLoadProgress = 0
+        webView.stopLoading()
+        webView.loadDataWithBaseURL(
+            "about:blank",
+            navigationTimeoutDocument(
+                targetUrl = target.url,
+                title = getString(R.string.navigation_timeout_title),
+                message = getString(R.string.navigation_timeout_message),
+                retryLabel = getString(R.string.navigation_timeout_retry),
+                addressBarMessage = getString(R.string.navigation_timeout_address_bar),
+            ),
+            "text/html",
+            "UTF-8",
+            null,
+        )
+        refreshSecurityState()
+        refreshPageProgress()
+        refreshTransportWarning()
     }
 
     private fun refreshSecurityState() {
@@ -1131,6 +1136,19 @@ class MainActivity : ComponentActivity() {
             refreshSecurityState()
             refreshPageProgress()
             refreshTransportWarning()
+        }
+
+        override fun onReceivedError(
+            view: WebView,
+            request: WebResourceRequest,
+            error: WebResourceError,
+        ) {
+            super.onReceivedError(view, request, error)
+            if (!request.isForMainFrame || showingNavigationTimeout) return
+            val failedUrl = request.url.toString()
+            val currentUrl = pendingMainFrameUrl ?: admittedMainFrameUrl ?: activeMainFrameUrl
+            if (currentUrl?.mainFrameMatchKey() != failedUrl.mainFrameMatchKey()) return
+            showNavigationFailure(classifier.classify(failedUrl))
         }
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {

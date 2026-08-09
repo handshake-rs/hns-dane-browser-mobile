@@ -481,8 +481,8 @@
 <string name="proof_current_tip_text">высота %1$s, дерево %2$s</string>
 <string name="proof_markdown_dnssec_title">№ DNSSEC Подробности</string>
 <string name="proof_markdown_hns_title"># HNS Подробности доказательства</string>
-    <string name="navigation_timeout_title">Page took too long to load</string>
-    <string name="navigation_timeout_message">The secure page did not finish loading. The request was stopped so it cannot keep spinning.</string>
+    <string name="navigation_timeout_title">Secure page did not load</string>
+    <string name="navigation_timeout_message">The secure request did not finish. Try again while the resolver catches up.</string>
     <string name="navigation_timeout_retry">Try again</string>
     <string name="navigation_timeout_address_bar">You can also enter another address above.</string>
 </resources>
