@@ -137,6 +137,9 @@ class MainActivity : ComponentActivity() {
     private var reloadHnsPageOnNextStart: Boolean = false
     private var pageIsLoading: Boolean = false
     private var pageLoadProgress: Int = 0
+    private var navigationGeneration: Long = 0
+    private var navigationTimeoutRunnable: Runnable? = null
+    private var showingNavigationTimeout: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -170,6 +173,7 @@ class MainActivity : ComponentActivity() {
             onMainFrameHnsStatusForUrl = { url, statusCode, tlsPolicy, resolverPolicy, securityPath, traceJson ->
                 runOnUiThread {
                     val target = classifier.classify(url)
+                    if (showingNavigationTimeout) return@runOnUiThread
                     val usesCompatibilityPath =
                         target.kind == BrowserTargetKind.NativeGateway ||
                             target.kind == BrowserTargetKind.ExactUrl ||
@@ -370,6 +374,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         gatewayInterceptionEnabled = false
+        cancelNavigationDeadline()
         reloadHnsPageOnNextStart = currentNativeGatewayHostForUrl(activeMainFrameUrl) != null
         if (::webView.isInitialized) {
             webView.stopLoading()
@@ -383,6 +388,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         activityDestroyed = true
         gatewayInterceptionEnabled = false
+        cancelNavigationDeadline()
         stopObservingForegroundSync()
         proxyCoordinator.destroy()
         disableServiceWorkerInterception()
@@ -693,7 +699,14 @@ class MainActivity : ComponentActivity() {
 
     private fun reloadCurrentPage() {
         val url = currentPageUrl() ?: activeMainFrameUrl ?: return
-        enqueueNavigation(classifier.classify(url)) { webView.reload() }
+        val reloadTimeoutPage = showingNavigationTimeout
+        enqueueNavigation(classifier.classify(url)) {
+            if (reloadTimeoutPage) {
+                webView.loadUrl(url)
+            } else {
+                webView.reload()
+            }
+        }
     }
 
     private fun dismissOmniboxKeyboard() {
@@ -721,6 +734,9 @@ class MainActivity : ComponentActivity() {
 
     private fun enqueueNavigation(target: BrowserTarget, load: () -> Unit) {
         webView.stopLoading()
+        navigationGeneration += 1
+        cancelNavigationDeadline()
+        showingNavigationTimeout = false
         omnibox.setText(target.url)
         currentTargetKind = target.kind
         clearMainFrameHnsStatus()
@@ -741,6 +757,7 @@ class MainActivity : ComponentActivity() {
         refreshSecurityState()
         refreshPageProgress()
         refreshTransportWarning()
+        scheduleNavigationDeadline(target)
         val config = proxyConfigForTarget(target)
         val targetHost = config?.let { target.displayHost }
         proxyCoordinator.navigate(config, targetHost) {
@@ -753,6 +770,52 @@ class MainActivity : ComponentActivity() {
             currentTargetKind = target.kind
             load()
         }
+    }
+
+    private fun scheduleNavigationDeadline(target: BrowserTarget) {
+        val generation = navigationGeneration
+        val timeout = Runnable {
+            if (activityDestroyed || generation != navigationGeneration || showingNavigationTimeout) {
+                return@Runnable
+            }
+            val currentUrl = pendingMainFrameUrl ?: admittedMainFrameUrl ?: activeMainFrameUrl
+            if (currentUrl?.mainFrameMatchKey() != target.url.mainFrameMatchKey()) {
+                return@Runnable
+            }
+
+            navigationTimeoutRunnable = null
+            showingNavigationTimeout = true
+            pendingMainFrameUrl = null
+            admittedMainFrameUrl = target.url
+            activeMainFrameUrl = target.url
+            currentTargetKind = target.kind
+            pageIsLoading = false
+            pageLoadProgress = 0
+            webView.stopLoading()
+            webView.loadDataWithBaseURL(
+                "about:blank",
+                navigationTimeoutDocument(
+                    targetUrl = target.url,
+                    title = getString(R.string.navigation_timeout_title),
+                    message = getString(R.string.navigation_timeout_message),
+                    retryLabel = getString(R.string.navigation_timeout_retry),
+                    addressBarMessage = getString(R.string.navigation_timeout_address_bar),
+                ),
+                "text/html",
+                "UTF-8",
+                null,
+            )
+            refreshSecurityState()
+            refreshPageProgress()
+            refreshTransportWarning()
+        }
+        navigationTimeoutRunnable = timeout
+        mainHandler.postDelayed(timeout, NAVIGATION_TIMEOUT_MS)
+    }
+
+    private fun cancelNavigationDeadline() {
+        navigationTimeoutRunnable?.let(mainHandler::removeCallbacks)
+        navigationTimeoutRunnable = null
     }
 
     private fun refreshSecurityState() {
@@ -933,6 +996,7 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+            if (showingNavigationTimeout) return
             if (pendingMainFrameUrl != null) return
             val admittedUrl = admittedMainFrameUrl
             if (admittedUrl != null && admittedUrl.mainFrameMatchKey() != url.mainFrameMatchKey()) {
@@ -1037,9 +1101,11 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onPageFinished(view: WebView, url: String) {
+            if (showingNavigationTimeout) return
             if (pendingMainFrameUrl != null) return
             val admittedUrl = admittedMainFrameUrl ?: return
             if (admittedUrl.mainFrameMatchKey() != url.mainFrameMatchKey()) return
+            cancelNavigationDeadline()
             omnibox.setText(url)
             activeMainFrameUrl = url
             admittedMainFrameUrl = url
@@ -1069,6 +1135,7 @@ class MainActivity : ComponentActivity() {
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
             gatewayInterceptionEnabled = false
+            cancelNavigationDeadline()
             proxyCoordinator.suspend()
             pageIsLoading = false
             pageLoadProgress = 0
@@ -1388,6 +1455,7 @@ class MainActivity : ComponentActivity() {
         private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
         private const val SYNC_STATUS_POLL_MS = 2_000L
+        private const val NAVIGATION_TIMEOUT_MS = 45_000L
         private const val SECURITY_LABEL_WIDTH_DP = 136
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22
@@ -1407,6 +1475,57 @@ class MainActivity : ComponentActivity() {
         )
     }
 }
+
+internal fun navigationTimeoutDocument(
+    targetUrl: String,
+    title: String,
+    message: String,
+    retryLabel: String,
+    addressBarMessage: String,
+): String {
+    val escapedUrl = targetUrl.htmlEscape()
+    return """
+        <!doctype html>
+        <html lang="en">
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <meta http-equiv="Content-Security-Policy"
+                content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+          <title>${title.htmlEscape()}</title>
+          <style>
+            :root { color-scheme: light dark; font-family: system-ui, sans-serif; background: #f4f6fa; color: #18202b; }
+            body { min-height: 100vh; margin: 0; display: grid; place-items: center; }
+            main { width: min(34rem, calc(100% - 2rem)); padding: 2rem; border: 1px solid #ccd3dd; border-radius: 1rem; background: #fff; box-shadow: 0 .5rem 2rem #18202b1a; }
+            h1 { margin-top: 0; }
+            p { line-height: 1.55; }
+            a { display: inline-block; margin-top: .75rem; padding: .7rem 1rem; border-radius: .5rem; background: #2b5fb3; color: #fff; text-decoration: none; }
+            .address { color: #526071; font-size: .9rem; }
+            @media (prefers-color-scheme: dark) {
+              :root { background: #11161e; color: #edf2f7; }
+              main { background: #1b2430; border-color: #3a4656; box-shadow: none; }
+              .address { color: #bdc7d4; }
+              a { background: #79a7ff; color: #101827; }
+            }
+          </style>
+        </head>
+        <body>
+          <main>
+            <h1>${title.htmlEscape()}</h1>
+            <p>${message.htmlEscape()}</p>
+            <a href="$escapedUrl">${retryLabel.htmlEscape()}</a>
+            <p class="address">${addressBarMessage.htmlEscape()}</p>
+          </main>
+        </body>
+        </html>
+    """.trimIndent()
+}
+
+private fun String.htmlEscape(): String =
+    replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;")
 
 private val EXTERNAL_VIEW_SCHEMES = setOf("mailto", "tel", "sms", "geo")
 
