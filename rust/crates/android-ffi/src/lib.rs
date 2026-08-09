@@ -14,7 +14,7 @@ use std::os::fd::{FromRawFd, RawFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 const MAX_LOCAL_CERTIFICATE_DER_BYTES: usize = 64 * 1024;
@@ -34,30 +34,40 @@ const MAX_ANDROID_PROXY_HANDLES: usize = 8;
 static NEXT_PROXY_HANDLE: AtomicU64 = AtomicU64::new(1);
 static PROXY_HANDLES: OnceLock<Mutex<HashMap<jlong, Arc<AndroidProxyRecord>>>> = OnceLock::new();
 const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
-static STREAMING_GATEWAY_REQUESTS: OnceLock<(Mutex<usize>, Condvar)> = OnceLock::new();
+static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
+    StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
 
-struct StreamingGatewayPermit;
+struct StreamingGatewayLimiter {
+    active: Mutex<usize>,
+    limit: usize,
+}
 
-impl StreamingGatewayPermit {
-    fn acquire() -> Option<Self> {
-        let (active, available) =
-            STREAMING_GATEWAY_REQUESTS.get_or_init(|| (Mutex::new(0), Condvar::new()));
-        let mut active = active.lock().ok()?;
-        while *active >= MAX_STREAMING_GATEWAY_REQUESTS {
-            active = available.wait(active).ok()?;
+impl StreamingGatewayLimiter {
+    const fn new(limit: usize) -> Self {
+        Self {
+            active: Mutex::new(0),
+            limit,
+        }
+    }
+
+    fn try_acquire(&self) -> Option<StreamingGatewayPermit<'_>> {
+        let mut active = self.active.lock().ok()?;
+        if *active >= self.limit {
+            return None;
         }
         *active += 1;
-        Some(Self)
+        Some(StreamingGatewayPermit { limiter: self })
     }
 }
 
-impl Drop for StreamingGatewayPermit {
+struct StreamingGatewayPermit<'a> {
+    limiter: &'a StreamingGatewayLimiter,
+}
+
+impl Drop for StreamingGatewayPermit<'_> {
     fn drop(&mut self) {
-        let (active, available) =
-            STREAMING_GATEWAY_REQUESTS.get_or_init(|| (Mutex::new(0), Condvar::new()));
-        if let Ok(mut active) = active.lock() {
+        if let Ok(mut active) = self.limiter.active.lock() {
             *active = active.saturating_sub(1);
-            available.notify_one();
         }
     }
 }
@@ -1171,7 +1181,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
         let Some((((runtime, policy), request), mut writer)) = inputs else {
             return std::ptr::null_mut();
         };
-        let Some(permit) = StreamingGatewayPermit::acquire() else {
+        let Some(permit) = STREAMING_GATEWAY_REQUESTS.try_acquire() else {
             return std::ptr::null_mut();
         };
         let (head_tx, head_rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(1);
@@ -1404,6 +1414,19 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeDiagnost
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn streaming_gateway_limiter_fails_fast_when_exhausted() {
+        let limiter = StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
+        let mut permits = Vec::new();
+        for _ in 0..MAX_STREAMING_GATEWAY_REQUESTS {
+            permits.push(limiter.try_acquire().expect("permit below the limit"));
+        }
+
+        assert!(limiter.try_acquire().is_none());
+        permits.pop();
+        assert!(limiter.try_acquire().is_some());
+    }
 
     #[test]
     fn gateway_policy_preserves_only_explicit_valid_recovery_and_relay_controls() {

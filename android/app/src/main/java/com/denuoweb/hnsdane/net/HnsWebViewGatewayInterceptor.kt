@@ -137,7 +137,8 @@ class HnsWebViewGatewayInterceptor(
         val headers = gatewayHeaders(requestHeaders)
         val runtimeConfig = gatewayRuntimeConfig()
         val assetCacheScope = if (
-            normalizedMethod == "GET" && ValidatedAssetCache.eligible(url)
+            normalizedMethod == "GET" &&
+            ValidatedAssetCache.requestEligible(url, requestHeaders)
         ) {
             chainTipToken(runtimeConfig.network)?.let { token ->
                 ValidatedAssetCache.scope(runtimeConfig, token)
@@ -593,7 +594,16 @@ private fun parseGatewayHttpResponseHead(response: ByteArray): ParsedGatewayHttp
         val name = line.substring(0, separator).trim()
         val value = line.substring(separator + 1).trim()
         if (name.isNotEmpty()) {
-            headers[name] = value
+            val existingName = headers.keys.firstOrNull { it.equals(name, ignoreCase = true) }
+            if (
+                existingName != null &&
+                (name.equals("Cache-Control", ignoreCase = true) ||
+                    name.equals("Vary", ignoreCase = true))
+            ) {
+                headers[existingName] = "${headers.getValue(existingName)}, $value"
+            } else {
+                headers[existingName ?: name] = value
+            }
         }
     }
 

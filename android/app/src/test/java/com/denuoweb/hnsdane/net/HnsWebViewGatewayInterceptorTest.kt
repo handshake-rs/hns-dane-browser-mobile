@@ -143,6 +143,31 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
+    fun unavailableStreamingGatewayFallsBackToFileBackedResponse() {
+        val bridge = FileGatewayBridge(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8\r\n\r\n"
+                .toByteArray(StandardCharsets.ISO_8859_1),
+            "fallback".toByteArray(StandardCharsets.UTF_8),
+        )
+        val dataDir = createTempDirectory("hns-webview-streaming-fallback-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = requireNotNull(
+            interceptor.intercept(
+                method = "GET",
+                url = "https://welcome/fallback",
+                requestHeaders = emptyMap(),
+                isForMainFrame = false,
+                preferStreaming = true,
+            ),
+        )
+
+        assertEquals("fallback", response.openBodyStream().use { it.readBytes() }.decodeToString())
+        assertEquals(1, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
     fun normalWebRequestUsesAutomaticNativeGatewayPolicy() {
         val bridge = RecordingGatewayBridge(
             "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
@@ -899,6 +924,7 @@ class HnsWebViewGatewayInterceptorTest {
             (
                 "HTTP/1.1 200 OK\r\n" +
                     "Content-Type: application/javascript\r\n" +
+                    "Cache-Control: public, max-age=31536000, immutable\r\n" +
                     "Content-Length: ${body.size}\r\n\r\n"
             ).toByteArray(StandardCharsets.ISO_8859_1),
             body,
@@ -921,6 +947,7 @@ class HnsWebViewGatewayInterceptorTest {
                 preferStreaming = true,
             ),
         )
+        assertEquals("no-store", first.headerValue("Cache-Control"))
         val firstBytes = ByteArray("cached module".toByteArray().size)
         first.openBodyStream().use { input ->
             assertEquals(firstBytes.size, input.read(firstBytes))
@@ -935,6 +962,7 @@ class HnsWebViewGatewayInterceptorTest {
                 preferStreaming = true,
             ),
         )
+        assertEquals("no-store", second.headerValue("Cache-Control"))
         assertEquals("cached module", second.openBodyStream().use { it.readBytes() }.decodeToString())
         assertEquals(1, bridge.calls.size)
         dataDir.deleteRecursively()
@@ -947,6 +975,7 @@ class HnsWebViewGatewayInterceptorTest {
             (
                 "HTTP/1.1 200 OK\r\n" +
                     "Content-Type: application/javascript\r\n" +
+                    "Cache-Control: public, max-age=31536000, immutable\r\n" +
                     "Content-Length: ${body.size}\r\n\r\n"
             ).toByteArray(StandardCharsets.ISO_8859_1),
             body,
@@ -1005,12 +1034,132 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
+    fun validatedAssetCacheRejectsCredentialedAndConditionalRequests() {
+        val url = "https://app.pirate/assets/client-Bk8h6irO.js"
+
+        assertTrue(ValidatedAssetCache.requestEligible(url, emptyMap()))
+        for (headers in listOf(
+            mapOf("Authorization" to "Bearer secret"),
+            mapOf("Cookie" to "session=secret"),
+            mapOf("Range" to "bytes=0-10"),
+            mapOf("If-None-Match" to "etag"),
+            mapOf("Cache-Control" to "no-store"),
+            mapOf("Pragma" to "no-cache"),
+        )) {
+            assertFalse(ValidatedAssetCache.requestEligible(url, headers))
+        }
+    }
+
+    @Test
+    fun validatedAssetCacheRequiresPublicImmutableNonVaryingResponses() {
+        fun response(vararg headers: Pair<String, String>) = HnsInterceptedResponse(
+            statusCode = 200,
+            reason = "OK",
+            mimeType = "application/javascript",
+            encoding = null,
+            headers = mapOf(*headers),
+            body = ByteArray(0),
+        )
+
+        assertTrue(
+            ValidatedAssetCache.responseEligible(
+                response("Cache-Control" to "public, max-age=31536000, immutable"),
+            ),
+        )
+        for (candidate in listOf(
+            response(),
+            response("Cache-Control" to "public, max-age=31536000"),
+            response("Cache-Control" to "immutable"),
+            response("Cache-Control" to "public, immutable"),
+            response("Cache-Control" to "public, immutable, no-store"),
+            response(
+                "Cache-Control" to "public, max-age=60, immutable",
+                "Age" to "60",
+            ),
+            response(
+                "Cache-Control" to "public, max-age=31536000, immutable",
+                "Set-Cookie" to "session=secret",
+            ),
+            response(
+                "Cache-Control" to "public, max-age=31536000, immutable",
+                "Vary" to "Accept-Language",
+            ),
+        )) {
+            assertFalse(ValidatedAssetCache.responseEligible(candidate))
+        }
+    }
+
+    @Test
+    fun credentialedHashedAssetRequestsBypassTheValidatedCache() {
+        val body = "private module".toByteArray()
+        val bridge = FileGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: application/javascript\r\n" +
+                    "Cache-Control: public, max-age=31536000, immutable\r\n" +
+                    "Content-Length: ${body.size}\r\n\r\n"
+            ).toByteArray(StandardCharsets.ISO_8859_1),
+            body,
+        )
+        val dataDir = createTempDirectory("hns-credentialed-asset-cache-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir = dataDir,
+            hnsGatewayBridge = bridge,
+            namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
+            chainTipToken = { "100:hash:root" },
+        )
+        val url = "https://app.pirate/assets/client-Bk8h6irO.js"
+
+        repeat(2) {
+            requireNotNull(interceptor.intercept("GET", url, mapOf("Cookie" to "session=secret")))
+                .openBodyStream()
+                .use { input -> assertEquals("private module", input.readBytes().decodeToString()) }
+        }
+
+        assertEquals(2, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun conflictingCacheControlHeadersFailClosed() {
+        val body = "uncached module".toByteArray()
+        val bridge = FileGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: application/javascript\r\n" +
+                    "Cache-Control: no-store\r\n" +
+                    "Cache-Control: public, max-age=31536000, immutable\r\n" +
+                    "Content-Length: ${body.size}\r\n\r\n"
+            ).toByteArray(StandardCharsets.ISO_8859_1),
+            body,
+        )
+        val dataDir = createTempDirectory("hns-conflicting-cache-control-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir = dataDir,
+            hnsGatewayBridge = bridge,
+            namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
+            chainTipToken = { "100:hash:root" },
+        )
+        val url = "https://app.pirate/assets/client-Bk8h6irO.js"
+
+        repeat(2) {
+            requireNotNull(interceptor.intercept("GET", url, emptyMap()))
+                .openBodyStream()
+                .use { input -> assertEquals("uncached module", input.readBytes().decodeToString()) }
+        }
+
+        assertEquals(2, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
     fun completedFileBackedAssetIsPublishedBeforeReturningToWebView() {
         val body = "file-backed module".toByteArray()
         val bridge = FileGatewayBridge(
             (
                 "HTTP/1.1 200 OK\r\n" +
                     "Content-Type: application/javascript\r\n" +
+                    "Cache-Control: public, max-age=31536000, immutable\r\n" +
                     "Content-Length: ${body.size}\r\n\r\n"
             ).toByteArray(StandardCharsets.ISO_8859_1),
             body,
