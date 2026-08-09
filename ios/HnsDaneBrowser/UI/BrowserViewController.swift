@@ -101,14 +101,13 @@ final class BrowserViewController: UIViewController {
     func suspendBrowsing() {
         guard !isDestroyed else { return }
         isForeground = false
-        isProxyAdmissionGranted = false
         stopSyncStatusPolling()
 #if DEBUG && targetEnvironment(simulator)
         if appStoreScreenshotScene != nil { return }
 #endif
-        coordinator?.suspend()
+        // The persistent WebKit profile and its native loopback backend share
+        // process lifetime. Backgrounding only pauses foreground sync.
         process.suspendForegroundSync()
-        placeholderLabel.text = "Secure browsing paused"
     }
 
     func destroyBrowsing() {
@@ -120,7 +119,9 @@ final class BrowserViewController: UIViewController {
         if appStoreScreenshotScene != nil { return }
 #endif
         process.suspendForegroundSync()
-        coordinator?.destroy()
+        if let coordinator {
+            coordinator.detach(delegate: self)
+        }
         coordinator = nil
         isProxyAdmissionGranted = false
         environment = nil
@@ -507,11 +508,8 @@ final class BrowserViewController: UIViewController {
         environment: BrowserProcess.Environment,
         replayAddress: String? = nil
     ) -> BrowserProxyCoordinator {
-        let coordinator = BrowserProxyCoordinator(
-            runtime: environment.runtime,
-            profile: environment.profile
-        )
-        coordinator.delegate = self
+        let coordinator = environment.proxyCoordinator()
+        coordinator.attach(delegate: self)
         self.coordinator = coordinator
         isProxyAdmissionGranted = false
         updateSyncSummary(environment.runtime.syncSummary())
@@ -917,7 +915,7 @@ final class BrowserViewController: UIViewController {
         let replayAddress = coordinator?.replayableAddressForRuntimeChange()
         setControlOperationInFlight(true)
         addressField.isEnabled = false
-        coordinator?.destroy()
+        previousEnvironment.revokeProxyCoordinator()
         coordinator = nil
         isProxyAdmissionGranted = false
         progressObservation = nil
@@ -1009,7 +1007,7 @@ final class BrowserViewController: UIViewController {
         }
         setControlOperationInFlight(true)
         addressField.isEnabled = false
-        coordinator?.destroy()
+        environment.revokeProxyCoordinator()
         coordinator = nil
         isProxyAdmissionGranted = false
         progressObservation = nil
@@ -1284,7 +1282,7 @@ final class BrowserViewController: UIViewController {
         }
         switch authorityAdmissionPolicy.reconciliationAction(
             network: process.currentNetwork,
-            isForeground: isForeground && !isHeaderResetInFlight,
+            isForeground: !isHeaderResetInFlight,
             syncSummary: summary,
             isAdmissionGranted: isProxyAdmissionGranted
         ) {

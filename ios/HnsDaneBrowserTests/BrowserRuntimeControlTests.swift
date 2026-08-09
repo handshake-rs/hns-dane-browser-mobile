@@ -1364,6 +1364,34 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
+    func testPreparedEnvironmentOwnsOneProcessProxyCoordinator() async throws {
+        let factory = NetworkSwitchRuntimeFactory()
+        let process = BrowserProcess(
+            runtimeFactory: factory.makeRuntime,
+            initialNetwork: .testnet,
+            persistNetwork: { _ in }
+        )
+        defer { process.close() }
+
+        let prepared = expectation(description: "runtime prepared")
+        var result: Result<BrowserProcess.Environment, Error>?
+        process.prepare {
+            result = $0
+            prepared.fulfill()
+        }
+        await fulfillment(of: [prepared], timeout: 2)
+        let environment = try XCTUnwrap(result).get()
+
+        let first = environment.proxyCoordinator()
+        let second = environment.proxyCoordinator()
+        XCTAssertTrue(first === second)
+
+        environment.revokeProxyCoordinator()
+        let replacement = environment.proxyCoordinator()
+        XCTAssertFalse(first === replacement)
+    }
+
+    @MainActor
     func testSyncMaintenanceSafePointRunsImmediatelyWhenIdle() {
         let process = BrowserProcess(
             initialNetwork: .testnet,

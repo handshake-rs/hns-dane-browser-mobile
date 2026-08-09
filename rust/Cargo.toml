@@ -38,7 +38,7 @@ hns-core = { path = "crates/hns-core" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
-hns-browser-observability = "=0.1.0"
+hns-browser-observability = "=0.1.1"
 hns-browser-runtime = "=0.1.0"
 hns-icann-dane = "=0.1.0"
 hns-loopback-proxy = { path = "crates/hns-loopback-proxy" }

@@ -34,6 +34,11 @@ const MAX_INFORMATIONAL_RESPONSES: usize = 8;
 const MAX_HTTP_TRAILER_FIELDS: usize = 128;
 const MAX_ALT_SVC_AGE_SECS: u64 = 24 * 60 * 60;
 const ALT_SVC_FAILURE_COOLDOWN: Duration = Duration::from_secs(10 * 60);
+// HTTP/3 remains available when selected by the authenticated origin plan, but
+// Alt-Svc must not move a known-good pooled TCP route onto the current
+// per-request QUIC path. Re-enable promotion only with pooling or a bounded
+// race that cannot delay the known-good transport.
+const HTTP3_ALT_SVC_PROMOTION_ENABLED: bool = false;
 const TUNNEL_IO_TIMEOUT: Duration = Duration::from_millis(250);
 const CONTROLLED_IO_CANCELLED: &str = "controlled transport operation cancelled";
 const CONTROLLED_IO_DEADLINE_EXCEEDED: &str = "controlled transport deadline exceeded";
@@ -2807,8 +2812,12 @@ fn selected_alt_svc_endpoint(values: &[&str], request_port: u16) -> Option<AltSv
             let alternative = alternative.trim();
             let (protocol, rest) = alternative.split_once('=')?;
             let protocol = protocol.trim().to_ascii_lowercase();
-            let protocol = if protocol == "h3" || protocol.starts_with("h3-") {
+            let protocol = if (protocol == "h3" || protocol.starts_with("h3-"))
+                && HTTP3_ALT_SVC_PROMOTION_ENABLED
+            {
                 OriginProtocol::Http3
+            } else if protocol == "h3" || protocol.starts_with("h3-") {
+                continue;
             } else if protocol == "h2" {
                 OriginProtocol::Http2
             } else {
@@ -3541,7 +3550,7 @@ mod tests {
     }
 
     #[test]
-    fn alt_svc_never_reuses_tcp_tlsa_policy_for_http3() {
+    fn alt_svc_does_not_promote_http3_while_quic_is_unpooled() {
         let transport = TcpHttpTransport::default();
         let mut request = request(SocketAddr::from((Ipv4Addr::LOCALHOST, 443)));
         request.scheme = "https".to_owned();
@@ -3557,7 +3566,26 @@ mod tests {
         request.tls.service_transport = TlsaTransport::Udp;
         assert_eq!(
             transport.promoted_request(&request).protocol,
-            OriginProtocol::Http3
+            OriginProtocol::Http11
+        );
+    }
+
+    #[test]
+    fn disabled_http3_promotion_still_allows_pooled_http2_alt_svc() {
+        let transport = TcpHttpTransport::default();
+        let mut request = request(SocketAddr::from((Ipv4Addr::LOCALHOST, 443)));
+        request.scheme = "https".to_owned();
+        transport.record_alt_svc(
+            &request,
+            &[
+                ("Alt-Svc".to_owned(), "h3=\":443\"; ma=60".to_owned()),
+                ("Alt-Svc".to_owned(), "h2=\":443\"; ma=60".to_owned()),
+            ],
+        );
+
+        assert_eq!(
+            transport.promoted_request(&request).protocol,
+            OriginProtocol::Http2
         );
     }
 

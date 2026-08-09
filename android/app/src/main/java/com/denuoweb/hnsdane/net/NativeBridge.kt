@@ -105,7 +105,7 @@ object NativeBridge :
     fun diagnostics(): String = if (isLoaded) {
         nativeDiagnostics()
     } else {
-        """{"core":"unavailable","version":"unavailable","features":[],"securityDefault":"fail-closed"}"""
+        """{"core":"unavailable","version":"unavailable","features":[],"featureListSemantics":"compiled-capabilities","runtimeFeatures":{"schemaVersion":1,"resolverCache":{"compiled":false,"configured":false,"active":false,"observed":null},"connectionPooling":{"compiled":false,"configured":false,"active":false,"observed":null},"tlsResumption":{"compiled":false,"configured":false,"active":false,"observed":null},"http3Promotion":{"compiled":false,"configured":false,"active":false,"observed":null}},"securityDefault":"fail-closed"}"""
     }
 
     override fun classifyHost(host: String): BrowserNamespaceClass {

@@ -101,6 +101,35 @@ final class BrowserProxyCoordinator: NSObject {
         }
     }
 
+    func attach(delegate: BrowserProxyCoordinatorDelegate) {
+        guard !destroyed else { return }
+        if let previous = self.delegate, previous !== delegate, let webView {
+            previous.proxyCoordinator(self, remove: webView)
+        }
+        self.delegate = delegate
+        if let webView {
+            delegate.proxyCoordinator(self, install: webView)
+            delegate.proxyCoordinator(
+                self,
+                canGoBack: historyIndex > 0,
+                canGoForward: historyIndex + 1 < history.count,
+                isLoading: webView.isLoading
+            )
+            if let address = webView.url?.absoluteString
+                ?? lastNavigation?.destination.url.absoluteString {
+                delegate.proxyCoordinator(self, didUpdateAddress: address)
+            }
+        }
+    }
+
+    func detach(delegate: BrowserProxyCoordinatorDelegate) {
+        guard self.delegate === delegate else { return }
+        if let webView {
+            delegate.proxyCoordinator(self, remove: webView)
+        }
+        self.delegate = nil
+    }
+
     func navigate(rawValue: String) {
         guard !destroyed else { return }
         do {

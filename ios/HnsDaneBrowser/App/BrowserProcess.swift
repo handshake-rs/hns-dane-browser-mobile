@@ -3,9 +3,30 @@ import WebKit
 
 @MainActor
 final class BrowserProcess {
-    struct Environment {
+    @MainActor
+    final class Environment {
         let runtime: BrowserRuntime
         let profile: PersistentWebKitProfile
+        private var processProxyCoordinator: BrowserProxyCoordinator?
+
+        init(runtime: BrowserRuntime) {
+            self.runtime = runtime
+            profile = PersistentWebKitProfile()
+        }
+
+        func proxyCoordinator() -> BrowserProxyCoordinator {
+            if let processProxyCoordinator {
+                return processProxyCoordinator
+            }
+            let coordinator = BrowserProxyCoordinator(runtime: runtime, profile: profile)
+            processProxyCoordinator = coordinator
+            return coordinator
+        }
+
+        func revokeProxyCoordinator() {
+            processProxyCoordinator?.destroy()
+            processProxyCoordinator = nil
+        }
     }
 
     private enum State {
@@ -318,15 +339,16 @@ final class BrowserProcess {
         syncCompletions.removeAll()
         let closedError = BrowserCoreError.runtimeUnavailable("process is closed")
         pendingSyncCompletions.forEach { $0(.failure(closedError)) }
-        let runtime: BrowserRuntime?
+        let closingEnvironment: Environment?
         switch state {
-        case .ready(let environment), .switching(let environment):
-            runtime = environment.runtime
+        case .ready(let activeEnvironment), .switching(let activeEnvironment):
+            environmentWillClose(activeEnvironment)
+            closingEnvironment = activeEnvironment
         default:
-            runtime = nil
+            closingEnvironment = nil
         }
         state = .closed
-        if let runtime {
+        if let runtime = closingEnvironment?.runtime {
             preparationQueue.async {
                 runtime.close()
             }
@@ -343,10 +365,7 @@ final class BrowserProcess {
 
         switch result {
         case .success(let runtime):
-            let environment = Environment(
-                runtime: runtime,
-                profile: PersistentWebKitProfile()
-            )
+            let environment = Environment(runtime: runtime)
             state = .ready(environment)
             callbacks.forEach { $0(.success(environment)) }
             // Runtime preparation remains independent from network synchronization. The view
@@ -382,10 +401,8 @@ final class BrowserProcess {
         networkSwitchInFlight = false
         switch result {
         case .success(let runtime):
-            let environment = Environment(
-                runtime: runtime,
-                profile: PersistentWebKitProfile()
-            )
+            previousEnvironment.revokeProxyCoordinator()
+            let environment = Environment(runtime: runtime)
             state = .ready(environment)
             currentNetwork = network
             persistNetwork(network)
@@ -403,6 +420,10 @@ final class BrowserProcess {
             }
             completion(.failure(error))
         }
+    }
+
+    private func environmentWillClose(_ environment: Environment) {
+        environment.revokeProxyCoordinator()
     }
 
     private func startSyncIfNeeded(environment: Environment) {

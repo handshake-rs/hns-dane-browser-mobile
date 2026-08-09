@@ -13,18 +13,18 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE_VERSION = "0.1.0"
-ENGINE_REQUIREMENT = f"={ENGINE_VERSION}"
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
-ENGINE_PACKAGES = frozenset(
-    {
-        "hns-browser-observability",
-        "hns-browser-runtime",
-        "hns-icann-dane",
-        "hns-namespace-resolution",
-        "hns-resolution-policy",
-    }
-)
+ENGINE_VERSIONS = {
+    "hns-browser-observability": "0.1.1",
+    "hns-browser-runtime": "0.1.0",
+    "hns-icann-dane": "0.1.0",
+    "hns-namespace-resolution": "0.1.0",
+    "hns-resolution-policy": "0.1.0",
+}
+ENGINE_REQUIREMENTS = {
+    package: f"={version}" for package, version in ENGINE_VERSIONS.items()
+}
+ENGINE_PACKAGES = frozenset(ENGINE_VERSIONS)
 ROOT_MANIFEST = Path("rust/Cargo.toml")
 LOCKFILES = (
     Path("rust/Cargo.lock"),
@@ -87,6 +87,7 @@ def validate_manifests(root: Path, manifests: list[Path]) -> None:
             f"{ROOT_MANIFEST}: [workspace.dependencies] is missing"
         )
     for package in sorted(ENGINE_PACKAGES):
+        expected_requirement = ENGINE_REQUIREMENTS[package]
         specification = dependencies.get(package)
         if isinstance(specification, str):
             requirement = specification
@@ -108,10 +109,10 @@ def validate_manifests(root: Path, manifests: list[Path]) -> None:
                 )
         else:
             requirement = None
-        if requirement != ENGINE_REQUIREMENT:
+        if requirement != expected_requirement:
             raise CargoSourcePolicyError(
                 f"{ROOT_MANIFEST}: {package} must be pinned to "
-                f"{ENGINE_REQUIREMENT!r}, found {requirement!r}"
+                f"{expected_requirement!r}, found {requirement!r}"
             )
 
 
@@ -130,11 +131,12 @@ def validate_lockfiles(root: Path) -> None:
                 )
             if name not in ENGINE_PACKAGES:
                 continue
+            expected_version = ENGINE_VERSIONS[name]
             version = package.get("version")
             checksum = package.get("checksum")
-            if version != ENGINE_VERSION:
+            if version != expected_version:
                 raise CargoSourcePolicyError(
-                    f"{relative_path}: {name} must lock to {ENGINE_VERSION}, "
+                    f"{relative_path}: {name} must lock to {expected_version}, "
                     f"found {version!r}"
                 )
             if source != CRATES_IO_SOURCE:
@@ -153,7 +155,7 @@ def validate_lockfiles(root: Path) -> None:
         if count != 1:
             raise CargoSourcePolicyError(
                 "rust/Cargo.lock: expected exactly one crates.io package for "
-                f"{package} {ENGINE_VERSION}, found {count}"
+                f"{package} {ENGINE_VERSIONS[package]}, found {count}"
             )
 
 
@@ -178,9 +180,12 @@ def main() -> int:
     ) as error:
         print(f"Cargo source policy failed: {error}", file=sys.stderr)
         return 1
+    versions = ", ".join(
+        f"{package}={version}" for package, version in sorted(ENGINE_VERSIONS.items())
+    )
     print(
         "Cargo source policy permits registry inputs only and pins the five "
-        f"canonical hns-dane-engine packages to crates.io {ENGINE_VERSION}."
+        f"canonical hns-dane-engine packages to qualified crates.io versions: {versions}."
     )
     return 0
 

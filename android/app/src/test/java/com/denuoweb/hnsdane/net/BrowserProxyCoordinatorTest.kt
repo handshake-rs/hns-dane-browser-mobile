@@ -619,6 +619,27 @@ class BrowserProxyCoordinatorTest {
     }
 
     @Test
+    fun releasingActivityNavigationOwnerKeepsProcessProxyActive() {
+        val fixture = Fixture()
+        val owner = Any()
+        val proxy = fixture.proxy("alpha")
+        fixture.factory.results += proxy
+        fixture.coordinator.resume(null)
+        fixture.coordinator.navigate(owner, fixture.config("alpha"), "alpha") {
+            fixture.loads += "alpha"
+        }
+        fixture.worker.runNext()
+        fixture.overrideController.completeApply(true)
+
+        fixture.coordinator.releaseNavigationOwner(owner)
+
+        assertEquals(BrowserProxyRoute.Proxy, fixture.coordinator.routeForHnsHost("alpha"))
+        assertTrue(fixture.coordinator.isProxyAvailable)
+        assertEquals(0, proxy.stopCalls)
+        assertEquals(0, fixture.overrideController.clearCalls)
+    }
+
+    @Test
     fun platformCallbacksAreMarshalledThroughCallbackExecutor() {
         val callbacks = QueuedExecutor()
         val worker = QueuedExecutor()

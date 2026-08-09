@@ -358,7 +358,7 @@ enum WalletApprovalProjectionV2 {
                 ["kind", "amount", "recipient", "maximumFee", "chain", "finality", "warnings"]
             )
             let amount = try amount(value["amount"], allowZero: false)
-            let maximumFee = try amount(value["maximumFee"], allowZero: true)
+            let maximumFee = try Self.amount(value["maximumFee"], allowZero: true)
             let chain = try module(value["chain"])
             let expectedChain = method == "hns_send"
                 ? WalletModuleV2.handshake.rawValue
@@ -497,7 +497,7 @@ enum WalletApprovalProjectionV2 {
                 ["kind", "swapSessionId", "amount", "recipient", "maximumFee", "finality", "warnings"]
             )
             let amount = try amount(value["amount"], allowZero: false)
-            let maximumFee = try amount(value["maximumFee"], allowZero: true)
+            let maximumFee = try Self.amount(value["maximumFee"], allowZero: true)
             let finality = try finality(value["finality"])
             guard maximumFee.asset == amount.asset,
                   finality == finalityForAsset(amount.asset) else { throw invalidApproval() }
@@ -519,7 +519,7 @@ enum WalletApprovalProjectionV2 {
                 ]
             )
             let amount = try amount(value["amount"], allowZero: false)
-            let maximumFee = try amount(value["maximumFee"], allowZero: true)
+            let maximumFee = try Self.amount(value["maximumFee"], allowZero: true)
             guard maximumFee.asset == amount.asset else { throw invalidApproval() }
             return .swapRefund(
                 swapSessionID: try publicString(value["swapSessionId"]),

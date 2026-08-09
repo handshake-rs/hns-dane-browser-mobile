@@ -560,9 +560,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-observability"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "961b3c3347058e148c5c126ef90ee833f6b8e5ca70dc6c6b0ad2485901edc91b"
+checksum = "54f0d88d7723dcb75c644221912234091e91fe0a3c3016ae300e8e8272ad4fb2"
 dependencies = [
  "hns-browser-runtime",
  "hns-icann-dane",

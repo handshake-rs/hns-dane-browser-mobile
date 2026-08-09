@@ -21,9 +21,9 @@ artifacts. Inclusion here does not imply endorsement by the component authors.
 Generator schema: 2
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 5bfb4b422622d8f13eca3419af22e914c59a0e28826621e25bf84205151f0084
-  scripts/verify_cargo_git_policy.py = 269e25b8e8bf5e56a472337bd0531cb3b144b64241d252a83dca8f4888ba5d36
-  rust/Cargo.toml = 0f14e6878a80575e26c064cb1992de8dddc02c4a274f68abced6d8bff415dad1
-  rust/Cargo.lock = d93e0ab7bea1e7141faf701f5d6b65c10f737f1d082910c22e9e19c19b4d0b71
+  scripts/verify_cargo_git_policy.py = 4979939664b7d939483fd5c146be4497b46757d10f9912db93b2846e61fa455e
+  rust/Cargo.toml = c4ee6238493a74cf5ea625751d02564d3d76a033b6affda4f7ccac053ae4fd25
+  rust/Cargo.lock = f94b564ffcf8cfe84da203128c71fb69fe6e059f01bfad4ee88dc7085319ac8e
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
@@ -144,7 +144,7 @@ RUST COMPONENTS (175)
   hashlink 0.11.1 | MIT OR Apache-2.0
   hex 0.4.3 | MIT OR Apache-2.0
   hmac 0.12.1 | MIT OR Apache-2.0
-  hns-browser-observability 0.1.0 | MIT OR Apache-2.0
+  hns-browser-observability 0.1.1 | MIT OR Apache-2.0
   hns-browser-runtime 0.1.0 | MIT OR Apache-2.0
   hns-icann-dane 0.1.0 | MIT OR Apache-2.0
   hns-namespace-resolution 0.1.0 | MIT OR Apache-2.0
@@ -348,7 +348,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 05fa1ba3228aab8d2bf637f286d7579ed76256c1dab3fa955c2489b920ffeb35
 Applies to:
-  - Rust crate hns-browser-observability 0.1.0
+  - Rust crate hns-browser-observability 0.1.1
   - Rust crate hns-browser-runtime 0.1.0
   - Rust crate hns-icann-dane 0.1.0
   - Rust crate hns-namespace-resolution 0.1.0
@@ -1173,7 +1173,7 @@ limitations under the License.
 ================================================================================
 Notice SHA-256: 283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b
 Applies to:
-  - Rust crate hns-browser-observability 0.1.0
+  - Rust crate hns-browser-observability 0.1.1
   - Rust crate hns-browser-runtime 0.1.0
   - Rust crate hns-icann-dane 0.1.0
   - Rust crate hns-namespace-resolution 0.1.0
