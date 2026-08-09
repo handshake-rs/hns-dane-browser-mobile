@@ -9,7 +9,11 @@ use thiserror::Error;
 
 pub const DEFAULT_MAX_ACTIVE_CLIENTS: usize = 64;
 pub const DEFAULT_GLOBAL_REQUESTS_PER_WINDOW: usize = 240;
-pub const DEFAULT_HOST_REQUESTS_PER_WINDOW: usize = 80;
+// A real code-split page can issue well over 80 same-origin requests while
+// booting. Keep the aggregate budget at 240, but let one host consume that
+// existing budget instead of making healthy asset bursts fail as proxy
+// tunnel errors at an arbitrary lower per-host ceiling.
+pub const DEFAULT_HOST_REQUESTS_PER_WINDOW: usize = DEFAULT_GLOBAL_REQUESTS_PER_WINDOW;
 pub const DEFAULT_MAX_TRACKED_HOSTS: usize = 256;
 pub const DEFAULT_RATE_WINDOW: Duration = Duration::from_secs(10);
 
@@ -321,12 +325,32 @@ mod tests {
             RateLimitConfig::default(),
             RateLimitConfig {
                 global_requests: 240,
-                per_host_requests: 80,
+                per_host_requests: 240,
                 window: Duration::from_secs(10),
                 max_tracked_hosts: 256,
             }
         );
         assert_eq!(DEFAULT_MAX_ACTIVE_CLIENTS, 64);
+    }
+
+    #[test]
+    fn one_host_can_use_the_existing_global_asset_burst_budget() {
+        let limiter = RequestRateLimiter::new(RateLimitConfig::default()).expect("valid config");
+        let now = Instant::now();
+
+        for _ in 0..DEFAULT_GLOBAL_REQUESTS_PER_WINDOW {
+            assert_eq!(
+                limiter.check("app.example", now),
+                RateLimitDecision::Allowed
+            );
+        }
+        assert_eq!(
+            limiter.check("app.example", now),
+            RateLimitDecision::Limited {
+                scope: RateLimitScope::Global,
+                retry_after: DEFAULT_RATE_WINDOW,
+            }
+        );
     }
 
     #[test]
