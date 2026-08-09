@@ -23,13 +23,13 @@ ENGINE_VERSIONS = {
 }
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
 APPROVED_ENGINE_GIT = {
-    "hns-cache": ("0.2.0", "d8b564f"),
-    "hns-dns-wire": ("0.2.0", "d8b564f"),
-    "hns-browser-observability": ("0.1.2", "1ab4ab6"),
-    "hns-browser-runtime": ("0.1.0", "1ab4ab6"),
-    "hns-icann-dane": ("0.1.0", "1ab4ab6"),
-    "hns-namespace-resolution": ("0.1.0", "1ab4ab6"),
-    "hns-resolution-policy": ("0.1.0", "1ab4ab6"),
+    "hns-cache": ("0.2.0", "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f"),
+    "hns-dns-wire": ("0.2.0", "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f"),
+    "hns-browser-observability": ("0.1.2", "1ab4ab626f945712b0f960945986cb52efefef7c"),
+    "hns-browser-runtime": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
+    "hns-icann-dane": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
+    "hns-namespace-resolution": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
+    "hns-resolution-policy": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
 }
 ENGINE_REQUIREMENTS = {
     package: f"={version}" for package, version in ENGINE_VERSIONS.items()
