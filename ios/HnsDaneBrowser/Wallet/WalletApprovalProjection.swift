@@ -357,7 +357,7 @@ enum WalletApprovalProjectionV2 {
                 value,
                 ["kind", "amount", "recipient", "maximumFee", "chain", "finality", "warnings"]
             )
-            let amount = try amount(value["amount"], allowZero: false)
+            let parsedAmount = try amount(value["amount"], allowZero: false)
             let maximumFee = try amount(value["maximumFee"], allowZero: true)
             let chain = try module(value["chain"])
             let expectedChain = method == "hns_send"
@@ -365,11 +365,11 @@ enum WalletApprovalProjectionV2 {
                 : (expectedRequest.params as? [String: Any])?["module"] as? String
             let finality = try finality(value["finality"])
             guard chain.rawValue == expectedChain,
-                  amount.asset == chain.asset,
-                  maximumFee.asset == amount.asset,
-                  finality == finalityForAsset(amount.asset) else { throw invalidApproval() }
+                  parsedAmount.asset == chain.asset,
+                  maximumFee.asset == parsedAmount.asset,
+                  finality == finalityForAsset(parsedAmount.asset) else { throw invalidApproval() }
             return .send(
-                amount: amount,
+                amount: parsedAmount,
                 recipient: try publicString(value["recipient"]),
                 maximumFee: maximumFee,
                 chain: chain,
@@ -496,14 +496,14 @@ enum WalletApprovalProjectionV2 {
                 value,
                 ["kind", "swapSessionId", "amount", "recipient", "maximumFee", "finality", "warnings"]
             )
-            let amount = try amount(value["amount"], allowZero: false)
+            let parsedAmount = try amount(value["amount"], allowZero: false)
             let maximumFee = try amount(value["maximumFee"], allowZero: true)
             let finality = try finality(value["finality"])
-            guard maximumFee.asset == amount.asset,
-                  finality == finalityForAsset(amount.asset) else { throw invalidApproval() }
+            guard maximumFee.asset == parsedAmount.asset,
+                  finality == finalityForAsset(parsedAmount.asset) else { throw invalidApproval() }
             return .swapRedeem(
                 swapSessionID: try publicString(value["swapSessionId"]),
-                amount: amount,
+                amount: parsedAmount,
                 recipient: try publicString(value["recipient"]),
                 maximumFee: maximumFee,
                 finality: finality,
@@ -518,12 +518,12 @@ enum WalletApprovalProjectionV2 {
                     "refundAvailableAtUnixMs", "warnings",
                 ]
             )
-            let amount = try amount(value["amount"], allowZero: false)
+            let parsedAmount = try amount(value["amount"], allowZero: false)
             let maximumFee = try amount(value["maximumFee"], allowZero: true)
-            guard maximumFee.asset == amount.asset else { throw invalidApproval() }
+            guard maximumFee.asset == parsedAmount.asset else { throw invalidApproval() }
             return .swapRefund(
                 swapSessionID: try publicString(value["swapSessionId"]),
-                amount: amount,
+                amount: parsedAmount,
                 recipient: try publicString(value["recipient"]),
                 maximumFee: maximumFee,
                 refundAvailableAtUnixMs: try positiveTime(value["refundAvailableAtUnixMs"]),
