@@ -11,6 +11,7 @@ import androidx.webkit.WebViewStartUpResult
 import androidx.webkit.WebViewStartupException
 import com.denuoweb.hnsdane.net.BundledHeaderSyncBridge
 import com.denuoweb.hnsdane.net.HnsSyncScheduler
+import com.denuoweb.hnsdane.net.HnsSyncProgress
 import com.denuoweb.hnsdane.net.HnsSyncSnapshot
 import com.denuoweb.hnsdane.ui.BrowserThemePreferences
 import com.denuoweb.hnsdane.ui.HnsResolutionPreferences
@@ -68,6 +69,15 @@ class HnsDaneApplication : Application() {
         )
         foregroundSync = scheduler
         scheduler.start sync@{ snapshot ->
+            val progress = HnsSyncProgress.fromJson(snapshot.statusJson)
+            Log.i(
+                TAG,
+                "HNS sync status=${progress.status} best=${progress.bestHeight} " +
+                    "target=${progress.effectiveTargetHeight} freshness=${progress.freshness} " +
+                    "targetGroups=${progress.targetPeerGroups} attempted=${progress.attempted} " +
+                    "successful=${progress.successful} accepted=${progress.accepted} " +
+                    "failed=${progress.failed}",
+            )
             val publish = synchronized(this) {
                 if (foregroundSync !== scheduler) {
                     false
