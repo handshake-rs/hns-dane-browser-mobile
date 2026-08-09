@@ -235,6 +235,11 @@ const RESOURCE_PROOF_CACHE_CANONICAL_WINDOW: u32 = 144;
 const LOCAL_CHAIN_CURRENTNESS_ALLOWED_LAG: u32 = 2;
 const LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS: usize = 3;
 const LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS: u64 = 2 * 10 * 60;
+// Mobile networks routinely need more than three seconds to establish a cold
+// TCP path to Handshake peers. Keep the peer corroboration threshold strict,
+// but give each parallel sync probe enough time to return authenticated
+// headers before classifying the currentness target as unknown.
+const DEFAULT_HEADER_SYNC_PEER_TIMEOUT: Duration = Duration::from_secs(10);
 // Increment when the security meaning of the sync-status currentness fields
 // changes. Mobile consumers require this exact version before treating headers
 // as current, so legacy or partially upgraded runtimes fail closed.
@@ -412,7 +417,7 @@ impl Default for SyncOptions {
     fn default() -> Self {
         Self {
             seed_peers: true,
-            timeout: Duration::from_secs(3),
+            timeout: DEFAULT_HEADER_SYNC_PEER_TIMEOUT,
             resource_cache_limit_bytes: DEFAULT_RESOURCE_CACHE_LIMIT_BYTES,
         }
     }
@@ -10558,7 +10563,7 @@ pub fn sync_once_for_network(data_dir: &str, network: NetworkKind) -> String {
         data_dir,
         network,
         true,
-        Duration::from_secs(3),
+        DEFAULT_HEADER_SYNC_PEER_TIMEOUT,
         DEFAULT_RESOURCE_CACHE_LIMIT_BYTES,
     )
     .to_json()
