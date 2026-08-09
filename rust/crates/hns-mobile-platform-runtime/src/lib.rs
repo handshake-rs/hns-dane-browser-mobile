@@ -21,7 +21,7 @@ use hns_browser_runtime::{
     AuthorityState, BrowserRuntime as CanonicalAuthorityRuntime,
     RuntimeSessionId as CanonicalRuntimeSessionId, RuntimeStamp,
 };
-use hns_cache::TtlCache;
+use hns_cache::ExpiringLru;
 use hns_chain::{
     DifficultyPolicy, HeaderChain, HeaderStore, SqliteHeaderStore, mainnet_sync_checkpoints,
 };
@@ -100,7 +100,7 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Error, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, UdpSocket};
-use std::num::NonZeroU16;
+use std::num::{NonZeroU16, NonZeroUsize};
 #[cfg(target_os = "android")]
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
@@ -11959,7 +11959,7 @@ fn persistent_gateway_resolver_stack(
 /// authenticated SOA at this boundary from which to derive the negative TTL.
 struct CachedDelegatedResolver<R> {
     inner: R,
-    cache: Mutex<TtlCache<(ResolutionRequest, [u8; 32]), CachedDelegatedResolution>>,
+    cache: Mutex<ExpiringLru<(ResolutionRequest, [u8; 32]), CachedDelegatedResolution>>,
     ttl: Duration,
 }
 
@@ -11973,7 +11973,9 @@ impl<R> CachedDelegatedResolver<R> {
     fn new(inner: R, max_entries: usize, ttl: Duration) -> Self {
         Self {
             inner,
-            cache: Mutex::new(TtlCache::new(max_entries)),
+            cache: Mutex::new(ExpiringLru::new(
+                NonZeroUsize::new(max_entries).unwrap_or(NonZeroUsize::MIN),
+            )),
             ttl,
         }
     }
@@ -12030,18 +12032,30 @@ impl<R: DelegatedResolver> DelegatedResolver for CachedDelegatedResolver<R> {
         match self.inner.resolve_delegated(request, delegation) {
             Ok(answer) => {
                 let ttl = self.positive_cache_ttl(&answer);
-                self.cache
+                let mut cache = self
+                    .cache
                     .lock()
-                    .map_err(|_| ResolverError::CachePoisoned)?
-                    .insert(key, CachedDelegatedResolution::Answer(answer.clone()), ttl);
+                    .map_err(|_| ResolverError::CachePoisoned)?;
+                if cache
+                    .insert(key, CachedDelegatedResolution::Answer(answer.clone()), ttl)
+                    .is_err()
+                {
+                    cache.clear();
+                }
                 Ok(answer)
             }
             Err(ResolverError::NameNotFound) => {
                 let ttl = self.negative_cache_ttl();
-                self.cache
+                let mut cache = self
+                    .cache
                     .lock()
-                    .map_err(|_| ResolverError::CachePoisoned)?
-                    .insert(key, CachedDelegatedResolution::NameNotFound, ttl);
+                    .map_err(|_| ResolverError::CachePoisoned)?;
+                if cache
+                    .insert(key, CachedDelegatedResolution::NameNotFound, ttl)
+                    .is_err()
+                {
+                    cache.clear();
+                }
                 Err(ResolverError::NameNotFound)
             }
             Err(error) => Err(error),

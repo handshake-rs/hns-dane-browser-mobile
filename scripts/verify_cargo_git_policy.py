@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require registry-only Cargo inputs and the qualified engine release."""
+"""Require registry inputs or exact reviewed engine migration revisions."""
 
 from __future__ import annotations
 
@@ -15,11 +15,21 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 ENGINE_VERSIONS = {
-    "hns-browser-observability": "0.1.1",
+    "hns-browser-observability": "0.1.2",
     "hns-browser-runtime": "0.1.0",
     "hns-icann-dane": "0.1.0",
     "hns-namespace-resolution": "0.1.0",
     "hns-resolution-policy": "0.1.0",
+}
+ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
+APPROVED_ENGINE_GIT = {
+    "hns-cache": ("0.2.0", "d8b564f"),
+    "hns-dns-wire": ("0.2.0", "d8b564f"),
+    "hns-browser-observability": ("0.1.2", "1ab4ab6"),
+    "hns-browser-runtime": ("0.1.0", "1ab4ab6"),
+    "hns-icann-dane": ("0.1.0", "1ab4ab6"),
+    "hns-namespace-resolution": ("0.1.0", "1ab4ab6"),
+    "hns-resolution-policy": ("0.1.0", "1ab4ab6"),
 }
 ENGINE_REQUIREMENTS = {
     package: f"={version}" for package, version in ENGINE_VERSIONS.items()
@@ -35,7 +45,7 @@ CHECKSUM = re.compile(r"^[0-9a-f]{64}$")
 
 
 class CargoSourcePolicyError(RuntimeError):
-    """A Cargo manifest or lockfile violates the registry-only source policy."""
+    """A Cargo manifest or lockfile violates the reviewed source policy."""
 
 
 def tracked_cargo_manifests(root: Path) -> list[Path]:
@@ -73,12 +83,21 @@ def load_toml(path: Path) -> dict[str, Any]:
 def validate_manifests(root: Path, manifests: list[Path]) -> None:
     for relative_path in manifests:
         document = load_toml(root / relative_path)
-        for location, _specification in git_specs(document):
+        for location, specification in git_specs(document):
             rendered_location = ".".join(location) or "<document root>"
-            raise CargoSourcePolicyError(
-                f"{relative_path}:{rendered_location}: Cargo Git dependencies "
-                "are not allowed; use a qualified crates.io release"
-            )
+            package = location[-1] if location else ""
+            approved = APPROVED_ENGINE_GIT.get(package)
+            if (
+                approved is None
+                or specification.get("git") != ENGINE_GIT_URL
+                or specification.get("rev") != approved[1]
+                or "branch" in specification
+                or "tag" in specification
+            ):
+                raise CargoSourcePolicyError(
+                    f"{relative_path}:{rendered_location}: Cargo Git dependency "
+                    "is not an exact reviewed hns-dane-engine revision"
+                )
 
     root_document = load_toml(root / ROOT_MANIFEST)
     dependencies = root_document.get("workspace", {}).get("dependencies", {})
@@ -125,10 +144,25 @@ def validate_lockfiles(root: Path) -> None:
             source = package.get("source")
             name = package.get("name", "<unknown>")
             if isinstance(source, str) and source.startswith("git+"):
-                raise CargoSourcePolicyError(
-                    f"{relative_path}: locked Cargo Git package {name!r} is "
-                    "not allowed"
+                approved = APPROVED_ENGINE_GIT.get(name)
+                expected_prefix = (
+                    f"git+{ENGINE_GIT_URL}?rev={approved[1]}#"
+                    if approved is not None
+                    else ""
                 )
+                revision = source.rsplit("#", 1)[-1]
+                if (
+                    approved is None
+                    or package.get("version") != approved[0]
+                    or not source.startswith(expected_prefix)
+                    or not revision.startswith(approved[1])
+                ):
+                    raise CargoSourcePolicyError(
+                        f"{relative_path}: locked Cargo Git package {name!r} is not allowed"
+                    )
+                if relative_path == Path("rust/Cargo.lock") and name in root_packages:
+                    root_packages[name] += 1
+                continue
             if name not in ENGINE_PACKAGES:
                 continue
             expected_version = ENGINE_VERSIONS[name]
@@ -184,8 +218,9 @@ def main() -> int:
         f"{package}={version}" for package, version in sorted(ENGINE_VERSIONS.items())
     )
     print(
-        "Cargo source policy permits registry inputs only and pins the five "
-        f"canonical hns-dane-engine packages to qualified crates.io versions: {versions}."
+        "Cargo source policy permits registry inputs plus exact reviewed "
+        "hns-dane-engine migration revisions and pins the five canonical "
+        f"compatibility packages: {versions}."
     )
     return 0
 

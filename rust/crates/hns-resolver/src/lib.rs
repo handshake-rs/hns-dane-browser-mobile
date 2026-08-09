@@ -1,4 +1,4 @@
-use hns_cache::TtlCache;
+use hns_cache::ExpiringLru;
 use hns_core::dns::{
     DnsEncodeConfig, DnsFlags, DnsHeader, DnsMessage, DnsName, DnsQuestion, RecordType,
     ResourceRecord, SVCB_PARAM_ALPN, SVCB_PARAM_DOHPATH, SVCB_PARAM_IPV4HINT, SVCB_PARAM_IPV6HINT,
@@ -25,6 +25,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{BTreeSet, HashMap};
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, UdpSocket};
+use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU16, Ordering};
@@ -508,7 +509,7 @@ pub struct ResourceValueCacheStats {
 
 pub struct CachedResolver<R> {
     inner: R,
-    cache: Mutex<TtlCache<ResolutionRequest, CachedResolution>>,
+    cache: Mutex<ExpiringLru<ResolutionRequest, CachedResolution>>,
     ttl: Duration,
 }
 
@@ -1789,7 +1790,9 @@ impl<R> CachedResolver<R> {
     pub fn new(inner: R, max_entries: usize, ttl: Duration) -> Self {
         Self {
             inner,
-            cache: Mutex::new(TtlCache::new(max_entries)),
+            cache: Mutex::new(ExpiringLru::new(
+                NonZeroUsize::new(max_entries).unwrap_or(NonZeroUsize::MIN),
+            )),
             ttl,
         }
     }
@@ -1812,21 +1815,33 @@ impl<R: Resolver> Resolver for CachedResolver<R> {
 
         match self.inner.resolve(request) {
             Ok(answer) => {
-                self.cache
+                let mut cache = self
+                    .cache
                     .lock()
-                    .map_err(|_| ResolverError::CachePoisoned)?
+                    .map_err(|_| ResolverError::CachePoisoned)?;
+                if cache
                     .insert(
                         request.clone(),
                         CachedResolution::Answer(answer.clone()),
                         self.ttl,
-                    );
+                    )
+                    .is_err()
+                {
+                    cache.clear();
+                }
                 Ok(answer)
             }
             Err(ResolverError::NameNotFound) => {
-                self.cache
+                let mut cache = self
+                    .cache
                     .lock()
-                    .map_err(|_| ResolverError::CachePoisoned)?
-                    .insert(request.clone(), CachedResolution::NameNotFound, self.ttl);
+                    .map_err(|_| ResolverError::CachePoisoned)?;
+                if cache
+                    .insert(request.clone(), CachedResolution::NameNotFound, self.ttl)
+                    .is_err()
+                {
+                    cache.clear();
+                }
                 Err(ResolverError::NameNotFound)
             }
             Err(error) => Err(error),

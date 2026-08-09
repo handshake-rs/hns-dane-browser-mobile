@@ -3,7 +3,6 @@ resolver = "3"
 exclude = ["fuzz"]
 members = [
     "crates/android-ffi",
-    "crates/hns-cache",
     "crates/hns-chain",
     "crates/hns-core",
     "crates/hns-dane",
@@ -32,7 +31,7 @@ blake2 = "0.10"
 bytes = "1"
 hex = "0.4"
 getrandom = "0.3"
-hns-cache = { path = "crates/hns-cache" }
+hns-cache = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "d8b564f" }
 hns-chain = { path = "crates/hns-chain" }
 hns-core = { path = "crates/hns-core" }
 hns-dane = { path = "crates/hns-dane" }

@@ -24,7 +24,7 @@ class CargoSourcePolicyTests(unittest.TestCase):
         self.assertEqual(
             ENGINE_VERSIONS,
             {
-                "hns-browser-observability": "0.1.1",
+                "hns-browser-observability": "0.1.2",
                 "hns-browser-runtime": "0.1.0",
                 "hns-icann-dane": "0.1.0",
                 "hns-namespace-resolution": "0.1.0",
@@ -94,7 +94,7 @@ class CargoSourcePolicyTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(
-                CargoSourcePolicyError, "Git dependencies are not allowed"
+                CargoSourcePolicyError, "not an exact reviewed"
             ):
                 self.verify_fixture(root)
 

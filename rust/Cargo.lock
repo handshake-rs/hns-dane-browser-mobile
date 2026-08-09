@@ -577,7 +577,13 @@ source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab6#1a
 
 [[package]]
 name = "hns-cache"
-version = "0.5.6"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=d8b564f#d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f"
+dependencies = [
+ "hns-dns-wire",
+ "sha2",
+ "thiserror 2.0.19",
+]
 
 [[package]]
 name = "hns-chain"
@@ -611,6 +617,11 @@ dependencies = [
  "sha2",
  "thiserror 2.0.19",
 ]
+
+[[package]]
+name = "hns-dns-wire"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=d8b564f#d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f"
 
 [[package]]
 name = "hns-dnssec"
