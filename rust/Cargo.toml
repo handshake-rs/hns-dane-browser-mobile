@@ -14,7 +14,6 @@ members = [
     "crates/hns-resolver",
     "crates/hns-sync",
     "crates/hns-transport",
-    "crates/hns-urkel",
 ]
 
 [workspace.package]
@@ -32,7 +31,7 @@ hex = "0.4"
 getrandom = "0.3"
 hns-cache = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f" }
 hns-chain = { path = "crates/hns-chain" }
-hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "8d13c295ec99aa634170402ed316f16e040c7e40" }
+hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b546ad07962326435dc67f89ff1b3756e66f2482" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
@@ -50,7 +49,7 @@ hns-p2p = { path = "crates/hns-p2p" }
 hns-resolver = { path = "crates/hns-resolver" }
 hns-sync = { path = "crates/hns-sync" }
 hns-transport = { path = "crates/hns-transport" }
-hns-urkel = { path = "crates/hns-urkel" }
+hns-urkel = { package = "hns-browser-urkel", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b546ad07962326435dc67f89ff1b3756e66f2482" }
 http = "1"
 httparse = "1.10"
 idna = "1.1"
