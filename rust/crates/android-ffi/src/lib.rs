@@ -86,7 +86,7 @@ struct AndroidRequestMetricsObserver;
 impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
     fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics) {
         android_log_request_metrics(&format!(
-            "request_id={} route={:?} host={} method={} active={} queued={} admission_wait_ms={} prepare_ms={} dns_timings_available={} hns_dns_ms={} icann_dns_ms={} gateway_ms={} origin_timing_available={} origin_ms={} publish_ms={} total_ms={} status={} outcome={}",
+            "request_id={} route={:?} host={} method={} active={} queued={} admission_wait_ms={} prepare_ms={} dns_timings_available={} hns_dns_ms={} icann_dns_ms={} live_proof_timings_available={} live_proof_selection_ms={} live_proof_connect_ms={} live_proof_handshake_ms={} live_proof_verify_store_ms={} live_proof_persistence_ms={} live_proof_total_ms={} live_proof_peers_started={} live_proof_peers_completed={} gateway_ms={} origin_timing_available={} origin_ms={} publish_ms={} total_ms={} status={} outcome={}",
             metrics.request_id,
             metrics.route,
             metrics.host,
@@ -98,6 +98,15 @@ impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
             metrics.dns_timings_available,
             metrics.hns_dns_ms,
             metrics.icann_dns_ms,
+            metrics.live_proof_timings_available,
+            metrics.live_proof_selection_ms,
+            metrics.live_proof_connect_ms,
+            metrics.live_proof_handshake_ms,
+            metrics.live_proof_verify_store_ms,
+            metrics.live_proof_persistence_ms,
+            metrics.live_proof_total_ms,
+            metrics.live_proof_peers_started,
+            metrics.live_proof_peers_completed,
             metrics.gateway_ms,
             metrics.origin_timing_available,
             metrics.origin_ms,

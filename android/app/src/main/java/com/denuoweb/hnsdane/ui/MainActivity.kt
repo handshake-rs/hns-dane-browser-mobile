@@ -63,10 +63,8 @@ import com.denuoweb.hnsdane.core.SecurityState
 import com.denuoweb.hnsdane.core.isCanonicalIpLiteral
 import com.denuoweb.hnsdane.net.DisabledServiceWorkerClient
 import com.denuoweb.hnsdane.net.BrowserProxyCoordinator
-import com.denuoweb.hnsdane.net.BrowserProxyLifecycleWorker
 import com.denuoweb.hnsdane.net.BrowserProxyRoute
 import com.denuoweb.hnsdane.net.GatewayEventLog
-import com.denuoweb.hnsdane.net.HnsProxyController
 import com.denuoweb.hnsdane.net.HnsServiceWorkerGatewayClient
 import com.denuoweb.hnsdane.net.HnsSyncProgress
 import com.denuoweb.hnsdane.net.HnsSyncSnapshot
@@ -74,10 +72,8 @@ import com.denuoweb.hnsdane.net.HnsNativeDownloadFetcher
 import com.denuoweb.hnsdane.net.HnsProxyWebSocketPolicy
 import com.denuoweb.hnsdane.net.HnsWebViewGatewayInterceptor
 import com.denuoweb.hnsdane.net.HnsWebViewSslErrorPolicy
-import com.denuoweb.hnsdane.net.LocalBrowserProxyFactory
 import com.denuoweb.hnsdane.net.NativeBridge
 import com.denuoweb.hnsdane.net.ProcessServiceWorkerClientOwnership
-import com.denuoweb.hnsdane.net.RustBrowserProxy
 import com.denuoweb.hnsdane.net.RustBrowserProxyConfig
 import com.denuoweb.hnsdane.net.ServiceWorkerClientOwnershipGate
 import com.denuoweb.hnsdane.net.blockedHnsProxyResponse
@@ -117,6 +113,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var webViewGatewayInterceptor: HnsWebViewGatewayInterceptor
     private val serviceWorkerClientOwner: ServiceWorkerClientOwnershipGate.Owner =
         ProcessServiceWorkerClientOwnership.newOwner()
+    private val proxyNavigationOwner = Any()
     private var proxyAvailable: Boolean = false
     private var currentTargetKind: BrowserTargetKind? = null
     private var mainFrameHnsStatusCode: Int? = null
@@ -127,6 +124,7 @@ class MainActivity : ComponentActivity() {
     private var mainFrameHnsStatusUrl: String? = null
     private var lastSyncSnapshot: HnsSyncSnapshot? = null
     private var syncSnapshotSubscription: Closeable? = null
+    private var proxyAvailabilitySubscription: Closeable? = null
     @Volatile
     private var gatewayInterceptionEnabled: Boolean = false
     private var activityDestroyed: Boolean = false
@@ -146,17 +144,15 @@ class MainActivity : ComponentActivity() {
         GatewayEventLog.configureAppStorage(filesDir)
         NativeBridge.pruneGatewayResponseBodyFiles(filesDir.absolutePath)
         HnsNativeDownloadFetcher.pruneStaging(filesDir)
-        val proxyController = HnsProxyController(this)
-        proxyCoordinator = BrowserProxyCoordinator(
-            overrideController = proxyController,
-            proxyFactory = LocalBrowserProxyFactory(RustBrowserProxy::start),
-            workerExecutor = BrowserProxyLifecycleWorker,
-            callbackExecutor = ContextCompat.getMainExecutor(this),
-            onAvailabilityChanged = { available ->
+        val app = application as HnsDaneApplication
+        proxyCoordinator = app.browserProxyCoordinator
+        proxyAvailabilitySubscription = app.observeProxyAvailability { available ->
+            runOnUiThread {
+                if (activityDestroyed) return@runOnUiThread
                 proxyAvailable = available
                 if (::securityLabel.isInitialized) refreshSecurityState()
-            },
-        )
+            }
+        }
         webViewGatewayInterceptor = HnsWebViewGatewayInterceptor(
             dataDir = filesDir,
             namespacePolicy = NativeBridge,
@@ -355,7 +351,7 @@ class MainActivity : ComponentActivity() {
             val target = classifier.classify(resumeUrl)
             enqueueNavigation(target) { webView.reload() }
         }
-        proxyCoordinator.resume(proxyConfigForUrl(pendingMainFrameUrl ?: activeMainFrameUrl ?: resumeUrl))
+        resumeUrl?.let { url -> proxyCoordinator.ensure(proxyConfigForUrl(url)) }
         refreshSecurityState()
         refreshSyncProgress()
         syncStatusExecutor.execute {
@@ -381,8 +377,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         gatewayInterceptionEnabled = false
-        // Only a page interrupted mid-load needs a reload after the proxy
-        // suspension below; a fully loaded page survives backgrounding intact.
+        // Only a page interrupted mid-load needs a reload after backgrounding;
+        // the process-owned proxy and a fully loaded page remain intact.
         reloadHnsPageOnNextStart = currentNativeGatewayHostForUrl(activeMainFrameUrl) != null &&
             ::webView.isInitialized && webView.progress < 100
         if (::webView.isInitialized) {
@@ -390,7 +386,6 @@ class MainActivity : ComponentActivity() {
         }
         stopSyncStatusPolling()
         stopObservingForegroundSync()
-        proxyCoordinator.suspend()
         super.onStop()
     }
 
@@ -398,7 +393,9 @@ class MainActivity : ComponentActivity() {
         activityDestroyed = true
         gatewayInterceptionEnabled = false
         stopObservingForegroundSync()
-        proxyCoordinator.destroy()
+        proxyAvailabilitySubscription?.close()
+        proxyAvailabilitySubscription = null
+        proxyCoordinator.releaseNavigationOwner(proxyNavigationOwner)
         disableServiceWorkerInterception()
         if (::webView.isInitialized) {
             webView.stopLoading()
@@ -757,7 +754,7 @@ class MainActivity : ComponentActivity() {
         refreshTransportWarning()
         val config = proxyConfigForTarget(target)
         val targetHost = config?.let { target.displayHost }
-        proxyCoordinator.navigate(config, targetHost) {
+        proxyCoordinator.navigate(proxyNavigationOwner, config, targetHost) {
             if (activityDestroyed || pendingMainFrameUrl?.mainFrameMatchKey() != target.url.mainFrameMatchKey()) {
                 return@navigate
             }
@@ -963,7 +960,9 @@ class MainActivity : ComponentActivity() {
             val target = classifier.classify(url)
             currentTargetKind = target.kind
             if (target.kind in NATIVE_GATEWAY_TARGET_KINDS) {
-                target.displayHost?.let(proxyCoordinator::noteMainFrameHost)
+                target.displayHost?.let { host ->
+                    proxyCoordinator.noteMainFrameHost(proxyNavigationOwner, host)
+                }
             }
             clearMainFrameHnsStatusUnlessFor(url)
             refreshSecurityState()
@@ -1061,8 +1060,8 @@ class MainActivity : ComponentActivity() {
             currentTargetKind = target.kind
             if (target.kind in NATIVE_GATEWAY_TARGET_KINDS) {
                 target.displayHost?.let { host ->
-                    proxyCoordinator.noteMainFrameHost(host)
-                    proxyCoordinator.takeMainFrameStatus(host)?.let { status ->
+                    proxyCoordinator.noteMainFrameHost(proxyNavigationOwner, host)
+                    proxyCoordinator.takeMainFrameStatus(proxyNavigationOwner, host)?.let { status ->
                         applyMainFrameHnsStatus(
                             status.statusCode,
                             status.tlsPolicy,
@@ -1083,7 +1082,6 @@ class MainActivity : ComponentActivity() {
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
             gatewayInterceptionEnabled = false
-            proxyCoordinator.suspend()
             pageIsLoading = false
             pageLoadProgress = 0
             refreshSecurityState()

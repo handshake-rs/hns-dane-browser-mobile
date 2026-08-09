@@ -12,8 +12,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from verify_cargo_git_policy import (  # noqa: E402
     CRATES_IO_SOURCE,
     ENGINE_PACKAGES,
-    ENGINE_REQUIREMENT,
-    ENGINE_VERSION,
+    ENGINE_REQUIREMENTS,
+    ENGINE_VERSIONS,
     CargoSourcePolicyError,
     verify_repository,
 )
@@ -22,15 +22,16 @@ from verify_cargo_git_policy import (  # noqa: E402
 class CargoSourcePolicyTests(unittest.TestCase):
     def test_qualified_engine_package_set_is_explicit(self) -> None:
         self.assertEqual(
-            ENGINE_PACKAGES,
+            ENGINE_VERSIONS,
             {
-                "hns-browser-observability",
-                "hns-browser-runtime",
-                "hns-icann-dane",
-                "hns-namespace-resolution",
-                "hns-resolution-policy",
+                "hns-browser-observability": "0.1.1",
+                "hns-browser-runtime": "0.1.0",
+                "hns-icann-dane": "0.1.0",
+                "hns-namespace-resolution": "0.1.0",
+                "hns-resolution-policy": "0.1.0",
             },
         )
+        self.assertEqual(ENGINE_PACKAGES, frozenset(ENGINE_VERSIONS))
 
     def create_fixture(self) -> tuple[tempfile.TemporaryDirectory[str], Path]:
         temporary = tempfile.TemporaryDirectory()
@@ -39,7 +40,7 @@ class CargoSourcePolicyTests(unittest.TestCase):
         (root / "tools/hns-header-snapshot-exporter").mkdir(parents=True)
 
         dependencies = "\n".join(
-            f'{package} = "{ENGINE_REQUIREMENT}"'
+            f'{package} = "{ENGINE_REQUIREMENTS[package]}"'
             for package in sorted(ENGINE_PACKAGES)
         )
         (root / "rust/Cargo.toml").write_text(
@@ -49,7 +50,7 @@ class CargoSourcePolicyTests(unittest.TestCase):
         locked_packages = "\n".join(
             "[[package]]\n"
             f'name = "{package}"\n'
-            f'version = "{ENGINE_VERSION}"\n'
+            f'version = "{ENGINE_VERSIONS[package]}"\n'
             f'source = "{CRATES_IO_SOURCE}"\n'
             f'checksum = "{"a" * 64}"\n'
             for package in sorted(ENGINE_PACKAGES)
@@ -65,7 +66,7 @@ class CargoSourcePolicyTests(unittest.TestCase):
             "version = 4\n\n"
             "[[package]]\n"
             'name = "hns-namespace-resolution"\n'
-            f'version = "{ENGINE_VERSION}"\n'
+            f'version = "{ENGINE_VERSIONS["hns-namespace-resolution"]}"\n'
             f'source = "{CRATES_IO_SOURCE}"\n'
             f'checksum = "{"b" * 64}"\n',
             encoding="utf-8",
@@ -86,7 +87,7 @@ class CargoSourcePolicyTests(unittest.TestCase):
             manifest = root / "rust/Cargo.toml"
             manifest.write_text(
                 manifest.read_text(encoding="utf-8").replace(
-                    f'"{ENGINE_REQUIREMENT}"',
+                    f'"{ENGINE_REQUIREMENTS["hns-browser-observability"]}"',
                     '{ git = "https://example.invalid/engine.git" }',
                     1,
                 ),
@@ -103,7 +104,9 @@ class CargoSourcePolicyTests(unittest.TestCase):
             manifest = root / "rust/Cargo.toml"
             manifest.write_text(
                 manifest.read_text(encoding="utf-8").replace(
-                    ENGINE_REQUIREMENT, ENGINE_VERSION, 1
+                    ENGINE_REQUIREMENTS["hns-browser-observability"],
+                    ENGINE_VERSIONS["hns-browser-observability"],
+                    1,
                 ),
                 encoding="utf-8",
             )
@@ -116,8 +119,8 @@ class CargoSourcePolicyTests(unittest.TestCase):
             lockfile = root / "rust/Cargo.lock"
             lockfile.write_text(
                 lockfile.read_text(encoding="utf-8").replace(
-                    f'version = "{ENGINE_VERSION}"',
-                    'version = "0.1.1"',
+                    f'version = "{ENGINE_VERSIONS["hns-browser-observability"]}"',
+                    'version = "9.9.9"',
                     1,
                 ),
                 encoding="utf-8",

@@ -69,6 +69,7 @@ internal class BrowserProxyCoordinator(
     )
 
     private class PendingNavigation(
+        val owner: Any,
         val targetHost: String?,
         val load: () -> Unit,
     )
@@ -76,6 +77,7 @@ internal class BrowserProxyCoordinator(
     private class StatusContext(
         val binding: Binding,
         var host: String,
+        val owner: Any,
     )
 
     private class RoutingSnapshot(
@@ -103,6 +105,7 @@ internal class BrowserProxyCoordinator(
     private var pendingNavigation: PendingNavigation? = null
     private var statusContext: StatusContext? = null
     private val retiredProxies = Collections.newSetFromMap(IdentityHashMap<LocalBrowserProxy, Boolean>())
+    private val defaultNavigationOwner = Any()
     private val publicationLock = Any()
 
     @Volatile
@@ -147,6 +150,13 @@ internal class BrowserProxyCoordinator(
         config: RustBrowserProxyConfig?,
         targetHost: String?,
         load: () -> Unit,
+    ) = navigate(defaultNavigationOwner, config, targetHost, load)
+
+    fun navigate(
+        owner: Any,
+        config: RustBrowserProxyConfig?,
+        targetHost: String?,
+        load: () -> Unit,
     ) {
         if (destroyed) return
         val canonicalTargetHost = targetHost?.let(::canonicalBrowserProxyHost)
@@ -156,8 +166,14 @@ internal class BrowserProxyCoordinator(
         if (canonicalTargetHost != null) statusContext = null
         val effectiveConfig = updateDesiredConfig(config, retryFailedStart = true)
         if (effectiveConfig != null) requireNotNull(canonicalTargetHost)
-        pendingNavigation = PendingNavigation(canonicalTargetHost, load)
+        pendingNavigation = PendingNavigation(owner, canonicalTargetHost, load)
         reconcile()
+    }
+
+    /** Detaches Activity callbacks without changing the process-owned proxy generation. */
+    fun releaseNavigationOwner(owner: Any) {
+        if (pendingNavigation?.owner === owner) pendingNavigation = null
+        if (statusContext?.owner === owner) statusContext = null
     }
 
     /** Revokes callback trust immediately and drains the native proxy on the worker. */
@@ -224,22 +240,36 @@ internal class BrowserProxyCoordinator(
 
     /** Updates the exact main-frame host for an in-scope redirect on the committed navigation. */
     fun noteMainFrameHost(host: String) {
+        noteMainFrameHost(defaultNavigationOwner, host)
+    }
+
+    fun noteMainFrameHost(owner: Any, host: String) {
         val canonicalHost = canonicalBrowserProxyHost(host) ?: return
         val binding = publishedBinding ?: return
         val context = statusContext ?: return
-        if (publishedAvailable && context.binding === binding && binding.covers(canonicalHost)) {
+        if (
+            publishedAvailable &&
+            context.binding === binding &&
+            context.owner === owner &&
+            binding.covers(canonicalHost)
+        ) {
             context.host = canonicalHost
         }
     }
 
     /** Consumes status only for the exact live instance and most recently committed navigation. */
     fun takeMainFrameStatus(host: String): LocalBrowserProxyStatus? {
+        return takeMainFrameStatus(defaultNavigationOwner, host)
+    }
+
+    fun takeMainFrameStatus(owner: Any, host: String): LocalBrowserProxyStatus? {
         val canonicalHost = canonicalBrowserProxyHost(host) ?: return null
         val binding = publishedBinding ?: return null
         val context = statusContext ?: return null
         if (
             !publishedAvailable ||
             context.binding !== binding ||
+            context.owner !== owner ||
             context.host != canonicalHost ||
             !binding.covers(canonicalHost)
         ) {
@@ -591,7 +621,7 @@ internal class BrowserProxyCoordinator(
         binding.proxy.discardMainFrameStatus(targetHost)
         if (binding !== publishedBinding || !publishedAvailable) return
         pendingNavigation = null
-        statusContext = StatusContext(binding, targetHost)
+        statusContext = StatusContext(binding, targetHost, pending.owner)
         pending.load()
     }
 

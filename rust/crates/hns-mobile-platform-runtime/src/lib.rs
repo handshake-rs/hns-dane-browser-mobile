@@ -11,7 +11,8 @@
 
 use hns_browser_observability::{
     BrowserStatus as CanonicalBrowserStatus, IcannTlsAction as CanonicalIcannTlsAction,
-    ProviderReadiness as CanonicalProviderReadiness, RateLimitState as CanonicalRateLimitState,
+    ProviderReadiness as CanonicalProviderReadiness, RUNTIME_FEATURE_SCHEMA_VERSION,
+    RateLimitState as CanonicalRateLimitState, RuntimeFeatureDiagnostics, RuntimeFeatureState,
     StatusInput as CanonicalStatusInput, TransportIdentities as CanonicalTransportIdentities,
 };
 use hns_browser_runtime::{
@@ -79,7 +80,7 @@ use hns_resolver::{
     classify_name, hns_root_label,
 };
 use hns_sync::{
-    HeaderSyncCoordinator, HeaderSyncRunner, HeaderSyncRunnerConfig, ProofScheduler, SyncError,
+    HeaderSyncCoordinator, HeaderSyncRunner, HeaderSyncRunnerConfig, ProofScheduler,
     TcpHeaderPeerConnector,
 };
 pub use hns_transport::DEFAULT_MAX_REQUEST_BODY_BYTES;
@@ -214,8 +215,10 @@ const DNS_AUTHENTIC_DATA_FLAG: u16 = 0x0020;
 const DNS_CHECKING_DISABLED_FLAG: u16 = 0x0010;
 const DNSSEC_DO_FLAG: u32 = 0x8000;
 const DEFAULT_DNS_UDP_PAYLOAD: usize = 1232;
-const DEFAULT_GATEWAY_PROOF_PEERS: usize = 8;
+const DEFAULT_GATEWAY_PROOF_PEERS: usize = 3;
 const DEFAULT_GATEWAY_PROOF_TIMEOUT: Duration = Duration::from_secs(3);
+const LIVE_PROOF_CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(500);
+const LIVE_PROOF_IO_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const GATEWAY_RESOLVER_CACHE_ENTRIES: usize = 1_024;
 const GATEWAY_RESOLVER_CACHE_TTL: Duration = Duration::from_secs(300);
 const GATEWAY_NEGATIVE_ANSWER_CACHE_TTL: Duration = Duration::from_secs(30);
@@ -770,6 +773,15 @@ pub struct BrowserRequestMetrics {
     pub dns_timings_available: bool,
     pub hns_dns_ms: u64,
     pub icann_dns_ms: u64,
+    pub live_proof_timings_available: bool,
+    pub live_proof_selection_ms: u64,
+    pub live_proof_connect_ms: u64,
+    pub live_proof_handshake_ms: u64,
+    pub live_proof_verify_store_ms: u64,
+    pub live_proof_persistence_ms: u64,
+    pub live_proof_total_ms: u64,
+    pub live_proof_peers_started: usize,
+    pub live_proof_peers_completed: usize,
     pub gateway_ms: u64,
     pub origin_timing_available: bool,
     pub origin_ms: u64,
@@ -1764,6 +1776,15 @@ impl<'a> RequestMetricsCapture<'a> {
                 dns_timings_available: false,
                 hns_dns_ms: 0,
                 icann_dns_ms: 0,
+                live_proof_timings_available: false,
+                live_proof_selection_ms: 0,
+                live_proof_connect_ms: 0,
+                live_proof_handshake_ms: 0,
+                live_proof_verify_store_ms: 0,
+                live_proof_persistence_ms: 0,
+                live_proof_total_ms: 0,
+                live_proof_peers_started: 0,
+                live_proof_peers_completed: 0,
                 gateway_ms: 0,
                 origin_timing_available: false,
                 origin_ms: 0,
@@ -1789,6 +1810,17 @@ impl Drop for RequestMetricsCapture<'_> {
             let events = trace.snapshot();
             self.metrics.hns_dns_ms = dns_stage_millis(&events, "hns");
             self.metrics.icann_dns_ms = dns_stage_millis(&events, "icann");
+            if let Some(proof) = trace.live_proof_snapshot() {
+                self.metrics.live_proof_timings_available = true;
+                self.metrics.live_proof_selection_ms = proof.selection_ms;
+                self.metrics.live_proof_connect_ms = proof.connect_ms;
+                self.metrics.live_proof_handshake_ms = proof.handshake_ms;
+                self.metrics.live_proof_verify_store_ms = proof.verify_store_ms;
+                self.metrics.live_proof_persistence_ms = proof.persistence_ms;
+                self.metrics.live_proof_total_ms = proof.total_ms;
+                self.metrics.live_proof_peers_started = proof.peers_started;
+                self.metrics.live_proof_peers_completed = proof.peers_completed;
+            }
         }
         self.metrics.total_ms = elapsed_millis(self.started);
         self.runtime.observe_request_metrics(self.metrics.clone());
@@ -6253,6 +6285,167 @@ impl HnsProofEvidenceRecorder {
     }
 }
 
+struct LiveProofRaceMetricsCapture<'a> {
+    trace: &'a DnsTraceRecorder,
+    started: Instant,
+    metrics: LiveProofRaceMetrics,
+}
+
+impl<'a> LiveProofRaceMetricsCapture<'a> {
+    fn begin(trace: &'a DnsTraceRecorder) -> Self {
+        Self {
+            trace,
+            started: Instant::now(),
+            metrics: LiveProofRaceMetrics::default(),
+        }
+    }
+}
+
+impl Drop for LiveProofRaceMetricsCapture<'_> {
+    fn drop(&mut self) {
+        self.metrics.total_ms = elapsed_millis(self.started);
+        self.trace.record_live_proof(self.metrics.clone());
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LiveProofPeerOutcome {
+    Success,
+    StaleHeight,
+    Cancelled,
+    Failed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct LiveProofPeerAttempt {
+    address: SocketAddr,
+    outcome: LiveProofPeerOutcome,
+    won_race: bool,
+    connect_ms: u64,
+    handshake_ms: u64,
+    verify_store_ms: u64,
+}
+
+impl LiveProofPeerAttempt {
+    fn new(address: SocketAddr) -> Self {
+        Self {
+            address,
+            outcome: LiveProofPeerOutcome::Failed,
+            won_race: false,
+            connect_ms: 0,
+            handshake_ms: 0,
+            verify_store_ms: 0,
+        }
+    }
+}
+
+struct DeadlineTcpStream<'a> {
+    stream: TcpStream,
+    deadline: Instant,
+    cancelled: &'a AtomicBool,
+}
+
+#[derive(Clone, Copy)]
+struct LiveProofRequest<'a> {
+    root_name: &'a str,
+    name_hash: NameHash,
+    proof_root: hns_core::Hash,
+    proof_height: Height,
+    deadline: Instant,
+}
+
+impl<'a> DeadlineTcpStream<'a> {
+    fn connect(
+        address: SocketAddr,
+        deadline: Instant,
+        cancelled: &'a AtomicBool,
+    ) -> Result<Self, Error> {
+        if cancelled.load(Ordering::Acquire) {
+            return Err(live_proof_cancelled_error());
+        }
+        let remaining = remaining_until(deadline)?.min(LIVE_PROOF_CONNECT_ATTEMPT_TIMEOUT);
+        let stream = TcpStream::connect_timeout(&address, remaining)?;
+        stream.set_nodelay(true)?;
+        Ok(Self {
+            stream,
+            deadline,
+            cancelled,
+        })
+    }
+
+    fn io_poll_timeout(&self) -> Result<Duration, Error> {
+        if self.cancelled.load(Ordering::Acquire) {
+            return Err(live_proof_cancelled_error());
+        }
+        Ok(remaining_until(self.deadline)?.min(LIVE_PROOF_IO_POLL_INTERVAL))
+    }
+
+    fn prepare_read(&self) -> Result<(), Error> {
+        self.stream.set_read_timeout(Some(self.io_poll_timeout()?))
+    }
+
+    fn prepare_write(&self) -> Result<(), Error> {
+        self.stream.set_write_timeout(Some(self.io_poll_timeout()?))
+    }
+}
+
+impl Read for DeadlineTcpStream<'_> {
+    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, Error> {
+        loop {
+            self.prepare_read()?;
+            match self.stream.read(buffer) {
+                Err(error)
+                    if matches!(error.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) =>
+                {
+                    continue;
+                }
+                result => return result,
+            }
+        }
+    }
+}
+
+impl Write for DeadlineTcpStream<'_> {
+    fn write(&mut self, buffer: &[u8]) -> Result<usize, Error> {
+        loop {
+            self.prepare_write()?;
+            match self.stream.write(buffer) {
+                Err(error)
+                    if matches!(error.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) =>
+                {
+                    continue;
+                }
+                result => return result,
+            }
+        }
+    }
+
+    fn flush(&mut self) -> Result<(), Error> {
+        loop {
+            self.prepare_write()?;
+            match self.stream.flush() {
+                Err(error)
+                    if matches!(error.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) =>
+                {
+                    continue;
+                }
+                result => return result,
+            }
+        }
+    }
+}
+
+fn live_proof_cancelled_error() -> Error {
+    Error::new(ErrorKind::Interrupted, "live proof peer race cancelled")
+}
+
+fn remaining_until(deadline: Instant) -> Result<Duration, Error> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .filter(|remaining| !remaining.is_zero())
+        .ok_or_else(|| Error::new(ErrorKind::TimedOut, "live proof deadline exceeded"))
+}
+
 struct GatewayProofProvider {
     base: PathBuf,
     values: SqliteResourceValueProvider,
@@ -6263,6 +6456,7 @@ struct GatewayProofProvider {
     peer_state: Option<Arc<Mutex<()>>>,
     proof_peer: Option<Arc<Mutex<Option<SocketAddr>>>>,
     evidence: HnsProofEvidenceRecorder,
+    trace: DnsTraceRecorder,
 }
 
 impl GatewayProofProvider {
@@ -6277,6 +6471,7 @@ impl GatewayProofProvider {
             peer_state: None,
             proof_peer: None,
             evidence: HnsProofEvidenceRecorder::default(),
+            trace: DnsTraceRecorder::default(),
         }
     }
 
@@ -6292,6 +6487,11 @@ impl GatewayProofProvider {
 
     fn with_evidence(mut self, evidence: HnsProofEvidenceRecorder) -> Self {
         self.evidence = evidence;
+        self
+    }
+
+    fn with_trace(mut self, trace: DnsTraceRecorder) -> Self {
+        self.trace = trace;
         self
     }
 
@@ -6360,6 +6560,7 @@ impl GatewayProofProvider {
         root_name: &str,
         name_hash: NameHash,
     ) -> Result<(), ResolverError> {
+        let mut metrics = LiveProofRaceMetricsCapture::begin(&self.trace);
         let _peer_state = match self.peer_state.as_ref() {
             Some(peer_state) => Some(
                 peer_state
@@ -6368,6 +6569,11 @@ impl GatewayProofProvider {
             ),
             None => None,
         };
+        match self.cached_records(root_name, name_hash) {
+            Ok(_) => return Ok(()),
+            Err(ResolverError::ProofUnavailable) => {}
+            Err(error) => return Err(error),
+        }
         let best = best_synced_header(&self.base, self.network)?;
         let network = self.network.network();
         let peer_store = SqlitePeerStore::open(self.base.join("peers.sqlite"))
@@ -6381,76 +6587,164 @@ impl GatewayProofProvider {
         }
 
         let now = now_unix_seconds();
+        let selection_started = Instant::now();
         let selected =
             select_live_proof_peers(&peers, &network, self.preferred_peers, now, best.height);
+        metrics.metrics.selection_ms = elapsed_millis(selection_started);
+        metrics.metrics.peers_started = selected.len();
         if selected.is_empty() {
+            let persistence_started = Instant::now();
             peer_store
                 .save_manager(&peers)
                 .map_err(|error| ResolverError::Storage(format!("save peer store: {error}")))?;
+            metrics.metrics.persistence_ms = elapsed_millis(persistence_started);
             return Err(ResolverError::ProofUnavailable);
         }
 
-        for address in selected {
-            match self.fetch_from_peer(
-                address,
-                root_name,
-                name_hash,
-                best.header.tree_root,
-                best.height,
-            ) {
-                Ok(()) => {
-                    // The proof is verified against our already validated local
-                    // tree root. Its transport handshake does not authenticate
-                    // the peer's advertised version height, so only refresh
-                    // connection health here.
-                    peers.record_transport_success(address, now);
-                    if let Some(proof_peer) = self.proof_peer.as_ref()
-                        && let Ok(mut selected) = proof_peer.lock()
-                    {
-                        *selected = Some(address);
-                    }
-                    peer_store.save_manager(&peers).map_err(|error| {
-                        ResolverError::Storage(format!("save peer store: {error}"))
-                    })?;
-                    return Ok(());
+        let deadline = Instant::now() + self.timeout;
+        let request = LiveProofRequest {
+            root_name,
+            name_hash,
+            proof_root: best.header.tree_root,
+            proof_height: best.height,
+            deadline,
+        };
+        let won = AtomicBool::new(false);
+        let attempts = thread::scope(|scope| {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            for address in selected {
+                let sender = sender.clone();
+                let won = &won;
+                scope.spawn(move || {
+                    let attempt = self.fetch_from_peer(address, &request, won);
+                    let _ = sender.send(attempt);
+                });
+            }
+            drop(sender);
+            receiver.into_iter().collect::<Vec<_>>()
+        });
+        metrics.metrics.peers_completed = attempts.len();
+        if let Some(attributed) = attempts
+            .iter()
+            .find(|attempt| attempt.won_race)
+            .or_else(|| {
+                attempts.iter().max_by_key(|attempt| {
+                    attempt
+                        .connect_ms
+                        .saturating_add(attempt.handshake_ms)
+                        .saturating_add(attempt.verify_store_ms)
+                })
+            })
+        {
+            metrics.metrics.connect_ms = attributed.connect_ms;
+            metrics.metrics.handshake_ms = attributed.handshake_ms;
+            metrics.metrics.verify_store_ms = attributed.verify_store_ms;
+        }
+
+        for attempt in &attempts {
+            match attempt.outcome {
+                LiveProofPeerOutcome::Success => {
+                    // Exact-root proof verification is the authority. A live
+                    // proof transport success must not promote the remote
+                    // version height into sync-owned target evidence.
+                    peers.record_transport_success(attempt.address, now);
                 }
-                Err(_) => {
-                    peers.record_transient_failure(address);
+                LiveProofPeerOutcome::StaleHeight => {
+                    peers.record_stale_tip(attempt.address);
                 }
+                LiveProofPeerOutcome::Cancelled => {}
+                LiveProofPeerOutcome::Failed => peers.record_transient_failure(attempt.address),
             }
         }
 
+        let winning_address = attempts
+            .iter()
+            .find(|attempt| attempt.won_race)
+            .map(|attempt| attempt.address);
+        if let Some(address) = winning_address
+            && let Some(proof_peer) = self.proof_peer.as_ref()
+            && let Ok(mut selected) = proof_peer.lock()
+        {
+            *selected = Some(address);
+        }
+        let persistence_started = Instant::now();
         peer_store
             .save_manager(&peers)
             .map_err(|error| ResolverError::Storage(format!("save peer store: {error}")))?;
-        Err(ResolverError::ProofUnavailable)
+        metrics.metrics.persistence_ms = elapsed_millis(persistence_started);
+        winning_address
+            .map(|_| ())
+            .ok_or(ResolverError::ProofUnavailable)
     }
 
     fn fetch_from_peer(
         &self,
         address: SocketAddr,
-        root_name: &str,
-        name_hash: NameHash,
-        proof_root: hns_core::Hash,
-        proof_height: Height,
-    ) -> Result<(), SyncError> {
-        let network = self.network.network();
-        let mut peer = PeerConnection::connect(address, network, self.timeout)?;
-        let mut session = HeaderSyncSession::new(VersionPacket::default());
-        let remote = peer.handshake(&mut session)?;
-        if remote.height < proof_height {
-            return Err(SyncError::UnexpectedAction);
+        request: &LiveProofRequest<'_>,
+        won: &AtomicBool,
+    ) -> LiveProofPeerAttempt {
+        let mut attempt = LiveProofPeerAttempt::new(address);
+        if won.load(Ordering::Acquire) {
+            attempt.outcome = LiveProofPeerOutcome::Cancelled;
+            return attempt;
         }
+        let network = self.network.network();
+        let connect_started = Instant::now();
+        let Ok(stream) = DeadlineTcpStream::connect(address, request.deadline, won) else {
+            attempt.connect_ms = elapsed_millis(connect_started);
+            if won.load(Ordering::Acquire) {
+                attempt.outcome = LiveProofPeerOutcome::Cancelled;
+            }
+            return attempt;
+        };
+        attempt.connect_ms = elapsed_millis(connect_started);
+        if won.load(Ordering::Acquire) {
+            attempt.outcome = LiveProofPeerOutcome::Cancelled;
+            return attempt;
+        }
+
+        let mut peer = PeerConnection::new(stream, network);
+        let mut session = HeaderSyncSession::new(VersionPacket::default());
+        let handshake_started = Instant::now();
+        let Ok(remote) = peer.handshake(&mut session) else {
+            attempt.handshake_ms = elapsed_millis(handshake_started);
+            if won.load(Ordering::Acquire) {
+                attempt.outcome = LiveProofPeerOutcome::Cancelled;
+            }
+            return attempt;
+        };
+        attempt.handshake_ms = elapsed_millis(handshake_started);
+        if remote.height < request.proof_height {
+            attempt.outcome = LiveProofPeerOutcome::StaleHeight;
+            return attempt;
+        }
+        if won.load(Ordering::Acquire) {
+            attempt.outcome = LiveProofPeerOutcome::Cancelled;
+            return attempt;
+        }
+
         let mut scheduler = ProofScheduler::new(UrkelProofVerifier, &self.values);
-        scheduler.request_hash_and_store_at_height(
+        let verify_store_started = Instant::now();
+        let result = scheduler.request_hash_and_store_at_height(
             &mut peer,
             &mut session,
-            root_name,
-            proof_root,
-            name_hash,
-            proof_height,
-        )?;
-        Ok(())
+            request.root_name,
+            request.proof_root,
+            request.name_hash,
+            request.proof_height,
+        );
+        attempt.verify_store_ms = elapsed_millis(verify_store_started);
+        if result.is_err() {
+            if won.load(Ordering::Acquire) {
+                attempt.outcome = LiveProofPeerOutcome::Cancelled;
+            }
+            return attempt;
+        }
+        attempt.outcome = LiveProofPeerOutcome::Success;
+        attempt.won_race = won
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok();
+        attempt
     }
 }
 
@@ -8270,6 +8564,19 @@ struct DnsTraceState {
     relay: Option<DnsRelayTraceMetadata>,
     namespace: Option<NamespaceResolutionMetadata>,
     authenticated_hns_delegation: AuthenticatedHnsDelegationEvidenceState,
+    live_proof: Option<LiveProofRaceMetrics>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct LiveProofRaceMetrics {
+    selection_ms: u64,
+    connect_ms: u64,
+    handshake_ms: u64,
+    verify_store_ms: u64,
+    persistence_ms: u64,
+    total_ms: u64,
+    peers_started: usize,
+    peers_completed: usize,
 }
 
 impl DnsTraceRecorder {
@@ -8357,6 +8664,20 @@ impl DnsTraceRecorder {
                         .then(|| state.observation.clone())
                         .flatten()
                 })
+        })
+    }
+
+    fn record_live_proof(&self, metrics: LiveProofRaceMetrics) {
+        if let Ok(mut traces) = self.traces.lock() {
+            traces.entry(thread::current().id()).or_default().live_proof = Some(metrics);
+        }
+    }
+
+    fn live_proof_snapshot(&self) -> Option<LiveProofRaceMetrics> {
+        self.traces.lock().ok().and_then(|traces| {
+            traces
+                .get(&thread::current().id())
+                .and_then(|trace| trace.live_proof.clone())
         })
     }
 
@@ -10542,12 +10863,60 @@ pub fn core_version() -> &'static str {
     concat!("hns-dane-browser-rust-core/", env!("CARGO_PKG_VERSION"))
 }
 
+fn effective_runtime_features() -> RuntimeFeatureDiagnostics {
+    RuntimeFeatureDiagnostics {
+        resolver_cache: RuntimeFeatureState::active(None),
+        connection_pooling: RuntimeFeatureState::active(None),
+        tls_resumption: RuntimeFeatureState::active(None),
+        http3_promotion: RuntimeFeatureState::compiled_disabled(),
+    }
+}
+
+fn runtime_feature_state_json(state: RuntimeFeatureState) -> String {
+    let observed = match state.observed() {
+        Some(true) => "true",
+        Some(false) => "false",
+        None => "null",
+    };
+    format!(
+        r#"{{"compiled":{},"configured":{},"active":{},"observed":{observed}}}"#,
+        state.is_compiled(),
+        state.is_configured(),
+        state.is_active(),
+    )
+}
+
+fn runtime_features_json(features: RuntimeFeatureDiagnostics) -> String {
+    format!(
+        concat!(
+            r#"{{"schemaVersion":{},"resolverCache":{},"connectionPooling":{},"#,
+            r#""tlsResumption":{},"http3Promotion":{}}}"#,
+        ),
+        RUNTIME_FEATURE_SCHEMA_VERSION,
+        runtime_feature_state_json(features.resolver_cache),
+        runtime_feature_state_json(features.connection_pooling),
+        runtime_feature_state_json(features.tls_resumption),
+        runtime_feature_state_json(features.http3_promotion),
+    )
+}
+
 pub fn diagnostics_json() -> String {
+    diagnostics_json_with_features(effective_runtime_features())
+}
+
+fn diagnostics_json_with_features(features: RuntimeFeatureDiagnostics) -> String {
+    let feature_diagnostics = runtime_features_json(features);
     r#"{"core":"hns-dane-browser-rust-core","version":"__VERSION__","features":["header-hash","header-pow-validation","header-mainnet-difficulty-retarget","header-mainnet-checkpoints","header-canonical-height-index","hns-name-hash","hns-dotted-root-label","urkel-proof-verification","urkel-proof-value-handoff","hns-name-state-resource-extraction","hns-resource-decoder","hns-authoritative-doh-rfc8484","hns-resource-provider-adapter","hns-memory-resource-provider","hns-sqlite-resource-provider","hns-negative-cache","hns-ttl-cache-lru","hns-resource-cache-stats","hns-resource-cache-eviction","hns-resource-cache-cap-enforcement","hns-resource-cache-chain-anchors","hns-resource-cache-reorg-invalidation","hns-resource-cache-current-tip","hns-proof-backed-resolver-boundary","hns-delegating-resolver-boundary","hns-proof-backed-ns-address-hydration","hns-authoritative-dnssec-delegated-resolver","android-hns-doh-compat-resolver","dns-wire","dns-svcb-https","dnssec-ds-dnskey-link","dnssec-ds-sha1","dnssec-ds-sha384","dnssec-rrsig-signed-data","dnssec-canonical-name-rdata","dnssec-ecdsa-p256-verify","dnssec-ecdsa-p384-verify","dnssec-rsa-sha1-verify","dnssec-rsa-sha256-sha512-verify","dnssec-ed25519-verify","dnssec-signed-rrset-validation","dnssec-delegated-chain-validation","dnssec-delegated-no-data-validation","dnssec-delegated-name-error-validation","dnssec-delegated-cname-chain","dnssec-child-referral-validation","dnssec-child-cname-chain","dnssec-child-no-data-validation","dnssec-child-name-error-validation","dnssec-nsec-denial-validation","dnssec-nsec3-denial-validation","dnssec-nxdomain-name-error-validation","dane-policy","dane-certificate-chain-policy","x509-spki-extraction","x509-stateless-dane-evidence","hip17-experimental-urkel-extension","rfc9102-authentication-chain-parser","p2p-codec","p2p-tcp-peer-connection","p2p-static-peer-source","p2p-dns-seed-source","p2p-getaddr-peer-discovery","p2p-discovery-rotation","p2p-peer-diversity","p2p-sqlite-peer-store","sync-coordinator","sync-header-runner","sync-multi-batch-header-runner","sync-parallel-peer-probing","sync-ranged-peer-rotation","sync-checkpoint-prefetch","sync-proof-scheduler","android-native-sync-once","android-sync-status","android-sync-outcome-status","android-sync-progress-heights","android-sync-high-batch-catchup","android-clear-resolver-cache","android-persistent-gateway-resolver","android-gateway-live-proof-fetch","android-gateway-header-forwarding","android-gateway-range-forwarding","android-gateway-body-forwarding","android-gateway-file-body-stream","android-webview-hns-intercept","android-service-worker-hns-intercept","android-hns-redirect-follow","android-actionable-hns-errors","hns-name-not-found-error","gateway-policy","gateway-hns-address-required","gateway-tlsa-service-scope","gateway-delegated-origin-address-lookup","gateway-origin-address-query","gateway-https-service-query","gateway-svcb-alpn-policy","gateway-actionable-nameserver-errors","gateway-cname-address-routing","android-proxy-gateway-hook","android-random-loopback-proxy-port","rust-loopback-local-hns-connect-certs","hns-websocket-native-tunnel","http-origin-transport","http-origin-connection-pooling","http2-origin-transport","http3-origin-transport","http-origin-response-framing","https-rustls-transport","https-tls-session-resumption","https-alt-svc-promotion","dane-tls-policy"],"securityDefault":"fail-closed"}"#
         .replace("__VERSION__", env!("CARGO_PKG_VERSION"))
         .replace(
             "android-hns-doh-compat-resolver",
             "hns-user-configured-recursive-doh-recovery",
+        )
+        .replace(
+            r#","securityDefault":"#,
+            &format!(
+                r#","featureListSemantics":"compiled-capabilities","runtimeFeatures":{feature_diagnostics},"securityDefault":"#,
+            ),
         )
 }
 
@@ -11533,7 +11902,8 @@ fn persistent_gateway_resolver_stack(
     let proof_provider = GatewayProofProvider::new(base, values, network)
         .with_peer_state(peer_state)
         .with_proof_peer(proof_peer)
-        .with_evidence(hns_evidence.clone());
+        .with_evidence(hns_evidence.clone())
+        .with_trace(dns_trace.clone());
     // Authoritative answers below the proof/evidence layer are cached so a
     // pooled stack stops repeating the same serialized delegated DNS queries
     // for every namespace plan rebuild. The proof provider still runs per
@@ -15082,23 +15452,43 @@ fn select_live_proof_peers(
 ) -> Vec<SocketAddr> {
     let mut candidates = peers
         .iter()
-        .filter(|peer| {
-            !peer.is_banned(now)
-                && peer.last_height >= proof_height
-                && is_allowed_peer_endpoint(network, peer.address)
-        })
+        .filter(|peer| !peer.is_banned(now) && is_allowed_peer_endpoint(network, peer.address))
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {
+        let left_reaches_tip = left.last_height >= proof_height;
+        let right_reaches_tip = right.last_height >= proof_height;
         left.score
             .cmp(&right.score)
-            .then_with(|| right.last_height.cmp(&left.last_height))
+            .then_with(|| right.successes.cmp(&left.successes))
+            .then_with(|| right.last_connected_at.cmp(&left.last_connected_at))
+            .then_with(|| {
+                right
+                    .last_height_observed_at
+                    .cmp(&left.last_height_observed_at)
+            })
+            .then_with(|| right_reaches_tip.cmp(&left_reaches_tip))
             .then_with(|| left.address.cmp(&right.address))
     });
-    candidates
-        .into_iter()
-        .take(preferred_count)
-        .map(|peer| peer.address)
-        .collect()
+
+    let mut selected = Vec::new();
+    let mut selected_groups = HashSet::new();
+    for peer in &candidates {
+        if selected.len() >= preferred_count {
+            return selected;
+        }
+        if selected_groups.insert(PeerAddressGroup::from_socket_addr(peer.address)) {
+            selected.push(peer.address);
+        }
+    }
+    for peer in candidates {
+        if selected.len() >= preferred_count {
+            break;
+        }
+        if !selected.contains(&peer.address) {
+            selected.push(peer.address);
+        }
+    }
+    selected
 }
 
 fn estimated_mainnet_tip_height(now: u64) -> Option<u32> {
@@ -19495,13 +19885,56 @@ mod tests {
     }
 
     #[test]
-    fn diagnostics_reports_websocket_native_tunnel() {
+    fn diagnostics_reports_compiled_transport_capabilities() {
         let diagnostics = diagnostics_json();
 
+        assert!(diagnostics.contains(r#""featureListSemantics":"compiled-capabilities""#));
         assert!(diagnostics.contains(r#""hns-websocket-native-tunnel""#));
         assert!(diagnostics.contains(r#""http-origin-connection-pooling""#));
         assert!(diagnostics.contains(r#""https-tls-session-resumption""#));
         assert!(diagnostics.contains(r#""https-alt-svc-promotion""#));
+    }
+
+    #[test]
+    fn diagnostics_reports_effective_production_wiring() {
+        let diagnostics = diagnostics_json();
+
+        assert!(diagnostics.contains(r#""runtimeFeatures":{"schemaVersion":1"#));
+        assert!(diagnostics.contains(
+            r#""resolverCache":{"compiled":true,"configured":true,"active":true,"observed":null}"#,
+        ));
+        assert!(diagnostics.contains(
+            r#""connectionPooling":{"compiled":true,"configured":true,"active":true,"observed":null}"#,
+        ));
+        assert!(diagnostics.contains(
+            r#""tlsResumption":{"compiled":true,"configured":true,"active":true,"observed":null}"#,
+        ));
+        assert!(diagnostics.contains(
+            r#""http3Promotion":{"compiled":true,"configured":false,"active":false,"observed":null}"#,
+        ));
+    }
+
+    #[test]
+    fn diagnostics_preserves_enabled_and_disabled_feature_states() {
+        let diagnostics = diagnostics_json_with_features(RuntimeFeatureDiagnostics {
+            resolver_cache: RuntimeFeatureState::compiled_disabled(),
+            connection_pooling: RuntimeFeatureState::configured_inactive(),
+            tls_resumption: RuntimeFeatureState::active(Some(false)),
+            http3_promotion: RuntimeFeatureState::active(Some(true)),
+        });
+
+        assert!(diagnostics.contains(
+            r#""resolverCache":{"compiled":true,"configured":false,"active":false,"observed":null}"#,
+        ));
+        assert!(diagnostics.contains(
+            r#""connectionPooling":{"compiled":true,"configured":true,"active":false,"observed":null}"#,
+        ));
+        assert!(diagnostics.contains(
+            r#""tlsResumption":{"compiled":true,"configured":true,"active":true,"observed":false}"#,
+        ));
+        assert!(diagnostics.contains(
+            r#""http3Promotion":{"compiled":true,"configured":true,"active":true,"observed":true}"#,
+        ));
     }
 
     #[test]
@@ -19850,7 +20283,7 @@ mod tests {
     }
 
     #[test]
-    fn live_proof_peer_selection_ignores_zero_height_failed_peers() {
+    fn live_proof_peer_selection_ranks_stale_peers_without_excluding_them() {
         let stale: SocketAddr = "1.1.1.2:12038".parse().unwrap();
         let current: SocketAddr = "1.1.1.3:12038".parse().unwrap();
         let private: SocketAddr = "127.0.0.3:12038".parse().unwrap();
@@ -19864,7 +20297,29 @@ mod tests {
 
         let selected = select_live_proof_peers(&peers, &network, 8, 1_100, Height(336_034));
 
-        assert_eq!(selected, vec![current]);
+        assert_eq!(selected, vec![current, stale]);
+    }
+
+    #[test]
+    fn live_proof_peer_selection_uses_recent_success_and_address_group_diversity() {
+        let now = 2_000;
+        let proof_height = Height(336_034);
+        let overclaiming: SocketAddr = "1.1.1.2:12038".parse().unwrap();
+        let same_group: SocketAddr = "1.1.2.3:12038".parse().unwrap();
+        let stale_recent: SocketAddr = "2.2.2.3:12038".parse().unwrap();
+        let stale_older: SocketAddr = "3.3.3.4:12038".parse().unwrap();
+        let mut peers = PeerManager::default();
+
+        peers.record_success(overclaiming, Height(proof_height.0 + 10_000), now - 100);
+        peers.record_success(same_group, proof_height, now);
+        peers.record_success(stale_recent, Height(proof_height.0 - 1), now - 1);
+        peers.record_success(stale_older, Height(proof_height.0 - 2), now - 10);
+
+        let selected =
+            select_live_proof_peers(&peers, &hns_core::network::mainnet(), 3, now, proof_height);
+
+        assert_eq!(selected, vec![same_group, stale_recent, stale_older]);
+        assert!(!selected.contains(&overclaiming));
     }
 
     #[test]
@@ -22684,6 +23139,126 @@ mod tests {
         assert_eq!(peer.successes, 1);
         proof_server.join().unwrap();
         origin_server.join().unwrap();
+        cleanup_dir(&path);
+    }
+
+    #[test]
+    fn live_proof_peers_race_under_one_deadline() {
+        let path = temp_dir_path("gateway-live-proof-race");
+        let base = path.join("hns-regtest");
+        std::fs::create_dir_all(&base).unwrap();
+
+        let root_name = "welcome".to_owned();
+        let name_hash = NameHash::from_name(&root_name).unwrap();
+        let value = owner_dual_stack_glue_resource(
+            &root_name,
+            [127, 0, 0, 1],
+            Ipv6Addr::LOCALHOST.octets(),
+        );
+        let name_state_value = name_state_value(&root_name, &value);
+        let proof_root = urkel_value_root(name_hash.as_hash(), &name_state_value);
+        let proof_height =
+            store_best_header_for_network_with_tree_root(&base, NetworkKind::Regtest, proof_root);
+        let proof_payload = urkel_exists_payload(&name_state_value);
+
+        let proof_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let proof_address = proof_listener.local_addr().unwrap();
+        let proof_server = thread::spawn(move || {
+            let (stream, _) = proof_listener.accept().unwrap();
+            let mut peer = PeerConnection::new(stream, hns_core::network::regtest());
+            assert!(matches!(peer.receive_packet().unwrap(), Packet::Version(_)));
+            peer.send_packet(&Packet::Version(VersionPacket {
+                height: Height(proof_height.0 + 1),
+                ..VersionPacket::default()
+            }))
+            .unwrap();
+            assert_eq!(peer.receive_packet().unwrap(), Packet::Verack);
+            peer.send_packet(&Packet::Verack).unwrap();
+            let Packet::GetProof(request) = peer.receive_packet().unwrap() else {
+                panic!("proof race winner did not request a proof");
+            };
+            peer.send_packet(&Packet::Proof(ProofPacket {
+                root: request.root,
+                key: request.key,
+                proof: proof_payload,
+            }))
+            .unwrap();
+        });
+
+        let mut stalled = Vec::new();
+        let mut stalled_addresses = Vec::new();
+        for _ in 0..2 {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            stalled_addresses.push(listener.local_addr().unwrap());
+            stalled.push(thread::spawn(move || {
+                listener.set_nonblocking(true).unwrap();
+                let accept_deadline = Instant::now() + Duration::from_secs(2);
+                let mut stream = loop {
+                    match listener.accept() {
+                        Ok((stream, _)) => break Some(stream),
+                        Err(error)
+                            if error.kind() == ErrorKind::WouldBlock
+                                && Instant::now() < accept_deadline =>
+                        {
+                            thread::sleep(Duration::from_millis(5));
+                        }
+                        Err(error) if error.kind() == ErrorKind::WouldBlock => break None,
+                        Err(error) => panic!("stalled proof listener failed: {error}"),
+                    }
+                };
+                let Some(ref mut stream) = stream else {
+                    return;
+                };
+                let mut byte = [0_u8; 1];
+                let _ = stream.read(&mut byte);
+                thread::sleep(Duration::from_secs(1));
+            }));
+        }
+
+        let peer_store = SqlitePeerStore::open(base.join("peers.sqlite")).unwrap();
+        let mut peers = PeerManager::default();
+        peers.seed(
+            stalled_addresses
+                .iter()
+                .copied()
+                .chain(std::iter::once(proof_address)),
+        );
+        peer_store.save_manager(&peers).unwrap();
+
+        let trace = DnsTraceRecorder::default();
+        let mut provider = GatewayProofProvider::new(
+            base.clone(),
+            SqliteResourceValueProvider::open(base.join("resources.sqlite")).unwrap(),
+            NetworkKind::Regtest,
+        )
+        .with_trace(trace.clone());
+        provider.preferred_peers = 3;
+        provider.timeout = Duration::from_millis(800);
+        provider.seed_on_empty = false;
+
+        let started = Instant::now();
+        let records = provider.prove_name(&root_name, name_hash).unwrap();
+        let elapsed = started.elapsed();
+
+        assert!(records.exists);
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "winner did not cancel stalled peers promptly: {elapsed:?}"
+        );
+        let metrics = trace.live_proof_snapshot().unwrap();
+        assert_eq!(metrics.peers_started, 3);
+        assert_eq!(metrics.peers_completed, 3);
+        assert!(metrics.total_ms < 500);
+        let persisted = peer_store.load_manager().unwrap();
+        for address in stalled_addresses {
+            let state = persisted.get(address).unwrap();
+            assert_eq!(state.failures, 0, "cancelled loser was penalized");
+            assert_eq!(state.score, 0, "cancelled loser score changed");
+        }
+        proof_server.join().unwrap();
+        for server in stalled {
+            server.join().unwrap();
+        }
         cleanup_dir(&path);
     }
 

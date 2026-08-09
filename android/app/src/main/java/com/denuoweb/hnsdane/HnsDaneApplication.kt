@@ -4,15 +4,21 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewOutcomeReceiver
 import androidx.webkit.WebViewStartUpConfig
 import androidx.webkit.WebViewStartUpResult
 import androidx.webkit.WebViewStartupException
+import com.denuoweb.hnsdane.net.BrowserProxyCoordinator
+import com.denuoweb.hnsdane.net.BrowserProxyLifecycleWorker
 import com.denuoweb.hnsdane.net.BundledHeaderSyncBridge
+import com.denuoweb.hnsdane.net.HnsProxyController
 import com.denuoweb.hnsdane.net.HnsSyncScheduler
 import com.denuoweb.hnsdane.net.HnsSyncProgress
 import com.denuoweb.hnsdane.net.HnsSyncSnapshot
+import com.denuoweb.hnsdane.net.LocalBrowserProxyFactory
+import com.denuoweb.hnsdane.net.RustBrowserProxy
 import com.denuoweb.hnsdane.ui.BrowserThemePreferences
 import com.denuoweb.hnsdane.ui.HnsResolutionPreferences
 import java.io.Closeable
@@ -24,6 +30,7 @@ class HnsDaneApplication : Application() {
         Thread(runnable, "hns-webview-startup")
     }
     private val syncListeners = CopyOnWriteArraySet<(HnsSyncSnapshot) -> Unit>()
+    private val proxyAvailabilityListeners = CopyOnWriteArraySet<(Boolean) -> Unit>()
     private val foregroundActivities = ForegroundActivityCounter(
         onForeground = ::startForegroundSync,
         onBackground = ::stopForegroundSync,
@@ -33,10 +40,28 @@ class HnsDaneApplication : Application() {
 
     @Volatile
     private var latestSyncSnapshot: HnsSyncSnapshot? = null
+    @Volatile
+    private var proxyAvailable: Boolean = false
+
+    internal lateinit var browserProxyCoordinator: BrowserProxyCoordinator
+        private set
 
     override fun onCreate() {
         super.onCreate()
         HnsResolutionPreferences.migrateProhibitedHnsFallbackSettings(this)
+        browserProxyCoordinator = BrowserProxyCoordinator(
+            overrideController = HnsProxyController(this),
+            proxyFactory = LocalBrowserProxyFactory(RustBrowserProxy::start),
+            workerExecutor = BrowserProxyLifecycleWorker,
+            callbackExecutor = ContextCompat.getMainExecutor(this),
+            onAvailabilityChanged = { available ->
+                proxyAvailable = available
+                proxyAvailabilityListeners.forEach { listener -> listener(available) }
+            },
+        )
+        // The process owns both the WebView override and its native backend.
+        // Activity backgrounding must not clear one while stopping the other.
+        browserProxyCoordinator.resume(null)
         registerActivityLifecycleCallbacks(AppLifecycleCallbacks(foregroundActivities))
         startWebViewInitialization()
     }
@@ -47,7 +72,14 @@ class HnsDaneApplication : Application() {
         return Closeable { syncListeners -= listener }
     }
 
+    internal fun observeProxyAvailability(listener: (Boolean) -> Unit): Closeable {
+        proxyAvailabilityListeners += listener
+        listener(proxyAvailable)
+        return Closeable { proxyAvailabilityListeners -= listener }
+    }
+
     internal fun onHandshakeNetworkChanged() {
+        browserProxyCoordinator.ensure(null)
         if (!foregroundActivities.isForeground) {
             latestSyncSnapshot = null
             return
