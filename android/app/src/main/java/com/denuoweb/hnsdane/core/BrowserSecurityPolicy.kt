@@ -93,7 +93,7 @@ object BrowserSecurityPolicy {
             return SecurityState.ProofUnavailable
         }
         if (
-            syncStatusJson.hasAuthoritativelyCurrentHeaders() &&
+            syncStatusJson.hasAuthoritativeTreeRoot() &&
             (
                 syncStatusJson.hasSyncStatus("synced") ||
                     syncStatusJson.hasSyncStatus("up_to_date") ||
@@ -125,23 +125,36 @@ object BrowserSecurityPolicy {
     private fun String?.hasSyncStatus(status: String): Boolean =
         this?.contains("\"status\":\"$status\"") == true
 
-    private fun String?.hasAuthoritativelyCurrentHeaders(): Boolean {
+    private fun String?.hasAuthoritativeTreeRoot(): Boolean {
         val json = this ?: return false
-        if (json.longField("syncStatusSchemaVersion") != 2L) return false
+        if (json.longField("syncStatusSchemaVersion") != 3L) return false
         val best = json.longField("bestHeight") ?: return false
+        val localRoot = json.longField("localTreeRootHeight") ?: return false
+        val interval = json.longField("treeIntervalBlocks") ?: return false
+        val blocksUntilAuthority =
+            json.longField("blocksUntilAuthoritativeTreeRoot") ?: return false
+        if (
+            json.booleanField("treeRootReady") != true ||
+            best <= 0L ||
+            interval <= 0L ||
+            localRoot <= 0L ||
+            localRoot > best ||
+            blocksUntilAuthority != 0L
+        ) {
+            return false
+        }
+        if (json.stringField("network") == "regtest") {
+            return true
+        }
         val target = json.longField("effectiveTargetHeight") ?: return false
-        val lag = json.longField("lagBlocks") ?: return false
-        val threshold = json.longField("freshnessThresholdBlocks") ?: return false
+        val authorityRoot = json.longField("authoritativeTreeRootHeight") ?: return false
         val targetPeerGroups = json.longField("targetPeerGroups") ?: return false
         val evidenceExpired = json.booleanField("targetEvidenceExpired") ?: return false
-        return json.stringField("freshness") == "current" &&
-            json.stringField("targetSource") == "corroboratedPeers" &&
-            best > 0L &&
+        return json.stringField("targetSource") == "corroboratedPeers" &&
             target >= best &&
-            lag >= 0L &&
-            threshold == 2L &&
-            lag == target - best &&
-            lag <= threshold &&
+            authorityRoot > 0L &&
+            localRoot == authorityRoot &&
+            best >= authorityRoot &&
             targetPeerGroups >= 3L &&
             !evidenceExpired
     }

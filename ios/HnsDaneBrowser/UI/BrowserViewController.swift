@@ -306,9 +306,9 @@ final class BrowserViewController: UIViewController {
                 BrowserSyncSummary(
                     headline: "Handshake headers current",
                     detail: "Local height 335942 · effective target 335942 · freshness current",
-                    syncStatusSchemaVersion: 2,
+                    syncStatusSchemaVersion: 3,
                     status: "up_to_date",
-                    network: "main",
+                    network: "mainnet",
                     bestHeight: 335_942,
                     bestPeerHeight: 335_942,
                     estimatedTipHeight: 335_942,
@@ -316,6 +316,11 @@ final class BrowserViewController: UIViewController {
                     lagBlocks: 0,
                     freshness: "current",
                     freshnessThresholdBlocks: 2,
+                    treeIntervalBlocks: 36,
+                    authoritativeTreeRootHeight: 335_917,
+                    localTreeRootHeight: 335_917,
+                    treeRootReady: true,
+                    blocksUntilAuthoritativeTreeRoot: 0,
                     targetSource: "corroboratedPeers",
                     targetPeerGroups: 3,
                     targetEvidenceExpired: false
@@ -334,9 +339,9 @@ final class BrowserViewController: UIViewController {
                 BrowserSyncSummary(
                     headline: "Handshake headers current",
                     detail: "Local height 335942 · effective target 335942 · freshness current",
-                    syncStatusSchemaVersion: 2,
+                    syncStatusSchemaVersion: 3,
                     status: "up_to_date",
-                    network: "main",
+                    network: "mainnet",
                     bestHeight: 335_942,
                     bestPeerHeight: 335_942,
                     estimatedTipHeight: 335_942,
@@ -344,6 +349,11 @@ final class BrowserViewController: UIViewController {
                     lagBlocks: 0,
                     freshness: "current",
                     freshnessThresholdBlocks: 2,
+                    treeIntervalBlocks: 36,
+                    authoritativeTreeRootHeight: 335_917,
+                    localTreeRootHeight: 335_917,
+                    treeRootReady: true,
+                    blocksUntilAuthoritativeTreeRoot: 0,
                     targetSource: "corroboratedPeers",
                     targetPeerGroups: 3,
                     targetEvidenceExpired: false
@@ -1294,6 +1304,12 @@ final class BrowserViewController: UIViewController {
             coordinator.suspend()
         case .unchanged:
             break
+        }
+        if !isProxyAdmissionGranted && !isHeaderResetInFlight {
+            placeholderLabel.isHidden = false
+            placeholderLabel.text = summary.requiresRetry
+                ? "Handshake header sync must recover before loading this address."
+                : "Waiting for authenticated Handshake headers before loading this address."
         }
         refreshSettingsIfPresented()
     }

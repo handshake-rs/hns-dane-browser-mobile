@@ -560,9 +560,8 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-observability"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54f0d88d7723dcb75c644221912234091e91fe0a3c3016ae300e8e8272ad4fb2"
+version = "0.1.2"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab6#1ab4ab626f945712b0f960945986cb52efefef7c"
 dependencies = [
  "hns-browser-runtime",
  "hns-icann-dane",
@@ -574,8 +573,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-runtime"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62f12c26a15b0bb9291cf89186811e72b8132060b3cfadf70d2f97dadc375daf"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab6#1ab4ab626f945712b0f960945986cb52efefef7c"
 
 [[package]]
 name = "hns-cache"
@@ -645,8 +643,7 @@ dependencies = [
 [[package]]
 name = "hns-icann-dane"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4b1c58b5f0a3def68f41a6994e5b14b79734e812f54b6ae4fb4c06439381da0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab6#1ab4ab626f945712b0f960945986cb52efefef7c"
 
 [[package]]
 name = "hns-loopback-proxy"
@@ -696,8 +693,7 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f19eda78ba171a1063ea6d157973749847460c6fd6dabee6e589bd5f79112ab"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab6#1ab4ab626f945712b0f960945986cb52efefef7c"
 
 [[package]]
 name = "hns-p2p"
@@ -714,8 +710,7 @@ dependencies = [
 [[package]]
 name = "hns-resolution-policy"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "068514eb6d0bcb739b27fb7d1ffd39fdf5935a01bd711f59f14a050eeb86ea28"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab6#1ab4ab626f945712b0f960945986cb52efefef7c"
 
 [[package]]
 name = "hns-resolver"

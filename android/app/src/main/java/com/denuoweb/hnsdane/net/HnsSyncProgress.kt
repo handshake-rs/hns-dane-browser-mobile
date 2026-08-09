@@ -7,6 +7,7 @@ import java.util.Locale
 
 data class HnsSyncProgress(
     val syncStatusSchemaVersion: Long?,
+    val network: String,
     val status: String,
     val bestHeight: Long?,
     val bestPeerHeight: Long?,
@@ -21,6 +22,11 @@ data class HnsSyncProgress(
     val lagBlocks: Long?,
     val freshness: String,
     val freshnessThresholdBlocks: Long?,
+    val treeIntervalBlocks: Long?,
+    val authoritativeTreeRootHeight: Long?,
+    val localTreeRootHeight: Long?,
+    val treeRootReady: Boolean?,
+    val blocksUntilAuthoritativeTreeRoot: Long?,
     val targetSource: String,
     val targetPeerGroups: Long?,
     val targetEvidenceExpired: Boolean?,
@@ -44,20 +50,48 @@ data class HnsSyncProgress(
 
     val isCurrent: Boolean
         get() {
-            if (syncStatusSchemaVersion != CURRENT_SCHEMA_VERSION) return false
+            if (!isAuthorityReady) return false
             val best = bestHeight ?: return false
             val target = effectiveTargetHeight ?: return false
             val lag = lagBlocks ?: return false
             val threshold = freshnessThresholdBlocks ?: return false
             return status in CURRENT_STATUSES &&
                 freshness == "current" &&
-                targetSource == "corroboratedPeers" &&
                 best > 0L &&
                 target >= best &&
                 lag >= 0L &&
                 threshold == 2L &&
                 lag == target - best &&
                 lag <= threshold &&
+                targetEvidenceExpired == false
+        }
+
+    val isAuthorityReady: Boolean
+        get() {
+            if (syncStatusSchemaVersion != CURRENT_SCHEMA_VERSION || treeRootReady != true) return false
+            val best = bestHeight ?: return false
+            val localRoot = localTreeRootHeight ?: return false
+            val interval = treeIntervalBlocks ?: return false
+            val blocksUntilAuthority = blocksUntilAuthoritativeTreeRoot ?: return false
+            if (
+                best <= 0L ||
+                interval <= 0L ||
+                localRoot <= 0L ||
+                localRoot > best ||
+                blocksUntilAuthority != 0L
+            ) {
+                return false
+            }
+            if (network == "regtest") {
+                return true
+            }
+            val target = effectiveTargetHeight ?: return false
+            val authorityRoot = authoritativeTreeRootHeight ?: return false
+            return targetSource == "corroboratedPeers" &&
+                target >= best &&
+                authorityRoot > 0L &&
+                localRoot == authorityRoot &&
+                best >= authorityRoot &&
                 (targetPeerGroups ?: 0L) >= 3L &&
                 targetEvidenceExpired == false
         }
@@ -92,7 +126,13 @@ data class HnsSyncProgress(
             target != null -> "target ${target.formatHeight()}"
             else -> "target unknown"
         }
-        val freshnessPart = " • freshness $freshness"
+        val authorityPart = when {
+            isAuthorityReady && authoritativeTreeRootHeight != null ->
+                " • HNS root ${authoritativeTreeRootHeight.formatHeight()} ready"
+            authoritativeTreeRootHeight != null ->
+                " • needs HNS root ${authoritativeTreeRootHeight.formatHeight()}"
+            else -> " • HNS root unknown"
+        }
         val diagnosticPart = when {
             bestPeerHeight != null -> " • raw peer ${bestPeerHeight.formatHeight()}"
             estimatedTipHeight != null -> " • estimate ${estimatedTipHeight.formatHeight()}"
@@ -106,7 +146,7 @@ data class HnsSyncProgress(
             ?.takeIf { it > 0L }
             ?.let { " • peers ${it.formatHeight()}" }
             .orEmpty()
-        return "${status.ifBlank { "idle" }} • bestHeight $formattedBest • $targetPart$freshnessPart$diagnosticPart$acceptedPart$peerPart"
+        return "${status.ifBlank { "idle" }} • bestHeight $formattedBest • $targetPart$authorityPart$diagnosticPart$acceptedPart$peerPart"
     }
 
     fun summary(context: Context): String {
@@ -117,7 +157,13 @@ data class HnsSyncProgress(
             target != null -> context.getString(R.string.sync_progress_target, target.formatHeight(context))
             else -> context.getString(R.string.sync_progress_target_unknown)
         }
-        val freshnessPart = " • freshness $freshness"
+        val authorityPart = when {
+            isAuthorityReady && authoritativeTreeRootHeight != null ->
+                " • ${context.getString(R.string.sync_progress_root_ready, authoritativeTreeRootHeight.formatHeight(context))}"
+            authoritativeTreeRootHeight != null ->
+                " • ${context.getString(R.string.sync_progress_root_required, authoritativeTreeRootHeight.formatHeight(context))}"
+            else -> " • ${context.getString(R.string.sync_progress_root_unknown)}"
+        }
         val diagnosticPart = when {
             bestPeerHeight != null -> " • raw peer ${bestPeerHeight.formatHeight(context)}"
             estimatedTipHeight != null -> " • estimate ${estimatedTipHeight.formatHeight(context)}"
@@ -136,7 +182,7 @@ data class HnsSyncProgress(
             statusLabel(context),
             formattedBest,
             targetPart,
-            freshnessPart + diagnosticPart + acceptedPart,
+            authorityPart + diagnosticPart + acceptedPart,
             peerPart,
         )
     }
@@ -161,12 +207,13 @@ data class HnsSyncProgress(
     companion object {
         private val CURRENT_STATUSES = setOf("up_to_date", "synced", "attempted")
         private val RETRY_STATUSES = setOf("error", "peer_failed", "seed_failed")
-        private const val CURRENT_SCHEMA_VERSION = 2L
+        private const val CURRENT_SCHEMA_VERSION = 3L
 
         fun fromJson(statusJson: String?): HnsSyncProgress {
             if (statusJson.isNullOrBlank()) {
                 return HnsSyncProgress(
                     syncStatusSchemaVersion = null,
+                    network = "unknown",
                     status = "idle",
                     bestHeight = null,
                     bestPeerHeight = null,
@@ -181,6 +228,11 @@ data class HnsSyncProgress(
                     lagBlocks = null,
                     freshness = "unknown",
                     freshnessThresholdBlocks = null,
+                    treeIntervalBlocks = null,
+                    authoritativeTreeRootHeight = null,
+                    localTreeRootHeight = null,
+                    treeRootReady = null,
+                    blocksUntilAuthoritativeTreeRoot = null,
                     targetSource = "unknown",
                     targetPeerGroups = null,
                     targetEvidenceExpired = null,
@@ -188,6 +240,7 @@ data class HnsSyncProgress(
             }
             return HnsSyncProgress(
                 syncStatusSchemaVersion = longField(statusJson, "syncStatusSchemaVersion"),
+                network = stringField(statusJson, "network") ?: "unknown",
                 status = stringField(statusJson, "status") ?: "idle",
                 bestHeight = longField(statusJson, "bestHeight"),
                 bestPeerHeight = longField(statusJson, "bestPeerHeight"),
@@ -202,6 +255,12 @@ data class HnsSyncProgress(
                 lagBlocks = longField(statusJson, "lagBlocks"),
                 freshness = stringField(statusJson, "freshness") ?: "unknown",
                 freshnessThresholdBlocks = longField(statusJson, "freshnessThresholdBlocks"),
+                treeIntervalBlocks = longField(statusJson, "treeIntervalBlocks"),
+                authoritativeTreeRootHeight = longField(statusJson, "authoritativeTreeRootHeight"),
+                localTreeRootHeight = longField(statusJson, "localTreeRootHeight"),
+                treeRootReady = booleanField(statusJson, "treeRootReady"),
+                blocksUntilAuthoritativeTreeRoot =
+                    longField(statusJson, "blocksUntilAuthoritativeTreeRoot"),
                 targetSource = stringField(statusJson, "targetSource") ?: "unknown",
                 targetPeerGroups = longField(statusJson, "targetPeerGroups"),
                 targetEvidenceExpired = booleanField(statusJson, "targetEvidenceExpired"),

@@ -38,7 +38,7 @@ hns-core = { path = "crates/hns-core" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
-hns-browser-observability = "=0.1.1"
+hns-browser-observability = "=0.1.2"
 hns-browser-runtime = "=0.1.0"
 hns-icann-dane = "=0.1.0"
 hns-loopback-proxy = { path = "crates/hns-loopback-proxy" }
@@ -76,6 +76,16 @@ tokio = "1"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 webpki-roots = "1.0.8"
 zeroize = "1.8"
+
+# Temporary 0.1 compatibility bridge while platform adapters move to the
+# engine 0.2 API. Pin every shared crate to one engine commit so Rust type
+# identities cannot split between registry and Git sources.
+[patch.crates-io]
+hns-browser-observability = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "1ab4ab6" }
+hns-browser-runtime = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "1ab4ab6" }
+hns-icann-dane = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "1ab4ab6" }
+hns-namespace-resolution = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "1ab4ab6" }
+hns-resolution-policy = { git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "1ab4ab6" }
 
 [profile.release]
 codegen-units = 1

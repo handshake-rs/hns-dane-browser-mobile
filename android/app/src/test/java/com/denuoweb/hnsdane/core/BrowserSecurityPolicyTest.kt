@@ -74,10 +74,26 @@ class BrowserSecurityPolicyTest {
                 BrowserSecurityPolicy.state(
                     targetKind = BrowserTargetKind.HnsName,
                     proxyAvailable = true,
-                    syncStatusJson = """{"syncStatusSchemaVersion":2,"status":"$status","bestHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+                    syncStatusJson = readySyncStatus(status),
                 ),
             )
         }
+    }
+
+    @Test
+    fun hnsTargetsCanLoadWhileHeadersLagInsideTheSameNameTreeEpoch() {
+        assertEquals(
+            SecurityState.Loading,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.HnsName,
+                proxyAvailable = true,
+                syncStatusJson = readySyncStatus(
+                    status = "syncing",
+                    bestHeight = 335670,
+                    targetHeight = 335684,
+                ),
+            ),
+        )
     }
 
     @Test
@@ -118,12 +134,19 @@ class BrowserSecurityPolicyTest {
 
     @Test
     fun mismatchedCurrentnessContractFailsClosed() {
-        val baseline =
-            """{"syncStatusSchemaVersion":2,"status":"up_to_date","bestHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}"""
+        val baseline = readySyncStatus("up_to_date")
         val variants = listOf(
-            baseline.replace(""""syncStatusSchemaVersion":2,""", ""),
-            baseline.replace(""""freshnessThresholdBlocks":2""", """"freshnessThresholdBlocks":144"""),
-            baseline.replace(""""freshnessThresholdBlocks":2""", """"freshnessThresholdBlocks":2.5"""),
+            baseline.replace(""""syncStatusSchemaVersion":3,""", ""),
+            baseline.replace(""""treeIntervalBlocks":36""", """"treeIntervalBlocks":0"""),
+            baseline.replace(""""treeRootReady":true""", """"treeRootReady":false"""),
+            baseline.replace(
+                """"localTreeRootHeight":335665""",
+                """"localTreeRootHeight":335666""",
+            ),
+            baseline.replace(
+                """"blocksUntilAuthoritativeTreeRoot":0""",
+                """"blocksUntilAuthoritativeTreeRoot":1""",
+            ),
             baseline.replace(""""targetPeerGroups":3""", """"targetPeerGroups":2"""),
             baseline.replace(""""targetEvidenceExpired":false""", """"targetEvidenceExpired":true"""),
             baseline
@@ -142,6 +165,13 @@ class BrowserSecurityPolicyTest {
             )
         }
     }
+
+    private fun readySyncStatus(
+        status: String,
+        bestHeight: Int = 335684,
+        targetHeight: Int = 335684,
+    ): String =
+        """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"$status","bestHeight":$bestHeight,"effectiveTargetHeight":$targetHeight,"lagBlocks":${targetHeight - bestHeight},"freshness":"${if (bestHeight == targetHeight) "current" else "stale"}","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}"""
 
     @Test
     fun mainFrameHnsGatewayFailureOverridesReadySyncState() {

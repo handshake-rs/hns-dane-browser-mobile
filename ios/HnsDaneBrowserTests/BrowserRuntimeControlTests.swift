@@ -21,6 +21,87 @@ final class BrowserRuntimeControlTests: XCTestCase {
         super.tearDown()
     }
 
+    private func publicAuthorityStatus(
+        status: String = "up_to_date",
+        bestHeight: UInt64 = 339_308,
+        targetHeight: UInt64 = 339_308,
+        treeRootReady: Bool = true,
+        blocksUntilAuthority: UInt64 = 0
+    ) -> [String: Any] {
+        [
+            "syncStatusSchemaVersion": 3,
+            "network": "mainnet",
+            "status": status,
+            "bestHeight": bestHeight,
+            "bestPeerHeight": targetHeight,
+            "estimatedTipHeight": targetHeight,
+            "effectiveTargetHeight": targetHeight,
+            "lagBlocks": targetHeight - bestHeight,
+            "freshness": bestHeight == targetHeight ? "current" : "stale",
+            "freshnessThresholdBlocks": 2,
+            "treeIntervalBlocks": 36,
+            "authoritativeTreeRootHeight": 339_301,
+            "localTreeRootHeight": treeRootReady ? 339_301 : 338_977,
+            "treeRootReady": treeRootReady,
+            "blocksUntilAuthoritativeTreeRoot": blocksUntilAuthority,
+            "targetSource": "corroboratedPeers",
+            "targetPeerGroups": 3,
+            "targetEvidenceExpired": false,
+        ]
+    }
+
+    private func publicAuthoritySummary(
+        status: String = "up_to_date",
+        bestHeight: UInt64 = 339_308,
+        targetHeight: UInt64 = 339_308,
+        treeRootReady: Bool = true,
+        blocksUntilAuthority: UInt64 = 0
+    ) -> BrowserSyncSummary {
+        BrowserSyncSummary(
+            headline: "Handshake headers current",
+            detail: "Current authoritative name tree",
+            syncStatusSchemaVersion: 3,
+            status: status,
+            network: "mainnet",
+            bestHeight: bestHeight,
+            effectiveTargetHeight: targetHeight,
+            lagBlocks: targetHeight - bestHeight,
+            freshness: bestHeight == targetHeight ? "current" : "stale",
+            freshnessThresholdBlocks: 2,
+            treeIntervalBlocks: 36,
+            authoritativeTreeRootHeight: 339_301,
+            localTreeRootHeight: treeRootReady ? 339_301 : 338_977,
+            treeRootReady: treeRootReady,
+            blocksUntilAuthoritativeTreeRoot: blocksUntilAuthority,
+            targetSource: "corroboratedPeers",
+            targetPeerGroups: 3,
+            targetEvidenceExpired: false
+        )
+    }
+
+    private func regtestAuthoritySummary(
+        status: String = "up_to_date",
+        bestHeight: UInt64 = 1,
+        treeRootReady: Bool = true,
+        blocksUntilAuthority: UInt64 = 0,
+        error: String? = nil
+    ) -> BrowserSyncSummary {
+        BrowserSyncSummary(
+            headline: treeRootReady ? "Ready" : "Waiting",
+            detail: treeRootReady ? "Ready" : "Waiting",
+            syncStatusSchemaVersion: 3,
+            status: status,
+            network: "regtest",
+            bestHeight: bestHeight,
+            treeIntervalBlocks: 5,
+            authoritativeTreeRootHeight: bestHeight > 0 ? 1 : nil,
+            localTreeRootHeight: bestHeight > 0 ? 1 : nil,
+            treeRootReady: treeRootReady,
+            blocksUntilAuthoritativeTreeRoot: blocksUntilAuthority,
+            error: error
+        )
+    }
+
     func testProofContainedHNSResolutionUsesLocalVerifiedProofLabel() {
         XCTAssertEqual(
             BrowserDiagnosticReports.resolutionSource(
@@ -646,20 +727,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     func testSyncSchedulingSlowsDownWhenCaughtUp() {
         let policy = BrowserSyncSchedulingPolicy()
-        let caughtUp = BrowserSyncSummary(
-            headline: "Current",
-            detail: "Current",
-            syncStatusSchemaVersion: 2,
-            status: "up_to_date",
-            bestHeight: 339_308,
-            effectiveTargetHeight: 339_308,
-            lagBlocks: 0,
-            freshness: "current",
-            freshnessThresholdBlocks: 2,
-            targetSource: "corroboratedPeers",
-            targetPeerGroups: 3,
-            targetEvidenceExpired: false
-        )
+        let caughtUp = publicAuthoritySummary()
         let syncing = BrowserSyncSummary(
             headline: "Syncing",
             detail: "Syncing",
@@ -692,21 +760,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
     func testIOSRecognizesAndroidCurrentSyncStates() throws {
         let policy = BrowserSyncSchedulingPolicy()
         for status in ["up_to_date", "synced", "attempted"] {
-            let summary = try RustBrowserRuntime.syncSummary(from: [
-                "syncStatusSchemaVersion": 2,
-                "network": "mainnet",
-                "status": status,
-                "bestHeight": 339_308,
-                "bestPeerHeight": 339_308,
-                "estimatedTipHeight": 339_400,
-                "effectiveTargetHeight": 339_308,
-                "lagBlocks": 0,
-                "freshness": "current",
-                "freshnessThresholdBlocks": 2,
-                "targetSource": "corroboratedPeers",
-                "targetPeerGroups": 3,
-                "targetEvidenceExpired": false,
-            ])
+            let summary = try RustBrowserRuntime.syncSummary(
+                from: publicAuthorityStatus(status: status)
+            )
 
             XCTAssertTrue(summary.isCaughtUp, status)
             XCTAssertFalse(summary.isBehind, status)
@@ -714,21 +770,14 @@ final class BrowserRuntimeControlTests: XCTestCase {
             XCTAssertEqual(policy.delay(after: summary, consecutiveFailures: 0), 600)
         }
 
-        let behind = try RustBrowserRuntime.syncSummary(from: [
-            "syncStatusSchemaVersion": 2,
-            "network": "mainnet",
-            "status": "attempted",
-            "bestHeight": 339_000,
-            "bestPeerHeight": 339_308,
-            "estimatedTipHeight": 339_400,
-            "effectiveTargetHeight": 339_308,
-            "lagBlocks": 308,
-            "freshness": "stale",
-            "freshnessThresholdBlocks": 2,
-            "targetSource": "corroboratedPeers",
-            "targetPeerGroups": 3,
-            "targetEvidenceExpired": false,
-        ])
+        let behind = try RustBrowserRuntime.syncSummary(
+            from: publicAuthorityStatus(
+                status: "attempted",
+                bestHeight: 339_000,
+                treeRootReady: false,
+                blocksUntilAuthority: 301
+            )
+        )
         XCTAssertTrue(behind.isBehind)
         XCTAssertFalse(behind.isCaughtUp)
         XCTAssertEqual(behind.headline, "Syncing Handshake headers")
@@ -749,27 +798,28 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     func testAuthoritativeCurrentnessRequiresExactVersionedContract() throws {
-        let current: [String: Any] = [
-            "syncStatusSchemaVersion": 2,
-            "status": "up_to_date",
-            "bestHeight": 339_308,
-            "effectiveTargetHeight": 339_308,
-            "lagBlocks": 0,
-            "freshness": "current",
-            "freshnessThresholdBlocks": 2,
-            "targetSource": "corroboratedPeers",
-            "targetPeerGroups": 3,
-            "targetEvidenceExpired": false,
-        ]
+        let current = publicAuthorityStatus()
         var variants: [[String: Any]] = []
 
         var missingVersion = current
         missingVersion.removeValue(forKey: "syncStatusSchemaVersion")
         variants.append(missingVersion)
 
-        var legacyThreshold = current
-        legacyThreshold["freshnessThresholdBlocks"] = 144
-        variants.append(legacyThreshold)
+        var invalidInterval = current
+        invalidInterval["treeIntervalBlocks"] = 0
+        variants.append(invalidInterval)
+
+        var missingAuthority = current
+        missingAuthority["treeRootReady"] = false
+        variants.append(missingAuthority)
+
+        var mismatchedAuthority = current
+        mismatchedAuthority["localTreeRootHeight"] = 339_302
+        variants.append(mismatchedAuthority)
+
+        var blocksUntilAuthority = current
+        blocksUntilAuthority["blocksUntilAuthoritativeTreeRoot"] = 1
+        variants.append(blocksUntilAuthority)
 
         var insufficientGroups = current
         insufficientGroups["targetPeerGroups"] = 2
@@ -793,21 +843,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     func testAuthorityAdmissionRequiresForegroundAuthoritativeCurrentness() {
         let policy = BrowserAuthorityAdmissionPolicy()
-        let current = BrowserSyncSummary(
-            headline: "Handshake headers current",
-            detail: "Current",
-            syncStatusSchemaVersion: 2,
-            status: "up_to_date",
-            network: "mainnet",
-            bestHeight: 339_308,
-            effectiveTargetHeight: 339_308,
-            lagBlocks: 0,
-            freshness: "current",
-            freshnessThresholdBlocks: 2,
-            targetSource: "corroboratedPeers",
-            targetPeerGroups: 3,
-            targetEvidenceExpired: false
-        )
+        let current = publicAuthoritySummary()
 
         for network in [BrowserHandshakeNetwork.mainnet, .testnet] {
             let networkCurrent = BrowserSyncSummary(
@@ -821,6 +857,11 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 lagBlocks: current.lagBlocks,
                 freshness: current.freshness,
                 freshnessThresholdBlocks: current.freshnessThresholdBlocks,
+                treeIntervalBlocks: current.treeIntervalBlocks,
+                authoritativeTreeRootHeight: current.authoritativeTreeRootHeight,
+                localTreeRootHeight: current.localTreeRootHeight,
+                treeRootReady: current.treeRootReady,
+                blocksUntilAuthoritativeTreeRoot: current.blocksUntilAuthoritativeTreeRoot,
                 targetSource: current.targetSource,
                 targetPeerGroups: current.targetPeerGroups,
                 targetEvidenceExpired: current.targetEvidenceExpired
@@ -849,6 +890,24 @@ final class BrowserRuntimeControlTests: XCTestCase {
         }
     }
 
+    func testAuthorityAdmissionAllowsHeaderLagInsideTheCurrentTreeEpoch() {
+        let lagging = publicAuthoritySummary(
+            status: "syncing",
+            bestHeight: 339_305,
+            targetHeight: 339_308
+        )
+
+        XCTAssertTrue(lagging.hasAuthoritativeTreeRoot)
+        XCTAssertFalse(lagging.hasAuthoritativeCurrentness)
+        XCTAssertTrue(
+            BrowserAuthorityAdmissionPolicy().allowsProxyResume(
+                network: .mainnet,
+                isForeground: true,
+                syncSummary: lagging
+            )
+        )
+    }
+
     func testAuthorityAdmissionRejectsStaleGenesisAndLegacyPublicNetworkState() {
         let policy = BrowserAuthorityAdmissionPolicy()
         for network in [BrowserHandshakeNetwork.mainnet, .testnet] {
@@ -856,13 +915,18 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 BrowserSyncSummary(
                     headline: "Stale",
                     detail: "Stale",
-                    syncStatusSchemaVersion: 2,
+                    syncStatusSchemaVersion: 3,
                     network: network.rawValue,
                     bestHeight: 339_000,
                     effectiveTargetHeight: 339_308,
                     lagBlocks: 308,
                     freshness: "stale",
                     freshnessThresholdBlocks: 2,
+                    treeIntervalBlocks: 36,
+                    authoritativeTreeRootHeight: 339_301,
+                    localTreeRootHeight: 338_977,
+                    treeRootReady: false,
+                    blocksUntilAuthoritativeTreeRoot: 301,
                     targetSource: "corroboratedPeers",
                     targetPeerGroups: 3,
                     targetEvidenceExpired: false
@@ -870,13 +934,15 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 BrowserSyncSummary(
                     headline: "Genesis",
                     detail: "Genesis",
-                    syncStatusSchemaVersion: 2,
+                    syncStatusSchemaVersion: 3,
                     network: network.rawValue,
                     bestHeight: 0,
                     effectiveTargetHeight: 0,
                     lagBlocks: 0,
                     freshness: "current",
                     freshnessThresholdBlocks: 2,
+                    treeIntervalBlocks: 36,
+                    treeRootReady: false,
                     targetSource: "corroboratedPeers",
                     targetPeerGroups: 3,
                     targetEvidenceExpired: false
@@ -903,32 +969,16 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     func testRegtestAuthorityAdmissionMatchesRustReadinessPrerequisites() {
         let policy = BrowserAuthorityAdmissionPolicy()
-        let nonGenesis = BrowserSyncSummary(
-            headline: "Ready",
-            detail: "Ready",
-            syncStatusSchemaVersion: 2,
-            status: "up_to_date",
-            network: "regtest",
-            bestHeight: 1,
-            freshness: "unknown"
-        )
-        let stale = BrowserSyncSummary(
-            headline: "Stale",
-            detail: "Stale",
-            syncStatusSchemaVersion: 2,
+        let nonGenesis = regtestAuthoritySummary()
+        let stale = regtestAuthoritySummary(
             status: "syncing",
-            network: "regtest",
-            bestHeight: 1,
-            freshness: "stale"
+            treeRootReady: false,
+            blocksUntilAuthority: 5
         )
-        let genesis = BrowserSyncSummary(
-            headline: "Genesis",
-            detail: "Genesis",
-            syncStatusSchemaVersion: 2,
+        let genesis = regtestAuthoritySummary(
             status: "syncing",
-            network: "regtest",
             bestHeight: 0,
-            freshness: "unknown"
+            treeRootReady: false
         )
 
         XCTAssertTrue(
@@ -963,15 +1013,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     func testAuthorityAdmissionRejectsWrongNetworkMissingSchemaAndErrors() {
         let policy = BrowserAuthorityAdmissionPolicy()
-        let wrongNetwork = BrowserSyncSummary(
-            headline: "Ready",
-            detail: "Ready",
-            syncStatusSchemaVersion: 2,
-            status: "up_to_date",
-            network: "mainnet",
-            bestHeight: 1,
-            freshness: "unknown"
-        )
+        let wrongNetwork = publicAuthoritySummary(bestHeight: 339_308)
         let missingSchema = BrowserSyncSummary(
             headline: "Ready",
             detail: "Ready",
@@ -980,16 +1022,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             bestHeight: 1,
             freshness: "unknown"
         )
-        let failed = BrowserSyncSummary(
-            headline: "Failed",
-            detail: "Failed",
-            syncStatusSchemaVersion: 2,
-            status: "error",
-            network: "regtest",
-            bestHeight: 1,
-            freshness: "unknown",
-            error: "sync failed"
-        )
+        let failed = regtestAuthoritySummary(status: "error", error: "sync failed")
 
         for summary in [wrongNetwork, missingSchema, failed] {
             XCTAssertFalse(
@@ -1004,23 +1037,11 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     func testAuthorityAdmissionReconciliationIsBidirectionalAndIdempotent() {
         let policy = BrowserAuthorityAdmissionPolicy()
-        let ready = BrowserSyncSummary(
-            headline: "Ready",
-            detail: "Ready",
-            syncStatusSchemaVersion: 2,
-            status: "up_to_date",
-            network: "regtest",
-            bestHeight: 1,
-            freshness: "unknown"
-        )
-        let stale = BrowserSyncSummary(
-            headline: "Stale",
-            detail: "Stale",
-            syncStatusSchemaVersion: 2,
+        let ready = regtestAuthoritySummary()
+        let stale = regtestAuthoritySummary(
             status: "syncing",
-            network: "regtest",
-            bestHeight: 1,
-            freshness: "stale"
+            treeRootReady: false,
+            blocksUntilAuthority: 5
         )
 
         XCTAssertEqual(
@@ -1071,13 +1092,18 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         for malformed in malformedValues {
             let summary = try RustBrowserRuntime.syncSummary(from: [
-                "syncStatusSchemaVersion": 2,
+                "syncStatusSchemaVersion": 3,
                 "status": "up_to_date",
                 "bestHeight": malformed,
                 "effectiveTargetHeight": 339_308,
                 "lagBlocks": 0,
                 "freshness": "current",
                 "freshnessThresholdBlocks": 2,
+                "treeIntervalBlocks": 36,
+                "authoritativeTreeRootHeight": 339_301,
+                "localTreeRootHeight": 339_301,
+                "treeRootReady": true,
+                "blocksUntilAuthoritativeTreeRoot": 0,
                 "targetSource": "corroboratedPeers",
                 "targetPeerGroups": 3,
                 "targetEvidenceExpired": false,
@@ -1089,7 +1115,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     func testNativeSyncSummaryPreservesUsefulRuntimeResults() throws {
         let summary = try RustBrowserRuntime.syncSummary(from: [
-            "syncStatusSchemaVersion": 2,
+            "syncStatusSchemaVersion": 3,
             "network": "mainnet",
             "status": "up_to_date",
             "attempted": 4,
@@ -1105,6 +1131,11 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "lagBlocks": 0,
             "freshness": "current",
             "freshnessThresholdBlocks": 2,
+            "treeIntervalBlocks": 36,
+            "authoritativeTreeRootHeight": 249_985,
+            "localTreeRootHeight": 249_985,
+            "treeRootReady": true,
+            "blocksUntilAuthoritativeTreeRoot": 0,
             "targetSource": "corroboratedPeers",
             "targetPeerGroups": 3,
             "targetEvidenceExpired": false,
@@ -1116,7 +1147,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ])
 
         XCTAssertEqual(summary.network, "mainnet")
-        XCTAssertEqual(summary.syncStatusSchemaVersion, 2)
+        XCTAssertEqual(summary.syncStatusSchemaVersion, 3)
         XCTAssertEqual(summary.status, "up_to_date")
         XCTAssertEqual(summary.attempted, 4)
         XCTAssertEqual(summary.successful, 3)

@@ -33,6 +33,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.net.http.SslError
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.ProgressBar
@@ -74,10 +75,12 @@ import com.denuoweb.hnsdane.net.HnsWebViewGatewayInterceptor
 import com.denuoweb.hnsdane.net.HnsWebViewSslErrorPolicy
 import com.denuoweb.hnsdane.net.NativeBridge
 import com.denuoweb.hnsdane.net.ProcessServiceWorkerClientOwnership
+import com.denuoweb.hnsdane.net.ProtectedWebViewRequestAction
 import com.denuoweb.hnsdane.net.RustBrowserProxyConfig
 import com.denuoweb.hnsdane.net.ServiceWorkerClientOwnershipGate
 import com.denuoweb.hnsdane.net.blockedHnsProxyResponse
 import com.denuoweb.hnsdane.net.serviceWorkerProxyRoute
+import com.denuoweb.hnsdane.net.protectedWebViewRequestAction
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
@@ -106,6 +109,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var hamburgerButton: TextView
     private lateinit var syncProgressBar: ProgressBar
     private lateinit var syncProgressStats: TextView
+    private lateinit var syncGateNotice: TextView
     private lateinit var pageProgressBar: ProgressBar
     private lateinit var httpWarningBar: TextView
     private lateinit var proxyCoordinator: BrowserProxyCoordinator
@@ -122,6 +126,7 @@ class MainActivity : ComponentActivity() {
     private var mainFrameHnsSecurityPath: HnsPageSecurityPath? = null
     private var mainFrameHnsTraceJson: String? = null
     private var mainFrameHnsStatusUrl: String? = null
+    @Volatile
     private var lastSyncSnapshot: HnsSyncSnapshot? = null
     private var syncSnapshotSubscription: Closeable? = null
     private var proxyAvailabilitySubscription: Closeable? = null
@@ -135,6 +140,8 @@ class MainActivity : ComponentActivity() {
     private var reloadHnsPageOnNextStart: Boolean = false
     private var pageIsLoading: Boolean = false
     private var pageLoadProgress: Int = 0
+    private var navigationGeneration: Long = 0L
+    private var pendingReadinessNavigation: PendingReadinessNavigation? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -238,6 +245,14 @@ class MainActivity : ComponentActivity() {
             ellipsize = TextUtils.TruncateAt.END
             text = HnsSyncProgress.fromJson(null).summary(this@MainActivity)
         }
+        syncGateNotice = TextView(this).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(32), dp(32), dp(32), dp(32))
+            setTextColor(colors.primaryText)
+            textSize = 16f
+            visibility = View.GONE
+            isClickable = true
+        }
         pageProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = PAGE_PROGRESS_MAX
             progress = 0
@@ -307,7 +322,16 @@ class MainActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(HTTP_WARNING_BAR_HEIGHT_DP),
             ))
-            addView(webView, LinearLayout.LayoutParams(
+            addView(FrameLayout(this@MainActivity).apply {
+                addView(webView, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ))
+                addView(syncGateNotice, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ))
+            }, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1f,
@@ -391,6 +415,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         activityDestroyed = true
+        pendingReadinessNavigation = null
         gatewayInterceptionEnabled = false
         stopObservingForegroundSync()
         proxyAvailabilitySubscription?.close()
@@ -430,7 +455,9 @@ class MainActivity : ComponentActivity() {
                 HnsServiceWorkerGatewayClient(
                     interceptor = webViewGatewayInterceptor,
                     namespacePolicy = NativeBridge,
-                    enabled = { gatewayInterceptionEnabled },
+                    enabled = {
+                        gatewayInterceptionEnabled && currentSyncProgress().isAuthorityReady
+                    },
                     proxyRoute = { request ->
                         serviceWorkerProxyRoute(
                             scheme = request.url.scheme,
@@ -731,6 +758,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enqueueNavigation(target: BrowserTarget, load: () -> Unit) {
+        navigationGeneration = navigationGeneration.wrappingIncrement()
+        val generation = navigationGeneration
+        pendingReadinessNavigation = null
+        if (::syncGateNotice.isInitialized) {
+            syncGateNotice.visibility = View.GONE
+        }
         webView.stopLoading()
         omnibox.setText(target.url)
         currentTargetKind = target.kind
@@ -747,6 +780,21 @@ class MainActivity : ComponentActivity() {
             return
         }
         pendingMainFrameUrl = target.url
+        if (targetRequiresDualRootReadiness(target) && !currentSyncProgress().isAuthorityReady) {
+            pendingReadinessNavigation = PendingReadinessNavigation(target, generation, load)
+            pageIsLoading = false
+            pageLoadProgress = 0
+            refreshSecurityState()
+            refreshPageProgress()
+            refreshTransportWarning()
+            refreshSyncGateNotice()
+            return
+        }
+        startAdmittedNavigation(target, generation, load)
+    }
+
+    private fun startAdmittedNavigation(target: BrowserTarget, generation: Long, load: () -> Unit) {
+        if (generation != navigationGeneration || activityDestroyed) return
         pageIsLoading = true
         pageLoadProgress = 0
         refreshSecurityState()
@@ -755,7 +803,11 @@ class MainActivity : ComponentActivity() {
         val config = proxyConfigForTarget(target)
         val targetHost = config?.let { target.displayHost }
         proxyCoordinator.navigate(proxyNavigationOwner, config, targetHost) {
-            if (activityDestroyed || pendingMainFrameUrl?.mainFrameMatchKey() != target.url.mainFrameMatchKey()) {
+            if (
+                activityDestroyed ||
+                generation != navigationGeneration ||
+                pendingMainFrameUrl?.mainFrameMatchKey() != target.url.mainFrameMatchKey()
+            ) {
                 return@navigate
             }
             pendingMainFrameUrl = null
@@ -764,6 +816,44 @@ class MainActivity : ComponentActivity() {
             currentTargetKind = target.kind
             load()
         }
+    }
+
+    private fun targetRequiresDualRootReadiness(target: BrowserTarget): Boolean {
+        val host = target.displayHost ?: return false
+        return target.kind != BrowserTargetKind.LocalAsset &&
+            !isCanonicalIpLiteral(host) &&
+            com.denuoweb.hnsdane.core.HnsHostPolicy.requiresNativeGatewayResolution(
+                host,
+                NativeBridge,
+            )
+    }
+
+    private fun currentSyncProgress(): HnsSyncProgress =
+        HnsSyncProgress.fromJson(lastSyncSnapshot?.statusJson)
+
+    private fun resumeReadinessNavigationIfReady(progress: HnsSyncProgress) {
+        val pending = pendingReadinessNavigation ?: return
+        if (!progress.isAuthorityReady || pending.generation != navigationGeneration) return
+        pendingReadinessNavigation = null
+        syncGateNotice.visibility = View.GONE
+        startAdmittedNavigation(pending.target, pending.generation, pending.load)
+    }
+
+    private fun refreshSyncGateNotice() {
+        if (!::syncGateNotice.isInitialized) return
+        val pending = pendingReadinessNavigation
+        if (pending == null) {
+            syncGateNotice.visibility = View.GONE
+            return
+        }
+        val progress = currentSyncProgress()
+        val host = pending.target.displayHost ?: pending.target.url
+        syncGateNotice.text = if (progress.status in SYNC_FAILURE_STATUSES) {
+            getString(R.string.sync_gate_failed, host)
+        } else {
+            getString(R.string.sync_gate_waiting, host)
+        }
+        syncGateNotice.visibility = View.VISIBLE
     }
 
     private fun refreshSecurityState() {
@@ -834,23 +924,21 @@ class MainActivity : ComponentActivity() {
         }
 
         val progress = HnsSyncProgress.fromJson(lastSyncSnapshot?.statusJson)
-        if (progress.isCurrent) {
-            HnsSyncUiPreferences.setProgressVisible(this, false)
-        }
-        if (!HnsSyncUiPreferences.progressVisible(this)) {
+        if (progress.isAuthorityReady) {
             syncProgressBar.visibility = View.GONE
             syncProgressStats.visibility = View.GONE
-            return
+        } else {
+            syncProgressBar.visibility = View.VISIBLE
+            syncProgressStats.visibility = View.VISIBLE
+            val permille = progress.progressPermille()
+            syncProgressBar.isIndeterminate = permille == null
+            if (permille != null) {
+                syncProgressBar.progress = permille
+            }
+            syncProgressStats.text = progress.summary(this)
         }
-
-        syncProgressBar.visibility = View.VISIBLE
-        syncProgressStats.visibility = View.VISIBLE
-        val permille = progress.progressPermille()
-        syncProgressBar.isIndeterminate = permille == null
-        if (permille != null) {
-            syncProgressBar.progress = permille
-        }
-        syncProgressStats.text = progress.summary(this)
+        refreshSyncGateNotice()
+        resumeReadinessNavigationIfReady(progress)
     }
 
     private fun refreshPageProgress() {
@@ -1026,8 +1114,20 @@ class MainActivity : ComponentActivity() {
                     BrowserProxyRoute.CompatibilityInterceptor -> Unit
                 }
             }
-            if (target.kind in NATIVE_GATEWAY_TARGET_KINDS && proxyAvailable) {
-                return null
+            if (targetRequiresDualRootReadiness(target)) {
+                // Main-frame admission waits for both authenticated tree-root
+                // readiness and the process proxy. Never replace a cancelled
+                // or restoring proxy navigation with an uncancellable JNI call
+                // on WebView's interceptor thread.
+                return when (
+                    protectedWebViewRequestAction(
+                        proxyAvailable = proxyAvailable,
+                        treeRootReady = currentSyncProgress().isAuthorityReady,
+                    )
+                ) {
+                    ProtectedWebViewRequestAction.ProcessProxy -> null
+                    ProtectedWebViewRequestAction.Block -> blockedHnsProxyResponse()
+                }
             }
             val isMainFrame = request.isForMainFrame || isActiveMainFrameRequest(requestUrl)
             return webViewGatewayInterceptor.intercept(
@@ -1417,8 +1517,17 @@ class MainActivity : ComponentActivity() {
             BrowserTargetKind.NativeGateway,
             BrowserTargetKind.Search,
         )
+        private val SYNC_FAILURE_STATUSES = setOf("error", "seed_failed", "peer_failed")
     }
 }
+
+private data class PendingReadinessNavigation(
+    val target: BrowserTarget,
+    val generation: Long,
+    val load: () -> Unit,
+)
+
+private fun Long.wrappingIncrement(): Long = if (this == Long.MAX_VALUE) 1L else this + 1L
 
 private val EXTERNAL_VIEW_SCHEMES = setOf("mailto", "tel", "sms", "geo")
 

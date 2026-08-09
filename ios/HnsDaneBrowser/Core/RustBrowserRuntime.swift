@@ -326,6 +326,18 @@ final class RustBrowserRuntime: BrowserRuntime {
             in: object,
             key: "freshnessThresholdBlocks"
         )
+        let treeIntervalBlocks = unsignedInteger(in: object, key: "treeIntervalBlocks")
+        let authoritativeTreeRootHeight = unsignedInteger(
+            in: object,
+            key: "authoritativeTreeRootHeight"
+        )
+        let localTreeRootHeight = unsignedInteger(in: object, key: "localTreeRootHeight")
+        let treeRootReady = boolean(in: object, key: "treeRootReady")
+        let blocksUntilAuthoritativeTreeRoot = unsignedInteger(
+            in: object,
+            key: "blocksUntilAuthoritativeTreeRoot"
+        )
+        let network = string(in: object, key: "network")
         let targetSource = string(in: object, key: "targetSource") ?? "unknown"
         let targetPeerGroups = nonnegativeInt(in: object, key: "targetPeerGroups") ?? 0
         let targetEvidenceExpired = boolean(in: object, key: "targetEvidenceExpired") ?? true
@@ -336,31 +348,52 @@ final class RustBrowserRuntime: BrowserRuntime {
         let cacheEntries = nonnegativeInt(in: object, key: "resourceCacheEntries") ?? 0
         let cacheBytes = unsignedInteger(in: object, key: "resourceCacheBytes") ?? 0
         let cacheEvicted = nonnegativeInt(in: object, key: "resourceCacheEvicted") ?? 0
-        let hasAuthoritativeCurrentness: Bool
-        if syncStatusSchemaVersion == 2,
-           freshness == "current",
-           targetSource == "corroboratedPeers",
+        let hasAuthoritativeTreeRoot: Bool
+        if syncStatusSchemaVersion == 3,
+           treeRootReady == true,
            let bestHeight,
-           let effectiveTargetHeight,
-           let lagBlocks,
-           let freshnessThresholdBlocks,
+           let localTreeRootHeight,
+           let treeIntervalBlocks,
+           let blocksUntilAuthoritativeTreeRoot,
            bestHeight > 0,
-           effectiveTargetHeight >= bestHeight,
-           freshnessThresholdBlocks == 2,
-           targetPeerGroups >= 3,
-           !targetEvidenceExpired {
-            hasAuthoritativeCurrentness =
-                lagBlocks == effectiveTargetHeight - bestHeight
-                && lagBlocks <= 2
+           treeIntervalBlocks > 0,
+           localTreeRootHeight > 0,
+           localTreeRootHeight <= bestHeight,
+           blocksUntilAuthoritativeTreeRoot == 0 {
+            if network == BrowserHandshakeNetwork.regtest.rawValue {
+                hasAuthoritativeTreeRoot = true
+            } else if targetSource == "corroboratedPeers",
+                      let effectiveTargetHeight,
+                      let authoritativeTreeRootHeight,
+                      effectiveTargetHeight >= bestHeight,
+                      authoritativeTreeRootHeight > 0,
+                      localTreeRootHeight == authoritativeTreeRootHeight,
+                      bestHeight >= authoritativeTreeRootHeight,
+                      targetPeerGroups >= 3,
+                      !targetEvidenceExpired {
+                hasAuthoritativeTreeRoot = true
+            } else {
+                hasAuthoritativeTreeRoot = false
+            }
         } else {
-            hasAuthoritativeCurrentness = false
+            hasAuthoritativeTreeRoot = false
         }
+        let hasAuthoritativeCurrentness = hasAuthoritativeTreeRoot
+            && freshness == "current"
+            && freshnessThresholdBlocks == 2
+            && lagBlocks.map { lag in
+                effectiveTargetHeight.map { target in
+                    bestHeight.map { best in lag == target - best && lag <= 2 } ?? false
+                } ?? false
+            } == true
         let isCurrent = ["up_to_date", "synced", "attempted"].contains(status)
             && hasAuthoritativeCurrentness
 
         let headline: String
         if isCurrent {
             headline = "Handshake headers current"
+        } else if hasAuthoritativeTreeRoot {
+            headline = "Handshake name state ready"
         } else {
             switch status {
             case "syncing", "synced", "attempted":
@@ -382,7 +415,9 @@ final class RustBrowserRuntime: BrowserRuntime {
             let target = effectiveTargetHeight.map(String.init) ?? "unknown"
             let peer = peerHeight.map(String.init) ?? "unknown"
             let estimate = estimatedTipHeight.map(String.init) ?? "unknown"
-            detail = "Local height \(best) · effective target \(target) · freshness \(freshness) · raw peer \(peer) · estimate \(estimate) · accepted \(accepted)/\(attempted)"
+            let root = authoritativeTreeRootHeight.map(String.init) ?? "unknown"
+            let rootState = hasAuthoritativeTreeRoot ? "ready" : "waiting"
+            detail = "Local height \(best) · effective target \(target) · HNS root \(root) \(rootState) · freshness \(freshness) · raw peer \(peer) · estimate \(estimate) · accepted \(accepted)/\(attempted)"
         }
 
         return BrowserSyncSummary(
@@ -390,7 +425,7 @@ final class RustBrowserRuntime: BrowserRuntime {
             detail: detail,
             syncStatusSchemaVersion: syncStatusSchemaVersion,
             status: status,
-            network: string(in: object, key: "network"),
+            network: network,
             attempted: attempted,
             successful: successful,
             accepted: accepted,
@@ -404,6 +439,11 @@ final class RustBrowserRuntime: BrowserRuntime {
             lagBlocks: lagBlocks,
             freshness: freshness,
             freshnessThresholdBlocks: freshnessThresholdBlocks,
+            treeIntervalBlocks: treeIntervalBlocks,
+            authoritativeTreeRootHeight: authoritativeTreeRootHeight,
+            localTreeRootHeight: localTreeRootHeight,
+            treeRootReady: treeRootReady,
+            blocksUntilAuthoritativeTreeRoot: blocksUntilAuthoritativeTreeRoot,
             targetSource: targetSource,
             targetPeerGroups: targetPeerGroups,
             targetEvidenceExpired: targetEvidenceExpired,

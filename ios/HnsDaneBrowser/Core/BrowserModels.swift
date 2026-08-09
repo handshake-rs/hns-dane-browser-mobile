@@ -408,6 +408,11 @@ struct BrowserSyncSummary: Equatable, Sendable {
     let lagBlocks: UInt64?
     let freshness: String
     let freshnessThresholdBlocks: UInt64?
+    let treeIntervalBlocks: UInt64?
+    let authoritativeTreeRootHeight: UInt64?
+    let localTreeRootHeight: UInt64?
+    let treeRootReady: Bool?
+    let blocksUntilAuthoritativeTreeRoot: UInt64?
     let targetSource: String
     let targetPeerGroups: Int
     let targetEvidenceExpired: Bool
@@ -435,6 +440,11 @@ struct BrowserSyncSummary: Equatable, Sendable {
         lagBlocks: UInt64? = nil,
         freshness: String = "unknown",
         freshnessThresholdBlocks: UInt64? = nil,
+        treeIntervalBlocks: UInt64? = nil,
+        authoritativeTreeRootHeight: UInt64? = nil,
+        localTreeRootHeight: UInt64? = nil,
+        treeRootReady: Bool? = nil,
+        blocksUntilAuthoritativeTreeRoot: UInt64? = nil,
         targetSource: String = "unknown",
         targetPeerGroups: Int = 0,
         targetEvidenceExpired: Bool = true,
@@ -461,6 +471,11 @@ struct BrowserSyncSummary: Equatable, Sendable {
         self.lagBlocks = lagBlocks
         self.freshness = freshness
         self.freshnessThresholdBlocks = freshnessThresholdBlocks
+        self.treeIntervalBlocks = treeIntervalBlocks
+        self.authoritativeTreeRootHeight = authoritativeTreeRootHeight
+        self.localTreeRootHeight = localTreeRootHeight
+        self.treeRootReady = treeRootReady
+        self.blocksUntilAuthoritativeTreeRoot = blocksUntilAuthoritativeTreeRoot
         self.targetSource = targetSource
         self.targetPeerGroups = targetPeerGroups
         self.targetEvidenceExpired = targetEvidenceExpired
@@ -482,9 +497,8 @@ struct BrowserSyncSummary: Equatable, Sendable {
     }
 
     var hasAuthoritativeCurrentness: Bool {
-        guard syncStatusSchemaVersion == 2,
+        guard hasAuthoritativeTreeRoot,
               freshness == "current",
-              targetSource == "corroboratedPeers",
               let bestHeight,
               let effectiveTargetHeight,
               let lagBlocks,
@@ -492,12 +506,42 @@ struct BrowserSyncSummary: Equatable, Sendable {
               bestHeight > 0,
               effectiveTargetHeight >= bestHeight,
               freshnessThresholdBlocks == 2,
-              targetPeerGroups >= 3,
               !targetEvidenceExpired
         else {
             return false
         }
         return lagBlocks == effectiveTargetHeight - bestHeight && lagBlocks <= 2
+    }
+
+    var hasAuthoritativeTreeRoot: Bool {
+        guard syncStatusSchemaVersion == 3,
+              treeRootReady == true,
+              let bestHeight,
+              let localTreeRootHeight,
+              let treeIntervalBlocks,
+              let blocksUntilAuthoritativeTreeRoot,
+              bestHeight > 0,
+              treeIntervalBlocks > 0,
+              localTreeRootHeight > 0,
+              localTreeRootHeight <= bestHeight,
+              blocksUntilAuthoritativeTreeRoot == 0 else {
+            return false
+        }
+        if network == BrowserHandshakeNetwork.regtest.rawValue {
+            return true
+        }
+        guard targetSource == "corroboratedPeers",
+              let effectiveTargetHeight,
+              let authoritativeTreeRootHeight,
+              effectiveTargetHeight >= bestHeight,
+              authoritativeTreeRootHeight > 0,
+              localTreeRootHeight == authoritativeTreeRootHeight,
+              bestHeight >= authoritativeTreeRootHeight,
+              targetPeerGroups >= 3,
+              !targetEvidenceExpired else {
+            return false
+        }
+        return true
     }
 
     /// Only the Rust runtime's corroborated target can authorize currentness.
@@ -541,17 +585,16 @@ struct BrowserAuthorityAdmissionPolicy: Equatable, Sendable {
         syncSummary: BrowserSyncSummary
     ) -> Bool {
         guard isForeground,
-              syncSummary.syncStatusSchemaVersion == 2,
+              syncSummary.syncStatusSchemaVersion == 3,
               syncSummary.network == network.rawValue,
               syncSummary.error == nil else {
             return false
         }
         switch network {
         case .mainnet, .testnet:
-            return syncSummary.hasAuthoritativeCurrentness
+            return syncSummary.hasAuthoritativeTreeRoot
         case .regtest:
-            return syncSummary.bestHeight.map { $0 > 0 } == true
-                && syncSummary.freshness != "stale"
+            return syncSummary.hasAuthoritativeTreeRoot
         }
     }
 

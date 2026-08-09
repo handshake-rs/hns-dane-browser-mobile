@@ -174,7 +174,6 @@ class HnsSyncActivity : ComponentActivity() {
                 when (status) {
                     null -> Toast.makeText(this, getString(R.string.sync_already_running), Toast.LENGTH_SHORT).show()
                     "headers_reset" -> {
-                        HnsSyncUiPreferences.setProgressVisible(this, true)
                         headerResyncStatus.text = getString(R.string.settings_header_resync_started_status, networkName)
                         Toast.makeText(this, getString(R.string.settings_header_resync_started), Toast.LENGTH_SHORT).show()
                         runSyncNow()
