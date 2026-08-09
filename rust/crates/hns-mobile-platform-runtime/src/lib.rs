@@ -7225,18 +7225,22 @@ fn build_namespace_plan(
         Some(port),
         origin.key.supported_protocols,
     );
-    let hns_build = build_root_plan(
-        hns,
-        Namespace::Hns,
+    // Resolve ICANN first because delegated HNS validation currently retains
+    // the authenticated result but not the DNSSEC material needed to publish
+    // its full lifetime. Mint the deliberately ephemeral HNS freshness after
+    // the potentially slow independent leg, immediately before classification.
+    let icann_build = build_root_plan(
+        icann,
+        Namespace::Icann,
         &query,
         origin,
         now,
         hns_evidence,
         icann_evidence,
     );
-    let icann_build = build_root_plan(
-        icann,
-        Namespace::Icann,
+    let hns_build = build_root_plan(
+        hns,
+        Namespace::Hns,
         &query,
         origin,
         now,
@@ -8140,7 +8144,18 @@ fn consistent_icann_negative_observation(
 }
 
 fn hns_observation_freshness(observation: HnsProofObservation) -> Result<Freshness, ()> {
-    Freshness::new(observation.observed_at_unix, observation.expires_at_unix).map_err(|_| ())
+    let now = now_unix_seconds();
+    let observed_at_unix = if observation.has_delegation {
+        now
+    } else {
+        observation.observed_at_unix
+    };
+    let expires_at_unix = if observation.has_delegation {
+        observation.expires_at_unix.min(now.saturating_add(1))
+    } else {
+        observation.expires_at_unix
+    };
+    Freshness::new(observed_at_unix, expires_at_unix).map_err(|_| ())
 }
 
 fn icann_observation_freshness(observation: IcannResponseObservation) -> Result<Freshness, ()> {
