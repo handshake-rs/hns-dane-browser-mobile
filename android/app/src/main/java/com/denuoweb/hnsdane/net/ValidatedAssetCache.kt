@@ -20,7 +20,8 @@ internal class ValidatedAssetCache(
     private val maxEntries: Int = DEFAULT_MAX_ENTRIES,
     private val maxEntryBytes: Long = DEFAULT_MAX_ENTRY_BYTES,
 ) {
-    private val root = File(dataDir, "hns/validated-assets/v1")
+    private val root = File(dataDir, "hns/validated-assets/v2")
+    private val retiredRoot = File(dataDir, "hns/validated-assets/v1")
     private val lock = Any()
     private var activeScope: String? = null
 
@@ -37,6 +38,11 @@ internal class ValidatedAssetCache(
             bodyFile.delete()
             return null
         }
+        if (metadata.expiresAtMillis <= System.currentTimeMillis()) {
+            metadataFile.delete()
+            bodyFile.delete()
+            return null
+        }
         metadataFile.setLastModified(System.currentTimeMillis())
         bodyFile.setLastModified(System.currentTimeMillis())
         metadata.toResponse(BufferedInputStream(FileInputStream(bodyFile)))
@@ -47,9 +53,10 @@ internal class ValidatedAssetCache(
         scope: String,
         response: HnsInterceptedResponse,
     ): HnsInterceptedResponse {
-        if (response.statusCode != 200) return response
+        val expiresAtMillis = responseExpirationMillis(response) ?: return response
+        val webViewResponse = response.withAppManagedCacheHeaders()
         val declaredLength = response.headerValue("Content-Length")?.toLongOrNull()
-        if (declaredLength != null && declaredLength > maxEntryBytes) return response
+        if (declaredLength != null && declaredLength > maxEntryBytes) return webViewResponse
 
         val source = response.openBodyStream()
         val directory = synchronized(lock) {
@@ -60,9 +67,9 @@ internal class ValidatedAssetCache(
         val temporaryBody = File(directory, ".$entryKey.${UUID.randomUUID()}.body.tmp")
         val output = runCatching {
             BufferedOutputStream(FileOutputStream(temporaryBody))
-        }.getOrNull() ?: return response.withBodyStream(source)
-        val metadata = CachedMetadata.from(response)
-        return response.withBodyStream(
+        }.getOrNull() ?: return webViewResponse.withBodyStream(source)
+        val metadata = CachedMetadata.from(response, expiresAtMillis)
+        return webViewResponse.withBodyStream(
             PublishingInputStream(
                 source = source,
                 output = output,
@@ -83,6 +90,7 @@ internal class ValidatedAssetCache(
         scope: String,
         response: HnsInterceptedResponse,
     ): HnsInterceptedResponse? {
+        val expiresAtMillis = responseExpirationMillis(response) ?: return null
         val sourceFile = response.bodyFile ?: return null
         if (sourceFile.length() > maxEntryBytes) return null
         val directory = synchronized(lock) {
@@ -104,7 +112,12 @@ internal class ValidatedAssetCache(
             return null
         }
 
-        publish(directory, entryKey, temporaryBody, CachedMetadata.from(response))
+        publish(
+            directory,
+            entryKey,
+            temporaryBody,
+            CachedMetadata.from(response, expiresAtMillis),
+        )
         val cached = lookup(url, scope) ?: return null
         response.discardBody()
         return cached
@@ -144,6 +157,7 @@ internal class ValidatedAssetCache(
 
     private fun activateScope(scope: String) {
         if (activeScope == scope) return
+        retiredRoot.deleteRecursively()
         root.mkdirs()
         root.listFiles()
             ?.filter { it.name != scope }
@@ -182,11 +196,54 @@ internal class ValidatedAssetCache(
         private const val DEFAULT_MAX_ENTRY_BYTES = 16L * 1024L * 1024L
         private const val DEFAULT_MAX_ENTRIES = 512
         private const val TEMP_FILE_MAX_AGE_MS = 60L * 60L * 1000L
+        private const val MAX_CACHE_LIFETIME_SECONDS = 7L * 24L * 60L * 60L
         private val HASHED_ASSET_PATH = Regex("^/assets/.+-[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9]+$")
 
-        fun eligible(url: String): Boolean {
-            val path = runCatching { URI(url).rawPath }.getOrNull() ?: return false
-            return HASHED_ASSET_PATH.matches(path)
+        fun requestEligible(url: String, headers: Map<String, String>): Boolean {
+            val uri = runCatching { URI(url) }.getOrNull() ?: return false
+            if (uri.rawUserInfo != null || !HASHED_ASSET_PATH.matches(uri.rawPath ?: return false)) {
+                return false
+            }
+            if (headers.hasAny(REQUEST_VARIATION_HEADERS)) return false
+
+            val cacheControl = headers.cacheControlDirectives()
+            return cacheControl.none { directive ->
+                directive.name in REQUEST_CACHE_BYPASS_DIRECTIVES ||
+                    (directive.name == "max-age" && directive.value == "0")
+            } && !headers.hasHeaderValue("Pragma", "no-cache")
+        }
+
+        fun responseEligible(response: HnsInterceptedResponse): Boolean =
+            responseExpirationMillis(response) != null
+
+        private fun responseExpirationMillis(response: HnsInterceptedResponse): Long? {
+            if (response.statusCode != 200) return null
+            if (response.headers.hasAny(RESPONSE_VARIATION_HEADERS)) return null
+
+            val cacheControl = response.headers.cacheControlDirectives()
+            if (cacheControl.any { it.name in RESPONSE_CACHE_REJECTION_DIRECTIVES }) return null
+            val explicitDirectives = cacheControl
+                .filter { it.value == null }
+                .mapTo(mutableSetOf()) { it.name }
+            if ("public" !in explicitDirectives || "immutable" !in explicitDirectives) return null
+            val maxAgeSeconds = cacheControl
+                .filter { it.name == "max-age" }
+                .singleOrNull()
+                ?.value
+                ?.toLongOrNull()
+                ?.takeIf { it > 0L }
+                ?: return null
+            val ageValues = response.headers.headerValues("Age")
+            val ageSeconds = when (ageValues.size) {
+                0 -> 0L
+                1 -> ageValues.single().toLongOrNull()?.takeIf { it >= 0L } ?: return null
+                else -> return null
+            }
+            val remainingSeconds = (maxAgeSeconds - ageSeconds).takeIf { it > 0L } ?: return null
+            val lifetimeMillis = remainingSeconds
+                .coerceAtMost(MAX_CACHE_LIFETIME_SECONDS)
+                .times(1000L)
+            return System.currentTimeMillis() + lifetimeMillis
         }
 
         fun scope(config: HnsGatewayRuntimeConfig, chainTipToken: String): String = digest(
@@ -204,10 +261,76 @@ internal class ValidatedAssetCache(
         private fun digest(value: String): String = MessageDigest.getInstance("SHA-256")
             .digest(value.toByteArray(Charsets.UTF_8))
             .joinToString("") { byte -> "%02x".format(byte) }
+
+        private val REQUEST_VARIATION_HEADERS = setOf(
+            "authorization",
+            "cookie",
+            "if-match",
+            "if-modified-since",
+            "if-none-match",
+            "if-range",
+            "if-unmodified-since",
+            "proxy-authorization",
+            "range",
+        )
+        private val REQUEST_CACHE_BYPASS_DIRECTIVES = setOf("no-cache", "no-store")
+        private val RESPONSE_VARIATION_HEADERS = setOf(
+            "set-cookie",
+            "set-cookie2",
+            "vary",
+        )
+        private val RESPONSE_CACHE_REJECTION_DIRECTIVES = setOf(
+            "no-cache",
+            "no-store",
+            "private",
+        )
     }
 }
 
+private data class CacheControlDirective(
+    val name: String,
+    val value: String?,
+)
+
+private fun Map<String, String>.hasAny(names: Set<String>): Boolean =
+    keys.any { it.lowercase() in names }
+
+private fun Map<String, String>.hasHeaderValue(name: String, expectedValue: String): Boolean =
+    entries.any { (headerName, value) ->
+        headerName.equals(name, ignoreCase = true) &&
+            value.split(',').any { it.trim().equals(expectedValue, ignoreCase = true) }
+    }
+
+private fun Map<String, String>.headerValues(name: String): List<String> =
+    entries.filter { (headerName, _) -> headerName.equals(name, ignoreCase = true) }
+        .map { (_, value) -> value.trim() }
+
+private fun Map<String, String>.withWebViewCacheDisabled(): Map<String, String> =
+    filterKeys { name ->
+        !name.equals("Age", ignoreCase = true) &&
+            !name.equals("Cache-Control", ignoreCase = true) &&
+            !name.equals("Expires", ignoreCase = true)
+    } + ("Cache-Control" to "no-store")
+
+private fun Map<String, String>.cacheControlDirectives(): List<CacheControlDirective> =
+    entries
+        .filter { (name, _) -> name.equals("Cache-Control", ignoreCase = true) }
+        .flatMap { (_, value) -> value.split(',') }
+        .mapNotNull { rawDirective ->
+            val directive = rawDirective.trim()
+            if (directive.isEmpty()) return@mapNotNull null
+            val separator = directive.indexOf('=')
+            CacheControlDirective(
+                name = directive.substring(0, separator.takeIf { it >= 0 } ?: directive.length)
+                    .trim()
+                    .lowercase(),
+                value = separator.takeIf { it >= 0 }
+                    ?.let { directive.substring(it + 1).trim().trim('"').lowercase() },
+            )
+        }
+
 private data class CachedMetadata(
+    val expiresAtMillis: Long,
     val statusCode: Int,
     val reason: String,
     val mimeType: String,
@@ -219,13 +342,14 @@ private data class CachedMetadata(
         reason = reason,
         mimeType = mimeType,
         encoding = encoding,
-        headers = headers,
+        headers = headers.withWebViewCacheDisabled(),
         body = ByteArray(0),
         bodyStream = body,
     )
 
     fun writeTo(output: DataOutputStream) {
         output.writeInt(MAGIC)
+        output.writeLong(expiresAtMillis)
         output.writeInt(statusCode)
         output.writeUTF(reason)
         output.writeUTF(mimeType)
@@ -242,7 +366,8 @@ private data class CachedMetadata(
         private const val MAGIC = 0x484E5341
         private const val MAX_HEADERS = 256
 
-        fun from(response: HnsInterceptedResponse) = CachedMetadata(
+        fun from(response: HnsInterceptedResponse, expiresAtMillis: Long) = CachedMetadata(
+            expiresAtMillis,
             response.statusCode,
             response.reason,
             response.mimeType,
@@ -252,6 +377,7 @@ private data class CachedMetadata(
 
         fun readFrom(input: DataInputStream): CachedMetadata {
             require(input.readInt() == MAGIC)
+            val expiresAtMillis = input.readLong().also { require(it > 0L) }
             val statusCode = input.readInt().also { require(it in 200..299) }
             val reason = input.readUTF()
             val mimeType = input.readUTF()
@@ -259,10 +385,13 @@ private data class CachedMetadata(
             val count = input.readInt().also { require(it in 0..MAX_HEADERS) }
             val headers = linkedMapOf<String, String>()
             repeat(count) { headers[input.readUTF()] = input.readUTF() }
-            return CachedMetadata(statusCode, reason, mimeType, encoding, headers)
+            return CachedMetadata(expiresAtMillis, statusCode, reason, mimeType, encoding, headers)
         }
     }
 }
+
+private fun HnsInterceptedResponse.withAppManagedCacheHeaders(): HnsInterceptedResponse =
+    copy(headers = headers.withWebViewCacheDisabled())
 
 private class PublishingInputStream(
     source: InputStream,
