@@ -4,7 +4,6 @@ exclude = ["fuzz"]
 members = [
     "crates/android-ffi",
     "crates/hns-chain",
-    "crates/hns-core",
     "crates/hns-dane",
     "crates/hns-dnssec",
     "crates/hns-gateway",
@@ -33,7 +32,7 @@ hex = "0.4"
 getrandom = "0.3"
 hns-cache = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f" }
 hns-chain = { path = "crates/hns-chain" }
-hns-core = { path = "crates/hns-core" }
+hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "8d13c295ec99aa634170402ed316f16e040c7e40" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }

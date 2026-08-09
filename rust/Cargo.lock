@@ -571,6 +571,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "hns-browser-primitives"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=8d13c295ec99aa634170402ed316f16e040c7e40#8d13c295ec99aa634170402ed316f16e040c7e40"
+dependencies = [
+ "blake2",
+ "hex",
+ "num-bigint",
+ "num-traits",
+ "serde",
+ "sha3",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "hns-browser-runtime"
 version = "0.1.0"
 source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab626f945712b0f960945986cb52efefef7c#1ab4ab626f945712b0f960945986cb52efefef7c"
@@ -589,21 +603,8 @@ dependencies = [
 name = "hns-chain"
 version = "0.5.6"
 dependencies = [
- "hns-core",
+ "hns-browser-primitives",
  "rusqlite",
- "thiserror 2.0.19",
-]
-
-[[package]]
-name = "hns-core"
-version = "0.5.6"
-dependencies = [
- "blake2",
- "hex",
- "num-bigint",
- "num-traits",
- "serde",
- "sha3",
  "thiserror 2.0.19",
 ]
 
@@ -611,7 +612,7 @@ dependencies = [
 name = "hns-dane"
 version = "0.5.6"
 dependencies = [
- "hns-core",
+ "hns-browser-primitives",
  "hns-dnssec",
  "hns-urkel",
  "sha2",
@@ -627,7 +628,7 @@ source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=d8b564fe1a
 name = "hns-dnssec"
 version = "0.5.6"
 dependencies = [
- "hns-core",
+ "hns-browser-primitives",
  "num-bigint",
  "num-traits",
  "p256",
@@ -641,7 +642,7 @@ dependencies = [
 name = "hns-gateway"
 version = "0.5.6"
 dependencies = [
- "hns-core",
+ "hns-browser-primitives",
  "hns-dane",
  "hns-icann-dane",
  "hns-namespace-resolution",
@@ -661,7 +662,7 @@ name = "hns-loopback-proxy"
 version = "0.5.6"
 dependencies = [
  "base64",
- "hns-core",
+ "hns-browser-primitives",
  "hns-resolver",
  "httparse",
  "idna",
@@ -678,10 +679,10 @@ name = "hns-mobile-platform-runtime"
 version = "0.5.6"
 dependencies = [
  "hns-browser-observability",
+ "hns-browser-primitives",
  "hns-browser-runtime",
  "hns-cache",
  "hns-chain",
- "hns-core",
  "hns-dane",
  "hns-dnssec",
  "hns-gateway",
@@ -712,7 +713,7 @@ version = "0.5.6"
 dependencies = [
  "getrandom 0.3.4",
  "hex",
- "hns-core",
+ "hns-browser-primitives",
  "hns-urkel",
  "rusqlite",
  "thiserror 2.0.19",
@@ -727,8 +728,8 @@ source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab626f
 name = "hns-resolver"
 version = "0.5.6"
 dependencies = [
+ "hns-browser-primitives",
  "hns-cache",
- "hns-core",
  "hns-dane",
  "hns-dnssec",
  "hns-namespace-resolution",
@@ -740,8 +741,8 @@ dependencies = [
 name = "hns-sync"
 version = "0.5.6"
 dependencies = [
+ "hns-browser-primitives",
  "hns-chain",
- "hns-core",
  "hns-p2p",
  "hns-resolver",
  "hns-urkel",
@@ -773,7 +774,7 @@ dependencies = [
 name = "hns-urkel"
 version = "0.5.6"
 dependencies = [
- "hns-core",
+ "hns-browser-primitives",
  "thiserror 2.0.19",
 ]
 
