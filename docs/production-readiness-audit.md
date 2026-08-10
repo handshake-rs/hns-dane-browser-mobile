@@ -1,6 +1,6 @@
 # Production Readiness Audit
 
-Last audited: 2026-07-31
+Last audited: 2026-08-09
 
 Current Android source is `0.5.7` (`versionCode 48`) for an APK-only GitHub
 compatibility release. It lowers the Android and native NDK floor to API 30;
@@ -11,11 +11,12 @@ This audit records the release checkpoint for the existing public
 Google Play and Apple App Store apps. Google Play production contains Android
 `0.5.6` (`versionCode 47`) and shared Rust `0.5.6` from shipping source
 `417af67efd68198de4871c0a339d1e456b60cb68`; the Apple public baseline
-observed on 2026-07-28 was `0.5.0`. iOS remains unchanged at `0.5.5` (build
-`57`): App Store Connect reports it `VALID`, directly
-`WAITING_FOR_REVIEW`, and configured for manual release with no TestFlight
-distribution. It was not incremented for the Android runtime-lock and Proof
-Details fixes.
+observed on 2026-07-28 was `0.5.0`. Apple published iOS `0.5.5` on
+2026-07-31, and the public record still reports `0.5.5` as current on
+2026-08-09. The prior `VALID`, `WAITING_FOR_REVIEW`, and manual-release state
+below is retained as submission history, not current status. No TestFlight
+distribution was used. iOS was not incremented for the later Android-only
+runtime-lock and Proof Details fixes.
 
 ## Release Findings
 
@@ -24,7 +25,7 @@ Details fixes.
 | Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 47 production complete | Android Publisher edit `07330408575596336357` committed code `47` directly to production with status `completed`; `generatedApks/47` returned HTTP `200`. |
-| App Store update | Public `0.5.0`; build 57 is `WAITING_FOR_REVIEW`; device qualification tracked separately | Apple reported public version `0.5.0` on 2026-07-28. Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). App Store Connect reports the build `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`. No TestFlight distribution is part of this release, and a real-iPhone pass remains a separate qualification item. |
+| App Store update | Public `0.5.5`; device qualification tracked separately | Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). The submission was then `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`; Apple published `0.5.5` on 2026-07-31. No TestFlight distribution was part of this release, and a real-iPhone pass remains a separate qualification item. |
 | Android runtime opening | Root cause fixed and release-device validated | Rust 1.92's stable `std::fs::File` lock implementation omitted Android, so the first header-state lock returned `Unsupported` and `BrowserRuntime::open` returned no handle. The Android target now uses the locked `libc 0.2.186` `flock` operations; the equivalent upstream fix is merged for Rust 1.98 in `rust-lang/rust#157038`. The exact signed code `47` APK cold-launched and synchronized successfully after an in-place data-preserving upgrade. |
 | Android Proof Details | Namespace attribution fixed and release-device confirmed | Native-gateway routing is namespace-agnostic because every canonical DNS host enters the retained dual-root gateway. The prior UI treated that route as ICANN, so a retained HNS trace produced DNSSEC/synthetic ICANN details. Proof Details now uses only the strict retained `namespaceResolution` decision. Pre-fix reproduction, paired instrumentation, and HNS browsing/proof behavior passed on the Pixel 9 release device after correction. |
 | Privacy policy | Repository and hosted policy aligned | The canonical `https://denuoweb.com/work/hns-dane-browser/privacy` policy now discloses the independently opt-in P2P requester and user-configured recursive HNS DoH recovery, operator-visible queried names/types, timing and source IP, blank/off defaults, one-way legacy-key tombstone, local DNSSEC/DANE validation, validating ICANN bootstrap, and continued prohibition on HNS WebPKI fallback. |
@@ -82,10 +83,7 @@ Details fixes.
 
 ## Remaining Release Gates
 
-1. Monitor Apple's review of build `57` and, after approval, perform the
-   deliberately manual App Store release. Upload, metadata, screenshots, build
-   linkage, full readback, and direct submission are complete.
-2. Extend the exact signed Android `0.5.6` / code `47` physical-device
+1. Extend the exact signed Android `0.5.6` / code `47` physical-device
    qualification beyond the completed upgrade, cold-launch, sync, HNS browsing,
    and proof checks. Remaining rows include interrupted staged publication,
    upgrade-policy migration, sync resume, blank/off recursive recovery,
@@ -94,7 +92,7 @@ Details fixes.
    cases, fail-closed no-route, convergent/divergent dual-root browsing,
    downloads, Service Workers, WebSockets, website-data deletion, and
    gateway-log deletion.
-3. Reconcile the existing live Play listing's Data safety, app-access, content,
+2. Reconcile the existing live Play listing's Data safety, app-access, content,
    ads, listing-copy, and stale-screenshot fields. Code `47` production
    deployment is complete; this reconciliation remains a policy and listing
    maintenance item.

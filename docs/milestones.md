@@ -100,17 +100,18 @@
 - Added the stable versioned `ios-ffi` C ABI, C/C++ header checks, Apple Rust slices, and XCFramework build scripts.
 - Added the iOS 17.0-or-later UIKit/WKWebView shell with persistent profile data, authenticated no-failover whole-data-store proxying, generation-safe scope rotation, exact Rust-authorized HNS certificate handling, lifecycle revocation, downloads, and shared snapshot bootstrap.
 - Added the macOS ABI, XCFramework, application, and simulator test gate against the stable iOS 26.5 SDK, accepting Xcode 26.5 or 26.6. The iOS 17.0 deployment floor, including support for the iOS 18 generation, remains independent of that build SDK.
-- Published the iPhone app on the Apple App Store; version `0.5.0` was the
-  public baseline observed on 2026-07-28. The useful intermediate Apple build
-  chronology is retained in `docs/ios-app-store-release.md`.
+- Published the iPhone app on the Apple App Store. Version `0.5.5` became
+  public on 2026-07-31 and remained current when rechecked on 2026-08-09. The
+  useful intermediate Apple build chronology is retained in
+  `docs/ios-app-store-release.md`.
 - Build `57` at source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47` carries those fixes plus stable
   Proof Details selection and origin revalidation when a cached main frame has
   no new Rust status. Android code `46` completed Google Play production from
   the matching version-bump source. Protected run `30456522039` signed and
-  uploaded build `57`; App Store Connect reports the build `VALID` and the
-  direct App Review submission `WAITING_FOR_REVIEW`. No TestFlight distribution
-  is part of this release, and App Store release remains manual after review.
+  uploaded build `57`; the subsequent `VALID` and `WAITING_FOR_REVIEW` state is
+  retained as dated submission history. No TestFlight distribution was part of
+  this release.
   GitHub Release `v0.5.5` publicly retains the verified code 46 APK and build 57
   App Store IPA.
 - Installed-device qualification gate: run and document the signed
@@ -120,3 +121,18 @@
   physical-device result is claimed; Linux and simulator checks do not provide
   that hardware-specific evidence.
 - Removed the single-host ICANN DANE exception and applied the automatic policy to Android and iOS navigation, redirects, subresources, WebSockets, supported Service Worker requests, and downloads. Portable coverage is checked in; Android/iOS device qualification remains open.
+
+## Milestone 8: Native Wallet Lifecycle and Named Services
+
+- Completed: shared-engine consolidation for the browser resolver, transport,
+  proxy, gateway, and authority lifecycle at exact reviewed Git revisions.
+- Pending first wallet slice: secure app-owned Android/iOS persistence, an
+  in-process typed wallet binding, and native create, restore, unlock, lock,
+  status, and account-identity controls.
+- Pending named-service adoption: consume the current engine HNSA admission and
+  HNSR requester lifecycle through exact engine-issued authority; no Kotlin or
+  Swift authority projection may substitute for that context.
+- Website provider installation, synchronized wallet reads, approvals, value
+  movement, Shakedex/Denuo, and P2P marketplace controls remain separate later
+  milestones and stay disabled until their runtime and installed-product gates
+  pass.

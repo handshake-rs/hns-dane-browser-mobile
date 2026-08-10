@@ -21,8 +21,8 @@ GitHub Release [`v0.5.7`](https://github.com/handshake-rs/hns-dane-browser-mobil
 publishes only the signed Android APK. Google Play production remains on
 `0.5.6` / code `47`; no AAB is part of this GitHub-only compatibility release.
 
-The Apple App Store baseline observed on 2026-07-28 was `0.5.0`; iOS `0.5.5` /
-build `57` is the pending Apple update. Apple source
+The Apple App Store published iOS `0.5.5` on 2026-07-31; a public-store lookup
+on 2026-08-09 confirms that `0.5.5` is the current version. Apple source
 `d926561091634cd69fc9b7e79a4b76003fa4ee47` adds the
 shared compressed-negative-evidence and post-resolution freshness fixes,
 stable semantic Proof Details selection, and origin revalidation for a cached
@@ -30,10 +30,10 @@ main frame with no new Rust status. Exact-head Apple CI run `30454904736` and
 live Release screenshot run `30454926117` passed. Protected upload run
 `30456522039` signed and uploaded build `57`; the retained IPA has SHA-256
 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.
-App Store Connect reports the build `VALID` and the direct App Review
-submission `WAITING_FOR_REVIEW`, with manual release selected. No TestFlight
-distribution was created. The hosted privacy policy at the canonical product
-URL is aligned with the current repository disclosure.
+The earlier `WAITING_FOR_REVIEW` and manual-release state is retained as dated
+submission history in the release audit; it is no longer the current public
+status. No TestFlight distribution was created. The hosted privacy policy at
+the canonical product URL is aligned with the current repository disclosure.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).

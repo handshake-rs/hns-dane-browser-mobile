@@ -8,8 +8,9 @@ The committed application identity is:
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - Display name: `HNS DANE Browser`
 - Deployment floor: iOS 17.0
-- Public App Store baseline observed 2026-07-28: `0.5.0`
-- Current submitted iOS update: `0.5.5` (`57`) at source
+- Current public App Store version: `0.5.5`, published 2026-07-31 and
+  rechecked through the public record on 2026-08-09
+- Published iOS build: `0.5.5` (`57`) at source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`
 - Device family: iPhone
 
@@ -115,6 +116,10 @@ client. The version has `releaseType=MANUAL` and `reviewType=APP_STORE`; the
 direct submission entered
 `WAITING_FOR_REVIEW` on 2026-07-29. The upload and submission paths did not
 create TestFlight groups or distribute the build to testers.
+
+Apple published `0.5.5` on 2026-07-31. A public-store lookup on 2026-08-09
+still reports it as the current version. The review and manual-release values
+above are retained as the upload chronology, not current availability.
 
 Owning an iPhone is not required to archive, sign, upload, or submit. An
 independently installed signed build may be exercised on a real iPhone in a

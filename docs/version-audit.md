@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-07-31.
+Audit date: 2026-08-09.
 
 This table records the versions actually configured for the shipping build. Android runtime dependencies use stable releases; separate build-tool transitive dependencies may carry preview labels selected by AGP and are not packaged into the app.
 
@@ -32,6 +32,9 @@ This table records the versions actually configured for the shipping build. Andr
 
 Notes:
 
+- Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on
+  2026-08-09 still reports `0.5.5` as current; older review-state notes in
+  this repository describe the submission chronology, not the current status.
 - Android `0.5.7` / code `48` is an Android-only compatibility release. It
   lowers both the application and NDK platform floor to API 30, retains
   explicit UTF-8 form encoding through the older `URLEncoder` overload, and
@@ -104,9 +107,9 @@ Notes:
   edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes the verified APK only;
   the Play AAB and unchanged iOS build are not attached.
-- iOS remains `0.5.5` / build `57`. App Store Connect reports the build
-  `VALID` and its direct App Review submission `WAITING_FOR_REVIEW`, with
-  manual release and no TestFlight distribution.
+- iOS remains `0.5.5` / build `57`, publicly available since 2026-07-31.
+  Its earlier `VALID`, direct `WAITING_FOR_REVIEW`, and manual-release state is
+  retained as submission chronology. No TestFlight distribution was used.
 - Gateway-generated HNS error pages now include the requested URL above the status line so repeated 502 validation pages show which address failed.
 - Gateway failure diagnostics are now persisted in app-private storage as a bounded, sanitized recent-event log containing only stage, host, status, and reason. URL paths, query strings, headers, and bodies are not written to the default diagnostic log.
 - An Android instrumentation test now validates the real HNS CONNECT termination path on-device: the loopback proxy generates a native per-host TLS certificate, completes a TLS handshake, pins the certificate fingerprint for WebView SSL policy, rejects an ICANN URL for that pinned certificate, and forwards a bounded HNS HTTPS POST body through the native gateway bridge.

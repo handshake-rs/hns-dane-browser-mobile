@@ -12,6 +12,13 @@ It does not claim that the coordination-wide PDF is complete.
 - Working branch: `main`
 - Platforms in scope: Android WebView/JNI and iOS WKWebView/Apple C ABI
 
+Public-release successor: Apple published iOS `0.5.5` on 2026-07-31, and the
+public record still reports it as current on 2026-08-09. Any later references
+to `WAITING_FOR_REVIEW` are retained submission evidence, not current status.
+The public `0.5.5` description accurately advertises a browser with no wallet
+or exchange; the dormant wallet-provider source below does not change that
+product claim.
+
 ## Requirement Status
 
 | PDF requirement | Status in this checkpoint | Evidence or remaining work |
@@ -178,7 +185,7 @@ engine adapters and compatibility contracts from exact reviewed Git revisions.
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes the verified APK only;
   the Play AAB and unchanged iOS build are not attached.
 
-### Current `0.5.5` iOS Submission Evidence
+### Published `0.5.5` iOS Evidence
 
 - Final iOS-only source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47` passed exact-head policy, the
@@ -190,13 +197,13 @@ engine adapters and compatibility contracts from exact reviewed Git revisions.
 - Protected upload run `30456522039` passed the unsigned gate, signed and
   uploaded build `57`, and retained the 47,930,601-byte IPA with SHA-256
   `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.
-  App Store Connect reports the build `VALID` and the direct App Review
+  App Store Connect then reported the build `VALID` and the direct App Review
   submission `WAITING_FOR_REVIEW`, with manual release and no TestFlight
-  distribution.
+  distribution. Apple published that version on 2026-07-31.
 
 The completed Android release checks do not prove the remaining physical-device
 matrix for process restarts, lifecycle changes, Service Workers, downloads,
 WebSockets, requester/recovery combinations, and cross-origin subresources.
 Real-iPhone qualification also remains open. The unchanged iOS `0.5.5` / build
-`57` is `VALID` in App Store Connect and its direct App Review submission
-remains `WAITING_FOR_REVIEW` with manual release and no TestFlight distribution.
+`57` is public; publication does not satisfy the separate installed-device
+matrix.
