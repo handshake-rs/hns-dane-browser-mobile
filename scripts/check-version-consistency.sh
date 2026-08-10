@@ -88,8 +88,6 @@ rust_exact_checks=(
   "${rust_manifest}:version = \"${rust_version}\""
   "${diagnostic_test}:hns-dane-browser-rust-core/${rust_version}"
   "rust/Cargo.lock:version = \"${rust_version}\""
-  "rust/fuzz/Cargo.lock:version = \"${rust_version}\""
-  "tools/hns-header-snapshot-exporter/Cargo.lock:version = \"${rust_version}\""
 )
 
 for check in "${rust_exact_checks[@]}"; do
@@ -100,6 +98,47 @@ for check in "${rust_exact_checks[@]}"; do
     missing=1
   fi
 done
+
+if ! python3 - <<'PY'; then
+from pathlib import Path
+import tomllib
+
+root = Path.cwd()
+expected_engine_packages = {
+    "rust/fuzz/Cargo.lock": {
+        "hns-browser-dane": "0.2.0",
+        "hns-browser-dnssec": "0.2.0",
+        "hns-browser-p2p": "0.2.0",
+        "hns-browser-primitives": "0.2.0",
+        "hns-browser-urkel": "0.2.0",
+    },
+    "tools/hns-header-snapshot-exporter/Cargo.lock": {
+        "hns-browser-chain": "0.2.0",
+        "hns-browser-p2p": "0.2.0",
+        "hns-browser-primitives": "0.2.0",
+        "hns-browser-sync": "0.2.0",
+        "hns-browser-urkel": "0.2.0",
+    },
+}
+
+for relative, expected in expected_engine_packages.items():
+    with (root / relative).open("rb") as handle:
+        packages = tomllib.load(handle)["package"]
+    actual = sorted(
+        (package["name"], package["version"])
+        for package in packages
+        if package["name"].startswith("hns-browser-")
+    )
+    wanted = sorted(expected.items())
+    if actual != wanted:
+        raise SystemExit(
+            f"{relative}: consolidated engine packages are {actual}; expected {wanted}"
+        )
+
+print("Standalone tools pin the expected consolidated hns-browser packages.")
+PY
+  missing=1
+fi
 
 ios_exact_checks=(
   "${ios_project_definition}:MARKETING_VERSION: ${ios_version}"
