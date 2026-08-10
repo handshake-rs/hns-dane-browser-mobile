@@ -20,42 +20,38 @@ internal object SecurityIndicator {
     )
 
     fun forState(state: SecurityState): Presentation = when (state) {
+        SecurityState.LocalContent ->
+            Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_local_content)
         SecurityState.Syncing ->
             Presentation(R.drawable.ic_security_info, Tone.Neutral, R.string.security_syncing)
         SecurityState.Loading ->
             Presentation(R.drawable.ic_security_info, Tone.Neutral, R.string.security_loading)
         SecurityState.HnsVerified ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_hns_verified)
-        SecurityState.HnsCompatibility ->
-            Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_hns_compat)
         SecurityState.HnsViaAuthoritativeDoh ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_hns_via_authoritative_doh)
         SecurityState.HnsViaAuthoritativeDns53 ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_hns_via_authoritative_dns53)
         SecurityState.HnsViaP2pDnsRelay ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_hns_via_p2p_dns_relay)
-        SecurityState.HnsViaThirdPartyDoh ->
-            Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_hns_via_third_party_doh)
+        SecurityState.HnsViaUserConfiguredRecoveryDoh ->
+            Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_hns_via_user_configured_recovery_doh)
         SecurityState.DaneVerified ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_dane_verified)
-        SecurityState.DaneCompatibility ->
-            Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_dane_compat)
         SecurityState.DaneViaAuthoritativeDoh ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_dane_via_authoritative_doh)
         SecurityState.DaneViaAuthoritativeDns53 ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_dane_via_authoritative_dns53)
         SecurityState.DaneViaP2pDnsRelay ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_dane_via_p2p_dns_relay)
-        SecurityState.DaneViaThirdPartyDoh ->
-            Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_dane_via_third_party_doh)
+        SecurityState.DaneViaUserConfiguredRecoveryDoh ->
+            Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_dane_via_user_configured_recovery_doh)
         SecurityState.StatelessDane ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_stateless_dane)
         SecurityState.DaneViaIcannDoh ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_dane_via_icann_doh)
         SecurityState.WebPkiOnly ->
             Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_webpki)
-        SecurityState.MixedPolicy ->
-            Presentation(R.drawable.ic_security_lock, Tone.Ok, R.string.security_hns_webpki)
         SecurityState.ValidationFailed ->
             Presentation(R.drawable.ic_security_warning, Tone.Danger, R.string.security_failed)
         SecurityState.ProofUnavailable ->
