@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-import re
 import subprocess
 import sys
 import tomllib
@@ -15,47 +14,54 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 ENGINE_VERSIONS = {
-    "hns-browser-observability": "0.1.2",
-    "hns-browser-runtime": "0.1.0",
-    "hns-icann-dane": "0.1.0",
-    "hns-namespace-resolution": "0.1.0",
-    "hns-resolution-policy": "0.1.0",
+    "hns-browser-observability": "0.2.0",
+    "hns-browser-runtime": "0.2.0",
+    "hns-icann-dane": "0.2.0",
+    "hns-namespace-resolution": "0.2.0",
+    "hns-resolution-policy": "0.2.0",
 }
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
+ENGINE_GIT_REVISION = "2b23bd55d14d36fe60073606869d75b4796c54f7"
 WALLET_GIT_URL = "https://github.com/handshake-rs/hns-wallet-rs.git"
 WALLET_GIT_REVISION = "2229be849557d58a8eb723bcc03349f0f2df9796"
 PROTOCOL_GIT_URL = "https://github.com/handshake-rs/hns-rs.git"
 PROTOCOL_GIT_REVISION = "b24b66c382de53330ec21dd3137e056a2bea3e2d"
 APPROVED_ENGINE_GIT = {
-    "hns-dane": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-dane": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-dnssec": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-dnssec": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-p2p": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-p2p": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-resolver": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-resolver": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-sync": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-sync": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-chain": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-chain": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-urkel": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-urkel": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-core": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-primitives": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-cache": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-dns-wire": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-gateway": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-gateway": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-transport": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-transport": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-loopback-proxy": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-loopback-proxy": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
-    "hns-browser-observability": ("0.1.2", "1ab4ab626f945712b0f960945986cb52efefef7c"),
-    "hns-browser-runtime": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
-    "hns-icann-dane": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
-    "hns-namespace-resolution": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
-    "hns-resolution-policy": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
+    package: ("0.2.0", ENGINE_GIT_REVISION)
+    for package in {
+        "hns-dane",
+        "hns-browser-dane",
+        "hns-dane-engine",
+        "hns-dnssec",
+        "hns-browser-dnssec",
+        "hns-p2p",
+        "hns-browser-p2p",
+        "hns-p2p-transport",
+        "hns-resolver",
+        "hns-browser-resolver",
+        "hns-sync",
+        "hns-browser-sync",
+        "hns-chain",
+        "hns-browser-chain",
+        "hns-light-chain",
+        "hns-urkel",
+        "hns-browser-urkel",
+        "hns-core",
+        "hns-browser-primitives",
+        "hns-cache",
+        "hns-dns-wire",
+        "hns-gateway",
+        "hns-browser-gateway",
+        "hns-transport",
+        "hns-browser-transport",
+        "hns-loopback-proxy",
+        "hns-browser-loopback-proxy",
+        "hns-browser-observability",
+        "hns-browser-runtime",
+        "hns-icann-dane",
+        "hns-namespace-resolution",
+        "hns-resolution-policy",
+    }
 }
 APPROVED_WALLET_GIT = {
     package: ("0.1.0", WALLET_GIT_REVISION)
@@ -141,10 +147,13 @@ MIGRATED_LOCAL_CRATES = frozenset(
         "hns-chain",
         "hns-core",
         "hns-dane",
+        "hns-dane-engine",
         "hns-dnssec",
         "hns-gateway",
+        "hns-light-chain",
         "hns-loopback-proxy",
         "hns-p2p",
+        "hns-p2p-transport",
         "hns-resolver",
         "hns-sync",
         "hns-transport",
@@ -156,7 +165,6 @@ LOCKFILES = (
     Path("rust/fuzz/Cargo.lock"),
     Path("tools/hns-header-snapshot-exporter/Cargo.lock"),
 )
-CHECKSUM = re.compile(r"^[0-9a-f]{64}$")
 
 
 class CargoSourcePolicyError(RuntimeError):
@@ -265,34 +273,39 @@ def validate_manifests(root: Path, manifests: list[Path]) -> None:
     if not isinstance(dependencies, Mapping):
         raise CargoSourcePolicyError(
             f"{ROOT_MANIFEST}: [workspace.dependencies] is missing"
-        )
+    )
     for package in sorted(ENGINE_PACKAGES):
         expected_requirement = ENGINE_REQUIREMENTS[package]
         specification = dependencies.get(package)
-        if isinstance(specification, str):
-            requirement = specification
-        elif isinstance(specification, Mapping):
-            requirement = specification.get("version")
-            forbidden = {
-                "git",
-                "path",
-                "registry",
-                "branch",
-                "tag",
-                "rev",
-                "package",
-            }.intersection(specification)
-            if forbidden:
-                raise CargoSourcePolicyError(
-                    f"{ROOT_MANIFEST}: {package} must use the default crates.io "
-                    f"registry without source selectors: {sorted(forbidden)}"
-                )
-        else:
-            requirement = None
+        if not isinstance(specification, Mapping):
+            raise CargoSourcePolicyError(
+                f"{ROOT_MANIFEST}: {package} must use an exact reviewed Git dependency"
+            )
+        requirement = specification.get("version")
+        forbidden = {
+            "path",
+            "registry",
+            "branch",
+            "tag",
+            "package",
+        }.intersection(specification)
+        if forbidden:
+            raise CargoSourcePolicyError(
+                f"{ROOT_MANIFEST}: {package} must use the exact reviewed "
+                f"engine source without selectors: {sorted(forbidden)}"
+            )
         if requirement != expected_requirement:
             raise CargoSourcePolicyError(
                 f"{ROOT_MANIFEST}: {package} must be pinned to "
                 f"{expected_requirement!r}, found {requirement!r}"
+            )
+        if (
+            specification.get("git") != ENGINE_GIT_URL
+            or specification.get("rev") != ENGINE_GIT_REVISION
+        ):
+            raise CargoSourcePolicyError(
+                f"{ROOT_MANIFEST}: {package} must use the exact reviewed "
+                f"hns-dane-engine revision {ENGINE_GIT_REVISION}"
             )
 
 
@@ -314,32 +327,16 @@ def validate_lockfiles(root: Path) -> None:
                 if relative_path == Path("rust/Cargo.lock") and name in root_packages:
                     root_packages[name] += 1
                 continue
-            if name not in ENGINE_PACKAGES:
-                continue
-            expected_version = ENGINE_VERSIONS[name]
-            version = package.get("version")
-            checksum = package.get("checksum")
-            if version != expected_version:
+            if name in APPROVED_CARGO_GIT:
                 raise CargoSourcePolicyError(
-                    f"{relative_path}: {name} must lock to {expected_version}, "
-                    f"found {version!r}"
+                    f"{relative_path}: {name} must come from its exact reviewed "
+                    f"ecosystem source revision, found {source!r}"
                 )
-            if source != CRATES_IO_SOURCE:
-                raise CargoSourcePolicyError(
-                    f"{relative_path}: {name} must come from crates.io, "
-                    f"found {source!r}"
-                )
-            if not isinstance(checksum, str) or CHECKSUM.fullmatch(checksum) is None:
-                raise CargoSourcePolicyError(
-                    f"{relative_path}: {name} is missing a valid registry checksum"
-                )
-            if relative_path == Path("rust/Cargo.lock"):
-                root_packages[name] += 1
 
     for package, count in sorted(root_packages.items()):
         if count != 1:
             raise CargoSourcePolicyError(
-                "rust/Cargo.lock: expected exactly one reviewed package for "
+                "rust/Cargo.lock: expected exactly one reviewed Git package for "
                 f"{package} {ENGINE_VERSIONS[package]}, found {count}"
             )
 
@@ -377,7 +374,7 @@ def main() -> int:
     print(
         "Cargo source policy permits registry inputs plus exact reviewed "
         "engine, protocol, and wallet revisions and pins the five canonical "
-        f"compatibility packages: {versions}."
+        f"engine packages at one source: {versions}."
     )
     return 0
 
