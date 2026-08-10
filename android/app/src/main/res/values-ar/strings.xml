@@ -76,6 +76,9 @@
     <string name="sync_progress_root_required">يلزم جذر HNS ‏%1$s</string>
     <string name="sync_progress_root_unknown">هدف جذر HNS غير معروف</string>
     <string name="sync_progress_summary">%1$s • أفضل ارتفاع %2$s • %3$s%4$s%5$s</string>
+    <string name="sync_progress_preparing">جارٍ إعداد التصفح الآمن…</string>
+    <string name="sync_gate_preparing">جارٍ الاستعداد لفتح %1$s…</string>
+    <string name="sync_gate_unavailable">التصفح الآمن غير جاهز بعد. أعد المحاولة بعد قليل.</string>
     <string name="sync_gate_waiting">بانتظار رؤوس Handshake الموثّقة قبل تحميل %1$s.</string>
     <string name="sync_gate_failed">يجب استعادة مزامنة رؤوس Handshake قبل تحميل %1$s. تحقّق من تفاصيل المزامنة أعلاه.</string>
     <string name="screen_cookie_options">خيارات ملفات تعريف الارتباط</string>

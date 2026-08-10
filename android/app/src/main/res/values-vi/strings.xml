@@ -76,6 +76,9 @@
 <string name="sync_progress_root_required">cần gốc HNS %1$s</string>
 <string name="sync_progress_root_unknown">không xác định được gốc HNS mục tiêu</string>
 <string name="sync_progress_summary">%1$s • chiều cao tốt nhất %2$s • %3$s%4$s%5$s</string>
+<string name="sync_progress_preparing">Đang chuẩn bị duyệt web an toàn…</string>
+<string name="sync_gate_preparing">Đang chuẩn bị mở %1$s…</string>
+<string name="sync_gate_unavailable">Duyệt web an toàn chưa sẵn sàng. Hãy thử lại sau giây lát.</string>
 <string name="sync_gate_waiting">Đang chờ các tiêu đề Handshake đã xác thực trước khi tải %1$s.</string>
 <string name="sync_gate_failed">Phải khôi phục đồng bộ tiêu đề Handshake trước khi tải %1$s. Hãy kiểm tra chi tiết đồng bộ ở trên.</string>
 <string name="screen_cookie_options">Tùy chọn cookie</string>

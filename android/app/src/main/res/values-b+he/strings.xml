@@ -76,6 +76,9 @@
     <string name="sync_progress_root_required">נדרש שורש HNS ‏%1$s</string>
     <string name="sync_progress_root_unknown">יעד שורש HNS אינו ידוע</string>
     <string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
+    <string name="sync_progress_preparing">מכין גלישה מאובטחת…</string>
+    <string name="sync_gate_preparing">מתכונן לפתוח את %1$s…</string>
+    <string name="sync_gate_unavailable">הגלישה המאובטחת עדיין לא מוכנה. נסו שוב בעוד רגע.</string>
     <string name="sync_gate_waiting">ממתין לכותרות Handshake מאומתות לפני טעינת %1$s.</string>
     <string name="sync_gate_failed">סנכרון כותרות Handshake חייב להתאושש לפני טעינת %1$s. יש לבדוק את פרטי הסנכרון למעלה.</string>
     <string name="screen_cookie_options">אפשרויות עוגיות</string>

@@ -76,6 +76,9 @@
     <string name="sync_progress_root_required">raiz HNS %1$s necessária</string>
     <string name="sync_progress_root_unknown">alvo da raiz HNS desconhecido</string>
     <string name="sync_progress_summary">%1$s • melhorAltura %2$s • %3$s%4$s%5$s</string>
+    <string name="sync_progress_preparing">Preparando a navegação segura…</string>
+    <string name="sync_gate_preparing">Preparando para abrir %1$s…</string>
+    <string name="sync_gate_unavailable">A navegação segura ainda não está pronta. Tente novamente em instantes.</string>
     <string name="sync_gate_waiting">Aguardando cabeçalhos Handshake autenticados antes de carregar %1$s.</string>
     <string name="sync_gate_failed">A sincronização dos cabeçalhos Handshake deve ser recuperada antes de carregar %1$s. Verifique os detalhes da sincronização acima.</string>
     <string name="screen_cookie_options">Opções de cookies</string>

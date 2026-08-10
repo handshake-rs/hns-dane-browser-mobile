@@ -76,6 +76,9 @@
 <string name="sync_progress_root_required">HNS 루트 %1$s 필요</string>
 <string name="sync_progress_root_unknown">HNS 루트 대상 알 수 없음</string>
 <string name="sync_progress_summary">%1$s • 최고 높이 %2$s • %3$s%4$s%5$s</string>
+<string name="sync_progress_preparing">안전한 브라우징을 준비하는 중…</string>
+<string name="sync_gate_preparing">%1$s을(를) 열 준비를 하는 중…</string>
+<string name="sync_gate_unavailable">안전한 브라우징이 아직 준비되지 않았습니다. 잠시 후 다시 시도하세요.</string>
 <string name="sync_gate_waiting">%1$s을(를) 로드하기 전에 인증된 Handshake 헤더를 기다리는 중입니다.</string>
 <string name="sync_gate_failed">%1$s을(를) 로드하려면 먼저 Handshake 헤더 동기화가 복구되어야 합니다. 위의 동기화 세부정보를 확인하세요.</string>
 <string name="screen_cookie_options">쿠키 옵션</string>

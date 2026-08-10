@@ -76,6 +76,9 @@
   <string name="sync_progress_root_required">Memerlukan root HNS %1$s</string>
   <string name="sync_progress_root_unknown">Target root HNS tidak diketahui</string>
   <string name="sync_progress_summary">%1$s • Tinggi terbaik %2$s • %3$s%4$s%5$s</string>
+  <string name="sync_progress_preparing">Menyiapkan penjelajahan aman…</string>
+  <string name="sync_gate_preparing">Bersiap membuka %1$s…</string>
+  <string name="sync_gate_unavailable">Penjelajahan aman belum siap. Coba lagi sebentar lagi.</string>
   <string name="sync_gate_waiting">Menunggu header Handshake terautentikasi sebelum memuat %1$s.</string>
   <string name="sync_gate_failed">Sinkronisasi header Handshake harus pulih sebelum memuat %1$s. Periksa detail sinkronisasi di atas.</string>
   <string name="screen_cookie_options">Opsi Kue</string>

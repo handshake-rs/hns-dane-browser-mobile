@@ -76,6 +76,9 @@
 <string name="sync_progress_root_required">需要 HNS 根 %1$s</string>
 <string name="sync_progress_root_unknown">HNS 根目標未知</string>
 <string name="sync_progress_summary">%1$s • 最佳高度 %2$s • %3$s%4$s%5$s</string>
+<string name="sync_progress_preparing">正在準備安全瀏覽…</string>
+<string name="sync_gate_preparing">正在準備開啟 %1$s…</string>
+<string name="sync_gate_unavailable">安全瀏覽尚未就緒。請稍後再試。</string>
 <string name="sync_gate_waiting">正在等待經過驗證的 Handshake 區塊標頭，之後才能載入 %1$s。</string>
 <string name="sync_gate_failed">載入 %1$s 前必須恢復 Handshake 區塊標頭同步。請查看上方的同步詳細資料。</string>
 <string name="screen_cookie_options">Cookie 選項</string>
