@@ -76,6 +76,8 @@
 <string name="sync_progress_root_required">HNS रूट %1$s आवश्यक है</string>
 <string name="sync_progress_root_unknown">HNS रूट लक्ष्य अज्ञात है</string>
 <string name="sync_progress_summary">%1$s • सर्वोत्तम ऊंचाई %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_preparing">%1$s खोलने की तैयारी की जा रही है…</string>
+<string name="sync_gate_unavailable">सुरक्षित ब्राउज़िंग अभी तैयार नहीं है। थोड़ी देर में फिर कोशिश करें।</string>
 <string name="sync_gate_waiting">%1$s लोड करने से पहले प्रमाणित Handshake हेडर की प्रतीक्षा हो रही है।</string>
 <string name="sync_gate_failed">%1$s लोड करने से पहले Handshake हेडर सिंक को पुनः चालू होना आवश्यक है। ऊपर दिए गए सिंक विवरण देखें।</string>
 <string name="screen_cookie_options">कुकी विकल्प</string>

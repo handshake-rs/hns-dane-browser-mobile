@@ -76,6 +76,8 @@
 <string name="sync_progress_root_required">Потрібен корінь HNS %1$s</string>
 <string name="sync_progress_root_unknown">Цільовий корінь HNS невідомий</string>
 <string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_preparing">Підготовка до відкриття %1$s…</string>
+<string name="sync_gate_unavailable">Безпечний перегляд ще не готовий. Спробуйте ще раз за мить.</string>
 <string name="sync_gate_waiting">Очікування автентифікованих заголовків Handshake перед завантаженням %1$s.</string>
 <string name="sync_gate_failed">Перед завантаженням %1$s необхідно відновити синхронізацію заголовків Handshake. Перевірте відомості про синхронізацію вище.</string>
 <string name="screen_cookie_options">Параметри файлів cookie</string>

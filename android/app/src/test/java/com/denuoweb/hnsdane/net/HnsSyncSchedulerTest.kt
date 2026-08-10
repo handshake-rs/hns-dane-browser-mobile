@@ -85,6 +85,15 @@ class HnsSyncSchedulerTest {
             ),
         )
         assertEquals(
+            11L,
+            scheduler.nextDelayMs(
+                HnsSyncSnapshot(
+                    statusJson = """{"status":"syncing","accepted":0,"bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":null,"lagBlocks":null,"freshness":"unknown","freshnessThresholdBlocks":2,"targetSource":"unknown","peerCount":505}""",
+                    updatedAtMillis = 9L,
+                ),
+            ),
+        )
+        assertEquals(
             13L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
