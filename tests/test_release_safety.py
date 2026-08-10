@@ -118,6 +118,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "device-local non-value hns account identity",
             "device-bound database keys",
             "does not synchronize a balance",
+            "participate in hnsa or hnsr service roles",
+            "deletes the incomplete wallet database",
             "no in-app delete control for a confirmed native wallet",
         ):
             self.assertIn(marker, privacy)
