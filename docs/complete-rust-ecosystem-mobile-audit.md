@@ -1,6 +1,6 @@
 # Complete Rust Handshake Ecosystem: Mobile Delta Audit
 
-Last audited: 2026-08-09
+Last audited: 2026-08-10
 
 This audit maps this checkout only to `Complete Rust Handshake Ecosystem.pdf`
 (57 pages, SHA-256
@@ -15,9 +15,11 @@ It does not claim that the coordination-wide PDF is complete.
 Public-release successor: Apple published iOS `0.5.5` on 2026-07-31, and the
 public record still reports it as current on 2026-08-09. Any later references
 to `WAITING_FOR_REVIEW` are retained submission evidence, not current status.
-The public `0.5.5` description accurately advertises a browser with no wallet
-or exchange; the dormant wallet-provider source below does not change that
-product claim.
+The public iOS `0.5.5`, Play Android `0.5.6`, and GitHub Android `0.5.7`
+descriptions accurately advertise browser releases with no wallet or exchange;
+those artifacts predate the unreleased native controller source described
+below. The source checkpoint is not evidence that a store build ships wallet
+controls.
 
 ## Requirement Status
 
@@ -33,10 +35,11 @@ product claim.
 | Explicit migration without turning old HNSDoH consent into new consent | Implemented | Android and iOS permanently tombstone the historical resolver key and never copy it into the distinct recursive-recovery key. Former resolver compatibility consent never enables relay consumption or recursive recovery; both controls start independently off until an explicit choice. |
 | P2P ODoH: Preferred/Required/Direct Allowed/Off | Not implemented in this checkout | No HIP #77 requester, HPKE/ODoH runtime, status model, or native control exists here. Do not represent the current direct relay as ODoH or query-confidential. |
 | HNSR: Off/Client/Endpoint | Not implemented in this checkout | No HIP #78 runtime or native control exists here. Mobile lifecycle, network-change, renewal, withdrawal, and stale-generation tests for HNSR remain required. |
+| Native wallet lifecycle | Source implemented; installed-product qualification pending | Android JNI and the Apple C ABI link the exact pinned `hns-wallet-mobile` controller to native create, restore, open, status, unlock, lock, one-time recovery, destroy, and exactly one non-value HNS account identity. Android uses create-only KeyStore wrapping and a mutable non-copyable recovery view; iOS uses a create-only ThisDeviceOnly/user-presence Keychain item and best-effort UIKit text clearing. Provider/WebView access, balances, names, sending, settlement, HNSA/HNSR controls, Shakedex/Denuo, and P2P marketplaces remain unavailable. The attached Android device and final Apple CI workflow have not yet qualified this source. |
 | Consume the standalone `hns-dane-engine` | Integrated through exact reviewed revisions | The mobile workspace contains only its platform runtime and FFI boundaries. Consolidated private engine adapters resolve from exact revision `b8bdfbf7e234e64166886ade6f79d698e23056af`; the five exact canonical compatibility requirements are temporarily patched to revision `1ab4ab626f945712b0f960945986cb52efefef7c` so Cargo type identities cannot split. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), while the normalized recovery URL maps to generation-bound `user_configured_recursive_hns_doh`. Live resolution follows direct authority UDP/TCP → owner-published authenticated authoritative DoH → independently admitted relay → configured recursive recovery; unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
 | Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
-| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Targeted exact-signed code 47 checks passed on a Pixel 9 for upgrade with preserved data, cold launch, manual sync, HNS browsing, and corrected HNS/ICANN Proof Details presentation. The broader Android lifecycle, mobile-network, requester/recovery, Service Worker, download, WebSocket, and cross-origin matrix remains open. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
+| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Targeted exact-signed code 47 checks passed on a Pixel 9 for upgrade with preserved data, cold launch, manual sync, HNS browsing, and corrected HNS/ICANN Proof Details presentation. The broader Android lifecycle, mobile-network, requester/recovery, Service Worker, download, WebSocket, and cross-origin matrix remains open. The new Android wallet needs reinstall plus create/restore/open/background/destroy checks, and the iOS wallet needs the final macOS ABI/XCFramework/app/simulator run. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
 
 ## Security Invariants for the Current Feature Set
 

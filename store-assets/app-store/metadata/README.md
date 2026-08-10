@@ -17,9 +17,16 @@ copyright, four ordered screenshots, review details, content-rights
 declaration, and linked build passed API readback. App/account-level name,
 subtitle, privacy, age-rating, DSA, pricing, availability, and routing fields
 were not managed by the release client.
-The direct App Review submission is `WAITING_FOR_REVIEW`, release type is
-`MANUAL`, and no TestFlight distribution was created. Public GitHub Release
-`v0.5.5` retains the exact verified IPA as asset `494101433`.
+The direct App Review submission reached `WAITING_FOR_REVIEW` with manual
+release; that is dated submission history. Apple published `0.5.5` on
+2026-07-31, and the public record still reported it as current on 2026-08-09.
+No TestFlight distribution was created. Public GitHub Release `v0.5.5` retains
+the exact verified IPA as asset `494101433`.
+
+The checked-in description and review notes describe build `57`, which has no
+wallet. Unreleased source now includes a native-only non-value wallet screen;
+do not reuse this metadata for a later wallet-bearing build without final Apple
+CI and a complete privacy, category, screenshot, and reviewer-note review.
 
 ## App record
 

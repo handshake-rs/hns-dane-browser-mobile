@@ -126,13 +126,18 @@
 
 - Completed: shared-engine consolidation for the browser resolver, transport,
   proxy, gateway, and authority lifecycle at exact reviewed Git revisions.
-- Pending first wallet slice: secure app-owned Android/iOS persistence, an
-  in-process typed wallet binding, and native create, restore, unlock, lock,
-  status, and account-identity controls.
+- Source-complete first wallet slice: secure app-owned Android/iOS persistence,
+  an in-process typed binding to the exact pinned `hns-wallet-mobile`
+  controller, and native create, restore, open, unlock, lock, status,
+  one-time-recovery, and single non-value HNS account-identity controls.
+- Pending first-slice qualification: reinstall and exercise the final Android
+  source on the attached device, then pass the final Apple ABI/XCFramework/app
+  and simulator workflow. No currently published Play, GitHub, or App Store
+  binary contains the native controls.
 - Pending named-service adoption: consume the current engine HNSA admission and
   HNSR requester lifecycle through exact engine-issued authority; no Kotlin or
   Swift authority projection may substitute for that context.
-- Website provider installation, synchronized wallet reads, approvals, value
-  movement, Shakedex/Denuo, and P2P marketplace controls remain separate later
-  milestones and stay disabled until their runtime and installed-product gates
-  pass.
+- Website provider installation, synchronized balance/history reads,
+  approvals, names, sending, value movement, settlement, Shakedex/Denuo, and
+  P2P marketplace controls remain separate later milestones and stay disabled
+  until their runtime and installed-product gates pass.

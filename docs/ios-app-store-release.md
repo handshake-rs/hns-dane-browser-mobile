@@ -14,6 +14,16 @@ The committed application identity is:
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`
 - Device family: iPhone
 
+Unreleased source after build `57` now includes a native-only wallet screen for
+create/restore/open/status/unlock/lock and one non-value HNS account identity.
+Build `57` does not contain it. Do not reuse the retained “no wallet” metadata
+or review notes for a later wallet-bearing build: first pass the final Apple
+ABI/XCFramework/app/simulator workflow, review the Swift/UIKit managed-text
+zeroization limitation, choose the release version, and reconcile App Privacy,
+age/category answers, screenshots, description, and review instructions. The
+website provider, value, names, sending, settlement, and marketplace remain
+unavailable in the unreleased source as well.
+
 ## One-time Apple setup
 
 1. In Apple Developer, accept all current agreements and register an explicit App ID for `com.denuoweb.hnsdane.ios`. No optional capabilities are currently required.

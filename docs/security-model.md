@@ -41,7 +41,7 @@ The Android WebView shell follows a hardened browser profile derived from Androi
 
 Applied WebView controls:
 
-- JavaScript is enabled for the main browser WebView because general web compatibility requires it, but no JavaScript/native bridge is installed or exposed to untrusted content and default bridge names are removed. Dormant wallet-provider source returns before WebView mutation behind an immutable false release gate.
+- JavaScript is enabled for the main browser WebView because general web compatibility requires it, but no JavaScript/native bridge is installed or exposed to untrusted content and default bridge names are removed. The dormant website-provider source returns before WebView mutation behind an immutable false release gate; the separate app-native wallet screen has no WebView.
 - Local file access, file-origin cross-access, universal file-origin access, and content-provider access are disabled.
 - Mixed active/passive content is blocked with `WebSettings.MIXED_CONTENT_NEVER_ALLOW`.
 - Safe Browsing is explicitly enabled where supported by the platform WebView.
@@ -60,11 +60,11 @@ Applied WebView controls:
 The app follows the Android security checklist as a platform baseline:
 
 - Manifest permissions are limited to `INTERNET` and `ACCESS_NETWORK_STATE`. The app does not request notification, foreground-service, contacts, location, SMS, camera, microphone, account, package-visibility, or broad file permissions.
-- Only `LauncherActivity` is exported. The browser, settings, diagnostics, history, downloads, proof/TLSA views, and resolver trace activities are explicitly non-exported, and no Android service is declared.
-- App backup and device-transfer extraction are disabled for files, databases, shared preferences, root storage, and external app data. Browser history, download records, diagnostics, resolver cache, and sync/cache state remain app-local unless the user explicitly exports or shares data.
+- Only `LauncherActivity` is exported. The browser, settings, diagnostics, history, downloads, proof/TLSA views, resolver trace, and unreleased `WalletActivity` are explicitly non-exported, and no Android service is declared.
+- App backup and device-transfer extraction are disabled for files, databases, shared preferences, root storage, and external app data. Browser history, download records, diagnostics, resolver cache, sync/cache state, and unreleased wallet database/key ciphertext remain app-local unless the user explicitly exports or shares data.
 - Normal browsing does not enable `file://` or `content://` WebView access. User-initiated downloads use Android DownloadManager into public Downloads, but the system-visible download description does not include the full URL.
 - Network Security Config denies cleartext by default and allows cleartext only for the loopback gateway. The gateway binds randomized `127.0.0.1` ports only while browser proxy support is needed.
-- WebView JavaScript is enabled for browser compatibility, but no `addJavascriptInterface` or `WebMessageListener` bridge is installed or exposed to untrusted content. The dormant wallet-provider adapter returns before listener/script mutation while its immutable bridge gate is false. WebSockets remain Chromium-native and traverse the same Rust proxy; the document-start marker performs no hostname classification, and Rust applies the retained per-origin namespace decision before network admission.
+- WebView JavaScript is enabled for browser compatibility, but no `addJavascriptInterface` or `WebMessageListener` bridge is installed or exposed to untrusted content. The dormant website-provider adapter returns before listener/script mutation while its immutable bridge gate is false. The app-native wallet controller is reachable only from a non-exported native activity. WebSockets remain Chromium-native and traverse the same Rust proxy; the document-start marker performs no hostname classification, and Rust applies the retained per-origin namespace decision before network admission.
 - Gateway diagnostic persistence is bounded and stores sanitized stage, host, status, and reason fields only; URL paths, query strings, headers, and bodies are not persisted in default diagnostics.
 - Release builds are non-debuggable, minified, resource-shrunk, and require upload-signing configuration before Play release bundle verification can pass.
 
@@ -75,7 +75,7 @@ The app follows the Android privacy checklist as a platform baseline:
 - The app requests no dangerous runtime permissions. Sync is scoped to the application foreground, so there is no notification permission prompt or foreground-service notification.
 - The app does not request location, nearby device, camera, microphone, contacts, SMS, call log, account, advertising ID, all-files storage, or package-visibility permissions.
 - The app does not use background location, location foreground services, device serial numbers, IMEI, SSAID, Advertising ID, or an app-generated cross-install tracking identifier.
-- External storage use is limited to user-initiated downloads through Android DownloadManager into public Downloads; app metadata stays in private shared preferences or app-private files and is excluded from backup and device transfer.
+- External storage use is limited to user-initiated downloads through Android DownloadManager into public Downloads; app metadata and unreleased wallet storage stay in private preferences or app-private files and are excluded from backup and device transfer.
 - Sensitive app-to-app sharing uses explicit user actions such as Android share/copy flows or DownloadManager. Sync snapshots stay in-process and internal diagnostic activities are non-exported.
 - Production Logcat output avoids browsing URLs, user-entered content, request/response bodies, and resolver secrets; default persisted diagnostics remain bounded and sanitized.
 - The Google Play Data safety and privacy policy drafts disclose local browsing data, user-initiated downloads, HNS peer/DNS/web requests, optional P2P relay use, ordinary ICANN DoH, and local deletion controls.
@@ -95,14 +95,50 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
   qualification remains unverified; it is not an App Store submission
   prerequisite, but it remains an installed-iOS and ecosystem gate.
 
-## Dormant mobile wallet boundary
+## Native wallet and dormant website-provider boundary
 
-The Android and iOS wallet-provider sources are containment projections, not an
-installed wallet runtime. Website schema 1, private native ABI 2, and public
-approval schema 3 are independent version domains. Provider installation,
-wallet operations, approval dispatch, and value movement each have an immutable
-false gate; both adapters are hardwired to the unavailable implementation and
-absent from browser-controller lifecycle code.
+The unreleased Android and iOS source links the exact pinned
+`hns-wallet-mobile` controller to app-native create, restore, open, status,
+unlock, lock, one-time recovery, destroy, and single non-value HNS account
+identity controls. It exposes no balance, receive display, names, sending,
+settlement, HNSA/HNSR, or marketplace operation. The controller is not a
+browser provider and no wallet secret or method enters WebView/WKWebView. These
+controls are not in the current public Play, GitHub, or App Store binaries;
+Android installed-device and final iOS CI qualification remain release gates.
+
+On Android, a create-only Android KeyStore AES-GCM key wraps the 32-byte wallet
+database key and requires an unlocked device. Borrowed plaintext key arrays are
+wiped, wallet files live under no-backup storage, and the dedicated non-exported
+activity uses `FLAG_SECURE`. Recovery output remains a mutable `CharArray`
+drawn directly by a non-selectable, non-autofill, non-accessibility custom view.
+Restore input is likewise hidden from autofill and accessibility services,
+preventing those processes from reading the phrase at the cost of making this
+restore flow unavailable to users who require accessibility assistance.
+The key is not persisted until the user confirms the one-time phrase; leaving
+first wipes mutable key/phrase storage, revokes the controller, and removes the
+incomplete database. Native handles are bounded, monotonic, explicitly
+deactivated before destruction waits for in-flight state locks, and rechecked
+after acquiring those locks so queued stale calls fail.
+
+On iOS, the create-only database key is a
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` Keychain item requiring user
+presence; the application declares the corresponding Face ID unlock purpose in
+its source `Info.plist`. Wallet files use complete file protection and are
+excluded from backup. Before recovery confirmation, lifecycle exit wipes
+app-owned mutable buffers and deletes the incomplete database; later exits
+clear recovery state and lock the controller. Capture state is checked before create/restore, and
+capture, screenshot, background, and protected-data notifications trigger
+cleanup. The Rust buffer and Swift `[UInt8]` copies are explicitly wiped, but
+display and restore input pass through Swift `String` and UIKit-managed text.
+Clearing those controls is best effort: deterministic zeroization of managed
+or copied Swift/UIKit backing storage is not possible and is not claimed.
+
+The website-provider sources remain containment projections. Website schema 1,
+private provider ABI 2, and public approval schema 3 are independent version
+domains. Provider installation, page-visible wallet methods, approval dispatch,
+and value movement each retain an immutable false gate; both adapters are
+hardwired to the unavailable implementation and absent from browser-controller
+lifecycle code.
 
 Approval display accepts only twelve closed typed summary kinds with bounded
 canonical fields and locally derived rows. Provider events accept only thirteen
@@ -110,10 +146,10 @@ closed typed payloads through their dedicated event path. Page-visible results
 reject inline events and secret/private-field names. Raw approval prompts,
 authority handles/revisions, wallet or service sessions, channel identifiers,
 event sequences, seeds, keys, passphrases, preimages, and database/capability
-secrets cannot enter the public projection. Enabling the bridge requires a
-generated wallet binding and a canonical typed engine-authority join; mobile
-must not synthesize authority from URLs, security UI, proxy state, booleans, or
-page data.
+secrets cannot enter the public projection. Enabling the website bridge
+requires a generated provider binding and a canonical typed engine-authority
+join; mobile must not synthesize authority from URLs, security UI, proxy state,
+booleans, or page data.
 
 ## Experimental P2P DNS relay trust boundary
 
@@ -360,7 +396,7 @@ does not by itself change peer score or start a cooldown. See
 - No decoded chunked origin response should be exposed to WebView with stale `Transfer-Encoding` or mismatched `Content-Length` framing; native gateway file-backed bodies are returned with fixed decoded lengths.
 - No WebView SSL error should call `proceed()` unless the requested URL is an admitted HNS or DNS-named ICANN HTTPS URL and the presented certificate's full DER bytes match the exact host and currently published Rust proxy generation.
 - No HNS WebSocket or HTTP Upgrade request should be silently downgraded to a normal GET by stripping hop-by-hop Upgrade headers; these requests must enter the native stream tunnel after HNS resolution, HTTPS/SVCB policy, and DANE validation, and fail closed if the native tunnel path is unavailable or validation fails.
-- No WebView/WKWebView wallet bridge may be installed while any release gate is false or without the generated wallet binding and canonical typed engine-authority join. Dormant projection source is not provider availability; browser UI/native operations remain outside page script reachability.
+- No WebView/WKWebView wallet bridge may be installed while any website-provider release gate is false or without the generated provider binding and canonical typed engine-authority join. Native app controls do not satisfy those gates; the dormant projection is not provider availability, and native operations remain outside page-script reachability.
 - No WebView `file://` or `content://` access should be enabled for normal browsing; app assets must use safe app-asset origins or native response interception.
 - No main-frame non-HTTP(S) URL should be passed through to WebView except `about:blank`; external schemes require explicit Android intent handling and unsupported schemes are blocked.
 - No mixed-content downgrade should be allowed inside the WebView.

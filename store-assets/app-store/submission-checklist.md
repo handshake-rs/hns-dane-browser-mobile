@@ -2,9 +2,16 @@
 
 Canonical submitted-update values: iOS version `0.5.5`, build `57`, bundle ID
 `com.denuoweb.hnsdane.ios`, iPhone only, Utilities, Free, manual release. The
-public baseline observed on 2026-07-28 is version `0.5.0`. App Store Connect
-accepted the direct App Review submission on 2026-07-29 and reports
-`WAITING_FOR_REVIEW`.
+public baseline observed on 2026-07-28 was version `0.5.0`. App Store Connect
+accepted the direct App Review submission on 2026-07-29; `WAITING_FOR_REVIEW`
+is retained as dated submission evidence. Apple published `0.5.5` on
+2026-07-31, and the public record still reported it as current on 2026-08-09.
+
+Every checked “no wallet” answer below is scoped to build `57`. Unreleased
+source now has native-only non-value wallet controls, which build `57` does not
+contain. Do not reuse this checklist or its metadata for a wallet-bearing build
+until final Apple CI, privacy/reviewer metadata, screenshots, and category
+answers are reconciled for that exact candidate.
 
 Checked items below have repository, workflow, or App Store Connect API
 readback. Unchecked app/account-level items were sufficient for Apple to accept

@@ -11,6 +11,12 @@ been built, uploaded, or submitted to Google Play. Before a later Play update,
 build and verify a signed AAB, reconcile the live Console declarations, and
 replace this preparation text with exact artifact and deployment evidence.
 
+Code `48` also predates the unreleased native-only wallet controller. The
+retained listing's “not a wallet” text is accurate for Play code `47` and
+GitHub code `48`, but must not be reused for a future wallet-bearing candidate.
+Qualify that source on an installed Android device before updating versions,
+listing copy, category/financial declarations, privacy, or Data safety answers.
+
 ## Listing Text
 
 - App name: `en-US/title.txt`

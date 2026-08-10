@@ -1,6 +1,6 @@
 # Production Readiness Audit
 
-Last audited: 2026-08-09
+Last audited: 2026-08-10
 
 Current Android source is `0.5.7` (`versionCode 48`) for an APK-only GitHub
 compatibility release. It lowers the Android and native NDK floor to API 30;
@@ -18,6 +18,14 @@ below is retained as submission history, not current status. No TestFlight
 distribution was used. iOS was not incremented for the later Android-only
 runtime-lock and Proof Details fixes.
 
+Unreleased source now adds native-only Android and iOS wallet controllers for
+create/restore/open/status/unlock/lock and one non-value HNS account identity.
+This does not change the public-release evidence below: the published binaries
+do not contain those controls. Android installed-device checks and the final
+iOS ABI/XCFramework/app/simulator workflow remain mandatory before versioning
+or release claims. Website providers, value, names, sending, settlement, and
+P2P marketplaces remain unavailable.
+
 ## Release Findings
 
 | Area | Status | Finding |
@@ -26,10 +34,11 @@ runtime-lock and Proof Details fixes.
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 47 production complete | Android Publisher edit `07330408575596336357` committed code `47` directly to production with status `completed`; `generatedApks/47` returned HTTP `200`. |
 | App Store update | Public `0.5.5`; device qualification tracked separately | Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). The submission was then `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`; Apple published `0.5.5` on 2026-07-31. No TestFlight distribution was part of this release, and a real-iPhone pass remains a separate qualification item. |
+| Unreleased native wallet slice | Source implemented; release qualification pending | The exact pinned `hns-wallet-mobile` controller is connected to native-only Android/iOS controls and secure app-owned database-key lifecycles. The slice exposes no provider, balances, names, sending, settlement, or marketplace. Reinstall/device qualification on Android and final Apple CI are still open, so no public or signed-product readiness is claimed. |
 | Android runtime opening | Root cause fixed and release-device validated | Rust 1.92's stable `std::fs::File` lock implementation omitted Android, so the first header-state lock returned `Unsupported` and `BrowserRuntime::open` returned no handle. The Android target now uses the locked `libc 0.2.186` `flock` operations; the equivalent upstream fix is merged for Rust 1.98 in `rust-lang/rust#157038`. The exact signed code `47` APK cold-launched and synchronized successfully after an in-place data-preserving upgrade. |
 | Android Proof Details | Namespace attribution fixed and release-device confirmed | Native-gateway routing is namespace-agnostic because every canonical DNS host enters the retained dual-root gateway. The prior UI treated that route as ICANN, so a retained HNS trace produced DNSSEC/synthetic ICANN details. Proof Details now uses only the strict retained `namespaceResolution` decision. Pre-fix reproduction, paired instrumentation, and HNS browsing/proof behavior passed on the Pixel 9 release device after correction. |
 | Privacy policy | Repository and hosted policy aligned | The canonical `https://denuoweb.com/work/hns-dane-browser/privacy` policy now discloses the independently opt-in P2P requester and user-configured recursive HNS DoH recovery, operator-visible queried names/types, timing and source IP, blank/off defaults, one-way legacy-key tombstone, local DNSSEC/DANE validation, validating ICANN bootstrap, and continued prohibition on HNS WebPKI fallback. |
-| Manifest exposure | Ready | The only app-defined exported entry point is `LauncherActivity`. Browser, settings, diagnostics, HNS inspector, history, download, and other app activities are non-exported, and the app declares no service. Merged dependency components remain subject to their own signature/permission guards. |
+| Manifest exposure | Ready | The only app-defined exported entry point is `LauncherActivity`. Browser, settings, diagnostics, HNS inspector, history, download, unreleased wallet, and other app activities are non-exported, and the app declares no service. Merged dependency components remain subject to their own signature/permission guards. |
 | Backup / transfer | Ready | App backup and device-transfer extraction are disabled for local browsing data, WebView state, download records, diagnostics, resolver cache, and HNS sync/cache state. |
 | Cleartext policy | Ready | Cleartext is disabled globally with a loopback-only exception for the local gateway. User-selected HTTP and direct DNS/HNS traffic are accurately disclosed, but ordinary open-web and user-initiated transfers are outside Google Play's Data safety collection/sharing scope. |
 | WebView hardening | Ready | Mixed content is blocked, Safe Browsing is enabled, file/content access is disabled, native JavaScript bridges are removed, WebView debugging follows `BuildConfig.DEBUG`, and browser-wide loopback proxying sends every canonical DNS host to exact per-origin Rust dual-root preparation. |
@@ -96,6 +105,12 @@ runtime-lock and Proof Details fixes.
    ads, listing-copy, and stale-screenshot fields. Code `47` production
    deployment is complete; this reconciliation remains a policy and listing
    maintenance item.
+3. Qualify the unreleased native wallet slice before incrementing versions or
+   changing store copy: reinstall and exercise create, one-time recovery,
+   restore, open/unlock/lock, background cleanup, and destroy on Android; pass
+   the final iOS ABI/XCFramework/app/simulator workflow; review the Swift/UIKit
+   managed-text residual; then reconcile privacy, category, screenshots, review
+   notes, and Data safety/App Privacy answers for the exact candidate build.
 
 ## Release Verification Status
 
@@ -129,6 +144,8 @@ runtime-lock and Proof Details fixes.
 - iOS real-device qualification: pending. It is separate from App Store
   submission eligibility and remains required before installed-iOS or
   ecosystem qualification is claimed.
+- Native wallet release qualification: pending on both platforms. Existing
+  public artifact hashes and CI runs predate this source and do not qualify it.
 
 ## Watch Items
 

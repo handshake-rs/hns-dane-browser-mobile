@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Linked the exact qualified `hns-wallet-mobile` controller into Android JNI
+  and the stable Apple C ABI, with native-only create, restore, open, status,
+  unlock, lock, one-time recovery display, and single non-value HNS account
+  identity controls. Android installed-device and iOS CI qualification remain
+  release gates; no published store build contains this source tranche yet.
+- Added create-only device-bound database-key storage and incomplete-wallet
+  cleanup on both platforms. Android keeps recovery output in a mutable,
+  non-copyable custom view and deletes an unconfirmed wallet on lifecycle exit.
+  iOS wipes app-owned mutable buffers and clears UIKit text on lifecycle exit;
+  deterministic zeroization of Swift/UIKit-managed recovery text is not
+  claimed.
+- Isolated each wallet database and device-bound key by the captured Handshake
+  network, and serialized ownership of each local wallet path so stale or
+  concurrent screens cannot clean up another screen's live wallet.
+
 ### Changed
 
 - Replaced the unreleased Android/iOS private wallet ABI-v1 scaffold with a
@@ -17,9 +34,10 @@ All notable changes to this project will be documented in this file.
 - Accept permission generation zero in a private capability snapshot for a
   never-authorized origin while retaining positive generations for
   permission-bearing events and exact wallet-session binding.
-- Kept provider installation, wallet operations, approval dispatch, and value
-  movement behind immutable false gates. The controllers remain unwired, no
-  provider is announced, and no wallet runtime or value path is enabled.
+- Kept website-provider installation, approval dispatch, synchronized/value
+  methods, name and send controls, settlement, and marketplaces behind
+  immutable false gates. The app-native controller is deliberately separate:
+  no provider is announced and no page-visible or value path is enabled.
 - Completed the engine-consolidation boundary for fuzzing and the header
   snapshot exporter by replacing deleted local-crate paths with the same exact
   reviewed Git adapters used by the mobile runtime.
