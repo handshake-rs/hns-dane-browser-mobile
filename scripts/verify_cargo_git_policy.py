@@ -23,18 +23,20 @@ ENGINE_VERSIONS = {
 }
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
 APPROVED_ENGINE_GIT = {
-    "hns-dane": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-browser-dane": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-dnssec": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-browser-dnssec": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-p2p": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-browser-p2p": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-chain": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-browser-chain": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-urkel": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-browser-urkel": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-core": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
-    "hns-browser-primitives": ("0.2.0", "3899fef338b701ea8cedba21331f0162bef9595b"),
+    "hns-dane": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-browser-dane": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-dnssec": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-browser-dnssec": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-p2p": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-browser-p2p": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-sync": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-browser-sync": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-chain": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-browser-chain": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-urkel": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-browser-urkel": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-core": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
+    "hns-browser-primitives": ("0.2.0", "f795ceaff13cf2abb7f84558402c6499549d0215"),
     "hns-cache": ("0.2.0", "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f"),
     "hns-dns-wire": ("0.2.0", "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f"),
     "hns-browser-observability": ("0.1.2", "1ab4ab626f945712b0f960945986cb52efefef7c"),
@@ -56,6 +58,7 @@ MIGRATED_LOCAL_CRATES = frozenset(
         "hns-dane",
         "hns-dnssec",
         "hns-p2p",
+        "hns-sync",
         "hns-urkel",
     }
 )
@@ -79,9 +82,11 @@ def tracked_cargo_manifests(root: Path) -> list[Path]:
         capture_output=True,
     )
     return sorted(
-        Path(raw.decode())
+        path
         for raw in result.stdout.split(b"\0")
-        if raw and Path(raw.decode()).name == "Cargo.toml"
+        if raw
+        and (path := Path(raw.decode())).name == "Cargo.toml"
+        and (root / path).is_file()
     )
 
 

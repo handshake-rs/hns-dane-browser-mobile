@@ -79,12 +79,35 @@ use hns_resolver::{
     NamespaceResolutionMetadata, NamespaceRootState, PreparedNamespaceResolution,
     ProvenNameRecords, ResolutionAnswer, ResolutionRequest, Resolver, ResolverError,
     ResourceValueAnchor, SqliteResourceValueProvider, SystemDnssecVerifier, UdpTcpDnsTransport,
-    classify_name, hns_root_label,
+    VerifiedResourceValue as ResolverVerifiedResourceValue, classify_name, hns_root_label,
 };
 use hns_sync::{
     HeaderSyncCoordinator, HeaderSyncRunner, HeaderSyncRunnerConfig, ProofScheduler,
-    TcpHeaderPeerConnector,
+    TcpHeaderPeerConnector, VerifiedResourceValue as SyncVerifiedResourceValue,
+    VerifiedResourceValueSink,
 };
+
+struct ResolverResourceSink<'a>(&'a SqliteResourceValueProvider);
+
+impl VerifiedResourceValueSink for ResolverResourceSink<'_> {
+    type Error = ResolverError;
+
+    fn insert_verified_resource_value(
+        &self,
+        value: SyncVerifiedResourceValue,
+    ) -> Result<(), Self::Error> {
+        self.0.insert(ResolverVerifiedResourceValue {
+            root_name: value.root_name,
+            name_hash: value.name_hash,
+            value: value.value,
+            secure: value.secure,
+            anchor: value.anchor.map(|anchor| ResourceValueAnchor {
+                tree_root: anchor.tree_root,
+                height: anchor.height,
+            }),
+        })
+    }
+}
 pub use hns_transport::DEFAULT_MAX_REQUEST_BODY_BYTES;
 #[cfg(test)]
 use hns_transport::TransportLimits;
@@ -6725,7 +6748,8 @@ impl GatewayProofProvider {
             return attempt;
         }
 
-        let mut scheduler = ProofScheduler::new(UrkelProofVerifier, &self.values);
+        let mut scheduler =
+            ProofScheduler::new(UrkelProofVerifier, ResolverResourceSink(&self.values));
         let verify_store_started = Instant::now();
         let result = scheduler.request_hash_and_store_at_height(
             &mut peer,

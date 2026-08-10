@@ -29,7 +29,11 @@ iOS UI / Browser Shell                             [public; device qualification
 
 ## Rust Crates
 
-- External engine contracts: `hns-browser-runtime` owns the canonical session, generation, lifecycle, and admitted-work stamps; `hns-browser-observability` checks the name-free schema-v2 browser status; `hns-icann-dane` derives transport-aware TLSA owners and constrained ICANN DANE/WebPKI outcomes; `hns-namespace-resolution` validates complete single-root origin plans, compares them, applies explicit-pin/sticky/ICANN precedence, fingerprints the selected immutable decision, and retains bounded per-root present/absent/failed dispositions when classification fails; `hns-resolution-policy` provides the typed direct-first transport plan. Mobile maps its stable relay ABI and normalized explicit recursive-recovery choice into that policy with ODoH, HNSR, provider roles, and legacy compatibility explicitly disabled. All five use the exact, checksum-verified crates.io `0.1.0` release from `handshake-rs/hns-dane-engine`.
+- External engine contracts: `hns-browser-runtime` owns the canonical session, generation, lifecycle, and admitted-work stamps; `hns-browser-observability` checks the name-free schema-v2 browser status; `hns-icann-dane` derives transport-aware TLSA owners and constrained ICANN DANE/WebPKI outcomes; `hns-namespace-resolution` validates complete single-root origin plans, compares them, applies explicit-pin/sticky/ICANN precedence, fingerprints the selected immutable decision, and retains bounded per-root present/absent/failed dispositions when classification fails; `hns-resolution-policy` provides the typed direct-first transport plan. Mobile maps its stable relay ABI and normalized explicit recursive-recovery choice into that policy with ODoH, HNSR, provider roles, and legacy compatibility explicitly disabled. All five use the exact, checksum-verified compatibility releases pinned in `Cargo.toml` from `handshake-rs/hns-dane-engine`.
+- The compatibility names `hns-core`, `hns-chain`, `hns-p2p`, `hns-sync`,
+  `hns-urkel`, `hns-dnssec`, and `hns-dane` resolve to private adapter crates
+  in `hns-dane-engine` at one exact reviewed Git commit. They must not be
+  restored as local product crates; the source-policy gate enforces that rule.
 - `hns-core`: consensus-neutral primitives, HSD-compatible name validation and name-hash derivation, hashes, bounded parsing, Handshake headers, DNS/TLSA wire primitives, RFC 9460 SVCB/HTTPS RDATA parsing, and HSD name resource value decoding.
 - `hns-chain`: header storage, chainwork, HSD-compatible mainnet difficulty
   retarget validation, best-tip selection, restartable state interfaces,
@@ -39,14 +43,15 @@ iOS UI / Browser Shell                             [public; device qualification
   journal, allowing normal validated publication to commit only the new
   canonical suffix instead of rescanning the live database.
 - `hns-p2p`: Handshake packet payload codec, HSD-compatible frame encoder/decoder, blocking TCP peer connection, header-sync session state, static peer seeding, HSD-compatible DNS seed discovery, bounded getaddr/addr peer discovery with discovery-rotation selection, SQLite peer-state persistence, peer score tracking, transient-failure recovery with bounded malformed-peer bans, address-group-aware outbound peer selection, and the opt-in private DNS-relay capability/client. The relay client tracks capability only from the current handshake, reuses a bounded connection set, matches bounded request IDs, and returns raw DNS bytes without making a security judgment. Relay-only handshakes advertise zero local services, exclude their remote version heights from sync-currentness state, enforce the HIP query type/flag/EDNS profile before transmission, and close an exchange/connection for a future unknown transport status without automatically changing score or cooldown.
-- `hns-sync`: header batch and proof lifecycle coordinators connecting P2P sync
+- `hns-sync`: the shared engine-owned header batch and proof lifecycle adapter connecting P2P sync
   actions to chain validation, remote-height-aware no-op sync when selected
   peers are not ahead, bounded multi-batch header sync across selected peers
   with persisted peer outcomes, successful-peer getaddr discovery plus
   same-run probing of additional unqueried peers toward the peer-table target,
-  upstream-compatible Urkel proof verification, verified HSD `NameState.data`
-  value handoff, and resolver resource-value storage. Network I/O, quorum
-  collection, snapshot preparation, and peer merging occur in a private stage.
+  upstream-compatible Urkel proof verification and verified HSD `NameState.data`
+  value handoff through a resolver-independent sink. Network I/O, quorum
+  collection, snapshot preparation, and peer merging occur in a private stage
+  owned by the platform runtime.
   Conditional publication briefly takes the cross-process publication and
   browser-maintenance locks, rechecks the stage's generation/tip baseline, and
   publishes headers, peer evidence, and readiness together. An unchanged-header
