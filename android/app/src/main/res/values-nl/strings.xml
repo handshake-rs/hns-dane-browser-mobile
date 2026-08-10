@@ -76,6 +76,8 @@
 <string name="sync_progress_root_required">HNS-root %1$s vereist</string>
 <string name="sync_progress_root_unknown">doel van HNS-root onbekend</string>
 <string name="sync_progress_summary">%1$s • beste hoogte %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_preparing">%1$s voorbereiden om te openen…</string>
+<string name="sync_gate_unavailable">Veilig browsen is nog niet gereed. Probeer het zo opnieuw.</string>
 <string name="sync_gate_waiting">Wachten op geverifieerde Handshake-headers voordat %1$s wordt geladen.</string>
 <string name="sync_gate_failed">De synchronisatie van Handshake-headers moet zijn hersteld voordat %1$s wordt geladen. Controleer de synchronisatiedetails hierboven.</string>
 <string name="screen_cookie_options">Cookie-opties</string>

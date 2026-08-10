@@ -76,6 +76,8 @@
 <string name="sync_progress_root_required">Требуется корень HNS %1$s</string>
 <string name="sync_progress_root_unknown">Целевой корень HNS неизвестен</string>
 <string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_preparing">Подготовка к открытию %1$s…</string>
+<string name="sync_gate_unavailable">Безопасный просмотр пока не готов. Повторите попытку через несколько секунд.</string>
 <string name="sync_gate_waiting">Ожидание проверенных заголовков Handshake перед загрузкой %1$s.</string>
 <string name="sync_gate_failed">Перед загрузкой %1$s необходимо восстановить синхронизацию заголовков Handshake. Проверьте сведения о синхронизации выше.</string>
 <string name="screen_cookie_options">Параметры файлов cookie</string>

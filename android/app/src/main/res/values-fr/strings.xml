@@ -76,6 +76,8 @@
     <string name="sync_progress_root_required">racine HNS %1$s requise</string>
     <string name="sync_progress_root_unknown">cible de racine HNS inconnue</string>
     <string name="sync_progress_summary">%1$s • meilleure hauteur %2$s • %3$s%4$s%5$s</string>
+    <string name="sync_gate_preparing">Préparation de l’ouverture de %1$s…</string>
+    <string name="sync_gate_unavailable">La navigation sécurisée n’est pas encore prête. Réessayez dans un instant.</string>
     <string name="sync_gate_waiting">En attente des en-têtes Handshake authentifiés avant le chargement de %1$s.</string>
     <string name="sync_gate_failed">La synchronisation des en-têtes Handshake doit être rétablie avant de charger %1$s. Consultez les détails de synchronisation ci-dessus.</string>
     <string name="screen_cookie_options">Options des cookies</string>

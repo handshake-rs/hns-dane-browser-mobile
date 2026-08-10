@@ -107,8 +107,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var omnibox: EditText
     private lateinit var securityLabel: TextView
     private lateinit var hamburgerButton: TextView
-    private lateinit var syncProgressBar: ProgressBar
-    private lateinit var syncProgressStats: TextView
     private lateinit var syncGateNotice: TextView
     private lateinit var pageProgressBar: ProgressBar
     private lateinit var httpWarningBar: TextView
@@ -233,18 +231,6 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { openResolverTrace() }
         }
 
-        syncProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = SYNC_PROGRESS_MAX
-            isIndeterminate = true
-        }
-        syncProgressStats = TextView(this).apply {
-            setPadding(16, 0, 16, 8)
-            setTextColor(colors.secondaryText)
-            textSize = 12f
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
-            text = HnsSyncProgress.fromJson(null).summary(this@MainActivity)
-        }
         syncGateNotice = TextView(this).apply {
             gravity = Gravity.CENTER
             setPadding(dp(32), dp(32), dp(32), dp(32))
@@ -303,14 +289,6 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(colors.background)
             applySystemBarPadding()
             addView(toolbar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
-            addView(syncProgressBar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
-            addView(syncProgressStats, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
@@ -849,9 +827,9 @@ class MainActivity : ComponentActivity() {
         val progress = currentSyncProgress()
         val host = pending.target.displayHost ?: pending.target.url
         syncGateNotice.text = if (progress.status in SYNC_FAILURE_STATUSES) {
-            getString(R.string.sync_gate_failed, host)
+            getString(R.string.sync_gate_unavailable)
         } else {
-            getString(R.string.sync_gate_waiting, host)
+            getString(R.string.sync_gate_preparing, host)
         }
         syncGateNotice.visibility = View.VISIBLE
     }
@@ -919,24 +897,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSyncProgress() {
-        if (!::syncProgressBar.isInitialized || !::syncProgressStats.isInitialized) {
-            return
-        }
-
         val progress = HnsSyncProgress.fromJson(lastSyncSnapshot?.statusJson)
-        if (progress.isAuthorityReady) {
-            syncProgressBar.visibility = View.GONE
-            syncProgressStats.visibility = View.GONE
-        } else {
-            syncProgressBar.visibility = View.VISIBLE
-            syncProgressStats.visibility = View.VISIBLE
-            val permille = progress.progressPermille()
-            syncProgressBar.isIndeterminate = permille == null
-            if (permille != null) {
-                syncProgressBar.progress = permille
-            }
-            syncProgressStats.text = progress.summary(this)
-        }
         refreshSyncGateNotice()
         resumeReadinessNavigationIfReady(progress)
     }
@@ -1497,7 +1458,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_LOAD_URL = "com.denuoweb.hnsdane.LOAD_URL"
 
-        private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
         private const val SYNC_STATUS_POLL_MS = 2_000L
         private const val SECURITY_LABEL_WIDTH_DP = 136
