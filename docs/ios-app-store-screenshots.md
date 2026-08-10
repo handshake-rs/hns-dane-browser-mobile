@@ -9,9 +9,12 @@ mandatory pre-credential gate; capture or verification failure blocks signing
 and upload.
 
 The checked-in images and manifest are retained `0.5.5` history and are not
-submission-ready for the configured `0.5.9` / build `59` candidate. Candidate CI
-has not yet passed; dispatch this workflow only for the exact release checkout
-selected for signing. The resulting wallet image must visibly include the
+submission-ready for the configured `0.5.9` / build `59` candidate. Code-bearing
+source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31433931682`, including the complete Apple app/simulator gate. No fresh
+candidate screenshot artifact has been captured or staged; dispatch this
+workflow only for the exact release checkout selected for signing. The
+resulting wallet image must visibly include the
 native Handshake wallet entry and fail-closed unavailable read rows without
 displaying a recovery phrase, account identifier, or other secret.
 

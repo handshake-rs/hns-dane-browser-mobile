@@ -50,26 +50,41 @@ synchronized HNS balance, receive target, transaction history, tracked names,
 and module status.
 
 The actual product does not provision the scoped loopback authorization or
-indexed wallet backend required by that read boundary, so the installed
-candidate keeps every synchronized field in its fail-closed unavailable state.
+indexed wallet backend required by that read boundary, so candidate source
+keeps every synchronized field in its fail-closed unavailable state.
 The available live pruned `hsrd` is unsuitable because it lacks wallet indexing
 and scoped authentication. Pruning alone does not erase indexed history or
 authenticated raw bytes already retained by an existing wallet; a fresh restore
 additionally needs archive-capable raw transaction bytes or another durable
 wallet-relevant raw-transaction source. Name import/tracking ingestion is absent.
 Send/value, website-provider, settlement, HNSA/HNSR, exchange,
-and P2P-marketplace paths remain independently gated off. Before reads can be
-enabled on iOS, the product wiring must additionally prove that lifecycle
-teardown cannot block the main actor while a native read is in flight.
+and P2P-marketplace paths remain independently gated off. The exact Apple CI
+gate exercises retirement queue/lease behavior and stale-completion
+publication-authority predicates; it does not execute an end-to-end credentialed
+native read in flight. Supplying read authority still requires the missing
+credential/backend/data boundary, and the signed physical-iPhone matrix remains
+open.
 
-Historical `0.5.8` application source
-`f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
-`31402758394` and a fresh Pixel 9 install; documentation-only descendant
-`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`. That evidence does not qualify `0.5.9`. Signed artifacts, fresh
-commit-bound screenshots, candidate CI, and live store declaration readback
-remain open. None of the public builds listed above contains the native wallet
-controls.
+Code-bearing `0.5.9` source
+`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
+`31433931682`: repository policy, Rust/supply-chain, Android build and unit
+tests, API 37 native-runtime instrumentation, the Apple
+ABI/XCFramework/app/simulator gate, and aggregate Required CI all succeeded.
+CodeQL run `31433931259` and Code Quality run `31433931278` also succeeded.
+Debug artifact `9080493058` contains a 65,680,703-byte APK with SHA-256
+`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`:
+package `com.denuoweb.hnsdane.debug`, version `0.5.9-debug` / code `50`,
+minimum API 30, target API 37, and native ABIs `arm64-v8a` and `x86_64`. It
+verifies with APK Signature Scheme v2 under one default Android Debug RSA-2048
+certificate (certificate SHA-256
+`b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`);
+it is not a store/upload-signed release artifact. ADB, ADB mDNS, and USB
+enumeration found no Android device during this qualification, so the APK was
+not installed and code `50` has no installed-device evidence. Historical
+`0.5.8` Pixel evidence remains historical only. Signed store artifacts, fresh
+commit-bound screenshots, live store declaration readback, intentional upload,
+and the physical-iPhone matrix remain open. None of the public builds listed
+above contains the native wallet controls.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).
@@ -146,7 +161,7 @@ release qualification, and broader device-qualification work are tracked in
 Android has completed its Rust-only proxy cutover: `MainActivity` uses the
 shared Rust runtime and proxy, while Kotlin owns only platform UI, WebView
 admission, lifecycle, and JNI conversion. The Apple C ABI, XCFramework build,
-and native iOS shell use the same runtime and proxy, and version `0.5.0` is
+and native iOS shell use the same runtime and proxy, and version `0.5.5` is
 public on the Apple App Store. Linux validates the Rust, ABI, header, and
 architecture boundaries; macOS compilation and simulator tests against the
 iOS 26.5 SDK form the Apple build gate. The signed physical-device matrix in

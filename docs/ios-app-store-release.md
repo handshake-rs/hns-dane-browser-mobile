@@ -25,14 +25,22 @@ CI run `31393998309` at
 `f21bee1c3afccd06604dc99fccb51528e2441055`, using the earlier wallet pin and
 `hns-rs` `b24b66c`, passed Required CI run `31402758394`; documentation-only
 descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`; those runs do not qualify `0.5.9`. Build `57` does not contain
-the controller. The current candidate pins wallet `2229be8`. Wallet-aware hosted
+`31411048376`; those runs remain historical. Code-bearing `0.5.9` source
+`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31433931682`, including the complete Apple ABI/XCFramework/app/simulator gate
+and aggregate Required CI. Build `57` does not contain the controller. The
+current candidate pins wallet `2229be8`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
 back for the historical lifecycle boundary. The repository's HNWR-aware policy
 still needs deployment/readback. The `0.5.9` description, What's New, and review
 notes are updated, while
 fresh exact-release-checkout screenshots, App Privacy/category answers,
-signing, processing, and submission remain release gates.
+signing, processing, submission, and the physical-iPhone matrix remain release
+gates. CI also produced Android debug artifact `9080493058` (APK SHA-256
+`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`),
+but it is default-debug-key signed rather than store signed and could not be
+installed because ADB/mDNS/USB exposed no Android target. It is not iOS or
+installed-device evidence.
 
 The product installs no scoped loopback credential or indexed wallet backend, so
 the visible read fields remain fail-closed and unavailable. The live pruned
@@ -43,8 +51,12 @@ needs archive-capable raw bytes or another durable wallet-relevant raw-tx source
 Name import is absent.
 Website-provider, send/value, settlement, exchange, HNSA/HNSR, and P2P-market
 gates remain false. iOS now implements nonblocking lifecycle teardown with an
-exact lease handoff, but product wiring must qualify it with a native read in
-flight on the exact candidate before enabling reads.
+exact lease handoff. Exact-source Apple XCTest covers the retirement
+queue/lease behavior and stale-completion publication-authority checks through
+`walletReadMayPublish`; it does not execute an end-to-end credentialed native
+read in flight. That scenario remains unavailable until the scoped
+credential/backend/data boundary exists, and physical-iPhone repetition remains
+open.
 
 ## One-time Apple setup
 
@@ -149,9 +161,10 @@ debug entitlement, icon, and encryption declaration all match the release.
 Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
-Build `58` is the next configured candidate. Application-source CI, CodeQL,
-lockfile/notices, and hosted-policy deployment/readback prerequisites are
-satisfied by the evidence above. It must not be uploaded until a fresh
+Build `59` is the configured candidate. Application-source CI, CodeQL,
+lockfile/notices, and the complete Apple app/simulator gate are satisfied at
+exact source `893ba8271787f1ab7247fa78ed8787462b5542fc`. HNWR-aware hosted-policy
+deployment/readback is not. Build `59` must not be uploaded until a fresh
 screenshot manifest names the exact release checkout selected for signing and
 carries provenance schema 3 with `settings.wallet.native-controls` visible;
 the protected workflow must then rerun its complete exact-checkout gate before

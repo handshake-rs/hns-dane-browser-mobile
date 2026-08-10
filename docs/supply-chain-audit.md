@@ -13,8 +13,11 @@ The final protocol → wallet → mobile source sequence is complete. Source pol
 the lockfile, and notices bind that exact chain. Historical `0.5.8` application
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394` and a fresh Pixel 9 install. That evidence predates the HNWR
-projection and does not qualify `0.5.9`; candidate CI, signing, screenshots, and
-store gates remain open.
+projection and remains historical. Current code-bearing source
+`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31433931682`, CodeQL `31433931259`, and Code Quality `31433931278`.
+Signing, exact screenshots, store declaration/readback and upload, and the
+physical-iPhone matrix remain open.
 
 The prior exact source at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`
 passed Required CI run `31393998309`, including Rust/supply-chain, Android,
@@ -23,8 +26,9 @@ debug APK also passed the full fresh-install Pixel 9 native-wallet lifecycle
 exercise. Documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed the complete matrix again in
 manual CI run `31411048376`, including aggregate Required CI. These are retained
-as historical `0.5.8` results. No signed `0.5.9` artifact has been built or
-submitted.
+as historical `0.5.8` results. Current CI debug artifact `9080493058` is not a
+signed store artifact; no upload-signed `0.5.9` APK/AAB or App Store IPA has
+been built or submitted.
 
 ## Configured and Local Gates
 
@@ -39,8 +43,9 @@ submitted.
   historical `0.5.8` application evidence is Required CI run `31402758394` at
   `f21bee1c3afccd06604dc99fccb51528e2441055`. Documentation-only parent
   `ce9c09a40117142d3a26ff1196c2dec3f5e06139` also passed push CI and CodeQL,
-  then the full manual matrix in run `31411048376`. The current HNWR/version
-  candidate still requires its own CI.
+  then the full manual matrix in run `31411048376`. Current HNWR/version source
+  `893ba8271787f1ab7247fa78ed8787462b5542fc` passed its own full matrix in
+  `31433931682`.
 - The protected iOS upload path performs its live Release screenshot capture
   and full exact-commit/digest/runtime/wallet-row verification before it reads
   Apple credentials or uploads an IPA. Capture or verification failure is
@@ -64,6 +69,25 @@ submitted.
 - Keystores, signing properties, service-account files, environment files, private-key formats, local Android properties, and generated APK/AAB artifacts are ignored. The Play API helper keeps its bearer token out of curl's process arguments, validates URL path inputs and release status, and enforces HTTPS/TLS timeouts.
 
 ## Audit Results
+
+### Current `0.5.9` CI Debug Artifact
+
+- Full CI run `31433931682` passed for exact source
+  `893ba8271787f1ab7247fa78ed8787462b5542fc`, including policy,
+  Rust/supply-chain, Android build/unit, API 37 native instrumentation, Apple
+  ABI/XCFramework/app/simulator, and Required CI.
+- Artifact `9080493058` extracted to a 65,680,703-byte APK with SHA-256
+  `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`.
+  Its package is `com.denuoweb.hnsdane.debug`, version `0.5.9-debug` / code
+  `50`, minimum API 30, target API 37, with `arm64-v8a` and `x86_64` native
+  libraries.
+- APK verification passed Signature Scheme v2 with one default Android Debug
+  RSA-2048 signer, certificate SHA-256
+  `b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`.
+  This is intentionally distinct from the upload-certificate/store gates.
+- ADB, ADB mDNS, and USB enumeration found no Android target. The APK was not
+  installed, so this supplies no code `50` installed-device evidence. The
+  physical-iPhone matrix also remains open.
 
 ### Released `0.5.6` Android Hotfix
 

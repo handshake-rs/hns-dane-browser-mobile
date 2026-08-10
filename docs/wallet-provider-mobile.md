@@ -21,8 +21,18 @@ ABI/XCFramework/app/simulator gate, after the underlying native-wallet tranche
 passed a fresh-install Pixel 9 lifecycle exercise. Documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` then passed the same full matrix in
 manual CI run `31411048376`. That evidence predates the HNWR read projection and
-does not qualify `0.5.9`. Candidate CI, signing, fresh commit-bound screenshots,
-and store submission remain open.
+remains historical. Code-bearing `0.5.9` source
+`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31433931682`, including the current HNWR Android and complete Apple gates.
+Exact debug APK artifact `9080493058` has SHA-256
+`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`;
+inspection confirms `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`,
+minimum API 30, target API 37, `arm64-v8a` + `x86_64`, and default Android
+Debug APK-v2 signing.
+It is not store signed. No ADB/mDNS/USB target was visible, so the APK was not
+installed and code `50` has no installed-device evidence. Signing, fresh
+commit-bound screenshots, store declaration/readback and submission, and the
+physical-iPhone matrix remain open.
 
 The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
 and App Store `0.5.5` / build `57` binaries predate the native controller and
@@ -124,8 +134,12 @@ lifecycle callbacks immediately detach UI authority and transfer the controller
 with its exact storage lease to one serial retirement queue; that lease is
 released only after native lock/destruction and any incomplete-wallet file
 deletion finish. Foreground reentry waits for that handoff and stale read
-completion cannot publish. Exact-candidate Apple CI and an in-flight-read
-qualification still remain before iOS product wiring may supply a credential.
+completion cannot publish. Exact candidate Apple app/simulator CI passed in
+`31433931682`; XCTest covers the retirement queue/lease behavior and
+stale-completion publication-authority predicates, not an end-to-end
+credentialed native read in flight. iOS product wiring still may not supply a
+credential until the scoped credential/indexed backend/data boundary exists,
+and physical-iPhone qualification remains open.
 
 ## Dormant website provider projection
 
@@ -220,13 +234,13 @@ payload.
 The historical `0.5.8` application source at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394`; its CodeQL and quality workflows are also green. This evidence
-predates the `0.5.9` synchronized-read tranche. Before release, `0.5.9` must pass
-candidate CI, fresh App Store screenshots must be bound to the exact release
-checkout selected for signing, signed artifacts must pass their archive gates,
-and both stores' privacy/category answers must be reconciled with the native
-local data and visible unavailable read rows. Those release gates do not
-authorize the dormant website projection, a read credential/backend, or any
-value capability.
+predates the `0.5.9` synchronized-read tranche. Current source passed full CI
+`31433931682`; before release, fresh App Store screenshots must be bound to the
+exact release checkout selected for signing, signed artifacts must pass their
+archive gates, and both stores' privacy/category answers must be reconciled
+with the native local data and visible unavailable read rows. Those release
+gates do not authorize the dormant website projection, a read
+credential/backend, or any value capability.
 
 Enabling the website boundary still requires the generated and reviewed
 provider/service JNI and C bindings, a canonical engine result carrying exact
@@ -248,7 +262,8 @@ coverage, passed the complete macOS ABI/XCFramework/app/simulator workflow, and
 passed a fresh Android reinstall with create/confirm/unlock/lock/process-reopen
 and mainnet/testnet storage isolation. The exact historical `0.5.8`
 repin/version/metadata commit passed remote CI. The newer HNWR projection has
-focused Rust, Kotlin, and Swift coverage but still needs candidate CI and the
-backend/lifecycle qualification above. Signed-product gates, current screenshots,
-and store declaration readback remain. Those facts are not evidence that the
-published apps contain these controls.
+focused Rust, Kotlin, and Swift coverage and passed exact full CI
+`31433931682`; it still needs the backend/data and installed-device
+qualification above. Signed-product gates, current screenshots, store
+declaration readback/upload, and the physical-iPhone matrix remain. Those facts
+are not evidence that the published apps contain these controls.

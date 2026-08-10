@@ -36,11 +36,25 @@ All notable changes to this project will be documented in this file.
 
 ### Qualification
 
-- Candidate CI, signed artifacts, fresh exact-commit screenshots, and store
-  declaration readback remain open. The new iOS nonblocking teardown path still
-  needs exact-candidate Apple CI and in-flight-read qualification before product
-  wiring may enable reads. The `0.5.8` evidence below is retained as historical
-  evidence and does not qualify this candidate.
+- Code-bearing source `893ba8271787f1ab7247fa78ed8787462b5542fc`
+  passed full CI run `31433931682`, including policy, Rust/supply-chain,
+  Android build/unit, API 37 native-runtime instrumentation, the complete Apple
+  ABI/XCFramework/app/simulator gate, and Required CI. CodeQL run `31433931259`
+  and Code Quality run `31433931278` also passed.
+- Debug artifact `9080493058` yielded a 65,680,703-byte APK with SHA-256
+  `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`.
+  Inspection confirmed package `com.denuoweb.hnsdane.debug`, version
+  `0.5.9-debug` / code `50`, minimum API 30, target API 37,
+  `arm64-v8a`/`x86_64`, and one default Android Debug RSA-2048 signer using APK
+  Signature Scheme v2 (certificate SHA-256
+  `b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`).
+  This is debug evidence, not a store/upload-signed artifact.
+- ADB, ADB mDNS, and USB enumeration exposed no Android target, so code `50`
+  was not installed and has no installed-device evidence. Historical `0.5.8`
+  Pixel evidence remains historical only. Scoped credential/indexed backend
+  and data provisioning, name/value/provider/HNSA/HNSR/market work, signed
+  store artifacts, fresh exact-commit screenshots, store declaration/readback
+  and upload, and the physical-iPhone matrix remain open.
 
 ## 0.5.8 - 2026-08-10
 

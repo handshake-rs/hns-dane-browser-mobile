@@ -40,6 +40,30 @@ into the app.
 
 Notes:
 
+- Code-bearing candidate source
+  `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
+  `31433931682`, including repository policy, Rust/supply-chain, Android
+  build/unit, API 37 native-runtime instrumentation, the complete Apple
+  ABI/XCFramework/app/simulator gate, and aggregate Required CI. CodeQL run
+  `31433931259` and Code Quality run `31433931278` also passed.
+- Documentation-only reconciliation successors record but do not inherit or
+  relabel that exact code-bearing evidence. Until executable source changes,
+  `893ba8271787f1ab7247fa78ed8787462b5542fc` remains the candidate's
+  code-bearing identity.
+- CI artifact `9080493058` is the exact debug APK for that commit. The extracted
+  APK is 65,680,703 bytes with SHA-256
+  `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`.
+  Manifest/package inspection reports `com.denuoweb.hnsdane.debug`,
+  `0.5.9-debug` / code `50`, minimum API 30, target API 37, and native ABIs
+  `arm64-v8a` and `x86_64`. Signature verification reports APK Signature Scheme
+  v2, one default Android Debug RSA-2048 signer, and certificate SHA-256
+  `b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`.
+  It is not a store/upload-signed artifact.
+- ADB, ADB mDNS, and USB enumeration exposed no Android target during exact
+  artifact qualification. Nothing was installed or uninstalled, and code `50`
+  has no installed-device evidence. The physical-iPhone matrix is likewise
+  still unrecorded. CI and simulator success do not substitute for either
+  installed-device result.
 - Historical `0.5.8` application source
   `f21bee1c3afccd06604dc99fccb51528e2441055` passed fresh Pixel 9 installation
   and exact Required CI run `31402758394`, including Android build/unit/native
@@ -63,8 +87,11 @@ Notes:
   source. Name-import/tracking ingestion is absent.
 - Transfers, sending, website-provider access, settlement, exchange features,
   HNSA/HNSR controls, and P2P marketplaces remain independently unavailable.
-  iOS now implements lease-retaining nonblocking lifecycle teardown; exact
-  candidate qualification remains before product wiring may enable reads.
+  The exact Apple CI gate covers retirement queue/lease behavior and
+  stale-completion publication-authority predicates in the app/simulator matrix;
+  it does not execute an end-to-end credentialed native read in flight. Product
+  wiring still cannot enable reads without the scoped credential, indexed
+  backend, and durable data source, and the physical-iPhone matrix remains open.
 - The upstream engine facade's HNSA admission and HNSR requester APIs are not in
   the pinned mobile graph because its current public DANE/DNSSEC dependencies
   add OpenSSL to Android and Apple closures. No requester, transport adapter,
@@ -72,8 +99,9 @@ Notes:
 - `hns-wallet-mobile` is pinned to final wallet `0.1.0` source
   `2229be849557d58a8eb723bcc03349f0f2df9796`. Its lock closure uses final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`.
-  The dependency sequence is complete. Current candidate CI, signed artifact,
-  screenshot, and store qualification remain separate gates.
+  The dependency sequence and candidate CI are complete. Signed store artifacts,
+  exact screenshots, store declaration/readback, and intentional upload remain
+  separate gates.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on
   2026-08-09 still reports `0.5.5` as current; older review-state notes in
   this repository describe the submission chronology, not the current status.

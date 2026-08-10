@@ -13,10 +13,20 @@ source `b24b66c`; source policy, lockfile, and notices are aligned. Historical
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 `31402758394` and a fresh Pixel 9 install, while documentation-only parent
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI
-`31411048376`. That evidence predates the current read projection. Candidate CI,
-a signed and verified AAB, refreshed screenshots, live Play Console declaration
-reconciliation, and intentional upload remain open. No code `50` AAB has been
-built, uploaded, or submitted.
+`31411048376`. That evidence predates the current read projection. Current
+code-bearing source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31433931682`, including Android build/unit, API 37 native instrumentation,
+Rust/supply-chain, Apple, and Required CI. Exact debug artifact `9080493058`
+contains a 65,680,703-byte APK with SHA-256
+`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
+package `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`, minimum API 30,
+target API 37, and `arm64-v8a` + `x86_64`. It verifies with APK Signature Scheme
+v2 under one default Android Debug RSA-2048 certificate, not the Play upload
+identity.
+ADB/mDNS/USB exposed no Android target, so it was not installed and code `50`
+has no installed-device evidence. A signed and verified AAB, refreshed
+screenshots, live Play Console declaration reconciliation, and intentional
+upload remain open. No code `50` AAB has been built, uploaded, or submitted.
 
 The listing deliberately describes the limited native controller and its visible
 read rows. The product installs no scoped loopback credential or indexed wallet

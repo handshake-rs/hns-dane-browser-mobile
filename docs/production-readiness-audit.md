@@ -27,8 +27,18 @@ full Pixel 9 exercise at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
 Historical `0.5.8` source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 run `31402758394` and a fresh Pixel 9 install; documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`; those runs do not qualify `0.5.9`. Signing, fresh screenshots,
-candidate CI, and store declaration reconciliation remain open. The product
+`31411048376`; those runs remain historical. Code-bearing `0.5.9` source
+`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31433931682`, including the current Android and complete Apple gates. Exact
+debug APK artifact `9080493058` has SHA-256
+`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`;
+it is package `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`, minimum
+API 30, target API 37, `arm64-v8a` + `x86_64`, and default Android Debug APK-v2
+signed. It is not store signed. ADB/mDNS/USB found no target, so it was not
+installed and code `50` has no installed-device evidence. Signing, fresh
+screenshots, store
+declaration reconciliation/upload, and the physical-iPhone matrix remain open.
+The product
 installs no scoped loopback credential or indexed wallet backend, so every read
 field is fail-closed and unavailable. The live pruned `hsrd` is unsuitable
 because it lacks wallet indexing and scoped authentication. Existing-wallet
@@ -37,19 +47,21 @@ archive-capable raw bytes or another durable wallet-relevant raw-tx source.
 Name import is absent.
 Website-provider, send/value, settlement, exchange, HNSA/HNSR, and P2P-market
 gates remain false. iOS now implements nonblocking read/lifecycle teardown with
-an exact lease handoff; exact-candidate qualification remains before product
-wiring may enable reads.
+an exact lease handoff. Exact app/simulator CI covers the retirement queue/lease
+and stale-completion publication-authority predicates; an end-to-end
+credentialed read in flight remains unavailable without the scoped
+credential/backend/data boundary.
 
 ## Release Findings
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| `0.5.9` source identity | Versions aligned; candidate qualification pending | Android `0.5.9` / code `50`, embedded Rust `0.5.9`, and iOS `0.5.9` / build `59` are aligned. `hns-wallet-mobile` is pinned to final wallet `0.1.0` source `2229be849557d58a8eb723bcc03349f0f2df9796`, which uses final `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`. Source policy, lockfile, and notices bind that chain. The recorded `f21bee1` / `ce9c09a` CI is historical `0.5.8` evidence. No signed `0.5.9` candidate has been built or uploaded. |
+| `0.5.9` source identity | Versions aligned and full CI passed; signed product pending | Android `0.5.9` / code `50`, embedded Rust `0.5.9`, and iOS `0.5.9` / build `59` are aligned. `hns-wallet-mobile` is pinned to final wallet `0.1.0` source `2229be849557d58a8eb723bcc03349f0f2df9796`, which uses final `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`. Source policy, lockfile, and notices bind that chain. Exact source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI `31433931682`. Debug artifact `9080493058` is not upload/store signed, and no signed `0.5.9` candidate has been built or uploaded. |
 | Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 47 production complete | Android Publisher edit `07330408575596336357` committed code `47` directly to production with status `completed`; `generatedApks/47` returned HTTP `200`. |
 | App Store update | Public `0.5.5`; device qualification tracked separately | Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). The submission was then `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`; Apple published `0.5.5` on 2026-07-31. No TestFlight distribution was part of this release, and a real-iPhone pass remains a separate qualification item. |
-| Native wallet slice | Read projection implemented; backend and qualification pending | The exact pinned controller is connected to native-only Android/iOS lifecycle controls, secure app-owned key storage, and strict HNWR-v1 read projection/UI. The product provides no scoped credential or indexed backend, so reads remain unavailable; name import is absent and provider/send/value/HNSA/HNSR/market gates remain false. The live pruned node lacks wallet index/auth; a pruned indexed node can return indexed history, and an existing wallet may reuse retained raw bytes, while fresh restore needs a durable raw-tx source. iOS now detaches UI authority and retires the native controller off the main actor while retaining its exact lease through destruction and cleanup; exact in-flight-read qualification remains before enabling composition. No signed-product readiness is claimed. |
+| Native wallet slice | Read projection CI-qualified; backend and installed-product qualification pending | The exact pinned controller is connected to native-only Android/iOS lifecycle controls, secure app-owned key storage, and strict HNWR-v1 read projection/UI. The product provides no scoped credential or indexed backend, so reads remain unavailable; name import is absent and provider/send/value/HNSA/HNSR/market gates remain false. The live pruned node lacks wallet index/auth; a pruned indexed node can return indexed history, and an existing wallet may reuse retained raw bytes, while fresh restore needs a durable raw-tx source. iOS detaches UI authority and retires the native controller off the main actor while retaining its exact lease through destruction and cleanup; the exact Apple app/simulator gate passed. No signed-product or physical-device readiness is claimed. |
 | Android runtime opening | Root cause fixed and release-device validated | Rust 1.92's stable `std::fs::File` lock implementation omitted Android, so the first header-state lock returned `Unsupported` and `BrowserRuntime::open` returned no handle. The Android target now uses the locked `libc 0.2.186` `flock` operations; the equivalent upstream fix is merged for Rust 1.98 in `rust-lang/rust#157038`. The exact signed code `47` APK cold-launched and synchronized successfully after an in-place data-preserving upgrade. |
 | Android Proof Details | Namespace attribution fixed and release-device confirmed | Native-gateway routing is namespace-agnostic because every canonical DNS host enters the retained dual-root gateway. The prior UI treated that route as ICANN, so a retained HNS trace produced DNSSEC/synthetic ICANN details. Proof Details now uses only the strict retained `namespaceResolution` decision. Pre-fix reproduction, paired instrumentation, and HNS browsing/proof behavior passed on the Pixel 9 release device after correction. |
 | Privacy policy | Historical lifecycle policy deployed; HNWR copy pending | Hosted source `909dbd1a713f322f0a8d4cff88e765c612e184f3` covers wallet lifecycle and absent network/provider/value paths. The repository policy now also describes visible unavailable HNWR fields; deploy/read back that revision at the canonical URL. Store privacy/category answers also require live readback. |
@@ -58,7 +70,7 @@ wiring may enable reads.
 | Cleartext policy | Ready | Cleartext is disabled globally with a loopback-only exception for the local gateway. User-selected HTTP and direct DNS/HNS traffic are accurately disclosed, but ordinary open-web and user-initiated transfers are outside Google Play's Data safety collection/sharing scope. |
 | WebView hardening | Ready | Mixed content is blocked, Safe Browsing is enabled, file/content access is disabled, native JavaScript bridges are removed, WebView debugging follows `BuildConfig.DEBUG`, and browser-wide loopback proxying sends every canonical DNS host to exact per-origin Rust dual-root preparation. |
 | Privacy controls | Candidate disclosure updated | Settings can clear browser and diagnostic data. There is no in-app deletion control for a confirmed wallet; Android users can clear all app storage, while iOS removes the app-container database on uninstall and later wallet reconciliation deletes an orphaned Keychain item if the database is absent. This limitation is explicit in policy and store review material. |
-| Build supply chain | Historical `0.5.8` evidence retained; `0.5.9` CI pending | Required CI run `31402758394` passed historical application source `f21bee1`, including Android, Apple, Rust, and supply-chain jobs. Documentation-only parent `ce9c09a` passed push CI/CodeQL and full manual CI run `31411048376`. The HNWR/version candidate needs its own CI; signing and store artifact verification remain separate. |
+| Build supply chain | `0.5.9` full CI green; signed store verification pending | Required CI run `31402758394` and docs-parent run `31411048376` remain historical `0.5.8` evidence. Exact `0.5.9` source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed policy, Rust/supply-chain, Android, Apple, and Required CI in `31433931682`; CodeQL `31433931259` and Code Quality `31433931278` also passed. Upload signing and store artifact verification remain separate. |
 | 16 KiB / native symbols | Code 47 gates passed | Code `47` passed PT_LOAD alignment, hardening, stripping, Build ID, matching FULL debug metadata, path sanitization, R8 mapping, notices, upload-signing, APK-signature, and 16 KiB ZIP-alignment verification. |
 | Release-device acceptance | Core exact-signed acceptance passed; broader matrix remains open | On a Pixel 9 running Android 17 / API 37, the exact signed APK upgraded code `46` to `47` with data preserved, cold-launched, reached `up_to_date` at height `340348` with lag `0`, freshness `current`, and `error: null`, and passed manual sync plus HNS browsing/proof behavior. Lifecycle, policy migration, requester/recovery combinations, downloads, Service Workers, WebSockets, and cross-origin behavior remain broader qualification items. |
 | Data collection posture | Repository review updated; live-form reconciliation required | No ads, analytics SDKs, developer accounts, sensitive permissions, advertising ID access, or developer telemetry endpoint was found. The policy now records that a relay peer receives the DNS name/type and source network address needed for the request. Retain the live `No collected / No shared` posture only after reconciling the current Play definitions and WebView-provider Safe Browsing guidance. |
@@ -125,13 +137,15 @@ wiring may enable reads.
    maintenance item.
 3. Complete the remaining `0.5.9` product gates: provision and qualify a scoped
    indexed source, plus archive-capable/durable raw-tx data for fresh restore,
-   including exact qualification of the implemented nonblocking iOS teardown,
    or retain the explicit unavailable state; then generate commit-bound iOS and
    current Android screenshots without secrets, build and verify signed
    artifacts, and reconcile category, financial-feature, Data safety, App
    Privacy, review-note, and release answers before any upload or submission.
-   Historical `0.5.8` application/manual CI and lifecycle-policy readback are
-   complete; `0.5.9` candidate CI and HNWR-aware policy deployment are not.
+   Exact `0.5.9` source CI, including iOS retirement queue/lease and
+   stale-completion publication-authority coverage, is complete in run
+   `31433931682`. End-to-end credentialed read-in-flight qualification,
+   HNWR-aware policy deployment, Android installed-device evidence, and the
+   physical-iPhone matrix are not.
 
 ## Release Verification Status
 
@@ -171,10 +185,11 @@ wiring may enable reads.
   CI APK; complete Apple CI passed in dated run `31393998309`. Final application
   historical `0.5.8` source `f21bee1` then passed Required CI `31402758394` and
   a fresh Pixel 9 install; docs parent `ce9c09a` passed full manual CI
-  `31411048376`. The `0.5.9` HNWR read tranche needs candidate CI, backend
-  integration qualification, and the iOS teardown qualification described above. Public
-  artifacts still predate these controls. Signing, screenshots, and store review
-  remain pending.
+  `31411048376`. The `0.5.9` HNWR read tranche passed exact full CI
+  `31433931682`, but its debug APK could not be installed because ADB/mDNS/USB
+  exposed no target. Backend/data integration, Android installed-device and
+  physical-iPhone qualification, signing, screenshots, and store review/upload
+  remain pending. Public artifacts still predate these controls.
 
 ## Watch Items
 

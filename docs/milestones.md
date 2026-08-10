@@ -143,6 +143,15 @@
   exact Required CI run
   `31402758394`, including Android build/unit/native instrumentation,
   Rust/supply-chain, and the complete Apple ABI/XCFramework/app/simulator gate.
+- Completed `0.5.9` source qualification: code-bearing commit
+  `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+  `31433931682`, including the HNWR Android and complete Apple gates. Exact
+  debug artifact `9080493058` is package `com.denuoweb.hnsdane.debug`, version
+  `0.5.9-debug` / code `50`, with `arm64-v8a` and `x86_64`, default Android
+  Debug APK-v2 signing, and APK SHA-256
+  `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`.
+  It is not store signed. ADB/mDNS/USB exposed no Android target, so it was not
+  installed and does not add code `50` installed-device evidence.
 - Completed release dependency sequence: mobile pins final wallet `0.1.0`
   source `2229be849557d58a8eb723bcc03349f0f2df9796`, which consumes final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
@@ -153,11 +162,12 @@
   bridge is removed. The standalone HNSA/HNSR-capable facade remains excluded
   until upstream provides a mobile-safe dependency boundary that does not pull
   its OpenSSL-backed public DANE/DNSSEC stack into Android and Apple closures.
-- Pending release qualification: signed artifacts, fresh commit-bound
-  screenshots, privacy/category declaration readback, and store gates remain
-  for `0.5.9`. Candidate CI and exact qualification of the implemented
-  nonblocking iOS read/lifecycle teardown also remain. No currently published
-  Play, GitHub, or App Store binary contains the native controls.
+- Pending release qualification: scoped credential/indexed backend/data
+  provisioning, signed store artifacts, fresh commit-bound screenshots,
+  privacy/category declaration readback, intentional store upload, Android
+  installed-device evidence, and the physical-iPhone matrix remain for
+  `0.5.9`. No currently published Play, GitHub, or App Store binary contains the
+  native controls.
 - Pending named-service adoption: first consume a qualified upstream mobile-safe
   HNSA/HNSR API boundary, then instantiate its admission/requester lifecycle
   through exact engine-issued authority and add the required proof,

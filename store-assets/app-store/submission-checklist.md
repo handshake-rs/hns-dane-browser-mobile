@@ -12,8 +12,11 @@ loopback credential or indexed backend, so those fields remain unavailable. The
 available live pruned node lacks wallet index/auth; fresh restore needs a durable
 raw-tx source. Name import is absent. Transfer/value, website-provider,
 settlement, exchange, HNSA/HNSR, and P2P-market paths remain absent or gated.
-iOS read wiring also requires nonblocking lifecycle-teardown
-qualification. Every Console answer must describe that exact boundary.
+Retirement queue/lease behavior and stale-completion publication-authority
+predicates passed exact Apple app/simulator CI; no end-to-end credentialed
+native read in flight ran. iOS read wiring still requires the scoped
+credential/backend/data boundary. Every Console answer must describe that exact
+boundary.
 
 ## Source and build
 
@@ -26,8 +29,21 @@ qualification. Every Console answer must describe that exact boundary.
 - [x] Retain historical `0.5.8` Required CI for source `f21bee1` in run
   `31402758394`; docs commit `ce9c09a` passed the full manual matrix in run
   `31411048376`. These do not qualify this candidate.
-- [ ] Pass candidate Required CI, including the HNWR Rust/Android/Apple gates and
-  nonblocking iOS read/lifecycle teardown qualification before enabling reads.
+- [x] Pass candidate Required CI for code-bearing source
+  `893ba8271787f1ab7247fa78ed8787462b5542fc`. Run `31433931682` passed the
+  HNWR Rust/Android/Apple gates, including iOS retirement queue/lease and
+  stale-completion publication-authority coverage. This is not an end-to-end
+  credentialed native read-in-flight result.
+- [x] Inspect exact debug APK artifact `9080493058`: 65,680,703 bytes, SHA-256
+  `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
+  package `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`, minimum API
+  30, target API 37,
+  `arm64-v8a` + `x86_64`, and one default Android Debug RSA-2048 APK-v2 signer.
+  This is not a store-signing result.
+- [ ] Record installed-device evidence for the exact release candidate. The
+  debug APK was not installed because ADB, ADB mDNS, and USB enumeration exposed
+  no Android target; no code `50` Android result is claimed. The separate
+  physical-iPhone matrix also remains open.
 - [x] Require the protected upload workflow to capture and fully verify fresh
   exact-commit screenshots before reading Apple credentials or uploading an
   IPA; screenshot failure is fatal.

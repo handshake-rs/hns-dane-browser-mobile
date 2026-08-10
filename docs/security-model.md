@@ -110,8 +110,17 @@ fresh-install Android exercise at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394` and a fresh Pixel 9 install, and documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`; those runs do not qualify `0.5.9`. Signing, candidate CI, current
-screenshots, and store declaration review remain release gates.
+`31411048376`; those are historical `0.5.8` results. Current code-bearing source
+`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31433931682`, including Android instrumentation and the complete Apple gate.
+Its exact debug APK is artifact `9080493058`, SHA-256
+`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
+package `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`, with
+`arm64-v8a` and `x86_64` and default Android Debug APK-v2 signing. It is not
+store signed. No Android target was visible through ADB/mDNS/USB, so it was not
+installed and code `50` has no installed-device evidence. Signed artifacts,
+current screenshots, store declaration/upload, and the physical-iPhone matrix
+remain release gates.
 
 HNWR configuration is loopback-only and accepts a bounded mutable scoped
 authorization value that is consumed and wiped. Output is bounded and its
@@ -162,8 +171,12 @@ synchronization runs off the main actor and stale completion is suppressed.
 Lifecycle callbacks also detach controller and lease authority immediately,
 then serialize native lock/destruction and any incomplete-wallet deletion on a
 background queue. The exact lease remains held until that work finishes, and
-foreground reentry cannot reacquire it early. Exact-candidate Apple CI and an
-in-flight-read qualification remain before enabling read configuration on iOS.
+foreground reentry cannot reacquire it early. Exact candidate Apple app/simulator
+CI passed in `31433931682`; XCTest covers retirement queue/lease behavior and
+stale-completion publication-authority predicates, not an end-to-end
+credentialed native read in flight. Enabling read configuration still requires
+the missing scoped credential/backend/data boundary, and physical-iPhone
+qualification remains open.
 
 The website-provider sources remain containment projections. Website schema 1,
 private provider ABI 2, and public approval schema 3 are independent version

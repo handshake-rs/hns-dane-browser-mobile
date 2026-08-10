@@ -13,10 +13,18 @@ source policy, lockfile, and notices are aligned. Historical `0.5.8` application
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 `31402758394`; documentation-only parent
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI
-`31411048376`; those runs predate the current read projection. Candidate CI,
-fresh exact-release-checkout screenshots, signing, processing, metadata readback,
-and intentional submission remain open. Nothing in this package proves that
-build `59` has been uploaded or published.
+`31411048376`; those runs predate the current read projection. Code-bearing
+source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31433931682`, including the complete Apple app/simulator gate. Android debug
+artifact `9080493058` has APK SHA-256
+`7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
+package `com.denuoweb.hnsdane.debug`, version `0.5.9-debug` / code `50`,
+`arm64-v8a` + `x86_64`, and default Android Debug APK-v2 signing. It is neither
+an iOS nor store-signed artifact. ADB/mDNS/USB exposed no Android target, so it
+was not installed and supplies no installed-device evidence. Fresh
+exact-release-checkout screenshots, signing, processing, metadata readback,
+intentional submission, and the physical-iPhone matrix remain open. Nothing in
+this package proves that build `59` has been uploaded or published.
 
 The current public Apple baseline remains `0.5.5` / build `57`, published on
 2026-07-31 from `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Its retained
@@ -31,8 +39,10 @@ can return indexed history, and an existing wallet may reuse retained raw bytes.
 Fresh restore needs a durable wallet-relevant raw-tx source. Name import,
 send/value, website-provider,
 settlement, exchange, HNSA/HNSR, and P2P-marketplace paths remain absent or
-gated. iOS product wiring also needs
-nonblocking lifecycle-teardown qualification before reads can be enabled.
+gated. Retirement queue/lease behavior and stale-completion
+publication-authority predicates passed exact Apple app/simulator CI; no
+end-to-end credentialed native read in flight ran. iOS product wiring still
+needs the scoped credential/backend/data boundary before reads can be enabled.
 
 ## App record
 

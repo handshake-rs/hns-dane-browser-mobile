@@ -93,13 +93,22 @@ iOS UI / Browser Shell                             [public; device qualification
   retained evidence, while fresh restore needs a durable raw-tx source. Name
   import is absent. Sending/value, settlement,
   HNSA/HNSR, exchange, and marketplace gates remain false. Both shells perform
-  read/retirement work off the UI thread; the new iOS lease-retaining teardown
-  path still needs exact-candidate qualification before reads are enabled.
-  Historical `0.5.8` source
-  `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
-  `31402758394`, including the complete Apple gate; `0.5.9` candidate CI, signed
-  artifacts, fresh commit-bound store screenshots, and submission remain open.
-  No listed public binary contains this source tranche.
+  read/retirement work off the UI thread. Code-bearing source
+  `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+  `31433931682`, including Android instrumentation and the complete Apple
+  ABI/XCFramework/app/simulator gate. Its XCTest coverage exercises retirement
+  queue/lease behavior and stale-completion publication-authority predicates,
+  not an end-to-end credentialed native read in flight. Exact debug APK artifact
+  `9080493058` has SHA-256
+  `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`;
+  it is `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`,
+  `arm64-v8a` + `x86_64`, and APK Signature Scheme v2 under the default Android
+  Debug key, not store signed.
+  ADB/mDNS/USB exposed no device, so it was not installed and code `50` has no
+  installed-device evidence. The scoped credential/backend/data boundary,
+  signed artifacts, fresh commit-bound store screenshots, store
+  declaration/upload, and physical-iPhone matrix remain open. No listed public
+  binary contains this source tranche.
 - The website-facing mobile wallet-provider projection remains dormant.
   Website Provider API schema 1 remains separate from private provider ABI 2
   and public approval schema 3. Closed approval summaries and typed events
