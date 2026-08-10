@@ -30,7 +30,7 @@ hns-browser-observability = "=0.1.2"
 hns-browser-runtime = "=0.1.0"
 hns-icann-dane = "=0.1.0"
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b8bdfbf7e234e64166886ade6f79d698e23056af", default-features = false, features = ["mobile"] }
-hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "f105b6970ec1c163756df43b1ca7adab1d8d8992" }
+hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "ba9f013a098679fe8e3d812a7e09020803e27d53" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.1.0"
 hns-resolution-policy = "=0.1.0"
