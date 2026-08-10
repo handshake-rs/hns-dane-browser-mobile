@@ -23,7 +23,7 @@ ENGINE_VERSIONS = {
 }
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
 WALLET_GIT_URL = "https://github.com/handshake-rs/hns-wallet-rs.git"
-WALLET_GIT_REVISION = "4e78bb2587bc448d3a65341c7628b2e62cae79cd"
+WALLET_GIT_REVISION = "2229be849557d58a8eb723bcc03349f0f2df9796"
 PROTOCOL_GIT_URL = "https://github.com/handshake-rs/hns-rs.git"
 PROTOCOL_GIT_REVISION = "b24b66c382de53330ec21dd3137e056a2bea3e2d"
 APPROVED_ENGINE_GIT = {
