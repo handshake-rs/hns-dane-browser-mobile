@@ -147,6 +147,7 @@ class MainActivity : ComponentActivity() {
     private var syncHeadersCurrent: Boolean = false
     private var syncWaitMainFrameUrl: String? = null
     private var syncWaitPageVisible: Boolean = false
+    private var automaticHnsRetryUsed: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -765,9 +766,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun enqueueNavigation(target: BrowserTarget, load: () -> Unit) {
+    private fun enqueueNavigation(
+        target: BrowserTarget,
+        preserveAutomaticRetryBudget: Boolean = false,
+        load: () -> Unit,
+    ) {
         navigationGeneration = navigationGeneration.wrappingIncrement()
         val generation = navigationGeneration
+        if (!preserveAutomaticRetryBudget) {
+            automaticHnsRetryUsed = false
+        }
         pendingReadinessNavigation = null
         if (::syncGateNotice.isInitialized) {
             syncGateNotice.visibility = View.GONE
@@ -1182,6 +1190,31 @@ class MainActivity : ComponentActivity() {
             showHnsLoadFailurePage(view, requestUrl)
         }
 
+        override fun onReceivedHttpError(
+            view: WebView,
+            request: WebResourceRequest,
+            errorResponse: WebResourceResponse,
+        ) {
+            super.onReceivedHttpError(view, request, errorResponse)
+            if (!request.isForMainFrame || pendingMainFrameUrl != null) return
+            if (
+                !isRetryableHnsGatewayHttpFailure(
+                    errorResponse.statusCode,
+                    errorResponse.reasonPhrase,
+                )
+            ) {
+                return
+            }
+
+            val requestUrl = request.url.toString()
+            val admittedUrl = admittedMainFrameUrl ?: return
+            if (admittedUrl.mainFrameMatchKey() != requestUrl.mainFrameMatchKey()) return
+            if (classifier.classify(requestUrl).kind !in NATIVE_GATEWAY_TARGET_KINDS) return
+
+            showHnsLoadFailurePage(view, requestUrl)
+            scheduleAutomaticHnsRetry(requestUrl)
+        }
+
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
             gatewayInterceptionEnabled = false
             pageIsLoading = false
@@ -1247,6 +1280,26 @@ class MainActivity : ComponentActivity() {
             "utf-8",
             failedUrl,
         )
+    }
+
+    private fun scheduleAutomaticHnsRetry(failedUrl: String) {
+        if (automaticHnsRetryUsed) return
+        automaticHnsRetryUsed = true
+        val failedGeneration = navigationGeneration
+        mainHandler.postDelayed({
+            if (
+                activityDestroyed ||
+                failedGeneration != navigationGeneration ||
+                !syncWaitPageVisible ||
+                syncWaitMainFrameUrl?.mainFrameMatchKey() != failedUrl.mainFrameMatchKey()
+            ) {
+                return@postDelayed
+            }
+            val target = classifier.classify(failedUrl)
+            enqueueNavigation(target, preserveAutomaticRetryBudget = true) {
+                webView.loadUrl(target.url)
+            }
+        }, AUTOMATIC_HNS_RETRY_DELAY_MS)
     }
 
     private fun openSettings() {
@@ -1533,6 +1586,7 @@ class MainActivity : ComponentActivity() {
 
         private const val PAGE_PROGRESS_MAX = 100
         private const val SYNC_STATUS_POLL_MS = 2_000L
+        private const val AUTOMATIC_HNS_RETRY_DELAY_MS = 1_500L
         private const val SECURITY_INDICATOR_WIDTH_DP = 44
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22
@@ -1561,6 +1615,16 @@ private data class PendingReadinessNavigation(
 )
 
 private fun Long.wrappingIncrement(): Long = if (this == Long.MAX_VALUE) 1L else this + 1L
+
+private val RETRYABLE_HNS_GATEWAY_REASONS = setOf(
+    "HNS Resolution Unavailable",
+    "HNS Proof Unavailable",
+    "Namespace Resolution Indeterminate",
+    "HNS Sync Incomplete",
+)
+
+internal fun isRetryableHnsGatewayHttpFailure(statusCode: Int, reasonPhrase: String?): Boolean =
+    statusCode == 503 && reasonPhrase?.trim().orEmpty() in RETRYABLE_HNS_GATEWAY_REASONS
 
 private val EXTERNAL_VIEW_SCHEMES = setOf("mailto", "tel", "sms", "geo")
 
