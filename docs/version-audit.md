@@ -2,7 +2,7 @@
 
 Audit date: 2026-08-10.
 
-This table records the versions configured for the `0.5.8`
+This table records the versions configured for the `0.5.9`
 release-preparation candidate.
 It is not evidence that signed artifacts were built or published. Android
 runtime dependencies use stable releases; separate build-tool transitive
@@ -11,10 +11,10 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `0.5.8` / code `49` | `android/app/build.gradle.kts` |
-| Embedded Rust workspace | `0.5.8` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `0.5.8` / build `58` | `ios/project.yml` |
-| Native wallet controller | `hns-wallet-mobile 0.1.0` at `4e78bb2587bc448d3a65341c7628b2e62cae79cd` | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| Android app | `0.5.9` / code `50` | `android/app/build.gradle.kts` |
+| Embedded Rust workspace | `0.5.9` (`publish = false`) | `rust/Cargo.toml` |
+| iOS app | `0.5.9` / build `59` | `ios/project.yml` |
+| Native wallet controller | `hns-wallet-mobile 0.1.0` at `2229be849557d58a8eb723bcc03349f0f2df9796` | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | `hns-rs 0.2.0` at `b24b66c382de53330ec21dd3137e056a2bea3e2d` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
@@ -40,24 +40,36 @@ into the app.
 
 Notes:
 
-- Candidate application source
+- Historical `0.5.8` application source
   `f21bee1c3afccd06604dc99fccb51528e2441055` passed fresh Pixel 9 installation
   and exact Required CI run `31402758394`, including Android build/unit/native
   instrumentation, Rust/supply-chain, and the complete Apple
   ABI/XCFramework/app/simulator gate. Documentation-only descendant
   `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-  `31411048376`. This does not prove a signed `0.5.8` artifact.
+  `31411048376`. This evidence does not qualify or prove a signed `0.5.9`
+  artifact.
 - The native controller exposes create, restore, open, status, unlock, lock,
-  one-time recovery display, and one local non-value HNS account identity.
-  Balances, receive/history/name reads, transfers, website-provider access,
-  settlement, exchange features, HNSA/HNSR controls, and P2P marketplaces
-  remain unavailable. The read controls require a synchronized mobile
-  `HnsBackend` and wallet read-runtime composition that is not present.
+  one-time recovery display, and one local non-value HNS account identity. Both
+  platform shells now also implement strict bounded HNWR-v1 decoding and UI for
+  synchronized balance, receive target, transaction history, tracked names, and
+  module status.
+- The product installs no scoped loopback read credential or indexed wallet
+  backend, so those fields remain fail-closed and unavailable in the actual
+  candidate. The available live pruned `hsrd` is unsuitable because it lacks
+  wallet indexing and scoped authentication. A pruned indexed node can still
+  return indexed confirmation/history, and an existing wallet may reuse its
+  authenticated retained raw bytes. Fresh restore additionally needs
+  archive-capable raw bytes or another durable wallet-relevant raw-transaction
+  source. Name-import/tracking ingestion is absent.
+- Transfers, sending, website-provider access, settlement, exchange features,
+  HNSA/HNSR controls, and P2P marketplaces remain independently unavailable.
+  iOS also needs nonblocking lifecycle-teardown qualification before product
+  wiring may enable reads.
 - `hns-wallet-mobile` is pinned to final wallet `0.1.0` source
-  `4e78bb2587bc448d3a65341c7628b2e62cae79cd`. Its lock closure uses final
+  `2229be849557d58a8eb723bcc03349f0f2df9796`. Its lock closure uses final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`.
-  The dependency sequence and application-source CI are complete; signed
-  artifact, screenshot, and store qualification remain separate gates.
+  The dependency sequence is complete. Current candidate CI, signed artifact,
+  screenshot, and store qualification remain separate gates.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on
   2026-08-09 still reports `0.5.5` as current; older review-state notes in
   this repository describe the submission chronology, not the current status.

@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.5.9 - 2026-08-10
+
+### Added
+
+- Added strict, bounded HNWR-v1 native projections and Android/iOS wallet UI for
+  synchronized HNS balance, receive target, transaction history, tracked names,
+  and module status. Native configuration accepts only a scoped authorization
+  value and an IPv4 loopback port; snapshot decoding rejects unknown or
+  incoherent fields and fails closed.
+- Added platform-side lifecycle/generation publication guards and secret-buffer
+  clearing around read configuration and snapshot handoff. Android performs
+  synchronization and contended native retirement away from the UI thread.
+
+### Changed
+
+- Coordinated Android `0.5.9` (`versionCode 50`), the non-publishable embedded
+  Rust workspace `0.5.9`, and iOS `0.5.9` (build `59`) as one
+  release-preparation candidate.
+- Repinned final `hns-wallet-mobile 0.1.0` to
+  `2229be849557d58a8eb723bcc03349f0f2df9796` for the synchronized HNS read
+  controller while retaining final `hns-rs 0.2.0` source
+  `b24b66c382de53330ec21dd3137e056a2bea3e2d`.
+- Kept synchronized reads unavailable in the actual product: neither shell
+  provisions the scoped loopback credential or indexed wallet backend. The live
+  pruned `hsrd` is unsuitable because it lacks wallet indexing/authentication;
+  existing-wallet retained evidence remains usable, while fresh restore needs
+  archive-capable raw bytes or another durable wallet-relevant raw-tx source.
+  Name import remains absent, and send/value, provider, HNSA/HNSR, settlement,
+  exchange, and P2P-marketplace gates remain false.
+
+### Qualification
+
+- Candidate CI, signed artifacts, fresh exact-commit screenshots, and store
+  declaration readback remain open. iOS product wiring must also prove
+  nonblocking lifecycle teardown while a native read is in flight before reads
+  can be enabled. The `0.5.8` evidence below is retained as historical evidence
+  and does not qualify this candidate.
+
 ## 0.5.8 - 2026-08-10
 
 ### Added

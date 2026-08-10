@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "android-ffi"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "hns-mobile-platform-runtime",
  "hns-wallet-mobile",
@@ -911,7 +911,7 @@ source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab626f
 
 [[package]]
 name = "hns-mobile-platform-runtime"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "hns-browser-chain",
  "hns-browser-dane",
@@ -1292,7 +1292,7 @@ dependencies = [
 
 [[package]]
 name = "ios-ffi"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "hns-mobile-platform-runtime",
  "hns-wallet-mobile",

@@ -24,14 +24,14 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_coordinated_058_identity_and_final_wallet_pin(self) -> None:
+    def test_coordinated_059_identity_and_final_wallet_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"0\.5\.8\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 49$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"0\.5\.9\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 50$")
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
-        self.assertEqual(manifest["workspace"]["package"]["version"], "0.5.8")
+        self.assertEqual(manifest["workspace"]["package"]["version"], "0.5.9")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
         self.assertEqual(wallet["version"], "=0.1.0")
@@ -54,8 +54,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertNotIn("abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2", lockfile)
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 0\.5\.8$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 58$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 0\.5\.9$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 59$")
 
     def test_unshipped_named_service_market_and_value_closures_stay_absent(self) -> None:
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
@@ -97,7 +97,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         ):
             self.assertIn(f"static let {gate} = false", ios_protocol)
 
-    def test_store_and_privacy_copy_describes_limited_native_wallet(self) -> None:
+    def test_store_and_privacy_copy_describes_fail_closed_native_reads(self) -> None:
         paths = (
             ROOT / "store-assets/play-store/metadata/en-US/full-description.txt",
             ROOT / "store-assets/play-store/metadata/en-US/release-notes.txt",
@@ -108,17 +108,20 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         for path in paths:
             with self.subTest(path=path):
                 value = path.read_text(encoding="utf-8").casefold()
-                self.assertIn("non-value", value)
+                self.assertIn("read-only", value)
+                self.assertIn("unavailable", value)
+                self.assertIn("indexed backend", value)
                 self.assertNotIn("not a wallet", value)
 
         privacy = (ROOT / "docs/privacy-policy.md").read_text(
             encoding="utf-8"
         ).casefold()
         for marker in (
-            "device-local non-value hns account identity",
+            "device-local hns account identity",
             "device-bound database keys",
-            "does not synchronize a balance",
-            "participate in hnsa or hnsr service roles",
+            "scoped companion credential or indexed wallet backend",
+            "no wallet-specific network request is made",
+            "hnsa/hnsr service roles",
             "deletes the incomplete wallet database",
             "no in-app delete control for a confirmed native wallet",
         ):
@@ -127,11 +130,11 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         play = paths[0].read_text(encoding="utf-8").casefold()
         app_store = paths[2].read_text(encoding="utf-8").casefold()
         for marker in (
-            "balances",
-            "send funds",
-            "manage names",
-            "connect",
-            "settle",
+            "balance",
+            "receive target",
+            "name import",
+            "website-provider",
+            "settlement",
             "exchange",
             "p2p marketplaces",
         ):

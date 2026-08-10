@@ -9,11 +9,11 @@ mandatory pre-credential gate; capture or verification failure blocks signing
 and upload.
 
 The checked-in images and manifest are retained `0.5.5` history and are not
-submission-ready for the configured `0.5.8` / build `58` candidate. The
-application-source CI prerequisite has passed; dispatch this workflow only for
-the exact release checkout selected for signing. The resulting Settings image
-must visibly include the native Handshake wallet entry without displaying a
-recovery phrase, account identifier, or other secret.
+submission-ready for the configured `0.5.9` / build `59` candidate. Candidate CI
+has not yet passed; dispatch this workflow only for the exact release checkout
+selected for signing. The resulting wallet image must visibly include the
+native Handshake wallet entry and fail-closed unavailable read rows without
+displaying a recovery phrase, account identifier, or other secret.
 
 ```sh
 expected_commit="$(git rev-parse HEAD)"
@@ -134,10 +134,10 @@ The committed `0.5.5` set was captured from exact source
 `30454926117`. Its Release/runtime provenance, four 1284 × 2778 images, and
 digests remain published historical evidence. They passed the submission gate
 for that release, but intentionally fail the current candidate validator
-because they predate provenance schema 3, the native wallet-row evidence, and
-the exact `0.5.8` candidate commit.
+because they predate provenance schema 3, the native wallet/read-row evidence,
+and the exact `0.5.9` candidate commit.
 
-That successful historical validation does not satisfy the `0.5.8` manifest
+That successful historical validation does not satisfy the `0.5.9` manifest
 commit gate. Replace the set only with an artifact captured from the exact
 final candidate.
 

@@ -75,12 +75,13 @@ Presenting an unrelated certificate, another host's certificate, or a stopped ge
 
 ### Native non-value wallet
 
-The complete simulator gate passed for final application source
+The complete simulator gate passed for historical `0.5.8` application source
 `f21bee1c3afccd06604dc99fccb51528e2441055` in Required CI run `31402758394`,
 and documentation-only commit
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed the full matrix again in
-manual run `31411048376`. The following signed-device matrix remains an optional
-installed-iPhone qualification activity for the exact `0.5.8` release checkout:
+manual run `31411048376`. Those runs predate the HNWR projection. The following
+signed-device matrix remains an optional installed-iPhone qualification activity
+for the exact `0.5.9` release checkout:
 
 - On a fresh install, open Settings → Handshake wallet and confirm the screen
   reports no local wallet without announcing a website provider.
@@ -93,8 +94,13 @@ installed-iPhone qualification activity for the exact `0.5.8` release checkout:
 - Restore on a separate empty network scope and confirm the input and visible
   recovery text clear when the screen backgrounds or protected data becomes
   unavailable.
-- Confirm there is no balance, receive/send, name, website-provider,
-  settlement, exchange, HNSA/HNSR, or P2P-marketplace control.
+- Confirm strict balance, receive, history, tracked-name, and module rows remain
+  visibly unavailable because no scoped credential/backend is installed. There
+  is no name import, send/value, website-provider, settlement, exchange,
+  HNSA/HNSR, or P2P-marketplace control.
+- Exercise background/close while a deliberately delayed native read holds the
+  controller and prove lifecycle teardown never blocks the main actor before any
+  read configuration is enabled in the product.
 - Record the Swift/UIKit managed-text limitation: app-owned mutable buffers are
   wiped and fields are cleared, but deterministic zeroization of framework-
   managed recovery text is not claimed.

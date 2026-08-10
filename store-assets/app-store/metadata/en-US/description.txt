@@ -12,8 +12,8 @@ Features:
 - Keep all HNS answers subject to local proof, DNSSEC, TLSA, and DANE validation, without HNS WebPKI fallback
 - Keep website data in a persistent WebKit profile
 - Download files and share pages with standard iOS controls
-- Create or restore one device-local non-value Handshake account identity, then open, unlock, and lock it without balance or value controls
+- Create or restore one device-local Handshake account identity, then open, unlock, and lock it; strict read-only fields remain unavailable because no scoped indexed backend is installed
 
 The shared Rust runtime performs HNS resolution, DNSSEC and DANE validation, and app-local proxying. WebKit renders pages and handles normal WebPKI trust for ordinary internet sites.
 
-The app has no developer-operated account, advertising SDK, analytics SDK, subscription, exchange feature, or paid feature unlocks. Its native wallet controls do not show balances, receive or send funds, manage names, connect to websites, settle trades, or expose P2P marketplaces.
+The app has no developer-operated account, advertising SDK, analytics SDK, subscription, exchange feature, or paid feature unlocks. Its native wallet screen includes strict synchronized read-only fields, but this build installs no scoped credential or indexed backend, so balance, receive target, history, tracked names, and module status remain unavailable. Name import, sending or value movement, website-provider access, HNSA/HNSR, settlement, and P2P marketplaces are unavailable.

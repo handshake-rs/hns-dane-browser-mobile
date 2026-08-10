@@ -97,23 +97,36 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 
 ## Native wallet and dormant website-provider boundary
 
-The Android/iOS `0.5.8` release-preparation candidate links the exact pinned
+The Android/iOS `0.5.9` release-preparation candidate links the exact pinned
 `hns-wallet-mobile` controller to app-native create, restore, open, status,
 unlock, lock, one-time recovery, destroy, and single non-value HNS account
-identity controls. It exposes no balance, receive display, names, sending,
-settlement, exchange, HNSA/HNSR, or marketplace operation. The controller is not a
-browser provider and no wallet secret or method enters WebView/WKWebView. These
-controls are not in the current public Play, GitHub, or App Store binaries;
-the underlying tranche passed its full fresh-install Android lifecycle exercise
-at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Candidate application source
+identity controls. Both shells also implement a strict HNWR-v1 native projection
+and UI for synchronized balance, receive target, history, tracked names, and
+module status. The controller is not a browser provider and no wallet secret or
+method enters WebView/WKWebView. These controls are not in the current public
+Play, GitHub, or App Store binaries; the underlying lifecycle tranche passed its
+fresh-install Android exercise at
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Historical `0.5.8` source
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394` and a fresh Pixel 9 install, and documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`. Signing, current screenshots, and store declaration review
-remain release gates. Balance, receive, history, and name reads require a
-synchronized mobile `HnsBackend` and read-runtime composition that this app
-does not provide; provider, value, HNSA/HNSR, and marketplace gates remain
-independently false.
+`31411048376`; those runs do not qualify `0.5.9`. Signing, candidate CI, current
+screenshots, and store declaration review remain release gates.
+
+HNWR configuration is loopback-only and accepts a bounded mutable scoped
+authorization value that is consumed and wiped. Output is bounded and its
+closed JSON shape, canonical values, unique identities, coherent heights, and
+envelope length are validated before UI publication. The product currently
+creates no such configuration, so the visible read fields remain fail-closed
+and unavailable. The browser proxy credential is not reused as wallet authority.
+The available live pruned `hsrd` is unsuitable because it lacks wallet indexing
+and scoped authentication. A pruned indexed node can still return indexed
+confirmation/history, and an existing wallet may reuse its authenticated
+retained raw bytes. Fresh restore additionally needs archive-capable raw
+transaction bytes or another durable wallet-relevant raw-transaction source
+behind the dedicated scoped loopback gateway. Name import is absent. Provider,
+sending/value, HNSA/HNSR, settlement, exchange, and
+marketplace gates remain independently false.
 
 On Android, a create-only Android KeyStore AES-GCM key wraps the 32-byte wallet
 database key and requires an unlocked device. Borrowed plaintext key arrays are
@@ -128,7 +141,10 @@ The key is not persisted until the user confirms the one-time phrase; leaving
 first wipes mutable key/phrase storage, revokes the controller, and removes the
 incomplete database. Native handles are bounded, monotonic, explicitly
 deactivated before destruction waits for in-flight state locks, and rechecked
-after acquiring those locks so queued stale calls fail.
+after acquiring those locks so queued stale calls fail. Read synchronization and
+contended controller retirement execute off the UI thread; generation, storage
+lease, and handle identity are rechecked before projection publication or lease
+handoff.
 
 On iOS, the create-only database key is a
 `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` Keychain item requiring user
@@ -141,7 +157,11 @@ capture, screenshot, background, and protected-data notifications trigger
 cleanup. The Rust buffer and Swift `[UInt8]` copies are explicitly wiped, but
 display and restore input pass through Swift `String` and UIKit-managed text.
 Clearing those controls is best effort: deterministic zeroization of managed
-or copied Swift/UIKit backing storage is not possible and is not claimed.
+or copied Swift/UIKit backing storage is not possible and is not claimed. Read
+synchronization runs off the main actor and stale completion is suppressed, but
+lifecycle close/destroy remains synchronous on the main actor. Product wiring
+must prove or implement nonblocking teardown while a native read owns the
+controller mutex before enabling read configuration on iOS.
 
 The website-provider sources remain containment projections. Website schema 1,
 private provider ABI 2, and public approval schema 3 are independent version

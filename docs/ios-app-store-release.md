@@ -12,27 +12,38 @@ The committed application identity is:
   rechecked through the public record on 2026-08-09
 - Published iOS build: `0.5.5` (`57`) at source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`
-- Configured release-preparation candidate: `0.5.8` (`58`), not uploaded
+- Configured release-preparation candidate: `0.5.9` (`59`), not uploaded
 - Device family: iPhone
 
-Candidate build `58` includes a native-only wallet screen for
-create/restore/open/status/unlock/lock and one non-value HNS account identity.
+Candidate build `59` includes a native-only wallet screen for
+create/restore/open/status/unlock/lock, one HNS account identity, and strict
+HNWR-v1 read-only fields for balance, receive target, history, tracked names,
+and module status.
 The underlying wallet tranche passed its dated complete Apple gate in Required
 CI run `31393998309` at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Final application source
-`f21bee1c3afccd06604dc99fccb51528e2441055`, using wallet `4e78bb2` and
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Historical `0.5.8` source
+`f21bee1c3afccd06604dc99fccb51528e2441055`, using the earlier wallet pin and
 `hns-rs` `b24b66c`, passed Required CI run `31402758394`; documentation-only
 descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`. Build `57` does not contain the controller. Wallet-aware hosted
+`31411048376`; those runs do not qualify `0.5.9`. Build `57` does not contain
+the controller. The current candidate pins wallet `2229be8`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
-back. The `0.5.8` description, What's New, and review notes are updated, while
+back for the historical lifecycle boundary. The repository's HNWR-aware policy
+still needs deployment/readback. The `0.5.9` description, What's New, and review
+notes are updated, while
 fresh exact-release-checkout screenshots, App Privacy/category answers,
 signing, processing, and submission remain release gates.
 
-Website-provider access, balances, receive/history/name reads, transfers,
-sending, settlement, exchange, HNSA/HNSR, and P2P marketplaces remain
-unavailable. The read controls require a synchronized mobile `HnsBackend` and
-wallet read-runtime composition that this app does not provide.
+The product installs no scoped loopback credential or indexed wallet backend, so
+the visible read fields remain fail-closed and unavailable. The live pruned
+`hsrd` is unsuitable because it lacks wallet indexing/authentication. A pruned
+indexed node can still return indexed confirmation/history, and an existing
+wallet may reuse authenticated retained raw bytes. Fresh restore additionally
+needs archive-capable raw bytes or another durable wallet-relevant raw-tx source.
+Name import is absent.
+Website-provider, send/value, settlement, exchange, HNSA/HNSR, and P2P-market
+gates remain false. Before enabling reads, iOS product wiring must also prove or
+implement nonblocking lifecycle teardown while a native read is in flight.
 
 ## One-time Apple setup
 
@@ -160,9 +171,9 @@ Apple approves it, add the supplied export-compliance code to the next build.
 
 ## Release gate after upload
 
-For `0.5.8`, every item in
+For `0.5.9`, every item in
 `store-assets/app-store/submission-checklist.md` remains a pre-submission gate.
-In particular, build `58` has not been signed, uploaded, processed, selected,
+In particular, build `59` has not been signed, uploaded, processed, selected,
 or submitted. The paragraphs below preserve the public `0.5.5` chronology.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review

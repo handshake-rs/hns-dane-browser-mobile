@@ -129,26 +129,33 @@
 - Source-complete first wallet slice: secure app-owned Android/iOS persistence,
   an in-process typed binding to the exact pinned `hns-wallet-mobile`
   controller, and native create, restore, open, unlock, lock, status,
-  one-time-recovery, and single non-value HNS account-identity controls.
+  one-time-recovery, and single HNS account-identity controls.
+- Source-complete read projection: both shells strictly decode bounded HNWR-v1
+  snapshots and expose balance, receive target, history, tracked-name, and module
+  rows. The actual product provisions no scoped credential/indexed backend, so
+  those rows remain fail-closed and unavailable. The live pruned node lacks
+  wallet index/auth; existing-wallet retained evidence remains distinct from the
+  durable raw-tx source needed for fresh restore. Name import is absent.
 - Completed first-slice feature qualification: the exact CI artifact passed a
   fresh Pixel 9 reinstall with create/confirm/unlock/lock/process-reopen,
-  owner-private storage, and network isolation. The `0.5.8` candidate
+  owner-private storage, and network isolation. Historical `0.5.8` source
   application source `f21bee1c3afccd06604dc99fccb51528e2441055` then passed
   exact Required CI run
   `31402758394`, including Android build/unit/native instrumentation,
   Rust/supply-chain, and the complete Apple ABI/XCFramework/app/simulator gate.
 - Completed release dependency sequence: mobile pins final wallet `0.1.0`
-  source `4e78bb2587bc448d3a65341c7628b2e62cae79cd`, which consumes final
+  source `2229be849557d58a8eb723bcc03349f0f2df9796`, which consumes final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
   lockfile, source policy, and notices are aligned.
 - Pending release qualification: signed artifacts, fresh commit-bound
   screenshots, privacy/category declaration readback, and store gates remain
-  for `0.5.8`. No currently published Play, GitHub, or App Store binary contains
-  the native controls.
+  for `0.5.9`. Candidate CI and nonblocking iOS read/lifecycle teardown
+  qualification also remain. No currently published Play, GitHub, or App Store
+  binary contains the native controls.
 - Pending named-service adoption: consume the current engine HNSA admission and
   HNSR requester lifecycle through exact engine-issued authority; no Kotlin or
   Swift authority projection may substitute for that context.
-- Website provider installation, synchronized balance/history reads,
-  approvals, names, sending, value movement, settlement, Shakedex/Denuo, and
-  P2P marketplace controls remain separate later milestones and stay disabled
-  until their runtime and installed-product gates pass.
+- Read-backend provisioning, name import, website provider installation,
+  approvals, sending/value movement, settlement, Shakedex/Denuo, and P2P
+  marketplace controls remain separate later milestones and stay disabled until
+  their runtime and installed-product gates pass.
