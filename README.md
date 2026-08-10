@@ -177,12 +177,16 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
   connectedDebugAndroidTest
 ```
 
-Cargo and platform builds fetch the complete engine `0.2.0` graph, including
-the facade's HNSA admission and HNSR protocol APIs, only from qualified source
-`2b23bd55d14d36fe60073606869d75b4796c54f7`. This dependency migration does not
-instantiate an HNSA selector, HNSR requester, socket adapter, provider role, or
-native control; every HNSA/HNSR product gate remains false. No sibling
-coordination checkout is required.
+Cargo and platform builds fetch the mobile browser adapters and five canonical
+contracts at `0.2.0` only from qualified source
+`2b23bd55d14d36fe60073606869d75b4796c54f7`. The umbrella
+`hns-dane-engine` facade is intentionally not in the mobile dependency graph:
+that source currently brings its public OpenSSL-backed DANE/DNSSEC stack into
+Android and Apple target closures. A mobile-safe upstream facade split or
+feature boundary is therefore a prerequisite for adopting its HNSA admission
+and HNSR requester APIs. No HNSA selector, HNSR requester, socket adapter,
+provider role, or native control exists here; every HNSA/HNSR product gate
+remains false. No sibling coordination checkout is required.
 
 The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 

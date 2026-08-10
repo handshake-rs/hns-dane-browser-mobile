@@ -17,6 +17,12 @@ for shared_crate in hns-mobile-platform-runtime; do
     exit 1
   fi
 
+  if grep -Eq '^(hns-dane-engine|hns-dane|hns-dnssec|hns-light-chain|hns-p2p-transport|openssl|openssl-sys) v[0-9]' <<<"$dependency_tree"; then
+    echo "ERROR: $shared_crate contains the host engine facade or its non-mobile OpenSSL closure." >&2
+    grep -E '^(hns-dane-engine|hns-dane|hns-dnssec|hns-light-chain|hns-p2p-transport|openssl|openssl-sys) v[0-9]' <<<"$dependency_tree" >&2
+    exit 1
+  fi
+
   if matches="$(grep -RInE \
     --include='Cargo.toml' \
     --include='*.rs' \

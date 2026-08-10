@@ -31,19 +31,16 @@ APPROVED_ENGINE_GIT = {
     for package in {
         "hns-dane",
         "hns-browser-dane",
-        "hns-dane-engine",
         "hns-dnssec",
         "hns-browser-dnssec",
         "hns-p2p",
         "hns-browser-p2p",
-        "hns-p2p-transport",
         "hns-resolver",
         "hns-browser-resolver",
         "hns-sync",
         "hns-browser-sync",
         "hns-chain",
         "hns-browser-chain",
-        "hns-light-chain",
         "hns-urkel",
         "hns-browser-urkel",
         "hns-core",
@@ -147,13 +144,10 @@ MIGRATED_LOCAL_CRATES = frozenset(
         "hns-chain",
         "hns-core",
         "hns-dane",
-        "hns-dane-engine",
         "hns-dnssec",
         "hns-gateway",
-        "hns-light-chain",
         "hns-loopback-proxy",
         "hns-p2p",
-        "hns-p2p-transport",
         "hns-resolver",
         "hns-sync",
         "hns-transport",
@@ -273,7 +267,7 @@ def validate_manifests(root: Path, manifests: list[Path]) -> None:
     if not isinstance(dependencies, Mapping):
         raise CargoSourcePolicyError(
             f"{ROOT_MANIFEST}: [workspace.dependencies] is missing"
-    )
+        )
     for package in sorted(ENGINE_PACKAGES):
         expected_requirement = ENGINE_REQUIREMENTS[package]
         specification = dependencies.get(package)

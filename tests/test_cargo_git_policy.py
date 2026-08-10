@@ -42,8 +42,9 @@ class CargoSourcePolicyTests(unittest.TestCase):
         )
         self.assertEqual(ENGINE_PACKAGES, frozenset(ENGINE_VERSIONS))
         self.assertTrue(
-            {"hns-dane-engine", "hns-light-chain", "hns-p2p-transport"}
-            <= APPROVED_ENGINE_GIT.keys()
+            {"hns-dane-engine", "hns-light-chain", "hns-p2p-transport"}.isdisjoint(
+                APPROVED_ENGINE_GIT
+            )
         )
 
     def create_fixture(self) -> tuple[tempfile.TemporaryDirectory[str], Path]:

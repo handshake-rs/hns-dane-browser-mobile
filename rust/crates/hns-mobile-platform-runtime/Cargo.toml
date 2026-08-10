@@ -11,7 +11,6 @@ hns-cache.workspace = true
 hns-chain.workspace = true
 hns-core.workspace = true
 hns-dane.workspace = true
-hns-dane-engine.workspace = true
 hns-dnssec.workspace = true
 hns-gateway.workspace = true
 hns-browser-observability.workspace = true
