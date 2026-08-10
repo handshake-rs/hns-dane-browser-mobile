@@ -3,7 +3,6 @@ resolver = "3"
 exclude = ["fuzz"]
 members = [
     "crates/android-ffi",
-    "crates/hns-chain",
     "crates/hns-dane",
     "crates/hns-dnssec",
     "crates/hns-gateway",
@@ -30,8 +29,8 @@ bytes = "1"
 hex = "0.4"
 getrandom = "0.3"
 hns-cache = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f" }
-hns-chain = { path = "crates/hns-chain" }
-hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b546ad07962326435dc67f89ff1b3756e66f2482" }
+hns-chain = { package = "hns-browser-chain", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87" }
+hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
@@ -49,7 +48,7 @@ hns-p2p = { path = "crates/hns-p2p" }
 hns-resolver = { path = "crates/hns-resolver" }
 hns-sync = { path = "crates/hns-sync" }
 hns-transport = { path = "crates/hns-transport" }
-hns-urkel = { package = "hns-browser-urkel", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b546ad07962326435dc67f89ff1b3756e66f2482" }
+hns-urkel = { package = "hns-browser-urkel", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87" }
 http = "1"
 httparse = "1.10"
 idna = "1.1"
