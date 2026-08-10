@@ -27,6 +27,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.SslErrorHandler
 import android.webkit.URLUtil
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -151,6 +152,10 @@ class MainActivity : ComponentActivity() {
     private var failedMainFrameUrl: String? = null
     private var activityStopped: Boolean = false
     private var observedHeaderResetGeneration: Long = 0L
+    private var pendingReadinessNavigation: PendingReadinessNavigation? = null
+    private var syncHeadersCurrent: Boolean = false
+    private var syncWaitMainFrameUrl: String? = null
+    private var syncWaitPageVisible: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -276,7 +281,7 @@ class MainActivity : ComponentActivity() {
         pageProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = PAGE_PROGRESS_MAX
             progress = 0
-            visibility = View.GONE
+            visibility = View.INVISIBLE
         }
         httpWarningBar = TextView(this).apply {
             text = getString(R.string.http_transport_warning)
@@ -432,9 +437,7 @@ class MainActivity : ComponentActivity() {
                 if (activityDestroyed) {
                     return@runOnUiThread
                 }
-                lastSyncSnapshot = snapshot
-                refreshSecurityState()
-                refreshSyncProgress()
+                applySyncSnapshot(snapshot)
             }
         }
         observeForegroundSync()
@@ -596,9 +599,7 @@ class MainActivity : ComponentActivity() {
                 if (!syncStatusPolling) {
                     return@runOnUiThread
                 }
-                lastSyncSnapshot = snapshot
-                refreshSecurityState()
-                refreshSyncProgress()
+                applySyncSnapshot(snapshot)
                 mainHandler.postDelayed(syncStatusPollRunnable, SYNC_STATUS_POLL_MS)
             }
         }
@@ -615,11 +616,29 @@ class MainActivity : ComponentActivity() {
                 if (syncSnapshotSubscription == null || activityDestroyed) {
                     return@post
                 }
-                lastSyncSnapshot = snapshot
-                refreshSecurityState()
-                refreshSyncProgress()
+                applySyncSnapshot(snapshot)
             }
         }
+    }
+
+    private fun applySyncSnapshot(snapshot: HnsSyncSnapshot) {
+        val wasCurrent = syncHeadersCurrent
+        lastSyncSnapshot = snapshot
+        syncHeadersCurrent = HnsSyncProgress.fromJson(snapshot.statusJson).isCurrent
+        refreshSecurityState()
+        refreshSyncProgress()
+        if (!wasCurrent && syncHeadersCurrent) {
+            retrySyncWaitPage()
+        }
+    }
+
+    private fun retrySyncWaitPage() {
+        if (!syncWaitPageVisible) return
+        val retryUrl = syncWaitMainFrameUrl ?: return
+        syncWaitPageVisible = false
+        syncWaitMainFrameUrl = null
+        val target = classifier.classify(retryUrl)
+        enqueueNavigation(target) { webView.loadUrl(target.url) }
     }
 
     private fun stopObservingForegroundSync() {
@@ -819,6 +838,8 @@ class MainActivity : ComponentActivity() {
         if (::syncGateNotice.isInitialized) {
             syncGateNotice.visibility = View.GONE
         }
+        syncWaitPageVisible = false
+        syncWaitMainFrameUrl = null
         webView.stopLoading()
         showOmniboxUrl(target.url)
         currentTargetKind = target.kind
@@ -963,6 +984,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSecurityState() {
+        if (syncWaitPageVisible) {
+            setSecurityState(
+                if (syncHeadersCurrent) {
+                    SecurityState.ValidationFailed
+                } else {
+                    SecurityState.ProofUnavailable
+                },
+            )
+            return
+        }
         val failedUrl = failedMainFrameUrl
         if (
             failedUrl != null &&
@@ -1074,6 +1105,8 @@ class MainActivity : ComponentActivity() {
             pageProgressBar.progress = pageLoadProgress.coerceIn(0, PAGE_PROGRESS_MAX)
         } else {
             pageProgressBar.progress = PAGE_PROGRESS_MAX
+            // INVISIBLE, not GONE: collapsing the bar relayouts and shifts the WebView,
+            // which reads as a flicker every time visibility toggles mid-session.
             pageProgressBar.visibility = View.INVISIBLE
         }
     }
@@ -1307,10 +1340,28 @@ class MainActivity : ComponentActivity() {
             }
             pageIsLoading = false
             pageLoadProgress = PAGE_PROGRESS_MAX
-            recordHistoryEntry(url, view.title)
+            if (!syncWaitPageVisible) {
+                recordHistoryEntry(url, view.title)
+            }
             refreshSecurityState()
             refreshPageProgress()
             refreshTransportWarning()
+        }
+
+        override fun onReceivedError(
+            view: WebView,
+            request: WebResourceRequest,
+            error: WebResourceError,
+        ) {
+            super.onReceivedError(view, request, error)
+            if (!request.isForMainFrame || pendingMainFrameUrl != null) return
+
+            val requestUrl = request.url.toString()
+            val admittedUrl = admittedMainFrameUrl ?: return
+            if (admittedUrl.mainFrameMatchKey() != requestUrl.mainFrameMatchKey()) return
+            if (classifier.classify(requestUrl).kind !in NATIVE_GATEWAY_TARGET_KINDS) return
+
+            showHnsLoadFailurePage(view, requestUrl)
         }
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
@@ -1332,6 +1383,8 @@ class MainActivity : ComponentActivity() {
 
     private inner class BrowserChromeClient : WebChromeClient() {
         override fun onProgressChanged(view: WebView, newProgress: Int) {
+            // WebView re-reports progress below 100 for lazy-loaded subresources long after
+            // the main-frame load finished; only main-frame navigation state may show the bar.
             if (!pageIsLoading) return
             pageLoadProgress = newProgress.coerceIn(0, PAGE_PROGRESS_MAX)
             refreshPageProgress()
@@ -1343,6 +1396,38 @@ class MainActivity : ComponentActivity() {
             Intent(this, HnsResolverTraceActivity::class.java)
                 .putExtra(HnsResolverTraceActivity.EXTRA_URL, omniboxFullUrl)
                 .putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, mainFrameHnsTraceJson),
+        )
+    }
+
+    private fun showHnsLoadFailurePage(view: WebView, failedUrl: String) {
+        if (syncWaitPageVisible && syncWaitMainFrameUrl?.mainFrameMatchKey() == failedUrl.mainFrameMatchKey()) {
+            return
+        }
+        syncWaitMainFrameUrl = failedUrl
+        syncWaitPageVisible = true
+        pageIsLoading = false
+        pageLoadProgress = PAGE_PROGRESS_MAX
+        clearMainFrameHnsStatus()
+        showOmniboxUrl(failedUrl)
+        refreshSecurityState()
+        refreshPageProgress()
+        val detail = if (syncHeadersCurrent) {
+            getString(R.string.hns_load_failed_body)
+        } else {
+            getString(R.string.hns_sync_wait_body)
+        }
+        view.loadDataWithBaseURL(
+            failedUrl,
+            HnsLoadFailurePage.render(
+                title = getString(R.string.hns_load_failed_title),
+                detail = detail,
+                displayHost = OmniboxDisplay.displayText(failedUrl),
+                retryLabel = getString(R.string.hns_retry),
+                retryUrl = failedUrl,
+            ),
+            "text/html",
+            "utf-8",
+            failedUrl,
         )
     }
 
