@@ -11,7 +11,7 @@ use hns_icann_dane::{
 };
 use hns_namespace_resolution::{
     ApplicationProtocol, CanonicalHost, Namespace, NamespaceDecision, OriginQuery, OriginScheme,
-    ProtocolCapabilities, ServiceTransport, TlsTrustPolicy,
+    ProtocolCapabilities, ServiceTransport, TlsTrustPolicy, decision_fingerprint,
 };
 use hns_resolver::{
     PreparedNamespaceResolution, ResolutionAnswer, ResolutionRequest, Resolver, ResolverError,
@@ -392,21 +392,24 @@ where
         supported_origin_protocols: &[OriginProtocol],
         prepared: PreparedNamespaceResolution,
     ) -> Result<(ResolutionAnswer, OriginRequest), GatewayError> {
-        validate_prepared_query(query, &prepared.decision)?;
+        let PreparedNamespaceResolution {
+            decision,
+            selected_answer,
+        } = prepared;
+        validate_prepared_query(query, &decision)?;
         if self.config.stateless_dane.enabled {
             // Certificate-carried stateless DANE evidence is not represented
             // by the canonical dual-root plan. Enabling the legacy mechanism
             // here would bypass the selected plan's exact TLSA authority.
-            return Err(ResolverError::InvalidNamespacePlan.into());
+            return Err(ResolverError::InvalidDnsResponse.into());
         }
-        let selected = prepared
-            .decision
+        let selected = decision
             .selected_namespace()
-            .ok_or(ResolverError::NamespaceNeither)?;
-        let plan = prepared
-            .decision
+            .ok_or(ResolverError::NamespaceUnavailable)?;
+        let plan = decision
             .selected_plan()
-            .ok_or(ResolverError::InvalidNamespacePlan)?;
+            .ok_or(ResolverError::NamespaceUnavailable)?;
+        let selected_answer = selected_answer.ok_or(ResolverError::NamespaceUnavailable)?;
         if plan.service().ech_config().is_some() {
             return Err(GatewayError::UnsupportedSvcb);
         }
@@ -417,6 +420,7 @@ where
         let endpoint = plan
             .endpoints()
             .iter()
+            .copied()
             .find(|endpoint| {
                 self.config.allow_non_public_origin_addresses || is_publicly_routable(endpoint.ip())
             })
@@ -428,19 +432,19 @@ where
         origin_request.connect_host = Some(endpoint.ip().to_string());
         origin_request.port = endpoint.port();
         origin_request.protocol = protocol;
-        origin_request.tls.namespace_fingerprint = Some(prepared.state_fingerprint);
+        origin_request.tls.namespace_fingerprint = Some(decision_fingerprint(&decision).to_hex());
         origin_request.tls.service_port = plan.service().effective_port().get();
         origin_request.tls.service_transport = tlsa_transport(plan.service().transport());
 
         match plan.tls_policy() {
             TlsTrustPolicy::Cleartext => {
                 if is_tls_origin_scheme(&origin_request.scheme) {
-                    return Err(ResolverError::InvalidNamespacePlan.into());
+                    return Err(ResolverError::InvalidDnsResponse.into());
                 }
             }
             TlsTrustPolicy::Dane => {
                 if !is_tls_origin_scheme(&origin_request.scheme) {
-                    return Err(ResolverError::InvalidNamespacePlan.into());
+                    return Err(ResolverError::InvalidDnsResponse.into());
                 }
                 let records = plan
                     .tlsa_records()
@@ -448,7 +452,7 @@ where
                     .map(|record| TlsaRecord::parse_rdata(record.rdata()))
                     .collect::<Result<Vec<_>, _>>()?;
                 let count =
-                    NonZeroUsize::new(records.len()).ok_or(ResolverError::InvalidNamespacePlan)?;
+                    NonZeroUsize::new(records.len()).ok_or(ResolverError::InvalidDnsResponse)?;
                 origin_request.tls.mode = domain_trust_mode_for_namespace(selected);
                 origin_request.tls.dnssec_secure = true;
                 origin_request.tls.tlsa_records = records;
@@ -460,7 +464,7 @@ where
             }
             TlsTrustPolicy::WebPkiAuthenticatedAbsence => {
                 if selected != Namespace::Icann || !is_tls_origin_scheme(&origin_request.scheme) {
-                    return Err(ResolverError::InvalidNamespacePlan.into());
+                    return Err(ResolverError::InvalidDnsResponse.into());
                 }
                 origin_request.tls.mode = DomainTrustMode::IcannWebPki;
                 origin_request.tls.dnssec_secure = true;
@@ -471,7 +475,7 @@ where
             }
             TlsTrustPolicy::WebPkiInsecureDelegation => {
                 if selected != Namespace::Icann || !is_tls_origin_scheme(&origin_request.scheme) {
-                    return Err(ResolverError::InvalidNamespacePlan.into());
+                    return Err(ResolverError::InvalidDnsResponse.into());
                 }
                 origin_request.tls.mode = DomainTrustMode::IcannWebPki;
                 origin_request.tls.dnssec_secure = false;
@@ -481,7 +485,7 @@ where
                     Some(BrowserTlsDecision::WebPkiInsecureDelegation);
             }
         }
-        Ok((prepared.resolution, origin_request))
+        Ok((selected_answer, origin_request))
     }
 
     fn validate_origin_address(&self, address: &str) -> Result<(), GatewayError> {
@@ -640,7 +644,7 @@ fn validate_prepared_query(
     decision: &NamespaceDecision,
 ) -> Result<(), GatewayError> {
     if decision.query() != query {
-        return Err(ResolverError::InvalidNamespacePlan.into());
+        return Err(ResolverError::InvalidDnsResponse.into());
     }
     Ok(())
 }
@@ -650,7 +654,7 @@ fn gateway_origin_query(
     supported_origin_protocols: &[OriginProtocol],
 ) -> Result<OriginQuery, GatewayError> {
     let host = CanonicalHost::parse(&normalize_host(&request.origin.host))
-        .map_err(|_| ResolverError::InvalidNamespacePlan)?;
+        .map_err(|_| ResolverError::InvalidDnsResponse)?;
     let scheme = match request.origin.scheme.to_ascii_lowercase().as_str() {
         "http" => OriginScheme::Http,
         "https" => OriginScheme::Https,
@@ -658,13 +662,13 @@ fn gateway_origin_query(
         "wss" => OriginScheme::Wss,
         _ => return Err(GatewayError::Transport(TransportError::UnsupportedScheme)),
     };
-    let port = NonZeroU16::new(request.origin.port).ok_or(ResolverError::InvalidNamespacePlan)?;
+    let port = NonZeroU16::new(request.origin.port).ok_or(ResolverError::InvalidDnsResponse)?;
     let capabilities = ProtocolCapabilities::new(
         supported_origin_protocols.contains(&OriginProtocol::Http11),
         supported_origin_protocols.contains(&OriginProtocol::Http2),
         supported_origin_protocols.contains(&OriginProtocol::Http3),
     )
-    .map_err(|_| ResolverError::InvalidNamespacePlan)?;
+    .map_err(|_| ResolverError::InvalidDnsResponse)?;
     Ok(OriginQuery::new(host, scheme, Some(port), capabilities))
 }
 
@@ -1105,10 +1109,12 @@ mod tests {
     #[test]
     fn prepared_namespace_plan_performs_zero_follow_up_dns_queries() {
         let resolve_calls = Arc::new(AtomicUsize::new(0));
+        let prepared = prepared_cleartext_resolution();
+        let expected_fingerprint = decision_fingerprint(&prepared.decision).to_hex();
         let gateway = Gateway::new(
             GatewayConfig::default(),
             PreparedOnlyResolver {
-                prepared: prepared_cleartext_resolution(),
+                prepared,
                 resolve_calls: Arc::clone(&resolve_calls),
             },
             CapturingTransport::default(),
@@ -1133,7 +1139,7 @@ mod tests {
         assert_eq!(captured.protocol, OriginProtocol::Http11);
         assert_eq!(
             captured.tls.namespace_fingerprint.as_deref(),
-            Some("11".repeat(32).as_str())
+            Some(expected_fingerprint.as_str())
         );
     }
 
@@ -1161,7 +1167,7 @@ mod tests {
 
         assert_eq!(
             gateway.handle(&request).unwrap_err(),
-            GatewayError::Resolver(ResolverError::InvalidNamespacePlan)
+            GatewayError::Resolver(ResolverError::InvalidDnsResponse)
         );
         assert_eq!(resolve_calls.load(Ordering::SeqCst), 0);
         assert!(gateway.transport().last_request.lock().unwrap().is_none());
@@ -3019,12 +3025,11 @@ mod tests {
         .unwrap();
         PreparedNamespaceResolution {
             decision,
-            state_fingerprint: "11".repeat(32),
-            resolution: ResolutionAnswer {
+            selected_answer: Some(ResolutionAnswer {
                 name: DnsName::from_ascii("name").unwrap(),
                 records: vec![address_record()],
                 secure: true,
-            },
+            }),
         }
     }
 

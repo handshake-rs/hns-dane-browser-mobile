@@ -54,7 +54,7 @@ use hns_loopback_proxy::{
 };
 use hns_namespace_resolution::{
     AbsenceKind, AliasKind, AliasStep, ApplicationProtocol, CanonicalHost, CanonicalTlsa,
-    ClassificationError, DecisionCacheKey, DefaultPrecedence, EvidenceProvenance, Freshness,
+    ClassificationError, DefaultPrecedence, EvidenceProvenance, Freshness,
     HnsNetwork, IcannChainState, Namespace, NamespaceDecision, OriginPlanInput, OriginQuery,
     OriginScheme, OutcomeKind, ProtocolCapabilities, RootFailure, RootFailureKind, RootLookup,
     SelectionPolicy, SelectionReason, ServiceBinding, ServiceBindingInput, ServiceParameter,
@@ -76,11 +76,28 @@ use hns_resolver::{
     AuthoritativeDnssecResolver, AuthoritativeDohEndpoint, AuthoritativeDohTlsAuthentication,
     DelegatedResolver, DelegatingResolver, DnsEndpointPolicy, DnsInterceptionStatus, DnsTransport,
     HnsDelegation, HnsProofProvider, HnsResourceValueProvider, NameClass,
-    NamespaceResolutionMetadata, NamespaceRootState, PreparedNamespaceResolution,
-    ProvenNameRecords, ResolutionAnswer, ResolutionRequest, Resolver, ResolverError,
+    PreparedNamespaceResolution, ProvenNameRecords, ResolutionAnswer, ResolutionRequest, Resolver,
+    ResolverError,
     ResourceValueAnchor, SqliteResourceValueProvider, SystemDnssecVerifier, UdpTcpDnsTransport,
     VerifiedResourceValue as ResolverVerifiedResourceValue, classify_name, hns_root_label,
 };
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct NamespaceResolutionMetadata {
+    outcome: Option<OutcomeKind>,
+    selected: Option<Namespace>,
+    selection_reason: Option<SelectionReason>,
+    hns_state: NamespaceRootState,
+    icann_state: NamespaceRootState,
+    fingerprint: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NamespaceRootState {
+    Present,
+    AuthenticatedAbsent,
+    Failed,
+}
 use hns_sync::{
     HeaderSyncCoordinator, HeaderSyncRunner, HeaderSyncRunnerConfig, ProofScheduler,
     TcpHeaderPeerConnector, VerifiedResourceValue as SyncVerifiedResourceValue,
@@ -6826,9 +6843,9 @@ fn namespace_origin_context(
     port: u16,
     policy_revision: u64,
 ) -> Result<NamespaceOriginContext, ResolverError> {
-    let host = CanonicalHost::parse(host).map_err(|_| ResolverError::InvalidNamespacePlan)?;
+    let host = CanonicalHost::parse(host).map_err(|_| ResolverError::InvalidDnsResponse)?;
     if !matches!(scheme, "http" | "https" | "ws" | "wss") || port == 0 {
-        return Err(ResolverError::InvalidNamespacePlan);
+        return Err(ResolverError::InvalidDnsResponse);
     }
     let network_id = match network {
         NetworkKind::Mainnet => 0,
@@ -7000,32 +7017,6 @@ fn namespace_policy_revision(origin: &NamespaceOriginContext) -> u64 {
     origin.key.policy_revision.rotate_left(17) ^ origin.key.binding_revision
 }
 
-fn namespace_decision_cache_key(
-    decision: &NamespaceDecision,
-    origin: &NamespaceOriginContext,
-    hns_observation: Option<HnsProofObservation>,
-) -> DecisionCacheKey {
-    let mut configuration = Sha256::new();
-    configuration.update(b"hns-mobile-dual-root-resolver-v1");
-    configuration.update(origin.key.profile.to_string_lossy().as_bytes());
-    configuration.update([origin.key.network]);
-    configuration.update(ICANN_DOH_HOST.as_bytes());
-    configuration.update(ICANN_DOH_PATH.as_bytes());
-    for address in ICANN_DOH_BOOTSTRAP_ADDRESSES {
-        configuration.update(address.to_string().as_bytes());
-    }
-    let resolver_configuration: [u8; 32] = configuration.finalize().into();
-
-    let trust_anchor_generation = hns_observation.map_or(0, |observation| {
-        let mut anchor = Sha256::new();
-        anchor.update(observation.anchor.tree_root.as_bytes());
-        anchor.update(observation.anchor.height.0.to_be_bytes());
-        let digest: [u8; 32] = anchor.finalize().into();
-        u64::from_be_bytes(digest[..8].try_into().unwrap_or([0; 8]))
-    });
-    DecisionCacheKey::new(decision, resolver_configuration, trust_anchor_generation)
-}
-
 fn record_successful_namespace_selection(
     origin: &NamespaceOriginContext,
     plans: &SharedNamespacePlans,
@@ -7045,7 +7036,7 @@ fn record_selected_namespace(
     plans: &SharedNamespacePlans,
     selected: Option<Namespace>,
 ) -> Result<(), ResolverError> {
-    let selected = selected.ok_or(ResolverError::InvalidNamespacePlan)?;
+    let selected = selected.ok_or(ResolverError::NamespaceUnavailable)?;
     if !persist_successful_namespace_binding(origin, selected)? {
         return Ok(());
     }
@@ -7079,6 +7070,7 @@ struct CachedNamespacePlan {
     decision: Option<NamespaceDecision>,
     hns_root_failure: Option<RootFailure>,
     icann_root_failure: Option<RootFailure>,
+    classification_error: Option<ClassificationError>,
     state_fingerprint: Option<String>,
     selected_answers: HashMap<ResolutionRequest, ResolutionAnswer>,
     hns_observation: Option<HnsProofObservation>,
@@ -7205,7 +7197,7 @@ impl AndroidGatewayResolver {
             || scheme != self.origin.key.scheme
             || query.origin_port().get() != self.origin.key.port
         {
-            return Err(ResolverError::InvalidNamespacePlan);
+            return Err(ResolverError::InvalidDnsResponse);
         }
         let mut origin = self.origin.clone();
         origin.key.supported_protocols = query.supported_protocols();
@@ -7216,9 +7208,13 @@ impl AndroidGatewayResolver {
 fn namespace_plan_result(plan: CachedNamespacePlan) -> Result<CachedNamespacePlan, ResolverError> {
     match plan.terminal {
         None => Ok(plan),
-        Some(NamespacePlanTerminal::Neither) => Err(ResolverError::NamespaceNeither),
-        Some(NamespacePlanTerminal::Indeterminate) => Err(ResolverError::NamespaceIndeterminate),
-        Some(NamespacePlanTerminal::Invalid) => Err(ResolverError::InvalidNamespacePlan),
+        Some(NamespacePlanTerminal::Neither) => Err(ResolverError::NamespaceUnavailable),
+        Some(NamespacePlanTerminal::Indeterminate) => Err(plan
+            .classification_error
+            .clone()
+            .map(ResolverError::NamespaceClassification)
+            .unwrap_or(ResolverError::InvalidDnsResponse)),
+        Some(NamespacePlanTerminal::Invalid) => Err(ResolverError::InvalidDnsResponse),
     }
 }
 
@@ -7304,11 +7300,7 @@ fn build_namespace_plan(
                 selection_reason: outcome.selection_reason(),
                 hns_state,
                 icann_state,
-                fingerprint: selected.map(|_| {
-                    namespace_decision_cache_key(&outcome, origin, hns_observation)
-                        .fingerprint()
-                        .to_hex()
-                }),
+                fingerprint: selected.map(|_| decision_fingerprint(&outcome).to_hex()),
             };
             let selected_answers = match selected {
                 Some(Namespace::Hns) => hns_build.answers,
@@ -7335,6 +7327,7 @@ fn build_namespace_plan(
                 decision: Some(outcome),
                 hns_root_failure: None,
                 icann_root_failure: None,
+                classification_error: None,
                 state_fingerprint,
                 selected_answers,
                 hns_observation,
@@ -7343,18 +7336,18 @@ fn build_namespace_plan(
             }
         }
         Err(error) => {
-            let (hns_root_failure, icann_root_failure) = match error {
+            let (hns_root_failure, icann_root_failure) = match &error {
                 ClassificationError::RootFailed { hns, icann } => {
                     (hns.failure().cloned(), icann.failure().cloned())
                 }
                 ClassificationError::StaleEvidence { namespace } => {
                     let failure = RootFailure::new(
-                        namespace,
+                        *namespace,
                         query.clone(),
                         RootFailureKind::StaleEvidence,
                         None,
                     );
-                    match namespace {
+                    match *namespace {
                         Namespace::Hns => (Some(failure), None),
                         Namespace::Icann => (None, Some(failure)),
                     }
@@ -7377,6 +7370,7 @@ fn build_namespace_plan(
                 decision: None,
                 hns_root_failure,
                 icann_root_failure,
+                classification_error: Some(error),
                 state_fingerprint: None,
                 selected_answers: HashMap::new(),
                 hns_observation,
@@ -7400,6 +7394,7 @@ fn invalid_cached_namespace_plan(now: u64) -> CachedNamespacePlan {
         decision: None,
         hns_root_failure: None,
         icann_root_failure: None,
+        classification_error: None,
         state_fingerprint: None,
         selected_answers: HashMap::new(),
         hns_observation: None,
@@ -8979,7 +8974,7 @@ impl DnsTransport for AndroidAuthoritativeDnsTransport {
         status
     }
 
-    fn cached_dns_interception_status(&self) -> DnsInterceptionStatus {
+    fn dns_interception_status(&self) -> DnsInterceptionStatus {
         self.interception_probe
             .lock()
             .ok()
@@ -9671,7 +9666,7 @@ impl Resolver for AndroidGatewayResolver {
         // This adapter is an origin-plan resolver, not a general recursive
         // resolver. The gateway must consume the prepared selected plan and
         // cannot issue follow-up DNS after that boundary.
-        Err(ResolverError::InvalidNamespacePlan)
+        Err(ResolverError::InvalidDnsResponse)
     }
 
     fn prepare_namespace_resolution(
@@ -9685,10 +9680,10 @@ impl Resolver for AndroidGatewayResolver {
         let decision = plan
             .decision
             .clone()
-            .ok_or(ResolverError::InvalidNamespacePlan)?;
+            .ok_or(ResolverError::InvalidDnsResponse)?;
         let selected_plan = decision
             .selected_plan()
-            .ok_or(ResolverError::NamespaceNeither)?;
+            .ok_or(ResolverError::NamespaceUnavailable)?;
         let mut requests = plan.selected_answers.keys().collect::<Vec<_>>();
         requests.sort_by(|left, right| {
             left.qname
@@ -9715,26 +9710,15 @@ impl Resolver for AndroidGatewayResolver {
             } => false,
         };
         let name = DnsName::from_ascii(selected_plan.origin_host().as_str())
-            .map_err(|_| ResolverError::InvalidNamespacePlan)?;
+            .map_err(|_| ResolverError::InvalidDnsResponse)?;
         Ok(Some(PreparedNamespaceResolution {
             decision,
-            state_fingerprint: plan
-                .state_fingerprint
-                .ok_or(ResolverError::InvalidNamespacePlan)?,
-            resolution: ResolutionAnswer {
+            selected_answer: Some(ResolutionAnswer {
                 name,
                 records,
                 secure,
-            },
+            }),
         }))
-    }
-
-    fn namespace_resolution(&self, host: &str) -> Option<NamespaceResolutionMetadata> {
-        let normalized = NormalizedHost::parse(host).ok()?.to_string();
-        if normalized != self.origin.key.host {
-            return None;
-        }
-        self.trace.namespace_snapshot()
     }
 }
 
@@ -13022,14 +13006,14 @@ fn tlsa_blocked_by(error: Option<&GatewayError>) -> Option<&'static str> {
         Some(GatewayError::Resolver(ResolverError::UnsupportedBackend)) => {
             Some("resolver_backend_unsupported")
         }
-        Some(GatewayError::Resolver(ResolverError::NamespaceIndeterminate)) => {
+        Some(GatewayError::Resolver(ResolverError::NamespaceClassification(_))) => {
             Some("dual_root_namespace_indeterminate")
         }
-        Some(GatewayError::Resolver(ResolverError::NamespaceNeither)) => {
-            Some("dual_root_namespace_absent")
-        }
-        Some(GatewayError::Resolver(ResolverError::InvalidNamespacePlan)) => {
+        Some(GatewayError::Resolver(ResolverError::NamespaceValidation(_))) => {
             Some("dual_root_namespace_plan_invalid")
+        }
+        Some(GatewayError::Resolver(ResolverError::NamespaceUnavailable)) => {
+            Some("dual_root_namespace_absent")
         }
         Some(GatewayError::Resolver(ResolverError::CachePoisoned))
         | Some(GatewayError::Resolver(ResolverError::Storage(_))) => {
@@ -13906,17 +13890,17 @@ fn map_gateway_error(error: &GatewayError) -> (u16, &'static str, &'static str) 
             "HNS Name Not Found",
             "A verified HNS non-inclusion proof says this name does not exist.",
         ),
-        GatewayError::Resolver(ResolverError::NamespaceNeither) => (
+        GatewayError::Resolver(ResolverError::NamespaceUnavailable) => (
             404,
             "Name Not Found",
             "The complete hostname is authentically absent from both HNS and ICANN.",
         ),
-        GatewayError::Resolver(ResolverError::NamespaceIndeterminate) => (
+        GatewayError::Resolver(ResolverError::NamespaceClassification(_)) => (
             503,
             "Namespace Resolution Indeterminate",
             "At least one namespace did not produce authenticated presence or absence.",
         ),
-        GatewayError::Resolver(ResolverError::InvalidNamespacePlan) => (
+        GatewayError::Resolver(ResolverError::NamespaceValidation(_)) => (
             502,
             "Invalid Namespace Plan",
             "The selected namespace produced an internally inconsistent origin plan.",
@@ -17833,6 +17817,7 @@ mod tests {
                 decision: Some(decision.clone()),
                 hns_root_failure: None,
                 icann_root_failure: None,
+                classification_error: None,
                 state_fingerprint: Some(state_fingerprint.clone()),
                 selected_answers: HashMap::new(),
                 hns_observation: None,
@@ -17954,6 +17939,9 @@ mod tests {
                         .map(|kind| RootFailure::new(Namespace::Hns, query.clone(), kind, None)),
                     icann_root_failure: icann_failure
                         .map(|kind| RootFailure::new(Namespace::Icann, query.clone(), kind, None)),
+                    classification_error: Some(
+                        ClassificationError::DivergenceRequiresSelection,
+                    ),
                     state_fingerprint: None,
                     selected_answers: HashMap::new(),
                     hns_observation: None,
@@ -17970,7 +17958,9 @@ mod tests {
                     dns_trace: &dns_trace,
                     authority_binding: binding,
                 },
-                &GatewayError::Resolver(ResolverError::NamespaceIndeterminate),
+                &GatewayError::Resolver(ResolverError::NamespaceClassification(
+                    ClassificationError::DivergenceRequiresSelection,
+                )),
                 stamp,
             )
         };
@@ -18084,6 +18074,7 @@ mod tests {
                 kind,
                 None,
             )),
+            classification_error: Some(ClassificationError::DivergenceRequiresSelection),
             state_fingerprint: None,
             selected_answers: HashMap::new(),
             hns_observation: None,
@@ -18121,7 +18112,9 @@ mod tests {
                     dns_trace: &dns_trace,
                     authority_binding: binding,
                 },
-                &GatewayError::Resolver(ResolverError::NamespaceIndeterminate),
+                &GatewayError::Resolver(ResolverError::NamespaceClassification(
+                    ClassificationError::DivergenceRequiresSelection,
+                )),
                 stamp,
             )
         else {
@@ -18202,6 +18195,7 @@ mod tests {
                 decision: Some(decision.clone()),
                 hns_root_failure: None,
                 icann_root_failure: None,
+                classification_error: None,
                 state_fingerprint: metadata.fingerprint.clone(),
                 selected_answers: HashMap::new(),
                 hns_observation: None,
@@ -18347,6 +18341,7 @@ mod tests {
                 decision: Some(decision),
                 hns_root_failure: None,
                 icann_root_failure: None,
+                classification_error: None,
                 state_fingerprint: metadata.fingerprint.clone(),
                 selected_answers: HashMap::new(),
                 hns_observation: None,
