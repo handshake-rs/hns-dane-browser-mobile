@@ -5,6 +5,7 @@
 _Static_assert(HNS_BROWSER_ABI_VERSION == 1u, "unexpected ABI version");
 _Static_assert(sizeof(HnsBrowserRuntimeHandle) == sizeof(uint64_t), "runtime handle width");
 _Static_assert(sizeof(HnsBrowserProxyHandle) == sizeof(uint64_t), "proxy handle width");
+_Static_assert(sizeof(HnsBrowserWalletHandle) == sizeof(uint64_t), "wallet handle width");
 _Static_assert(offsetof(HnsBrowserBuffer, allocation_id) > offsetof(HnsBrowserBuffer, len),
                "buffer field order");
 
@@ -19,12 +20,44 @@ static void typecheck_api(void) {
         hns_browser_canonical_host;
     HnsBrowserResult (*proxy_stop)(HnsBrowserProxyHandle) =
         hns_browser_proxy_request_stop;
+    HnsBrowserResult (*wallet_create)(HnsBrowserSlice, HnsBrowserSlice,
+                                      HnsBrowserNetwork, uint64_t,
+                                      HnsBrowserWalletHandle *) =
+        hns_browser_wallet_create;
+    HnsBrowserResult (*wallet_restore)(HnsBrowserSlice, HnsBrowserSlice,
+                                       HnsBrowserNetwork, uint64_t,
+                                       HnsBrowserSlice,
+                                       HnsBrowserWalletHandle *) =
+        hns_browser_wallet_restore;
+    HnsBrowserResult (*wallet_open)(HnsBrowserSlice, HnsBrowserSlice,
+                                    HnsBrowserWalletHandle *) =
+        hns_browser_wallet_open;
+    HnsBrowserResult (*wallet_status)(HnsBrowserWalletHandle, HnsBrowserBuffer *) =
+        hns_browser_wallet_status;
+    HnsBrowserResult (*wallet_accounts)(HnsBrowserWalletHandle, HnsBrowserBuffer *) =
+        hns_browser_wallet_accounts;
+    HnsBrowserResult (*wallet_unlock)(HnsBrowserWalletHandle, HnsBrowserSlice) =
+        hns_browser_wallet_unlock;
+    HnsBrowserResult (*wallet_lock)(HnsBrowserWalletHandle) = hns_browser_wallet_lock;
+    HnsBrowserResult (*wallet_recovery)(HnsBrowserWalletHandle, HnsBrowserBuffer *) =
+        hns_browser_wallet_take_recovery_phrase;
+    HnsBrowserResult (*wallet_destroy)(HnsBrowserWalletHandle) =
+        hns_browser_wallet_destroy;
 
     (void)abi_version;
     (void)runtime_create;
     (void)proxy_start;
     (void)canonical_host;
     (void)proxy_stop;
+    (void)wallet_create;
+    (void)wallet_restore;
+    (void)wallet_open;
+    (void)wallet_status;
+    (void)wallet_accounts;
+    (void)wallet_unlock;
+    (void)wallet_lock;
+    (void)wallet_recovery;
+    (void)wallet_destroy;
 }
 
 int main(void) {

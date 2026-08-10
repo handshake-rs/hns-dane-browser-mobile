@@ -6,15 +6,19 @@
 )]
 
 use hns_mobile_platform_runtime::*;
+use hns_wallet_mobile::{
+    HnsBootstrapPolicy, HnsNetwork, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MobileDatabaseKey,
+    MobilePlatform, MobileRecoveryPhrase, MobileWalletController,
+};
 use jni::JNIEnv;
-use jni::objects::{JByteArray, JClass, JString};
-use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
-use std::collections::HashMap;
+use jni::objects::{JByteArray, JCharArray, JClass, JString};
+use jni::sys::{jboolean, jbyteArray, jcharArray, jint, jlong, jstring};
+use std::collections::{HashMap, HashSet};
 use std::os::fd::{FromRawFd, RawFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
 const MAX_LOCAL_CERTIFICATE_DER_BYTES: usize = 64 * 1024;
@@ -33,6 +37,18 @@ const MAX_PROXY_STATUS_RETAINED_TRACE_BYTES: usize = 64 * 1024;
 const MAX_ANDROID_PROXY_HANDLES: usize = 8;
 static NEXT_PROXY_HANDLE: AtomicU64 = AtomicU64::new(1);
 static PROXY_HANDLES: OnceLock<Mutex<HashMap<jlong, Arc<AndroidProxyRecord>>>> = OnceLock::new();
+const MAX_ANDROID_WALLET_HANDLES: usize = 4;
+const MAX_ANDROID_WALLET_PATH_BYTES: usize = 4_096;
+const ANDROID_WALLET_NETWORK_MAINNET: jint = 1;
+const ANDROID_WALLET_NETWORK_TESTNET: jint = 2;
+const ANDROID_WALLET_NETWORK_REGTEST: jint = 3;
+const WALLET_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNWS";
+const WALLET_STATUS_BUNDLE_VERSION: u8 = 1;
+const WALLET_STATUS_BUNDLE_BYTES: usize = 24;
+const WALLET_ACCOUNT_BUNDLE_MAGIC: &[u8; 4] = b"HNWA";
+const WALLET_ACCOUNT_BUNDLE_VERSION: u8 = 1;
+const MAX_WALLET_ACCOUNT_LABEL_BYTES: usize = 128;
+static WALLET_HANDLES: OnceLock<BoundedMonotonicRegistry<AndroidWalletRecord>> = OnceLock::new();
 const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
 static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
     StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
@@ -79,6 +95,315 @@ struct AndroidRuntimeRecord {
 struct AndroidProxyRecord {
     proxy: BrowserProxy,
     statuses: Arc<AndroidProxyStatusMailbox>,
+}
+
+struct SensitiveUtf16(Vec<u16>);
+
+impl SensitiveUtf16 {
+    fn from_recovery_phrase(mut phrase: String) -> Option<Self> {
+        if phrase.is_empty() || phrase.len() > MAX_MOBILE_RECOVERY_PHRASE_BYTES {
+            wipe_string(&mut phrase);
+            return None;
+        }
+        let encoded = phrase.encode_utf16().collect::<Vec<_>>();
+        wipe_string(&mut phrase);
+        (!encoded.is_empty() && encoded.len() <= MAX_MOBILE_RECOVERY_PHRASE_BYTES)
+            .then_some(Self(encoded))
+    }
+
+    fn as_slice(&self) -> &[u16] {
+        self.0.as_slice()
+    }
+}
+
+impl Drop for SensitiveUtf16 {
+    fn drop(&mut self) {
+        self.0.fill(0);
+    }
+}
+
+fn lock_if_active<'a, T>(active: &AtomicBool, value: &'a Mutex<T>) -> Option<MutexGuard<'a, T>> {
+    let guard = value.lock().ok()?;
+    active.load(Ordering::Acquire).then_some(guard)
+}
+
+struct AndroidWalletRecord {
+    active: AtomicBool,
+    controller: Arc<Mutex<MobileWalletController>>,
+    pending_recovery: Mutex<Option<SensitiveUtf16>>,
+}
+
+impl AndroidWalletRecord {
+    fn new(controller: MobileWalletController, recovery: Option<SensitiveUtf16>) -> Self {
+        Self {
+            active: AtomicBool::new(true),
+            controller: Arc::new(Mutex::new(controller)),
+            pending_recovery: Mutex::new(recovery),
+        }
+    }
+
+    fn controller_if_active(&self) -> Option<MutexGuard<'_, MobileWalletController>> {
+        lock_if_active(&self.active, self.controller.as_ref())
+    }
+
+    fn pending_recovery_if_active(&self) -> Option<MutexGuard<'_, Option<SensitiveUtf16>>> {
+        lock_if_active(&self.active, &self.pending_recovery)
+    }
+
+    fn deactivate(&self) {
+        self.active.store(false, Ordering::Release);
+    }
+}
+
+struct RegistryState<T> {
+    records: HashMap<jlong, Arc<T>>,
+    reservations: HashSet<jlong>,
+}
+
+struct BoundedMonotonicRegistry<T> {
+    next: AtomicU64,
+    limit: usize,
+    state: Mutex<RegistryState<T>>,
+}
+
+impl<T> BoundedMonotonicRegistry<T> {
+    fn new(limit: usize) -> Self {
+        Self {
+            next: AtomicU64::new(1),
+            limit,
+            state: Mutex::new(RegistryState {
+                records: HashMap::new(),
+                reservations: HashSet::new(),
+            }),
+        }
+    }
+
+    fn reserve(&self) -> Option<jlong> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if state.records.len().saturating_add(state.reservations.len()) >= self.limit {
+            return None;
+        }
+        let handle = self
+            .next
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                (current <= i64::MAX as u64).then_some(current.saturating_add(1))
+            })
+            .ok()
+            .and_then(|value| jlong::try_from(value).ok())
+            .filter(|value| *value > 0)?;
+        if !state.reservations.insert(handle) {
+            return None;
+        }
+        Some(handle)
+    }
+
+    fn finish(&self, handle: jlong, record: Arc<T>) -> bool {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !state.reservations.remove(&handle) || state.records.len() >= self.limit {
+            return false;
+        }
+        match state.records.entry(handle) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(record);
+                true
+            }
+            std::collections::hash_map::Entry::Occupied(_) => false,
+        }
+    }
+
+    fn cancel(&self, handle: jlong) {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .reservations
+            .remove(&handle);
+    }
+
+    fn get(&self, handle: jlong) -> Option<Arc<T>> {
+        if handle <= 0 {
+            return None;
+        }
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .records
+            .get(&handle)
+            .cloned()
+    }
+
+    fn remove(&self, handle: jlong) -> Option<Arc<T>> {
+        if handle <= 0 {
+            return None;
+        }
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .records
+            .remove(&handle)
+    }
+}
+
+struct WalletHandleReservation {
+    handle: jlong,
+    active: bool,
+}
+
+impl WalletHandleReservation {
+    fn new() -> Option<Self> {
+        wallet_registry().reserve().map(|handle| Self {
+            handle,
+            active: true,
+        })
+    }
+
+    fn finish(mut self, record: AndroidWalletRecord) -> Option<jlong> {
+        let registered = wallet_registry().finish(self.handle, Arc::new(record));
+        self.active = false;
+        registered.then_some(self.handle)
+    }
+}
+
+impl Drop for WalletHandleReservation {
+    fn drop(&mut self) {
+        if self.active {
+            wallet_registry().cancel(self.handle);
+        }
+    }
+}
+
+fn wallet_registry() -> &'static BoundedMonotonicRegistry<AndroidWalletRecord> {
+    WALLET_HANDLES.get_or_init(|| BoundedMonotonicRegistry::new(MAX_ANDROID_WALLET_HANDLES))
+}
+
+fn wallet_from_handle(handle: jlong) -> Option<Arc<AndroidWalletRecord>> {
+    wallet_registry().get(handle)
+}
+
+fn wipe_string(value: &mut String) {
+    // SAFETY: every byte is replaced by NUL, which is valid UTF-8, before the
+    // String is cleared. Capacity is retained until drop and contains no phrase.
+    unsafe { value.as_mut_vec().fill(0) };
+    value.clear();
+}
+
+fn android_wallet_network(code: jint) -> Option<HnsNetwork> {
+    match code {
+        ANDROID_WALLET_NETWORK_MAINNET => Some(HnsNetwork::Mainnet),
+        ANDROID_WALLET_NETWORK_TESTNET => Some(HnsNetwork::Testnet),
+        ANDROID_WALLET_NETWORK_REGTEST => Some(HnsNetwork::Regtest),
+        _ => None,
+    }
+}
+
+fn android_wallet_path(env: &mut JNIEnv<'_>, path: &JString<'_>) -> Option<PathBuf> {
+    let path = env.get_string(path).ok()?.to_string_lossy().into_owned();
+    if path.is_empty() || path.len() > MAX_ANDROID_WALLET_PATH_BYTES {
+        return None;
+    }
+    let path = PathBuf::from(path);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return None;
+    }
+    Some(path)
+}
+
+fn android_wallet_database_key(
+    env: &mut JNIEnv<'_>,
+    input: &JByteArray<'_>,
+) -> Option<MobileDatabaseKey> {
+    if env.get_array_length(input).ok()? != 32 {
+        return None;
+    }
+    let mut bytes = env.convert_byte_array(input).ok()?;
+    let key = MobileDatabaseKey::from_slice(bytes.as_slice()).ok();
+    bytes.fill(0);
+    key
+}
+
+fn android_wallet_recovery_phrase(
+    env: &mut JNIEnv<'_>,
+    input: &JCharArray<'_>,
+) -> Option<MobileRecoveryPhrase> {
+    let length = usize::try_from(env.get_array_length(input).ok()?).ok()?;
+    if length == 0 || length > MAX_MOBILE_RECOVERY_PHRASE_BYTES {
+        return None;
+    }
+    let mut characters = vec![0_u16; length];
+    if env
+        .get_char_array_region(input, 0, characters.as_mut_slice())
+        .is_err()
+    {
+        characters.fill(0);
+        return None;
+    }
+    let phrase = String::from_utf16(characters.as_slice()).ok();
+    characters.fill(0);
+    let mut phrase = phrase?;
+    if phrase.is_empty() || phrase.len() > MAX_MOBILE_RECOVERY_PHRASE_BYTES {
+        wipe_string(&mut phrase);
+        return None;
+    }
+    MobileRecoveryPhrase::new(phrase).ok()
+}
+
+fn wallet_status_bundle(
+    locked: bool,
+    active_wallet: Option<&[u8; 16]>,
+    enabled_modules_are_empty: bool,
+    mainnet_settlement_enabled: bool,
+) -> Option<Vec<u8>> {
+    if !enabled_modules_are_empty || mainnet_settlement_enabled || locked == active_wallet.is_some()
+    {
+        return None;
+    }
+    let mut bundle = Vec::with_capacity(WALLET_STATUS_BUNDLE_BYTES);
+    bundle.extend_from_slice(WALLET_STATUS_BUNDLE_MAGIC);
+    bundle.push(WALLET_STATUS_BUNDLE_VERSION);
+    let mut flags = u8::from(locked);
+    if active_wallet.is_some() {
+        flags |= 1 << 1;
+    }
+    bundle.push(flags);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(active_wallet.copied().unwrap_or([0; 16]).as_slice());
+    (bundle.len() == WALLET_STATUS_BUNDLE_BYTES).then_some(bundle)
+}
+
+fn wallet_account_bundle(
+    account_id: &[u8; 16],
+    module_name: &str,
+    label: &str,
+    has_receive_display: bool,
+) -> Option<Vec<u8>> {
+    if module_name != "Handshake" || has_receive_display {
+        return None;
+    }
+    let label = label.as_bytes();
+    if label.is_empty() || label.len() > MAX_WALLET_ACCOUNT_LABEL_BYTES {
+        return None;
+    }
+    let label_length = u16::try_from(label.len()).ok()?;
+    let mut bundle = Vec::with_capacity(28 + label.len());
+    bundle.extend_from_slice(WALLET_ACCOUNT_BUNDLE_MAGIC);
+    bundle.push(WALLET_ACCOUNT_BUNDLE_VERSION);
+    bundle.push(1);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(account_id);
+    bundle.push(1);
+    bundle.push(0);
+    bundle.extend_from_slice(&label_length.to_be_bytes());
+    bundle.extend_from_slice(label);
+    Some(bundle)
 }
 
 struct AndroidRequestMetricsObserver;
@@ -1410,6 +1735,321 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeProxyMat
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeCreate(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    database_path: JString<'_>,
+    database_key: JByteArray<'_>,
+    network: jint,
+    birthday_height: jlong,
+) -> jlong {
+    let Some(reservation) = WalletHandleReservation::new() else {
+        android_log_error("wallet create failed: native wallet handle limit reached");
+        return 0;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        let Some(path) = android_wallet_path(&mut env, &database_path) else {
+            android_log_error("wallet create failed: invalid database path");
+            return 0;
+        };
+        let Some(key) = android_wallet_database_key(&mut env, &database_key) else {
+            android_log_error("wallet create failed: invalid database key");
+            return 0;
+        };
+        let Some(network) = android_wallet_network(network) else {
+            android_log_error("wallet create failed: invalid network");
+            return 0;
+        };
+        let Ok(birthday_height) = u64::try_from(birthday_height) else {
+            android_log_error("wallet create failed: invalid birthday height");
+            return 0;
+        };
+        let creation = match MobileWalletController::create(
+            path,
+            &key,
+            MobilePlatform::Android,
+            HnsBootstrapPolicy::new(network, birthday_height),
+        ) {
+            Ok(creation) => creation,
+            Err(error) => {
+                android_log_error(&format!("wallet create failed: {error}"));
+                return 0;
+            }
+        };
+        let (controller, recovery) = creation.into_parts();
+        let recovery = recovery.expose_for_dedicated_display();
+        let Some(recovery) = SensitiveUtf16::from_recovery_phrase(recovery) else {
+            android_log_error("wallet create failed: invalid generated recovery display");
+            return 0;
+        };
+        reservation
+            .finish(AndroidWalletRecord::new(controller, Some(recovery)))
+            .unwrap_or_else(|| {
+                android_log_error("wallet create failed: native wallet registration failed");
+                0
+            })
+    })) {
+        Ok(handle) => handle,
+        Err(payload) => {
+            log_panic_payload("native wallet create", payload.as_ref());
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRestore(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    database_path: JString<'_>,
+    database_key: JByteArray<'_>,
+    network: jint,
+    birthday_height: jlong,
+    recovery_phrase: JCharArray<'_>,
+) -> jlong {
+    let Some(reservation) = WalletHandleReservation::new() else {
+        android_log_error("wallet restore failed: native wallet handle limit reached");
+        return 0;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        let Some(path) = android_wallet_path(&mut env, &database_path) else {
+            android_log_error("wallet restore failed: invalid database path");
+            return 0;
+        };
+        let Some(key) = android_wallet_database_key(&mut env, &database_key) else {
+            android_log_error("wallet restore failed: invalid database key");
+            return 0;
+        };
+        let Some(network) = android_wallet_network(network) else {
+            android_log_error("wallet restore failed: invalid network");
+            return 0;
+        };
+        let Ok(birthday_height) = u64::try_from(birthday_height) else {
+            android_log_error("wallet restore failed: invalid birthday height");
+            return 0;
+        };
+        let Some(recovery_phrase) = android_wallet_recovery_phrase(&mut env, &recovery_phrase)
+        else {
+            android_log_error("wallet restore failed: invalid recovery phrase input");
+            return 0;
+        };
+        let controller = match MobileWalletController::restore(
+            path,
+            &key,
+            MobilePlatform::Android,
+            HnsBootstrapPolicy::new(network, birthday_height),
+            recovery_phrase,
+        ) {
+            Ok(controller) => controller,
+            Err(error) => {
+                android_log_error(&format!("wallet restore failed: {error}"));
+                return 0;
+            }
+        };
+        reservation
+            .finish(AndroidWalletRecord::new(controller, None))
+            .unwrap_or_else(|| {
+                android_log_error("wallet restore failed: native wallet registration failed");
+                0
+            })
+    })) {
+        Ok(handle) => handle,
+        Err(payload) => {
+            log_panic_payload("native wallet restore", payload.as_ref());
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeOpen(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    database_path: JString<'_>,
+    database_key: JByteArray<'_>,
+) -> jlong {
+    let Some(reservation) = WalletHandleReservation::new() else {
+        android_log_error("wallet open failed: native wallet handle limit reached");
+        return 0;
+    };
+    match catch_unwind(AssertUnwindSafe(|| {
+        let Some(path) = android_wallet_path(&mut env, &database_path) else {
+            android_log_error("wallet open failed: invalid database path");
+            return 0;
+        };
+        let Some(key) = android_wallet_database_key(&mut env, &database_key) else {
+            android_log_error("wallet open failed: invalid database key");
+            return 0;
+        };
+        let controller = match MobileWalletController::open(path, &key, MobilePlatform::Android) {
+            Ok(controller) => controller,
+            Err(error) => {
+                android_log_error(&format!("wallet open failed: {error}"));
+                return 0;
+            }
+        };
+        reservation
+            .finish(AndroidWalletRecord::new(controller, None))
+            .unwrap_or_else(|| {
+                android_log_error("wallet open failed: native wallet registration failed");
+                0
+            })
+    })) {
+        Ok(handle) => handle,
+        Err(payload) => {
+            log_panic_payload("native wallet open", payload.as_ref());
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeStatus(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let status = controller.status().ok()?;
+        let active_wallet = status
+            .active_wallet
+            .as_ref()
+            .map(|wallet| wallet.as_bytes());
+        let bundle = wallet_status_bundle(
+            status.locked,
+            active_wallet,
+            status.enabled_modules.is_empty(),
+            status.mainnet_settlement_enabled,
+        )?;
+        env.byte_array_from_slice(bundle.as_slice())
+            .ok()
+            .map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeAccounts(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut accounts = controller.accounts().ok()?;
+        if accounts.len() != 1 {
+            return None;
+        }
+        let account = accounts.pop()?;
+        let module = format!("{:?}", account.module);
+        let bundle = wallet_account_bundle(
+            account.account_id.as_bytes(),
+            module.as_str(),
+            account.label.as_str(),
+            account.receive_display.is_some(),
+        )?;
+        env.byte_array_from_slice(bundle.as_slice())
+            .ok()
+            .map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeUnlock(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    database_key: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(key) = android_wallet_database_key(&mut env, &database_key) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.unlock(&key).is_ok()
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeLock(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.lock().is_ok()
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeTakeRecovery(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jcharArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut pending = record.pending_recovery_if_active()?;
+        let recovery = pending.as_ref()?;
+        let length = i32::try_from(recovery.as_slice().len()).ok()?;
+        let array = env.new_char_array(length).ok()?;
+        env.set_char_array_region(&array, 0, recovery.as_slice())
+            .ok()?;
+        pending.take();
+        Some(array.into_raw())
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeDestroy(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_registry().remove(handle) else {
+            return false;
+        };
+        record.deactivate();
+        if let Ok(mut pending) = record.pending_recovery.lock() {
+            pending.take();
+        }
+        if let Ok(mut controller) = record.controller.lock() {
+            let _ = controller.lock();
+        }
+        true
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeDiagnostics(
     env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -1422,7 +2062,96 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeDiagnost
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Barrier;
+    use std::thread;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn deactivated_wallet_gate_rejects_a_call_queued_on_its_state_mutex() {
+        let active = Arc::new(AtomicBool::new(true));
+        let state = Arc::new(Mutex::new(()));
+        let held = state.lock().expect("hold state mutex");
+        let ready = Arc::new(Barrier::new(2));
+        let call_active = Arc::clone(&active);
+        let call_state = Arc::clone(&state);
+        let call_ready = Arc::clone(&ready);
+
+        let queued_call = thread::spawn(move || {
+            call_ready.wait();
+            lock_if_active(call_active.as_ref(), call_state.as_ref()).is_some()
+        });
+        ready.wait();
+        active.store(false, Ordering::Release);
+        drop(held);
+
+        assert!(!queued_call.join().expect("queued call completes"));
+    }
+
+    #[test]
+    fn wallet_registry_is_bounded_monotonic_and_revocable() {
+        let registry = BoundedMonotonicRegistry::new(2);
+        let first = registry.reserve().expect("first reservation");
+        let second = registry.reserve().expect("second reservation");
+        assert!(second > first);
+        assert!(registry.reserve().is_none());
+
+        assert!(registry.finish(first, Arc::new(11_u8)));
+        registry.cancel(second);
+        let third = registry.reserve().expect("capacity after cancellation");
+        assert!(third > second);
+        assert!(registry.finish(third, Arc::new(12_u8)));
+        assert_eq!(registry.get(first).as_deref(), Some(&11));
+        assert_eq!(registry.remove(first).as_deref(), Some(&11));
+        assert!(registry.get(first).is_none());
+
+        let fourth = registry.reserve().expect("capacity after revocation");
+        assert!(fourth > third);
+    }
+
+    #[test]
+    fn wallet_control_bundles_reject_value_or_non_hns_state() {
+        let wallet_id = [7_u8; 16];
+        let status = wallet_status_bundle(false, Some(&wallet_id), true, false)
+            .expect("unlocked non-value status");
+        assert_eq!(status.len(), WALLET_STATUS_BUNDLE_BYTES);
+        assert_eq!(&status[..4], WALLET_STATUS_BUNDLE_MAGIC);
+        assert_eq!(status[4], WALLET_STATUS_BUNDLE_VERSION);
+        assert_eq!(status[5], 0b10);
+        assert_eq!(&status[8..], &wallet_id);
+        assert!(wallet_status_bundle(true, None, true, false).is_some());
+        assert!(wallet_status_bundle(true, Some(&wallet_id), true, false).is_none());
+        assert!(wallet_status_bundle(false, None, false, false).is_none());
+        assert!(wallet_status_bundle(false, None, true, false).is_none());
+        assert!(wallet_status_bundle(false, None, true, true).is_none());
+
+        let account_id = [9_u8; 16];
+        let account = wallet_account_bundle(&account_id, "Handshake", "Handshake", false)
+            .expect("one HNS account");
+        assert_eq!(&account[..4], WALLET_ACCOUNT_BUNDLE_MAGIC);
+        assert_eq!(account[4], WALLET_ACCOUNT_BUNDLE_VERSION);
+        assert_eq!(account[5], 1);
+        assert_eq!(&account[8..24], &account_id);
+        assert!(wallet_account_bundle(&account_id, "Bitcoin", "Bitcoin", false).is_none());
+        assert!(wallet_account_bundle(&account_id, "Handshake", "Handshake", true).is_none());
+    }
+
+    #[test]
+    fn wallet_network_codes_exclude_simnet_and_unknown_values() {
+        assert_eq!(
+            android_wallet_network(ANDROID_WALLET_NETWORK_MAINNET),
+            Some(HnsNetwork::Mainnet)
+        );
+        assert_eq!(
+            android_wallet_network(ANDROID_WALLET_NETWORK_TESTNET),
+            Some(HnsNetwork::Testnet)
+        );
+        assert_eq!(
+            android_wallet_network(ANDROID_WALLET_NETWORK_REGTEST),
+            Some(HnsNetwork::Regtest)
+        );
+        assert_eq!(android_wallet_network(0), None);
+        assert_eq!(android_wallet_network(4), None);
+    }
 
     #[test]
     fn streaming_gateway_limiter_fails_fast_when_exhausted() {

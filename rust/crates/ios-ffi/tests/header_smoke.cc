@@ -9,6 +9,7 @@ static_assert(std::is_standard_layout_v<HnsBrowserSlice>);
 static_assert(std::is_standard_layout_v<HnsBrowserBuffer>);
 static_assert(sizeof(HnsBrowserRuntimeHandle) == sizeof(std::uint64_t));
 static_assert(sizeof(HnsBrowserProxyHandle) == sizeof(std::uint64_t));
+static_assert(sizeof(HnsBrowserWalletHandle) == sizeof(std::uint64_t));
 
 int main() {
     auto *abiVersion = &hns_browser_abi_version;
@@ -16,10 +17,28 @@ int main() {
     auto *proxyStart = &hns_browser_proxy_start;
     auto *canonicalHost = &hns_browser_canonical_host;
     auto *proxyStop = &hns_browser_proxy_request_stop;
+    auto *walletCreate = &hns_browser_wallet_create;
+    auto *walletRestore = &hns_browser_wallet_restore;
+    auto *walletOpen = &hns_browser_wallet_open;
+    auto *walletStatus = &hns_browser_wallet_status;
+    auto *walletAccounts = &hns_browser_wallet_accounts;
+    auto *walletUnlock = &hns_browser_wallet_unlock;
+    auto *walletLock = &hns_browser_wallet_lock;
+    auto *walletRecovery = &hns_browser_wallet_take_recovery_phrase;
+    auto *walletDestroy = &hns_browser_wallet_destroy;
     (void)abiVersion;
     (void)runtimeCreate;
     (void)proxyStart;
     (void)canonicalHost;
     (void)proxyStop;
+    (void)walletCreate;
+    (void)walletRestore;
+    (void)walletOpen;
+    (void)walletStatus;
+    (void)walletAccounts;
+    (void)walletUnlock;
+    (void)walletLock;
+    (void)walletRecovery;
+    (void)walletDestroy;
     return 0;
 }

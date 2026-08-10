@@ -59,6 +59,7 @@ typedef uint32_t HnsBrowserSecurityPath;
 
 typedef uint64_t HnsBrowserRuntimeHandle;
 typedef uint64_t HnsBrowserProxyHandle;
+typedef uint64_t HnsBrowserWalletHandle;
 
 /* A borrowed byte slice. A null pointer is valid only when len is zero. */
 typedef struct HnsBrowserSlice {
@@ -206,6 +207,51 @@ HnsBrowserResult hns_browser_canonical_host(
 HnsBrowserResult hns_browser_hns_root(
     HnsBrowserSlice input,
     HnsBrowserBuffer *out_root);
+
+/*
+ * Native wallet controls are intentionally limited to one non-value HNS
+ * account. No provider, value-movement, settlement, or marketplace authority
+ * is exposed through this ABI.
+ */
+HnsBrowserResult hns_browser_wallet_create(
+    HnsBrowserSlice database_path,
+    HnsBrowserSlice database_key,
+    HnsBrowserNetwork network,
+    uint64_t birthday_height,
+    HnsBrowserWalletHandle *out_wallet);
+HnsBrowserResult hns_browser_wallet_restore(
+    HnsBrowserSlice database_path,
+    HnsBrowserSlice database_key,
+    HnsBrowserNetwork network,
+    uint64_t birthday_height,
+    HnsBrowserSlice recovery_phrase,
+    HnsBrowserWalletHandle *out_wallet);
+HnsBrowserResult hns_browser_wallet_open(
+    HnsBrowserSlice database_path,
+    HnsBrowserSlice database_key,
+    HnsBrowserWalletHandle *out_wallet);
+/* Returned JSON is a non-sensitive Rust-owned buffer. */
+HnsBrowserResult hns_browser_wallet_status(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_status_json);
+HnsBrowserResult hns_browser_wallet_accounts(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_accounts_json);
+HnsBrowserResult hns_browser_wallet_unlock(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice database_key);
+HnsBrowserResult hns_browser_wallet_lock(
+    HnsBrowserWalletHandle wallet);
+/*
+ * Takes a newly created wallet's phrase exactly once. The buffer is sensitive:
+ * copy only into a dedicated recovery display and free it immediately so Rust
+ * wipes its allocation.
+ */
+HnsBrowserResult hns_browser_wallet_take_recovery_phrase(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_recovery_phrase);
+HnsBrowserResult hns_browser_wallet_destroy(
+    HnsBrowserWalletHandle wallet);
 
 /*
  * Starts an authenticated whole-WebKit loopback proxy generation. A null

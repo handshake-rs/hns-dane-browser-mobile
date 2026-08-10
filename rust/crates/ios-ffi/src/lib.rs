@@ -17,6 +17,10 @@ use hns_mobile_platform_runtime::{
     canonical_browser_host, classify_browser_name, core_version, diagnostics_json,
     normalize_hns_doh_recovery_url,
 };
+use hns_wallet_mobile::{
+    HnsBootstrapPolicy, HnsNetwork, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES,
+    MobileDatabaseKey, MobilePlatform, MobileRecoveryPhrase, MobileWalletController,
+};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -41,6 +45,7 @@ pub const HNS_BROWSER_RESULT_NOT_READY: HnsBrowserResult = 9;
 
 pub type HnsBrowserRuntimeHandle = u64;
 pub type HnsBrowserProxyHandle = u64;
+pub type HnsBrowserWalletHandle = u64;
 
 const HNS_BROWSER_NETWORK_MAINNET: u32 = 0;
 const HNS_BROWSER_NETWORK_TESTNET: u32 = 1;
@@ -72,6 +77,7 @@ const MAX_SYNC_TIMEOUT_MILLIS: u64 = 10 * 60 * 1_000;
 const MAX_RESOURCE_CACHE_LIMIT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_RUNTIME_HANDLES: usize = 16;
 const MAX_PROXY_HANDLES: usize = 64;
+const MAX_WALLET_HANDLES: usize = 8;
 const MAX_MAIN_FRAME_STATUSES: usize = 64;
 const MAX_ALLOCATIONS: usize = 256;
 const MAX_ALLOCATED_BYTES: usize = 8 * 1024 * 1024;
@@ -626,6 +632,20 @@ struct ProxyEntry {
     active: AtomicBool,
 }
 
+struct SensitiveBytes(Vec<u8>);
+
+impl Drop for SensitiveBytes {
+    fn drop(&mut self) {
+        self.0.fill(0);
+    }
+}
+
+struct WalletEntry {
+    controller: MobileWalletController,
+    pending_recovery_phrase: Option<SensitiveBytes>,
+    active: bool,
+}
+
 impl ProxyEntry {
     fn ensure_active(&self) -> Result<(), FfiFailure> {
         if !self.active.load(Ordering::Acquire)
@@ -663,6 +683,24 @@ struct ProxyStartReservation {
     runtime_handle: HnsBrowserRuntimeHandle,
 }
 
+struct WalletStartReservation {
+    handle: HnsBrowserWalletHandle,
+    active: bool,
+}
+
+impl Drop for WalletStartReservation {
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+        let mut registry = match handle_registry().lock() {
+            Ok(registry) => registry,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        registry.starting_wallets = registry.starting_wallets.saturating_sub(1);
+    }
+}
+
 impl Drop for ProxyStartReservation {
     fn drop(&mut self) {
         let mut registry = match handle_registry().lock() {
@@ -679,12 +717,14 @@ impl Drop for ProxyStartReservation {
 struct HandleRegistry {
     runtimes: HashMap<HnsBrowserRuntimeHandle, Arc<RuntimeEntry>>,
     proxies: HashMap<HnsBrowserProxyHandle, Arc<ProxyEntry>>,
+    wallets: HashMap<HnsBrowserWalletHandle, Arc<Mutex<WalletEntry>>>,
     starting_proxy_runtimes: HashSet<HnsBrowserRuntimeHandle>,
+    starting_wallets: usize,
 }
 
 static HANDLES: OnceLock<Mutex<HandleRegistry>> = OnceLock::new();
-// Runtime and proxy handles share one monotonic namespace so accidental
-// cross-type use cannot alias a simultaneously live object.
+// Runtime, proxy, and wallet handles share one monotonic namespace so
+// accidental cross-type use cannot alias a simultaneously live object.
 static NEXT_OBJECT_HANDLE: AtomicU64 = AtomicU64::new(1);
 
 fn handle_registry() -> &'static Mutex<HandleRegistry> {
@@ -731,6 +771,155 @@ fn proxy_entry(handle: HnsBrowserProxyHandle) -> Result<Arc<ProxyEntry>, FfiFail
                 "proxy handle is invalid or stale",
             )
         })
+}
+
+fn wallet_entry(handle: HnsBrowserWalletHandle) -> Result<Arc<Mutex<WalletEntry>>, FfiFailure> {
+    if handle == 0 {
+        return Err(FfiFailure::new(
+            HNS_BROWSER_RESULT_NOT_FOUND,
+            "wallet handle is invalid or stale",
+        ));
+    }
+    handle_registry()
+        .lock()
+        .map_err(|_| FfiFailure::internal())?
+        .wallets
+        .get(&handle)
+        .cloned()
+        .ok_or_else(|| {
+            FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_FOUND,
+                "wallet handle is invalid or stale",
+            )
+        })
+}
+
+fn reserve_wallet_start() -> Result<WalletStartReservation, FfiFailure> {
+    let mut registry = handle_registry()
+        .lock()
+        .map_err(|_| FfiFailure::internal())?;
+    if registry
+        .wallets
+        .len()
+        .saturating_add(registry.starting_wallets)
+        >= MAX_WALLET_HANDLES
+    {
+        return Err(FfiFailure::new(
+            HNS_BROWSER_RESULT_RESOURCE_EXHAUSTED,
+            "wallet handle registry is full",
+        ));
+    }
+    let handle = next_monotonic_id(&NEXT_OBJECT_HANDLE)?;
+    registry.starting_wallets += 1;
+    Ok(WalletStartReservation {
+        handle,
+        active: true,
+    })
+}
+
+fn insert_wallet(
+    entry: WalletEntry,
+    mut reservation: WalletStartReservation,
+) -> Result<HnsBrowserWalletHandle, FfiFailure> {
+    let mut registry = handle_registry()
+        .lock()
+        .map_err(|_| FfiFailure::internal())?;
+    if registry.starting_wallets == 0 || registry.wallets.contains_key(&reservation.handle) {
+        return Err(FfiFailure::internal());
+    }
+    registry.starting_wallets -= 1;
+    let handle = reservation.handle;
+    reservation.active = false;
+    registry.wallets.insert(handle, Arc::new(Mutex::new(entry)));
+    Ok(handle)
+}
+
+fn ensure_wallet_active(entry: &WalletEntry) -> Result<(), FfiFailure> {
+    if !entry.active {
+        return Err(FfiFailure::new(
+            HNS_BROWSER_RESULT_NOT_FOUND,
+            "wallet handle is invalid or stale",
+        ));
+    }
+    Ok(())
+}
+
+fn wallet_network(value: u32) -> Result<HnsNetwork, FfiFailure> {
+    match value {
+        HNS_BROWSER_NETWORK_MAINNET => Ok(HnsNetwork::Mainnet),
+        HNS_BROWSER_NETWORK_TESTNET => Ok(HnsNetwork::Testnet),
+        HNS_BROWSER_NETWORK_REGTEST => Ok(HnsNetwork::Regtest),
+        _ => Err(FfiFailure::invalid("wallet network value is unsupported")),
+    }
+}
+
+unsafe fn wallet_database_key(slice: HnsBrowserSlice) -> Result<MobileDatabaseKey, FfiFailure> {
+    let len = checked_len(slice.len, MOBILE_DATABASE_KEY_BYTES)?;
+    if len != MOBILE_DATABASE_KEY_BYTES || slice.ptr.is_null() {
+        return Err(FfiFailure::invalid(
+            "wallet database key must be exactly 32 bytes",
+        ));
+    }
+    // SAFETY: The C ABI contract requires the non-null key pointer to remain
+    // readable for exactly the validated length for the duration of the call.
+    let key = unsafe { std::slice::from_raw_parts(slice.ptr, len) };
+    MobileDatabaseKey::from_slice(key)
+        .map_err(|_| FfiFailure::invalid("wallet database key is invalid"))
+}
+
+unsafe fn wallet_recovery_phrase(
+    slice: HnsBrowserSlice,
+) -> Result<MobileRecoveryPhrase, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let bytes = unsafe { input_bytes(slice, MAX_MOBILE_RECOVERY_PHRASE_BYTES) }?;
+    if bytes.is_empty() {
+        return Err(FfiFailure::invalid("wallet recovery phrase is empty"));
+    }
+    let phrase = match String::from_utf8(bytes) {
+        Ok(phrase) => phrase,
+        Err(error) => {
+            let mut bytes = error.into_bytes();
+            bytes.fill(0);
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_INVALID_UTF8,
+                "wallet recovery phrase is not valid UTF-8",
+            ));
+        }
+    };
+    MobileRecoveryPhrase::new(phrase)
+        .map_err(|_| FfiFailure::invalid("wallet recovery phrase is invalid"))
+}
+
+fn wallet_runtime_failure(message: &'static str) -> FfiFailure {
+    FfiFailure::new(HNS_BROWSER_RESULT_RUNTIME_ERROR, message)
+}
+
+fn json_string(output: &mut String, value: &str) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\u{08}' => output.push_str("\\b"),
+            '\u{0c}' => output.push_str("\\f"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character <= '\u{1f}' => {
+                let value = u32::from(character) as usize;
+                output.push_str("\\u00");
+                output.push(HEX[value >> 4] as char);
+                output.push(HEX[value & 0x0f] as char);
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+}
+
+fn module_wire_name(module: impl std::fmt::Debug) -> String {
+    format!("{module:?}").to_ascii_lowercase()
 }
 
 fn network_kind(value: u32) -> Result<NetworkKind, FfiFailure> {
@@ -1431,6 +1620,331 @@ pub unsafe extern "C" fn hns_browser_hns_root(
 }
 
 #[unsafe(no_mangle)]
+/// Creates one native, non-value Handshake wallet and retains its one-time
+/// recovery phrase until [`hns_browser_wallet_take_recovery_phrase`] succeeds.
+///
+/// # Safety
+/// Both input slices must remain readable for their declared lengths and
+/// `out_wallet` must point to one writable handle.
+pub unsafe extern "C" fn hns_browser_wallet_create(
+    database_path: HnsBrowserSlice,
+    database_key: HnsBrowserSlice,
+    network: u32,
+    birthday_height: u64,
+    out_wallet: *mut HnsBrowserWalletHandle,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_wallet)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_wallet, 0) };
+        // SAFETY: This unsafe export carries the caller's readable-slice contracts.
+        let path = unsafe { required_input_str(database_path, MAX_PATH_BYTES) }?;
+        // SAFETY: This unsafe export carries the caller's readable-slice contracts.
+        let key = unsafe { wallet_database_key(database_key) }?;
+        let policy = HnsBootstrapPolicy::new(wallet_network(network)?, birthday_height);
+        let reservation = reserve_wallet_start()?;
+        let creation = MobileWalletController::create(&path, &key, MobilePlatform::Ios, policy)
+            .map_err(|_| wallet_runtime_failure("unable to create native wallet"))?;
+        let (controller, recovery_phrase) = creation.into_parts();
+        let recovery_phrase =
+            SensitiveBytes(recovery_phrase.expose_for_dedicated_display().into_bytes());
+        let handle = insert_wallet(
+            WalletEntry {
+                controller,
+                pending_recovery_phrase: Some(recovery_phrase),
+                active: true,
+            },
+            reservation,
+        )?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_wallet, handle) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Restores one native, non-value Handshake wallet from an owned, bounded
+/// recovery phrase copy that is wiped before returning.
+///
+/// # Safety
+/// All input slices must remain readable for their declared lengths and
+/// `out_wallet` must point to one writable handle.
+pub unsafe extern "C" fn hns_browser_wallet_restore(
+    database_path: HnsBrowserSlice,
+    database_key: HnsBrowserSlice,
+    network: u32,
+    birthday_height: u64,
+    recovery_phrase: HnsBrowserSlice,
+    out_wallet: *mut HnsBrowserWalletHandle,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_wallet)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_wallet, 0) };
+        // SAFETY: This unsafe export carries the caller's readable-slice contracts.
+        let path = unsafe { required_input_str(database_path, MAX_PATH_BYTES) }?;
+        // SAFETY: This unsafe export carries the caller's readable-slice contracts.
+        let key = unsafe { wallet_database_key(database_key) }?;
+        // SAFETY: This unsafe export carries the caller's readable-slice contracts.
+        let phrase = unsafe { wallet_recovery_phrase(recovery_phrase) }?;
+        let policy = HnsBootstrapPolicy::new(wallet_network(network)?, birthday_height);
+        let reservation = reserve_wallet_start()?;
+        let controller =
+            MobileWalletController::restore(&path, &key, MobilePlatform::Ios, policy, phrase)
+                .map_err(|_| wallet_runtime_failure("unable to restore native wallet"))?;
+        let handle = insert_wallet(
+            WalletEntry {
+                controller,
+                pending_recovery_phrase: None,
+                active: true,
+            },
+            reservation,
+        )?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_wallet, handle) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Opens one existing native wallet in its locked state.
+///
+/// # Safety
+/// Both input slices must remain readable for their declared lengths and
+/// `out_wallet` must point to one writable handle.
+pub unsafe extern "C" fn hns_browser_wallet_open(
+    database_path: HnsBrowserSlice,
+    database_key: HnsBrowserSlice,
+    out_wallet: *mut HnsBrowserWalletHandle,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_wallet)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_wallet, 0) };
+        // SAFETY: This unsafe export carries the caller's readable-slice contracts.
+        let path = unsafe { required_input_str(database_path, MAX_PATH_BYTES) }?;
+        // SAFETY: This unsafe export carries the caller's readable-slice contracts.
+        let key = unsafe { wallet_database_key(database_key) }?;
+        let reservation = reserve_wallet_start()?;
+        let controller = MobileWalletController::open(&path, &key, MobilePlatform::Ios)
+            .map_err(|_| wallet_runtime_failure("unable to open native wallet"))?;
+        let handle = insert_wallet(
+            WalletEntry {
+                controller,
+                pending_recovery_phrase: None,
+                active: true,
+            },
+            reservation,
+        )?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_wallet, handle) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `out_status_json` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_status(
+    wallet: HnsBrowserWalletHandle,
+    out_status_json: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_status_json)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_status_json, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let status = entry
+            .controller
+            .status()
+            .map_err(|_| wallet_runtime_failure("unable to read native wallet status"))?;
+        if !status.enabled_modules.is_empty()
+            || status.mainnet_settlement_enabled
+            || status.locked != status.active_wallet.is_none()
+        {
+            drop(entry.controller.lock());
+            return Err(wallet_runtime_failure(
+                "native wallet exposed a forbidden value-capable status",
+            ));
+        }
+
+        let mut json = String::from("{\"locked\":");
+        json.push_str(if status.locked { "true" } else { "false" });
+        json.push_str(",\"activeWallet\":");
+        if let Some(wallet_id) = status.active_wallet {
+            json_string(&mut json, &wallet_id.to_string());
+        } else {
+            json.push_str("null");
+        }
+        json.push_str(",\"enabledModules\":[");
+        for (index, module) in status.enabled_modules.iter().enumerate() {
+            if index != 0 {
+                json.push(',');
+            }
+            json_string(&mut json, &module_wire_name(module));
+        }
+        json.push_str("],\"mainnetSettlementEnabled\":");
+        json.push_str(if status.mainnet_settlement_enabled {
+            "true"
+        } else {
+            "false"
+        });
+        json.push('}');
+        let output = allocate_output(json.as_bytes(), false)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_status_json, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `out_accounts_json` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_accounts(
+    wallet: HnsBrowserWalletHandle,
+    out_accounts_json: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_accounts_json)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_accounts_json, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let accounts = entry
+            .controller
+            .accounts()
+            .map_err(|_| wallet_runtime_failure("unable to read native wallet accounts"))?;
+        if accounts.len() != 1
+            || accounts[0].receive_display.is_some()
+            || module_wire_name(accounts[0].module) != "handshake"
+        {
+            drop(entry.controller.lock());
+            return Err(wallet_runtime_failure(
+                "native wallet exposed a forbidden account set",
+            ));
+        }
+        let mut json = String::from("[");
+        for (index, account) in accounts.iter().enumerate() {
+            if index != 0 {
+                json.push(',');
+            }
+            json.push_str("{\"accountId\":");
+            json_string(&mut json, &account.account_id.to_string());
+            json.push_str(",\"module\":");
+            json_string(&mut json, &module_wire_name(account.module));
+            json.push_str(",\"label\":");
+            json_string(&mut json, &account.label);
+            json.push_str(",\"receiveDisplay\":");
+            if let Some(receive_display) = account.receive_display.as_deref() {
+                json_string(&mut json, receive_display);
+            } else {
+                json.push_str("null");
+            }
+            json.push('}');
+        }
+        json.push(']');
+        let output = allocate_output(json.as_bytes(), false)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_accounts_json, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Unlocks the controller with one borrowed 32-byte platform-unwrapped key.
+///
+/// # Safety
+/// The key slice must remain readable for its declared length.
+pub unsafe extern "C" fn hns_browser_wallet_unlock(
+    wallet: HnsBrowserWalletHandle,
+    database_key: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        // SAFETY: This unsafe export carries the caller's readable-slice contract.
+        let key = unsafe { wallet_database_key(database_key) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .unlock(&key)
+            .map_err(|_| wallet_runtime_failure("native wallet unlock was rejected"))
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hns_browser_wallet_lock(wallet: HnsBrowserWalletHandle) -> HnsBrowserResult {
+    ffi_call(|| {
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .lock()
+            .map_err(|_| wallet_runtime_failure("unable to lock native wallet"))
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Takes the newly created wallet's recovery phrase exactly once. The returned
+/// allocation is marked sensitive and is wiped by `hns_browser_buffer_free`.
+///
+/// # Safety
+/// `out_recovery_phrase` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_take_recovery_phrase(
+    wallet: HnsBrowserWalletHandle,
+    out_recovery_phrase: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_recovery_phrase)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_recovery_phrase, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let phrase = entry.pending_recovery_phrase.as_ref().ok_or_else(|| {
+            FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "wallet recovery phrase is unavailable or was already consumed",
+            )
+        })?;
+        let output = allocate_output(&phrase.0, true)?;
+        drop(entry.pending_recovery_phrase.take());
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_recovery_phrase, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hns_browser_wallet_destroy(wallet: HnsBrowserWalletHandle) -> HnsBrowserResult {
+    ffi_call(|| {
+        // Removal prevents new lookups. A caller that cloned the Arc before removal
+        // either finishes first while we wait on this mutex, or observes `active =
+        // false` after we acquire it; teardown therefore completes before return.
+        let entry = handle_registry()
+            .lock()
+            .map_err(|_| FfiFailure::internal())?
+            .wallets
+            .remove(&wallet)
+            .ok_or_else(|| {
+                FfiFailure::new(
+                    HNS_BROWSER_RESULT_NOT_FOUND,
+                    "wallet handle is invalid or stale",
+                )
+            })?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        entry.active = false;
+        drop(entry.pending_recovery_phrase.take());
+        drop(entry.controller.lock());
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// # Safety
 /// A non-null scope slice must remain readable for its declared length and
 /// `out_proxy` must point to one writable handle.
@@ -1885,6 +2399,7 @@ mod tests {
         assert_eq!(offset_of!(HnsBrowserSlice, len), 8);
         assert_eq!(size_of::<HnsBrowserBuffer>(), 24);
         assert_eq!(offset_of!(HnsBrowserBuffer, allocation_id), 16);
+        assert_eq!(size_of::<HnsBrowserWalletHandle>(), 8);
         assert_eq!(size_of::<HnsBrowserRuntimeOptions>(), 80);
         assert_eq!(offset_of!(HnsBrowserRuntimeOptions, data_dir), 8);
         assert_eq!(
@@ -1932,6 +2447,15 @@ mod tests {
             "hns_browser_classify_name",
             "hns_browser_canonical_host",
             "hns_browser_hns_root",
+            "hns_browser_wallet_create",
+            "hns_browser_wallet_restore",
+            "hns_browser_wallet_open",
+            "hns_browser_wallet_status",
+            "hns_browser_wallet_accounts",
+            "hns_browser_wallet_unlock",
+            "hns_browser_wallet_lock",
+            "hns_browser_wallet_take_recovery_phrase",
+            "hns_browser_wallet_destroy",
             "hns_browser_proxy_start",
             "hns_browser_proxy_endpoint",
             "hns_browser_proxy_matches_instance",
@@ -1951,6 +2475,40 @@ mod tests {
         assert!(header.contains("#ifndef HNS_BROWSER_H"));
         assert!(header.contains("extern \"C\""));
         assert!(!header.contains("hns_browser_proxy_matches_authentication("));
+    }
+
+    #[test]
+    fn wallet_start_reservations_are_atomic_bounded_and_released() {
+        let _guard = test_guard();
+        let mut reservations = (0..MAX_WALLET_HANDLES)
+            .map(|_| match reserve_wallet_start() {
+                Ok(reservation) => reservation,
+                Err(_) => panic!("wallet reservation failed"),
+            })
+            .collect::<Vec<_>>();
+        let handles = reservations
+            .iter()
+            .map(|reservation| reservation.handle)
+            .collect::<HashSet<_>>();
+        assert_eq!(handles.len(), MAX_WALLET_HANDLES);
+        assert!(matches!(
+            reserve_wallet_start(),
+            Err(FfiFailure {
+                code: HNS_BROWSER_RESULT_RESOURCE_EXHAUSTED,
+                ..
+            })
+        ));
+
+        drop(reservations.pop());
+        reservations.push(match reserve_wallet_start() {
+            Ok(reservation) => reservation,
+            Err(_) => panic!("released wallet reservation failed"),
+        });
+        drop(reservations);
+
+        let registry = handle_registry().lock().expect("handle registry");
+        assert_eq!(registry.starting_wallets, 0);
+        assert!(registry.wallets.is_empty());
     }
 
     #[test]
