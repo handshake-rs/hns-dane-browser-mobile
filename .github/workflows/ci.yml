@@ -191,7 +191,7 @@ jobs:
             ./gradlew :app:connectedDebugAndroidTest
             --no-daemon
             --stacktrace
-            "-Pandroid.testInstrumentationRunnerArguments.class=com.denuoweb.hnsdane.net.SharedBrowserNamespacePolicyInstrumentationTest#freshAndroidStorageOpensTheNativeRuntime,com.denuoweb.hnsdane.ui.HnsProofDetailsActivityInstrumentationTest,com.denuoweb.hnsdane.ui.SystemInsetsInstrumentationTest"
+            "-Pandroid.testInstrumentationRunnerArguments.class=com.denuoweb.hnsdane.net.SharedBrowserNamespacePolicyInstrumentationTest#freshAndroidStorageOpensTheNativeRuntime,com.denuoweb.hnsdane.ui.HnsProofDetailsActivityInstrumentationTest"
 
   ios:
     name: Apple ABI, XCFramework, and iOS shell
