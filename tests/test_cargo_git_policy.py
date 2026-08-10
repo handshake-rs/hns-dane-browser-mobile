@@ -14,6 +14,7 @@ from verify_cargo_git_policy import (  # noqa: E402
     ENGINE_PACKAGES,
     ENGINE_REQUIREMENTS,
     ENGINE_VERSIONS,
+    MIGRATED_LOCAL_CRATES,
     CargoSourcePolicyError,
     verify_repository,
 )
@@ -80,6 +81,14 @@ class CargoSourcePolicyTests(unittest.TestCase):
         temporary, root = self.create_fixture()
         with temporary:
             self.verify_fixture(root)
+
+    def test_rejects_restored_product_local_engine_crate(self) -> None:
+        temporary, root = self.create_fixture()
+        with temporary:
+            package = sorted(MIGRATED_LOCAL_CRATES)[0]
+            (root / "rust/crates" / package).mkdir(parents=True)
+            with self.assertRaisesRegex(CargoSourcePolicyError, "must not be restored locally"):
+                self.verify_fixture(root)
 
     def test_rejects_git_manifest_dependency(self) -> None:
         temporary, root = self.create_fixture()

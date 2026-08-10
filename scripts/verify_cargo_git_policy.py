@@ -48,6 +48,17 @@ ENGINE_REQUIREMENTS = {
 }
 ENGINE_PACKAGES = frozenset(ENGINE_VERSIONS)
 ROOT_MANIFEST = Path("rust/Cargo.toml")
+MIGRATED_LOCAL_CRATES = frozenset(
+    {
+        "hns-cache",
+        "hns-chain",
+        "hns-core",
+        "hns-dane",
+        "hns-dnssec",
+        "hns-p2p",
+        "hns-urkel",
+    }
+)
 LOCKFILES = (
     Path("rust/Cargo.lock"),
     Path("rust/fuzz/Cargo.lock"),
@@ -208,6 +219,12 @@ def validate_lockfiles(root: Path) -> None:
 def verify_repository(
     root: Path = ROOT, manifests: list[Path] | None = None
 ) -> None:
+    for package in sorted(MIGRATED_LOCAL_CRATES):
+        path = root / "rust/crates" / package
+        if path.exists():
+            raise CargoSourcePolicyError(
+                f"{path.relative_to(root)}: migrated engine crate must not be restored locally"
+            )
     validate_manifests(
         root,
         tracked_cargo_manifests(root) if manifests is None else manifests,
