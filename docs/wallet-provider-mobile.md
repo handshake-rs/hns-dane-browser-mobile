@@ -117,13 +117,15 @@ wallet-relevant raw-transaction source behind the dedicated scoped loopback
 gateway. Known names remain empty until a reviewed name-import/tracking path
 exists.
 
-Android runs read synchronization off the UI thread and uses generation, lease,
-and handle checks before publishing. Contended native controller retirement is
-also handed off the UI thread before releasing exclusive storage ownership. iOS
-runs synchronization off the main actor and suppresses stale publication, but
-its lifecycle paths still close/destroy the same native controller synchronously
-on the main actor. Before iOS product wiring supplies a credential, qualification
-must prove or implement nonblocking teardown while a read owns the native mutex.
+Both platforms run read synchronization away from the UI thread and require the
+exact generation, lease, and controller identity before publishing. Contended
+native controller retirement is likewise handed to a background worker. On iOS,
+lifecycle callbacks immediately detach UI authority and transfer the controller
+with its exact storage lease to one serial retirement queue; that lease is
+released only after native lock/destruction and any incomplete-wallet file
+deletion finish. Foreground reentry waits for that handoff and stale read
+completion cannot publish. Exact-candidate Apple CI and an in-flight-read
+qualification still remain before iOS product wiring may supply a credential.
 
 ## Dormant website provider projection
 

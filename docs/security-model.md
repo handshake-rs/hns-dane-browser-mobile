@@ -158,10 +158,12 @@ cleanup. The Rust buffer and Swift `[UInt8]` copies are explicitly wiped, but
 display and restore input pass through Swift `String` and UIKit-managed text.
 Clearing those controls is best effort: deterministic zeroization of managed
 or copied Swift/UIKit backing storage is not possible and is not claimed. Read
-synchronization runs off the main actor and stale completion is suppressed, but
-lifecycle close/destroy remains synchronous on the main actor. Product wiring
-must prove or implement nonblocking teardown while a native read owns the
-controller mutex before enabling read configuration on iOS.
+synchronization runs off the main actor and stale completion is suppressed.
+Lifecycle callbacks also detach controller and lease authority immediately,
+then serialize native lock/destruction and any incomplete-wallet deletion on a
+background queue. The exact lease remains held until that work finishes, and
+foreground reentry cannot reacquire it early. Exact-candidate Apple CI and an
+in-flight-read qualification remain before enabling read configuration on iOS.
 
 The website-provider sources remain containment projections. Website schema 1,
 private provider ABI 2, and public approval schema 3 are independent version

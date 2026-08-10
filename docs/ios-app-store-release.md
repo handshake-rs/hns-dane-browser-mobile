@@ -42,8 +42,9 @@ wallet may reuse authenticated retained raw bytes. Fresh restore additionally
 needs archive-capable raw bytes or another durable wallet-relevant raw-tx source.
 Name import is absent.
 Website-provider, send/value, settlement, exchange, HNSA/HNSR, and P2P-market
-gates remain false. Before enabling reads, iOS product wiring must also prove or
-implement nonblocking lifecycle teardown while a native read is in flight.
+gates remain false. iOS now implements nonblocking lifecycle teardown with an
+exact lease handoff, but product wiring must qualify it with a native read in
+flight on the exact candidate before enabling reads.
 
 ## One-time Apple setup
 

@@ -12,8 +12,10 @@ All notable changes to this project will be documented in this file.
   value and an IPv4 loopback port; snapshot decoding rejects unknown or
   incoherent fields and fails closed.
 - Added platform-side lifecycle/generation publication guards and secret-buffer
-  clearing around read configuration and snapshot handoff. Android performs
+  clearing around read configuration and snapshot handoff. Both shells perform
   synchronization and contended native retirement away from the UI thread.
+  iOS detaches UI authority immediately and retains the exact storage lease
+  through native destruction and incomplete-wallet file deletion.
 
 ### Changed
 
@@ -35,10 +37,10 @@ All notable changes to this project will be documented in this file.
 ### Qualification
 
 - Candidate CI, signed artifacts, fresh exact-commit screenshots, and store
-  declaration readback remain open. iOS product wiring must also prove
-  nonblocking lifecycle teardown while a native read is in flight before reads
-  can be enabled. The `0.5.8` evidence below is retained as historical evidence
-  and does not qualify this candidate.
+  declaration readback remain open. The new iOS nonblocking teardown path still
+  needs exact-candidate Apple CI and in-flight-read qualification before product
+  wiring may enable reads. The `0.5.8` evidence below is retained as historical
+  evidence and does not qualify this candidate.
 
 ## 0.5.8 - 2026-08-10
 

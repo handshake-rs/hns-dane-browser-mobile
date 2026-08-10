@@ -471,6 +471,84 @@ final class BrowserRuntimeControlTests: XCTestCase {
         WalletStorageLeaseRegistry.release(replacement)
     }
 
+    @MainActor
+    func testWalletRetirementRetainsLeaseThroughDestroyAndDeletion() throws {
+        let path = "/private/test-wallet-retirement-\(UUID().uuidString)/wallet.sqlite3"
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        var steps: [String] = []
+        let plan = WalletRetirementPlan(
+            lockController: {
+                steps.append("lock")
+                XCTAssertNil(WalletStorageLeaseRegistry.acquire(path: path))
+            },
+            destroyController: {
+                steps.append("destroy")
+                XCTAssertNil(WalletStorageLeaseRegistry.acquire(path: path))
+            },
+            deleteIncompleteWallet: {
+                steps.append("delete")
+                XCTAssertNil(WalletStorageLeaseRegistry.acquire(path: path))
+            },
+            releaseStorageLease: {
+                steps.append("release")
+                WalletStorageLeaseRegistry.release(lease)
+            }
+        )
+
+        plan.execute()
+
+        XCTAssertEqual(steps, ["lock", "destroy", "delete", "release"])
+        let replacement = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        WalletStorageLeaseRegistry.release(replacement)
+    }
+
+    func testWalletReadCompletionRequiresExactLiveAuthority() {
+        let lease = WalletStorageLeaseToken(
+            path: "/private/test-wallet-read/wallet.sqlite3",
+            owner: UUID()
+        )
+        let expectedWallet = NSObject()
+        let replacementWallet = NSObject()
+        let expectedIdentity = ObjectIdentifier(expectedWallet)
+
+        XCTAssertTrue(walletReadMayPublish(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            expectedLease: lease,
+            currentLease: lease,
+            expectedWalletIdentity: expectedIdentity,
+            currentWalletIdentity: expectedIdentity,
+            viewIsVisible: true
+        ))
+        XCTAssertFalse(walletReadMayPublish(
+            expectedGeneration: 7,
+            currentGeneration: 8,
+            expectedLease: lease,
+            currentLease: nil,
+            expectedWalletIdentity: expectedIdentity,
+            currentWalletIdentity: nil,
+            viewIsVisible: true
+        ))
+        XCTAssertFalse(walletReadMayPublish(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            expectedLease: lease,
+            currentLease: lease,
+            expectedWalletIdentity: expectedIdentity,
+            currentWalletIdentity: ObjectIdentifier(replacementWallet),
+            viewIsVisible: true
+        ))
+        XCTAssertFalse(walletReadMayPublish(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            expectedLease: lease,
+            currentLease: lease,
+            expectedWalletIdentity: expectedIdentity,
+            currentWalletIdentity: expectedIdentity,
+            viewIsVisible: false
+        ))
+    }
+
     func testWalletFaceIDPurposeIsPresentInBuiltApplication() throws {
         XCTAssertEqual(
             try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "NSFaceIDUsageDescription") as? String),

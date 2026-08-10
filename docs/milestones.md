@@ -149,9 +149,9 @@
   lockfile, source policy, and notices are aligned.
 - Pending release qualification: signed artifacts, fresh commit-bound
   screenshots, privacy/category declaration readback, and store gates remain
-  for `0.5.9`. Candidate CI and nonblocking iOS read/lifecycle teardown
-  qualification also remain. No currently published Play, GitHub, or App Store
-  binary contains the native controls.
+  for `0.5.9`. Candidate CI and exact qualification of the implemented
+  nonblocking iOS read/lifecycle teardown also remain. No currently published
+  Play, GitHub, or App Store binary contains the native controls.
 - Pending named-service adoption: consume the current engine HNSA admission and
   HNSR requester lifecycle through exact engine-issued authority; no Kotlin or
   Swift authority projection may substitute for that context.

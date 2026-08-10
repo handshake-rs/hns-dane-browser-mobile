@@ -19,6 +19,10 @@ final class WalletViewController: UIViewController {
     private var synchronizedReadsAvailable = false
     private var resolvedDatabasePath: String?
     private var storageLease: WalletStorageLeaseToken?
+    private var walletAuthorityRequested = false
+    private var walletLifecycleSuspended = false
+    private var retirementGeneration: UInt64 = 0
+    private var retirementInFlight = false
     private weak var restorePhraseField: UITextField?
 
     private let statusLabel = UILabel()
@@ -57,59 +61,79 @@ final class WalletViewController: UIViewController {
         for name in [
             UIApplication.willResignActiveNotification,
             UIApplication.protectedDataWillBecomeUnavailableNotification,
-            UIScreen.capturedDidChangeNotification,
-            UIApplication.userDidTakeScreenshotNotification,
         ] {
             NotificationCenter.default.addObserver(
                 self,
-                selector: #selector(protectWalletLifecycle),
+                selector: #selector(suspendWalletLifecycle),
                 name: name,
                 object: nil
             )
         }
+        for name in [
+            UIApplication.didBecomeActiveNotification,
+            UIApplication.protectedDataDidBecomeAvailableNotification,
+        ] {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(reactivateWalletLifecycle),
+                name: name,
+                object: nil
+            )
+        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(protectWalletLifecycle),
+            name: UIApplication.userDidTakeScreenshotNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleScreenCaptureChange),
+            name: UIScreen.capturedDidChangeNotification,
+            object: nil
+        )
         refreshState()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        acquireStorageLease()
-        if storageLease != nil, unconfirmedDatabaseKey == nil {
-            refreshProtectedStorageState()
+        walletAuthorityRequested = true
+        if UIApplication.shared.applicationState == .active,
+           UIApplication.shared.isProtectedDataAvailable,
+           !UIScreen.main.isCaptured {
+            walletLifecycleSuspended = false
         }
-        refreshState()
+        resumeWalletLifecycle()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
-        invalidateReadOperation()
-        if storageLease != nil {
-            protectWalletLifecycle()
-            wallet?.close()
-            wallet = nil
-            releaseStorageLease()
-        } else {
-            clearRestoreInput()
-            clearRecoveryDisplay()
-        }
+        walletAuthorityRequested = false
+        protectWalletLifecycle()
         super.viewWillDisappear(animated)
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
         recoverySecret?.clear()
-        let lease = storageLease
+        let currentWallet = wallet
+        let currentLease = storageLease
+        let hasIncompleteWallet = unconfirmedDatabaseKey != nil
         if var key = unconfirmedDatabaseKey {
             unconfirmedDatabaseKey = nil
             WalletSecretBytes.wipe(&key)
-            wallet?.close()
-            if lease != nil, let path = resolvedDatabasePath {
-                try? Self.deleteWalletFiles(databasePath: path)
-            }
-        } else {
-            try? wallet?.lock()
-            wallet?.close()
         }
-        if let lease {
-            WalletStorageLeaseRegistry.release(lease)
+        wallet = nil
+        storageLease = nil
+        let deletionPath = hasIncompleteWallet && currentLease != nil
+            ? resolvedDatabasePath
+            : nil
+        let plan = WalletRetirementPlan(
+            wallet: currentWallet,
+            lease: currentLease,
+            incompleteDatabasePath: deletionPath
+        )
+        if plan.hasWork {
+            WalletRetirementQueue.shared.enqueue(plan)
         }
     }
 
@@ -412,6 +436,7 @@ final class WalletViewController: UIViewController {
         isOperating = true
         readGeneration &+= 1
         let generation = readGeneration
+        let walletIdentity = ObjectIdentifier(wallet)
         readStatusLabel.text = "Synchronizing read-only HNS wallet data…"
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
@@ -421,12 +446,17 @@ final class WalletViewController: UIViewController {
             } catch {
                 outcome = .failure(error.localizedDescription)
             }
-            DispatchQueue.main.async { [weak self, wallet] in
+            DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                guard self.readGeneration == generation,
-                      self.storageLease == lease,
-                      self.wallet === wallet,
-                      self.viewIfLoaded?.window != nil else {
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else {
                     return
                 }
                 self.isOperating = false
@@ -486,7 +516,9 @@ final class WalletViewController: UIViewController {
 
     private func performWalletOperation(_ operation: () throws -> Void) {
         guard storageLease != nil else {
-            showErrorMessage("Another wallet screen owns this network's local wallet storage.")
+            showErrorMessage(retirementInFlight
+                ? "Wallet protection is still finishing. Try again after it completes."
+                : "Another wallet screen owns this network's local wallet storage.")
             return
         }
         guard !isOperating else { return }
@@ -505,9 +537,19 @@ final class WalletViewController: UIViewController {
 
     private func refreshState() {
         guard storageLease != nil else {
-            statusLabel.text = "Wallet storage is active in another screen."
-            accountLabel.text = "Account unavailable. Close the other wallet screen and try again."
-            setReadAvailability(false, message: "Read-only synchronization unavailable while storage is owned elsewhere.")
+            if retirementInFlight {
+                statusLabel.text = "Wallet protection is finishing off the main thread."
+                accountLabel.text = "Account unavailable until native teardown completes."
+                setReadAvailability(false, message: "Read-only synchronization unavailable during wallet teardown.")
+            } else if !walletLifecycleMayAcquireStorage {
+                statusLabel.text = "Wallet controls are protected while this screen is inactive."
+                accountLabel.text = "Account unavailable until protected foreground access resumes."
+                setReadAvailability(false, message: "Read-only synchronization unavailable outside protected foreground access.")
+            } else {
+                statusLabel.text = "Wallet storage is active in another screen."
+                accountLabel.text = "Account unavailable. Close the other wallet screen and try again."
+                setReadAvailability(false, message: "Read-only synchronization unavailable while storage is owned elsewhere.")
+            }
             refreshButtonStates()
             return
         }
@@ -654,41 +696,101 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func protectWalletLifecycle() {
-        invalidateReadOperation()
         clearRestoreInput()
-        guard storageLease != nil else {
-            clearRecoveryDisplay()
+        let shouldDeleteIncompleteWallet = unconfirmedDatabaseKey != nil
+        if var key = unconfirmedDatabaseKey {
+            unconfirmedDatabaseKey = nil
+            WalletSecretBytes.wipe(&key)
+        }
+        clearRecoveryDisplay()
+        beginWalletRetirement(deleteIncompleteWallet: shouldDeleteIncompleteWallet)
+        if isViewLoaded {
+            refreshState()
+        }
+    }
+
+    @objc private func suspendWalletLifecycle() {
+        walletLifecycleSuspended = true
+        protectWalletLifecycle()
+    }
+
+    @objc private func reactivateWalletLifecycle() {
+        guard UIApplication.shared.applicationState == .active,
+              UIApplication.shared.isProtectedDataAvailable,
+              !UIScreen.main.isCaptured else {
             return
         }
-        if unconfirmedDatabaseKey != nil {
-            abortIncompleteWallet()
-        } else {
-            clearRecoveryDisplay()
-            try? wallet?.lock()
+        walletLifecycleSuspended = false
+        resumeWalletLifecycle()
+    }
+
+    @objc private func resumeWalletLifecycle() {
+        guard !retirementInFlight, walletLifecycleMayAcquireStorage else {
+            protectedStorageIsAvailable = false
+            if isViewLoaded {
+                refreshState()
+            }
+            return
+        }
+        acquireStorageLease()
+        if storageLease != nil, unconfirmedDatabaseKey == nil {
+            refreshProtectedStorageState()
         }
         if isViewLoaded {
             refreshState()
         }
     }
 
-    private func abortIncompleteWallet() {
-        if var key = unconfirmedDatabaseKey {
-            unconfirmedDatabaseKey = nil
-            WalletSecretBytes.wipe(&key)
+    @objc private func handleScreenCaptureChange() {
+        if UIScreen.main.isCaptured {
+            suspendWalletLifecycle()
+        } else {
+            reactivateWalletLifecycle()
         }
-        discardWalletAndFiles()
+    }
+
+    private var walletLifecycleMayAcquireStorage: Bool {
+        walletAuthorityRequested &&
+            !walletLifecycleSuspended &&
+            UIApplication.shared.applicationState == .active &&
+            UIApplication.shared.isProtectedDataAvailable &&
+            !UIScreen.main.isCaptured
+    }
+
+    private func beginWalletRetirement(deleteIncompleteWallet: Bool) {
+        invalidateReadOperation()
+        let currentWallet = wallet
+        let currentLease = storageLease
+        let deletionPath = deleteIncompleteWallet && currentLease != nil
+            ? resolvedDatabasePath
+            : nil
+        wallet = nil
+        storageLease = nil
+        protectedStorageIsAvailable = false
+        if deleteIncompleteWallet {
+            persistentWalletExists = false
+        }
+
+        let plan = WalletRetirementPlan(
+            wallet: currentWallet,
+            lease: currentLease,
+            incompleteDatabasePath: deletionPath
+        )
+        guard plan.hasWork else { return }
+
+        retirementGeneration &+= 1
+        let generation = retirementGeneration
+        retirementInFlight = true
+        WalletRetirementQueue.shared.enqueue(plan) { [weak self] in
+            guard let self, self.retirementGeneration == generation else { return }
+            self.retirementInFlight = false
+            self.resumeWalletLifecycle()
+        }
     }
 
     private func discardWalletAndFiles() {
-        invalidateReadOperation()
         clearRecoveryDisplay()
-        try? wallet?.lock()
-        wallet?.close()
-        wallet = nil
-        persistentWalletExists = false
-        if let path = resolvedDatabasePath {
-            try? Self.deleteWalletFiles(databasePath: path)
-        }
+        beginWalletRetirement(deleteIncompleteWallet: true)
     }
 
     private func clearRecoveryDisplay() {
@@ -756,7 +858,11 @@ final class WalletViewController: UIViewController {
     }
 
     private func acquireStorageLease() {
-        guard storageLease == nil else { return }
+        guard storageLease == nil,
+              !retirementInFlight,
+              walletLifecycleMayAcquireStorage else {
+            return
+        }
         do {
             let path = try walletDatabasePath()
             storageLease = WalletStorageLeaseRegistry.acquire(path: path)
@@ -764,13 +870,6 @@ final class WalletViewController: UIViewController {
         } catch {
             protectedStorageIsAvailable = false
         }
-    }
-
-    private func releaseStorageLease() {
-        guard let storageLease else { return }
-        invalidateReadOperation()
-        WalletStorageLeaseRegistry.release(storageLease)
-        self.storageLease = nil
     }
 
     private func invalidateReadOperation() {
@@ -788,7 +887,7 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    nonisolated private static func deleteWalletFiles(databasePath: String) throws {
+    nonisolated fileprivate static func deleteWalletFiles(databasePath: String) throws {
         for path in [databasePath] + walletSidecars(databasePath: databasePath) {
             if FileManager.default.fileExists(atPath: path) {
                 try FileManager.default.removeItem(atPath: path)
@@ -842,6 +941,21 @@ private enum WalletHnsReadOutcome: Sendable {
     case failure(String)
 }
 
+func walletReadMayPublish(
+    expectedGeneration: UInt64,
+    currentGeneration: UInt64,
+    expectedLease: WalletStorageLeaseToken,
+    currentLease: WalletStorageLeaseToken?,
+    expectedWalletIdentity: ObjectIdentifier,
+    currentWalletIdentity: ObjectIdentifier?,
+    viewIsVisible: Bool
+) -> Bool {
+    expectedGeneration == currentGeneration &&
+        expectedLease == currentLease &&
+        expectedWalletIdentity == currentWalletIdentity &&
+        viewIsVisible
+}
+
 struct WalletStorageLeaseToken: Equatable, Sendable {
     let path: String
     let owner: UUID
@@ -869,5 +983,85 @@ enum WalletStorageLeaseRegistry {
         defer { state.lock.unlock() }
         guard state.owners[token.path] == token.owner else { return }
         state.owners.removeValue(forKey: token.path)
+    }
+}
+
+/// Exact teardown sequence handed off by the main actor. The native controller
+/// and storage lease stay strongly owned here until lock, destruction, and any
+/// incomplete-wallet deletion have all finished.
+struct WalletRetirementPlan: @unchecked Sendable {
+    let hasWork: Bool
+    private let lockController: () -> Void
+    private let destroyController: () -> Void
+    private let deleteIncompleteWallet: () -> Void
+    private let releaseStorageLease: () -> Void
+
+    init(
+        wallet: RustNativeWallet?,
+        lease: WalletStorageLeaseToken?,
+        incompleteDatabasePath: String?
+    ) {
+        hasWork = wallet != nil || lease != nil || incompleteDatabasePath != nil
+        lockController = { try? wallet?.lock() }
+        destroyController = { wallet?.close() }
+        deleteIncompleteWallet = {
+            guard let incompleteDatabasePath else { return }
+            try? WalletViewController.deleteWalletFiles(
+                databasePath: incompleteDatabasePath
+            )
+        }
+        releaseStorageLease = {
+            guard let lease else { return }
+            WalletStorageLeaseRegistry.release(lease)
+        }
+    }
+
+    init(
+        hasWork: Bool = true,
+        lockController: @escaping () -> Void,
+        destroyController: @escaping () -> Void,
+        deleteIncompleteWallet: @escaping () -> Void,
+        releaseStorageLease: @escaping () -> Void
+    ) {
+        self.hasWork = hasWork
+        self.lockController = lockController
+        self.destroyController = destroyController
+        self.deleteIncompleteWallet = deleteIncompleteWallet
+        self.releaseStorageLease = releaseStorageLease
+    }
+
+    func execute() {
+        guard hasWork else { return }
+        lockController()
+        destroyController()
+        deleteIncompleteWallet()
+        releaseStorageLease()
+    }
+}
+
+/// A single process-wide worker bounds native retirement concurrency to one.
+/// Lifecycle callers never wait for an in-flight HNS read's native mutex.
+final class WalletRetirementQueue: @unchecked Sendable {
+    static let shared = WalletRetirementQueue()
+
+    private let queue = DispatchQueue(
+        label: "com.denuoweb.hnsdane.wallet-retirement",
+        qos: .userInitiated,
+        autoreleaseFrequency: .workItem
+    )
+
+    private init() {}
+
+    func enqueue(
+        _ plan: WalletRetirementPlan,
+        completion: (@MainActor @Sendable () -> Void)? = nil
+    ) {
+        queue.async {
+            plan.execute()
+            guard let completion else { return }
+            Task { @MainActor in
+                completion()
+            }
+        }
     }
 }

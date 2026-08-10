@@ -63,8 +63,8 @@ Notes:
   source. Name-import/tracking ingestion is absent.
 - Transfers, sending, website-provider access, settlement, exchange features,
   HNSA/HNSR controls, and P2P marketplaces remain independently unavailable.
-  iOS also needs nonblocking lifecycle-teardown qualification before product
-  wiring may enable reads.
+  iOS now implements lease-retaining nonblocking lifecycle teardown; exact
+  candidate qualification remains before product wiring may enable reads.
 - `hns-wallet-mobile` is pinned to final wallet `0.1.0` source
   `2229be849557d58a8eb723bcc03349f0f2df9796`. Its lock closure uses final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`.

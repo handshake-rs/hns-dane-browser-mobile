@@ -91,9 +91,10 @@ iOS UI / Browser Shell                             [public; device qualification
   pruned node lacks wallet index/auth; pruning does not invalidate existing-wallet
   retained evidence, while fresh restore needs a durable raw-tx source. Name
   import is absent. Sending/value, settlement,
-  HNSA/HNSR, exchange, and marketplace gates remain false. Android performs
-  read/retirement work off the UI thread; iOS needs nonblocking lifecycle
-  teardown qualification before reads are enabled. Historical `0.5.8` source
+  HNSA/HNSR, exchange, and marketplace gates remain false. Both shells perform
+  read/retirement work off the UI thread; the new iOS lease-retaining teardown
+  path still needs exact-candidate qualification before reads are enabled.
+  Historical `0.5.8` source
   `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
   `31402758394`, including the complete Apple gate; `0.5.9` candidate CI, signed
   artifacts, fresh commit-bound store screenshots, and submission remain open.
