@@ -199,7 +199,9 @@ engine adapters and compatibility contracts from exact reviewed Git revisions.
 - Live Release screenshot run `30454926117` produced four fixture-free
   1284 × 2778 images at that exact source. Provenance records current Handshake
   headers, DANE-verified HNS, same-navigation Proof Details, and authenticated
-  ICANN WebPKI; the full App Store metadata/screenshot validator passes.
+  ICANN WebPKI. That historical set passed its submission validator; the
+  current candidate validator intentionally rejects it because it predates the
+  exact `0.5.8` commit and required native wallet-row provenance.
 - Protected upload run `30456522039` passed the unsigned gate, signed and
   uploaded build `57`, and retained the 47,930,601-byte IPA with SHA-256
   `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.

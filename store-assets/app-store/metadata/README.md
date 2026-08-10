@@ -68,15 +68,20 @@ its mutation scope; read those back separately.
 The retained screenshots under `../screenshots/en-US/` come from public
 `0.5.5` source and do not show the native wallet controls. They are historical
 assets only. Generate a fresh exact-commit set for `0.5.8`; the protected
-upload workflow rejects a screenshot manifest whose commit does not match the
-candidate.
+upload workflow rejects a screenshot set whose commit does not match the
+candidate or whose provenance does not prove the visible native wallet row.
+The retained historical set deliberately fails the current full validator.
 
 Run the deterministic metadata checks before entering fields. Run the complete
-validator after fresh screenshots are staged:
+validator only after fresh screenshots are staged for the exact candidate:
 
 ```sh
 python3 store-assets/app-store/validate.py --metadata-only
-python3 store-assets/app-store/validate.py
+expected_commit="$(git rev-parse HEAD)"
+./scripts/stage-ios-app-store-screenshots.sh \
+  build/app-store-live-screenshots "$expected_commit"
+python3 store-assets/app-store/validate.py \
+  --expected-commit "$expected_commit"
 ```
 
 ## Submission controls

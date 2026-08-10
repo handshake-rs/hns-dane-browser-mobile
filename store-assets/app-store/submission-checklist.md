@@ -20,6 +20,9 @@ surface. Every Console answer must describe that exact boundary.
   `hns-rs` release: repin wallet, repin mobile to the resulting wallet commit,
   and regenerate the lockfile, source policy, and notices.
 - [ ] Pass Required CI and CodeQL at the final exact `0.5.8` commit.
+- [x] Require the protected upload workflow to capture and fully verify fresh
+  exact-commit screenshots before reading Apple credentials or uploading an
+  IPA; screenshot failure is fatal.
 - [ ] Run the protected exact-commit signed upload workflow and retain the IPA
   SHA-256, size, source commit, bundle identity, signing, and processing
   evidence.
@@ -44,11 +47,13 @@ surface. Every Console answer must describe that exact boundary.
 
 - [ ] Replace the retained `0.5.5` screenshot set with fresh, exact-commit
   `0.5.8` iPhone screenshots.
-- [ ] Include the native wallet entry/control boundary without displaying a
-  recovery phrase, account identifier, database material, or other secret.
+- [ ] Confirm provenance schema 3 records
+  `settings.wallet.native-controls`, and visually verify that native wallet
+  entry without displaying a recovery phrase, account identifier, database
+  material, or other secret.
 - [ ] Use one accepted 6.9-inch or 6.5-inch resolution with no alpha channel.
-- [ ] Run `python3 store-assets/app-store/validate.py` successfully and verify
-  the manifest commit equals the upload candidate.
+- [ ] Run `python3 store-assets/app-store/validate.py --expected-commit SHA`
+  successfully with the manifest commit equal to the upload candidate.
 
 ## App Store questionnaires
 

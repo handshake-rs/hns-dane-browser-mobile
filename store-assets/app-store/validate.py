@@ -7,6 +7,7 @@ import json
 import plistlib
 import re
 import struct
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -91,6 +92,7 @@ IPHONE_SCREENSHOT_SIZES = {
 }
 
 SCREENSHOT_NAME = re.compile(r"^[0-9]{2}-[a-z0-9][a-z0-9-]*\.(?:png|jpe?g)$")
+EXACT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 HTML_TAG = re.compile(r"<[^>]+>")
 COPYRIGHT = re.compile(r"^[0-9]{4} .+")
 JPEG_SOF_MARKERS = {
@@ -496,7 +498,34 @@ def validate_ios_version_declarations(validation):
             )
 
 
-def validate_live_screenshot_provenance(validation):
+def expected_screenshot_commit(validation, requested_commit):
+    if requested_commit is not None:
+        commit = requested_commit
+    else:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPOSITORY_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            validation.error(
+                "cannot resolve the candidate commit for screenshot validation: {}".format(
+                    result.stderr.strip() or "git rev-parse HEAD failed"
+                )
+            )
+            return None
+        commit = result.stdout.strip()
+    if not EXACT_COMMIT.fullmatch(commit):
+        validation.error(
+            "screenshot expected commit must be one lowercase 40-character Git SHA"
+        )
+        return None
+    return commit
+
+
+def validate_live_screenshot_provenance(validation, expected_commit):
     if not SCREENSHOT_MANIFEST.is_file():
         validation.error(
             "{}: verified live Release provenance is required; the existing "
@@ -512,13 +541,17 @@ def validate_live_screenshot_provenance(validation):
             verify_live_set,
         )
 
-        verify_live_set(SCREENSHOT_ROOT, document)
+        verify_live_set(
+            SCREENSHOT_ROOT,
+            document,
+            expected_commit=expected_commit,
+        )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         validation.error("{}: cannot verify: {}".format(SCREENSHOT_MANIFEST, error))
 
 
-def validate_screenshots(validation):
-    validate_live_screenshot_provenance(validation)
+def validate_screenshots(validation, expected_commit):
+    validate_live_screenshot_provenance(validation, expected_commit)
     if not SCREENSHOT_ROOT.is_dir():
         validation.error(
             "{}: screenshot directory is missing; add the final en-US screenshots".format(
@@ -612,6 +645,13 @@ def main(argv=None):
         action="store_true",
         help="validate metadata while final screenshots are still pending",
     )
+    parser.add_argument(
+        "--expected-commit",
+        help=(
+            "exact lowercase 40-character commit represented by screenshots; "
+            "defaults to the current Git HEAD"
+        ),
+    )
     arguments = parser.parse_args(argv)
 
     validation = Validation()
@@ -619,7 +659,11 @@ def main(argv=None):
     validate_app_icon(validation)
     validate_ios_version_declarations(validation)
     if not arguments.metadata_only:
-        validate_screenshots(validation)
+        expected_commit = expected_screenshot_commit(
+            validation,
+            arguments.expected_commit,
+        )
+        validate_screenshots(validation, expected_commit)
 
     for warning in validation.warnings:
         print("WARNING: {}".format(warning))

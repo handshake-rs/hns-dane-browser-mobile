@@ -3,7 +3,10 @@
 The `Live iOS App Store Screenshots` workflow produces four truthful iPhone
 screenshots without a physical iPhone. It runs only when manually dispatched
 because it performs real network navigation and is intended to create a
-reviewed submission artifact, not a required pull-request check.
+reviewed submission artifact, not a required pull-request check. The protected
+App Store upload workflow runs the same capture and full verification as a
+mandatory pre-credential gate; capture or verification failure blocks signing
+and upload.
 
 The checked-in images and manifest are retained `0.5.5` history and are not
 submission-ready for the configured `0.5.8` / build `58` candidate. Dispatch
@@ -29,8 +32,8 @@ requires `manifest.json` to name the same exact commit. The artifact contains:
 
 - `01-hns-page.jpg`, captured after the shipping runtime loads
   `https://denuoweb/`
-- `02-settings.jpg`, showing the corrected shipping Settings screen during that
-  live HNS session
+- `02-settings.jpg`, showing the corrected shipping Settings screen with the
+  native Handshake wallet row fully visible during that live HNS session
 - `03-proof-details.jpg`, showing the actual proof returned for that same HNS
   navigation
 - `04-webpki.jpg`, captured after the shipping runtime loads
@@ -75,6 +78,8 @@ The capture fails instead of producing an artifact when:
   WebPKI;
 - Proof Details does not open within 60 seconds;
 - Proof Details does not identify the same `denuoweb` HNS navigation;
+- the native `settings.wallet.native-controls` row is not fully visible with
+  its shipping Handshake wallet label when the Settings image is captured;
 - the public WebPKI page does not finish within 90 seconds;
 - the app presents a navigation or runtime alert;
 - the Release app binary contains the Debug fixture environment key; or
@@ -91,22 +96,27 @@ qualification matrix in `docs/ios-device-validation.md`.
 
 1. Inspect all four images at full size. Confirm that the HNS page and public
    product page rendered normally, Settings matches the shipping Android-aligned
-   structure with Stateless DANE visibly rendered as a switch and the native
-   Handshake wallet entry visible, Proof Details
+   structure with the native Handshake wallet entry visible, Proof Details
    refers to `denuoweb`, critical app and security text is not clipped, and no
-   keyboard, test overlay, or alert is visible.
+   keyboard, test overlay, or alert is visible. The runtime provenance
+   separately proves the semantic Stateless DANE row and switch were present.
 2. Inspect `manifest.json`. Confirm `capture.mode` is
    `live-production-runtime`, `capture.configuration` is `Release`,
    `capture.fixtureEnvironmentInjected` is `false`, and the commit is the
    intended release commit. Confirm the recorded HNS label starts with
    `DANE verified` and the public-page label reports either `DANE verified` or
-   `WebPKI verified · no secure TLSA`, matching what is visibly shown.
+   `WebPKI verified · no secure TLSA`, matching what is visibly shown. Confirm
+   `runtimeEvidence.settings.nativeWalletRowIdentifier` is exactly
+   `settings.wallet.native-controls`.
 3. Put the downloaded artifact contents below
    `build/app-store-live-screenshots/`, then run:
 
    ```sh
-   ./scripts/stage-ios-app-store-screenshots.sh
-   python3 store-assets/app-store/validate.py
+   expected_commit="$(git rev-parse HEAD)"
+   ./scripts/stage-ios-app-store-screenshots.sh \
+     build/app-store-live-screenshots "$expected_commit"
+   python3 store-assets/app-store/validate.py \
+     --expected-commit "$expected_commit"
    ```
 
    The staging script verifies every digest, replaces
@@ -121,16 +131,21 @@ qualification matrix in `docs/ios-device-validation.md`.
 The committed `0.5.5` set was captured from exact source
 `d926561091634cd69fc9b7e79a4b76003fa4ee47` in successful workflow run
 `30454926117`. Its Release/runtime provenance, four 1284 × 2778 images, and
-digests pass the full metadata validator.
+digests remain published historical evidence. They passed the submission gate
+for that release, but intentionally fail the current candidate validator
+because they predate provenance schema 3, the native wallet-row evidence, and
+the exact `0.5.8` candidate commit.
 
 That successful historical validation does not satisfy the `0.5.8` manifest
 commit gate. Replace the set only with an artifact captured from the exact
 final candidate.
 
-The screenshot workflow never contacts App Store Connect and does not use
-signing or App Store credentials. After local visual review, the guarded
-release client uploaded this `0.5.5` set and verified its order, checksums, and
-dimensions in App Store Connect.
+The standalone screenshot workflow never contacts App Store Connect and does
+not use signing or App Store credentials. In the protected upload workflow,
+the mandatory capture and verification steps also run before any Apple secret
+is read or any IPA is uploaded. After local visual review, the guarded release
+client uploaded the historical `0.5.5` set and verified its order, checksums,
+and dimensions in App Store Connect.
 
 Protected upload run `30456522039` also completed a repeat live capture and
 retained artifact `8727084963`. That distinct set is corroborating evidence

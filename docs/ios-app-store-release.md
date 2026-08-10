@@ -68,16 +68,19 @@ base64 -w0 /trusted/path/app-store.mobileprovision | gh secret set --repo handsh
 The workflow is manual, refuses non-`main` refs, has read-only GitHub
 permissions, and requires the exact lowercase 40-character commit already
 reviewed and qualified. The requested commit must equal the `main` commit
-selected at dispatch; after the complete unsigned simulator/device-link gate,
-the workflow re-reads remote `main` and stops before materializing credentials
-if the branch moved. The signed-upload helper checks the exact clean tracked
-source and hard-coded repository `main` again immediately before Apple's
-irreversible upload call. A global upload lease also prevents two different
-commit-keyed runs from signing or uploading concurrently. The workflow uploads
-the build to App Store Connect and retains the same App Store-signed IPA plus a
-SHA-256/size/source-commit provenance record as a private, commit-keyed workflow
-artifact for seven days so the release operator can publish it with the
-matching GitHub Release.
+selected at dispatch. After the complete unsigned simulator/device-link gate,
+the workflow captures four live Release screenshots and fully verifies their
+exact-commit manifest, digests, runtime trust evidence, and visible native
+wallet row. Any screenshot failure stops the job before Apple credentials are
+read or an IPA is uploaded. The workflow then re-reads remote `main` and stops
+before materializing credentials if the branch moved. The signed-upload helper
+checks the exact clean tracked source and hard-coded repository `main` again
+immediately before Apple's irreversible upload call. A global upload lease also
+prevents two different commit-keyed runs from signing or uploading concurrently.
+The workflow uploads the build to App Store Connect and retains the same App
+Store-signed IPA plus a SHA-256/size/source-commit provenance record as a
+private, commit-keyed workflow artifact for seven days so the release operator
+can publish it with the matching GitHub Release.
 
 ```sh
 expected_commit="$(git rev-parse HEAD)"
@@ -92,15 +95,22 @@ gh workflow run ios-app-store-upload.yml \
 The workflow then:
 
 1. runs `scripts/run-ios-gate.sh` with Xcode 26.5/26.6 and the iOS 26.5 SDK;
-2. writes the API key, distribution identity, and App Store profile only to the ephemeral runner's private temporary directory;
-3. verifies the identity and profile against the fixed team and bundle IDs, then creates a Release archive using manual App Store distribution signing in a disposable keychain;
-4. verifies the archived app identity and compiled AppIcon catalog, then
+2. captures the exact-commit live Release screenshot set, requires the native
+   wallet row to be visibly represented, verifies every digest and provenance
+   field, and retains the set for review; failure blocks all later steps;
+3. rechecks remote `main`, then writes the API key, distribution identity, and
+   App Store profile only to the ephemeral runner's private temporary directory;
+4. verifies the identity and profile against the fixed team and bundle IDs,
+   then creates a Release archive using manual App Store distribution signing
+   in a disposable keychain;
+5. verifies the archived app identity and compiled AppIcon catalog, then
    exports the signed IPA, validates/exports the archive with App Store Connect
    authentication, rechecks exact source and current remote `main`, uploads the
    configured candidate build, and retains
    `ios-app-store-ipa-<commit>` with
    `hns-dane-browser-ios-app-store.provenance.json` for release publication;
-5. deletes the temporary keychain, installed profile, API key, `.p12`, and profile while GitHub discards the runner.
+6. deletes the temporary keychain, installed profile, API key, `.p12`, and
+   profile while GitHub discards the runner.
 
 Apple associates the uploaded build with the app record using its bundle ID,
 version, and build number. Build `49` is superseded. Builds `50`–`56` were not
@@ -127,8 +137,10 @@ Build `58` is the next configured candidate. It must not be uploaded until the
 dated final `hns-rs` → wallet → mobile repin is complete, the resulting exact
 commit passes Required CI/CodeQL, the lockfile and generated notices are
 verified, the hosted privacy policy matches this checkout, and a fresh
-screenshot manifest names that exact commit. After upload, replace this
-paragraph with the retained IPA provenance and App Store Connect readback.
+screenshot manifest names that exact commit and carries provenance schema 3
+with `settings.wallet.native-controls` visible. The upload workflow enforces
+that screenshot gate before credential materialization. After upload, replace
+this paragraph with the retained IPA provenance and App Store Connect readback.
 
 The same protected run completed successfully and retained repeat live-capture
 artifact `8727084963` as corroborating workflow evidence. It is not the staged

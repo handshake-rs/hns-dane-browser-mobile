@@ -65,6 +65,38 @@ jobs:
       - name: Run the complete unsigned iOS gate
         run: ./scripts/run-ios-gate.sh
 
+      - name: Capture mandatory live Release App Store screenshots
+        id: live_capture
+        run: ./scripts/generate-ios-app-store-screenshots.sh
+
+      - name: Upload failed live-capture diagnostics
+        if: failure() && steps.live_capture.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-app-store-screenshot-diagnostics-${{ inputs.expected_commit }}
+          path: build/ios-screenshot-diagnostics
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Verify mandatory screenshots against the exact upload commit
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          python3 scripts/ios_screenshot_tools.py verify-live \
+            --directory build/app-store-live-screenshots \
+            --expected-commit "$EXPECTED_COMMIT"
+
+      - name: Retain mandatory screenshots and provenance for human review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-app-store-live-screenshots-${{ inputs.expected_commit }}
+          path: |
+            build/app-store-live-screenshots/*.jpg
+            build/app-store-live-screenshots/manifest.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
       - name: Recheck current main before using upload credentials
         env:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
@@ -181,51 +213,3 @@ jobs:
               rm -f -- "$credential_path"
             fi
           done
-
-      - name: Capture live Release App Store screenshots
-        id: live_capture
-        continue-on-error: true
-        run: ./scripts/generate-ios-app-store-screenshots.sh
-
-      - name: Verify live screenshot source provenance
-        if: ${{ steps.live_capture.outcome == 'success' }}
-        env:
-          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
-        run: |
-          python3 - "$EXPECTED_COMMIT" <<'PY'
-          import json
-          from pathlib import Path
-          import sys
-
-          expected_commit = sys.argv[1]
-          manifest_path = Path("build/app-store-live-screenshots/manifest.json")
-          with manifest_path.open(encoding="utf-8") as handle:
-              manifest = json.load(handle)
-          if manifest.get("capture", {}).get("commit") != expected_commit:
-              raise SystemExit("screenshot manifest source commit does not match expected_commit")
-          PY
-
-      - name: Upload live screenshots and provenance for human review
-        if: ${{ steps.live_capture.outcome == 'success' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ios-app-store-live-screenshots-${{ inputs.expected_commit }}
-          path: |
-            build/app-store-live-screenshots/*.jpg
-            build/app-store-live-screenshots/manifest.json
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 0
-
-      - name: Upload failed live-capture diagnostics
-        if: ${{ steps.live_capture.outcome == 'failure' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ios-app-store-screenshot-diagnostics-${{ inputs.expected_commit }}
-          path: build/ios-screenshot-diagnostics
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Report a non-blocking screenshot failure
-        if: ${{ steps.live_capture.outcome == 'failure' }}
-        run: echo '::warning::Build upload succeeded, but the optional live screenshot capture needs review.'

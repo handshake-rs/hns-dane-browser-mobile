@@ -48,7 +48,9 @@ SCREENSHOT_PROFILES = {
 }
 LIVE_PROVENANCE_ATTACHMENT = "LIVE_APPSTORE_PROVENANCE"
 LIVE_CAPTURE_MODE = "live-production-runtime"
-LIVE_PROVENANCE_SCHEMA_VERSION = 2
+LIVE_PROVENANCE_SCHEMA_VERSION = 3
+NATIVE_WALLET_ROW_IDENTIFIER = "settings.wallet.native-controls"
+EXACT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 RETRYABLE_DUAL_ROOT_SECURITY_LABEL = (
     "The Rust proxy rejected the dual-root response · Dual-root validation failed"
 )
@@ -391,6 +393,20 @@ def validate_live_provenance(document: Any) -> dict[str, Any]:
         != expected_settings_toggle
     ):
         raise ScreenshotToolError("settings provenance is missing the stateless DANE switch")
+    if (
+        document["settings"].get("nativeWalletRowIdentifier")
+        != NATIVE_WALLET_ROW_IDENTIFIER
+    ):
+        raise ScreenshotToolError(
+            "settings provenance is missing the visible native wallet row"
+        )
+    wallet_label = document["settings"].get("nativeWalletRowLabel")
+    if not isinstance(wallet_label, str) or not wallet_label.startswith(
+        "Handshake wallet"
+    ):
+        raise ScreenshotToolError(
+            "settings provenance does not identify the visible Handshake wallet row"
+        )
     return document
 
 
@@ -406,6 +422,10 @@ def write_manifest(
     configuration: str = "Release",
     runtime_provenance: dict[str, Any] | None = None,
 ) -> Path:
+    if not EXACT_COMMIT.fullmatch(commit):
+        raise ScreenshotToolError(
+            "live screenshot manifest commit must be one lowercase 40-character Git SHA"
+        )
     expected_files = [f"{basename}.jpg" for _, basename in screenshot_specs]
     actual_files = sorted(path.name for path in directory.glob("*.jpg"))
     if actual_files != sorted(expected_files):
@@ -452,7 +472,11 @@ def write_manifest(
     return output
 
 
-def verify_live_set(directory: Path, manifest: Any) -> list[Path]:
+def verify_live_set(
+    directory: Path,
+    manifest: Any,
+    expected_commit: str | None = None,
+) -> list[Path]:
     if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 1:
         raise ScreenshotToolError("live screenshot manifest schemaVersion must be 1")
     capture = manifest.get("capture")
@@ -468,6 +492,21 @@ def verify_live_set(directory: Path, manifest: Any) -> list[Path]:
         value = capture.get(field)
         if not isinstance(value, str) or not value.strip():
             raise ScreenshotToolError(f"live screenshot manifest is missing capture.{field}")
+    capture_commit = capture["commit"]
+    if not EXACT_COMMIT.fullmatch(capture_commit):
+        raise ScreenshotToolError(
+            "live screenshot manifest capture.commit must be one lowercase "
+            "40-character Git SHA"
+        )
+    if expected_commit is not None:
+        if not EXACT_COMMIT.fullmatch(expected_commit):
+            raise ScreenshotToolError(
+                "expected commit must be one lowercase 40-character Git SHA"
+            )
+        if capture_commit != expected_commit:
+            raise ScreenshotToolError(
+                "live screenshot manifest source commit does not match expected commit"
+            )
     validate_live_provenance(manifest.get("runtimeEvidence"))
 
     expected_files = [f"{basename}.jpg" for _, basename in LIVE_SCREENSHOTS]
@@ -541,6 +580,7 @@ def build_parser() -> argparse.ArgumentParser:
     verify = subparsers.add_parser("verify-live")
     verify.add_argument("--directory", required=True)
     verify.add_argument("--manifest")
+    verify.add_argument("--expected-commit")
     return parser
 
 
@@ -585,7 +625,11 @@ def main() -> int:
         elif args.command == "verify-live":
             directory = Path(args.directory)
             manifest_path = Path(args.manifest) if args.manifest else directory / "manifest.json"
-            for output in verify_live_set(directory, load_json(str(manifest_path))):
+            for output in verify_live_set(
+                directory,
+                load_json(str(manifest_path)),
+                expected_commit=args.expected_commit,
+            ):
                 print(output)
     except (OSError, json.JSONDecodeError, ScreenshotToolError) as error:
         print(f"ERROR: {error}", file=sys.stderr)

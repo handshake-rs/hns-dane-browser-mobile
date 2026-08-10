@@ -182,6 +182,7 @@ python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" manifest \
   --runtime-provenance "$RUNTIME_PROVENANCE"
 
 python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" verify-live \
-  --directory "$OUTPUT_DIR"
+  --directory "$OUTPUT_DIR" \
+  --expected-commit "$COMMIT"
 
 printf 'Created four live Release App Store screenshots and provenance in %s\n' "$OUTPUT_DIR"

@@ -22,6 +22,8 @@ from scripts.ios_screenshot_tools import (
 
 
 PNG = b"\x89PNG\r\n\x1a\nfixture"
+COMMIT = "a" * 40
+OTHER_COMMIT = "b" * 40
 
 
 def live_provenance() -> dict:
@@ -44,6 +46,9 @@ def live_provenance() -> dict:
         },
         "schemaVersion": LIVE_PROVENANCE_SCHEMA_VERSION,
         "settings": {
+            "nativeWalletRowIdentifier": "settings.wallet.native-controls",
+            "nativeWalletRowLabel":
+                "Handshake wallet, Manage one device-local Handshake wallet.",
             "sourceRequestedURL": "https://denuoweb/",
             "statelessDANERowIdentifier":
                 "settings.hns-resolution.stateless-dane-certificates",
@@ -245,14 +250,14 @@ class ScreenshotManifestTests(unittest.TestCase):
                 directory,
                 1284,
                 2778,
-                "abcdef",
+                COMMIT,
                 "Xcode 26.5",
                 "26.5",
                 "iPhone 14 Plus",
                 runtime_provenance=live_provenance(),
             )
             document = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(document["capture"]["commit"], "abcdef")
+            self.assertEqual(document["capture"]["commit"], COMMIT)
             self.assertEqual(len(document["screenshots"]), 4)
             self.assertTrue(
                 all(len(item["sha256"]) == 64 for item in document["screenshots"])
@@ -260,9 +265,25 @@ class ScreenshotManifestTests(unittest.TestCase):
             self.assertEqual(document["capture"]["mode"], LIVE_CAPTURE_MODE)
             self.assertFalse(document["capture"]["fixtureEnvironmentInjected"])
             self.assertEqual(
-                [path.name for path in verify_live_set(directory, document)],
+                [
+                    path.name
+                    for path in verify_live_set(
+                        directory,
+                        document,
+                        expected_commit=COMMIT,
+                    )
+                ],
                 [f"{basename}.jpg" for _, basename in SCREENSHOTS],
             )
+            with self.assertRaisesRegex(
+                ScreenshotToolError,
+                "source commit does not match expected commit",
+            ):
+                verify_live_set(
+                    directory,
+                    document,
+                    expected_commit=OTHER_COMMIT,
+                )
 
     def test_rejects_wrong_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -274,7 +295,7 @@ class ScreenshotManifestTests(unittest.TestCase):
                     directory,
                     1284,
                     2778,
-                    "abcdef",
+                    COMMIT,
                     "Xcode 26.5",
                     "26.5",
                     "iPhone 17",
@@ -283,7 +304,7 @@ class ScreenshotManifestTests(unittest.TestCase):
     def test_rejects_fixture_or_pending_runtime_provenance(self) -> None:
         provenance = live_provenance()
         provenance["schemaVersion"] = 1
-        with self.assertRaisesRegex(ScreenshotToolError, "schemaVersion must be 2"):
+        with self.assertRaisesRegex(ScreenshotToolError, "schemaVersion must be 3"):
             validate_live_provenance(provenance)
 
         provenance = live_provenance()
@@ -299,6 +320,16 @@ class ScreenshotManifestTests(unittest.TestCase):
         provenance = live_provenance()
         provenance["settings"].pop("statelessDANEToggleIdentifier")
         with self.assertRaisesRegex(ScreenshotToolError, "stateless DANE switch"):
+            validate_live_provenance(provenance)
+
+        provenance = live_provenance()
+        provenance["settings"].pop("nativeWalletRowIdentifier")
+        with self.assertRaisesRegex(ScreenshotToolError, "visible native wallet row"):
+            validate_live_provenance(provenance)
+
+        provenance = live_provenance()
+        provenance["settings"]["nativeWalletRowLabel"] = "Wallet unavailable"
+        with self.assertRaisesRegex(ScreenshotToolError, "visible Handshake wallet row"):
             validate_live_provenance(provenance)
 
         provenance = live_provenance()
@@ -442,7 +473,7 @@ class ScreenshotManifestTests(unittest.TestCase):
 
             manifest = {
                 "capture": {
-                    "commit": "abcdef",
+                    "commit": COMMIT,
                     "configuration": "Release",
                     "device": "iPhone 14 Plus",
                     "fixtureEnvironmentInjected": False,

@@ -58,6 +58,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Made the protected iOS upload workflow capture and fully verify fresh live
+  Release screenshots for the exact expected commit before reading Apple
+  credentials or uploading an IPA. Screenshot failure is now fatal, and
+  provenance schema 3 requires the native `settings.wallet.native-controls`
+  row to be fully visible in the candidate Settings image.
 - Hardened the Android no-backup storage ancestor and every network-scoped
   wallet directory to owner-only permissions before native wallet open or
   creation; exact fresh-install device qualification confirmed `0700`

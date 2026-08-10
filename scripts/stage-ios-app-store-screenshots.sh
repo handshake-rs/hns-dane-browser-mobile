@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_REQUESTED="${1:-$ROOT_DIR/build/app-store-live-screenshots}"
+EXPECTED_COMMIT="${2:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
 SCREENSHOT_ROOT="$ROOT_DIR/store-assets/app-store/screenshots"
 DESTINATION="$SCREENSHOT_ROOT/en-US"
 MANIFEST_DESTINATION="$SCREENSHOT_ROOT/manifest.json"
@@ -21,9 +22,12 @@ case "$SOURCE" in
   "$ROOT_DIR"/build/*) ;;
   *) fail "source must remain below $ROOT_DIR/build" ;;
 esac
+[[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]] ||
+  fail "expected commit must be one lowercase 40-character Git SHA"
 
 python3 "$ROOT_DIR/scripts/ios_screenshot_tools.py" verify-live \
-  --directory "$SOURCE"
+  --directory "$SOURCE" \
+  --expected-commit "$EXPECTED_COMMIT"
 
 STAGING="$SCREENSHOT_ROOT/.live-stage.$$"
 cleanup() {

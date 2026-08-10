@@ -333,6 +333,8 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let statelessToggle = app.switches[
             "settings.hns-resolution.stateless-dane-certificates.toggle"
         ]
+        let walletRowIdentifier = "settings.wallet.native-controls"
+        let walletRow = table.cells[walletRowIdentifier]
         XCTAssertTrue(
             scrollUp(in: table, untilFullyVisible: statelessRow),
             "Android-aligned HNS settings did not become visible"
@@ -341,8 +343,21 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             statelessToggle.waitForExistence(timeout: timeout),
             "Stateless DANE toggle did not appear"
         )
+        XCTAssertTrue(
+            scrollDown(in: table, untilFullyVisible: walletRow),
+            "Native Handshake wallet setting did not become fully visible"
+        )
+        let walletRowLabel = walletRow.label.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        XCTAssertTrue(
+            walletRowLabel.hasPrefix("Handshake wallet"),
+            "Visible native wallet row did not carry its shipping label"
+        )
         assertNoNavigationAlert()
         return [
+            "nativeWalletRowIdentifier": walletRowIdentifier,
+            "nativeWalletRowLabel": walletRowLabel,
             "sourceRequestedURL": Self.hnsURL,
             "statelessDANERowIdentifier":
                 "settings.hns-resolution.stateless-dane-certificates",
@@ -503,6 +518,34 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         return false
     }
 
+    private func scrollDown(
+        in table: XCUIElement,
+        untilFullyVisible element: XCUIElement,
+        maxSwipes: Int = 10
+    ) -> Bool {
+        for attempt in 0...maxSwipes {
+            assertNoNavigationAlert()
+
+            if element.exists {
+                let elementFrame = element.frame
+                let viewport = table.frame
+                if !elementFrame.isEmpty,
+                   element.isHittable,
+                   viewport.height.isFinite,
+                   viewport.height > 0,
+                   elementFrame.minY >= viewport.minY,
+                   elementFrame.maxY <= viewport.maxY {
+                    return true
+                }
+            }
+
+            if attempt < maxSwipes {
+                table.swipeDown()
+            }
+        }
+        return false
+    }
+
     @discardableResult
     private func waitUntil(
         description: String,
@@ -553,7 +596,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             "fixtureEnvironmentInjected": false,
             "hnsNavigation": hnsEvidence,
             "proofDetails": proofEvidence,
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "settings": settingsEvidence,
             "webPKINavigation": webPKIEvidence,
         ]

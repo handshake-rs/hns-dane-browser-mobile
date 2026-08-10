@@ -16,6 +16,11 @@ PLAY_UPLOAD = ROOT / "scripts" / "play-upload-closed-testing.sh"
 IOS_UPLOAD = ROOT / "scripts" / "upload-ios-app-store.sh"
 UPLOAD_WORKFLOW = ROOT / ".github" / "workflows" / "ios-app-store-upload.yml"
 SCREENSHOT_WORKFLOW = ROOT / ".github" / "workflows" / "ios-screenshots.yml"
+SCREENSHOT_UI_TEST = (
+    ROOT / "ios" / "HnsDaneBrowserScreenshotTests" / "AppStoreScreenshotTests.swift"
+)
+SCREENSHOT_TOOLS = ROOT / "scripts" / "ios_screenshot_tools.py"
+APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
@@ -114,9 +119,33 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
         self.assertIn("DISPATCH_COMMIT: ${{ github.sha }}", workflow)
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
+        capture_index = workflow.index(
+            "Capture mandatory live Release App Store screenshots"
+        )
+        verify_index = workflow.index(
+            "Verify mandatory screenshots against the exact upload commit"
+        )
+        credential_index = workflow.index("Materialize temporary signing credentials")
+        upload_index = workflow.index("Create the signed archive and upload it")
+        self.assertLess(capture_index, verify_index)
+        self.assertLess(verify_index, credential_index)
+        self.assertLess(credential_index, upload_index)
+        self.assertLess(verify_index, workflow.index("${{ secrets."))
         self.assertLess(
             workflow.index("Recheck current main before using upload credentials"),
-            workflow.index("Materialize temporary signing credentials"),
+            credential_index,
+        )
+        self.assertNotIn("continue-on-error: true", workflow)
+        self.assertNotIn("non-blocking screenshot failure", workflow)
+        self.assertIn(
+            "if: failure() && steps.live_capture.outcome == 'failure'",
+            workflow,
+        )
+        self.assertIn(
+            'scripts/ios_screenshot_tools.py verify-live \\\n'
+            "            --directory build/app-store-live-screenshots \\\n"
+            '            --expected-commit "$EXPECTED_COMMIT"',
+            workflow,
         )
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
         self.assertIn(
@@ -132,10 +161,6 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
             workflow,
         )
         self.assertIn('"sourceCommit": expected_commit', workflow)
-        self.assertIn(
-            'manifest.get("capture", {}).get("commit") != expected_commit',
-            workflow,
-        )
         self.assertNotIn("name: ios-app-store-ipa-${{ github.sha }}", workflow)
         self.assertNotIn(
             "name: ios-app-store-live-screenshots-${{ github.sha }}",
@@ -191,9 +216,41 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            'manifest.get("capture", {}).get("commit") != expected_commit',
+            'scripts/ios_screenshot_tools.py verify-live \\\n'
+            "            --directory build/app-store-live-screenshots \\\n"
+            '            --expected-commit "$EXPECTED_COMMIT"',
             workflow,
         )
+
+    def test_screenshot_evidence_requires_a_visible_native_wallet_row(self) -> None:
+        ui_test = SCREENSHOT_UI_TEST.read_text(encoding="utf-8")
+        self.assertIn(
+            'let walletRowIdentifier = "settings.wallet.native-controls"',
+            ui_test,
+        )
+        self.assertIn(
+            "scrollDown(in: table, untilFullyVisible: walletRow)",
+            ui_test,
+        )
+        self.assertIn(
+            '"nativeWalletRowIdentifier": walletRowIdentifier',
+            ui_test,
+        )
+
+        tools = SCREENSHOT_TOOLS.read_text(encoding="utf-8")
+        self.assertIn(
+            'NATIVE_WALLET_ROW_IDENTIFIER = "settings.wallet.native-controls"',
+            tools,
+        )
+        self.assertIn(
+            'document["settings"].get("nativeWalletRowIdentifier")',
+            tools,
+        )
+
+    def test_app_store_validator_requires_exact_candidate_screenshots(self) -> None:
+        validator = APP_STORE_VALIDATOR.read_text(encoding="utf-8")
+        self.assertIn('"--expected-commit"', validator)
+        self.assertIn("expected_commit=expected_commit", validator)
 
 
 class PlayUploadVersionCodeTests(unittest.TestCase):

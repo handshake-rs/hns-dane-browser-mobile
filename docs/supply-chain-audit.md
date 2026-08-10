@@ -31,9 +31,14 @@ version/repin/metadata commit must pass its own exact-head gates, and no signed
   permissions are read-only, release secrets are not provided, every non-local
   `uses:` reference is pinned to a full commit SHA, checkout credentials are
   not persisted, and concurrent runs on the same ref are cancelled. Current
-  current feature evidence: Required CI passed at exact source in run
+  feature evidence: Required CI passed at exact source in run
   `31393998309`. The final `0.5.8` commit still requires a new exact run before
   release.
+- The protected iOS upload path performs its live Release screenshot capture
+  and full exact-commit/digest/runtime/wallet-row verification before it reads
+  Apple credentials or uploads an IPA. Capture or verification failure is
+  fatal; the historical `0.5.5` set cannot satisfy the candidate schema or
+  commit gate.
 - Dependabot watches GitHub Actions, Gradle, and all three Cargo lockfile roots weekly.
 - Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums. Git inputs are limited to named `hns-dane-engine`, `hns-wallet-rs`, and transitive `hns-rs` packages at exact reviewed full revisions; unreviewed Git sources and restored local engine paths are denied.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.

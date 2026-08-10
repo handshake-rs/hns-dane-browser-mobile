@@ -63,18 +63,9 @@ jobs:
         env:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: |
-          python3 - "$EXPECTED_COMMIT" <<'PY'
-          import json
-          from pathlib import Path
-          import sys
-
-          expected_commit = sys.argv[1]
-          manifest_path = Path("build/app-store-live-screenshots/manifest.json")
-          with manifest_path.open(encoding="utf-8") as handle:
-              manifest = json.load(handle)
-          if manifest.get("capture", {}).get("commit") != expected_commit:
-              raise SystemExit("screenshot manifest source commit does not match expected_commit")
-          PY
+          python3 scripts/ios_screenshot_tools.py verify-live \
+            --directory build/app-store-live-screenshots \
+            --expected-commit "$EXPECTED_COMMIT"
 
       - name: Upload live screenshots and provenance for human review
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
