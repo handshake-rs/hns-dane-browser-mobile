@@ -237,6 +237,27 @@ HnsBrowserResult hns_browser_wallet_status(
 HnsBrowserResult hns_browser_wallet_accounts(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_accounts_json);
+/*
+ * Trusted-native synchronized HNS read composition. The endpoint is fixed to
+ * 127.0.0.1 at loopback_port; there is no remote URL/host/proxy input. The
+ * caller owns and must wipe the borrowed Authorization bytes. Composition is
+ * rejected for a newly created recovery-confirmation controller; reopen the
+ * durable wallet after the platform key has been committed first.
+ */
+HnsBrowserResult hns_browser_wallet_configure_hns_reads(
+    HnsBrowserWalletHandle wallet,
+    uint16_t loopback_port,
+    HnsBrowserSlice authorization);
+HnsBrowserResult hns_browser_wallet_has_hns_reads(
+    HnsBrowserWalletHandle wallet,
+    uint8_t *out_enabled);
+/*
+ * Returns a private Rust-owned HNWR-v1 bundle containing one exact serialized
+ * MobileHnsReadSnapshot. Free it promptly; never log it or expose it to WebKit.
+ */
+HnsBrowserResult hns_browser_wallet_synchronize_hns_reads(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_snapshot_bundle);
 HnsBrowserResult hns_browser_wallet_unlock(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice database_key);

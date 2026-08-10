@@ -15,12 +15,19 @@ final class WalletViewController: UIViewController {
     private var persistentWalletExists = false
     private var protectedStorageIsAvailable = true
     private var isOperating = false
+    private var readGeneration: UInt64 = 0
+    private var synchronizedReadsAvailable = false
     private var resolvedDatabasePath: String?
     private var storageLease: WalletStorageLeaseToken?
     private weak var restorePhraseField: UITextField?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
+    private let readStatusLabel = UILabel()
+    private let balanceLabel = UILabel()
+    private let receiveLabel = UILabel()
+    private let historyLabel = UILabel()
+    private let namesLabel = UILabel()
     private let recoveryTitle = UILabel()
     private let recoveryTextView = UITextView()
     private let createButton = UIButton(type: .system)
@@ -29,6 +36,7 @@ final class WalletViewController: UIViewController {
     private let lockButton = UIButton(type: .system)
     private let confirmRecoveryButton = UIButton(type: .system)
     private let refreshButton = UIButton(type: .system)
+    private let synchronizeButton = UIButton(type: .system)
 
     init(network: BrowserHandshakeNetwork) {
         self.network = network
@@ -72,6 +80,7 @@ final class WalletViewController: UIViewController {
     }
 
     override func viewWillDisappear(_ animated: Bool) {
+        invalidateReadOperation()
         if storageLease != nil {
             protectWalletLifecycle()
             wallet?.close()
@@ -109,10 +118,15 @@ final class WalletViewController: UIViewController {
         introduction.font = .preferredFont(forTextStyle: .body)
         introduction.adjustsFontForContentSizeCategory = true
         introduction.numberOfLines = 0
-        introduction.text = "One local Handshake account on \(network.title). This release exposes identity and lock controls only. Sending, names, providers, swaps, and marketplaces remain unavailable."
+        introduction.text = "One local Handshake account on \(network.title). Lifecycle controls are always local. A scoped companion may additionally enable read-only balance, receive, history, and tracked-name synchronization. Sending, HNSA/HNSR, providers, swaps, and marketplaces remain unavailable."
 
         configureSummaryLabel(statusLabel, identifier: "wallet.status")
         configureSummaryLabel(accountLabel, identifier: "wallet.account")
+        configureSummaryLabel(readStatusLabel, identifier: "wallet.read-status")
+        configureSummaryLabel(balanceLabel, identifier: "wallet.balance")
+        configureSummaryLabel(receiveLabel, identifier: "wallet.receive")
+        configureSummaryLabel(historyLabel, identifier: "wallet.history")
+        configureSummaryLabel(namesLabel, identifier: "wallet.names")
 
         recoveryTitle.font = .preferredFont(forTextStyle: .headline)
         recoveryTitle.adjustsFontForContentSizeCategory = true
@@ -140,6 +154,11 @@ final class WalletViewController: UIViewController {
             action: #selector(confirmRecoverySaved)
         )
         configureButton(refreshButton, title: "Refresh status", action: #selector(refreshWallet))
+        configureButton(
+            synchronizeButton,
+            title: "Synchronize read-only wallet",
+            action: #selector(synchronizeWalletReads)
+        )
 
         let actions = UIStackView(arrangedSubviews: [
             createButton,
@@ -148,6 +167,7 @@ final class WalletViewController: UIViewController {
             lockButton,
             confirmRecoveryButton,
             refreshButton,
+            synchronizeButton,
         ])
         actions.axis = .vertical
         actions.spacing = 10
@@ -156,6 +176,11 @@ final class WalletViewController: UIViewController {
             introduction,
             statusLabel,
             accountLabel,
+            readStatusLabel,
+            balanceLabel,
+            receiveLabel,
+            historyLabel,
+            namesLabel,
             actions,
             recoveryTitle,
             recoveryTextView,
@@ -376,6 +401,82 @@ final class WalletViewController: UIViewController {
         refreshState()
     }
 
+    @objc private func synchronizeWalletReads() {
+        guard let lease = storageLease,
+              let wallet,
+              unconfirmedDatabaseKey == nil,
+              synchronizedReadsAvailable,
+              !isOperating else {
+            return
+        }
+        isOperating = true
+        readGeneration &+= 1
+        let generation = readGeneration
+        readStatusLabel.text = "Synchronizing read-only HNS wallet data…"
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome: WalletHnsReadOutcome
+            do {
+                outcome = .success(try wallet.synchronizeHnsReads())
+            } catch {
+                outcome = .failure(error.localizedDescription)
+            }
+            DispatchQueue.main.async { [weak self, wallet] in
+                guard let self else { return }
+                guard self.readGeneration == generation,
+                      self.storageLease == lease,
+                      self.wallet === wallet,
+                      self.viewIfLoaded?.window != nil else {
+                    return
+                }
+                self.isOperating = false
+                switch outcome {
+                case .success(let snapshot):
+                    self.publish(snapshot)
+                case .failure(let detail):
+                    self.readStatusLabel.text = "Read synchronization failed. The wallet was locked; unlock before retrying."
+                    self.clearReadProjection()
+                    self.showErrorMessage(detail)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func publish(_ snapshot: NativeHnsReadSnapshot) {
+        readStatusLabel.text = "Read-only HNS wallet synchronized at height \(snapshot.moduleStatus.validatedHeight)."
+        balanceLabel.text = "Confirmed spendable balance: \(Self.hnsDisplay(snapshot.balance.baseUnits)) HNS"
+        receiveLabel.text = "Receive address: \(snapshot.receiveTarget.display)"
+        if snapshot.transactionHistory.isEmpty {
+            historyLabel.text = "Transaction history: no matched transactions."
+        } else {
+            let recent = snapshot.transactionHistory.prefix(3).map { transaction in
+                let direction = transaction.netAmount.negative ? "−" : "+"
+                let txid = transaction.txid.prefix(4).map { String(format: "%02x", $0) }.joined()
+                return "\(direction)\(Self.hnsDisplay(transaction.netAmount.magnitude)) HNS · \(transaction.status) · \(txid)…"
+            }
+            historyLabel.text = "Transaction history (\(snapshot.transactionHistory.count)):\n" + recent.joined(separator: "\n")
+        }
+        namesLabel.text = snapshot.knownNames.isEmpty
+            ? "Tracked names: none. Name import is not available in this build."
+            : "Tracked names: " + snapshot.knownNames.prefix(8).map(\.name).joined(separator: ", ")
+    }
+
+    private func clearReadProjection() {
+        balanceLabel.text = "Confirmed spendable balance: unavailable."
+        receiveLabel.text = "Receive address: unavailable."
+        historyLabel.text = "Transaction history: unavailable."
+        namesLabel.text = "Tracked names: unavailable."
+    }
+
+    private static func hnsDisplay(_ baseUnits: String) -> String {
+        let padded = String(repeating: "0", count: max(0, 7 - baseUnits.count)) + baseUnits
+        let split = padded.index(padded.endIndex, offsetBy: -6)
+        let whole = padded[..<split]
+        let fractional = padded[split...]
+        return "\(whole).\(fractional)"
+    }
+
     private func replaceWallet(with controller: RustNativeWallet) {
         guard wallet !== controller else { return }
         try? wallet?.lock()
@@ -406,18 +507,21 @@ final class WalletViewController: UIViewController {
         guard storageLease != nil else {
             statusLabel.text = "Wallet storage is active in another screen."
             accountLabel.text = "Account unavailable. Close the other wallet screen and try again."
+            setReadAvailability(false, message: "Read-only synchronization unavailable while storage is owned elsewhere.")
             refreshButtonStates()
             return
         }
         guard protectedStorageIsAvailable else {
             statusLabel.text = "Wallet protected storage is unavailable."
             accountLabel.text = "Account unavailable."
+            setReadAvailability(false, message: "Read-only synchronization unavailable without protected storage.")
             refreshButtonStates()
             return
         }
         if unconfirmedDatabaseKey != nil {
             statusLabel.text = "Status: record and confirm the recovery phrase. Leaving this screen deletes the incomplete wallet."
             accountLabel.text = "Account: locked until recovery confirmation is complete."
+            setReadAvailability(false, message: "Read-only synchronization begins only after recovery confirmation.")
             refreshButtonStates()
             return
         }
@@ -426,22 +530,30 @@ final class WalletViewController: UIViewController {
                 ? "Status: a confirmed wallet is ready to open."
                 : "Status: no wallet has been created."
             accountLabel.text = "Account: unavailable until a wallet is opened."
+            setReadAvailability(false, message: "Read-only synchronization unavailable until the wallet is open.")
             refreshButtonStates()
             return
         }
         do {
+            let hasHnsReads = try wallet.hasHnsReads()
             let status = try wallet.status()
-            guard status.enabledModules.isEmpty,
+            let enabledModulesAreAllowed = hasHnsReads
+                ? status.enabledModules == ["handshake"]
+                : status.enabledModules.isEmpty
+            guard enabledModulesAreAllowed,
                   !status.mainnetSettlementEnabled else {
                 throw NativeWalletBridgeError.invalidOutput(
                     "value-capable modules are not permitted in this mobile slice"
                 )
             }
             statusLabel.text = status.locked
-                ? "Status: locked. Value and marketplace controls are unavailable."
-                : "Status: unlocked · wallet \(status.activeWallet ?? "unknown"). Value and marketplace controls are unavailable."
+                ? "Status: locked. Sending and marketplace controls are unavailable."
+                : "Status: unlocked · wallet \(status.activeWallet ?? "unknown"). Sending and marketplace controls are unavailable."
             if status.locked {
                 accountLabel.text = "Account: unlock to view the local HNS account identity."
+                setReadAvailability(false, message: hasHnsReads
+                    ? "Read-only synchronization is configured; unlock the wallet to synchronize."
+                    : "Read-only synchronization requires a scoped companion credential that this build does not install.")
             } else {
                 let accounts = try wallet.accounts()
                 guard accounts.count == 1,
@@ -453,12 +565,22 @@ final class WalletViewController: UIViewController {
                     )
                 }
                 accountLabel.text = "Account: \(account.label) · \(account.module) · \(account.accountId)"
+                setReadAvailability(hasHnsReads, message: hasHnsReads
+                    ? "Read-only HNS synchronization is ready."
+                    : "Read-only synchronization requires a scoped companion credential that this build does not install.")
             }
         } catch {
             statusLabel.text = "Status unavailable."
             accountLabel.text = "Account unavailable."
+            setReadAvailability(false, message: "Read-only synchronization status is unavailable.")
         }
         refreshButtonStates()
+    }
+
+    private func setReadAvailability(_ available: Bool, message: String) {
+        synchronizedReadsAvailable = available
+        readStatusLabel.text = message
+        clearReadProjection()
     }
 
     private func refreshButtonStates() {
@@ -471,6 +593,7 @@ final class WalletViewController: UIViewController {
         lockButton.isEnabled = ownsStorage && protectedStorageIsAvailable && hasWallet && !hasIncompleteWallet && !isOperating
         confirmRecoveryButton.isEnabled = ownsStorage && hasIncompleteWallet && recoverySecret != nil && !isOperating
         refreshButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && !isOperating
+        synchronizeButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && synchronizedReadsAvailable && !isOperating
     }
 
     private func canStartNewWallet() throws -> Bool {
@@ -531,6 +654,7 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func protectWalletLifecycle() {
+        invalidateReadOperation()
         clearRestoreInput()
         guard storageLease != nil else {
             clearRecoveryDisplay()
@@ -556,6 +680,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func discardWalletAndFiles() {
+        invalidateReadOperation()
         clearRecoveryDisplay()
         try? wallet?.lock()
         wallet?.close()
@@ -643,8 +768,18 @@ final class WalletViewController: UIViewController {
 
     private func releaseStorageLease() {
         guard let storageLease else { return }
+        invalidateReadOperation()
         WalletStorageLeaseRegistry.release(storageLease)
         self.storageLease = nil
+    }
+
+    private func invalidateReadOperation() {
+        readGeneration &+= 1
+        isOperating = false
+        synchronizedReadsAvailable = false
+        if isViewLoaded {
+            clearReadProjection()
+        }
     }
 
     private static func walletFilesExist(databasePath: String) -> Bool {
@@ -702,7 +837,12 @@ final class WalletViewController: UIViewController {
     }
 }
 
-struct WalletStorageLeaseToken: Equatable {
+private enum WalletHnsReadOutcome: Sendable {
+    case success(NativeHnsReadSnapshot)
+    case failure(String)
+}
+
+struct WalletStorageLeaseToken: Equatable, Sendable {
     let path: String
     let owner: UUID
 }

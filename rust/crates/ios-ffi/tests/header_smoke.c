@@ -36,6 +36,14 @@ static void typecheck_api(void) {
         hns_browser_wallet_status;
     HnsBrowserResult (*wallet_accounts)(HnsBrowserWalletHandle, HnsBrowserBuffer *) =
         hns_browser_wallet_accounts;
+    HnsBrowserResult (*wallet_configure_reads)(HnsBrowserWalletHandle, uint16_t,
+                                                HnsBrowserSlice) =
+        hns_browser_wallet_configure_hns_reads;
+    HnsBrowserResult (*wallet_has_reads)(HnsBrowserWalletHandle, uint8_t *) =
+        hns_browser_wallet_has_hns_reads;
+    HnsBrowserResult (*wallet_synchronize_reads)(HnsBrowserWalletHandle,
+                                                  HnsBrowserBuffer *) =
+        hns_browser_wallet_synchronize_hns_reads;
     HnsBrowserResult (*wallet_unlock)(HnsBrowserWalletHandle, HnsBrowserSlice) =
         hns_browser_wallet_unlock;
     HnsBrowserResult (*wallet_lock)(HnsBrowserWalletHandle) = hns_browser_wallet_lock;
@@ -54,6 +62,9 @@ static void typecheck_api(void) {
     (void)wallet_open;
     (void)wallet_status;
     (void)wallet_accounts;
+    (void)wallet_configure_reads;
+    (void)wallet_has_reads;
+    (void)wallet_synchronize_reads;
     (void)wallet_unlock;
     (void)wallet_lock;
     (void)wallet_recovery;

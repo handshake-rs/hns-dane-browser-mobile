@@ -18,11 +18,14 @@ use hns_mobile_platform_runtime::{
     normalize_hns_doh_recovery_url,
 };
 use hns_wallet_mobile::{
-    HnsBootstrapPolicy, HnsNetwork, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES,
-    MobileDatabaseKey, MobilePlatform, MobileRecoveryPhrase, MobileWalletController,
+    HnsBootstrapPolicy, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileDatabaseKey,
+    MobileHnsReadController, MobileHnsReadSnapshot, MobilePlatform, MobileRecoveryPhrase,
+    MobileWalletController, MobileWalletError,
 };
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::net::SocketAddr;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -88,6 +91,13 @@ const MAX_NAME_INPUT_BYTES: usize = 4 * 1024;
 const MAX_HOST_BYTES: usize = 253;
 const MAX_AUTH_FIELD_BYTES: usize = 4 * 1024;
 const MAX_CERTIFICATE_DER_BYTES: usize = 1024 * 1024;
+const WALLET_READ_BUNDLE_MAGIC: &[u8; 4] = b"HNWR";
+const WALLET_READ_BUNDLE_VERSION: u8 = 1;
+const WALLET_READ_BUNDLE_HNS_READ_ONLY: u8 = 1;
+const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
+const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
+const WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -641,9 +651,58 @@ impl Drop for SensitiveBytes {
 }
 
 struct WalletEntry {
-    controller: MobileWalletController,
+    controller: NativeWalletController,
     pending_recovery_phrase: Option<SensitiveBytes>,
+    hns_reads_installable: bool,
     active: bool,
+}
+
+enum NativeWalletController {
+    Lifecycle(MobileWalletController),
+    HnsReads(MobileHnsReadController<HnsNodeRpcBackend>),
+    Failed,
+}
+
+impl NativeWalletController {
+    fn with_mut<T>(
+        &mut self,
+        lifecycle: impl FnOnce(&mut MobileWalletController) -> Result<T, MobileWalletError>,
+        hns_reads: impl FnOnce(
+            &mut MobileHnsReadController<HnsNodeRpcBackend>,
+        ) -> Result<T, MobileWalletError>,
+    ) -> Result<T, MobileWalletError> {
+        match self {
+            Self::Lifecycle(controller) => lifecycle(controller),
+            Self::HnsReads(controller) => hns_reads(controller),
+            Self::Failed => Err(MobileWalletError::ControllerFailed),
+        }
+    }
+
+    fn enable_hns_reads(&mut self, backend: HnsNodeRpcBackend) -> Result<(), MobileWalletError> {
+        if !matches!(self, Self::Lifecycle(_)) {
+            return Err(MobileWalletError::ControllerFailed);
+        }
+        let current = std::mem::replace(self, Self::Failed);
+        match current {
+            Self::Lifecycle(controller) => {
+                *self = Self::HnsReads(controller.into_hns_reads(backend)?);
+                Ok(())
+            }
+            Self::HnsReads(controller) => {
+                *self = Self::HnsReads(controller);
+                Err(MobileWalletError::ControllerFailed)
+            }
+            Self::Failed => Err(MobileWalletError::ControllerFailed),
+        }
+    }
+
+    const fn has_hns_reads(&self) -> bool {
+        matches!(self, Self::HnsReads(_))
+    }
+
+    const fn is_lifecycle(&self) -> bool {
+        matches!(self, Self::Lifecycle(_))
+    }
 }
 
 impl ProxyEntry {
@@ -888,6 +947,65 @@ unsafe fn wallet_recovery_phrase(
     };
     MobileRecoveryPhrase::new(phrase)
         .map_err(|_| FfiFailure::invalid("wallet recovery phrase is invalid"))
+}
+
+unsafe fn wallet_hns_read_backend(
+    port: u16,
+    authorization: HnsBrowserSlice,
+) -> Result<HnsNodeRpcBackend, FfiFailure> {
+    if port == 0 {
+        return Err(FfiFailure::invalid(
+            "wallet read loopback port must be nonzero",
+        ));
+    }
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(authorization, MAX_AUTH_FIELD_BYTES) }?;
+    let valid = !bytes.is_empty()
+        && bytes.first() != Some(&b' ')
+        && bytes.last() != Some(&b' ')
+        && bytes.iter().all(|byte| (0x20..=0x7e).contains(byte));
+    if !valid {
+        bytes.fill(0);
+        return Err(FfiFailure::invalid(
+            "wallet read authorization must be bounded visible ASCII",
+        ));
+    }
+    // SAFETY: Every byte was validated as visible ASCII above, which is valid UTF-8.
+    let authorization = unsafe { String::from_utf8_unchecked(bytes) };
+    let config = HnsNodeRpcConfig::new(SocketAddr::from(([127, 0, 0, 1], port)), authorization)
+        .and_then(|config| {
+            config.with_timeouts(
+                WALLET_RPC_CONNECT_TIMEOUT,
+                WALLET_RPC_READ_TIMEOUT,
+                WALLET_RPC_WRITE_TIMEOUT,
+            )
+        })
+        .map_err(|_| FfiFailure::invalid("wallet read loopback configuration is invalid"))?;
+    HnsNodeRpcBackend::new(config)
+        .map_err(|_| FfiFailure::invalid("wallet read loopback configuration is invalid"))
+}
+
+fn wallet_read_bundle(snapshot: &MobileHnsReadSnapshot) -> Result<SensitiveBytes, FfiFailure> {
+    let mut payload = serde_json::to_vec(snapshot)
+        .map_err(|_| wallet_runtime_failure("unable to encode synchronized HNS wallet reads"))?;
+    let total = WALLET_READ_BUNDLE_HEADER_BYTES
+        .checked_add(payload.len())
+        .ok_or_else(FfiFailure::internal)?;
+    if payload.is_empty() || total > MAX_OUTPUT_BUFFER_BYTES || payload.len() > u32::MAX as usize {
+        payload.fill(0);
+        return Err(FfiFailure::new(
+            HNS_BROWSER_RESULT_RESOURCE_EXHAUSTED,
+            "synchronized HNS wallet reads exceed the ABI output bound",
+        ));
+    }
+    let mut bundle = Vec::with_capacity(total);
+    bundle.extend_from_slice(WALLET_READ_BUNDLE_MAGIC);
+    bundle.push(WALLET_READ_BUNDLE_VERSION);
+    bundle.push(WALLET_READ_BUNDLE_HNS_READ_ONLY);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    bundle.append(&mut payload);
+    Ok(SensitiveBytes(bundle))
 }
 
 fn wallet_runtime_failure(message: &'static str) -> FfiFailure {
@@ -1650,8 +1768,9 @@ pub unsafe extern "C" fn hns_browser_wallet_create(
             SensitiveBytes(recovery_phrase.expose_for_dedicated_display().into_bytes());
         let handle = insert_wallet(
             WalletEntry {
-                controller,
+                controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: Some(recovery_phrase),
+                hns_reads_installable: false,
                 active: true,
             },
             reservation,
@@ -1694,8 +1813,9 @@ pub unsafe extern "C" fn hns_browser_wallet_restore(
                 .map_err(|_| wallet_runtime_failure("unable to restore native wallet"))?;
         let handle = insert_wallet(
             WalletEntry {
-                controller,
+                controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: None,
+                hns_reads_installable: true,
                 active: true,
             },
             reservation,
@@ -1730,8 +1850,9 @@ pub unsafe extern "C" fn hns_browser_wallet_open(
             .map_err(|_| wallet_runtime_failure("unable to open native wallet"))?;
         let handle = insert_wallet(
             WalletEntry {
-                controller,
+                controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: None,
+                hns_reads_installable: true,
                 active: true,
             },
             reservation,
@@ -1756,15 +1877,31 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
+        let lifecycle_only = entry.controller.is_lifecycle();
         let status = entry
             .controller
-            .status()
+            .with_mut(
+                |controller| controller.status(),
+                |controller| controller.status(),
+            )
             .map_err(|_| wallet_runtime_failure("unable to read native wallet status"))?;
-        if !status.enabled_modules.is_empty()
+        let enabled_modules_are_allowed = if lifecycle_only {
+            status.enabled_modules.is_empty()
+        } else {
+            status.enabled_modules.len() == 1
+                && status
+                    .enabled_modules
+                    .iter()
+                    .all(|module| module_wire_name(*module) == "handshake")
+        };
+        if !enabled_modules_are_allowed
             || status.mainnet_settlement_enabled
             || status.locked != status.active_wallet.is_none()
         {
-            drop(entry.controller.lock());
+            let _ = entry.controller.with_mut(
+                |controller| controller.lock(),
+                |controller| controller.lock(),
+            );
             return Err(wallet_runtime_failure(
                 "native wallet exposed a forbidden value-capable status",
             ));
@@ -1815,13 +1952,19 @@ pub unsafe extern "C" fn hns_browser_wallet_accounts(
         ensure_wallet_active(&entry)?;
         let accounts = entry
             .controller
-            .accounts()
+            .with_mut(
+                |controller| controller.accounts(),
+                |controller| controller.accounts(),
+            )
             .map_err(|_| wallet_runtime_failure("unable to read native wallet accounts"))?;
         if accounts.len() != 1
             || accounts[0].receive_display.is_some()
             || module_wire_name(accounts[0].module) != "handshake"
         {
-            drop(entry.controller.lock());
+            let _ = entry.controller.with_mut(
+                |controller| controller.lock(),
+                |controller| controller.lock(),
+            );
             return Err(wallet_runtime_failure(
                 "native wallet exposed a forbidden account set",
             ));
@@ -1854,6 +1997,103 @@ pub unsafe extern "C" fn hns_browser_wallet_accounts(
 }
 
 #[unsafe(no_mangle)]
+/// Installs the synchronized HNS read controller around an existing lifecycle
+/// controller. The endpoint is always `127.0.0.1:port`; native callers cannot
+/// select a hostname, URL, proxy, redirect, or remote address. The borrowed
+/// authorization bytes are sensitive and must be wiped by the caller. A newly
+/// created recovery-confirmation controller is not eligible; the durable wallet
+/// must first be committed by the platform and reopened.
+///
+/// # Safety
+/// The authorization slice must remain readable for its declared length.
+pub unsafe extern "C" fn hns_browser_wallet_configure_hns_reads(
+    wallet: HnsBrowserWalletHandle,
+    loopback_port: u16,
+    authorization: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let entry = wallet_entry(wallet)?;
+        // SAFETY: This export carries the caller's readable-slice contract.
+        let backend = unsafe { wallet_hns_read_backend(loopback_port, authorization) }?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        if !entry.hns_reads_installable || !entry.controller.is_lifecycle() {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "synchronized HNS wallet reads require a reopened durable controller",
+            ));
+        }
+        entry
+            .controller
+            .enable_hns_reads(backend)
+            .map_err(|_| wallet_runtime_failure("unable to install synchronized HNS wallet reads"))
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `out_enabled` must point to one writable byte. Only zero or one is written.
+pub unsafe extern "C" fn hns_browser_wallet_has_hns_reads(
+    wallet: HnsBrowserWalletHandle,
+    out_enabled: *mut u8,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_enabled)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_enabled, 0) };
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_enabled, u8::from(entry.controller.has_hns_reads())) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Performs one bounded synchronized read. The returned private bundle is
+/// `HNWR`, version 1, read-only-HNS flags, zero reserved bytes, a big-endian
+/// JSON length, and the exact serialized `MobileHnsReadSnapshot`. Callers must
+/// free it promptly and must never expose it to website content or logs.
+///
+/// # Safety
+/// `out_snapshot_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
+    wallet: HnsBrowserWalletHandle,
+    out_snapshot_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_snapshot_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_snapshot_bundle, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let snapshot = match &mut entry.controller {
+            NativeWalletController::HnsReads(controller) => controller
+                .synchronize()
+                .map_err(|_| wallet_runtime_failure("synchronized HNS wallet read failed"))?,
+            NativeWalletController::Lifecycle(_) => {
+                return Err(FfiFailure::new(
+                    HNS_BROWSER_RESULT_NOT_READY,
+                    "synchronized HNS wallet reads are not configured",
+                ));
+            }
+            NativeWalletController::Failed => {
+                return Err(wallet_runtime_failure(
+                    "native wallet controller has failed",
+                ));
+            }
+        };
+        let bundle = wallet_read_bundle(&snapshot)?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_snapshot_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Unlocks the controller with one borrowed 32-byte platform-unwrapped key.
 ///
 /// # Safety
@@ -1870,7 +2110,10 @@ pub unsafe extern "C" fn hns_browser_wallet_unlock(
         ensure_wallet_active(&entry)?;
         entry
             .controller
-            .unlock(&key)
+            .with_mut(
+                |controller| controller.unlock(&key),
+                |controller| controller.unlock(&key),
+            )
             .map_err(|_| wallet_runtime_failure("native wallet unlock was rejected"))
     })
 }
@@ -1883,7 +2126,10 @@ pub extern "C" fn hns_browser_wallet_lock(wallet: HnsBrowserWalletHandle) -> Hns
         ensure_wallet_active(&entry)?;
         entry
             .controller
-            .lock()
+            .with_mut(
+                |controller| controller.lock(),
+                |controller| controller.lock(),
+            )
             .map_err(|_| wallet_runtime_failure("unable to lock native wallet"))
     })
 }
@@ -1939,7 +2185,11 @@ pub extern "C" fn hns_browser_wallet_destroy(wallet: HnsBrowserWalletHandle) -> 
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         entry.active = false;
         drop(entry.pending_recovery_phrase.take());
-        drop(entry.controller.lock());
+        let _ = entry.controller.with_mut(
+            |controller| controller.lock(),
+            |controller| controller.lock(),
+        );
+        entry.controller = NativeWalletController::Failed;
         Ok(())
     })
 }
@@ -2317,6 +2567,8 @@ mod tests {
     use super::*;
     use std::fs;
     use std::mem::{align_of, offset_of, size_of};
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
     use std::sync::{Barrier, MutexGuard, OnceLock};
     use std::thread;
 
@@ -2452,6 +2704,9 @@ mod tests {
             "hns_browser_wallet_open",
             "hns_browser_wallet_status",
             "hns_browser_wallet_accounts",
+            "hns_browser_wallet_configure_hns_reads",
+            "hns_browser_wallet_has_hns_reads",
+            "hns_browser_wallet_synchronize_hns_reads",
             "hns_browser_wallet_unlock",
             "hns_browser_wallet_lock",
             "hns_browser_wallet_take_recovery_phrase",
@@ -2685,6 +2940,140 @@ mod tests {
         assert_eq!(hns_browser_runtime_destroy(second), HNS_BROWSER_RESULT_OK);
         cleanup_dir(&first_dir);
         cleanup_dir(&second_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wallet_hns_reads_require_explicit_loopback_composition() {
+        let _guard = test_guard();
+        let id = NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed);
+        let data_dir = std::path::Path::new("/tmp")
+            .join(format!(
+                "hns-browser-ios-ffi-wallet-hns-reads-{}-{id}",
+                std::process::id()
+            ))
+            .to_string_lossy()
+            .into_owned();
+        fs::create_dir_all(&data_dir).expect("wallet test directory");
+        fs::set_permissions(&data_dir, fs::Permissions::from_mode(0o700))
+            .expect("private wallet test directory");
+        let database_path = std::path::Path::new(&data_dir).join("wallet.sqlite3");
+        let database_path = database_path.to_string_lossy().into_owned();
+        let database_key = [0x51_u8; MOBILE_DATABASE_KEY_BYTES];
+        let mut wallet = 0;
+        // SAFETY: All borrowed slices and the output handle remain valid for this call.
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_create(
+                    ffi_slice(database_path.as_bytes()),
+                    ffi_slice(&database_key),
+                    HNS_BROWSER_NETWORK_REGTEST,
+                    0,
+                    &mut wallet,
+                )
+            },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert_ne!(wallet, 0);
+
+        let mut recovery = HnsBrowserBuffer::empty();
+        // SAFETY: Output points to one writable buffer descriptor.
+        assert_eq!(
+            unsafe { hns_browser_wallet_take_recovery_phrase(wallet, &mut recovery) },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert!(!recovery.ptr.is_null());
+        assert!(recovery.len > 0);
+        assert_ne!(recovery.allocation_id, 0);
+        assert_eq!(hns_browser_buffer_free(recovery), HNS_BROWSER_RESULT_OK);
+
+        let mut enabled = u8::MAX;
+        // SAFETY: Output points to one writable byte.
+        assert_eq!(
+            unsafe { hns_browser_wallet_has_hns_reads(wallet, &mut enabled) },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert_eq!(enabled, 0);
+
+        let mut snapshot = HnsBrowserBuffer::empty();
+        // SAFETY: Output points to one writable buffer descriptor.
+        assert_eq!(
+            unsafe { hns_browser_wallet_synchronize_hns_reads(wallet, &mut snapshot) },
+            HNS_BROWSER_RESULT_NOT_READY
+        );
+        assert!(snapshot.ptr.is_null());
+        assert_eq!(snapshot.len, 0);
+        assert_eq!(snapshot.allocation_id, 0);
+
+        // SAFETY: Authorization is readable; port zero must be rejected before composition.
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_configure_hns_reads(
+                    wallet,
+                    0,
+                    ffi_slice(b"Bearer fixture-read-only"),
+                )
+            },
+            HNS_BROWSER_RESULT_INVALID_ARGUMENT
+        );
+        // A newly created controller remains in recovery-confirmation state
+        // even after the one-time display is consumed. Only reopening the
+        // durable database may make read composition installable.
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_configure_hns_reads(
+                    wallet,
+                    1,
+                    ffi_slice(b"Bearer fixture-read-only"),
+                )
+            },
+            HNS_BROWSER_RESULT_NOT_READY
+        );
+        assert_eq!(hns_browser_wallet_destroy(wallet), HNS_BROWSER_RESULT_OK);
+        wallet = 0;
+        // SAFETY: The database path/key are readable and output is writable.
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_open(
+                    ffi_slice(database_path.as_bytes()),
+                    ffi_slice(&database_key),
+                    &mut wallet,
+                )
+            },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert_ne!(wallet, 0);
+        // SAFETY: The bounded visible-ASCII authorization is readable for this call.
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_configure_hns_reads(
+                    wallet,
+                    1,
+                    ffi_slice(b"Bearer fixture-read-only"),
+                )
+            },
+            HNS_BROWSER_RESULT_OK
+        );
+        // SAFETY: Output points to one writable byte.
+        assert_eq!(
+            unsafe { hns_browser_wallet_has_hns_reads(wallet, &mut enabled) },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert_eq!(enabled, 1);
+
+        let mut status = HnsBrowserBuffer::empty();
+        // SAFETY: Output points to one writable buffer descriptor.
+        assert_eq!(
+            unsafe { hns_browser_wallet_status(wallet, &mut status) },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert_eq!(
+            owned_string(status),
+            "{\"locked\":true,\"activeWallet\":null,\"enabledModules\":[\"handshake\"],\"mainnetSettlementEnabled\":false}"
+        );
+        assert_eq!(hns_browser_buffer_free(status), HNS_BROWSER_RESULT_OK);
+        assert_eq!(hns_browser_wallet_destroy(wallet), HNS_BROWSER_RESULT_OK);
+        cleanup_dir(&data_dir);
     }
 
     #[test]

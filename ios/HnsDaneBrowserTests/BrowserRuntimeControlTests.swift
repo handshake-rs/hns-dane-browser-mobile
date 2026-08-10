@@ -8,6 +8,21 @@ final class BrowserRuntimeControlTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
 
+    private func hnsReadBundle(json: String, version: UInt8 = 1, flags: UInt8 = 1) -> [UInt8] {
+        let payload = Array(json.utf8)
+        let length = UInt32(payload.count)
+        return Array("HNWR".utf8) + [
+            version,
+            flags,
+            0,
+            0,
+            UInt8((length >> 24) & 0xff),
+            UInt8((length >> 16) & 0xff),
+            UInt8((length >> 8) & 0xff),
+            UInt8(length & 0xff),
+        ] + payload
+    }
+
     override func setUp() {
         super.setUp()
         suiteName = "BrowserRuntimeControlTests.\(UUID().uuidString)"
@@ -19,6 +34,91 @@ final class BrowserRuntimeControlTests: XCTestCase {
         defaults = nil
         suiteName = nil
         super.tearDown()
+    }
+
+    func testNativeHNSReadBundleIsStrictBoundedAndReadOnly() throws {
+        let account = ([1] + Array(repeating: 0, count: 15)).map { String($0) }.joined(separator: ",")
+        let txid = ([2] + Array(repeating: 0, count: 31)).map { String($0) }.joined(separator: ",")
+        let nameHash = String(repeating: "a", count: 64)
+        let json = """
+        {
+          "balance":{"asset":"HNS","base_units":"0"},
+          "receiveTarget":{"module":"handshake","account":[\(account)],"display":"rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz","derivation_index":0},
+          "transactionHistory":[],
+          "knownNames":[],
+          "moduleStatus":{"phase":"ready","validated_height":42,"scanned_height":42,"target_height":42,"last_error":null}
+        }
+        """
+        let decoded = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))
+        XCTAssertEqual(decoded.balance.asset, "HNS")
+        XCTAssertEqual(decoded.balance.baseUnits, "0")
+        XCTAssertEqual(decoded.receiveTarget.module, "handshake")
+        XCTAssertEqual(decoded.receiveTarget.account.count, 16)
+        XCTAssertEqual(decoded.moduleStatus.validatedHeight, 42)
+        XCTAssertTrue(decoded.transactionHistory.isEmpty)
+        XCTAssertTrue(decoded.knownNames.isEmpty)
+
+        let populatedJSON = json
+            .replacingOccurrences(
+                of: "\"transactionHistory\":[]",
+                with: "\"transactionHistory\":[{\"module\":\"handshake\",\"txid\":[\(txid)],\"status\":\"confirmed\",\"net_amount\":{\"negative\":false,\"magnitude\":\"1000000\"},\"fee\":\"10\",\"block_height\":40,\"first_seen_unix\":1,\"confirmation_count\":3}]"
+            )
+            .replacingOccurrences(
+                of: "\"knownNames\":[]",
+                with: "\"knownNames\":[{\"name\":\"example\",\"nameHash\":\"\(nameHash)\",\"proofHeight\":42,\"resourceStatus\":\"canonicalDecoded\",\"ownershipStatus\":\"walletOwned\",\"registered\":true,\"expired\":false}]"
+            )
+        let populated = try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: populatedJSON)
+        )
+        XCTAssertEqual(populated.transactionHistory.first?.status, "confirmed")
+        XCTAssertEqual(populated.transactionHistory.first?.fee, "10")
+        XCTAssertEqual(populated.knownNames.first?.name, "example")
+        XCTAssertEqual(populated.knownNames.first?.ownershipStatus, "walletOwned")
+
+        XCTAssertThrowsError(
+            try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json, version: 2))
+        )
+        XCTAssertThrowsError(
+            try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json, flags: 3))
+        )
+        XCTAssertThrowsError(
+            try NativeHnsReadSnapshot.decode(
+                bundle: hnsReadBundle(json: json.replacingOccurrences(
+                    of: "\"asset\":\"HNS\"",
+                    with: "\"asset\":\"HNS\",\"unexpected\":true"
+                ))
+            )
+        )
+        XCTAssertThrowsError(
+            try NativeHnsReadSnapshot.decode(
+                bundle: hnsReadBundle(json: json.replacingOccurrences(
+                    of: "\"phase\":\"ready\"",
+                    with: "\"phase\":\"degraded\""
+                ))
+            )
+        )
+        XCTAssertThrowsError(
+            try NativeHnsReadSnapshot.decode(
+                bundle: hnsReadBundle(json: populatedJSON.replacingOccurrences(
+                    of: "\"negative\":false,\"magnitude\":\"1000000\"",
+                    with: "\"negative\":true,\"magnitude\":\"0\""
+                ))
+            )
+        )
+    }
+
+    func testNativeHNSReadConfigurationWipesCallerAuthorization() {
+        var authorization = Array("Bearer scoped-read-fixture".utf8)
+        let configuration = NativeHnsReadConfiguration(
+            loopbackPort: 12_037,
+            authorization: &authorization
+        )
+        XCTAssertNotNil(configuration)
+        XCTAssertTrue(authorization.isEmpty)
+
+        var rejected = Array(" leading-space".utf8)
+        XCTAssertNil(NativeHnsReadConfiguration(loopbackPort: 12_037, authorization: &rejected))
+        XCTAssertTrue(rejected.isEmpty)
     }
 
     private func publicAuthorityStatus(

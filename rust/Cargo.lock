@@ -1296,6 +1296,7 @@ version = "0.5.8"
 dependencies = [
  "hns-mobile-platform-runtime",
  "hns-wallet-mobile",
+ "serde_json",
 ]
 
 [[package]]
