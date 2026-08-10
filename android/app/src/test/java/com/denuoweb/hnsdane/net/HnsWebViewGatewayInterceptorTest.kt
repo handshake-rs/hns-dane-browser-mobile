@@ -182,6 +182,68 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
+    fun serviceWorkerStreamingFailureDoesNotRetryThroughBlockingFileGateway() {
+        var streamingCalls = 0
+        val bridge = object : HnsGatewayBridge {
+            override fun httpResponse(
+                dataDir: String,
+                config: HnsGatewayRuntimeConfig,
+                method: String,
+                scheme: String,
+                host: String,
+                port: Int,
+                pathAndQuery: String,
+                headers: List<Pair<String, String>>,
+                body: ByteArray,
+            ): ByteArray = error("buffered fallback should not be used")
+
+            override fun httpResponseBodyFile(
+                dataDir: String,
+                config: HnsGatewayRuntimeConfig,
+                method: String,
+                scheme: String,
+                host: String,
+                port: Int,
+                pathAndQuery: String,
+                headers: List<Pair<String, String>>,
+                body: ByteArray,
+            ): HnsGatewayFileResponse = error("file fallback should not be used")
+
+            override fun httpResponseStreaming(
+                dataDir: String,
+                config: HnsGatewayRuntimeConfig,
+                method: String,
+                scheme: String,
+                host: String,
+                port: Int,
+                pathAndQuery: String,
+                headers: List<Pair<String, String>>,
+                body: ByteArray,
+            ): HnsGatewayStreamingResponse? {
+                streamingCalls += 1
+                return null
+            }
+        }
+        val dataDir = createTempDirectory("hns-webview-streaming-failure-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = interceptor.intercept(
+            method = "GET",
+            url = "https://welcome/service-worker-fetch",
+            requestHeaders = emptyMap(),
+            isForMainFrame = false,
+            preferStreaming = true,
+            requireStreaming = true,
+        )
+
+        requireNotNull(response)
+        assertEquals(503, response.statusCode)
+        assertEquals("HNS Streaming Unavailable", response.reason)
+        assertEquals(1, streamingCalls)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
     fun unavailableStreamingGatewayFallsBackToFileBackedResponse() {
         val bridge = FileGatewayBridge(
             "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8\r\n\r\n"
@@ -999,6 +1061,7 @@ class HnsWebViewGatewayInterceptorTest {
                 emptyMap(),
                 isForMainFrame = false,
                 preferStreaming = true,
+                requireStreaming = true,
             ),
         )
         assertEquals("no-store", second.headerValue("Cache-Control"))
