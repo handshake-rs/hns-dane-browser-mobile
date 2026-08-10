@@ -177,9 +177,12 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
   connectedDebugAndroidTest
 ```
 
-Cargo and platform builds fetch the consolidated engine adapters only from the
-exact reviewed `hns-dane-engine` revisions recorded in the manifests and
-lockfiles; no sibling coordination checkout is required.
+Cargo and platform builds fetch the complete engine `0.2.0` graph, including
+the facade's HNSA admission and HNSR protocol APIs, only from qualified source
+`2b23bd55d14d36fe60073606869d75b4796c54f7`. This dependency migration does not
+instantiate an HNSA selector, HNSR requester, socket adapter, provider role, or
+native control; every HNSA/HNSR product gate remains false. No sibling
+coordination checkout is required.
 
 The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 

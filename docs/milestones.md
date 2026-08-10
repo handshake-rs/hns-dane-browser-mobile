@@ -147,14 +147,20 @@
   source `2229be849557d58a8eb723bcc03349f0f2df9796`, which consumes final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
   lockfile, source policy, and notices are aligned.
+- Completed engine source unification: every adapter, canonical contract, and
+  the HNSA/HNSR-capable facade now resolves as `0.2.0` from qualified source
+  `2b23bd55d14d36fe60073606869d75b4796c54f7`; the temporary crates.io patch
+  bridge is removed. This adopts protocol APIs only and enables no product role.
 - Pending release qualification: signed artifacts, fresh commit-bound
   screenshots, privacy/category declaration readback, and store gates remain
   for `0.5.9`. Candidate CI and exact qualification of the implemented
   nonblocking iOS read/lifecycle teardown also remain. No currently published
   Play, GitHub, or App Store binary contains the native controls.
-- Pending named-service adoption: consume the current engine HNSA admission and
-  HNSR requester lifecycle through exact engine-issued authority; no Kotlin or
-  Swift authority projection may substitute for that context.
+- Pending named-service adoption: instantiate the pinned engine HNSA admission
+  and HNSR requester lifecycle through exact engine-issued authority, then add
+  the required proof, rollback-resistant persistence, authenticated transport,
+  and lifecycle adapters. No Kotlin or Swift authority projection may
+  substitute for that context.
 - Read-backend provisioning, name import, website provider installation,
   approvals, sending/value movement, settlement, Shakedex/Denuo, and P2P
   marketplace controls remain separate later milestones and stay disabled until

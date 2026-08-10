@@ -50,7 +50,7 @@ submitted.
 - Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums. Git inputs are limited to named `hns-dane-engine`, `hns-wallet-rs`, and transitive `hns-rs` packages at exact reviewed full revisions; unreviewed Git sources and restored local engine paths are denied.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
 - Gradle 9.6.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
-- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. The five canonical compatibility requirements remain exact, while the consolidated private adapters and temporary compatibility patches resolve only from their reviewed full `hns-dane-engine` revisions. Focused policy tests reject unreviewed Git inputs, moving canonical requirements, alternate registries, invalid checksums, restored local engine crates, stale engine path dependencies, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
+- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. The five canonical contracts, consolidated private adapters, and facade all resolve as exact `0.2.0` requirements from qualified `hns-dane-engine` source `2b23bd55d14d36fe60073606869d75b4796c54f7`; the temporary crates.io patch bridge is removed. Focused policy tests reject unreviewed Git inputs, moving requirements, split revisions, alternate sources, restored local engine crates, stale engine path dependencies, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
 - Android JNI release builds reject unknown profiles, compiler/linker/profile overrides, and unexpected cargo-ndk/NDK versions; use `--locked`; force the release profile; require both ABI outputs; and restrict cleanup to `android/app/build`. Path-prefix maps remove checkout, home, Cargo, Rustup, and NDK paths while retaining line-table debug information for AGP. Gradle pins AGP to NDK `28.2.13676358`, treats the NDK location and `source.properties` as incremental inputs, and includes Rust `.txt` data files such as the ICANN TLD snapshot.
 - The required Android job now enables KVM and runs the focused fresh-runtime
   regression plus paired HNS/ICANN Proof Details activity instrumentation on a
@@ -113,9 +113,10 @@ submitted.
   edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes only the verified APK,
   not the Play AAB or unchanged iOS build.
-- Current source consumes the consolidated engine adapters and temporary
-  canonical compatibility patches from exact reviewed Git revisions; all
-  other Cargo sources remain registry-only.
+- Current source consumes the consolidated engine adapters, canonical
+  contracts, and facade from exact qualified engine `0.2.0` source
+  `2b23bd55d14d36fe60073606869d75b4796c54f7`; all other Cargo Git inputs are
+  limited to the exact reviewed wallet and transitive protocol revisions.
 
 ### Published `0.5.5` iOS Evidence
 

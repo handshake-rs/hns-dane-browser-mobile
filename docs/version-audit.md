@@ -18,8 +18,7 @@ into the app.
 | Wallet protocol closure | `hns-rs 0.2.0` at `b24b66c382de53330ec21dd3137e056a2bea3e2d` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
-| Consolidated engine adapters | Git `0.2.0` at `b8bdfbf7e234e64166886ade6f79d698e23056af` | Cargo manifests and lock |
-| Temporary canonical compatibility contracts | Git `0.1.x` at `1ab4ab626f945712b0f960945986cb52efefef7c` | `rust/Cargo.toml` patch table and lock |
+| Engine adapters, canonical contracts, and facade | Git `0.2.0` at `2b23bd55d14d36fe60073606869d75b4796c54f7` | Cargo manifests and all three locks |
 | Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
 | Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |
 | iOS deployment floor | `17.0` | `ios/project.yml` |
@@ -65,6 +64,9 @@ Notes:
   HNSA/HNSR controls, and P2P marketplaces remain independently unavailable.
   iOS now implements lease-retaining nonblocking lifecycle teardown; exact
   candidate qualification remains before product wiring may enable reads.
+- The engine facade's HNSA admission and HNSR requester protocol APIs are in the
+  pinned Rust graph, but no requester, transport adapter, provider role, FFI, or
+  native control is instantiated by this candidate.
 - `hns-wallet-mobile` is pinned to final wallet `0.1.0` source
   `2229be849557d58a8eb723bcc03349f0f2df9796`. Its lock closure uses final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`.
