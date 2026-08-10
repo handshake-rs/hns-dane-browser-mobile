@@ -502,6 +502,91 @@ final class BrowserRuntimeControlTests: XCTestCase {
         WalletStorageLeaseRegistry.release(replacement)
     }
 
+    @MainActor
+    func testWalletRetirementQueueReturnsAndCompletesOnMainAfterOffMainWork() async throws {
+        let path = "/private/test-wallet-retirement-queue-\(UUID().uuidString)/wallet.sqlite3"
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        let retirementStarted = expectation(description: "wallet retirement started")
+        let mainActorRemainedResponsive = expectation(description: "main actor remained responsive")
+        let retirementCompleted = expectation(description: "wallet retirement completed")
+        let allowRetirement = DispatchSemaphore(value: 0)
+        defer {
+            allowRetirement.signal()
+            WalletStorageLeaseRegistry.release(lease)
+        }
+
+        let plan = WalletRetirementPlan(
+            lockController: {
+                XCTAssertFalse(Thread.isMainThread)
+                let unexpectedReplacement = WalletStorageLeaseRegistry.acquire(path: path)
+                XCTAssertNil(unexpectedReplacement)
+                if let unexpectedReplacement {
+                    WalletStorageLeaseRegistry.release(unexpectedReplacement)
+                }
+                retirementStarted.fulfill()
+                XCTAssertEqual(
+                    allowRetirement.wait(timeout: .now() + 2),
+                    .success,
+                    "retirement queue was not released by the test"
+                )
+            },
+            destroyController: {
+                XCTAssertFalse(Thread.isMainThread)
+                let unexpectedReplacement = WalletStorageLeaseRegistry.acquire(path: path)
+                XCTAssertNil(unexpectedReplacement)
+                if let unexpectedReplacement {
+                    WalletStorageLeaseRegistry.release(unexpectedReplacement)
+                }
+            },
+            deleteIncompleteWallet: {
+                XCTAssertFalse(Thread.isMainThread)
+                let unexpectedReplacement = WalletStorageLeaseRegistry.acquire(path: path)
+                XCTAssertNil(unexpectedReplacement)
+                if let unexpectedReplacement {
+                    WalletStorageLeaseRegistry.release(unexpectedReplacement)
+                }
+            },
+            releaseStorageLease: {
+                XCTAssertFalse(Thread.isMainThread)
+                WalletStorageLeaseRegistry.release(lease)
+            }
+        )
+
+        WalletRetirementQueue.shared.enqueue(plan) {
+            XCTAssertTrue(Thread.isMainThread)
+            let replacement = WalletStorageLeaseRegistry.acquire(path: path)
+            XCTAssertNotNil(replacement)
+            if let replacement {
+                WalletStorageLeaseRegistry.release(replacement)
+            }
+            retirementCompleted.fulfill()
+        }
+
+        // Reaching this statement while the worker is gated proves enqueue did
+        // not execute the contended retirement inline on the main actor.
+        let prematureReplacement = WalletStorageLeaseRegistry.acquire(path: path)
+        XCTAssertNil(prematureReplacement)
+        if let prematureReplacement {
+            WalletStorageLeaseRegistry.release(prematureReplacement)
+        }
+        DispatchQueue.main.async {
+            mainActorRemainedResponsive.fulfill()
+        }
+
+        await fulfillment(
+            of: [retirementStarted, mainActorRemainedResponsive],
+            timeout: 2
+        )
+        let replacementDuringRetirement = WalletStorageLeaseRegistry.acquire(path: path)
+        XCTAssertNil(replacementDuringRetirement)
+        if let replacementDuringRetirement {
+            WalletStorageLeaseRegistry.release(replacementDuringRetirement)
+        }
+
+        allowRetirement.signal()
+        await fulfillment(of: [retirementCompleted], timeout: 2)
+    }
+
     func testWalletReadCompletionRequiresExactLiveAuthority() {
         let lease = WalletStorageLeaseToken(
             path: "/private/test-wallet-read/wallet.sqlite3",
@@ -516,6 +601,15 @@ final class BrowserRuntimeControlTests: XCTestCase {
             currentGeneration: 7,
             expectedLease: lease,
             currentLease: lease,
+            expectedWalletIdentity: expectedIdentity,
+            currentWalletIdentity: expectedIdentity,
+            viewIsVisible: true
+        ))
+        XCTAssertFalse(walletReadMayPublish(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            expectedLease: lease,
+            currentLease: WalletStorageLeaseToken(path: lease.path, owner: UUID()),
             expectedWalletIdentity: expectedIdentity,
             currentWalletIdentity: expectedIdentity,
             viewIsVisible: true
