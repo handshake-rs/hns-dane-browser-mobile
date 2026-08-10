@@ -2,16 +2,17 @@
 """Generate the reviewed in-app third-party notices asset from locked inputs.
 
 Generation is deliberately offline. Rust package metadata and license files come
-from Cargo's checksum-verified registry cache; Android license metadata and
-artifacts come from Gradle's dependency-verification cache. The lightweight
-``--check`` mode verifies the complete asset digest, committed input
-fingerprints, and locked Android runtime inventory, so it is suitable for a
-clean CI checkout.
+from Cargo's checksum-verified registry cache or exact-revision reviewed Git
+checkouts; Android license metadata and artifacts come from Gradle's
+dependency-verification cache. The lightweight ``--check`` mode verifies the
+complete asset digest, committed input fingerprints, and locked Android runtime
+inventory, so it is suitable for a clean CI checkout.
 """
 
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import hashlib
 import json
 import os
@@ -22,13 +23,17 @@ import sys
 import xml.etree.ElementTree as ElementTree
 import zipfile
 
-from verify_cargo_git_policy import CRATES_IO_SOURCE
+from verify_cargo_git_policy import (
+    APPROVED_ENGINE_GIT,
+    CRATES_IO_SOURCE,
+    is_approved_engine_git_source,
+)
 
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "android/app/src/main/assets/third_party_notices.txt"
 OUTPUT_SHA256 = ROOT / "scripts/third-party-notices.sha256"
-SCHEMA = "2"
+SCHEMA = "3"
 LOCKED_INPUT_PATHS = (
     "scripts/generate-third-party-notices.py",
     "scripts/verify_cargo_git_policy.py",
@@ -61,10 +66,9 @@ RUST_LICENSE_FILE_FALLBACKS = {
     ("jni-sys-macros", "0.4.1"): ("jni-sys", "0.4.1"),
 }
 
-# The published engine crates declare the workspace MIT/Apache expression but
-# intentionally contain no duplicate workspace-level license files. Reuse the
-# same canonical texts from a checksum-verified package in the locked shipping
-# closure.
+# Some reviewed engine packages declare the workspace MIT/Apache expression but
+# contain no duplicate workspace-level license files. Reuse the same canonical
+# texts from a checksum-verified package in the locked shipping closure.
 DECLARED_LICENSE_FILE_FALLBACKS = {
     "MIT OR Apache-2.0": ("quinn", "0.11.11"),
 }
@@ -123,9 +127,24 @@ def check_committed_asset() -> int:
         failures.append("the generated marker is missing")
     if f"Generator schema: {SCHEMA}\n" not in text:
         failures.append("the generator schema is stale")
-    for relative, digest in input_fingerprints().items():
-        if f"  {relative} = {digest}\n" not in text:
-            failures.append(f"the fingerprint for {relative} is stale")
+    expected_fingerprints = input_fingerprints()
+    fingerprint_match = re.search(
+        r"^Generated input SHA-256:\n(?P<body>.*?)\n\nANDROID RUNTIME COMPONENTS",
+        text,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    actual_fingerprints: dict[str, str] = {}
+    malformed_fingerprints = fingerprint_match is None
+    if fingerprint_match is not None:
+        fingerprint_lines = fingerprint_match.group("body").splitlines()
+        for line in fingerprint_lines:
+            parsed = re.fullmatch(r"  (?P<path>.+) = (?P<digest>[0-9a-f]{64})", line)
+            if parsed is None or parsed.group("path") in actual_fingerprints:
+                malformed_fingerprints = True
+                continue
+            actual_fingerprints[parsed.group("path")] = parsed.group("digest")
+    if malformed_fingerprints or actual_fingerprints != expected_fingerprints:
+        failures.append("the generated input fingerprint inventory is stale")
 
     expected_android = {
         f"  {coordinate} | Apache-2.0" for coordinate in android_runtime_coordinates()
@@ -175,7 +194,7 @@ def cargo_metadata(target: str) -> dict:
     except (FileNotFoundError, subprocess.CalledProcessError) as error:
         raise RuntimeError(
             "Unable to read pinned Cargo metadata offline. Build the locked Rust workspace "
-            "once to populate Cargo's verified registry cache."
+            "once to populate Cargo's verified registry and reviewed Git caches."
         ) from error
     return json.loads(output)
 
@@ -213,12 +232,13 @@ def shipping_rust_packages(metadata: dict, root_package: str) -> list[dict]:
     third_party.sort(key=lambda package: (package["name"].casefold(), package["version"]))
     if not third_party:
         raise RuntimeError(
-            f"The {root_package} Rust dependency closure unexpectedly contains no registry packages."
+            f"The {root_package} Rust dependency closure unexpectedly contains no third-party packages."
         )
     for package in third_party:
-        if not package.get("license"):
+        if not package.get("license") and not package.get("license_file"):
             raise RuntimeError(
-                f"Rust package {package['name']} {package['version']} has no declared license expression."
+                f"Rust package {package['name']} {package['version']} has no declared "
+                "license expression or license file."
             )
     return third_party
 
@@ -365,28 +385,52 @@ def apache_license_text(coordinates: list[str]) -> str:
     return sorted(candidates, key=lambda value: (len(value), value))[0]
 
 
-def registry_license_files(package: dict) -> list[tuple[str, str]]:
+def git_path_is_tracked(checkout_root: Path, candidate: Path) -> bool:
+    relative = candidate.relative_to(checkout_root).as_posix()
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", relative],
+        cwd=checkout_root,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def package_license_files(
+    package: dict, source_root: Path, *, require_git_tracked: bool = False
+) -> list[tuple[str, str]]:
     package_dir = Path(package["manifest_path"]).resolve().parent
-    files: list[Path] = []
+    files: dict[Path, str] = {}
     for candidate in sorted(package_dir.rglob("*")):
         if candidate.is_symlink() or not candidate.is_file():
             continue
         if candidate.name.upper().startswith(LICENSE_FILE_PREFIXES):
-            files.append(candidate)
+            if require_git_tracked and not git_path_is_tracked(source_root, candidate):
+                continue
+            files[candidate] = candidate.relative_to(package_dir).as_posix()
     license_file = package.get("license_file")
     if license_file:
-        candidate = Path(license_file).resolve()
+        declared_path = package_dir / license_file
+        if declared_path.is_symlink():
+            raise RuntimeError(f"Declared license file is a symlink: {declared_path}")
+        candidate = declared_path.resolve()
         try:
-            candidate.relative_to(package_dir)
+            source_relative = candidate.relative_to(source_root)
         except ValueError as error:
             raise RuntimeError(
-                f"License file for {package['name']} escapes its verified registry package."
+                f"License file for {package['name']} escapes its verified source checkout."
             ) from error
-        if candidate not in files:
-            files.append(candidate)
+        if not candidate.is_file():
+            raise RuntimeError(f"Declared license file is missing: {candidate}")
+        if require_git_tracked and not git_path_is_tracked(source_root, candidate):
+            raise RuntimeError(
+                f"Declared license file is not tracked by the reviewed Git source: {candidate}"
+            )
+        files.setdefault(candidate, source_relative.as_posix())
 
     result: list[tuple[str, str]] = []
-    for candidate in sorted(files):
+    for candidate, source_name in sorted(files.items()):
         size = candidate.stat().st_size
         if not 0 <= size <= MAX_NOTICE_FILE_SIZE:
             raise RuntimeError(f"License file has an unexpected size: {candidate}")
@@ -395,19 +439,69 @@ def registry_license_files(package: dict) -> list[tuple[str, str]]:
         except UnicodeDecodeError as error:
             raise RuntimeError(f"License file is not UTF-8 text: {candidate}") from error
         if content:
-            result.append((candidate.relative_to(package_dir).as_posix(), content))
+            result.append((source_name, content))
     return result
+
+
+@lru_cache(maxsize=None)
+def verified_git_checkout_root(package_dir: Path, revision: str) -> Path:
+    for candidate in (package_dir, *package_dir.parents):
+        if (candidate / ".git").exists() and (candidate / "Cargo.toml").is_file():
+            checkout_root = candidate.resolve()
+            break
+    else:
+        raise RuntimeError(f"Unable to identify Cargo's Git checkout for {package_dir}.")
+    try:
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=checkout_root,
+            text=True,
+        ).strip()
+        subprocess.run(
+            ["git", "diff", "--quiet", "HEAD", "--"],
+            cwd=checkout_root,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as error:
+        raise RuntimeError(
+            f"Unable to verify the reviewed Cargo Git checkout at {checkout_root}."
+        ) from error
+    if head != revision:
+        raise RuntimeError(
+            f"Cargo Git checkout {checkout_root} is at {head}, expected {revision}."
+        )
+    return checkout_root
 
 
 def rust_package_license_files(package: dict) -> list[tuple[str, str]]:
     source = package.get("source")
-    if source != CRATES_IO_SOURCE:
-        raise RuntimeError(
-            f"Unreviewed non-crates.io source for {package['name']} "
-            f"{package['version']}: "
-            f"{source}"
+    package_dir = Path(package["manifest_path"]).resolve().parent
+    if source == CRATES_IO_SOURCE:
+        return package_license_files(package, package_dir)
+    if isinstance(source, str) and is_approved_engine_git_source(
+        package["name"], package["version"], source
+    ):
+        revision = APPROVED_ENGINE_GIT[package["name"]][1]
+        checkout_root = verified_git_checkout_root(package_dir, revision)
+        return package_license_files(
+            package, checkout_root, require_git_tracked=True
         )
-    return registry_license_files(package)
+    raise RuntimeError(
+        f"Unreviewed Cargo source for {package['name']} "
+        f"{package['version']}: {source}"
+    )
+
+
+def rust_license_label(package: dict) -> str:
+    expression = package.get("license")
+    if expression:
+        return expression
+    license_file = package.get("license_file")
+    if license_file:
+        return f"declared license file {Path(license_file).name}"
+    raise RuntimeError(
+        f"Rust package {package['name']} {package['version']} has no license label."
+    )
 
 
 def sqlite_public_domain_notice(rust_packages: list[dict]) -> tuple[str, str] | None:
@@ -459,28 +553,45 @@ def generate() -> str:
     for coordinate in android_coordinates:
         add_notice(coordinate, "Apache-2.0 license text from a locked Android artifact", android_license)
 
-    package_license_files: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    package_license_files_by_id: dict[str, list[tuple[str, str]]] = {}
+    package_ids_by_name_version: dict[tuple[str, str], str] = {}
     for package in rust_packages:
         key = (package["name"], package["version"])
-        package_license_files[key] = rust_package_license_files(package)
+        if key in package_ids_by_name_version:
+            raise RuntimeError(
+                f"Multiple Cargo sources provide {package['name']} {package['version']}."
+            )
+        package_ids_by_name_version[key] = package["id"]
+        package_license_files_by_id[package["id"]] = rust_package_license_files(package)
     for key, fallback in RUST_LICENSE_FILE_FALLBACKS.items():
-        if key in package_license_files and not package_license_files[key]:
-            fallback_files = package_license_files.get(fallback)
+        package_id = package_ids_by_name_version.get(key)
+        if package_id is not None and not package_license_files_by_id[package_id]:
+            fallback_id = package_ids_by_name_version.get(fallback)
+            fallback_files = (
+                package_license_files_by_id.get(fallback_id)
+                if fallback_id is not None
+                else None
+            )
             if not fallback_files:
                 raise RuntimeError(
                     f"Missing reviewed companion license files for {key[0]} {key[1]}."
                 )
-            package_license_files[key] = [
+            package_license_files_by_id[package_id] = [
                 (f"companion {fallback[0]} {fallback[1]}/{name}", content)
                 for name, content in fallback_files
             ]
     for package in rust_packages:
-        key = (package["name"], package["version"])
-        if package_license_files[key]:
+        package_id = package["id"]
+        if package_license_files_by_id[package_id]:
             continue
         fallback = DECLARED_LICENSE_FILE_FALLBACKS.get(package.get("license"))
+        fallback_id = (
+            package_ids_by_name_version.get(fallback) if fallback is not None else None
+        )
         fallback_files = (
-            package_license_files.get(fallback) if fallback is not None else None
+            package_license_files_by_id.get(fallback_id)
+            if fallback_id is not None
+            else None
         )
         if not fallback_files:
             raise RuntimeError(
@@ -488,7 +599,7 @@ def generate() -> str:
                 f"{package['name']} {package['version']} "
                 f"({package.get('license')!r})."
             )
-        package_license_files[key] = [
+        package_license_files_by_id[package_id] = [
             (
                 f"canonical {package['license']} text from "
                 f"{fallback[0]} {fallback[1]}/{name}",
@@ -498,9 +609,8 @@ def generate() -> str:
         ]
 
     for package in rust_packages:
-        key = (package["name"], package["version"])
         label = f"Rust crate {package['name']} {package['version']}"
-        files = package_license_files[key]
+        files = package_license_files_by_id[package["id"]]
         if not files:
             raise RuntimeError(
                 f"No license/notice text is available for {package['name']} {package['version']}."
@@ -516,10 +626,11 @@ def generate() -> str:
     lines = [
         "HNS DANE BROWSER THIRD-PARTY SOFTWARE NOTICES",
         "",
-        "This app includes open-source components. The inventories below are generated from the",
-        "locked Android release runtime classpath and the non-development Cargo dependency closures",
-        "reachable from the Android and iOS native libraries for each shipped Rust target. The Rust",
-        "inventory is the union of the Android and Apple device/simulator closures. Cargo build-time",
+        "This app includes open-source and source-available components. The inventories below",
+        "are generated from the locked Android release runtime classpath and non-development Cargo",
+        "dependency closures reachable from the Android and iOS native libraries for each shipped",
+        "Rust target. The Rust inventory is the union of the Android and Apple device/simulator",
+        "closures. Cargo build-time",
         "dependencies are retained conservatively. Workspace-owned HNS DANE Browser crates and",
         "test-only, lint, platform build-tool, fuzz, and snapshot-exporter dependencies are excluded.",
         "",
@@ -529,9 +640,10 @@ def generate() -> str:
             for target, _ in RUST_SHIPPING_TARGETS
         ),
         "",
-        "License expressions are the declarations in the verified package metadata. The reproduced",
-        "texts come from checksum-verified Cargo registry packages or dependency-verified Android",
-        "artifacts. Inclusion here does not imply endorsement by the component authors.",
+        "License expressions and declared license files come from verified package metadata. The",
+        "reproduced texts come from checksum-verified Cargo registry packages, exact-revision",
+        "reviewed Cargo Git checkouts, or dependency-verified Android artifacts. Inclusion here",
+        "does not imply endorsement by the component authors.",
         "",
         f"Generator schema: {SCHEMA}",
         "Generated input SHA-256:",
@@ -544,7 +656,9 @@ def generate() -> str:
 
     lines.extend(["", f"RUST COMPONENTS ({len(rust_packages)})"])
     for package in rust_packages:
-        lines.append(f"  {package['name']} {package['version']} | {package['license']}")
+        lines.append(
+            f"  {package['name']} {package['version']} | {rust_license_label(package)}"
+        )
 
     lines.extend(["", "LICENSE AND NOTICE TEXTS"])
     for digest in sorted(notice_groups):

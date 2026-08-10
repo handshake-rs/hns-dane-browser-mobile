@@ -44,7 +44,11 @@ device-qualification work are tracked in
 
 ## Layout
 
-- `rust/`: Cargo workspace for consensus primitives, header chain, Urkel proof interfaces, resolver, DNSSEC, DANE, transport, gateway, cache, the shared browser runtime, the platform-neutral loopback proxy, Android JNI, and the stable Apple C ABI. It consumes exact, checksum-verified crates.io `0.1.0` releases of `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` from `handshake-rs/hns-dane-engine`.
+- `rust/`: Mobile integration workspace containing the shared platform runtime,
+  Android JNI, and stable Apple C ABI. Consensus, chain, proof, resolver,
+  DNSSEC, DANE, transport, gateway, cache, and loopback-proxy adapters come
+  from exact reviewed `handshake-rs/hns-dane-engine` Git revisions recorded in
+  the manifests and lockfiles.
 - `rust/fuzz/`: `cargo-fuzz` parser harnesses for DNS, HNS resource values, P2P frames, Urkel proofs, TLSA records, and X.509 SPKI extraction.
 - `android/`: Kotlin Android browser shell with WebView, namespace-agnostic URL admission, whole-browser proxy lifecycle integration, and a thin JNI bridge.
 - `ios/`: Swift/UIKit WKWebView shell with whole-data-store proxy admission, lifecycle/certificate integration, and a generated Xcode project definition.
@@ -133,9 +137,9 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
   connectedDebugAndroidTest
 ```
 
-Cargo and platform builds fetch the five shared engine crates from the exact,
-checksum-verified crates.io `0.1.0` release; no sibling coordination checkout
-is required.
+Cargo and platform builds fetch the consolidated engine adapters only from the
+exact reviewed `hns-dane-engine` revisions recorded in the manifests and
+lockfiles; no sibling coordination checkout is required.
 
 The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 

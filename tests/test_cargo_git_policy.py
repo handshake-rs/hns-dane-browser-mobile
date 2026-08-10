@@ -10,12 +10,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from verify_cargo_git_policy import (  # noqa: E402
+    APPROVED_ENGINE_GIT,
     CRATES_IO_SOURCE,
+    ENGINE_GIT_URL,
     ENGINE_PACKAGES,
     ENGINE_REQUIREMENTS,
     ENGINE_VERSIONS,
     MIGRATED_LOCAL_CRATES,
     CargoSourcePolicyError,
+    is_approved_engine_git_source,
     verify_repository,
 )
 
@@ -82,6 +85,16 @@ class CargoSourcePolicyTests(unittest.TestCase):
         with temporary:
             self.verify_fixture(root)
 
+    def test_accepts_only_exact_reviewed_git_source_id(self) -> None:
+        name = "hns-browser-chain"
+        version, revision = APPROVED_ENGINE_GIT[name]
+        source = f"git+{ENGINE_GIT_URL}?rev={revision}#{revision}"
+        self.assertTrue(is_approved_engine_git_source(name, version, source))
+        self.assertFalse(is_approved_engine_git_source(name, "9.9.9", source))
+        self.assertFalse(
+            is_approved_engine_git_source(name, version, source.replace(revision, "0" * 40))
+        )
+
     def test_rejects_restored_product_local_engine_crate(self) -> None:
         temporary, root = self.create_fixture()
         with temporary:
@@ -89,6 +102,39 @@ class CargoSourcePolicyTests(unittest.TestCase):
             (root / "rust/crates" / package).mkdir(parents=True)
             with self.assertRaisesRegex(CargoSourcePolicyError, "must not be restored locally"):
                 self.verify_fixture(root)
+
+    def test_rejects_migrated_engine_path_dependency(self) -> None:
+        temporary, root = self.create_fixture()
+        with temporary:
+            manifest = root / "rust/Cargo.toml"
+            manifest.write_text(
+                manifest.read_text(encoding="utf-8")
+                + 'hns-chain = { path = "crates/hns-chain" }\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(CargoSourcePolicyError, "must not use a local path"):
+                self.verify_fixture(root)
+
+    def test_rejects_wrong_git_package_or_version(self) -> None:
+        revision = APPROVED_ENGINE_GIT["hns-chain"][1]
+        invalid_specs = (
+            f'{{ package = "hns-browser-dane", version = "=0.2.0", git = "{ENGINE_GIT_URL}", rev = "{revision}" }}',
+            f'{{ package = "hns-browser-chain", version = "0.2.0", git = "{ENGINE_GIT_URL}", rev = "{revision}" }}',
+        )
+        for invalid_spec in invalid_specs:
+            with self.subTest(specification=invalid_spec):
+                temporary, root = self.create_fixture()
+                with temporary:
+                    manifest = root / "rust/Cargo.toml"
+                    manifest.write_text(
+                        manifest.read_text(encoding="utf-8")
+                        + f"hns-chain = {invalid_spec}\n",
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(
+                        CargoSourcePolicyError, "not an exact reviewed"
+                    ):
+                        self.verify_fixture(root)
 
     def test_rejects_git_manifest_dependency(self) -> None:
         temporary, root = self.create_fixture()

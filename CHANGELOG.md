@@ -20,6 +20,19 @@ All notable changes to this project will be documented in this file.
 - Kept provider installation, wallet operations, approval dispatch, and value
   movement behind immutable false gates. The controllers remain unwired, no
   provider is announced, and no wallet runtime or value path is enabled.
+- Completed the engine-consolidation boundary for fuzzing and the header
+  snapshot exporter by replacing deleted local-crate paths with the same exact
+  reviewed Git adapters used by the mobile runtime.
+- Updated supply-chain and third-party-notice policy for exact-revision engine
+  packages and their declared workspace-level license files.
+
+### Fixed
+
+- Fixed clean-checkout Cargo metadata after the standalone snapshot exporter
+  retained paths to deleted local engine crates.
+- Removed the deleted local loopback-proxy package from the runtime-boundary
+  source scan while retaining its JNI dependency check through the shared
+  runtime dependency closure.
 
 ## 0.5.7 - 2026-07-31
 

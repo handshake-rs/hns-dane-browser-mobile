@@ -1,46 +1,36 @@
 HNS DANE BROWSER THIRD-PARTY SOFTWARE NOTICES
 
-This app includes open-source components. The inventories below are generated from the
-locked Android release runtime classpath and the non-development Cargo dependency closures
-reachable from the Android and iOS native libraries for each shipped Rust target. The Rust
-inventory is the union of the Android and Apple device/simulator closures. Cargo build-time
+This app includes open-source and source-available components. The inventories below
+are generated from the locked Android release runtime classpath and non-development Cargo
+dependency closures reachable from the Android and iOS native libraries for each shipped
+Rust target. The Rust inventory is the union of the Android and Apple device/simulator
+closures. Cargo build-time
 dependencies are retained conservatively. Workspace-owned HNS DANE Browser crates and
 test-only, lint, platform build-tool, fuzz, and snapshot-exporter dependencies are excluded.
 
 Shipped Rust target closure counts:
-  aarch64-linux-android: 175 third-party components
-  x86_64-linux-android: 175 third-party components
-  aarch64-apple-ios: 164 third-party components
-  aarch64-apple-ios-sim: 164 third-party components
-  x86_64-apple-ios: 164 third-party components
+  aarch64-linux-android: 188 third-party components
+  x86_64-linux-android: 188 third-party components
+  aarch64-apple-ios: 177 third-party components
+  aarch64-apple-ios-sim: 177 third-party components
+  x86_64-apple-ios: 177 third-party components
 
-License expressions are the declarations in the verified package metadata. The reproduced
-texts come from checksum-verified Cargo registry packages or dependency-verified Android
-artifacts. Inclusion here does not imply endorsement by the component authors.
+License expressions and declared license files come from verified package metadata. The
+reproduced texts come from checksum-verified Cargo registry packages, exact-revision
+reviewed Cargo Git checkouts, or dependency-verified Android artifacts. Inclusion here
+does not imply endorsement by the component authors.
 
-Generator schema: 2
+Generator schema: 3
 Generated input SHA-256:
-  scripts/generate-third-party-notices.py = 5bfb4b422622d8f13eca3419af22e914c59a0e28826621e25bf84205151f0084
-  scripts/verify_cargo_git_policy.py = 4979939664b7d939483fd5c146be4497b46757d10f9912db93b2846e61fa455e
-  rust/Cargo.toml = c4ee6238493a74cf5ea625751d02564d3d76a033b6affda4f7ccac053ae4fd25
-  rust/Cargo.lock = f94b564ffcf8cfe84da203128c71fb69fe6e059f01bfad4ee88dc7085319ac8e
+  scripts/generate-third-party-notices.py = f11c57412f698ae94e0f77e77ea2cfff2dcc0fed0e670ebf083ba5a098b29d4f
+  scripts/verify_cargo_git_policy.py = b7ff360bff606c8b72396c6a6d9e25818278901c59c50e3eeb350bb456c19a46
+  rust/Cargo.toml = 1207b04a9d396a68b08157f0cbc7acb0ad8ea9f5276a67dfdd12495dade9243c
+  rust/Cargo.lock = 3b785008d059be4cca8d81e79962ea7df57daa8f169dca2f9add56e7e0b5282e
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
   rust/crates/android-ffi/Cargo.toml = aa1a41a1d91ad5b0e1a7e965b1e82747911ba56a943260340f076d8aa326af9a
-  rust/crates/hns-cache/Cargo.toml = 60eb2e666fdd49dfd32c115c2a3bc3d29080ba92b83fc4d297a3d41d9254621a
-  rust/crates/hns-chain/Cargo.toml = a7db4eb3b37f994f68acf5e48d39455cba78add03688596fc8cb2531919bef34
-  rust/crates/hns-core/Cargo.toml = ebc166811c9108f7bf3155fd406d8738175ad94c837c2fdc64185822d4b9f36e
-  rust/crates/hns-dane/Cargo.toml = ca345da82395e3ec7d92a34378a43d4bf24bc60cff58074f2543684fb4f36cdf
-  rust/crates/hns-dnssec/Cargo.toml = 73f64744b69691ff4d75e3765fb3e53e033ef198742b876b2c7de208ef1e97f1
-  rust/crates/hns-gateway/Cargo.toml = 864fdfd7ce8eee3e2c93b8a2b818073668670e9b4b4973bb45026e6c38a20561
-  rust/crates/hns-loopback-proxy/Cargo.toml = 26d4ad459ad7880a561a81b10bae34b9a423a7b8c2f11c6cc98e0e41b2018b53
   rust/crates/hns-mobile-platform-runtime/Cargo.toml = d1277558e397275c16506465a68f8680f87ab85cf6d0938962fbfa8e10342309
-  rust/crates/hns-p2p/Cargo.toml = 2cdb5bb438729b0c819e9ef0c3b3ca3de8110915ed78a9e194b4c44a963f5f94
-  rust/crates/hns-resolver/Cargo.toml = 5180bce68a68ae93be659a35e85f8aba8d8969569616a271e2b2548f11bf597a
-  rust/crates/hns-sync/Cargo.toml = 5fc5ae1ef8d0d3352b19eced94f39d0bf3dcbf0ff6f1453b081b7d43af6f6441
-  rust/crates/hns-transport/Cargo.toml = 4049209252226b0329091a7be06cf579c617c33a0adbe9c3ae84d34067a761e2
-  rust/crates/hns-urkel/Cargo.toml = 76b3b0aca54eb15bed7dd5c39f42444ba08ee428a4d1a89c9d8a3935dc38c3a6
   rust/crates/ios-ffi/Cargo.toml = a7a7e59af8c8a90209a9166038d4737d4dba53e4728f4509b552b03852d05241
 
 ANDROID RUNTIME COMPONENTS (40)
@@ -85,7 +75,7 @@ ANDROID RUNTIME COMPONENTS (40)
   org.jetbrains:annotations:23.0.0 | Apache-2.0
   org.jspecify:jspecify:1.0.0 | Apache-2.0
 
-RUST COMPONENTS (175)
+RUST COMPONENTS (188)
   asn1-rs 0.7.2 | MIT OR Apache-2.0
   asn1-rs-derive 0.6.0 | MIT OR Apache-2.0
   asn1-rs-impl 0.2.0 | MIT/Apache-2.0
@@ -144,8 +134,21 @@ RUST COMPONENTS (175)
   hashlink 0.11.1 | MIT OR Apache-2.0
   hex 0.4.3 | MIT OR Apache-2.0
   hmac 0.12.1 | MIT OR Apache-2.0
-  hns-browser-observability 0.1.1 | MIT OR Apache-2.0
+  hns-browser-chain 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-dane 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-dnssec 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-gateway 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-loopback-proxy 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-observability 0.1.2 | MIT OR Apache-2.0
+  hns-browser-p2p 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-primitives 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-resolver 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-runtime 0.1.0 | MIT OR Apache-2.0
+  hns-browser-sync 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-transport 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-urkel 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-cache 0.2.0 | MIT OR Apache-2.0
+  hns-dns-wire 0.2.0 | MIT OR Apache-2.0
   hns-icann-dane 0.1.0 | MIT OR Apache-2.0
   hns-namespace-resolution 0.1.0 | MIT OR Apache-2.0
   hns-resolution-policy 0.1.0 | MIT OR Apache-2.0
@@ -177,7 +180,7 @@ RUST COMPONENTS (175)
   minimal-lexical 0.2.1 | MIT/Apache-2.0
   mio 1.2.1 | MIT
   nom 7.1.3 | MIT
-  num-bigint 0.4.6 | MIT OR Apache-2.0
+  num-bigint 0.4.8 | MIT OR Apache-2.0
   num-conv 0.2.2 | MIT OR Apache-2.0
   num-integer 0.1.46 | MIT OR Apache-2.0
   num-traits 0.2.19 | MIT OR Apache-2.0
@@ -348,8 +351,10 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 05fa1ba3228aab8d2bf637f286d7579ed76256c1dab3fa955c2489b920ffeb35
 Applies to:
-  - Rust crate hns-browser-observability 0.1.1
+  - Rust crate hns-browser-observability 0.1.2
   - Rust crate hns-browser-runtime 0.1.0
+  - Rust crate hns-cache 0.2.0
+  - Rust crate hns-dns-wire 0.2.0
   - Rust crate hns-icann-dane 0.1.0
   - Rust crate hns-namespace-resolution 0.1.0
   - Rust crate hns-resolution-policy 0.1.0
@@ -388,6 +393,157 @@ SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
 OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+================================================================================
+Notice SHA-256: 0895f3760ba77d5c6212ff44f5d3f6b78be786fdc6d8058e6e169073e6cb7ab6
+Applies to:
+  - Rust crate hns-browser-chain 0.2.0
+  - Rust crate hns-browser-dane 0.2.0
+  - Rust crate hns-browser-dnssec 0.2.0
+  - Rust crate hns-browser-gateway 0.2.0
+  - Rust crate hns-browser-loopback-proxy 0.2.0
+  - Rust crate hns-browser-p2p 0.2.0
+  - Rust crate hns-browser-primitives 0.2.0
+  - Rust crate hns-browser-resolver 0.2.0
+  - Rust crate hns-browser-sync 0.2.0
+  - Rust crate hns-browser-transport 0.2.0
+  - Rust crate hns-browser-urkel 0.2.0
+Source file names:
+  - LICENSE-POLYFORM-NONCOMMERCIAL
+--------------------------------------------------------------------------------
+Required Notice: Copyright 2026 Denuo Web, LLC.
+
+# PolyForm Noncommercial License 1.0.0
+
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
+
+## Acceptance
+
+In order to get any license under these terms, you must agree
+to them as both strict obligations and conditions to all
+your licenses.
+
+## Copyright License
+
+The licensor grants you a copyright license for the
+software to do everything you might do with the software
+that would otherwise infringe the licensor's copyright
+in it for any permitted purpose.  However, you may
+only distribute the software according to [Distribution
+License](#distribution-license) and make changes or new works
+based on the software according to [Changes and New Works
+License](#changes-and-new-works-license).
+
+## Distribution License
+
+The licensor grants you an additional copyright license
+to distribute copies of the software.  Your license
+to distribute covers distributing the software with
+changes and new works permitted by [Changes and New Works
+License](#changes-and-new-works-license).
+
+## Notices
+
+You must ensure that anyone who gets a copy of any part of
+the software from you also gets a copy of these terms or the
+URL for them above, as well as copies of any plain-text lines
+beginning with `Required Notice:` that the licensor provided
+with the software.  For example:
+
+> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+
+## Changes and New Works License
+
+The licensor grants you an additional copyright license to
+make changes and new works based on the software for any
+permitted purpose.
+
+## Patent License
+
+The licensor grants you a patent license for the software that
+covers patent claims the licensor can license, or becomes able
+to license, that you would infringe by using the software.
+
+## Noncommercial Purposes
+
+Any noncommercial purpose is a permitted purpose.
+
+## Personal Uses
+
+Personal use for research, experiment, and testing for
+the benefit of public knowledge, personal study, private
+entertainment, hobby projects, amateur pursuits, or religious
+observance, without any anticipated commercial application,
+is use for a permitted purpose.
+
+## Noncommercial Organizations
+
+Use by any charitable organization, educational institution,
+public research organization, public safety or health
+organization, environmental protection organization,
+or government institution is use for a permitted purpose
+regardless of the source of funding or obligations resulting
+from the funding.
+
+## Fair Use
+
+You may have "fair use" rights for the software under the
+law. These terms do not limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of
+your licenses to anyone else, or prevent the licensor from
+granting licenses to anyone else.  These terms do not imply
+any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or
+contributes to infringement of any patent, your patent license
+for the software granted under these terms ends immediately. If
+your company makes such a claim, your patent license ends
+immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have
+violated any of these terms, or done anything with the software
+not covered by your licenses, your licenses can nonetheless
+continue if you come into full compliance with these terms,
+and take practical steps to correct past violations, within
+32 days of receiving notice.  Otherwise, all your licenses
+end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without
+any warranty or condition, and the licensor will not be liable
+to you for any damages arising out of these terms or the use
+or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is the individual or entity offering these
+terms, and the **software** is the software the licensor makes
+available under these terms.
+
+**You** refers to the individual or entity agreeing to these
+terms.
+
+**Your company** is any legal entity, sole proprietorship,
+or other kind of organization that you work for, plus all
+organizations that have control over, are under the control of,
+or are under common control with that organization.  **Control**
+means ownership of substantially all the assets of an entity,
+or the power to direct its management and policies by vote,
+contract, or otherwise.  Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the
+software under these terms.
+
+**Use** means anything you do with the software requiring one
+of your licenses.
 
 ================================================================================
 Notice SHA-256: 0d8a0aecbcbaf0573dea8de966d252874fa4b99f3e1650976dc8a0a2fc062c71
@@ -494,7 +650,7 @@ Notice SHA-256: 14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90
 Applies to:
   - Rust crate bitflags 2.13.0
   - Rust crate log 0.4.33
-  - Rust crate num-bigint 0.4.6
+  - Rust crate num-bigint 0.4.8
   - Rust crate num-integer 0.1.46
   - Rust crate num-traits 0.2.19
 Source file names:
@@ -1173,8 +1329,10 @@ limitations under the License.
 ================================================================================
 Notice SHA-256: 283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b
 Applies to:
-  - Rust crate hns-browser-observability 0.1.1
+  - Rust crate hns-browser-observability 0.1.2
   - Rust crate hns-browser-runtime 0.1.0
+  - Rust crate hns-cache 0.2.0
+  - Rust crate hns-dns-wire 0.2.0
   - Rust crate hns-icann-dane 0.1.0
   - Rust crate hns-namespace-resolution 0.1.0
   - Rust crate hns-resolution-policy 0.1.0
@@ -4919,7 +5077,7 @@ Applies to:
   - Rust crate jni 0.21.1
   - Rust crate lazy_static 1.5.0
   - Rust crate log 0.4.33
-  - Rust crate num-bigint 0.4.6
+  - Rust crate num-bigint 0.4.8
   - Rust crate num-integer 0.1.46
   - Rust crate num-traits 0.2.19
   - Rust crate oid-registry 0.8.1

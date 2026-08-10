@@ -53,6 +53,21 @@ APPROVED_ENGINE_GIT = {
     "hns-namespace-resolution": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
     "hns-resolution-policy": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
 }
+ENGINE_GIT_PACKAGE_NAMES = {
+    "hns-dane": "hns-browser-dane",
+    "hns-dnssec": "hns-browser-dnssec",
+    "hns-p2p": "hns-browser-p2p",
+    "hns-resolver": "hns-browser-resolver",
+    "hns-sync": "hns-browser-sync",
+    "hns-chain": "hns-browser-chain",
+    "hns-urkel": "hns-browser-urkel",
+    "hns-core": "hns-browser-primitives",
+    "hns-gateway": "hns-browser-gateway",
+    "hns-transport": "hns-browser-transport",
+    "hns-loopback-proxy": "hns-browser-loopback-proxy",
+}
+for engine_package in APPROVED_ENGINE_GIT:
+    ENGINE_GIT_PACKAGE_NAMES.setdefault(engine_package, engine_package)
 ENGINE_REQUIREMENTS = {
     package: f"={version}" for package, version in ENGINE_VERSIONS.items()
 }
@@ -115,6 +130,27 @@ def git_specs(
             yield from git_specs(child, (*path, str(index)))
 
 
+def path_specs(
+    value: Any, path: tuple[str, ...] = ()
+) -> Iterator[tuple[tuple[str, ...], Mapping[str, Any]]]:
+    if isinstance(value, Mapping):
+        if "path" in value:
+            yield path, value
+        for key, child in value.items():
+            yield from path_specs(child, (*path, str(key)))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from path_specs(child, (*path, str(index)))
+
+
+def is_approved_engine_git_source(name: str, version: str, source: str) -> bool:
+    approved = APPROVED_ENGINE_GIT.get(name)
+    if approved is None or version != approved[0]:
+        return False
+    revision = approved[1]
+    return source == f"git+{ENGINE_GIT_URL}?rev={revision}#{revision}"
+
+
 def load_toml(path: Path) -> dict[str, Any]:
     with path.open("rb") as handle:
         return tomllib.load(handle)
@@ -127,16 +163,33 @@ def validate_manifests(root: Path, manifests: list[Path]) -> None:
             rendered_location = ".".join(location) or "<document root>"
             package = location[-1] if location else ""
             approved = APPROVED_ENGINE_GIT.get(package)
+            expected_package = ENGINE_GIT_PACKAGE_NAMES.get(package)
+            actual_package = specification.get("package", package)
+            expected_requirement = f"={approved[0]}" if approved is not None else ""
             if (
                 approved is None
                 or specification.get("git") != ENGINE_GIT_URL
                 or specification.get("rev") != approved[1]
+                or actual_package != expected_package
+                or (
+                    "patch" not in location
+                    and specification.get("version") != expected_requirement
+                )
                 or "branch" in specification
                 or "tag" in specification
             ):
                 raise CargoSourcePolicyError(
                     f"{relative_path}:{rendered_location}: Cargo Git dependency "
                     "is not an exact reviewed hns-dane-engine revision"
+                )
+        for location, specification in path_specs(document):
+            dependency = location[-1] if location else ""
+            package = specification.get("package", dependency)
+            if dependency in APPROVED_ENGINE_GIT or package in APPROVED_ENGINE_GIT:
+                rendered_location = ".".join(location) or "<document root>"
+                raise CargoSourcePolicyError(
+                    f"{relative_path}:{rendered_location}: migrated engine dependency "
+                    "must not use a local path"
                 )
 
     root_document = load_toml(root / ROOT_MANIFEST)
@@ -184,18 +237,8 @@ def validate_lockfiles(root: Path) -> None:
             source = package.get("source")
             name = package.get("name", "<unknown>")
             if isinstance(source, str) and source.startswith("git+"):
-                approved = APPROVED_ENGINE_GIT.get(name)
-                expected_prefix = (
-                    f"git+{ENGINE_GIT_URL}?rev={approved[1]}#"
-                    if approved is not None
-                    else ""
-                )
-                revision = source.rsplit("#", 1)[-1]
-                if (
-                    approved is None
-                    or package.get("version") != approved[0]
-                    or not source.startswith(expected_prefix)
-                    or not revision.startswith(approved[1])
+                if not is_approved_engine_git_source(
+                    name, package.get("version", ""), source
                 ):
                     raise CargoSourcePolicyError(
                         f"{relative_path}: locked Cargo Git package {name!r} is not allowed"
@@ -228,7 +271,7 @@ def validate_lockfiles(root: Path) -> None:
     for package, count in sorted(root_packages.items()):
         if count != 1:
             raise CargoSourcePolicyError(
-                "rust/Cargo.lock: expected exactly one crates.io package for "
+                "rust/Cargo.lock: expected exactly one reviewed package for "
                 f"{package} {ENGINE_VERSIONS[package]}, found {count}"
             )
 

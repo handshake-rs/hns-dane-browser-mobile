@@ -1,6 +1,6 @@
 # Complete Rust Handshake Ecosystem: Mobile Delta Audit
 
-Last audited: 2026-07-29
+Last audited: 2026-08-09
 
 This audit maps this checkout only to `Complete Rust Handshake Ecosystem.pdf`
 (57 pages, SHA-256
@@ -26,7 +26,7 @@ It does not claim that the coordination-wide PDF is complete.
 | Explicit migration without turning old HNSDoH consent into new consent | Implemented | Android and iOS permanently tombstone the historical resolver key and never copy it into the distinct recursive-recovery key. Former resolver compatibility consent never enables relay consumption or recursive recovery; both controls start independently off until an explicit choice. |
 | P2P ODoH: Preferred/Required/Direct Allowed/Off | Not implemented in this checkout | No HIP #77 requester, HPKE/ODoH runtime, status model, or native control exists here. Do not represent the current direct relay as ODoH or query-confidential. |
 | HNSR: Off/Client/Endpoint | Not implemented in this checkout | No HIP #78 runtime or native control exists here. Mobile lifecycle, network-change, renewal, withdrawal, and stale-generation tests for HNSR remain required. |
-| Consume the standalone `hns-dane-engine` | Integrated through qualified crates.io release | The Rust workspace pins `hns-browser-runtime`, `hns-browser-observability`, `hns-icann-dane`, `hns-namespace-resolution`, and `hns-resolution-policy` to exact, checksum-verified crates.io `0.1.0`; the lockfile records the same versions and registry checksums. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), while the normalized recovery URL maps to generation-bound `user_configured_recursive_hns_doh`. Live resolution follows direct authority UDP/TCP → owner-published authenticated authoritative DoH → independently admitted relay → configured recursive recovery; unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
+| Consume the standalone `hns-dane-engine` | Integrated through exact reviewed revisions | The mobile workspace contains only its platform runtime and FFI boundaries. Consolidated private engine adapters resolve from exact revision `b8bdfbf7e234e64166886ade6f79d698e23056af`; the five exact canonical compatibility requirements are temporarily patched to revision `1ab4ab626f945712b0f960945986cb52efefef7c` so Cargo type identities cannot split. The stable mobile relay boolean maps to the shared typed requester policy (`false` → `Disabled`, `true` → `Auto`), while the normalized recovery URL maps to generation-bound `user_configured_recursive_hns_doh`. Live resolution follows direct authority UDP/TCP → owner-published authenticated authoritative DoH → independently admitted relay → configured recursive recovery; unsupported ODoH, HNSR, provider, and legacy roles remain disabled. |
 | Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
 | Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Targeted exact-signed code 47 checks passed on a Pixel 9 for upgrade with preserved data, cold launch, manual sync, HNS browsing, and corrected HNS/ICANN Proof Details presentation. The broader Android lifecycle, mobile-network, requester/recovery, Service Worker, download, WebSocket, and cross-origin matrix remains open. The iOS physical-device matrix is not an App Store submission prerequisite, but it remains an installed-device and ecosystem qualification gate. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
@@ -119,9 +119,9 @@ an API 37 x86_64 emulator at workflow-only descendant
 `cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`. The signed store binaries remain
 tied to shipping source `417af67efd68198de4871c0a339d1e456b60cb68`.
 
-The five shared engine crates resolve from exact, checksum-verified crates.io
-`0.1.0` packages; a standalone checkout no longer depends on the coordination
-workspace layout.
+The consolidated engine adapters and canonical compatibility bridge resolve
+from exact reviewed `hns-dane-engine` revisions; a standalone checkout no
+longer depends on the coordination workspace layout.
 
 The source covers normal navigation, same- and cross-origin redirects through
 the live proxy, subresources, native WebSockets, bodyless Service Worker GET/HEAD
@@ -141,8 +141,8 @@ WebKit network-process behavior.
 
 Android `0.5.6` / code `47` and shared Rust `0.5.6` shipped from source
 `417af67efd68198de4871c0a339d1e456b60cb68`, while iOS remains unchanged at
-`0.5.5` / build `57`. Current source now pins all five engine contracts to
-the exact, checksum-verified crates.io `0.1.0` release.
+`0.5.5` / build `57`. Current source now consumes the consolidated private
+engine adapters and compatibility contracts from exact reviewed Git revisions.
 
 - Rust 1.92 omitted Android from the standard `File::lock`,
   `lock_shared`, `try_lock_shared`, and `unlock` implementation, causing the

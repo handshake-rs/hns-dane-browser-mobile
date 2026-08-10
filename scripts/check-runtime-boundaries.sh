@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUST_TOOLCHAIN="1.92.0"
 
-for shared_crate in hns-mobile-platform-runtime hns-loopback-proxy; do
+for shared_crate in hns-mobile-platform-runtime; do
   shared_dir="$ROOT_DIR/rust/crates/$shared_crate"
   dependency_tree="$(cargo "+$RUST_TOOLCHAIN" tree --locked \
     --manifest-path "$ROOT_DIR/rust/Cargo.toml" \

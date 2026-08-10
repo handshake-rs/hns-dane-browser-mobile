@@ -7,7 +7,7 @@ license = "PolyForm-Noncommercial-1.0.0"
 [workspace]
 
 [dependencies]
-hns-chain = { path = "../../rust/crates/hns-chain" }
-hns-core = { path = "../../rust/crates/hns-core" }
-hns-p2p = { path = "../../rust/crates/hns-p2p" }
-hns-sync = { path = "../../rust/crates/hns-sync" }
+hns-chain = { package = "hns-browser-chain", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b8bdfbf7e234e64166886ade6f79d698e23056af" }
+hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b8bdfbf7e234e64166886ade6f79d698e23056af" }
+hns-p2p = { package = "hns-browser-p2p", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b8bdfbf7e234e64166886ade6f79d698e23056af" }
+hns-sync = { package = "hns-browser-sync", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "b8bdfbf7e234e64166886ade6f79d698e23056af" }
