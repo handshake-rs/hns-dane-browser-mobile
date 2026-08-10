@@ -34,6 +34,7 @@ import android.webkit.WebViewClient
 import android.net.http.SslError
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.ProgressBar
@@ -105,7 +106,9 @@ class MainActivity : ComponentActivity() {
     }
     private lateinit var webView: WebView
     private lateinit var omnibox: EditText
-    private lateinit var securityLabel: TextView
+    private lateinit var securityIndicator: ImageView
+    private lateinit var colors: ThemeColors
+    private var omniboxFullUrl: String = ""
     private lateinit var hamburgerButton: TextView
     private lateinit var syncProgressBar: ProgressBar
     private lateinit var syncProgressStats: TextView
@@ -145,7 +148,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val colors = themeColors()
+        colors = themeColors()
 
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         GatewayEventLog.configureAppStorage(filesDir)
@@ -157,9 +160,9 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 if (activityDestroyed) return@runOnUiThread
                 proxyAvailable = available
-                if (::securityLabel.isInitialized) refreshSecurityState()
-            }
-        }
+                if (::securityIndicator.isInitialized) refreshSecurityState()
+            },
+        )
         webViewGatewayInterceptor = HnsWebViewGatewayInterceptor(
             dataDir = filesDir,
             namespacePolicy = NativeBridge,
@@ -215,23 +218,25 @@ class MainActivity : ComponentActivity() {
                 }
                 decision.consume
             }
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    setText(omniboxFullUrl)
+                    post { selectAll() }
+                } else {
+                    setText(OmniboxDisplay.displayText(omniboxFullUrl))
+                }
+            }
         }
 
-        securityLabel = TextView(this).apply {
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            textSize = 13f
-            minHeight = dp(TOOLBAR_CONTROL_HEIGHT_DP)
-            setPadding(dp(8), 0, dp(8), 0)
-            setTextColor(colors.securityText)
-            text = getString(R.string.security_syncing)
+        securityIndicator = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER
             contentDescription = getString(R.string.security_status_content_description)
             isClickable = true
             isFocusable = true
             applyScreenSelectableBackground()
             setOnClickListener { openResolverTrace() }
         }
+        setSecurityState(SecurityState.Syncing)
 
         syncProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = SYNC_PROGRESS_MAX
@@ -250,7 +255,7 @@ class MainActivity : ComponentActivity() {
             setPadding(dp(32), dp(32), dp(32), dp(32))
             setTextColor(colors.primaryText)
             textSize = 16f
-            visibility = View.GONE
+            visibility = View.INVISIBLE
             isClickable = true
         }
         pageProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -290,8 +295,8 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), 0, dp(8), 0)
-            addView(securityLabel, LinearLayout.LayoutParams(
-                dp(SECURITY_LABEL_WIDTH_DP),
+            addView(securityIndicator, LinearLayout.LayoutParams(
+                dp(SECURITY_INDICATOR_WIDTH_DP),
                 dp(TOOLBAR_CONTROL_HEIGHT_DP),
             ))
             addView(omnibox, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -757,6 +762,13 @@ class MainActivity : ComponentActivity() {
         enqueueNavigation(classifier.classify(url)) { webView.goBackOrForward(offset) }
     }
 
+    private fun showOmniboxUrl(url: String) {
+        omniboxFullUrl = url
+        if (!omnibox.hasFocus()) {
+            omnibox.setText(OmniboxDisplay.displayText(url))
+        }
+    }
+
     private fun enqueueNavigation(target: BrowserTarget, load: () -> Unit) {
         navigationGeneration = navigationGeneration.wrappingIncrement()
         val generation = navigationGeneration
@@ -765,7 +777,7 @@ class MainActivity : ComponentActivity() {
             syncGateNotice.visibility = View.GONE
         }
         webView.stopLoading()
-        omnibox.setText(target.url)
+        showOmniboxUrl(target.url)
         currentTargetKind = target.kind
         clearMainFrameHnsStatus()
         if (target.kind == BrowserTargetKind.Blocked) {
@@ -862,7 +874,7 @@ class MainActivity : ComponentActivity() {
             currentTargetKind in NATIVE_GATEWAY_TARGET_KINDS &&
             mainFrameHnsStatusCode == null
         ) {
-            securityLabel.text = getString(R.string.security_loading)
+            setSecurityState(SecurityState.Loading)
             return
         }
 
@@ -951,7 +963,7 @@ class MainActivity : ComponentActivity() {
             pageProgressBar.progress = pageLoadProgress.coerceIn(0, PAGE_PROGRESS_MAX)
         } else {
             pageProgressBar.progress = PAGE_PROGRESS_MAX
-            pageProgressBar.visibility = View.GONE
+            pageProgressBar.visibility = View.INVISIBLE
         }
     }
 
@@ -967,28 +979,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setSecurityState(state: SecurityState) {
-        val baseLabel = when (state) {
-            SecurityState.LocalContent -> getString(R.string.security_local_content)
-            SecurityState.Syncing -> getString(R.string.security_syncing)
-            SecurityState.Loading -> getString(R.string.security_loading)
-            SecurityState.HnsVerified -> getString(R.string.security_hns_verified)
-            SecurityState.HnsViaAuthoritativeDoh -> getString(R.string.security_hns_via_authoritative_doh)
-            SecurityState.HnsViaAuthoritativeDns53 -> getString(R.string.security_hns_via_authoritative_dns53)
-            SecurityState.HnsViaP2pDnsRelay -> getString(R.string.security_hns_via_p2p_dns_relay)
-            SecurityState.HnsViaUserConfiguredRecoveryDoh ->
-                getString(R.string.security_hns_via_user_configured_recovery_doh)
-            SecurityState.DaneVerified -> getString(R.string.security_dane_verified)
-            SecurityState.DaneViaAuthoritativeDoh -> getString(R.string.security_dane_via_authoritative_doh)
-            SecurityState.DaneViaAuthoritativeDns53 -> getString(R.string.security_dane_via_authoritative_dns53)
-            SecurityState.DaneViaP2pDnsRelay -> getString(R.string.security_dane_via_p2p_dns_relay)
-            SecurityState.DaneViaUserConfiguredRecoveryDoh ->
-                getString(R.string.security_dane_via_user_configured_recovery_doh)
-            SecurityState.StatelessDane -> getString(R.string.security_stateless_dane)
-            SecurityState.DaneViaIcannDoh -> getString(R.string.security_dane_via_icann_doh)
-            SecurityState.WebPkiOnly -> getString(R.string.security_webpki)
-            SecurityState.ValidationFailed -> getString(R.string.security_failed)
-            SecurityState.ProofUnavailable -> getString(R.string.security_proof_unavailable)
-        }
+        val presentation = SecurityIndicator.forState(state)
+        val baseLabel = getString(presentation.labelRes)
         val resolution = mainFrameHnsTraceJson
             ?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?.optJSONObject("namespaceResolution")
@@ -1005,8 +997,7 @@ class MainActivity : ComponentActivity() {
             "hnsOnly", "icannOnly" -> selectedLabel
             else -> null
         }
-        securityLabel.text = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
-        securityLabel.contentDescription = if (selectedLabel != null) {
+        val detailLabel = if (selectedLabel != null) {
             mainFrameHnsTraceJson
                 ?.let { LocalizedTraceText.namespace(this, runCatching { JSONObject(it) }.getOrNull()) }
                 ?.let { "$baseLabel. $it" }
@@ -1014,6 +1005,12 @@ class MainActivity : ComponentActivity() {
         } else {
             baseLabel
         }
+        securityIndicator.setImageResource(presentation.iconRes)
+        securityIndicator.setColorFilter(SecurityIndicator.toneColor(colors, presentation.tone))
+        securityIndicator.contentDescription = getString(
+            R.string.security_indicator_content_description,
+            namespaceBadge?.let { "$detailLabel. $it" } ?: detailLabel,
+        )
     }
 
     private inner class BrowserClient : WebViewClient() {
@@ -1042,7 +1039,7 @@ class MainActivity : ComponentActivity() {
             }
             pageIsLoading = true
             pageLoadProgress = pageLoadProgress.coerceAtLeast(5)
-            omnibox.setText(url)
+            showOmniboxUrl(url)
             admittedMainFrameUrl = url
             activeMainFrameUrl = url
             val target = classifier.classify(url)
@@ -1153,7 +1150,7 @@ class MainActivity : ComponentActivity() {
             if (pendingMainFrameUrl != null) return
             val admittedUrl = admittedMainFrameUrl ?: return
             if (admittedUrl.mainFrameMatchKey() != url.mainFrameMatchKey()) return
-            omnibox.setText(url)
+            showOmniboxUrl(url)
             activeMainFrameUrl = url
             admittedMainFrameUrl = url
             val target = classifier.classify(url)
@@ -1199,6 +1196,7 @@ class MainActivity : ComponentActivity() {
 
     private inner class BrowserChromeClient : WebChromeClient() {
         override fun onProgressChanged(view: WebView, newProgress: Int) {
+            if (!pageIsLoading) return
             pageLoadProgress = newProgress.coerceIn(0, PAGE_PROGRESS_MAX)
             if (pageLoadProgress < PAGE_PROGRESS_MAX) {
                 pageIsLoading = true
@@ -1210,7 +1208,7 @@ class MainActivity : ComponentActivity() {
     private fun openResolverTrace() {
         startActivity(
             Intent(this, HnsResolverTraceActivity::class.java)
-                .putExtra(HnsResolverTraceActivity.EXTRA_URL, omnibox.text.toString())
+                .putExtra(HnsResolverTraceActivity.EXTRA_URL, omniboxFullUrl)
                 .putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, mainFrameHnsTraceJson),
         )
     }
@@ -1445,7 +1443,7 @@ class MainActivity : ComponentActivity() {
         webView.url
             ?.trim()
             ?.takeIf { it.isNotBlank() && it != "about:blank" }
-            ?: omnibox.text.toString()
+            ?: omniboxFullUrl
                 .trim()
                 .takeIf { it.isNotBlank() && it != "about:blank" }
 
@@ -1500,7 +1498,7 @@ class MainActivity : ComponentActivity() {
         private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
         private const val SYNC_STATUS_POLL_MS = 2_000L
-        private const val SECURITY_LABEL_WIDTH_DP = 136
+        private const val SECURITY_INDICATOR_WIDTH_DP = 44
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22
         private const val MENU_ICON_BUTTON_SIZE_DP = 55
