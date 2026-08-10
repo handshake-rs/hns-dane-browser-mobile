@@ -1451,6 +1451,11 @@ extension BrowserViewController: BrowserSettingsViewControllerDelegate {
             dismissSettingsThen { [weak self] in
                 self?.presentDownloads()
             }
+        case .showWallet:
+            controller.navigationController?.pushViewController(
+                WalletViewController(network: process.currentNetwork),
+                animated: true
+            )
         case .setTheme(let mode):
             applyTheme(mode)
         case .openLanguageSettings:

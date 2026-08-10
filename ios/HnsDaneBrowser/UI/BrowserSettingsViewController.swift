@@ -18,6 +18,7 @@ final class BrowserSettingsViewController: UITableViewController {
         case showCookies
         case showHistory
         case showDownloads
+        case showWallet
         case setTheme(BrowserThemeMode)
         case openLanguageSettings
         case setHandshakeNetwork(BrowserHandshakeNetwork)
@@ -40,6 +41,7 @@ final class BrowserSettingsViewController: UITableViewController {
     enum Section: Int, CaseIterable {
         case startPage
         case privacyAndData
+        case wallet
         case appearance
         case language
         case hnsResolution
@@ -50,6 +52,7 @@ final class BrowserSettingsViewController: UITableViewController {
             switch self {
             case .startPage: "Start page"
             case .privacyAndData: "Privacy and data"
+            case .wallet: "Wallet"
             case .appearance: "Appearance"
             case .language: "Language"
             case .hnsResolution: "HNS resolution"
@@ -62,6 +65,7 @@ final class BrowserSettingsViewController: UITableViewController {
             switch self {
             case .startPage: "settings.section.start-page"
             case .privacyAndData: "settings.section.privacy-and-data"
+            case .wallet: "settings.section.wallet"
             case .appearance: "settings.section.appearance"
             case .language: "settings.section.language"
             case .hnsResolution: "settings.section.hns-resolution"
@@ -78,6 +82,7 @@ final class BrowserSettingsViewController: UITableViewController {
         case cookies
         case history
         case downloads
+        case wallet
         case theme
         case appLanguage
         case handshakeNetwork
@@ -106,6 +111,7 @@ final class BrowserSettingsViewController: UITableViewController {
             case .cookies: "Cookies"
             case .history: "History"
             case .downloads: "Downloads"
+            case .wallet: "Handshake wallet"
             case .theme: "Theme"
             case .appLanguage: "App language"
             case .handshakeNetwork: "Handshake network"
@@ -136,6 +142,7 @@ final class BrowserSettingsViewController: UITableViewController {
             case .cookies: "settings.privacy-and-data.cookies"
             case .history: "settings.privacy-and-data.history"
             case .downloads: "settings.privacy-and-data.downloads"
+            case .wallet: "settings.wallet.native-controls"
             case .theme: "settings.appearance.theme"
             case .appLanguage: "settings.language.app-language"
             case .handshakeNetwork: "settings.hns-resolution.handshake-network"
@@ -180,6 +187,7 @@ final class BrowserSettingsViewController: UITableViewController {
                  .cookies,
                  .history,
                  .downloads,
+                 .wallet,
                  .theme,
                  .appLanguage,
                  .hnsSync,
@@ -342,6 +350,8 @@ final class BrowserSettingsViewController: UITableViewController {
             [.homepage, .setCurrentPageAsHomepage, .resetHomepage]
         case .privacyAndData:
             [.cookies, .history, .downloads]
+        case .wallet:
+            [.wallet]
         case .appearance:
             [.theme]
         case .language:
@@ -449,6 +459,8 @@ final class BrowserSettingsViewController: UITableViewController {
             request(.showHistory)
         case .downloads:
             request(.showDownloads)
+        case .wallet:
+            request(.showWallet)
         case .theme:
             presentThemeConfiguration()
         case .appLanguage:
@@ -515,6 +527,8 @@ final class BrowserSettingsViewController: UITableViewController {
             return downloadCount == 1
                 ? "1 app-queued record"
                 : "\(downloadCount) app-queued records"
+        case .wallet:
+            return "Create, restore, open, unlock, lock, and inspect one local HNS account. Value and marketplace controls remain unavailable."
         case .theme:
             return themeMode.summary
         case .appLanguage:
@@ -626,6 +640,7 @@ final class BrowserSettingsViewController: UITableViewController {
         case .cookies: "Manage"
         case .history,
              .downloads,
+             .wallet,
              .hnsSync,
              .diagnostics,
              .gateway,

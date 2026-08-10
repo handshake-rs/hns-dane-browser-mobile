@@ -48,6 +48,8 @@
 		B20000000000000000000005 /* WalletProviderProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000005 /* WalletProviderProtocolTests.swift */; };
 		B20000000000000000000006 /* WalletApprovalProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000006 /* WalletApprovalProjection.swift */; };
 		B20000000000000000000007 /* WalletEventProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000007 /* WalletEventProjection.swift */; };
+		B20000000000000000000008 /* RustNativeWallet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000008 /* RustNativeWallet.swift */; };
+		B20000000000000000000009 /* WalletViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000009 /* WalletViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -113,6 +115,8 @@
 		F20000000000000000000005 /* WalletProviderProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletProviderProtocolTests.swift; sourceTree = "<group>"; };
 		F20000000000000000000006 /* WalletApprovalProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletApprovalProjection.swift; sourceTree = "<group>"; };
 		F20000000000000000000007 /* WalletEventProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletEventProjection.swift; sourceTree = "<group>"; };
+		F20000000000000000000008 /* RustNativeWallet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustNativeWallet.swift; sourceTree = "<group>"; };
+		F20000000000000000000009 /* WalletViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -222,11 +226,13 @@
 		G20000000000000000000001 /* Wallet */ = {
 			isa = PBXGroup;
 			children = (
+				F20000000000000000000008 /* RustNativeWallet.swift */,
 				F20000000000000000000006 /* WalletApprovalProjection.swift */,
 				F20000000000000000000007 /* WalletEventProjection.swift */,
 				F20000000000000000000001 /* WalletKeychainStore.swift */,
 				F20000000000000000000002 /* WalletProviderProtocol.swift */,
 				F20000000000000000000003 /* WalletUIState.swift */,
+				F20000000000000000000009 /* WalletViewController.swift */,
 				F20000000000000000000004 /* WalletWebKitBridge.swift */,
 			);
 			path = Wallet;
@@ -440,6 +446,8 @@
 				B20000000000000000000002 /* WalletProviderProtocol.swift in Sources */,
 				B20000000000000000000003 /* WalletUIState.swift in Sources */,
 				B20000000000000000000004 /* WalletWebKitBridge.swift in Sources */,
+				B20000000000000000000008 /* RustNativeWallet.swift in Sources */,
+				B20000000000000000000009 /* WalletViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

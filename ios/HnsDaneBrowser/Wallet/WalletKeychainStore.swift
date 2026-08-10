@@ -1,14 +1,28 @@
+import Darwin
 import Foundation
 import Security
 
-/// Stores only a 32-byte wallet database key under user presence; WebKit never receives it.
+/// Stores one network-scoped 32-byte wallet database key under user presence.
+/// The key is create-only: this type never replaces an existing identity.
 final class WalletKeychainStore {
     private let service = "com.denuoweb.hnsdane.wallet.database-key.v1"
-    private let account = "primary"
+    private let account: String
+    private let keyBytes = 32
 
-    func storeDatabaseKey(_ value: Data) throws {
-        guard value.count == 32 else {
-            throw WalletProviderError(code: "invalidSecret", message: "Wallet database key must be 32 bytes")
+    init(network: BrowserHandshakeNetwork) {
+        account = "primary.\(network.rawValue)"
+    }
+
+    /// Persists the first confirmed wallet key. The borrowed process buffer is
+    /// never retained by this type and no existing Keychain item is updated.
+    func storeDatabaseKey(_ key: UnsafeRawBufferPointer) throws {
+        guard key.count == keyBytes,
+              let baseAddress = key.baseAddress,
+              key.contains(where: { $0 != 0 }) else {
+            throw WalletProviderError(
+                code: "invalidSecret",
+                message: "Wallet database key must be 32 nonzero bytes"
+            )
         }
         var accessError: Unmanaged<CFError>?
         guard let access = SecAccessControlCreateWithFlags(
@@ -23,35 +37,63 @@ final class WalletKeychainStore {
                 message: "Keychain access control is unavailable"
             )
         }
-        let identity: [CFString: Any] = [
+
+        let value = NSMutableData(bytes: baseAddress, length: key.count)
+        defer { value.resetBytes(in: NSRange(location: 0, length: value.length)) }
+        let status = SecItemAdd([
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
             kSecAttrAccount: account,
             kSecUseDataProtectionKeychain: true,
-        ]
-        let updateStatus = SecItemUpdate(
-            identity as CFDictionary,
-            [kSecValueData: value] as CFDictionary
-        )
-        if updateStatus == errSecSuccess { return }
-        guard updateStatus == errSecItemNotFound else { throw keychainError(updateStatus) }
-
-        var addition = identity
-        addition[kSecAttrAccessControl] = access
-        addition[kSecValueData] = value
-        let status = SecItemAdd(addition as CFDictionary, nil)
+            kSecAttrAccessControl: access,
+            kSecValueData: value,
+        ] as CFDictionary, nil)
         if status == errSecDuplicateItem {
-            let retryStatus = SecItemUpdate(
-                identity as CFDictionary,
-                [kSecValueData: value] as CFDictionary
+            throw WalletProviderError(
+                code: "walletAlreadyExists",
+                message: "A wallet database key already exists on this device"
             )
-            guard retryStatus == errSecSuccess else { throw keychainError(retryStatus) }
-            return
         }
         guard status == errSecSuccess else { throw keychainError(status) }
     }
 
-    func loadDatabaseKey(prompt: String) throws -> Data? {
+    func hasDatabaseKey() throws -> Bool {
+        let status = SecItemCopyMatching([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecUseDataProtectionKeychain: true,
+            kSecMatchLimit: kSecMatchLimitOne,
+        ] as CFDictionary, nil)
+        if status == errSecItemNotFound { return false }
+        guard status == errSecSuccess else { throw keychainError(status) }
+        return true
+    }
+
+    /// Authenticates user presence and lends a process-local borrowed key view
+    /// only for the duration of `body`. Every mutable copy is explicitly wiped.
+    func withDatabaseKey<T>(
+        prompt: String,
+        _ body: (UnsafeRawBufferPointer) throws -> T
+    ) throws -> T? {
+        guard var key = try copyDatabaseKey(prompt: prompt) else { return nil }
+        defer { Self.wipe(&key) }
+        return try key.withUnsafeBytes(body)
+    }
+
+    func deleteDatabaseKey() throws {
+        let status = SecItemDelete([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecUseDataProtectionKeychain: true,
+        ] as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw keychainError(status)
+        }
+    }
+
+    private func copyDatabaseKey(prompt: String) throws -> [UInt8]? {
         var result: CFTypeRef?
         let status = SecItemCopyMatching([
             kSecClass: kSecClassGenericPassword,
@@ -63,19 +105,18 @@ final class WalletKeychainStore {
             kSecMatchLimit: kSecMatchLimitOne,
         ] as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data, data.count == 32 else {
+        guard status == errSecSuccess, let data = result as? Data, data.count == keyBytes else {
             throw keychainError(status)
         }
-        return data
+        return [UInt8](data)
     }
 
-    func deleteDatabaseKey() {
-        SecItemDelete([
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account,
-            kSecUseDataProtectionKeychain: true,
-        ] as CFDictionary)
+    private static func wipe(_ bytes: inout [UInt8]) {
+        bytes.withUnsafeMutableBytes { (buffer: UnsafeMutableRawBufferPointer) in
+            guard let baseAddress = buffer.baseAddress else { return }
+            explicit_bzero(baseAddress, buffer.count)
+        }
+        bytes.removeAll(keepingCapacity: false)
     }
 
     private func keychainError(_ status: OSStatus) -> WalletProviderError {

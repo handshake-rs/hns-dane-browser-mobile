@@ -297,6 +297,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(BrowserSettingsViewController.Section.allCases.map(\.title), [
             "Start page",
             "Privacy and data",
+            "Wallet",
             "Appearance",
             "Language",
             "HNS resolution",
@@ -311,6 +312,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             BrowserSettingsViewController.rows(in: .privacyAndData),
             [.cookies, .history, .downloads]
         )
+        XCTAssertEqual(BrowserSettingsViewController.rows(in: .wallet), [.wallet])
         XCTAssertEqual(BrowserSettingsViewController.rows(in: .appearance), [.theme])
         XCTAssertEqual(BrowserSettingsViewController.rows(in: .language), [.appLanguage])
 
@@ -354,13 +356,36 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
+    func testWalletStorageLeaseRejectsConcurrentAndStaleOwners() throws {
+        let path = "/private/test-wallet-\(UUID().uuidString)/wallet.sqlite3"
+        let first = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        XCTAssertNil(WalletStorageLeaseRegistry.acquire(path: path))
+
+        WalletStorageLeaseRegistry.release(
+            WalletStorageLeaseToken(path: path, owner: UUID())
+        )
+        XCTAssertNil(WalletStorageLeaseRegistry.acquire(path: path))
+
+        WalletStorageLeaseRegistry.release(first)
+        let replacement = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        WalletStorageLeaseRegistry.release(replacement)
+    }
+
+    func testWalletFaceIDPurposeIsPresentInBuiltApplication() throws {
+        XCTAssertEqual(
+            try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "NSFaceIDUsageDescription") as? String),
+            "Use Face ID to unlock your local Handshake wallet."
+        )
+    }
+
+    @MainActor
     func testIOSSettingsExposeCurrentPageOnlyWhenAndroidWould() throws {
         let withoutPage = BrowserSettingsViewController(
             policy: .default,
             runtimeControlsAreAvailable: true
         )
         withoutPage.loadViewIfNeeded()
-        XCTAssertEqual(withoutPage.numberOfSections(in: withoutPage.tableView), 7)
+        XCTAssertEqual(withoutPage.numberOfSections(in: withoutPage.tableView), 8)
         XCTAssertEqual(
             withoutPage.tableView(withoutPage.tableView, numberOfRowsInSection: 0),
             2
@@ -394,6 +419,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let expected: [[String?]] = [
             ["Edit", "Set", "Reset"],
             ["Manage", "View", "View"],
+            ["View"],
             ["Change"],
             ["Open"],
             ["Change", nil, "Edit", nil, "Add", "Clear", "View"],
@@ -423,7 +449,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             runtimeControlsAreAvailable: true
         )
         settings.loadViewIfNeeded()
-        let indexPath = IndexPath(row: 1, section: 4)
+        let indexPath = IndexPath(row: 1, section: 5)
 
         var cell = settings.tableView(settings.tableView, cellForRowAt: indexPath)
         var content = try XCTUnwrap(cell.contentConfiguration as? UIListContentConfiguration)
@@ -473,7 +499,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         navigation.loadViewIfNeeded()
         settings.loadViewIfNeeded()
 
-        let settingsIndexPath = IndexPath(row: 6, section: 4)
+        let settingsIndexPath = IndexPath(row: 6, section: 5)
         let settingsCell = settings.tableView(
             settings.tableView,
             cellForRowAt: settingsIndexPath
@@ -517,7 +543,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         settings.loadViewIfNeeded()
         settings.tableView(
             settings.tableView,
-            didSelectRowAt: IndexPath(row: 6, section: 4)
+            didSelectRowAt: IndexPath(row: 6, section: 5)
         )
         let sync = try XCTUnwrap(navigation.topViewController as? HNSSyncViewController)
         sync.loadViewIfNeeded()
@@ -601,7 +627,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let cache = settings.tableView(
             settings.tableView,
-            cellForRowAt: IndexPath(row: 5, section: 4)
+            cellForRowAt: IndexPath(row: 5, section: 5)
         )
         XCTAssertEqual(
             try XCTUnwrap(cache.contentConfiguration as? UIListContentConfiguration)
@@ -612,19 +638,19 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let hnsSync = settings.tableView(
             settings.tableView,
-            cellForRowAt: IndexPath(row: 6, section: 4)
+            cellForRowAt: IndexPath(row: 6, section: 5)
         )
         XCTAssertEqual((hnsSync.accessoryView as? UILabel)?.text, "View")
 
         let proof = settings.tableView(
             settings.tableView,
-            cellForRowAt: IndexPath(row: 2, section: 5)
+            cellForRowAt: IndexPath(row: 2, section: 6)
         )
         XCTAssertEqual((proof.accessoryView as? UILabel)?.text, "Open")
 
         let build = settings.tableView(
             settings.tableView,
-            cellForRowAt: IndexPath(row: 0, section: 6)
+            cellForRowAt: IndexPath(row: 0, section: 7)
         )
         let buildText = try XCTUnwrap(
             (build.contentConfiguration as? UIListContentConfiguration)?.secondaryText
