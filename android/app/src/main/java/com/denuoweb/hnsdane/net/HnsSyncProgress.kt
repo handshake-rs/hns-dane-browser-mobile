@@ -101,7 +101,7 @@ data class HnsSyncProgress(
             (accepted ?: 0L) > 0L
 
     val shouldRetrySoon: Boolean
-        get() = status in RETRY_STATUSES || needsPeerDiscovery
+        get() = status in RETRY_STATUSES || needsPeerDiscovery || hasUnknownTargetProgress
 
     val hasUnknownTargetProgress: Boolean
         get() = bestHeight != null &&

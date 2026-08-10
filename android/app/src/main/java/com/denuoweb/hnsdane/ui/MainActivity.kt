@@ -252,7 +252,7 @@ class MainActivity : ComponentActivity() {
             textSize = 12f
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
-            text = HnsSyncProgress.fromJson(null).summary(this@MainActivity)
+            text = getString(R.string.sync_progress_preparing)
         }
         syncGateNotice = TextView(this).apply {
             gravity = Gravity.CENTER
@@ -881,9 +881,9 @@ class MainActivity : ComponentActivity() {
         val progress = currentSyncProgress()
         val host = pending.target.displayHost ?: pending.target.url
         syncGateNotice.text = if (progress.status in SYNC_FAILURE_STATUSES) {
-            getString(R.string.sync_gate_failed, host)
+            getString(R.string.sync_gate_unavailable)
         } else {
-            getString(R.string.sync_gate_waiting, host)
+            getString(R.string.sync_gate_preparing, host)
         }
         syncGateNotice.visibility = View.VISIBLE
     }
@@ -971,7 +971,7 @@ class MainActivity : ComponentActivity() {
             if (permille != null) {
                 syncProgressBar.progress = permille
             }
-            syncProgressStats.text = progress.summary(this)
+            syncProgressStats.text = getString(R.string.sync_progress_preparing)
         }
         refreshSyncGateNotice()
         resumeReadinessNavigationIfReady(progress)
