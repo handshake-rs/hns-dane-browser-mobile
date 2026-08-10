@@ -99,7 +99,7 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 
 The Android and iOS wallet-provider sources are containment projections, not an
 installed wallet runtime. Website schema 1, private native ABI 2, and public
-approval schema 2 are independent version domains. Provider installation,
+approval schema 3 are independent version domains. Provider installation,
 wallet operations, approval dispatch, and value movement each have an immutable
 false gate; both adapters are hardwired to the unavailable implementation and
 absent from browser-controller lifecycle code.

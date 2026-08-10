@@ -22,12 +22,153 @@ class MobileWalletApprovalProjectionTest {
             prompts.map { it.summary.kind }.toSet(),
         )
         prompts.forEach { prompt ->
-            assertEquals(2, prompt.schemaVersion)
+            assertEquals(3, prompt.schemaVersion)
             val display = MobileWalletApprovalProjection.display(prompt)
             val expected = expectedDisplays.getValue(prompt.summary.kind)
             assertEquals(expected.first, display.title)
             assertEquals(expected.second, display.rows.map { it.label })
         }
+    }
+
+    @Test
+    fun schemaThreeHnsNameDisclosuresValidateAndRenderEveryExactPair() {
+        val request = providerRequest(
+            "wallet_requestPermissions",
+            JSONObject().put("capabilities", array("names")),
+        )
+        val candidate = fixture(
+            request,
+            JSONObject()
+                .put("kind", "permissions")
+                .put("capabilities", array("names"))
+                .put(
+                    "hnsNames",
+                    hnsNames(
+                        "alpha" to ALPHA_HASH,
+                        "alpha_beta" to ALPHA_BETA_HASH,
+                    ),
+                ),
+        ).second
+
+        val prompt = MobileWalletApprovalProjection.validate(candidate, ORIGIN, request, NOW)
+        val summary = prompt.summary as WalletApprovalSummary.Permissions
+        assertEquals(
+            listOf(
+                WalletHnsNameDisclosure("alpha", ALPHA_HASH),
+                WalletHnsNameDisclosure("alpha_beta", ALPHA_BETA_HASH),
+            ),
+            summary.hnsNames,
+        )
+        val display = MobileWalletApprovalProjection.display(prompt)
+        assertEquals(
+            listOf("Capabilities", "HNS name 1", "HNS name hash 1", "HNS name 2", "HNS name hash 2"),
+            display.rows.map { it.label },
+        )
+        assertEquals(
+            listOf("names", "alpha", ALPHA_HASH, "alpha_beta", ALPHA_BETA_HASH),
+            display.rows.map { it.value },
+        )
+
+        val accountsRequest = providerRequest("hns_requestAccounts")
+        val accountsPrompt = MobileWalletApprovalProjection.validate(
+            fixture(
+                accountsRequest,
+                permissionSummary(array("accounts"), JSONArray()),
+            ).second,
+            ORIGIN,
+            accountsRequest,
+            NOW,
+        )
+        assertEquals(
+            emptyList<WalletHnsNameDisclosure>(),
+            (accountsPrompt.summary as WalletApprovalSummary.Permissions).hnsNames,
+        )
+    }
+
+    @Test
+    fun schemaThreeHnsNameDisclosuresFailClosed() {
+        fun reject(
+            method: String = "wallet_requestPermissions",
+            requested: JSONArray = array("names"),
+            summary: JSONObject,
+        ) {
+            val params = if (method == "hns_requestAccounts") {
+                JSONObject()
+            } else {
+                JSONObject().put("capabilities", requested)
+            }
+            val request = providerRequest(method, params)
+            expectCode("invalidApproval") {
+                MobileWalletApprovalProjection.validate(
+                    fixture(request, summary).second,
+                    ORIGIN,
+                    request,
+                    NOW,
+                )
+            }
+        }
+
+        reject(
+            summary = JSONObject()
+                .put("kind", "permissions")
+                .put("capabilities", array("names")),
+        )
+        reject(
+            requested = array("balance"),
+            summary = permissionSummary(array("balance"), hnsNames("alpha" to ALPHA_HASH)),
+        )
+        reject(
+            requested = array("accounts"),
+            summary = permissionSummary(array("accounts"), JSONArray()),
+        )
+        reject(
+            method = "hns_requestAccounts",
+            requested = array("accounts"),
+            summary = permissionSummary(array("accounts"), hnsNames("alpha" to ALPHA_HASH)),
+        )
+        reject(
+            summary = permissionSummary(
+                array("names"),
+                hnsNames("beta" to BETA_HASH, "alpha" to ALPHA_HASH),
+            ),
+        )
+        reject(
+            summary = permissionSummary(
+                array("names"),
+                hnsNames("alpha" to ALPHA_HASH, "alpha" to ALPHA_HASH),
+            ),
+        )
+        reject(
+            summary = permissionSummary(
+                array("names"),
+                JSONArray().apply { repeat(65) { put(JSONObject()) } },
+            ),
+        )
+
+        for (name in listOf("Alpha", "-alpha", "alpha-", "_alpha", "alpha_", "a.b", "example", "a".repeat(64))) {
+            reject(
+                summary = permissionSummary(
+                    array("names"),
+                    hnsNames(name to "0".repeat(64)),
+                ),
+            )
+        }
+        for (hash in listOf(ALPHA_HASH.uppercase(), "0".repeat(63), "0".repeat(64))) {
+            reject(
+                summary = permissionSummary(array("names"), hnsNames("alpha" to hash)),
+            )
+        }
+        reject(
+            summary = permissionSummary(
+                array("names"),
+                JSONArray().put(
+                    JSONObject()
+                        .put("name", "alpha")
+                        .put("nameHash", ALPHA_HASH)
+                        .put("display", "trust me"),
+                ),
+            ),
+        )
     }
 
     @Test
@@ -106,7 +247,8 @@ class MobileWalletApprovalProjectionTest {
             }
         }
 
-        reject { it.put("schemaVersion", "2") }
+        reject { it.put("schemaVersion", 2) }
+        reject { it.put("schemaVersion", "3") }
         reject { it.put("approvalId", APPROVAL_ID.dropLast(1) + "B") }
         reject { it.put("expiresAtUnixMs", NOW) }
         reject { it.put("method", 7) }
@@ -139,9 +281,9 @@ class MobileWalletApprovalProjectionTest {
         fixture(
             providerRequest(
                 "wallet_requestPermissions",
-                JSONObject().put("capabilities", array("accounts", "send")),
+                JSONObject().put("capabilities", array("balance", "send")),
             ),
-            JSONObject().put("kind", "permissions").put("capabilities", array("accounts", "send")),
+            permissionSummary(array("balance", "send"), JSONArray()),
         ),
         fixture(
             providerRequest("wallet_enableModule", JSONObject().put("module", "bitcoin")),
@@ -261,7 +403,7 @@ class MobileWalletApprovalProjectionTest {
         request: WalletProviderRequest,
         summary: JSONObject,
     ): Pair<WalletProviderRequest, JSONObject> = request to JSONObject()
-        .put("schemaVersion", 2)
+        .put("schemaVersion", 3)
         .put("approvalId", APPROVAL_ID)
         .put("method", request.method)
         .put("origin", ORIGIN)
@@ -280,6 +422,18 @@ class MobileWalletApprovalProjectionTest {
         values.forEach { put(it) }
     }
 
+    private fun hnsNames(vararg values: Pair<String, String>): JSONArray = JSONArray().apply {
+        values.forEach { (name, nameHash) ->
+            put(JSONObject().put("name", name).put("nameHash", nameHash))
+        }
+    }
+
+    private fun permissionSummary(capabilities: JSONArray, hnsNames: JSONArray): JSONObject =
+        JSONObject()
+            .put("kind", "permissions")
+            .put("capabilities", capabilities)
+            .put("hnsNames", hnsNames)
+
     private fun expectCode(code: String, block: () -> Unit) {
         try {
             block()
@@ -293,6 +447,9 @@ class MobileWalletApprovalProjectionTest {
         const val ORIGIN = "https://example.test"
         const val APPROVAL_ID = "AQEBAQEBAQEBAQEBAQEBAQ"
         const val NOW = 2_000_000_000_000L
+        const val ALPHA_HASH = "271878f8a927b4566ac951fc815b18dfad8d0302d61d11d80cbe15b7a3a056af"
+        const val ALPHA_BETA_HASH = "e91efa3d4629261bc45787aca2461e087ea169c044fc711108b89d44d75f26ce"
+        const val BETA_HASH = "f0277d92062bd9a41dd26cddbaf2c41d576cf7b0173cbe96c23d5f5a4f92cc8f"
         val expectedDisplays = mapOf(
             "permissions" to (
                 "Approve wallet permissions" to listOf("Capabilities")

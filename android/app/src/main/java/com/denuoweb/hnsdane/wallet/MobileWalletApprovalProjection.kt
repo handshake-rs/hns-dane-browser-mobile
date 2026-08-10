@@ -2,6 +2,7 @@ package com.denuoweb.hnsdane.wallet
 
 import java.math.BigInteger
 import java.net.URI
+import java.security.MessageDigest
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -10,8 +11,16 @@ internal data class WalletApprovalAmount(
     val baseUnits: String,
 )
 
+internal data class WalletHnsNameDisclosure(
+    val name: String,
+    val nameHash: String,
+)
+
 internal sealed class WalletApprovalSummary(val kind: String) {
-    data class Permissions(val capabilities: List<String>) : WalletApprovalSummary("permissions")
+    data class Permissions(
+        val capabilities: List<String>,
+        val hnsNames: List<WalletHnsNameDisclosure>,
+    ) : WalletApprovalSummary("permissions")
 
     data class ModuleEnablement(
         val module: String,
@@ -123,13 +132,14 @@ internal data class WalletApprovalDisplay(
     val rows: List<WalletApprovalDisplayRow>,
 )
 
-/** Browser-owned public projection of the private ABI-v2 approval union. */
+/** Browser-owned approval-schema-v3 public projection of the private ABI-v2 approval union. */
 internal object MobileWalletApprovalProjection {
-    const val SCHEMA_VERSION = 2
+    const val SCHEMA_VERSION = 3
     const val MAX_APPROVAL_LIFETIME_MS = 90_000L
     const val MAX_APPROVAL_BYTES = 16 * 1024
 
     private const val MAX_PUBLIC_STRING_BYTES = 4_096
+    private const val MAX_HNS_NAME_DISCLOSURES = 64
     private val maxU128 = BigInteger("340282366920938463463374607431768211455")
     private val approvalIdPattern = Regex("[A-Za-z0-9_-]{21}[AQgw]")
     private val assets = setOf("HNS", "BTC", "ETH")
@@ -157,6 +167,7 @@ internal object MobileWalletApprovalProjection {
         "feeEstimateMayChange", "nameTransferIsIrreversible",
         "refundRequiresManualAction", "settlementCanBeDelayed",
     )
+    private val reservedHnsNames = setOf("example", "invalid", "local", "localhost", "test")
     private val approvalMethods = mapOf(
         "permissions" to setOf("wallet_requestPermissions", "hns_requestAccounts"),
         "moduleEnablement" to setOf("wallet_enableModule", "wallet_disableModule"),
@@ -244,6 +255,10 @@ internal object MobileWalletApprovalProjection {
         val title = when (val summary = prompt.summary) {
             is WalletApprovalSummary.Permissions -> {
                 add("Capabilities", summary.capabilities.joinToString(", "))
+                summary.hnsNames.forEachIndexed { index, disclosure ->
+                    add("HNS name ${index + 1}", disclosure.name)
+                    add("HNS name hash ${index + 1}", disclosure.nameHash)
+                }
                 "Approve wallet permissions"
             }
             is WalletApprovalSummary.ModuleEnablement -> {
@@ -369,15 +384,18 @@ internal object MobileWalletApprovalProjection {
         method: String,
         request: WalletProviderRequest,
     ): WalletApprovalSummary.Permissions {
-        requireExactFields(candidate, "kind", "capabilities")
+        requireExactFields(candidate, "kind", "capabilities", "hnsNames")
         val capabilities = canonicalEnumList(
             candidate.opt("capabilities"),
             permissionCapabilities,
             allowEmpty = false,
         )
+        val hnsNames = hnsNameDisclosures(candidate.opt("hnsNames"))
+        if ("names" !in capabilities && hnsNames.isNotEmpty()) fail()
         if (method == "hns_requestAccounts") {
-            if (capabilities != listOf("accounts")) fail()
+            if (capabilities != listOf("accounts") || hnsNames.isNotEmpty()) fail()
         } else {
+            if ("accounts" in capabilities) fail()
             val params = request.params as? JSONObject ?: fail()
             val hasCapabilities = params.has("capabilities")
             val hasScopes = params.has("scopes")
@@ -390,7 +408,7 @@ internal object MobileWalletApprovalProjection {
             )
             if (requested != capabilities) fail()
         }
-        return WalletApprovalSummary.Permissions(capabilities)
+        return WalletApprovalSummary.Permissions(capabilities, hnsNames)
     }
 
     private fun validateModuleEnablement(
@@ -631,6 +649,65 @@ internal object MobileWalletApprovalProjection {
         val canonical = ordered.filter(values::contains)
         if (requireCanonicalInput && values != canonical) fail()
         return canonical
+    }
+
+    private fun hnsNameDisclosures(candidate: Any?): List<WalletHnsNameDisclosure> {
+        val array = candidate as? JSONArray ?: fail()
+        if (array.length() > MAX_HNS_NAME_DISCLOSURES) fail()
+        val names = mutableSetOf<String>()
+        val hashes = mutableSetOf<String>()
+        var previous: WalletHnsNameDisclosure? = null
+        return List(array.length()) { index ->
+            val value = array.opt(index) as? JSONObject ?: fail()
+            requireExactFields(value, "name", "nameHash")
+            val name = value.opt("name") as? String ?: fail()
+            val nameHash = value.opt("nameHash") as? String ?: fail()
+            if (
+                !isCanonicalHnsName(name) || !isLowerHex256(nameHash) ||
+                sha3_256Hex(name.toByteArray(Charsets.UTF_8)) != nameHash ||
+                !names.add(name) || !hashes.add(nameHash)
+            ) {
+                fail()
+            }
+            val disclosure = WalletHnsNameDisclosure(name, nameHash)
+            previous?.let {
+                if (
+                    it.name > disclosure.name ||
+                    (it.name == disclosure.name && it.nameHash >= disclosure.nameHash)
+                ) {
+                    fail()
+                }
+            }
+            previous = disclosure
+            disclosure
+        }
+    }
+
+    private fun isCanonicalHnsName(name: String): Boolean {
+        val bytes = name.toByteArray(Charsets.UTF_8)
+        if (bytes.size !in 1..63 || name in reservedHnsNames) return false
+        return bytes.withIndex().all { (index, byte) ->
+            val value = byte.toInt() and 0xff
+            value in '0'.code..'9'.code || value in 'a'.code..'z'.code ||
+                (value == '-'.code || value == '_'.code) &&
+                index != 0 && index + 1 != bytes.size
+        }
+    }
+
+    private fun isLowerHex256(value: String): Boolean =
+        value.length == 64 && value.all { it in '0'..'9' || it in 'a'..'f' }
+
+    private fun sha3_256Hex(input: ByteArray): String {
+        val digest = runCatching { MessageDigest.getInstance("SHA3-256").digest(input) }
+            .getOrElse { fail() }
+        val alphabet = "0123456789abcdef"
+        return buildString(64) {
+            digest.forEach { byte ->
+                val value = byte.toInt() and 0xff
+                append(alphabet[value ushr 4])
+                append(alphabet[value and 0x0f])
+            }
+        }
     }
 
     private fun module(candidate: Any?): String = enumValue(candidate, moduleAsset.keys)

@@ -4,12 +4,15 @@ import WebKit
 
 final class WalletProviderProtocolTests: XCTestCase {
     private static let nowUnixMs: UInt64 = 1_800_000_000_000
+    private static let alphaHash = "271878f8a927b4566ac951fc815b18dfad8d0302d61d11d80cbe15b7a3a056af"
+    private static let alphaBetaHash = "e91efa3d4629261bc45787aca2461e087ea169c044fc711108b89d44d75f26ce"
+    private static let betaHash = "f0277d92062bd9a41dd26cddbaf2c41d576cf7b0173cbe96c23d5f5a4f92cc8f"
 
     func testCompleteSurfaceAndRestrictedAssetModules() throws {
         XCTAssertEqual(WalletProviderProtocolV1.schemaVersion, 1)
         XCTAssertEqual(WalletProviderProtocolV1.providerAPIVersion, 1)
         XCTAssertEqual(WalletProviderProtocolV1.nativeABIVersion, 2)
-        XCTAssertEqual(WalletProviderProtocolV1.approvalSchemaVersion, 2)
+        XCTAssertEqual(WalletProviderProtocolV1.approvalSchemaVersion, 3)
         let expectedMethods: Set<String> = [
             "wallet_getCapabilities", "wallet_getEnabledModules", "wallet_enableModule",
             "wallet_disableModule", "wallet_requestPermissions", "wallet_getPermissions",
@@ -317,8 +320,8 @@ final class WalletProviderProtocolTests: XCTestCase {
         let cases: [(method: String, params: Any?, summary: [String: Any])] = [
             (
                 "wallet_requestPermissions",
-                ["capabilities": ["accounts", "send"]],
-                ["kind": "permissions", "capabilities": ["accounts", "send"]]
+                ["capabilities": ["balance", "send"]],
+                ["kind": "permissions", "capabilities": ["balance", "send"], "hnsNames": []]
             ),
             (
                 "wallet_enableModule",
@@ -426,7 +429,7 @@ final class WalletProviderProtocolTests: XCTestCase {
             "permissions": (
                 "Approve wallet permissions",
                 ["Capabilities"],
-                ["accounts, send"]
+                ["balance, send"]
             ),
             "moduleEnablement": (
                 "Enable wallet module",
@@ -514,15 +517,15 @@ final class WalletProviderProtocolTests: XCTestCase {
         var kinds = Set<String>()
         for scenario in cases {
             let request = providerRequest(scenario.method, params: scenario.params)
-            let prompt = try WalletApprovalProjectionV2.validatePrompt(
+            let prompt = try WalletApprovalProjectionV3.validatePrompt(
                 approvalPrompt(method: scenario.method, summary: scenario.summary),
                 expectedOrigin: "https://welcome",
                 expectedRequest: request,
                 nowUnixMs: now
             )
-            XCTAssertEqual(prompt.schemaVersion, 2)
+            XCTAssertEqual(prompt.schemaVersion, 3)
             XCTAssertTrue(kinds.insert(prompt.summary.kind).inserted)
-            let display = WalletApprovalProjectionV2.display(prompt)
+            let display = WalletApprovalProjectionV3.display(prompt)
             let expected = try XCTUnwrap(expectedDisplays[prompt.summary.kind])
             XCTAssertEqual(display.title, expected.title)
             XCTAssertEqual(display.rows.map(\.label), expected.labels)
@@ -530,6 +533,145 @@ final class WalletProviderProtocolTests: XCTestCase {
         }
         XCTAssertEqual(kinds.count, 12)
         XCTAssertEqual(expectedDisplays.count, 12)
+    }
+
+    func testSchemaThreeHnsNameDisclosuresValidateAndRenderEveryExactPair() throws {
+        let request = providerRequest(
+            "wallet_requestPermissions",
+            params: ["capabilities": ["names"]]
+        )
+        let prompt = try WalletApprovalProjectionV3.validatePrompt(
+            approvalPrompt(
+                method: request.method,
+                summary: permissionSummary(
+                    capabilities: ["names"],
+                    hnsNames: [
+                        hnsName("alpha", Self.alphaHash),
+                        hnsName("alpha_beta", Self.alphaBetaHash),
+                    ]
+                )
+            ),
+            expectedOrigin: "https://welcome",
+            expectedRequest: request,
+            nowUnixMs: Self.nowUnixMs
+        )
+        guard case let .permissions(capabilities, hnsNames) = prompt.summary else {
+            return XCTFail("Expected permissions summary")
+        }
+        XCTAssertEqual(capabilities, [.names])
+        XCTAssertEqual(hnsNames, [
+            WalletHnsNameDisclosureV3(name: "alpha", nameHash: Self.alphaHash),
+            WalletHnsNameDisclosureV3(name: "alpha_beta", nameHash: Self.alphaBetaHash),
+        ])
+        let display = WalletApprovalProjectionV3.display(prompt)
+        XCTAssertEqual(
+            display.rows.map(\.label),
+            ["Capabilities", "HNS name 1", "HNS name hash 1", "HNS name 2", "HNS name hash 2"]
+        )
+        XCTAssertEqual(
+            display.rows.map(\.value),
+            ["names", "alpha", Self.alphaHash, "alpha_beta", Self.alphaBetaHash]
+        )
+
+        let accountsRequest = providerRequest("hns_requestAccounts", params: nil)
+        let accountsPrompt = try WalletApprovalProjectionV3.validatePrompt(
+            approvalPrompt(
+                method: accountsRequest.method,
+                summary: permissionSummary(capabilities: ["accounts"], hnsNames: [])
+            ),
+            expectedOrigin: "https://welcome",
+            expectedRequest: accountsRequest,
+            nowUnixMs: Self.nowUnixMs
+        )
+        guard case let .permissions(_, hnsNames) = accountsPrompt.summary else {
+            return XCTFail("Expected permissions summary")
+        }
+        XCTAssertTrue(hnsNames.isEmpty)
+    }
+
+    func testSchemaThreeHnsNameDisclosuresFailClosed() {
+        func reject(
+            _ summary: [String: Any],
+            method: String = "wallet_requestPermissions",
+            params: Any? = ["capabilities": ["names"]],
+            file: StaticString = #filePath,
+            line: UInt = #line
+        ) {
+            let request = providerRequest(method, params: params)
+            XCTAssertThrowsError(
+                try WalletApprovalProjectionV3.validatePrompt(
+                    approvalPrompt(method: method, summary: summary),
+                    expectedOrigin: "https://welcome",
+                    expectedRequest: request,
+                    nowUnixMs: Self.nowUnixMs
+                ),
+                file: file,
+                line: line
+            ) { error in
+                XCTAssertEqual(
+                    (error as? WalletProviderError)?.code,
+                    "invalidApproval",
+                    file: file,
+                    line: line
+                )
+            }
+        }
+
+        reject(["kind": "permissions", "capabilities": ["names"]])
+        reject(
+            permissionSummary(
+                capabilities: ["balance"],
+                hnsNames: [hnsName("alpha", Self.alphaHash)]
+            ),
+            params: ["capabilities": ["balance"]]
+        )
+        reject(
+            permissionSummary(capabilities: ["accounts"], hnsNames: []),
+            params: ["capabilities": ["accounts"]]
+        )
+        reject(
+            permissionSummary(
+                capabilities: ["accounts"],
+                hnsNames: [hnsName("alpha", Self.alphaHash)]
+            ),
+            method: "hns_requestAccounts",
+            params: nil
+        )
+        reject(permissionSummary(
+            capabilities: ["names"],
+            hnsNames: [hnsName("beta", Self.betaHash), hnsName("alpha", Self.alphaHash)]
+        ))
+        reject(permissionSummary(
+            capabilities: ["names"],
+            hnsNames: [hnsName("alpha", Self.alphaHash), hnsName("alpha", Self.alphaHash)]
+        ))
+        reject(permissionSummary(
+            capabilities: ["names"],
+            hnsNames: (0..<65).map { _ in [String: Any]() }
+        ))
+
+        for name in [
+            "Alpha", "-alpha", "alpha-", "_alpha", "alpha_", "a.b", "example",
+            String(repeating: "a", count: 64),
+        ] {
+            reject(permissionSummary(
+                capabilities: ["names"],
+                hnsNames: [hnsName(name, String(repeating: "0", count: 64))]
+            ))
+        }
+        for hash in [
+            Self.alphaHash.uppercased(), String(repeating: "0", count: 63),
+            String(repeating: "0", count: 64),
+        ] {
+            reject(permissionSummary(
+                capabilities: ["names"],
+                hnsNames: [hnsName("alpha", hash)]
+            ))
+        }
+        reject(permissionSummary(
+            capabilities: ["names"],
+            hnsNames: [merging(hnsName("alpha", Self.alphaHash), ["display": "trust me"])]
+        ))
     }
 
     func testApprovalProjectionRejectsPrivateEnvelopeAndNoncanonicalSummary() {
@@ -554,8 +696,9 @@ final class WalletProviderProtocolTests: XCTestCase {
             merging(valid, ["origin": "https://welcome:443"]),
             merging(valid, ["method": "hns_send"]),
             merging(valid, ["schemaVersion": 1]),
+            merging(valid, ["schemaVersion": 2]),
             merging(valid, ["schemaVersion": true]),
-            merging(valid, ["schemaVersion": "2"]),
+            merging(valid, ["schemaVersion": "3"]),
             merging(valid, ["schemaVersion": 2.5]),
             merging(valid, ["summary": merging(summary, ["futureField": true])]),
             merging(valid, ["summary": merging(summary, [
@@ -583,7 +726,7 @@ final class WalletProviderProtocolTests: XCTestCase {
             merging(valid, ["summary": merging(summary, ["warnings": ["callerWarning"]])]),
         ]
         for candidate in invalidCandidates {
-            XCTAssertThrowsError(try WalletApprovalProjectionV2.validatePrompt(
+            XCTAssertThrowsError(try WalletApprovalProjectionV3.validatePrompt(
                 candidate,
                 expectedOrigin: "https://welcome",
                 expectedRequest: request,
@@ -595,7 +738,7 @@ final class WalletProviderProtocolTests: XCTestCase {
 
         var oversized = valid
         oversized["summary"] = merging(summary, ["recipient": String(repeating: "x", count: 17_000)])
-        XCTAssertThrowsError(try WalletApprovalProjectionV2.validatePrompt(
+        XCTAssertThrowsError(try WalletApprovalProjectionV3.validatePrompt(
             oversized,
             expectedOrigin: "https://welcome",
             expectedRequest: request,
@@ -783,7 +926,7 @@ final class WalletProviderProtocolTests: XCTestCase {
 
     private func approvalPrompt(method: String, summary: [String: Any]) -> [String: Any] {
         [
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "approvalId": "AQIDBAUGBwgJCgsMDQ4PEA",
             "method": method,
             "origin": "https://welcome",
@@ -794,6 +937,17 @@ final class WalletProviderProtocolTests: XCTestCase {
 
     private func amount(_ asset: String, _ baseUnits: String) -> [String: Any] {
         ["asset": asset, "baseUnits": baseUnits]
+    }
+
+    private func hnsName(_ name: String, _ nameHash: String) -> [String: Any] {
+        ["name": name, "nameHash": nameHash]
+    }
+
+    private func permissionSummary(
+        capabilities: [String],
+        hnsNames: [[String: Any]]
+    ) -> [String: Any] {
+        ["kind": "permissions", "capabilities": capabilities, "hnsNames": hnsNames]
     }
 
     private func merging(_ base: [String: Any], _ overrides: [String: Any]) -> [String: Any] {

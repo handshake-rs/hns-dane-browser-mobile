@@ -54,7 +54,7 @@ device-qualification work are tracked in
 - `docs/sync-audit.md`: first-run sync path, progress UI, and remaining sync-speed bottlenecks.
 - `docs/supply-chain-audit.md`: pinned build inputs, CI/release gates, and residual reproducibility risks.
 - `docs/wallet-provider-mobile.md`: dormant Android/iOS wallet-provider
-  boundary: website schema v1, private native ABI v2, closed approval schema v2,
+  boundary: website schema v1, private native ABI v2, closed approval schema v3,
   and typed events. Every runtime/value gate is false and no controller installs
   the bridge, so this is not an available wallet or provider.
 - `scripts/`: Local validation helpers.

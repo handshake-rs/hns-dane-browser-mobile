@@ -7,7 +7,7 @@ not be conflated:
 - website Provider API schema and `providerApiVersion` remain `1`;
 - the private native wallet-service ABI revision expected by a future generated
   mobile binding is `2`;
-- the browser-owned public approval projection schema is `2`.
+- the browser-owned public approval projection schema is `3`.
 
 The website-facing allowlist follows the same 43-method Handshake-first surface
 as Chromium. Generic Ethereum, raw Bitcoin signing, and unrestricted
@@ -40,7 +40,7 @@ execute. The dormant website bootstrap still never creates `window.ethereum`.
 ## Public approvals and events
 
 An ABI-v2 native approval must be converted into a closed browser-owned public
-record before UI display. The projection accepts only schema `2`, a canonical
+record before UI display. The projection accepts only schema `3`, a canonical
 nonzero approval identifier, the exact logical origin, the matching method, a
 future expiry no more than 90 seconds away, and one of twelve summaries:
 
@@ -64,6 +64,19 @@ are bounded and validated. Display rows are derived locally from those typed
 fields. Native or page-supplied free-form display text is never trusted.
 `authorityHandle` and `authorityRevision` are deliberately absent from the
 public record.
+
+Schema 3 permission summaries always contain `hnsNames`. The array is bounded
+to 64 entries. Every entry is an exact `{name, nameHash}` pair: `name` follows
+the canonical `hns-covenants` byte grammar (1 through 63 lowercase ASCII
+letters, digits, and internal `-` or `_`, excluding `example`, `invalid`,
+`local`, `localhost`, and `test`),
+and `nameHash` is the lowercase 64-hex SHA3-256 digest of the raw name bytes.
+Entries must be strictly increasing by `(name, nameHash)` with unique names and
+hashes. Nonempty disclosures require the `names` capability, while
+`hns_requestAccounts` requires exactly `accounts` and an empty disclosure
+array. Generic `wallet_requestPermissions` cannot create accounts authority.
+Android and iOS render every accepted name and its exact hash as browser-owned
+display rows.
 
 The thirteen provider events likewise use a closed typed projection with an
 exact payload shape for each event. A native result cannot carry inline
@@ -94,6 +107,7 @@ wallet ABI revision. Seed phrases, private keys, passphrases, preimages,
 database keys, capability material, and authority handles never enter
 WebView/WKWebView JavaScript or the public approval/event projections.
 
-The source includes negative/unit-test cases for these projections, but this
-revision has not run a build, unit test, simulator, Xcode, Gradle, signed-device,
-or installed-product gate. It is unqualified and does not change DANE browsing.
+The source includes negative and unit-test cases for these projections. Source
+or unit-test success does not qualify the dormant runtime: macOS/Android CI,
+simulator, signed-device, and installed-product gates remain separate, and the
+change does not alter DANE browsing.

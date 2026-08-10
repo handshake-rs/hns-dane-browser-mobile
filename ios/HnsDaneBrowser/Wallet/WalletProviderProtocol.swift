@@ -127,7 +127,7 @@ enum WalletProviderProtocolV1 {
     static let schemaVersion = 1
     static let providerAPIVersion = 1
     static let nativeABIVersion = 2
-    static let approvalSchemaVersion = 2
+    static let approvalSchemaVersion = 3
     static let maximumMessageBytes = 64 * 1024
     static let maximumResultBytes = 256 * 1024
     static let maximumSafeJSONInteger = 9_007_199_254_740_991.0

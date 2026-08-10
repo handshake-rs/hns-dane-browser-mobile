@@ -48,8 +48,16 @@ struct WalletApprovalAmountV2: Equatable {
     let baseUnits: String
 }
 
-enum WalletApprovalSummaryV2: Equatable {
-    case permissions(capabilities: [WalletPermissionCapabilityV2])
+struct WalletHnsNameDisclosureV3: Equatable {
+    let name: String
+    let nameHash: String
+}
+
+enum WalletApprovalSummaryV3: Equatable {
+    case permissions(
+        capabilities: [WalletPermissionCapabilityV2],
+        hnsNames: [WalletHnsNameDisclosureV3]
+    )
     case moduleEnablement(module: WalletModuleV2, action: String)
     case send(
         amount: WalletApprovalAmountV2,
@@ -142,16 +150,16 @@ enum WalletApprovalSummaryV2: Equatable {
     }
 }
 
-struct WalletApprovalPromptV2: Equatable {
+struct WalletApprovalPromptV3: Equatable {
     let schemaVersion: Int
     let approvalID: String
     let method: String
     let origin: String
     let expiresAtUnixMs: UInt64
-    let summary: WalletApprovalSummaryV2
+    let summary: WalletApprovalSummaryV3
 }
 
-struct WalletApprovalDisplayV2: Equatable {
+struct WalletApprovalDisplayV3: Equatable {
     struct Row: Equatable {
         let label: String
         let value: String
@@ -161,18 +169,23 @@ struct WalletApprovalDisplayV2: Equatable {
     let rows: [Row]
 }
 
-enum WalletApprovalProjectionV2 {
+/// Browser-owned approval-schema-v3 public projection of the private ABI-v2 approval union.
+enum WalletApprovalProjectionV3 {
     static let maximumLifetimeMs: UInt64 = 90_000
     static let maximumApprovalBytes = 16 * 1024
     private static let maximumPublicStringBytes = 4_096
+    private static let maximumHnsNameDisclosures = 64
     private static let maximumU128 = "340282366920938463463374607431768211455"
+    private static let reservedHnsNames: Set<String> = [
+        "example", "invalid", "local", "localhost", "test",
+    ]
 
     static func validatePrompt(
         _ candidate: Any,
         expectedOrigin: String,
         expectedRequest: WalletProviderRequest,
         nowUnixMs: UInt64
-    ) throws -> WalletApprovalPromptV2 {
+    ) throws -> WalletApprovalPromptV3 {
         let value = try record(candidate)
         guard JSONSerialization.isValidJSONObject(value),
               let encoded = try? JSONSerialization.data(withJSONObject: value) else {
@@ -212,7 +225,7 @@ enum WalletApprovalProjectionV2 {
             method: method,
             expectedRequest: expectedRequest
         )
-        return WalletApprovalPromptV2(
+        return WalletApprovalPromptV3(
             schemaVersion: WalletProviderProtocolV1.approvalSchemaVersion,
             approvalID: approvalID,
             method: method,
@@ -222,8 +235,8 @@ enum WalletApprovalProjectionV2 {
         )
     }
 
-    static func display(_ prompt: WalletApprovalPromptV2) -> WalletApprovalDisplayV2 {
-        var rows: [WalletApprovalDisplayV2.Row] = []
+    static func display(_ prompt: WalletApprovalPromptV3) -> WalletApprovalDisplayV3 {
+        var rows: [WalletApprovalDisplayV3.Row] = []
         func add(_ label: String, _ value: String) {
             rows.append(.init(label: label, value: value))
         }
@@ -236,9 +249,13 @@ enum WalletApprovalProjectionV2 {
 
         let title: String
         switch prompt.summary {
-        case let .permissions(capabilities):
+        case let .permissions(capabilities, hnsNames):
             title = "Approve wallet permissions"
             add("Capabilities", capabilities.map(\.rawValue).joined(separator: ", "))
+            for (index, disclosure) in hnsNames.enumerated() {
+                add("HNS name \(index + 1)", disclosure.name)
+                add("HNS name hash \(index + 1)", disclosure.nameHash)
+            }
         case let .moduleEnablement(module, action):
             title = action == "enable" ? "Enable wallet module" : "Disable wallet module"
             add("Module", module.rawValue)
@@ -319,27 +336,32 @@ enum WalletApprovalProjectionV2 {
             add("Refund available at", String(availableAt))
             addWarnings(warnings)
         }
-        return WalletApprovalDisplayV2(title: title, rows: rows)
+        return WalletApprovalDisplayV3(title: title, rows: rows)
     }
 
     private static func summary(
         _ candidate: Any?,
         method: String,
         expectedRequest: WalletProviderRequest
-    ) throws -> WalletApprovalSummaryV2 {
+    ) throws -> WalletApprovalSummaryV3 {
         let value = try record(candidate)
         guard let kind = value["kind"] as? String else { throw invalidApproval() }
         switch kind {
         case "permissions":
             try requireMethod(method, ["wallet_requestPermissions", "hns_requestAccounts"])
-            try requireExactFields(value, ["kind", "capabilities"])
+            try requireExactFields(value, ["kind", "capabilities", "hnsNames"])
             let capabilities = try canonicalEnums(
                 value["capabilities"],
                 values: WalletPermissionCapabilityV2.allCases,
                 allowEmpty: false
             )
+            let hnsNames = try hnsNameDisclosures(value["hnsNames"])
             try requireRequestedCapabilities(capabilities, request: expectedRequest)
-            return .permissions(capabilities: capabilities)
+            guard capabilities.contains(.names) || hnsNames.isEmpty,
+                  method != "hns_requestAccounts" || hnsNames.isEmpty else {
+                throw invalidApproval()
+            }
+            return .permissions(capabilities: capabilities, hnsNames: hnsNames)
         case "moduleEnablement":
             try requireMethod(method, ["wallet_enableModule", "wallet_disableModule"])
             try requireExactFields(value, ["kind", "module", "action"])
@@ -577,6 +599,7 @@ enum WalletApprovalProjectionV2 {
             guard capabilities == [.accounts] else { throw invalidApproval() }
             return
         }
+        guard !capabilities.contains(.accounts) else { throw invalidApproval() }
         guard let params = request.params as? [String: Any] else { throw invalidApproval() }
         let hasCapabilities = params.keys.contains("capabilities")
         let hasScopes = params.keys.contains("scopes")
@@ -589,6 +612,164 @@ enum WalletApprovalProjectionV2 {
         )
         let canonical = WalletPermissionCapabilityV2.allCases.filter(requested.contains)
         guard capabilities == canonical else { throw invalidApproval() }
+    }
+
+    private static func hnsNameDisclosures(_ candidate: Any?) throws -> [WalletHnsNameDisclosureV3] {
+        guard let rawValues = candidate as? [Any],
+              rawValues.count <= maximumHnsNameDisclosures else {
+            throw invalidApproval()
+        }
+        var disclosures: [WalletHnsNameDisclosureV3] = []
+        var names = Set<String>()
+        var hashes = Set<String>()
+        for rawValue in rawValues {
+            let value = try record(rawValue)
+            try requireExactFields(value, ["name", "nameHash"])
+            guard let name = value["name"] as? String,
+                  let nameHash = value["nameHash"] as? String,
+                  isCanonicalHnsName(name),
+                  isLowerHex256(nameHash),
+                  sha3_256Hex(Array(name.utf8)) == nameHash,
+                  names.insert(name).inserted,
+                  hashes.insert(nameHash).inserted else {
+                throw invalidApproval()
+            }
+            let disclosure = WalletHnsNameDisclosureV3(name: name, nameHash: nameHash)
+            if let previous = disclosures.last {
+                guard previous.name < disclosure.name
+                        || previous.name == disclosure.name
+                        && previous.nameHash < disclosure.nameHash else {
+                    throw invalidApproval()
+                }
+            }
+            disclosures.append(disclosure)
+        }
+        return disclosures
+    }
+
+    private static func isCanonicalHnsName(_ name: String) -> Bool {
+        let bytes = Array(name.utf8)
+        guard (1...63).contains(bytes.count), !reservedHnsNames.contains(name) else {
+            return false
+        }
+        return bytes.enumerated().allSatisfy { index, byte in
+            (0x30...0x39).contains(byte) || (0x61...0x7a).contains(byte)
+                || (byte == 0x2d || byte == 0x5f)
+                && index != 0 && index + 1 != bytes.count
+        }
+    }
+
+    private static func isLowerHex256(_ value: String) -> Bool {
+        let bytes = Array(value.utf8)
+        return bytes.count == 64 && bytes.allSatisfy {
+            (0x30...0x39).contains($0) || (0x61...0x66).contains($0)
+        }
+    }
+
+    private static func sha3_256Hex(_ input: [UInt8]) -> String {
+        let alphabet = Array("0123456789abcdef".utf8)
+        var output: [UInt8] = []
+        output.reserveCapacity(64)
+        for byte in sha3_256(input) {
+            output.append(alphabet[Int(byte >> 4)])
+            output.append(alphabet[Int(byte & 0x0f)])
+        }
+        return String(decoding: output, as: UTF8.self)
+    }
+
+    private static func sha3_256(_ input: [UInt8]) -> [UInt8] {
+        let rateBytes = 136
+        var message = input
+        message.append(0x06)
+        while message.count % rateBytes != rateBytes - 1 {
+            message.append(0)
+        }
+        message.append(0x80)
+
+        var state = [UInt64](repeating: 0, count: 25)
+        for blockStart in stride(from: 0, to: message.count, by: rateBytes) {
+            for lane in 0..<(rateBytes / 8) {
+                var value: UInt64 = 0
+                for byteIndex in 0..<8 {
+                    value |= UInt64(message[blockStart + lane * 8 + byteIndex])
+                        << UInt64(byteIndex * 8)
+                }
+                state[lane] ^= value
+            }
+            keccakF1600(&state)
+        }
+
+        var digest: [UInt8] = []
+        digest.reserveCapacity(32)
+        for lane in 0..<4 {
+            for byteIndex in 0..<8 {
+                digest.append(UInt8(truncatingIfNeeded: state[lane] >> UInt64(byteIndex * 8)))
+            }
+        }
+        return digest
+    }
+
+    private static func keccakF1600(_ state: inout [UInt64]) {
+        let rotationOffsets = [
+            0, 1, 62, 28, 27,
+            36, 44, 6, 55, 20,
+            3, 10, 43, 25, 39,
+            41, 45, 15, 21, 8,
+            18, 2, 61, 56, 14,
+        ]
+        let roundConstants: [UInt64] = [
+            0x0000000000000001, 0x0000000000008082,
+            0x800000000000808a, 0x8000000080008000,
+            0x000000000000808b, 0x0000000080000001,
+            0x8000000080008081, 0x8000000000008009,
+            0x000000000000008a, 0x0000000000000088,
+            0x0000000080008009, 0x000000008000000a,
+            0x000000008000808b, 0x800000000000008b,
+            0x8000000000008089, 0x8000000000008003,
+            0x8000000000008002, 0x8000000000000080,
+            0x000000000000800a, 0x800000008000000a,
+            0x8000000080008081, 0x8000000000008080,
+            0x0000000080000001, 0x8000000080008008,
+        ]
+        for roundConstant in roundConstants {
+            var columns = [UInt64](repeating: 0, count: 5)
+            for x in 0..<5 {
+                columns[x] = state[x] ^ state[x + 5] ^ state[x + 10]
+                    ^ state[x + 15] ^ state[x + 20]
+            }
+            var deltas = [UInt64](repeating: 0, count: 5)
+            for x in 0..<5 {
+                deltas[x] = columns[(x + 4) % 5] ^ rotateLeft(columns[(x + 1) % 5], by: 1)
+            }
+            for y in 0..<5 {
+                for x in 0..<5 {
+                    state[x + 5 * y] ^= deltas[x]
+                }
+            }
+
+            var rotated = [UInt64](repeating: 0, count: 25)
+            for y in 0..<5 {
+                for x in 0..<5 {
+                    rotated[y + 5 * ((2 * x + 3 * y) % 5)] = rotateLeft(
+                        state[x + 5 * y],
+                        by: rotationOffsets[x + 5 * y]
+                    )
+                }
+            }
+            for y in 0..<5 {
+                for x in 0..<5 {
+                    state[x + 5 * y] = rotated[x + 5 * y]
+                        ^ (~rotated[(x + 1) % 5 + 5 * y]
+                            & rotated[(x + 2) % 5 + 5 * y])
+                }
+            }
+            state[0] ^= roundConstant
+        }
+    }
+
+    private static func rotateLeft(_ value: UInt64, by shift: Int) -> UInt64 {
+        guard shift != 0 else { return value }
+        return (value << shift) | (value >> (64 - shift))
     }
 
     private static func warnings(_ candidate: Any?) throws -> [WalletApprovalWarningV2] {
