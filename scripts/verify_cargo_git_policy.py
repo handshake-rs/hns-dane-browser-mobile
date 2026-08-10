@@ -23,12 +23,14 @@ ENGINE_VERSIONS = {
 }
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
 APPROVED_ENGINE_GIT = {
-    "hns-chain": ("0.2.0", "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87"),
-    "hns-browser-chain": ("0.2.0", "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87"),
-    "hns-urkel": ("0.2.0", "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87"),
-    "hns-browser-urkel": ("0.2.0", "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87"),
-    "hns-core": ("0.2.0", "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87"),
-    "hns-browser-primitives": ("0.2.0", "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87"),
+    "hns-p2p": ("0.2.0", "85f7dc406828786cecf9f1a8f651261dcc41138f"),
+    "hns-browser-p2p": ("0.2.0", "85f7dc406828786cecf9f1a8f651261dcc41138f"),
+    "hns-chain": ("0.2.0", "85f7dc406828786cecf9f1a8f651261dcc41138f"),
+    "hns-browser-chain": ("0.2.0", "85f7dc406828786cecf9f1a8f651261dcc41138f"),
+    "hns-urkel": ("0.2.0", "85f7dc406828786cecf9f1a8f651261dcc41138f"),
+    "hns-browser-urkel": ("0.2.0", "85f7dc406828786cecf9f1a8f651261dcc41138f"),
+    "hns-core": ("0.2.0", "85f7dc406828786cecf9f1a8f651261dcc41138f"),
+    "hns-browser-primitives": ("0.2.0", "85f7dc406828786cecf9f1a8f651261dcc41138f"),
     "hns-cache": ("0.2.0", "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f"),
     "hns-dns-wire": ("0.2.0", "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f"),
     "hns-browser-observability": ("0.1.2", "1ab4ab626f945712b0f960945986cb52efefef7c"),

@@ -9,7 +9,6 @@ members = [
     "crates/hns-loopback-proxy",
     "crates/hns-mobile-platform-runtime",
     "crates/ios-ffi",
-    "crates/hns-p2p",
     "crates/hns-resolver",
     "crates/hns-sync",
     "crates/hns-transport",
@@ -29,8 +28,8 @@ bytes = "1"
 hex = "0.4"
 getrandom = "0.3"
 hns-cache = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "d8b564fe1aaf88c32f7bbfeb4a3a5306bbc7780f" }
-hns-chain = { package = "hns-browser-chain", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87" }
-hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87" }
+hns-chain = { package = "hns-browser-chain", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "85f7dc406828786cecf9f1a8f651261dcc41138f" }
+hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "85f7dc406828786cecf9f1a8f651261dcc41138f" }
 hns-dane = { path = "crates/hns-dane" }
 hns-dnssec = { path = "crates/hns-dnssec" }
 hns-gateway = { path = "crates/hns-gateway" }
@@ -44,11 +43,11 @@ hns-resolution-policy = "=0.1.0"
 h2 = "0.4"
 h3 = "0.0.8"
 h3-quinn = "0.0.10"
-hns-p2p = { path = "crates/hns-p2p" }
+hns-p2p = { package = "hns-browser-p2p", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "85f7dc406828786cecf9f1a8f651261dcc41138f" }
 hns-resolver = { path = "crates/hns-resolver" }
 hns-sync = { path = "crates/hns-sync" }
 hns-transport = { path = "crates/hns-transport" }
-hns-urkel = { package = "hns-browser-urkel", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "09ba06771d2f36cb38fff1e5e5a0b41d2472fc87" }
+hns-urkel = { package = "hns-browser-urkel", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "85f7dc406828786cecf9f1a8f651261dcc41138f" }
 http = "1"
 httparse = "1.10"
 idna = "1.1"
