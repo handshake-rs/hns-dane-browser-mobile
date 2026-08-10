@@ -302,10 +302,6 @@ class MainActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
-            addView(pageProgressBar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
             addView(httpWarningBar, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(HTTP_WARNING_BAR_HEIGHT_DP),
@@ -318,6 +314,11 @@ class MainActivity : ComponentActivity() {
                 addView(syncGateNotice, FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
+                ))
+                addView(pageProgressBar, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP,
                 ))
             }, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -956,8 +957,8 @@ class MainActivity : ComponentActivity() {
             pageProgressBar.progress = pageLoadProgress.coerceIn(0, PAGE_PROGRESS_MAX)
         } else {
             pageProgressBar.progress = PAGE_PROGRESS_MAX
-            // INVISIBLE, not GONE: collapsing the bar relayouts and shifts the WebView,
-            // which reads as a flicker every time visibility toggles mid-session.
+            // The bar overlays the WebView, so INVISIBLE preserves its own geometry
+            // without reserving a permanent row or shifting page content.
             pageProgressBar.visibility = View.INVISIBLE
         }
     }
