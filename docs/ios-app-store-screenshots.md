@@ -9,10 +9,11 @@ mandatory pre-credential gate; capture or verification failure blocks signing
 and upload.
 
 The checked-in images and manifest are retained `0.5.5` history and are not
-submission-ready for the configured `0.5.8` / build `58` candidate. Dispatch
-this workflow only after the final candidate commit passes Required CI. The
-resulting Settings image must visibly include the native Handshake wallet entry
-without displaying a recovery phrase, account identifier, or other secret.
+submission-ready for the configured `0.5.8` / build `58` candidate. The
+application-source CI prerequisite has passed; dispatch this workflow only for
+the exact release checkout selected for signing. The resulting Settings image
+must visibly include the native Handshake wallet entry without displaying a
+recovery phrase, account identifier, or other secret.
 
 ```sh
 expected_commit="$(git rev-parse HEAD)"

@@ -5,14 +5,16 @@ release-preparation candidate. The binary upload workflow does not upload
 listing metadata; the operator must reconcile these exact fields in App Store
 Connect before submission.
 
-The native wallet tranche passed the complete Apple ABI, XCFramework, app, and
-simulator gate in exact-source Required CI run `31393998309` at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The `0.5.8` version/metadata
+The native wallet tranche passed its dated complete Apple gate in Required CI
+run `31393998309` at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The `0.5.8`
 package pins final wallet `0.1.0` source `4e78bb2` and final `hns-rs 0.2.0`
-source `b24b66c`; source policy, lockfile, and notices are aligned. That
-resulting commit requires its own exact-head CI, fresh commit-bound screenshots,
-signing, processing, metadata readback, and intentional submission. Nothing in
-this package proves that build `58` has been uploaded or published.
+source `b24b66c`; source policy, lockfile, and notices are aligned. Final
+application source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
+`31402758394`; documentation-only parent
+`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI
+`31411048376`. Fresh exact-release-checkout screenshots, signing, processing,
+metadata readback, and intentional submission remain open. Nothing in this
+package proves that build `58` has been uploaded or published.
 
 The current public Apple baseline remains `0.5.5` / build `57`, published on
 2026-07-31 from `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Its retained
@@ -20,9 +22,11 @@ submission and artifact evidence is release history, not evidence for `0.5.8`.
 No TestFlight distribution is planned by this repository workflow.
 
 The checked-in description and review notes accurately describe the new
-native-only, non-value controller. They do not claim balances, transfers,
-names, website-provider access, settlement, exchange features, or P2P
-marketplaces; all remain unavailable.
+native-only, non-value controller. They do not claim balances,
+receive/history/name reads, transfers, website-provider access, settlement,
+exchange features, HNSA/HNSR, or P2P marketplaces; all remain unavailable. The
+read controls require a synchronized mobile `HnsBackend` and wallet read-runtime
+composition that is not present.
 
 ## App record
 
@@ -85,9 +89,11 @@ python3 store-assets/app-store/validate.py \
 
 ## Submission controls
 
-1. Pass exact-head Required CI for the final dependency-pinned `0.5.8` commit.
-2. Publish the updated repository privacy policy to the canonical hosted URL
-   and verify its response before submission.
+1. Retain the application-source Required CI `31402758394` and full manual
+   docs-parent CI `31411048376` evidence; the protected upload workflow must
+   still rerun its exact-release-checkout gate before signing.
+2. Confirm the wallet-aware policy deployed from source `909dbd1` remains live
+   at the canonical hosted URL; deployment and readback are complete.
 3. Reconcile App Privacy, age rating, category, content rights, export
    compliance, DSA, price, availability, and routing against the exact build.
 4. Generate and review current iPhone screenshots from the exact source.

@@ -6,17 +6,22 @@ Android `0.5.8` / code `49` release-preparation candidate for package
 at `0.5.8` and adds native-only controls for one device-local non-value HNS
 account identity.
 
-The underlying wallet tranche passed exact-source Android CI and installed
-Pixel 9 qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
-The candidate pins final wallet source `4e78bb2`, whose lock closure uses final
-protocol source `b24b66c`; source policy, lockfile, and notices are aligned. The
-resulting candidate still requires exact-head CI, a signed and verified AAB,
-refreshed screenshots, live Play Console declaration reconciliation, and an
-intentional upload. No code `49` AAB has been built, uploaded, or submitted.
+The underlying wallet tranche passed its full installed Pixel 9 lifecycle
+qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The candidate
+pins final wallet source `4e78bb2`, whose lock closure uses final protocol
+source `b24b66c`; source policy, lockfile, and notices are aligned. Final
+application source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
+`31402758394` and a fresh Pixel 9 install, while documentation-only parent
+`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI
+`31411048376`. A signed and verified AAB, refreshed screenshots, live Play
+Console declaration reconciliation, and intentional upload remain open. No code
+`49` AAB has been built, uploaded, or submitted.
 
 The listing deliberately describes the limited native controller. It does not
-claim balances, transfers, names, website-provider access, settlement,
-exchange features, or P2P marketplaces; all remain unavailable.
+claim balances, receive/history/name reads, transfers, website-provider access,
+settlement, exchange features, HNSA/HNSR, or P2P marketplaces; all remain
+unavailable. The read controls require a synchronized mobile `HnsBackend` and
+wallet read-runtime composition that is not present.
 
 ## Listing Text
 
@@ -43,6 +48,6 @@ exchange features, or P2P marketplaces; all remain unavailable.
   because sync is application-foreground scoped and the manifest declares no
   service.
 
-The credentialed upload AAB is intentionally not committed. Exact-candidate
-CI, signed-artifact verification, screenshot refresh, and Google Play
+The credentialed upload AAB is intentionally not committed. Signed-artifact
+verification, screenshot refresh, live Console readback, and Google Play
 submission remain explicit release gates.

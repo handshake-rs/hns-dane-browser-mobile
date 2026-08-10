@@ -40,21 +40,24 @@ into the app.
 
 Notes:
 
-- The underlying native wallet source passed fresh-install Pixel 9
-  qualification and exact-source Required CI run `31393998309`, including the
-  complete Apple ABI/XCFramework/app/simulator gate, at
-  `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The version bump, wallet repin,
-  and metadata changes still require exact-head CI before signed `0.5.8`
-  artifacts are built.
+- Candidate application source
+  `f21bee1c3afccd06604dc99fccb51528e2441055` passed fresh Pixel 9 installation
+  and exact Required CI run `31402758394`, including Android build/unit/native
+  instrumentation, Rust/supply-chain, and the complete Apple
+  ABI/XCFramework/app/simulator gate. Documentation-only descendant
+  `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
+  `31411048376`. This does not prove a signed `0.5.8` artifact.
 - The native controller exposes create, restore, open, status, unlock, lock,
   one-time recovery display, and one local non-value HNS account identity.
-  Balances, transfers, names, website-provider access, settlement, exchange
-  features, HNSA/HNSR controls, and P2P marketplaces remain unavailable.
+  Balances, receive/history/name reads, transfers, website-provider access,
+  settlement, exchange features, HNSA/HNSR controls, and P2P marketplaces
+  remain unavailable. The read controls require a synchronized mobile
+  `HnsBackend` and wallet read-runtime composition that is not present.
 - `hns-wallet-mobile` is pinned to final wallet `0.1.0` source
   `4e78bb2587bc448d3a65341c7628b2e62cae79cd`. Its lock closure uses final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`.
-  The dependency sequence is complete; exact final-candidate CI and artifact
-  qualification remain separate gates.
+  The dependency sequence and application-source CI are complete; signed
+  artifact, screenshot, and store qualification remain separate gates.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on
   2026-08-09 still reports `0.5.5` as current; older review-state notes in
   this repository describe the submission chronology, not the current status.

@@ -34,8 +34,10 @@ The earlier `WAITING_FOR_REVIEW` and manual-release state is retained as dated
 submission history in the release audit; it is no longer the current public
 status. No TestFlight distribution was created. The hosted privacy policy at
 the canonical product URL was aligned with that historical public release.
-The wallet-aware `0.5.8` repository disclosure must be published and read back
-before the next submission.
+Wallet-aware hosted-policy source
+`909dbd1a713f322f0a8d4cff88e765c612e184f3` was subsequently deployed and read
+back at the same URL for the `0.5.8` candidate. Store privacy/category answers
+still require exact-candidate reconciliation before submission.
 
 Current source is the coordinated `0.5.8` release-preparation candidate:
 Android code `49`, embedded non-publishable Rust workspace `0.5.8`, and iOS
@@ -43,16 +45,23 @@ build `58`. It pins final `hns-wallet-rs 0.1.0` source
 `4e78bb2587bc448d3a65341c7628b2e62cae79cd`, whose protocol closure uses final
 `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`, and
 exposes native-only create, restore, open, status, unlock, lock, and
-single-HNS-account identity controls. The underlying exact source passed
-fresh-install Pixel 9
-qualification and the complete Apple CI gate in run `31393998309`; the final
-dependency-repin commit, signed artifacts, current screenshots, and store
-declarations still require exact-candidate qualification. Website-provider and
-WebView/WKWebView access, balances and value movement, names, sending,
-settlement, HNSA/HNSR controls, exchange features, and P2P marketplaces remain
-unavailable. The final protocol → wallet → mobile dependency sequence is
-complete; exact-head CI and artifact/store gates remain. None of the public
-builds listed above contains these controls.
+single-HNS-account identity controls. Candidate application source
+`f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
+`31402758394` and a fresh Pixel 9 install. Its immediate documentation-only
+descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` then passed full manual CI
+run `31411048376`, including Rust/supply-chain, Android build/unit and native
+instrumentation, the complete Apple gate, and aggregate Required CI. Signed
+artifacts, fresh commit-bound screenshots, and live store declaration readback
+remain open.
+
+Website-provider and WebView/WKWebView access, balances and value movement,
+receive/history/name reads, sending, settlement, HNSA/HNSR controls, exchange
+features, and P2P marketplaces remain unavailable. Balance, receive, history,
+and name reads specifically require a synchronized mobile `HnsBackend` and the
+wallet read-runtime composition; this app currently supplies neither. Provider,
+value, and marketplace paths have additional independent false gates. The final
+protocol → wallet → mobile dependency sequence and application-source CI are
+complete. None of the public builds listed above contains these controls.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).

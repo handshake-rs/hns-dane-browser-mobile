@@ -9,10 +9,13 @@ All notable changes to this project will be documented in this file.
 - Linked the exact qualified `hns-wallet-mobile` controller into Android JNI
   and the stable Apple C ABI, with native-only create, restore, open, status,
   unlock, lock, one-time recovery display, and single non-value HNS account
-  identity controls. The exact underlying source passed Android installed-device
-  qualification and the complete Apple CI gate at
-  `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`; the versioned candidate still
-  requires exact-head CI and signed-artifact qualification before release.
+  identity controls. The underlying feature tranche passed Android
+  installed-device qualification and the complete Apple CI gate at historical
+  source `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Final candidate application
+  source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
+  `31402758394` and a fresh Pixel 9 install; documentation-only descendant
+  `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
+  `31411048376`. Signed-artifact qualification remains open before release.
 - Added create-only device-bound database-key storage and incomplete-wallet
   cleanup on both platforms. Android keeps recovery output in a mutable,
   non-copyable custom view and deletes an unconfirmed wallet on lifecycle exit.
@@ -48,6 +51,10 @@ All notable changes to this project will be documented in this file.
   methods, name and send controls, settlement, and marketplaces behind
   immutable false gates. The app-native controller is deliberately separate:
   no provider is announced and no page-visible or value path is enabled.
+  Balance, receive, history, and name reads require a synchronized mobile
+  `HnsBackend` and read-runtime composition that this app does not provide;
+  value, provider, HNSA/HNSR, and P2P-marketplace gates remain independently
+  false.
 - Completed the engine-consolidation boundary for fuzzing and the header
   snapshot exporter by replacing deleted local-crate paths with the same exact
   reviewed Git adapters used by the mobile runtime.

@@ -75,10 +75,12 @@ Presenting an unrelated certificate, another host's certificate, or a stopped ge
 
 ### Native non-value wallet
 
-The complete simulator gate passed for the underlying wallet tranche in
-Required CI run `31393998309`; the following signed-device matrix remains an
-optional installed-iPhone qualification activity for the exact final `0.5.8`
-candidate:
+The complete simulator gate passed for final application source
+`f21bee1c3afccd06604dc99fccb51528e2441055` in Required CI run `31402758394`,
+and documentation-only commit
+`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed the full matrix again in
+manual run `31411048376`. The following signed-device matrix remains an optional
+installed-iPhone qualification activity for the exact `0.5.8` release checkout:
 
 - On a fresh install, open Settings → Handshake wallet and confirm the screen
   reports no local wallet without announcing a website provider.

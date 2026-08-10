@@ -104,10 +104,16 @@ identity controls. It exposes no balance, receive display, names, sending,
 settlement, exchange, HNSA/HNSR, or marketplace operation. The controller is not a
 browser provider and no wallet secret or method enters WebView/WKWebView. These
 controls are not in the current public Play, GitHub, or App Store binaries;
-the underlying tranche passed exact-source fresh-install Android and complete
-Apple CI qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
-Exact final-candidate CI, signing, current screenshots, and store declaration
-review remain release gates.
+the underlying tranche passed its full fresh-install Android lifecycle exercise
+at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Candidate application source
+`f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
+`31402758394` and a fresh Pixel 9 install, and documentation-only descendant
+`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
+`31411048376`. Signing, current screenshots, and store declaration review
+remain release gates. Balance, receive, history, and name reads require a
+synchronized mobile `HnsBackend` and read-runtime composition that this app
+does not provide; provider, value, HNSA/HNSR, and marketplace gates remain
+independently false.
 
 On Android, a create-only Android KeyStore AES-GCM key wraps the 32-byte wallet
 database key and requires an unlocked device. Borrowed plaintext key arrays are

@@ -18,8 +18,10 @@ and iOS build `58`. Its application source at
 `31402758394`, including Android build/unit/native instrumentation,
 Rust/supply-chain, and the complete Apple
 ABI/XCFramework/app/simulator gate, after the underlying native-wallet tranche
-passed a fresh-install Pixel 9 lifecycle exercise. Signing, fresh commit-bound
-screenshots, and store submission remain open.
+passed a fresh-install Pixel 9 lifecycle exercise. Documentation-only descendant
+`ce9c09a40117142d3a26ff1196c2dec3f5e06139` then passed the same full matrix in
+manual CI run `31411048376`. Signing, fresh commit-bound screenshots, and store
+submission remain open.
 
 The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
 and App Store `0.5.5` / build `57` binaries predate the native controller and
@@ -177,10 +179,11 @@ payload.
 The exact `0.5.8` application source at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394`; its CodeQL and quality workflows are also green. Before release,
-fresh App Store screenshots must be bound to that commit, signed artifacts must
-pass their archive gates, and both stores' privacy/category answers must be
-reconciled with the native local data. Those release gates do not authorize the
-dormant website projection or any value capability.
+fresh App Store screenshots must be bound to the exact release checkout selected
+for signing, signed artifacts must pass their archive gates, and both stores'
+privacy/category answers must be reconciled with the native local data. Those
+release gates do not authorize the dormant website projection or any value
+capability.
 
 Enabling the website boundary still requires the generated and reviewed
 provider/service JNI and C bindings, a canonical engine result carrying exact

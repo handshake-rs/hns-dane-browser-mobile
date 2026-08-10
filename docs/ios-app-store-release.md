@@ -17,18 +17,22 @@ The committed application identity is:
 
 Candidate build `58` includes a native-only wallet screen for
 create/restore/open/status/unlock/lock and one non-value HNS account identity.
-The underlying source passed the complete Apple ABI/XCFramework/app/simulator
-gate in exact Required CI run `31393998309` at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The version/repin/metadata commit
-now uses final wallet `0.1.0` source `4e78bb2` and final `hns-rs 0.2.0` source
-`b24b66c`. The resulting exact source must pass a new head gate before signing.
-Build `57`
-does not contain the controller. The `0.5.8` privacy, description, What's New,
-and review notes have been updated, while fresh exact-commit screenshots, App
-Privacy/category answers, hosted-policy readback, signing, and processing
-remain release gates.
-Website-provider access, balances, transfers, names, sending, settlement,
-exchange, HNSA/HNSR, and P2P marketplaces remain unavailable.
+The underlying wallet tranche passed its dated complete Apple gate in Required
+CI run `31393998309` at
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Final application source
+`f21bee1c3afccd06604dc99fccb51528e2441055`, using wallet `4e78bb2` and
+`hns-rs` `b24b66c`, passed Required CI run `31402758394`; documentation-only
+descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
+`31411048376`. Build `57` does not contain the controller. Wallet-aware hosted
+privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
+back. The `0.5.8` description, What's New, and review notes are updated, while
+fresh exact-release-checkout screenshots, App Privacy/category answers,
+signing, processing, and submission remain release gates.
+
+Website-provider access, balances, receive/history/name reads, transfers,
+sending, settlement, exchange, HNSA/HNSR, and P2P marketplaces remain
+unavailable. The read controls require a synchronized mobile `HnsBackend` and
+wallet read-runtime composition that this app does not provide.
 
 ## One-time Apple setup
 
@@ -133,14 +137,15 @@ debug entitlement, icon, and encryption declaration all match the release.
 Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
-Build `58` is the next configured candidate. It must not be uploaded until the
-resulting final dependency-pinned commit passes Required CI/CodeQL, the
-lockfile and generated notices are
-verified, the hosted privacy policy matches this checkout, and a fresh
-screenshot manifest names that exact commit and carries provenance schema 3
-with `settings.wallet.native-controls` visible. The upload workflow enforces
-that screenshot gate before credential materialization. After upload, replace
-this paragraph with the retained IPA provenance and App Store Connect readback.
+Build `58` is the next configured candidate. Application-source CI, CodeQL,
+lockfile/notices, and hosted-policy deployment/readback prerequisites are
+satisfied by the evidence above. It must not be uploaded until a fresh
+screenshot manifest names the exact release checkout selected for signing and
+carries provenance schema 3 with `settings.wallet.native-controls` visible;
+the protected workflow must then rerun its complete exact-checkout gate before
+credential materialization. App Privacy/category answers also require live
+reconciliation. After upload, replace this paragraph with the retained IPA
+provenance and App Store Connect readback.
 
 The same protected run completed successfully and retained repeat live-capture
 artifact `8727084963` as corroborating workflow evidence. It is not the staged

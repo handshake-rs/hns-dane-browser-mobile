@@ -7,8 +7,10 @@ screenshots, or submission state into this candidate.
 
 The candidate includes native create, restore, open, unlock, and lock controls
 for one device-local non-value HNS account identity. It has no balance,
-transfer, name, website-provider, settlement, exchange, or P2P-marketplace
-surface. Every Console answer must describe that exact boundary.
+receive/history/name read, transfer, website-provider, settlement, exchange,
+HNSA/HNSR, or P2P-marketplace surface. Those reads require a synchronized
+mobile `HnsBackend` and wallet read-runtime composition that is not present.
+Every Console answer must describe that exact boundary.
 
 ## Source and build
 
@@ -18,7 +20,9 @@ surface. Every Console answer must describe that exact boundary.
   `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
 - [x] Pin final wallet `0.1.0` source `4e78bb2` and final `hns-rs 0.2.0`
   source `b24b66c`; regenerate the lockfile, source policy, and notices.
-- [ ] Pass Required CI and CodeQL at the final exact `0.5.8` commit.
+- [x] Pass Required CI for application source `f21bee1` in run `31402758394`.
+  Documentation-only commit `ce9c09a` also passed push CI/CodeQL and passed the
+  full manual matrix in run `31411048376`.
 - [x] Require the protected upload workflow to capture and fully verify fresh
   exact-commit screenshots before reading Apple credentials or uploading an
   IPA; screenshot failure is fatal.
@@ -35,8 +39,8 @@ surface. Every Console answer must describe that exact boundary.
 - [x] Update the repository privacy policy and in-app disclosures for the local
   wallet database, device-bound database key, recovery lifecycle, and absence
   of wallet network/provider/value flows.
-- [ ] Publish and read back the updated hosted privacy policy at the canonical
-  URL before submission.
+- [x] Deploy and read back the wallet-aware hosted privacy policy at the
+  canonical URL from source `909dbd1`.
 - [ ] Independently read back the app-level name, subtitle, privacy-policy URL,
   App Privacy answers, price, availability, and Routing App Coverage.
 - [ ] Review Utilities and all financial-feature/category declarations against

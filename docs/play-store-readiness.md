@@ -25,27 +25,31 @@ create/restore/open/status/unlock/lock and one non-value HNS account identity.
 It is not in code `47` or the GitHub code `48` APK. The exact underlying tranche
 passed fresh-install Pixel 9 create/confirm/unlock/lock/process-reopen and
 network-isolation qualification plus Required CI run `31393998309` at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The final version/repin/metadata
-commit still requires exact-head CI. It exposes no provider, balances,
-transfers, names, sending, settlement, exchange, HNSA/HNSR, or marketplace
-controls. Reconcile category, financial-feature declarations, privacy policy,
-Data safety, review notes, screenshots, and local deletion behavior against the
-exact signed candidate before upload.
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Final candidate application source
+`f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
+`31402758394` and a fresh Pixel 9 install; documentation-only descendant
+`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
+`31411048376`. It exposes no provider, balances, receive/history/name reads,
+transfers, sending, settlement, exchange, HNSA/HNSR, or marketplace controls.
+Those reads require a synchronized mobile `HnsBackend` and wallet read-runtime
+composition that is not present. Reconcile category, financial-feature
+declarations, Data safety, review notes, screenshots, and local deletion
+behavior against the exact signed candidate before upload.
 
 ## Current Repo Status
 
 | Area | Status | Evidence / Action |
 | --- | --- | --- |
-| Minimum API level | Configured in code 49 | `minSdk = 30`, with cargo-ndk platform 30. The prior compatibility source passed full debug lint after retaining explicit UTF-8 search encoding through the compatible `URLEncoder` overload; rerun exact-candidate CI. |
+| Minimum API level | Configured and CI-qualified in code 49 | `minSdk = 30`, with cargo-ndk platform 30. The candidate passed exact application-source and full manual CI after retaining explicit UTF-8 search encoding through the compatible `URLEncoder` overload. |
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 production complete | The signed 60,276,192-byte AAB has SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`. Edit `07330408575596336357` assigned code `47` to production with status `completed`, and `generatedApks/47` returned HTTP `200`. |
 | Android runtime hotfix | Shipped and exact-artifact validated | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the locked `libc 0.2.186` Android `flock` path with the same lock semantics; upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. The exact signed APK upgraded a Pixel 9 from code `46` with data preserved, cold-launched, and reached `up_to_date` at height `340348`, lag `0`, freshness `current`, and `error: null` after manual sync. |
-| Native wallet candidate | Final dependency source configured; release gates pending | Source links final wallet `0.1.0` commit `4e78bb2587bc448d3a65341c7628b2e62cae79cd`, with final `hns-rs 0.2.0` closure `b24b66c382de53330ec21dd3137e056a2bea3e2d`, through a non-exported native activity and create-only Android KeyStore-wrapped database key. Fresh install, creation/confirmation, unlock/lock, process reopen, owner-only storage, and mainnet/testnet isolation passed on the pre-repin exact CI artifact. Exact code `49` source now needs CI, signing, screenshots, and Console review. |
+| Native wallet candidate | Application source qualified; product release gates pending | Source links final wallet `0.1.0` commit `4e78bb2587bc448d3a65341c7628b2e62cae79cd`, with final `hns-rs 0.2.0` closure `b24b66c382de53330ec21dd3137e056a2bea3e2d`, through a non-exported native activity and create-only Android KeyStore-wrapped database key. Fresh install, creation/confirmation, unlock/lock, process reopen, owner-only storage, and mainnet/testnet isolation passed on the earlier exact wallet artifact. Candidate app source `f21bee1` passed Required CI `31402758394` and a fresh Pixel install; docs parent `ce9c09a` passed full manual CI `31411048376`. Signing, fresh screenshots, and Console review remain open. |
 | Proof Details namespace | Fixed and release-device confirmed | Every canonical DNS host uses the native dual-root gateway, so that route cannot identify HNS versus ICANN. Before the fix, Pixel 9 API 37 instrumentation reproduced an HNS-selected trace being shown as DNSSEC with synthetic ICANN details, and paired instrumentation passed after the correction. HNS browsing and corrected proof presentation then passed manually with the exact signed release APK. |
 | 64-bit / 16 KiB native code | Code 47 signed gates passed | The code `47` APK/AAB passed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, archive/APK signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
-| Privacy policy | Repository updated; hosted publication pending | `https://denuoweb.com/work/hns-dane-browser/privacy` remains the canonical URL. The repository disclosure now covers the independently opt-in P2P requester, user-configured recursive HNS DoH recovery, operator-visible qnames/qtypes/timing/source IP, the local wallet database and device-bound key, recovery lifecycle, blank/off defaults, validating ICANN bootstrap, permanent legacy-key tombstone, and continued prohibition on HNS WebPKI fallback. Publish this candidate text and read the hosted page back before submission. |
+| Privacy policy | Wallet-aware hosted source deployed and read back | `https://denuoweb.com/work/hns-dane-browser/privacy` remains the canonical URL. Hosted source `909dbd1a713f322f0a8d4cff88e765c612e184f3` covers the independently opt-in P2P requester, user-configured recursive HNS DoH recovery, operator-visible qnames/qtypes/timing/source IP, the local wallet database and device-bound key, recovery lifecycle, blank/off defaults, validating ICANN bootstrap, permanent legacy-key tombstone, and continued prohibition on HNS WebPKI fallback. Live Play Data safety/category answers still require reconciliation. |
 | Data safety form | Live reconciliation required | The current `No data collected / No data shared` posture is consistent with Google's open-web, on-device, and user-initiated-transfer exclusions. Confirm current WebView-provider Safe Browsing guidance before resubmission. |
 | Ads declaration | Ready | Declare “No ads.” Donations do not unlock features. |
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
@@ -183,9 +187,10 @@ Use an active, publicly accessible, non-PDF URL. Current hosted URL:
 
 The repository policy adds the candidate's local wallet storage and recovery
 lifecycle to the existing relay requester, dual-root, and configured-recursive
-recovery disclosures. Publish that updated text to the hosted route and read it
-back before submission; the current live page is not assumed to include this
-unpublished change.
+recovery disclosures. Wallet-aware hosted source
+`909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed to this route and read
+back successfully. Recheck it only if the release policy text changes again;
+the open privacy work is Play Console form/category readback.
 
 ### Content Rating
 
@@ -204,9 +209,11 @@ Use a conservative general-purpose browser posture:
 Code `49` is a release-preparation candidate only. Its underlying wallet source
 passed the focused exact-artifact Android exercise, and the final
 `hns-rs` → wallet → mobile dependency repin is complete. The resulting
-metadata/source commit needs exact-head CI, signed AAB verification, current
-screenshots, hosted-policy readback, and live Console reconciliation. No
-credentialed Play operation has been performed for code `49`.
+application source passed Required CI `31402758394`, and documentation-only
+parent `ce9c09a` passed full manual CI `31411048376`. Signed AAB verification,
+current screenshots, and live Console reconciliation remain open; hosted-policy
+deployment/readback is complete. No credentialed Play operation has been
+performed for code `49`.
 
 Google Play production contains the `0.5.6` / code `47` Android hotfix with
 shared Rust `0.5.6`, built from exact shipping source
@@ -271,8 +278,8 @@ Full description draft:
 - Phone screenshots: recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, diagnostics, and the non-secret wallet control boundary against exact code `49`. Never show a recovery phrase or account identifier. The current screenshots predate this candidate and must be replaced.
 - Tablet screenshots: recommended if tablet distribution remains enabled.
 - Privacy policy URL: keep the existing Play listing on the selected canonical
-  route, then publish and read back the candidate relay- and wallet-aware text
-  before submission.
+  route. Candidate relay- and wallet-aware source `909dbd1` is deployed and was
+  read back; confirm the live Console URL still points there before submission.
 - Content rating questionnaire: reconcile the saved live answers as a general-purpose browser that is not child-directed.
 
 ## References

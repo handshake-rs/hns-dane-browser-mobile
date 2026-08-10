@@ -10,16 +10,19 @@ final `hns-rs 0.2.0` source
 `b24b66c382de53330ec21dd3137e056a2bea3e2d`.
 
 The final protocol → wallet → mobile source sequence is complete. Source
-policy, the lockfile, and notices now bind that exact chain. This establishes
-dependency authority only; every exact-candidate CI, signing, screenshot, and
-store gate still applies.
+policy, the lockfile, and notices now bind that exact chain. Candidate
+application source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required
+CI run `31402758394` and a fresh Pixel 9 install. Signing, screenshots, and
+store gates remain separate from that application-source qualification.
 
 The prior exact source at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`
 passed Required CI run `31393998309`, including Rust/supply-chain, Android,
 emulator, Apple ABI/XCFramework/app/simulator, and aggregate gates. Its exact
-debug APK also passed a fresh-install Pixel 9 native-wallet exercise. The
-final repin/metadata commit must pass its own exact-head gates, and no signed
-`0.5.8` artifact has been built or submitted.
+debug APK also passed the full fresh-install Pixel 9 native-wallet lifecycle
+exercise. Documentation-only descendant
+`ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed the complete matrix again in
+manual CI run `31411048376`, including aggregate Required CI. No signed `0.5.8`
+artifact has been built or submitted.
 
 ## Configured and Local Gates
 
@@ -31,9 +34,10 @@ final repin/metadata commit must pass its own exact-head gates, and no signed
   permissions are read-only, release secrets are not provided, every non-local
   `uses:` reference is pinned to a full commit SHA, checkout credentials are
   not persisted, and concurrent runs on the same ref are cancelled. Current
-  feature evidence: Required CI passed at exact source in run
-  `31393998309`. The final `0.5.8` commit still requires a new exact run before
-  release.
+  application evidence is Required CI run `31402758394` at
+  `f21bee1c3afccd06604dc99fccb51528e2441055`. Documentation-only parent
+  `ce9c09a40117142d3a26ff1196c2dec3f5e06139` also passed push CI and CodeQL,
+  then the full manual matrix in run `31411048376`.
 - The protected iOS upload path performs its live Release screenshot capture
   and full exact-commit/digest/runtime/wallet-row verification before it reads
   Apple credentials or uploads an IPA. Capture or verification failure is
