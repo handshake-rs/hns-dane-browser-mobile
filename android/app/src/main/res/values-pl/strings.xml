@@ -76,7 +76,6 @@
 <string name="sync_progress_root_required">Wymagany jest korzeń HNS %1$s</string>
 <string name="sync_progress_root_unknown">Cel korzenia HNS jest nieznany</string>
 <string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
-<string name="sync_progress_preparing">Przygotowywanie bezpiecznego przeglądania…</string>
 <string name="sync_gate_preparing">Przygotowywanie do otwarcia %1$s…</string>
 <string name="sync_gate_unavailable">Bezpieczne przeglądanie nie jest jeszcze gotowe. Spróbuj ponownie za chwilę.</string>
 <string name="sync_gate_waiting">Oczekiwanie na uwierzytelnione nagłówki Handshake przed wczytaniem %1$s.</string>

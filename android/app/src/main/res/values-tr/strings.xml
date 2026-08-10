@@ -76,7 +76,6 @@
 <string name="sync_progress_root_required">HNS kökü %1$s gerekli</string>
 <string name="sync_progress_root_unknown">HNS kök hedefi bilinmiyor</string>
 <string name="sync_progress_summary">%1$s • en iyiYükseklik %2$s • %3$s%4$s%5$s</string>
-<string name="sync_progress_preparing">Güvenli gezinme hazırlanıyor…</string>
 <string name="sync_gate_preparing">%1$s açılmaya hazırlanıyor…</string>
 <string name="sync_gate_unavailable">Güvenli gezinme henüz hazır değil. Kısa süre sonra tekrar deneyin.</string>
 <string name="sync_gate_waiting">%1$s yüklenmeden önce kimliği doğrulanmış Handshake başlıkları bekleniyor.</string>

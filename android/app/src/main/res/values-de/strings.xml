@@ -76,7 +76,6 @@
     <string name="sync_progress_root_required">HNS-Root %1$s erforderlich</string>
     <string name="sync_progress_root_unknown">Ziel des HNS-Roots unbekannt</string>
     <string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
-    <string name="sync_progress_preparing">Sicheres Surfen wird vorbereitet…</string>
     <string name="sync_gate_preparing">%1$s wird zum Öffnen vorbereitet…</string>
     <string name="sync_gate_unavailable">Sicheres Surfen ist noch nicht bereit. Versuchen Sie es gleich noch einmal.</string>
     <string name="sync_gate_waiting">Authentifizierte Handshake-Header werden abgewartet, bevor %1$s geladen wird.</string>

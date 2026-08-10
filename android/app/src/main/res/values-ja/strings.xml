@@ -76,7 +76,6 @@
     <string name="sync_progress_root_required">HNS ルート %1$s が必要です</string>
     <string name="sync_progress_root_unknown">HNS ルートのターゲットは不明です</string>
     <string name="sync_progress_summary">%1$s • 最高の高さ %2$s • %3$s%4$s%5$s</string>
-    <string name="sync_progress_preparing">安全なブラウジングを準備しています…</string>
     <string name="sync_gate_preparing">%1$s を開く準備をしています…</string>
     <string name="sync_gate_unavailable">安全なブラウジングはまだ準備できていません。しばらくしてからもう一度お試しください。</string>
     <string name="sync_gate_waiting">%1$s を読み込む前に、認証済みの Handshake ヘッダーを待機しています。</string>

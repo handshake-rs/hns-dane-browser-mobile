@@ -76,7 +76,6 @@
 <string name="sync_progress_root_required">è necessaria la root HNS %1$s</string>
 <string name="sync_progress_root_unknown">destinazione della root HNS sconosciuta</string>
 <string name="sync_progress_summary">%1$s • altezza migliore %2$s • %3$s%4$s%5$s</string>
-<string name="sync_progress_preparing">Preparazione della navigazione sicura…</string>
 <string name="sync_gate_preparing">Preparazione all’apertura di %1$s…</string>
 <string name="sync_gate_unavailable">La navigazione sicura non è ancora pronta. Riprova tra poco.</string>
 <string name="sync_gate_waiting">In attesa delle intestazioni Handshake autenticate prima di caricare %1$s.</string>

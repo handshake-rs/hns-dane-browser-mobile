@@ -97,7 +97,6 @@
     <string name="sync_progress_root_required">needs HNS root %1$s</string>
     <string name="sync_progress_root_unknown">HNS root target unknown</string>
     <string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
-    <string name="sync_progress_preparing">Preparing secure browsing…</string>
     <string name="sync_gate_preparing">Getting ready to open %1$s…</string>
     <string name="sync_gate_unavailable">Secure browsing isn’t ready yet. Try again shortly.</string>
     <string name="sync_gate_waiting">Waiting for authenticated Handshake headers before loading %1$s.</string>
