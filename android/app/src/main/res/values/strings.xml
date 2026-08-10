@@ -59,6 +59,7 @@
     <string name="security_failed">Validation failed</string>
     <string name="security_proof_unavailable">Proof unavailable</string>
     <string name="security_status_content_description">Open resolver trace</string>
+    <string name="security_indicator_content_description">Security status: %1$s. Opens resolver details.</string>
     <string name="http_transport_warning">Not secure: HTTP traffic is not encrypted</string>
     <string name="menu_hamburger_content_description">Browser menu</string>
     <string name="menu_forward">Forward</string>
