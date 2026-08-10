@@ -40,10 +40,13 @@ boundary.
   30, target API 37,
   `arm64-v8a` + `x86_64`, and one default Android Debug RSA-2048 APK-v2 signer.
   This is not a store-signing result.
-- [ ] Record installed-device evidence for the exact release candidate. The
-  debug APK was not installed because ADB, ADB mDNS, and USB enumeration exposed
-  no Android target; no code `50` Android result is claimed. The separate
-  physical-iPhone matrix also remains open.
+- [x] Record scoped Android installed-device evidence for the exact artifact.
+  On a Pixel 9 (`tokay`), Android 17 / API 37, the incompatible historical code
+  `49` debug update safely failed, then the authorized debug-package-only
+  reinstall left production untouched. The on-device digest matched, cold
+  launch succeeded, and the native wallet activity showed the no-wallet and
+  fail-closed UI. No wallet was created/restored and no credentialed read or
+  value action ran. The separate physical-iPhone matrix remains open.
 - [x] Require the protected upload workflow to capture and fully verify fresh
   exact-commit screenshots before reading Apple credentials or uploading an
   IPA; screenshot failure is fatal.

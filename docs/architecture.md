@@ -104,8 +104,13 @@ iOS UI / Browser Shell                             [public; device qualification
   it is `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`,
   `arm64-v8a` + `x86_64`, and APK Signature Scheme v2 under the default Android
   Debug key, not store signed.
-  ADB/mDNS/USB exposed no device, so it was not installed and code `50` has no
-  installed-device evidence. The scoped credential/backend/data boundary,
+  The exact APK was installed on a Pixel 9 (`tokay`), Android 17 / API 37,
+  after Android safely rejected the incompatible historical code `49` debug
+  signer and an authorized debug-package-only reinstall. Production remained
+  untouched, the installed `base.apk` digest matched, cold launch succeeded,
+  and `WalletActivity` displayed the expected no-wallet and fail-closed read
+  projection. No wallet, secret, account, read sync, or value action was used.
+  The scoped credential/backend/data boundary, creation/read qualification,
   signed artifacts, fresh commit-bound store screenshots, store
   declaration/upload, and physical-iPhone matrix remain open. No listed public
   binary contains this source tranche.

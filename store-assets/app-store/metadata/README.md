@@ -20,8 +20,10 @@ artifact `9080493058` has APK SHA-256
 `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
 package `com.denuoweb.hnsdane.debug`, version `0.5.9-debug` / code `50`,
 `arm64-v8a` + `x86_64`, and default Android Debug APK-v2 signing. It is neither
-an iOS nor store-signed artifact. ADB/mDNS/USB exposed no Android target, so it
-was not installed and supplies no installed-device evidence. Fresh
+an iOS nor store-signed artifact. The exact APK installed and cold-launched on
+a Pixel 9 and displayed the expected no-wallet/fail-closed native wallet UI.
+No wallet was created/restored and no credentialed read or value action ran;
+this Android UI result is not iOS evidence. Fresh
 exact-release-checkout screenshots, signing, processing, metadata readback,
 intentional submission, and the physical-iPhone matrix remain open. Nothing in
 this package proves that build `59` has been uploaded or published.

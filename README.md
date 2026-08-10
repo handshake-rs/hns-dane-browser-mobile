@@ -78,10 +78,25 @@ minimum API 30, target API 37, and native ABIs `arm64-v8a` and `x86_64`. It
 verifies with APK Signature Scheme v2 under one default Android Debug RSA-2048
 certificate (certificate SHA-256
 `b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`);
-it is not a store/upload-signed release artifact. ADB, ADB mDNS, and USB
-enumeration found no Android device during this qualification, so the APK was
-not installed and code `50` has no installed-device evidence. Historical
-`0.5.8` Pixel evidence remains historical only. Signed store artifacts, fresh
+it is not a store/upload-signed release artifact. The exact APK was subsequently
+installed on a Google Pixel 9 (`tokay`) running Android 17 / API 37, security
+patch 2026-07-05, build `CP2A.260705.006`, and `arm64-v8a`. Android first safely
+rejected an in-place update of historical `0.5.8-debug` / code `49` because its
+debug signing key differed (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). Under the
+explicit reinstall authorization, only `com.denuoweb.hnsdane.debug` and its
+debug data were removed; production `com.denuoweb.hnsdane` remained installed
+and untouched. The installed `base.apk` SHA-256 matches the artifact.
+
+A cold launch traversed `LauncherActivity` to `MainActivity` in 469 ms, left a
+live process, and produced no fatal signature in 300 process log lines. Browser
+menu → Settings → HNS wallet opened `WalletActivity`. The fresh-install
+screen showed no wallet/account, create and restore controls, and the
+fail-closed module, balance, receive, history, tracked-name, and sync rows. Its
+copy states that value and marketplace controls remain disabled. No wallet was
+created or restored, and no recovery secret, account, synchronization, or value
+action was exercised. This is installed shell/UI-projection evidence, not a
+credentialed backend/read-sync, lifecycle-creation, signing, HNSA/HNSR,
+provider, value, or marketplace result. Signed store artifacts, fresh
 commit-bound screenshots, live store declaration readback, intentional upload,
 and the physical-iPhone matrix remain open. None of the public builds listed
 above contains the native wallet controls.

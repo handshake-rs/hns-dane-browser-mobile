@@ -16,6 +16,8 @@ source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 projection and remains historical. Current code-bearing source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, CodeQL `31433931259`, and Code Quality `31433931278`.
+Its exact debug artifact subsequently installed and cold-launched on a Pixel 9;
+the installed APK digest and fail-closed native wallet UI matched expectations.
 Signing, exact screenshots, store declaration/readback and upload, and the
 physical-iPhone matrix remain open.
 
@@ -85,9 +87,24 @@ been built or submitted.
   RSA-2048 signer, certificate SHA-256
   `b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`.
   This is intentionally distinct from the upload-certificate/store gates.
-- ADB, ADB mDNS, and USB enumeration found no Android target. The APK was not
-  installed, so this supplies no code `50` installed-device evidence. The
-  physical-iPhone matrix also remains open.
+- The exact local APK
+  `/home/den/.cache/codex/mobile-final-893ba827.TBsXgu/app-debug.apk` installed
+  on a Google Pixel 9 (`tokay`), Android 17 / API 37, security patch 2026-07-05,
+  build `CP2A.260705.006`, ABI `arm64-v8a`. The
+  historical `0.5.8-debug` / code `49` package used an incompatible debug key,
+  so the update safely failed with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Under
+  explicit authorization, only the debug package and its data were removed;
+  production `com.denuoweb.hnsdane` remained installed and untouched. The
+  installed package reported `0.5.9-debug` / code `50`, minimum API 30, target
+  API 37, and its `base.apk` SHA-256 matched the artifact.
+- Cold launch traversed `LauncherActivity` to `MainActivity` in 469 ms, kept a
+  live process, and showed no fatal signature in 300 process log lines.
+  `WalletActivity` displayed the fresh-install no-wallet state, create/restore
+  controls, fail-closed HNWR rows, sync action, and disabled value/marketplace
+  copy. No wallet was created/restored and no secret, account, credentialed
+  sync, or value action ran. This is debug installed-UI evidence, not a store
+  signing, backend/read, lifecycle-creation, HNSA/HNSR/provider/value/market,
+  or physical-iPhone result.
 
 ### Released `0.5.6` Android Hotfix
 

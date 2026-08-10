@@ -117,10 +117,14 @@ Its exact debug APK is artifact `9080493058`, SHA-256
 `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
 package `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`, with
 `arm64-v8a` and `x86_64` and default Android Debug APK-v2 signing. It is not
-store signed. No Android target was visible through ADB/mDNS/USB, so it was not
-installed and code `50` has no installed-device evidence. Signed artifacts,
-current screenshots, store declaration/upload, and the physical-iPhone matrix
-remain release gates.
+store signed. The exact APK installed on a Pixel 9 (`tokay`), Android 17 / API
+37. An incompatible historical code `49` debug signer was rejected before the
+authorized uninstall removed only the debug package/data; production remained
+installed and untouched. The on-device digest matched, cold launch succeeded,
+and the native wallet screen showed the no-wallet controls and fail-closed read
+projection. No wallet, secret, account, credentialed read, or value action ran.
+Signed artifacts, current screenshots, store declaration/upload, credentialed
+wallet qualification, and the physical-iPhone matrix remain release gates.
 
 HNWR configuration is loopback-only and accepts a bounded mutable scoped
 authorization value that is consumed and wiped. Output is bounded and its

@@ -23,8 +23,13 @@ package `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`, minimum API 30,
 target API 37, and `arm64-v8a` + `x86_64`. It verifies with APK Signature Scheme
 v2 under one default Android Debug RSA-2048 certificate, not the Play upload
 identity.
-ADB/mDNS/USB exposed no Android target, so it was not installed and code `50`
-has no installed-device evidence. A signed and verified AAB, refreshed
+The exact APK installed on a Pixel 9 (`tokay`), Android 17 / API 37, after the
+incompatible historical code `49` debug update safely failed and an authorized
+debug-package-only reinstall left production installed and untouched. The
+installed digest matched, cold launch succeeded, and the native wallet screen
+displayed the no-wallet controls and fail-closed HNWR rows with disabled
+value/marketplace copy. No wallet was created/restored and no secret, account,
+credentialed sync, or value action ran. A signed and verified AAB, refreshed
 screenshots, live Play Console declaration reconciliation, and intentional
 upload remain open. No code `50` AAB has been built, uploaded, or submitted.
 

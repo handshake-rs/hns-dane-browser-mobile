@@ -38,9 +38,10 @@ fresh exact-release-checkout screenshots, App Privacy/category answers,
 signing, processing, submission, and the physical-iPhone matrix remain release
 gates. CI also produced Android debug artifact `9080493058` (APK SHA-256
 `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`),
-but it is default-debug-key signed rather than store signed and could not be
-installed because ADB/mDNS/USB exposed no Android target. It is not iOS or
-installed-device evidence.
+which subsequently installed and cold-launched on a Pixel 9 and exposed the
+expected fresh no-wallet/fail-closed wallet UI. It remains default-debug-key
+signed rather than store signed, and this Android result is not iOS evidence.
+No wallet was created/restored and no credentialed read or value action ran.
 
 The product installs no scoped loopback credential or indexed wallet backend, so
 the visible read fields remain fail-closed and unavailable. The live pruned

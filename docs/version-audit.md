@@ -59,11 +59,19 @@ Notes:
   v2, one default Android Debug RSA-2048 signer, and certificate SHA-256
   `b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`.
   It is not a store/upload-signed artifact.
-- ADB, ADB mDNS, and USB enumeration exposed no Android target during exact
-  artifact qualification. Nothing was installed or uninstalled, and code `50`
-  has no installed-device evidence. The physical-iPhone matrix is likewise
-  still unrecorded. CI and simulator success do not substitute for either
-  installed-device result.
+- The exact artifact installed on a Google Pixel 9 (`tokay`), Android 17 / API
+  37, security patch 2026-07-05, build `CP2A.260705.006`, ABI `arm64-v8a`.
+  Android first safely rejected historical `0.5.8-debug` / code `49` with
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` because its debug key differed. Under
+  explicit reinstall authorization, only `com.denuoweb.hnsdane.debug` and its
+  debug data were removed; production remained installed and untouched. The
+  on-device `base.apk` SHA-256 matched the artifact.
+- Cold launch completed `LauncherActivity` → `MainActivity` in 469 ms with a
+  live process and no fatal signature in 300 process log lines. The native HNS
+  wallet activity showed no wallet/account, create/restore controls, the
+  fail-closed HNWR rows and sync action, and disabled value/marketplace copy.
+  No wallet was created/restored and no secret, account, credentialed sync, or
+  value action ran. The physical-iPhone matrix remains unrecorded.
 - Historical `0.5.8` application source
   `f21bee1c3afccd06604dc99fccb51528e2441055` passed fresh Pixel 9 installation
   and exact Required CI run `31402758394`, including Android build/unit/native

@@ -49,12 +49,24 @@ All notable changes to this project will be documented in this file.
   Signature Scheme v2 (certificate SHA-256
   `b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`).
   This is debug evidence, not a store/upload-signed artifact.
-- ADB, ADB mDNS, and USB enumeration exposed no Android target, so code `50`
-  was not installed and has no installed-device evidence. Historical `0.5.8`
-  Pixel evidence remains historical only. Scoped credential/indexed backend
-  and data provisioning, name/value/provider/HNSA/HNSR/market work, signed
-  store artifacts, fresh exact-commit screenshots, store declaration/readback
-  and upload, and the physical-iPhone matrix remain open.
+- Installed that exact APK on a Google Pixel 9 (`tokay`), Android 17 / API 37,
+  security patch 2026-07-05, build `CP2A.260705.006`, `arm64-v8a`. An in-place
+  update of historical `0.5.8-debug` / code `49` safely failed with
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE` because its debug key differed. The
+  authorized reinstall removed only `com.denuoweb.hnsdane.debug` and its data;
+  production `com.denuoweb.hnsdane` remained installed and untouched. The
+  installed `base.apk` digest matches the exact artifact.
+- Cold launch (`LauncherActivity` → `MainActivity`) succeeded in 469 ms with a
+  live process and no fatal signature in 300 process log lines. The native HNS
+  wallet screen opened and showed the fresh-install no-wallet state, create and
+  restore controls, fail-closed module/balance/receive/history/tracked-name
+  rows, sync action, and disabled value/marketplace copy. No wallet was created
+  or restored and no secret, account, sync, or value action ran. This qualifies
+  the installed shell/UI projection only. Scoped credential/indexed backend
+  and data provisioning, read synchronization, creation lifecycle,
+  name/value/provider/HNSA/HNSR/market work, signed store artifacts, fresh
+  exact-commit screenshots, store declaration/readback and upload, and the
+  physical-iPhone matrix remain open.
 
 ## 0.5.8 - 2026-08-10
 

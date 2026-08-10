@@ -29,10 +29,15 @@ Exact debug APK artifact `9080493058` has SHA-256
 inspection confirms `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`,
 minimum API 30, target API 37, `arm64-v8a` + `x86_64`, and default Android
 Debug APK-v2 signing.
-It is not store signed. No ADB/mDNS/USB target was visible, so the APK was not
-installed and code `50` has no installed-device evidence. Signing, fresh
-commit-bound screenshots, store declaration/readback and submission, and the
-physical-iPhone matrix remain open.
+It is not store signed. The exact APK installed and cold-launched on a Pixel 9
+(`tokay`), Android 17 / API 37. The incompatible historical code `49` debug
+update failed safely; the authorized reinstall removed only the debug
+package/data and left production installed and untouched. The on-device digest
+matched. `WalletActivity` showed the no-wallet controls and fail-closed read
+projection with disabled value/marketplace copy. No wallet was created/restored
+and no secret, account, credentialed sync, or value action ran. Signing, fresh
+commit-bound screenshots, store declaration/readback and submission,
+credentialed wallet qualification, and the physical-iPhone matrix remain open.
 
 The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
 and App Store `0.5.5` / build `57` binaries predate the native controller and
@@ -263,7 +268,9 @@ passed a fresh Android reinstall with create/confirm/unlock/lock/process-reopen
 and mainnet/testnet storage isolation. The exact historical `0.5.8`
 repin/version/metadata commit passed remote CI. The newer HNWR projection has
 focused Rust, Kotlin, and Swift coverage and passed exact full CI
-`31433931682`; it still needs the backend/data and installed-device
-qualification above. Signed-product gates, current screenshots, store
-declaration readback/upload, and the physical-iPhone matrix remain. Those facts
-are not evidence that the published apps contain these controls.
+`31433931682`; its exact debug APK then passed the installed shell and
+fail-closed UI projection described above. It still needs backend/data,
+credentialed read, and create/restore lifecycle qualification. Signed-product
+gates, current screenshots, store declaration readback/upload, and the
+physical-iPhone matrix remain. Those facts are not evidence that the published
+apps contain these controls.

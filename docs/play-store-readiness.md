@@ -40,9 +40,14 @@ It is `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`, minimum API 30,
 target API 37, with `arm64-v8a` and `x86_64`. It verifies with APK Signature
 Scheme v2 under one default Android Debug RSA-2048 certificate (certificate
 SHA-256 `b51ed3a12c762a69a4c3b31a30c77b5fccc9f0d50417f8a70911b7f60b135d8a`),
-not the Play upload identity. ADB/mDNS/USB exposed no Android target, so this
-APK was not installed and supplies no code `50` installed-device evidence. The
-current product
+not the Play upload identity. The exact APK installed on a Pixel 9 (`tokay`),
+Android 17 / API 37, after Android safely rejected an incompatible historical
+code `49` debug signer and the authorized reinstall removed only the debug
+package/data. Production remained installed and untouched; the on-device APK
+digest matched. Cold launch succeeded and the fresh-install HNS wallet screen
+showed no wallet/account, its create/restore controls, the fail-closed read rows
+and sync action, and disabled value/marketplace copy. No wallet, secret,
+account, credentialed sync, or value action ran. The current product
 installs no scoped loopback read credential or indexed wallet backend, so every
 read field remains fail-closed and unavailable. The live pruned `hsrd` is
 unsuitable because it lacks wallet indexing/authentication. Existing-wallet
@@ -61,7 +66,7 @@ behavior against the exact signed candidate before upload.
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 production complete | The signed 60,276,192-byte AAB has SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`. Edit `07330408575596336357` assigned code `47` to production with status `completed`, and `generatedApks/47` returned HTTP `200`. |
 | Android runtime hotfix | Shipped and exact-artifact validated | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the locked `libc 0.2.186` Android `flock` path with the same lock semantics; upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. The exact signed APK upgraded a Pixel 9 from code `46` with data preserved, cold-launched, and reached `up_to_date` at height `340348`, lag `0`, freshness `current`, and `error: null` after manual sync. |
-| Native wallet candidate | HNWR projection CI-qualified; backend and product gates pending | Source links final wallet `0.1.0` commit `2229be849557d58a8eb723bcc03349f0f2df9796`, with final `hns-rs 0.2.0` closure `b24b66c382de53330ec21dd3137e056a2bea3e2d`, through a non-exported native activity, create-only Android KeyStore-wrapped database key, and strict read-only HNWR UI. No scoped credential/indexed backend is provisioned, so reads are visibly unavailable; name import and every provider/send/value/HNSA/HNSR/market path remain absent or gated. Full candidate CI passed, but no code `50` Android install was possible because no ADB/mDNS/USB target was present. Play signing, fresh screenshots, and Console review/upload remain open. |
+| Native wallet candidate | HNWR projection CI- and installed-UI-qualified; backend and product gates pending | Source links final wallet `0.1.0` commit `2229be849557d58a8eb723bcc03349f0f2df9796`, with final `hns-rs 0.2.0` closure `b24b66c382de53330ec21dd3137e056a2bea3e2d`, through a non-exported native activity, create-only Android KeyStore-wrapped database key, and strict read-only HNWR UI. Exact code `50` debug source passed full CI, then the exact artifact installed/cold-launched on a Pixel 9 and exposed the expected no-wallet controls and fail-closed rows. No wallet was created/restored and no credentialed sync ran. No scoped credential/indexed backend is provisioned, so reads are visibly unavailable; name import and every provider/send/value/HNSA/HNSR/market path remain absent or gated. Play signing, fresh screenshots, and Console review/upload remain open. |
 | Proof Details namespace | Fixed and release-device confirmed | Every canonical DNS host uses the native dual-root gateway, so that route cannot identify HNS versus ICANN. Before the fix, Pixel 9 API 37 instrumentation reproduced an HNS-selected trace being shown as DNSSEC with synthetic ICANN details, and paired instrumentation passed after the correction. HNS browsing and corrected proof presentation then passed manually with the exact signed release APK. |
 | 64-bit / 16 KiB native code | Code 47 signed gates passed | The code `47` APK/AAB passed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, archive/APK signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
@@ -227,11 +232,12 @@ Code `50` is a release-preparation candidate only. Historical code `49` wallet
 lifecycle source passed the focused exact-artifact Android exercise, Required CI
 `31402758394`, and full docs-parent CI `31411048376`. Code `50` adds the strict
 HNWR read projection but no credential/backend provision. Its exact source
-passed full CI `31433931682`; its debug artifact was inspected but not installed
-because no ADB/mDNS/USB target was visible. Signed AAB verification, current
-screenshots, live Console reconciliation, HNWR-aware policy
-deployment/readback, and intentional upload remain open. No credentialed Play
-operation has been performed for code `50`.
+passed full CI `31433931682`; its exact debug artifact installed, cold-launched,
+and exposed the expected fail-closed wallet UI on a Pixel 9. No wallet was
+created/restored and no credentialed read or value action ran. Signed AAB
+verification, current screenshots, live Console reconciliation, HNWR-aware
+policy deployment/readback, and intentional upload remain open. No
+credentialed Play operation has been performed for code `50`.
 
 Google Play production contains the `0.5.6` / code `47` Android hotfix with
 shared Rust `0.5.6`, built from exact shipping source

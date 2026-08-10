@@ -150,8 +150,13 @@
   `0.5.9-debug` / code `50`, with `arm64-v8a` and `x86_64`, default Android
   Debug APK-v2 signing, and APK SHA-256
   `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`.
-  It is not store signed. ADB/mDNS/USB exposed no Android target, so it was not
-  installed and does not add code `50` installed-device evidence.
+  It is not store signed. That exact APK installed and cold-launched on a Pixel
+  9 (`tokay`), Android 17 / API 37. Its on-device digest matched and the native
+  wallet screen displayed the expected no-wallet controls and fail-closed read
+  rows. The authorized reinstall removed only the incompatible historical
+  debug package/data; the production package remained installed and untouched.
+  No wallet was created/restored and no credentialed read, secret, account, or
+  value action ran.
 - Completed release dependency sequence: mobile pins final wallet `0.1.0`
   source `2229be849557d58a8eb723bcc03349f0f2df9796`, which consumes final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
@@ -165,9 +170,9 @@
 - Pending release qualification: scoped credential/indexed backend/data
   provisioning, signed store artifacts, fresh commit-bound screenshots,
   privacy/category declaration readback, intentional store upload, Android
-  installed-device evidence, and the physical-iPhone matrix remain for
-  `0.5.9`. No currently published Play, GitHub, or App Store binary contains the
-  native controls.
+  credentialed read/create lifecycle qualification, and the physical-iPhone
+  matrix remain for `0.5.9`. No currently published Play, GitHub, or App Store
+  binary contains the native controls.
 - Pending named-service adoption: first consume a qualified upstream mobile-safe
   HNSA/HNSR API boundary, then instantiate its admission/requester lifecycle
   through exact engine-issued authority and add the required proof,
