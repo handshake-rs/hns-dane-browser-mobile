@@ -9,9 +9,11 @@ All notable changes to this project will be documented in this file.
 - Replaced the unreleased Android/iOS private wallet ABI-v1 scaffold with a
   fail-closed ABI-v2 public-projection boundary while retaining website Provider
   API schema and `providerApiVersion` 1.
-- Added closed browser-owned approval-schema-v2 and typed event projections.
-  Private authority/session/channel fields and inline native events cannot enter
-  page-visible results or approval display rows.
+- Added closed browser-owned approval-schema-v3 and typed event projections.
+  Every permission summary carries the bounded canonical `hnsNames` disclosure;
+  the app validates each HNS name and exact SHA3-256 hash and renders every
+  accepted pair. Private authority/session/channel fields and inline native
+  events cannot enter page-visible results or approval display rows.
 - Accept permission generation zero in a private capability snapshot for a
   never-authorized origin while retaining positive generations for
   permission-bearing events and exact wallet-session binding.
