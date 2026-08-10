@@ -120,6 +120,16 @@ class SettingsActivity : ComponentActivity() {
                 })
             })
 
+            addView(section(getString(R.string.section_wallet)) {
+                addPreference(preferenceRow(
+                    title = getString(R.string.row_wallet),
+                    summary = getString(R.string.row_wallet_summary),
+                    actionLabel = getString(R.string.action_open),
+                ) {
+                    startActivity(Intent(this@SettingsActivity, WalletActivity::class.java))
+                })
+            })
+
             addView(section(getString(R.string.section_appearance)) {
                 addPreference(preferenceRow(
                     title = getString(R.string.row_theme),

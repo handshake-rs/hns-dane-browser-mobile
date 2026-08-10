@@ -17,6 +17,11 @@
     <string name="action_set">Set</string>
     <string name="action_share">Share</string>
     <string name="action_view">View</string>
+    <string name="action_create_wallet" translatable="false">Create</string>
+    <string name="action_restore_wallet" translatable="false">Restore</string>
+    <string name="action_unlock_wallet" translatable="false">Unlock</string>
+    <string name="action_lock_wallet" translatable="false">Lock</string>
+    <string name="action_saved_wallet_recovery" translatable="false">I saved it</string>
 
     <string name="common_copied">Copied</string>
     <string name="common_copied_label">Copied %1$s</string>
@@ -109,6 +114,7 @@
     <string name="screen_settings">Settings</string>
     <string name="screen_third_party_notices" translatable="false">Third-party notices</string>
     <string name="screen_tlsa_dane_inspector">TLSA / DANE Inspector</string>
+    <string name="screen_wallet" translatable="false">HNS Wallet</string>
 
     <string name="section_about_legal_support">About, legal, and support</string>
     <string name="section_app">App</string>
@@ -134,6 +140,11 @@
     <string name="section_summary">Summary</string>
     <string name="section_user_agreement">User agreement</string>
     <string name="section_website_data">Website data</string>
+    <string name="section_wallet" translatable="false">Wallet</string>
+    <string name="section_wallet_status" translatable="false">Native wallet status</string>
+    <string name="section_wallet_setup" translatable="false">Create or restore</string>
+    <string name="section_wallet_recovery" translatable="false">Recovery backup</string>
+    <string name="section_wallet_access" translatable="false">Local access</string>
 
     <string name="row_agreement">Agreement</string>
     <string name="row_app_downloads">App downloads</string>
@@ -208,6 +219,48 @@
     <string name="row_theme_summary_system">Follows your Android system theme.</string>
     <string name="row_tlsa_dane_inspector">TLSA / DANE inspector</string>
     <string name="row_tlsa_dane_inspector_summary">Check TLSA records and DANE policy.</string>
+    <string name="row_wallet" translatable="false">HNS wallet</string>
+    <string name="row_wallet_summary" translatable="false">Create, restore, unlock, and inspect one native non-value HNS account.</string>
+    <string name="row_wallet_status" translatable="false">Status</string>
+    <string name="row_wallet_account" translatable="false">Account identity</string>
+    <string name="row_wallet_create" translatable="false">Create wallet</string>
+    <string name="row_wallet_create_summary" translatable="false">Create one native HNS account. Value and marketplace controls remain disabled.</string>
+    <string name="row_wallet_restore" translatable="false">Restore wallet</string>
+    <string name="row_wallet_restore_summary" translatable="false">Restore exactly 24 English words with a safe full-history birthday.</string>
+    <string name="row_wallet_recovery_confirm" translatable="false">Confirm offline backup</string>
+    <string name="row_wallet_recovery_confirm_summary" translatable="false">The wallet key is not retained until you confirm the one-time recovery display is saved.</string>
+    <string name="row_wallet_unlock" translatable="false">Unlock</string>
+    <string name="row_wallet_unlock_summary" translatable="false">Unwrap the database key from Android Keystore for this foreground session.</string>
+    <string name="row_wallet_lock" translatable="false">Lock</string>
+    <string name="row_wallet_lock_summary" translatable="false">End the current native wallet session.</string>
+
+    <string name="wallet_restore_phrase_hint" translatable="false">24-word recovery phrase</string>
+    <string name="wallet_restore_phrase_required" translatable="false">Enter the complete 24-word recovery phrase.</string>
+    <string name="wallet_already_exists" translatable="false">A wallet already exists on this device.</string>
+    <string name="wallet_status_starting" translatable="false">Starting native wallet controller…</string>
+    <string name="wallet_status_opening" translatable="false">Opening native wallet…</string>
+    <string name="wallet_status_creating" translatable="false">Creating native wallet…</string>
+    <string name="wallet_status_restoring" translatable="false">Restoring native wallet…</string>
+    <string name="wallet_status_unlocking" translatable="false">Unlocking native wallet…</string>
+    <string name="wallet_status_locking" translatable="false">Locking native wallet…</string>
+    <string name="wallet_status_not_created" translatable="false">No native wallet exists on this device.</string>
+    <string name="wallet_status_native_unavailable" translatable="false">Native wallet core is unavailable.</string>
+    <string name="wallet_status_recovery_required" translatable="false">Save the recovery phrase offline, then confirm. Leaving this screen discards the unconfirmed wallet.</string>
+    <string name="wallet_status_locked" translatable="false">Locked. Value, provider, and marketplace capabilities are unavailable.</string>
+    <string name="wallet_status_unlocked" translatable="false">Unlocked non-value wallet %1$s</string>
+    <string name="wallet_status_unavailable" translatable="false">Native wallet status is unavailable; the controller failed closed.</string>
+    <string name="wallet_status_open_failed" translatable="false">The wallet could not be opened.</string>
+    <string name="wallet_status_create_failed" translatable="false">The wallet could not be created; incomplete files were removed.</string>
+    <string name="wallet_status_restore_failed" translatable="false">The wallet could not be restored; incomplete files were removed.</string>
+    <string name="wallet_status_unlock_failed" translatable="false">Unlock failed. The wallet remains locked.</string>
+    <string name="wallet_status_lock_failed" translatable="false">Native lock failed; the controller will be destroyed on exit.</string>
+    <string name="wallet_status_key_store_failed" translatable="false">Android Keystore could not retain the database key; the unconfirmed wallet was removed.</string>
+    <string name="wallet_status_key_store_unavailable" translatable="false">Android Keystore is unavailable. Wallet storage was left unchanged.</string>
+    <string name="wallet_account_locked" translatable="false">Unlock to inspect the single HNS account identity.</string>
+    <string name="wallet_account_unavailable" translatable="false">No account identity is exposed.</string>
+    <string name="wallet_account_identity" translatable="false">%1$s\nModule: %2$s\nAccount: %3$s</string>
+    <string name="wallet_recovery_confirm_title" translatable="false">Recovery phrase saved?</string>
+    <string name="wallet_recovery_confirm_message" translatable="false">Confirm only after storing all 24 words offline. The phrase cannot be shown again.</string>
 
     <string name="history_empty_status">No browsing history yet.</string>
     <string name="history_empty_title">No recent pages</string>

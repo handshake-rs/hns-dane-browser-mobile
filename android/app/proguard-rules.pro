@@ -1,1 +1,2 @@
 -keep class com.denuoweb.hnsdane.net.NativeBridge { *; }
+-keep class com.denuoweb.hnsdane.wallet.NativeWalletBridge { *; }

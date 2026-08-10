@@ -64,6 +64,15 @@ class HnsSyncForegroundServiceManifestTest {
         assertNotNull(main)
         assertEquals("false", main?.getAttributeNS(ANDROID_NS, "exported"))
 
+        val wallet = document.getElementsByTagName("activity")
+            .elements()
+            .firstOrNull { it.getAttributeNS(ANDROID_NS, "name") == WALLET_ACTIVITY }
+
+        assertNotNull(wallet)
+        assertEquals("false", wallet?.getAttributeNS(ANDROID_NS, "exported"))
+        assertEquals("true", wallet?.getAttributeNS(ANDROID_NS, "excludeFromRecents"))
+        assertEquals("true", wallet?.getAttributeNS(ANDROID_NS, "stateNotNeeded"))
+
         val launcher = document.getElementsByTagName("activity")
             .elements()
             .firstOrNull { it.getAttributeNS(ANDROID_NS, "name") == LAUNCHER_ACTIVITY }
@@ -111,6 +120,7 @@ class HnsSyncForegroundServiceManifestTest {
         const val LEGAL_ACTIVITY = ".ui.LegalActivity"
         const val THIRD_PARTY_NOTICES_ACTIVITY = ".ui.ThirdPartyNoticesActivity"
         const val MAIN_ACTIVITY = ".ui.MainActivity"
+        const val WALLET_ACTIVITY = ".ui.WalletActivity"
         const val LAUNCHER_ACTIVITY = ".ui.LauncherActivity"
         const val POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
         const val FOREGROUND_SERVICE = "android.permission.FOREGROUND_SERVICE"
