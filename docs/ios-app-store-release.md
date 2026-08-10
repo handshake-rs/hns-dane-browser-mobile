@@ -12,17 +12,23 @@ The committed application identity is:
   rechecked through the public record on 2026-08-09
 - Published iOS build: `0.5.5` (`57`) at source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`
+- Configured release-preparation candidate: `0.5.8` (`58`), not uploaded
 - Device family: iPhone
 
-Unreleased source after build `57` now includes a native-only wallet screen for
+Candidate build `58` includes a native-only wallet screen for
 create/restore/open/status/unlock/lock and one non-value HNS account identity.
-Build `57` does not contain it. Do not reuse the retained “no wallet” metadata
-or review notes for a later wallet-bearing build: first pass the final Apple
-ABI/XCFramework/app/simulator workflow, review the Swift/UIKit managed-text
-zeroization limitation, choose the release version, and reconcile App Privacy,
-age/category answers, screenshots, description, and review instructions. The
-website provider, value, names, sending, settlement, and marketplace remain
-unavailable in the unreleased source as well.
+The underlying source passed the complete Apple ABI/XCFramework/app/simulator
+gate in exact Required CI run `31393998309` at
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The version/repin/metadata commit
+currently uses an intermediate wallet/hns-rs release-preparation chain. After
+the dated `hns-rs` release commit, wallet and mobile must repin in sequence and
+the resulting exact source must pass a new head gate before signing. Build `57`
+does not contain the controller. The `0.5.8` privacy, description, What's New,
+and review notes have been updated, while fresh exact-commit screenshots, App
+Privacy/category answers, hosted-policy readback, signing, and processing
+remain release gates.
+Website-provider access, balances, transfers, names, sending, settlement,
+exchange, HNSA/HNSR, and P2P marketplaces remain unavailable.
 
 ## One-time Apple setup
 
@@ -117,6 +123,13 @@ debug entitlement, icon, and encryption declaration all match the release.
 Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
+Build `58` is the next configured candidate. It must not be uploaded until the
+dated final `hns-rs` → wallet → mobile repin is complete, the resulting exact
+commit passes Required CI/CodeQL, the lockfile and generated notices are
+verified, the hosted privacy policy matches this checkout, and a fresh
+screenshot manifest names that exact commit. After upload, replace this
+paragraph with the retained IPA provenance and App Store Connect readback.
+
 The same protected run completed successfully and retained repeat live-capture
 artifact `8727084963` as corroborating workflow evidence. It is not the staged
 or submitted set: the reviewed App Store images remain the cleaner
@@ -129,6 +142,11 @@ Before enabling France, complete the French encryption declaration; after
 Apple approves it, add the supplied export-compliance code to the next build.
 
 ## Release gate after upload
+
+For `0.5.8`, every item in
+`store-assets/app-store/submission-checklist.md` remains a pre-submission gate.
+In particular, build `58` has not been signed, uploaded, processed, selected,
+or submitted. The paragraphs below preserve the public `0.5.5` chronology.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review
 details, content-rights declaration, and build `57` were reconciled through

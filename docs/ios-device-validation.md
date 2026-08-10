@@ -73,6 +73,30 @@ Presenting an unrelated certificate, another host's certificate, or a stopped ge
 - Exercise `https://denuoweb/` for proof-anchored authoritative DoH and a second HNS origin whose direct authoritative path is unavailable; verify independently enabled P2P and user-configured recursive recovery paths in their exact order, then verify blank/off recovery fails closed and compare bounded security traces with Android.
 - Verify the strict HNS trust invariant, absence of any implicit/default recursive HNS resolver and HNS WebPKI fallback, independent requester/recovery opt-ins, permanent historical-key tombstoning, endpoint and ICANN-bootstrap validation, terminal bogus/invalid/stale cases, stateless-DANE fail-closed behavior, sync progress, cache clearing, proof details, download handoff, sharing, accessibility labels, and Dynamic Type.
 
+### Native non-value wallet
+
+The complete simulator gate passed for the underlying wallet tranche in
+Required CI run `31393998309`; the following signed-device matrix remains an
+optional installed-iPhone qualification activity for the exact final `0.5.8`
+candidate:
+
+- On a fresh install, open Settings → Handshake wallet and confirm the screen
+  reports no local wallet without announcing a website provider.
+- Create a wallet only while screen capture is inactive. Confirm the recovery
+  phrase appears once, cannot be copied through ordinary controls, and the
+  incomplete database is removed if the app backgrounds before confirmation.
+- After securely recording and confirming the phrase, exercise open, user-
+  presence unlock, one non-value account identity, lock, process restart, and
+  network isolation.
+- Restore on a separate empty network scope and confirm the input and visible
+  recovery text clear when the screen backgrounds or protected data becomes
+  unavailable.
+- Confirm there is no balance, receive/send, name, website-provider,
+  settlement, exchange, HNSA/HNSR, or P2P-marketplace control.
+- Record the Swift/UIKit managed-text limitation: app-owned mutable buffers are
+  wiped and fields are cleared, but deterministic zeroization of framework-
+  managed recovery text is not claimed.
+
 ## Apple References
 
 - https://developer.apple.com/documentation/network/proxyconfiguration

@@ -2,19 +2,30 @@
 
 This checkout contains two deliberately separate surfaces:
 
-- unreleased Android and iOS app-native wallet controls backed by the pinned
+- Android and iOS app-native wallet controls backed by the pinned
   `hns-wallet-mobile` controller at
-  `ba9f013a098679fe8e3d812a7e09020803e27d53`; and
+  `f83d42363305de04bfa955f864cb1e9136c4d648`; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
-The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
-and App Store `0.5.5` / build `57` binaries predate the native controller work.
-Their store descriptions correctly say that those releases do not include a
-wallet. The unreleased source must pass Android installed-device and iOS CI
-qualification before a later build can claim native wallet controls.
+That wallet revision is an intermediate release-preparation checkpoint, not
+the final publication authority. After `hns-rs` lands its dated release commit,
+`hns-wallet-rs` must repin to it and mobile must repin to the resulting wallet
+commit, update source policy and the lockfile, regenerate notices, and rerun
+all final-candidate gates.
 
-## Unreleased native app controls
+The configured `0.5.8` release-preparation candidate is Android code `49`,
+embedded Rust `0.5.8`, and iOS build `58`. Its underlying native-wallet tranche passed a
+fresh-install Pixel 9 exercise and exact-source Required CI run `31393998309`,
+including the complete Apple gate, at
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The versioned candidate and final
+wallet repin still require exact-head CI before signing or store submission.
+
+The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
+and App Store `0.5.5` / build `57` binaries predate the native controller and
+remain historical wallet-free releases.
+
+## Native app controls in the 0.5.8 release-preparation candidate
 
 Both platform shells now link a narrow native controller for:
 
@@ -163,6 +174,12 @@ payload.
 
 ## Remaining integration and qualification
 
+Before release, the exact final `0.5.8` commit must pass Required CI and
+CodeQL, fresh App Store screenshots must be bound to that commit, signed
+artifacts must pass their archive gates, and both stores' privacy/category
+answers must be reconciled with the native local data. Those release gates do
+not authorize the dormant website projection or any value capability.
+
 Enabling the website boundary still requires the generated and reviewed
 provider/service JNI and C bindings, a canonical engine result carrying exact
 origin, namespace-decision fingerprint, browser-authority validity and
@@ -178,10 +195,10 @@ material, and authority handles never enter WebView/WKWebView JavaScript or the
 public approval/event projections. The native controller does not weaken that
 boundary.
 
-The native source has portable Rust, bridge, and platform unit coverage, but
-release qualification remains incomplete. Android still needs install/reinstall
-and create/restore/open/background/destroy checks on the attached device. iOS
-still needs the macOS ABI/XCFramework/app/simulator workflow against the final
-source. Signed installed-product checks and updated privacy/store declarations
-remain later release gates; source or unit-test success is not evidence that
-the currently published apps contain these controls.
+The underlying native tranche has portable Rust, bridge, and platform coverage,
+passed the complete macOS ABI/XCFramework/app/simulator workflow, and passed a
+fresh Android reinstall with create/confirm/unlock/lock/process-reopen and
+mainnet/testnet storage isolation. The exact `0.5.8` repin/version/metadata
+commit still needs remote CI, signed-product gates, current screenshots, and
+store declaration readback. Those facts are not evidence that the currently
+published apps contain these controls.

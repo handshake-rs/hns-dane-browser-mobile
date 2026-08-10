@@ -130,10 +130,15 @@
   an in-process typed binding to the exact pinned `hns-wallet-mobile`
   controller, and native create, restore, open, unlock, lock, status,
   one-time-recovery, and single non-value HNS account-identity controls.
-- Pending first-slice qualification: reinstall and exercise the final Android
-  source on the attached device, then pass the final Apple ABI/XCFramework/app
-  and simulator workflow. No currently published Play, GitHub, or App Store
-  binary contains the native controls.
+- Completed first-slice feature qualification: the exact CI artifact passed a
+  fresh Pixel 9 reinstall with create/confirm/unlock/lock/process-reopen,
+  owner-private storage, and network isolation, while Required CI run
+  `31393998309` passed the complete Apple ABI/XCFramework/app/simulator gate.
+- Pending release qualification: land the dated final `hns-rs` release, repin
+  `hns-wallet-rs`, repin mobile to the resulting wallet commit, regenerate the
+  lockfile/notices, and run exact-head CI plus signed/store gates for `0.5.8`.
+  No currently published Play, GitHub, or App Store binary contains the native
+  controls.
 - Pending named-service adoption: consume the current engine HNSA admission and
   HNSR requester lifecycle through exact engine-issued authority; no Kotlin or
   Swift authority projection may substitute for that context.

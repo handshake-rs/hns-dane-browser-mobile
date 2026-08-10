@@ -1,10 +1,25 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-08-09
+Last audited: 2026-08-10
 
-Current Android source is `0.5.7` / code `48`. This Android-only compatibility
-release lowers the application and cargo-ndk platform floor to API 30; the
-shared Rust engine and iOS versions are unchanged.
+Current candidate source coordinates Android `0.5.8` / code `49`, the embedded
+non-publishable Rust workspace `0.5.8`, and iOS `0.5.8` / build `58`. It pins
+`hns-wallet-mobile 0.1.0` to exact intermediate wallet release-preparation source
+`f83d42363305de04bfa955f864cb1e9136c4d648`, whose HNS primitives resolve from
+pre-release `hns-rs` checkpoint
+`abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2`.
+
+This pin is intentionally not the final publication authority. After `hns-rs`
+lands its dated release commit, `hns-wallet-rs` must repin and land a final
+wallet commit; mobile must then repin to that commit, update source policy and
+the lockfile, regenerate notices, and rerun every exact-candidate gate.
+
+The prior exact source at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`
+passed Required CI run `31393998309`, including Rust/supply-chain, Android,
+emulator, Apple ABI/XCFramework/app/simulator, and aggregate gates. Its exact
+debug APK also passed a fresh-install Pixel 9 native-wallet exercise. The
+version/repin/metadata commit must pass its own exact-head gates, and no signed
+`0.5.8` artifact has been built or submitted.
 
 ## Configured and Local Gates
 
@@ -16,13 +31,11 @@ shared Rust engine and iOS versions are unchanged.
   permissions are read-only, release secrets are not provided, every non-local
   `uses:` reference is pinned to a full commit SHA, checkout credentials are
   not persisted, and concurrent runs on the same ref are cancelled. Current
-  release evidence: required CI passed in run `30484282637` on
-  workflow-only descendant `cb930e867b0ddc1f08aaa64e6bf707ff36f0667a`.
-  The descendant changes CI orchestration, not the shipping source or binaries;
-  Android `0.5.6` artifacts and tag remain tied to
-  `417af67efd68198de4871c0a339d1e456b60cb68`.
+  current feature evidence: Required CI passed at exact source in run
+  `31393998309`. The final `0.5.8` commit still requires a new exact run before
+  release.
 - Dependabot watches GitHub Actions, Gradle, and all three Cargo lockfile roots weekly.
-- Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums. Git inputs are limited to named `hns-dane-engine` packages at exact reviewed full revisions; unreviewed Git sources and restored local engine paths are denied.
+- Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums. Git inputs are limited to named `hns-dane-engine`, `hns-wallet-rs`, and transitive `hns-rs` packages at exact reviewed full revisions; unreviewed Git sources and restored local engine paths are denied.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
 - Gradle 9.6.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
 - `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. The five canonical compatibility requirements remain exact, while the consolidated private adapters and temporary compatibility patches resolve only from their reviewed full `hns-dane-engine` revisions. Focused policy tests reject unreviewed Git inputs, moving canonical requirements, alternate registries, invalid checksums, restored local engine crates, stale engine path dependencies, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
@@ -92,9 +105,9 @@ shared Rust engine and iOS versions are unchanged.
   canonical compatibility patches from exact reviewed Git revisions; all
   other Cargo sources remain registry-only.
 
-### Current `0.5.5` iOS Submission Evidence
+### Published `0.5.5` iOS Evidence
 
-- iOS `0.5.5` / build 57 remains the Apple submission. The Apple shell accepts the
+- Public iOS `0.5.5` / build 57 is the retained Apple baseline. The Apple shell accepts the
   valid zero revision returned when a fresh runtime reapplies its unchanged
   default policy, so first-install preparation does not fail before browsing.
   Proxy admission now remains suspended until a matching schema-v2 status

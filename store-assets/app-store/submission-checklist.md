@@ -1,86 +1,82 @@
 # App Store submission checklist
 
-Canonical submitted-update values: iOS version `0.5.5`, build `57`, bundle ID
-`com.denuoweb.hnsdane.ios`, iPhone only, Utilities, Free, manual release. The
-public baseline observed on 2026-07-28 was version `0.5.0`. App Store Connect
-accepted the direct App Review submission on 2026-07-29; `WAITING_FOR_REVIEW`
-is retained as dated submission evidence. Apple published `0.5.5` on
-2026-07-31, and the public record still reported it as current on 2026-08-09.
+Candidate values: iOS version `0.5.8`, build `58`, bundle ID
+`com.denuoweb.hnsdane.ios`, iPhone only, Free, manual release. The public
+baseline remains `0.5.5` / build `57`; do not copy its wallet-free answers,
+screenshots, or submission state into this candidate.
 
-Every checked “no wallet” answer below is scoped to build `57`. Unreleased
-source now has native-only non-value wallet controls, which build `57` does not
-contain. Do not reuse this checklist or its metadata for a wallet-bearing build
-until final Apple CI, privacy/reviewer metadata, screenshots, and category
-answers are reconciled for that exact candidate.
+The candidate includes native create, restore, open, unlock, and lock controls
+for one device-local non-value HNS account identity. It has no balance,
+transfer, name, website-provider, settlement, exchange, or P2P-marketplace
+surface. Every Console answer must describe that exact boundary.
 
-Checked items below have repository, workflow, or App Store Connect API
-readback. Unchecked app/account-level items were sufficient for Apple to accept
-the submission, but their exact saved answers were not independently exposed by
-the guarded release client; they remain evidence follow-ups, not submission
-blockers.
+## Source and build
 
-## Public listing
+- [x] Configure source as iOS `0.5.8` / build `58` and embedded Rust `0.5.8`.
+- [x] Pass the complete Apple gate for the underlying wallet tranche in exact
+  Required CI run `31393998309` at
+  `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
+- [ ] Replace the intermediate wallet/protocol chain after the dated final
+  `hns-rs` release: repin wallet, repin mobile to the resulting wallet commit,
+  and regenerate the lockfile, source policy, and notices.
+- [ ] Pass Required CI and CodeQL at the final exact `0.5.8` commit.
+- [ ] Run the protected exact-commit signed upload workflow and retain the IPA
+  SHA-256, size, source commit, bundle identity, signing, and processing
+  evidence.
+- [ ] Confirm build `58` is `VALID`, unexpired, and reports the intended
+  encryption declaration before selecting it.
 
-- [x] The support and marketing page describes the iOS release and visibly lists
-  `info@denuoweb.com` for support.
-- [x] The live privacy URL contains the current cross-platform policy and does not
-  direct users to post personal information in a public issue.
-- [x] The app's in-app Privacy Policy and Source Code actions open those live pages.
-- [x] Reconcile the version-managed description, keywords, promotional text,
-  support/marketing URLs, copyright, and
-  `metadata/en-US/whats-new.txt`.
-- [ ] Independently read back the existing app-level name, subtitle, privacy
-  policy URL, and Routing App Coverage; the release client does not manage
-  those fields.
-- [x] Set the version to `0.5.5` and select build `57`.
+## Public listing and privacy
+
+- [x] Reconcile the version-controlled description, What's New, and review
+  notes with the native non-value wallet boundary.
+- [x] Update the repository privacy policy and in-app disclosures for the local
+  wallet database, device-bound database key, recovery lifecycle, and absence
+  of wallet network/provider/value flows.
+- [ ] Publish and read back the updated hosted privacy policy at the canonical
+  URL before submission.
+- [ ] Independently read back the app-level name, subtitle, privacy-policy URL,
+  App Privacy answers, price, availability, and Routing App Coverage.
+- [ ] Review Utilities and all financial-feature/category declarations against
+  the exact limited controller; do not describe the app as having no wallet.
 
 ## Screenshots
 
-- [x] Stage the four verified live iPhone screenshots in
-  `screenshots/en-US/`.
-- [x] Use one accepted 6.9-inch or 6.5-inch resolution throughout, with no alpha
-  channel or transparency.
-- [x] Show: ordinary authenticated ICANN browsing, a developer-controlled
-  Handshake page with its DANE path, Browser Settings, and Proof Details. Do not
-  use a splash or empty start screen.
-- [x] Run `python3 store-assets/app-store/validate.py` successfully.
+- [ ] Replace the retained `0.5.5` screenshot set with fresh, exact-commit
+  `0.5.8` iPhone screenshots.
+- [ ] Include the native wallet entry/control boundary without displaying a
+  recovery phrase, account identifier, database material, or other secret.
+- [ ] Use one accepted 6.9-inch or 6.5-inch resolution with no alpha channel.
+- [ ] Run `python3 store-assets/app-store/validate.py` successfully and verify
+  the manifest commit equals the upload candidate.
 
 ## App Store questionnaires
 
-- [ ] **App Privacy:** No tracking. Select **No, we do not collect data** only after
-  confirming that Denuo Web and any non-open-web service treated as a partner do
-  not retain app-originated data. On-device storage and user-directed open-web
-  traffic are not collection under Apple's definitions. If a bundled resolver
-  retains query/IP logs, disclose the applicable Browsing History data instead.
-- [ ] **Age Rating:** Unrestricted Web Access = Yes. The app itself has no ads,
-  chat, social feed, gambling, loot boxes, parental controls, or age assurance;
-  answer the content-frequency questions accordingly. Do not select Made for Kids.
-- [x] **Content Rights:** Third-party content = Yes. Confirm it is accessed by a
-  user-directed browser and is not bundled or curated by the app.
-- [x] **App Access:** Sign-in required = No. There is no account, subscription,
-  in-app purchase, wallet, or payment flow.
-- [x] Build `57` readback reports `usesNonExemptEncryption=false`.
-- [ ] **Export Compliance:** Uses encryption = Yes; limited to Apple OS encryption
-  = No; proprietary or non-standard encryption = No; industry-standard encryption
-  outside the OS = Yes. Complete any documentation App Store Connect requests for
-  the selected storefronts, including France when applicable.
-- [ ] **EU DSA:** Declare the correct trader status. If distributing in the EU,
-  verify the organization phone number and email requested by Apple.
+- [ ] **App Privacy:** reconcile the on-device wallet database and device-bound
+  key under Apple's current definitions. No wallet data is sent to Denuo Web,
+  websites, a provider, or a wallet service by this build.
+- [ ] **Age Rating:** Unrestricted Web Access = Yes; not Made for Kids. Recheck
+  every current content-frequency question.
+- [ ] **Content Rights:** Third-party content = Yes for user-directed browsing;
+  the app does not bundle or curate that content.
+- [ ] **App Access:** Sign-in required = No. There is no developer-operated
+  account, subscription, in-app purchase, or payment/value flow. Explain the
+  local non-value wallet controls in the review notes.
+- [ ] **Export Compliance:** answer from the exact use of industry-standard
+  Rust TLS, DNSSEC, DANE, and wallet cryptography; complete any storefront
+  documentation Apple requests.
+- [ ] **EU DSA:** declare and verify the current trader status and contact data.
 
 ## Review and release
 
-- [x] Enter a real review contact name, phone number, and email address.
-- [x] Paste `metadata/en-US/review-notes.txt`; do not enable the sign-in fields.
-- [x] Confirm build `57` has finished processing as `VALID`, is unexpired, and
-  reports `usesNonExemptEncryption=false`.
-- [x] Confirm the version-managed metadata, review details, content-rights
-  declaration, four ordered screenshots, and build are attached to the same
-  submission.
-- [ ] Independently archive the exact app-level App Privacy, age-rating, DSA,
-  pricing, availability, and routing answers; Apple accepted the submission,
-  but the guarded client did not read those fields.
-- [x] Choose **Manually release this version**, save, then add the app version and
-  build for review.
-- [x] Record that no TestFlight distribution is part of this release. This does
-  not block App Store submission, but installed-iOS and ecosystem qualification
-  remain open until a separate physical-device matrix is completed.
+- [ ] Enter a real review contact name, phone number, and email address.
+- [ ] Paste `metadata/en-US/review-notes.txt`; leave sign-in fields disabled.
+- [ ] Confirm metadata, questionnaires, fresh screenshots, review details, and
+  processed build `58` are attached to the same `0.5.8` submission.
+- [ ] Archive exact readback of the app/account-level fields the guarded client
+  does not manage.
+- [ ] Choose **Manually release this version**, then intentionally add the
+  version and build for review.
+- [ ] Record whether a separate installed-iPhone matrix was completed. Its
+  absence does not block App Store submission but remains an ecosystem
+  qualification limitation.

@@ -60,8 +60,8 @@ Applied WebView controls:
 The app follows the Android security checklist as a platform baseline:
 
 - Manifest permissions are limited to `INTERNET` and `ACCESS_NETWORK_STATE`. The app does not request notification, foreground-service, contacts, location, SMS, camera, microphone, account, package-visibility, or broad file permissions.
-- Only `LauncherActivity` is exported. The browser, settings, diagnostics, history, downloads, proof/TLSA views, resolver trace, and unreleased `WalletActivity` are explicitly non-exported, and no Android service is declared.
-- App backup and device-transfer extraction are disabled for files, databases, shared preferences, root storage, and external app data. Browser history, download records, diagnostics, resolver cache, sync/cache state, and unreleased wallet database/key ciphertext remain app-local unless the user explicitly exports or shares data.
+- Only `LauncherActivity` is exported. The browser, settings, diagnostics, history, downloads, proof/TLSA views, resolver trace, and native `WalletActivity` are explicitly non-exported, and no Android service is declared.
+- App backup and device-transfer extraction are disabled for files, databases, shared preferences, root storage, and external app data. Browser history, download records, diagnostics, resolver cache, sync/cache state, and wallet database/key ciphertext remain app-local unless the user explicitly exports or shares data.
 - Normal browsing does not enable `file://` or `content://` WebView access. User-initiated downloads use Android DownloadManager into public Downloads, but the system-visible download description does not include the full URL.
 - Network Security Config denies cleartext by default and allows cleartext only for the loopback gateway. The gateway binds randomized `127.0.0.1` ports only while browser proxy support is needed.
 - WebView JavaScript is enabled for browser compatibility, but no `addJavascriptInterface` or `WebMessageListener` bridge is installed or exposed to untrusted content. The dormant website-provider adapter returns before listener/script mutation while its immutable bridge gate is false. The app-native wallet controller is reachable only from a non-exported native activity. WebSockets remain Chromium-native and traverse the same Rust proxy; the document-start marker performs no hostname classification, and Rust applies the retained per-origin namespace decision before network admission.
@@ -75,7 +75,7 @@ The app follows the Android privacy checklist as a platform baseline:
 - The app requests no dangerous runtime permissions. Sync is scoped to the application foreground, so there is no notification permission prompt or foreground-service notification.
 - The app does not request location, nearby device, camera, microphone, contacts, SMS, call log, account, advertising ID, all-files storage, or package-visibility permissions.
 - The app does not use background location, location foreground services, device serial numbers, IMEI, SSAID, Advertising ID, or an app-generated cross-install tracking identifier.
-- External storage use is limited to user-initiated downloads through Android DownloadManager into public Downloads; app metadata and unreleased wallet storage stay in private preferences or app-private files and are excluded from backup and device transfer.
+- External storage use is limited to user-initiated downloads through Android DownloadManager into public Downloads; app metadata and wallet storage stay in private preferences or app-private files and are excluded from backup and device transfer.
 - Sensitive app-to-app sharing uses explicit user actions such as Android share/copy flows or DownloadManager. Sync snapshots stay in-process and internal diagnostic activities are non-exported.
 - Production Logcat output avoids browsing URLs, user-entered content, request/response bodies, and resolver secrets; default persisted diagnostics remain bounded and sanitized.
 - The Google Play Data safety and privacy policy drafts disclose local browsing data, user-initiated downloads, HNS peer/DNS/web requests, optional P2P relay use, ordinary ICANN DoH, and local deletion controls.
@@ -97,14 +97,17 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 
 ## Native wallet and dormant website-provider boundary
 
-The unreleased Android and iOS source links the exact pinned
+The Android/iOS `0.5.8` release-preparation candidate links the exact pinned
 `hns-wallet-mobile` controller to app-native create, restore, open, status,
 unlock, lock, one-time recovery, destroy, and single non-value HNS account
 identity controls. It exposes no balance, receive display, names, sending,
-settlement, HNSA/HNSR, or marketplace operation. The controller is not a
+settlement, exchange, HNSA/HNSR, or marketplace operation. The controller is not a
 browser provider and no wallet secret or method enters WebView/WKWebView. These
 controls are not in the current public Play, GitHub, or App Store binaries;
-Android installed-device and final iOS CI qualification remain release gates.
+the underlying tranche passed exact-source fresh-install Android and complete
+Apple CI qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
+Exact final-candidate CI, signing, current screenshots, and store declaration
+review remain release gates.
 
 On Android, a create-only Android KeyStore AES-GCM key wraps the 32-byte wallet
 database key and requires an unlocked device. Borrowed plaintext key arrays are

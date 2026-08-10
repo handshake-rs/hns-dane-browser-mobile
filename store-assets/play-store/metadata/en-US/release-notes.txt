@@ -1,1 +1,1 @@
-0.5.7 supports Android 11 / API 30 and later while preserving explicit UTF-8 search encoding. The shared Rust engine and iOS app are unchanged.
+0.5.8 adds native create, restore, open, unlock, and lock controls for one device-local non-value HNS account identity. Balances, transfers, names, website-provider access, settlement, exchange features, and P2P marketplaces remain unavailable.

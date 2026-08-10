@@ -5,6 +5,12 @@ screenshots without a physical iPhone. It runs only when manually dispatched
 because it performs real network navigation and is intended to create a
 reviewed submission artifact, not a required pull-request check.
 
+The checked-in images and manifest are retained `0.5.5` history and are not
+submission-ready for the configured `0.5.8` / build `58` candidate. Dispatch
+this workflow only after the final candidate commit passes Required CI. The
+resulting Settings image must visibly include the native Handshake wallet entry
+without displaying a recovery phrase, account identifier, or other secret.
+
 ```sh
 expected_commit="$(git rev-parse HEAD)"
 printf '%s\n' "$expected_commit" | grep -Eq '^[0-9a-f]{40}$'
@@ -85,7 +91,8 @@ qualification matrix in `docs/ios-device-validation.md`.
 
 1. Inspect all four images at full size. Confirm that the HNS page and public
    product page rendered normally, Settings matches the shipping Android-aligned
-   structure with Stateless DANE visibly rendered as a switch, Proof Details
+   structure with Stateless DANE visibly rendered as a switch and the native
+   Handshake wallet entry visible, Proof Details
    refers to `denuoweb`, critical app and security text is not clipped, and no
    keyboard, test overlay, or alert is visible.
 2. Inspect `manifest.json`. Confirm `capture.mode` is
@@ -115,6 +122,10 @@ The committed `0.5.5` set was captured from exact source
 `d926561091634cd69fc9b7e79a4b76003fa4ee47` in successful workflow run
 `30454926117`. Its Release/runtime provenance, four 1284 × 2778 images, and
 digests pass the full metadata validator.
+
+That successful historical validation does not satisfy the `0.5.8` manifest
+commit gate. Replace the set only with an artifact captured from the exact
+final candidate.
 
 The screenshot workflow never contacts App Store Connect and does not use
 signing or App Store credentials. After local visual review, the guarded

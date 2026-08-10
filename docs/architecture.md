@@ -79,15 +79,18 @@ iOS UI / Browser Shell                             [public; device qualification
 - One checked random session supplies both the existing URL-safe proxy session token and the canonical engine session bytes. Mobile policy revision zero maps to canonical policy generation one, and each real normalized policy change advances both exactly once; a normalized no-op leaves the complete runtime snapshot unchanged. Listener startup and browser authority are separate facts: first install may publish an authenticated loopback listener in `Degraded`, but no request is admitted until a current non-genesis header on every network, proof storage, a policy transport, and the live browser bridge reach `Active`.
 - The active listener generation is published only after its bind succeeds. Replacement revokes the old authority before preparing the new listener; stale stop/drop calls compare-and-clear only their own generation. Every origin operation mints one canonical stamp at whole-request entry before maintenance, DNS, or classification, and carries that exact stamp through transport, status, sticky binding, response, file, or tunnel publication without reminting after a same-generation recovery. It also captures the exact nonzero maintenance epoch while holding the request read lock. Final response or 101 head publication reacquires that lock, validates the epoch, and holds it together with the exact-result lifecycle permit through the head flush. Header-mutating maintenance advances the epoch before mutation under its exclusive lock, preventing stale pre-maintenance results from crossing the boundary. Direct file output is staged privately and renamed only within the analogous final guard; Android raw/JNI wrappers propagate any post-parse runtime failure instead of synthesizing bytes outside it. Stop signals socket/work cancellation before waiting on revocation. Redirects, subresources, Service Workers, downloads, and WebSockets therefore share the same authority boundary as the initial page.
 - Shared success status is constructed from the request-local retained `NamespaceDecision`, its canonical decision fingerprint, and the exact selected-root DNS question/transport. Canonical failure status retains the request-local exact HNS and ICANN `RootFailure` values and, after selection, the retained decision; bogus DNSSEC is represented as bogus and never as TLSA absence. ICANN-selected status uses `ValidatingIcannDoh` without an HNS chain anchor. The Rustls verifier records an exact DANE association mismatch and the transport preserves it as `DaneFailed` across blocking/controlled HTTP/1.1, Tokio HTTP/2, Quinn HTTP/3, and TLS Upgrade boundaries without inspecting display strings; origin-SNI remains unavailable unless independently evidenced. A generic transport or WebPKI failure without typed trust evidence, an HNS cache hit with no exact transport event, an unrepresentable legacy HNS DoH path, or a P2P relay lacking negotiated registry fingerprint/protocol identity remains an explicit unavailable status rather than a fabricated valid snapshot. These additions are internal to Rust and preserve the JNI, Apple C ABI, bundle identifiers, and platform preference schemas.
-- Android and iOS now carry a separate unreleased native-only wallet slice
+- Android and iOS carry a separate native-only wallet slice in the configured
+  `0.5.8` release-preparation candidate
   backed by the exact pinned `hns-wallet-mobile` controller. Narrow JNI and
   Apple C-ABI surfaces expose create, restore, open, status, unlock, lock,
   one-shot recovery retrieval, destruction, and exactly one non-value HNS
   account identity. Platform-owned screens and device-bound 32-byte database
   keys manage this controller; there are no balance, names, sending,
-  settlement, HNSA/HNSR, or marketplace operations. Android installed-device
-  and final iOS CI qualification remain open, and no listed public binary
-  contains this source tranche.
+  settlement, HNSA/HNSR, exchange, or marketplace operations. The underlying
+  tranche passed fresh-install Android qualification and the complete Apple CI
+  gate at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`; exact final-candidate CI,
+  signed artifacts, store screenshots, and submission remain open. No listed
+  public binary contains this source tranche.
 - The website-facing mobile wallet-provider projection remains dormant.
   Website Provider API schema 1 remains separate from private provider ABI 2
   and public approval schema 3. Closed approval summaries and typed events
@@ -123,7 +126,7 @@ iOS UI / Browser Shell                             [public; device qualification
 
 - `RustBrowserRuntime`: Swift ownership wrapper for the versioned C ABI. It copies and frees Rust-owned outputs, keeps blocking calls off the main thread, and exposes typed runtime/proxy operations without protocol logic.
 - `RustNativeWallet`, `WalletViewController`, and `WalletKeychainStore`: the
-  unreleased app-native wallet owner, non-value control screen, and create-only
+  app-native wallet owner, non-value control screen, and create-only
   ThisDeviceOnly/user-presence database-key store. Database paths and Keychain
   accounts are scoped to the captured Handshake network, and a process-local
   path lease prevents two screens from cleaning or opening the same storage at
@@ -163,7 +166,7 @@ iOS UI / Browser Shell                             [public; device qualification
 - `HnsProxyWebSocketPolicy`: document-start marker confirming that Chromium's native `WebSocket` implementation uses the same process-wide proxy. It contains no hostname or IANA-list classifier.
 - `NativeBridge`: JNI load boundary for the Rust shared library. It owns process-lifetime opaque runtime handles, executes ordinary and file-backed gateway requests on those handles, atomically configures and starts Rust proxy generations, owns versioned authenticated endpoint/status bundles, performs live generation-bound certificate-DER matching, and exposes stop/destroy operations.
 - `WalletActivity`, `NativeWalletBridge`, and `AndroidWalletKeyStore`: the
-  unreleased non-exported native-only wallet screen, narrow JNI controller, and
+  non-exported native-only non-value wallet screen, narrow JNI controller, and
   create-only Android KeyStore-backed database-key wrapper. Wallet paths and
   wrapping identities are network-scoped, while process-local ownership
   prevents stale Activity callbacks from deleting a concurrently live wallet.

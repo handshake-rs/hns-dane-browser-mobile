@@ -7,6 +7,7 @@ import re
 import subprocess
 import tempfile
 import textwrap
+import tomllib
 import unittest
 
 
@@ -15,6 +16,67 @@ PLAY_UPLOAD = ROOT / "scripts" / "play-upload-closed-testing.sh"
 IOS_UPLOAD = ROOT / "scripts" / "upload-ios-app-store.sh"
 UPLOAD_WORKFLOW = ROOT / ".github" / "workflows" / "ios-app-store-upload.yml"
 SCREENSHOT_WORKFLOW = ROOT / ".github" / "workflows" / "ios-screenshots.yml"
+
+
+class ReleaseCandidateMetadataTests(unittest.TestCase):
+    def test_coordinated_058_identity_and_intermediate_wallet_pin(self) -> None:
+        gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"0\.5\.8\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 49$")
+
+        with (ROOT / "rust/Cargo.toml").open("rb") as source:
+            manifest = tomllib.load(source)
+        self.assertEqual(manifest["workspace"]["package"]["version"], "0.5.8")
+        self.assertFalse(manifest["workspace"]["package"]["publish"])
+        wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
+        self.assertEqual(wallet["version"], "=0.1.0")
+        self.assertEqual(
+            wallet["rev"],
+            "f83d42363305de04bfa955f864cb1e9136c4d648",
+        )
+
+        project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 0\.5\.8$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 58$")
+
+    def test_store_and_privacy_copy_describes_limited_native_wallet(self) -> None:
+        paths = (
+            ROOT / "store-assets/play-store/metadata/en-US/full-description.txt",
+            ROOT / "store-assets/play-store/metadata/en-US/release-notes.txt",
+            ROOT / "store-assets/app-store/metadata/en-US/description.txt",
+            ROOT / "store-assets/app-store/metadata/en-US/review-notes.txt",
+            ROOT / "store-assets/app-store/metadata/en-US/whats-new.txt",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                value = path.read_text(encoding="utf-8").casefold()
+                self.assertIn("non-value", value)
+                self.assertNotIn("not a wallet", value)
+
+        privacy = (ROOT / "docs/privacy-policy.md").read_text(
+            encoding="utf-8"
+        ).casefold()
+        for marker in (
+            "device-local non-value hns account identity",
+            "device-bound database keys",
+            "does not synchronize a balance",
+            "no in-app delete control for a confirmed native wallet",
+        ):
+            self.assertIn(marker, privacy)
+
+        play = paths[0].read_text(encoding="utf-8").casefold()
+        app_store = paths[2].read_text(encoding="utf-8").casefold()
+        for marker in (
+            "balances",
+            "send funds",
+            "manage names",
+            "connect",
+            "settle",
+            "exchange",
+            "p2p marketplaces",
+        ):
+            self.assertIn(marker, play)
+            self.assertIn(marker, app_store)
 
 
 class IosReleaseWorkflowSafetyTests(unittest.TestCase):

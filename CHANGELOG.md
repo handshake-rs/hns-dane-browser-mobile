@@ -2,15 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.5.8 - 2026-08-10
 
 ### Added
 
 - Linked the exact qualified `hns-wallet-mobile` controller into Android JNI
   and the stable Apple C ABI, with native-only create, restore, open, status,
   unlock, lock, one-time recovery display, and single non-value HNS account
-  identity controls. Android installed-device and iOS CI qualification remain
-  release gates; no published store build contains this source tranche yet.
+  identity controls. The exact underlying source passed Android installed-device
+  qualification and the complete Apple CI gate at
+  `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`; the versioned candidate still
+  requires exact-head CI and signed-artifact qualification before release.
 - Added create-only device-bound database-key storage and incomplete-wallet
   cleanup on both platforms. Android keeps recovery output in a mutable,
   non-copyable custom view and deletes an unconfirmed wallet on lifecycle exit.
@@ -23,6 +25,16 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Coordinated Android `0.5.8` (`versionCode 49`), the non-publishable embedded
+  Rust workspace `0.5.8`, and iOS `0.5.8` (build `58`) as one
+  release-preparation candidate. No signed `0.5.8` store artifact has been
+  uploaded or published.
+- Repinned `hns-wallet-mobile` and its exact lockfile closure to the current
+  intermediate wallet release-preparation source
+  `f83d42363305de04bfa955f864cb1e9136c4d648`, including its pre-release
+  `hns-rs` checkpoint. Before final qualification, mobile must
+  repin once more to the wallet commit that consumes the dated final `hns-rs`
+  release, then regenerate its lockfile and notices.
 - Replaced the unreleased Android/iOS private wallet ABI-v1 scaffold with a
   fail-closed ABI-v2 public-projection boundary while retaining website Provider
   API schema and `providerApiVersion` 1.
@@ -46,6 +58,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Hardened the Android no-backup storage ancestor and every network-scoped
+  wallet directory to owner-only permissions before native wallet open or
+  creation; exact fresh-install device qualification confirmed `0700`
+  directories and `0600` database files without manual repair.
+- Made the iOS wallet owner compatible with Swift 6/Xcode 26 actor and capture
+  rules and retained optimizer-visible clearing through the stable C helper.
 - Aligned Android sync fixtures, native-runtime instrumentation, and the sync
   contract documentation with schema v3 name-tree readiness fields.
 - Fixed clean-checkout Cargo metadata after the standalone snapshot exporter

@@ -14,6 +14,7 @@ Features:
 - DNSSEC and TLSA/DANE diagnostics for HTTPS HNS sites
 - Ordinary internet sites retain their normal WebPKI path
 - Resolver trace, HNS proof viewer, and TLSA inspector
+- Native create, restore, open, unlock, and lock controls for one device-local non-value HNS account identity
 - Local controls for cookies, history, downloads, and resolver cache
 
-This app is for browsing and diagnostics. It is not a wallet, exchange, financial service, or investment product. Donations are optional and do not unlock features.
+The native wallet screen manages only one local non-value HNS account identity. It does not show balances, receive or send funds, manage names, connect a wallet to websites, settle trades, provide exchange features, or expose P2P marketplaces. Donations are optional and do not unlock features.

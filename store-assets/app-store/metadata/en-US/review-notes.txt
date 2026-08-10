@@ -1,4 +1,4 @@
-No sign-in is required. The app has no account, subscription, in-app purchase, wallet, or payment flow.
+No sign-in is required. The app has no developer-operated account, subscription, in-app purchase, or payment flow. Its native wallet screen manages only one device-local non-value HNS account identity. It cannot show balances, receive or send funds, manage names, connect to websites, settle trades, provide exchange features, or expose P2P marketplaces.
 
 HNS DANE Browser uses WKWebView for rendering and an authenticated loopback proxy at 127.0.0.1 for app traffic. It does not install a VPN or change the device's system proxy.
 
@@ -11,6 +11,12 @@ Handshake test:
 2. The bundled Handshake header snapshot allows immediate proof-backed resolution while foreground header sync continues.
 3. Confirm the security label identifies the resolver and TLS validation path.
 4. Tap the Settings gear button to inspect HNS resolution, HNS sync, Clear resolver cache, Resolver trace, HNS proof details, Privacy policy, and Source code.
+
+Native wallet control test:
+1. Tap the Settings gear button, then Handshake wallet.
+2. A fresh install reports that no native wallet exists. Create and restore are local operations; a reviewer does not need to create a wallet to evaluate browsing.
+3. If Create is exercised, record the one-time recovery phrase only in a secure reviewer-controlled location and confirm it. The screen then supports open, unlock, lock, and inspection of one non-value account identity. Face ID or the device passcode may be requested to retrieve the device-bound database key.
+4. No balance, transfer, name, website-provider, settlement, exchange, or marketplace action is available.
 
 Network note: some review networks block Handshake peer traffic or direct authoritative DNS. Experimental P2P DNS relay consumption is off by default and requires explicit requester opt-in in Settings. A separate recursive HNS DoH recovery URL is also blank by default; the app contacts no such operator unless the user explicitly enters a validated HTTPS endpoint. Its operator can observe queried names/types, timing, and source IP. Relay and configured-recursive answers still require local proof, DNSSEC, TLSA, and DANE validation, and the app never substitutes WebPKI for required HNS DANE. If no permitted validated path succeeds, the HNS request fails closed.
 

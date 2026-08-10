@@ -1,28 +1,30 @@
 # Google Play Metadata Package
 
-This directory contains source text and field guidance for a future Google
-Play update to package `com.denuoweb.hnsdane`. Android `0.5.7` / code `48`
-lowers the application and native NDK floor to Android 11 / API 30 while
-preserving explicit UTF-8 search encoding. The shared Rust engine and iOS app
-are unchanged.
+This directory contains the reviewed source text and field guidance for the
+Android `0.5.8` / code `49` release-preparation candidate for package
+`com.denuoweb.hnsdane`. It coordinates Android and the embedded Rust workspace
+at `0.5.8` and adds native-only controls for one device-local non-value HNS
+account identity.
 
-The current release scope is a signed APK on GitHub only. No code `48` AAB has
-been built, uploaded, or submitted to Google Play. Before a later Play update,
-build and verify a signed AAB, reconcile the live Console declarations, and
-replace this preparation text with exact artifact and deployment evidence.
+The underlying wallet tranche passed exact-source Android CI and installed
+Pixel 9 qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
+The checked-in wallet pin is an intermediate release-preparation checkpoint.
+After the dated `hns-rs` release commit, wallet and mobile must repin in
+sequence and regenerate the lockfile/notices. That resulting candidate still
+requires exact-head CI, a signed and verified AAB, refreshed screenshots, live
+Play Console declaration reconciliation, and an intentional upload. No code
+`49` AAB has been built, uploaded, or submitted.
 
-Code `48` also predates the unreleased native-only wallet controller. The
-retained listing's “not a wallet” text is accurate for Play code `47` and
-GitHub code `48`, but must not be reused for a future wallet-bearing candidate.
-Qualify that source on an installed Android device before updating versions,
-listing copy, category/financial declarations, privacy, or Data safety answers.
+The listing deliberately describes the limited native controller. It does not
+claim balances, transfers, names, website-provider access, settlement,
+exchange features, or P2P marketplaces; all remain unavailable.
 
 ## Listing Text
 
 - App name: `en-US/title.txt`
 - Short description: `en-US/short-description.txt`
 - Full description: `en-US/full-description.txt`
-- 0.5.7 release notes: `en-US/release-notes.txt`
+- 0.5.8 release notes: `en-US/release-notes.txt`
 
 ## Store Assets
 
@@ -36,12 +38,12 @@ listing copy, category/financial declarations, privacy, or Data safety answers.
 - App category: Tools
 - Ads declaration: No ads
 - Privacy policy URL: `https://denuoweb.com/work/hns-dane-browser/privacy`
-- Future production upload artifact (signed, verified, and intentionally
-  untracked): `dist/play-store/hns-dane-browser-v0.5.7-play-upload-signed.aab`
+- Candidate upload artifact (signed, verified, and intentionally untracked):
+  `dist/play-store/hns-dane-browser-v0.5.8-play-upload-signed.aab`
 - Foreground service type: none; remove any stale `dataSync` declaration
   because sync is application-foreground scoped and the manifest declares no
   service.
 
-The credentialed upload AAB is intentionally not committed. Physical-device
-qualification and Google Play submission remain separate work from the
-GitHub-only APK release.
+The credentialed upload AAB is intentionally not committed. Exact-candidate
+CI, signed-artifact verification, screenshot refresh, and Google Play
+submission remain explicit release gates.

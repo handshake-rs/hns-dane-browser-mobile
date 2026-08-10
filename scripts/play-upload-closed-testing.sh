@@ -13,9 +13,9 @@ fi
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
 track_name="${PLAY_TRACK:-alpha}"
 release_status="${PLAY_RELEASE_STATUS:-completed}"
-aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.7-play-upload-signed.aab}"
-release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.7}"
-release_notes="${PLAY_RELEASE_NOTES:-0.5.7 lowers Android compatibility to Android 11 / API 30 while preserving explicit UTF-8 search encoding; the shared Rust engine and iOS app are unchanged.}"
+aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.8-play-upload-signed.aab}"
+release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.8}"
+release_notes="${PLAY_RELEASE_NOTES:-0.5.8 adds native create, restore, open, unlock, and lock controls for one device-local non-value HNS account identity. Balances, transfers, names, website-provider access, settlement, exchange features, and P2P marketplaces remain unavailable.}"
 
 configured_version_code="$(
   sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\).*/\1/p' "$android_gradle"

@@ -33,14 +33,25 @@ live Release screenshot run `30454926117` passed. Protected upload run
 The earlier `WAITING_FOR_REVIEW` and manual-release state is retained as dated
 submission history in the release audit; it is no longer the current public
 status. No TestFlight distribution was created. The hosted privacy policy at
-the canonical product URL is aligned with the current repository disclosure.
+the canonical product URL was aligned with that historical public release.
+The wallet-aware `0.5.8` repository disclosure must be published and read back
+before the next submission.
 
-Unreleased source now links `hns-wallet-rs` to native-only Android and iOS
-create, restore, open, status, unlock, lock, and single-HNS-account identity
-controls. These controls are not in the public builds listed above and still
-need Android installed-device and iOS CI qualification. Website provider and
+Current source is the coordinated `0.5.8` release-preparation candidate:
+Android code `49`, embedded non-publishable Rust workspace `0.5.8`, and iOS
+build `58`. It pins the current intermediate `hns-wallet-rs`
+release-preparation source and exposes native-only create, restore, open,
+status, unlock, lock, and single-HNS-account identity controls. The underlying
+exact source passed fresh-install Pixel 9
+qualification and the complete Apple CI gate in run `31393998309`; the final
+versioned commit, signed artifacts, current screenshots, and store declarations
+still require exact-candidate qualification. Website-provider and
 WebView/WKWebView access, balances and value movement, names, sending,
-settlement, HNSA/HNSR controls, and P2P marketplaces remain unavailable.
+settlement, HNSA/HNSR controls, exchange features, and P2P marketplaces remain
+unavailable. Before final `0.5.8` qualification, `hns-rs` must land its dated
+release commit, `hns-wallet-rs` must repin to it, and mobile must repin to that
+resulting final wallet commit and regenerate its lockfile and notices. None of
+the public builds listed above contains these controls.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).
@@ -58,17 +69,17 @@ release qualification, and broader device-qualification work are tracked in
   the manifests and lockfiles.
 - `rust/fuzz/`: `cargo-fuzz` parser harnesses for DNS, HNS resource values, P2P frames, Urkel proofs, TLSA records, and X.509 SPKI extraction.
 - `android/`: Kotlin Android browser shell with WebView, namespace-agnostic URL
-  admission, whole-browser proxy lifecycle integration, JNI, and an unreleased
-  native-only wallet control screen.
+  admission, whole-browser proxy lifecycle integration, JNI, and a native-only
+  non-value wallet control screen.
 - `ios/`: Swift/UIKit WKWebView shell with whole-data-store proxy admission,
-  lifecycle/certificate integration, the stable Apple C ABI, and an unreleased
-  native-only wallet control screen.
+  lifecycle/certificate integration, the stable Apple C ABI, and a native-only
+  non-value wallet control screen.
 - `fixtures/`: bounded cross-language experimental DNS-relay framing and
   request-correlation fixtures.
 - `docs/`: Architecture, security model, version audit, and milestone notes.
 - `docs/sync-audit.md`: first-run sync path, progress UI, and remaining sync-speed bottlenecks.
 - `docs/supply-chain-audit.md`: pinned build inputs, CI/release gates, and residual reproducibility risks.
-- `docs/wallet-provider-mobile.md`: separation between the unreleased native
+- `docs/wallet-provider-mobile.md`: separation between the native
   app wallet controls and the dormant website-provider boundary (website
   schema v1, private provider ABI v2, closed approval schema v3, and typed
   events), including key/recovery lifecycle and qualification limits.

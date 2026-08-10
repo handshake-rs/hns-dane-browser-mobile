@@ -1,17 +1,24 @@
 # Version Audit
 
-Audit date: 2026-08-09.
+Audit date: 2026-08-10.
 
-This table records the versions actually configured for the shipping build. Android runtime dependencies use stable releases; separate build-tool transitive dependencies may carry preview labels selected by AGP and are not packaged into the app.
+This table records the versions configured for the `0.5.8`
+release-preparation candidate.
+It is not evidence that signed artifacts were built or published. Android
+runtime dependencies use stable releases; separate build-tool transitive
+dependencies may carry preview labels selected by AGP and are not packaged
+into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `0.5.7` / code `48` | `android/app/build.gradle.kts` |
-| Shared Rust workspace | `0.5.6` | `rust/Cargo.toml` |
-| iOS app | `0.5.5` / build `57` (unchanged) | `ios/project.yml` |
+| Android app | `0.5.8` / code `49` | `android/app/build.gradle.kts` |
+| Embedded Rust workspace | `0.5.8` (`publish = false`) | `rust/Cargo.toml` |
+| iOS app | `0.5.8` / build `58` | `ios/project.yml` |
+| Native wallet controller | `hns-wallet-mobile 0.1.0` at `f83d42363305de04bfa955f864cb1e9136c4d648` | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
-| Canonical engine contracts | crates.io `0.1.0` | Cargo manifests and lock |
+| Consolidated engine adapters | Git `0.2.0` at `b8bdfbf7e234e64166886ade6f79d698e23056af` | Cargo manifests and lock |
+| Temporary canonical compatibility contracts | Git `0.1.x` at `1ab4ab626f945712b0f960945986cb52efefef7c` | `rust/Cargo.toml` patch table and lock |
 | Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
 | Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |
 | iOS deployment floor | `17.0` | `ios/project.yml` |
@@ -32,10 +39,27 @@ This table records the versions actually configured for the shipping build. Andr
 
 Notes:
 
+- The underlying native wallet source passed fresh-install Pixel 9
+  qualification and exact-source Required CI run `31393998309`, including the
+  complete Apple ABI/XCFramework/app/simulator gate, at
+  `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The version bump, wallet repin,
+  and metadata changes still require exact-head CI before signed `0.5.8`
+  artifacts are built.
+- The native controller exposes create, restore, open, status, unlock, lock,
+  one-time recovery display, and one local non-value HNS account identity.
+  Balances, transfers, names, website-provider access, settlement, exchange
+  features, HNSA/HNSR controls, and P2P marketplaces remain unavailable.
+- `hns-wallet-mobile` is pinned to intermediate wallet release-preparation
+  commit `f83d42363305de04bfa955f864cb1e9136c4d648`. Its lock closure uses
+  pre-release `hns-rs` checkpoint
+  `abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2`. This is not the final release
+  authority: after `hns-rs` lands its dated release commit, `hns-wallet-rs`
+  must repin to it and mobile must consume the resulting wallet commit before
+  exact final-candidate qualification.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on
   2026-08-09 still reports `0.5.5` as current; older review-state notes in
   this repository describe the submission chronology, not the current status.
-- Android `0.5.7` / code `48` is an Android-only compatibility release. It
+- Public GitHub Android `0.5.7` / code `48` is an Android-only compatibility release. It
   lowers both the application and NDK platform floor to API 30, retains
   explicit UTF-8 form encoding through the older `URLEncoder` overload, and
   leaves the shared Rust engine and iOS app unchanged.
@@ -107,7 +131,7 @@ Notes:
   edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes the verified APK only;
   the Play AAB and unchanged iOS build are not attached.
-- iOS remains `0.5.5` / build `57`, publicly available since 2026-07-31.
+- The public iOS baseline remains `0.5.5` / build `57`, available since 2026-07-31.
   Its earlier `VALID`, direct `WAITING_FOR_REVIEW`, and manual-release state is
   retained as submission chronology. No TestFlight distribution was used.
 - Gateway-generated HNS error pages now include the requested URL above the status line so repeated 502 validation pages show which address failed.

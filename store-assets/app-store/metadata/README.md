@@ -1,32 +1,29 @@
 # App Store metadata
 
-This directory is the reviewed, retained source for the submitted iOS App Store
-update. The binary workflow does not upload listing metadata. Version `0.5.0`
-was public on the Apple App Store when checked on 2026-07-28; version `0.5.5`
-(build `57`) comes from
-`d926561091634cd69fc9b7e79a4b76003fa4ee47`. Build `57` contains the shared
-parser and post-resolution timing fixes plus the final live-capture
-proof-selection and cached-main-frame revalidation corrections. Exact-head
-Apple CI `30454904736`, live Release screenshot run `30454926117`, and the
-signed archive/upload portion of protected run `30456522039` passed. The IPA
-SHA-256 is
-`efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.
-App Store Connect processed build `57` as `VALID`. The version-managed
-description, keywords, promotional text, support/marketing URLs, What's New,
-copyright, four ordered screenshots, review details, content-rights
-declaration, and linked build passed API readback. App/account-level name,
-subtitle, privacy, age-rating, DSA, pricing, availability, and routing fields
-were not managed by the release client.
-The direct App Review submission reached `WAITING_FOR_REVIEW` with manual
-release; that is dated submission history. Apple published `0.5.5` on
-2026-07-31, and the public record still reported it as current on 2026-08-09.
-No TestFlight distribution was created. Public GitHub Release `v0.5.5` retains
-the exact verified IPA as asset `494101433`.
+This directory is the reviewed source package for the coordinated iOS `0.5.8`
+release-preparation candidate. The binary upload workflow does not upload
+listing metadata; the operator must reconcile these exact fields in App Store
+Connect before submission.
 
-The checked-in description and review notes describe build `57`, which has no
-wallet. Unreleased source now includes a native-only non-value wallet screen;
-do not reuse this metadata for a later wallet-bearing build without final Apple
-CI and a complete privacy, category, screenshot, and reviewer-note review.
+The native wallet tranche passed the complete Apple ABI, XCFramework, app, and
+simulator gate in exact-source Required CI run `31393998309` at
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The `0.5.8` version/metadata
+package currently pins an intermediate wallet/hns-rs release-preparation
+chain. After the dated `hns-rs` release lands, wallet and mobile must repin in
+sequence and regenerate the lockfile/notices. That resulting commit requires
+its own exact-head CI, fresh commit-bound screenshots,
+signing, processing, metadata readback, and intentional submission. Nothing in
+this package proves that build `58` has been uploaded or published.
+
+The current public Apple baseline remains `0.5.5` / build `57`, published on
+2026-07-31 from `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Its retained
+submission and artifact evidence is release history, not evidence for `0.5.8`.
+No TestFlight distribution is planned by this repository workflow.
+
+The checked-in description and review notes accurately describe the new
+native-only, non-value controller. They do not claim balances, transfers,
+names, website-provider access, settlement, exchange features, or P2P
+marketplaces; all remain unavailable.
 
 ## App record
 
@@ -37,17 +34,18 @@ CI and a complete privacy, category, screenshot, and reviewer-note review.
 - SKU: `hns-dane-browser-ios`
 - Apple Team ID: `45NQQK3G3S`
 - User access: Full Access
-- Version: `0.5.5`
-- Build: `57`
-- Primary category: Utilities
+- Version: `0.5.8`
+- Build: `58`
+- Primary category: Utilities, pending candidate-specific review
 - Price: Free
+- Device family: iPhone
 
-The app remains iPhone-only. Native iPad support can be enabled in a later
-version after adding iPad screenshots and validation coverage.
+Native iPad support remains out of scope until iPad screenshots and validation
+coverage exist.
 
 ## Canonical update fields
 
-These files remain the canonical public-field sources for the `0.5.5` record:
+Use these files for the `0.5.8` record:
 
 - `name.txt`
 - `subtitle.txt`
@@ -58,20 +56,23 @@ These files remain the canonical public-field sources for the `0.5.5` record:
 - `marketing-url.txt`
 - `copyright.txt`
 - `whats-new.txt`
+- `review-notes.txt`
+- `privacy-policy-url.txt`
 
-Set `privacy-policy-url.txt` under **App Privacy**, not on the version page. Paste
-`review-notes.txt` into **App Review Information → Notes** and
-`whats-new.txt` into **What's New in This Version** for this update.
-The guarded client reconciled and read back the version-localized subset named
-above; it deliberately left app/account-level fields such as name, subtitle,
-privacy answers, and pricing outside its mutation scope.
+Set `privacy-policy-url.txt` under **App Privacy**, paste `review-notes.txt` into
+**App Review Information → Notes**, and paste `whats-new.txt` into **What's New
+in This Version**. The guarded client deliberately leaves app/account-level
+privacy, age-rating, DSA, pricing, availability, and routing answers outside
+its mutation scope; read those back separately.
 
-Store approved iPhone screenshots in `../screenshots/en-US/`, numbered in display
-order (`01-...`, `02-...`, and so on). Use one exact approved 6.9-inch or 6.5-inch
-resolution for the set and do not include an alpha channel.
+The retained screenshots under `../screenshots/en-US/` come from public
+`0.5.5` source and do not show the native wallet controls. They are historical
+assets only. Generate a fresh exact-commit set for `0.5.8`; the protected
+upload workflow rejects a screenshot manifest whose commit does not match the
+candidate.
 
-Run the deterministic package checks before entering metadata, and run the full
-check again after screenshots are added:
+Run the deterministic metadata checks before entering fields. Run the complete
+validator after fresh screenshots are staged:
 
 ```sh
 python3 store-assets/app-store/validate.py --metadata-only
@@ -80,23 +81,19 @@ python3 store-assets/app-store/validate.py
 
 ## Submission controls
 
-1. Confirm the hosted cross-platform privacy policy remains aligned at the URL in `en-US/privacy-policy-url.txt`; it is aligned at this checkpoint.
-2. Complete App Store Connect's app-privacy, age-rating, content-rights, and export-compliance questionnaires from the app's actual behavior. Do not answer the encryption question by assumption: the Rust runtime implements industry-standard TLS, DNSSEC, and DANE cryptography outside Apple's operating-system crypto APIs.
-3. Generate current iPhone simulator screenshots from the iOS shell. Do not reuse Android screenshots.
-4. No TestFlight distribution is part of this release. A separately installed
-   signed build may be used for a future physical-device matrix; until that is
-   recorded, installed-iOS and ecosystem qualification remain open.
-5. Supply App Review with the notes in `en-US/review-notes.txt`; no login is required.
-6. Complete the directly managed items in `../submission-checklist.md`, select
-   build `57`, and choose manual release before adding the version for review.
-   Preserve the unchecked app/account-level items as explicit evidence
-   follow-ups when their exact saved values are not available through the
-   guarded client.
+1. Replace the intermediate dependency chain after the dated final `hns-rs`
+   release: repin wallet, repin mobile, and regenerate the source policy,
+   lockfile, and notices.
+2. Pass exact-head Required CI for the resulting final `0.5.8` commit.
+3. Publish the updated repository privacy policy to the canonical hosted URL
+   and verify its response before submission.
+4. Reconcile App Privacy, age rating, category, content rights, export
+   compliance, DSA, price, availability, and routing against the exact build.
+5. Generate and review current iPhone screenshots from the exact source.
+6. Supply App Review with `en-US/review-notes.txt`; no login is required.
+7. Select processed build `58`, choose manual release, and complete
+   `../submission-checklist.md` before adding the version for review.
 
-The managed controls were reconciled for the `0.5.5` submission on 2026-07-29,
-and Apple accepted it for review. That acceptance does not independently prove
-the exact saved values of the excluded app/account-level fields. The remaining
-installed-iPhone matrix is a separate qualification activity, not a missing
-App Store submission field.
-
-The API private key used by CI must exist only in the protected GitHub `app-store` environment and must never be committed or uploaded as a workflow artifact.
+The API private key used by CI must exist only in the protected GitHub
+`app-store` environment and must never be committed or uploaded as a workflow
+artifact.
