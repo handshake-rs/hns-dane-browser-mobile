@@ -34,12 +34,12 @@ marketplaces remain unavailable.
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| `0.5.8` source identity | Release preparation configured; final authority pending | Android `0.5.8` / code `49`, embedded Rust `0.5.8`, and iOS `0.5.8` / build `58` are aligned. `hns-wallet-mobile` is pinned to intermediate release-preparation source `f83d42363305de04bfa955f864cb1e9136c4d648`, which uses pre-release `hns-rs` checkpoint `abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2`. After the dated `hns-rs` release commit lands, wallet and mobile must repin in sequence. No signed candidate has been built or uploaded. |
+| `0.5.8` source identity | Final dependency authority configured; exact release gates pending | Android `0.5.8` / code `49`, embedded Rust `0.5.8`, and iOS `0.5.8` / build `58` are aligned. `hns-wallet-mobile` is pinned to final wallet `0.1.0` source `4e78bb2587bc448d3a65341c7628b2e62cae79cd`, which uses final `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`. Source policy, lockfile, and notices bind that chain. No signed candidate has been built or uploaded. |
 | Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 47 production complete | Android Publisher edit `07330408575596336357` committed code `47` directly to production with status `completed`; `generatedApks/47` returned HTTP `200`. |
 | App Store update | Public `0.5.5`; device qualification tracked separately | Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). The submission was then `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`; Apple published `0.5.5` on 2026-07-31. No TestFlight distribution was part of this release, and a real-iPhone pass remains a separate qualification item. |
-| Native wallet slice | Feature tranche qualified; final release gates pending | The exact pinned `hns-wallet-mobile` controller is connected to native-only Android/iOS controls and secure app-owned database-key lifecycles. The slice exposes no provider, balances, transfers, names, sending, settlement, exchange, HNSA/HNSR, or marketplace. Exact-source Android and Apple qualification passed at `571ea0c`; the dated final `hns-rs` → wallet → mobile repin and resulting `0.5.8` commit still need exact-head evidence, so no signed-product readiness is claimed. |
+| Native wallet slice | Feature tranche qualified; final release gates pending | The exact pinned `hns-wallet-mobile` controller is connected to native-only Android/iOS controls and secure app-owned database-key lifecycles. The slice exposes no provider, balances, transfers, names, sending, settlement, exchange, HNSA/HNSR, or marketplace. Exact-source Android and Apple qualification passed at `571ea0c`; the final dependency repin is complete, but the resulting `0.5.8` commit still needs exact-head evidence, so no signed-product readiness is claimed. |
 | Android runtime opening | Root cause fixed and release-device validated | Rust 1.92's stable `std::fs::File` lock implementation omitted Android, so the first header-state lock returned `Unsupported` and `BrowserRuntime::open` returned no handle. The Android target now uses the locked `libc 0.2.186` `flock` operations; the equivalent upstream fix is merged for Rust 1.98 in `rust-lang/rust#157038`. The exact signed code `47` APK cold-launched and synchronized successfully after an in-place data-preserving upgrade. |
 | Android Proof Details | Namespace attribution fixed and release-device confirmed | Native-gateway routing is namespace-agnostic because every canonical DNS host enters the retained dual-root gateway. The prior UI treated that route as ICANN, so a retained HNS trace produced DNSSEC/synthetic ICANN details. Proof Details now uses only the strict retained `namespaceResolution` decision. Pre-fix reproduction, paired instrumentation, and HNS browsing/proof behavior passed on the Pixel 9 release device after correction. |
 | Privacy policy | Repository updated; hosted publication/readback pending | The repository policy covers the local wallet database, device-bound database key, recovery lifecycle, absent wallet network/provider/value paths, and existing resolver disclosures. Publish and read back the same text at `https://denuoweb.com/work/hns-dane-browser/privacy` before store submission. |
@@ -113,9 +113,7 @@ marketplaces remain unavailable.
    ads, listing-copy, and stale-screenshot fields. Code `47` production
    deployment is complete; this reconciliation remains a policy and listing
    maintenance item.
-3. After the dated final `hns-rs` commit lands, repin `hns-wallet-rs`, repin
-   mobile to the resulting wallet commit, update source policy/lock/notices,
-   then qualify that final `0.5.8` commit and its metadata changes:
+3. Qualify the final dependency-pinned `0.5.8` commit and its metadata changes:
    pass exact-head Required CI and CodeQL, generate commit-bound iOS and current
    Android screenshots without secrets, build and verify signed artifacts,
    publish/read back the hosted privacy policy, and reconcile category,
@@ -158,8 +156,8 @@ marketplaces remain unavailable.
   source. Android fresh-install creation/confirmation, unlock/lock, process
   reopen, owner-only storage, and mainnet/testnet isolation passed on the exact
   CI APK; complete Apple CI passed in run `31393998309`. Public artifacts still
-  predate these controls. The final dated dependency-chain repin, exact `0.5.8`
-  CI, signing, screenshots, and store review remain pending.
+  predate these controls. The final dependency-chain repin is complete; exact
+  `0.5.8` CI, signing, screenshots, and store review remain pending.
 
 ## Watch Items
 

@@ -8,12 +8,11 @@ account identity.
 
 The underlying wallet tranche passed exact-source Android CI and installed
 Pixel 9 qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
-The checked-in wallet pin is an intermediate release-preparation checkpoint.
-After the dated `hns-rs` release commit, wallet and mobile must repin in
-sequence and regenerate the lockfile/notices. That resulting candidate still
-requires exact-head CI, a signed and verified AAB, refreshed screenshots, live
-Play Console declaration reconciliation, and an intentional upload. No code
-`49` AAB has been built, uploaded, or submitted.
+The candidate pins final wallet source `4e78bb2`, whose lock closure uses final
+protocol source `b24b66c`; source policy, lockfile, and notices are aligned. The
+resulting candidate still requires exact-head CI, a signed and verified AAB,
+refreshed screenshots, live Play Console declaration reconciliation, and an
+intentional upload. No code `49` AAB has been built, uploaded, or submitted.
 
 The listing deliberately describes the limited native controller. It does not
 claim balances, transfers, names, website-provider access, settlement,

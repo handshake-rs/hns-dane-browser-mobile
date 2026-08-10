@@ -40,7 +40,7 @@ exact signed candidate before upload.
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 production complete | The signed 60,276,192-byte AAB has SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`. Edit `07330408575596336357` assigned code `47` to production with status `completed`, and `generatedApks/47` returned HTTP `200`. |
 | Android runtime hotfix | Shipped and exact-artifact validated | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the locked `libc 0.2.186` Android `flock` path with the same lock semantics; upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. The exact signed APK upgraded a Pixel 9 from code `46` with data preserved, cold-launched, and reached `up_to_date` at height `340348`, lag `0`, freshness `current`, and `error: null` after manual sync. |
-| Native wallet candidate | Feature source device-qualified; release gates pending | Source currently links intermediate wallet release-preparation commit `f83d42363305de04bfa955f864cb1e9136c4d648` through a non-exported native activity and create-only Android KeyStore-wrapped database key. Fresh install, creation/confirmation, unlock/lock, process reopen, owner-only storage, and mainnet/testnet isolation passed on the exact CI artifact. After the dated `hns-rs` release lands, mobile must consume the resulting final wallet commit; that exact code `49` source then needs CI, signing, screenshots, and Console review. |
+| Native wallet candidate | Final dependency source configured; release gates pending | Source links final wallet `0.1.0` commit `4e78bb2587bc448d3a65341c7628b2e62cae79cd`, with final `hns-rs 0.2.0` closure `b24b66c382de53330ec21dd3137e056a2bea3e2d`, through a non-exported native activity and create-only Android KeyStore-wrapped database key. Fresh install, creation/confirmation, unlock/lock, process reopen, owner-only storage, and mainnet/testnet isolation passed on the pre-repin exact CI artifact. Exact code `49` source now needs CI, signing, screenshots, and Console review. |
 | Proof Details namespace | Fixed and release-device confirmed | Every canonical DNS host uses the native dual-root gateway, so that route cannot identify HNS versus ICANN. Before the fix, Pixel 9 API 37 instrumentation reproduced an HNS-selected trace being shown as DNSSEC with synthetic ICANN details, and paired instrumentation passed after the correction. HNS browsing and corrected proof presentation then passed manually with the exact signed release APK. |
 | 64-bit / 16 KiB native code | Code 47 signed gates passed | The code `47` APK/AAB passed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, archive/APK signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
@@ -202,9 +202,9 @@ Use a conservative general-purpose browser posture:
 ### Production Deployment and Remaining Device Qualification
 
 Code `49` is a release-preparation candidate only. Its underlying wallet source
-passed the focused exact-artifact Android exercise, but the dated final
-`hns-rs` → wallet → mobile dependency repin and metadata commit need exact-head
-CI, signed AAB verification, current
+passed the focused exact-artifact Android exercise, and the final
+`hns-rs` → wallet → mobile dependency repin is complete. The resulting
+metadata/source commit needs exact-head CI, signed AAB verification, current
 screenshots, hosted-policy readback, and live Console reconciliation. No
 credentialed Play operation has been performed for code `49`.
 

@@ -4,22 +4,20 @@ This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the pinned
   `hns-wallet-mobile` controller at
-  `f83d42363305de04bfa955f864cb1e9136c4d648`; and
+  final wallet source `4e78bb2587bc448d3a65341c7628b2e62cae79cd`; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
-That wallet revision is an intermediate release-preparation checkpoint, not
-the final publication authority. After `hns-rs` lands its dated release commit,
-`hns-wallet-rs` must repin to it and mobile must repin to the resulting wallet
-commit, update source policy and the lockfile, regenerate notices, and rerun
-all final-candidate gates.
+That wallet revision consumes final `hns-rs 0.2.0` source
+`b24b66c382de53330ec21dd3137e056a2bea3e2d`. Mobile source policy, its lockfile,
+and generated notices bind the complete final protocol → wallet chain.
 
 The configured `0.5.8` release-preparation candidate is Android code `49`,
 embedded Rust `0.5.8`, and iOS build `58`. Its underlying native-wallet tranche passed a
 fresh-install Pixel 9 exercise and exact-source Required CI run `31393998309`,
 including the complete Apple gate, at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The versioned candidate and final
-wallet repin still require exact-head CI before signing or store submission.
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The final dependency-pinned
+candidate still requires exact-head CI before signing or store submission.
 
 The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
 and App Store `0.5.5` / build `57` binaries predate the native controller and

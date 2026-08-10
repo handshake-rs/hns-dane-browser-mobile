@@ -134,11 +134,13 @@
   fresh Pixel 9 reinstall with create/confirm/unlock/lock/process-reopen,
   owner-private storage, and network isolation, while Required CI run
   `31393998309` passed the complete Apple ABI/XCFramework/app/simulator gate.
-- Pending release qualification: land the dated final `hns-rs` release, repin
-  `hns-wallet-rs`, repin mobile to the resulting wallet commit, regenerate the
-  lockfile/notices, and run exact-head CI plus signed/store gates for `0.5.8`.
-  No currently published Play, GitHub, or App Store binary contains the native
-  controls.
+- Completed release dependency sequence: mobile pins final wallet `0.1.0`
+  source `4e78bb2587bc448d3a65341c7628b2e62cae79cd`, which consumes final
+  `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
+  lockfile, source policy, and notices are aligned.
+- Pending release qualification: run exact-head CI plus signed, screenshot,
+  privacy, and store gates for `0.5.8`. No currently published Play, GitHub, or
+  App Store binary contains the native controls.
 - Pending named-service adoption: consume the current engine HNSA admission and
   HNSR requester lifecycle through exact engine-issued authority; no Kotlin or
   Swift authority projection may substitute for that context.

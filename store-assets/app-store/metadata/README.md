@@ -8,10 +8,9 @@ Connect before submission.
 The native wallet tranche passed the complete Apple ABI, XCFramework, app, and
 simulator gate in exact-source Required CI run `31393998309` at
 `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The `0.5.8` version/metadata
-package currently pins an intermediate wallet/hns-rs release-preparation
-chain. After the dated `hns-rs` release lands, wallet and mobile must repin in
-sequence and regenerate the lockfile/notices. That resulting commit requires
-its own exact-head CI, fresh commit-bound screenshots,
+package pins final wallet `0.1.0` source `4e78bb2` and final `hns-rs 0.2.0`
+source `b24b66c`; source policy, lockfile, and notices are aligned. That
+resulting commit requires its own exact-head CI, fresh commit-bound screenshots,
 signing, processing, metadata readback, and intentional submission. Nothing in
 this package proves that build `58` has been uploaded or published.
 
@@ -86,17 +85,14 @@ python3 store-assets/app-store/validate.py \
 
 ## Submission controls
 
-1. Replace the intermediate dependency chain after the dated final `hns-rs`
-   release: repin wallet, repin mobile, and regenerate the source policy,
-   lockfile, and notices.
-2. Pass exact-head Required CI for the resulting final `0.5.8` commit.
-3. Publish the updated repository privacy policy to the canonical hosted URL
+1. Pass exact-head Required CI for the final dependency-pinned `0.5.8` commit.
+2. Publish the updated repository privacy policy to the canonical hosted URL
    and verify its response before submission.
-4. Reconcile App Privacy, age rating, category, content rights, export
+3. Reconcile App Privacy, age rating, category, content rights, export
    compliance, DSA, price, availability, and routing against the exact build.
-5. Generate and review current iPhone screenshots from the exact source.
-6. Supply App Review with `en-US/review-notes.txt`; no login is required.
-7. Select processed build `58`, choose manual release, and complete
+4. Generate and review current iPhone screenshots from the exact source.
+5. Supply App Review with `en-US/review-notes.txt`; no login is required.
+6. Select processed build `58`, choose manual release, and complete
    `../submission-checklist.md` before adding the version for review.
 
 The API private key used by CI must exist only in the protected GitHub

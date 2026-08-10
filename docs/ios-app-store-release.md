@@ -20,9 +20,9 @@ create/restore/open/status/unlock/lock and one non-value HNS account identity.
 The underlying source passed the complete Apple ABI/XCFramework/app/simulator
 gate in exact Required CI run `31393998309` at
 `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The version/repin/metadata commit
-currently uses an intermediate wallet/hns-rs release-preparation chain. After
-the dated `hns-rs` release commit, wallet and mobile must repin in sequence and
-the resulting exact source must pass a new head gate before signing. Build `57`
+now uses final wallet `0.1.0` source `4e78bb2` and final `hns-rs 0.2.0` source
+`b24b66c`. The resulting exact source must pass a new head gate before signing.
+Build `57`
 does not contain the controller. The `0.5.8` privacy, description, What's New,
 and review notes have been updated, while fresh exact-commit screenshots, App
 Privacy/category answers, hosted-policy readback, signing, and processing
@@ -134,8 +134,8 @@ Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
 Build `58` is the next configured candidate. It must not be uploaded until the
-dated final `hns-rs` → wallet → mobile repin is complete, the resulting exact
-commit passes Required CI/CodeQL, the lockfile and generated notices are
+resulting final dependency-pinned commit passes Required CI/CodeQL, the
+lockfile and generated notices are
 verified, the hosted privacy policy matches this checkout, and a fresh
 screenshot manifest names that exact commit and carries provenance schema 3
 with `settings.wallet.native-controls` visible. The upload workflow enforces

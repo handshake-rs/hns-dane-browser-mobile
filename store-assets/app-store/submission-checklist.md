@@ -16,9 +16,8 @@ surface. Every Console answer must describe that exact boundary.
 - [x] Pass the complete Apple gate for the underlying wallet tranche in exact
   Required CI run `31393998309` at
   `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
-- [ ] Replace the intermediate wallet/protocol chain after the dated final
-  `hns-rs` release: repin wallet, repin mobile to the resulting wallet commit,
-  and regenerate the lockfile, source policy, and notices.
+- [x] Pin final wallet `0.1.0` source `4e78bb2` and final `hns-rs 0.2.0`
+  source `b24b66c`; regenerate the lockfile, source policy, and notices.
 - [ ] Pass Required CI and CodeQL at the final exact `0.5.8` commit.
 - [x] Require the protected upload workflow to capture and fully verify fresh
   exact-commit screenshots before reading Apple credentials or uploading an

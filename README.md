@@ -39,19 +39,20 @@ before the next submission.
 
 Current source is the coordinated `0.5.8` release-preparation candidate:
 Android code `49`, embedded non-publishable Rust workspace `0.5.8`, and iOS
-build `58`. It pins the current intermediate `hns-wallet-rs`
-release-preparation source and exposes native-only create, restore, open,
-status, unlock, lock, and single-HNS-account identity controls. The underlying
-exact source passed fresh-install Pixel 9
+build `58`. It pins final `hns-wallet-rs 0.1.0` source
+`4e78bb2587bc448d3a65341c7628b2e62cae79cd`, whose protocol closure uses final
+`hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`, and
+exposes native-only create, restore, open, status, unlock, lock, and
+single-HNS-account identity controls. The underlying exact source passed
+fresh-install Pixel 9
 qualification and the complete Apple CI gate in run `31393998309`; the final
-versioned commit, signed artifacts, current screenshots, and store declarations
-still require exact-candidate qualification. Website-provider and
+dependency-repin commit, signed artifacts, current screenshots, and store
+declarations still require exact-candidate qualification. Website-provider and
 WebView/WKWebView access, balances and value movement, names, sending,
 settlement, HNSA/HNSR controls, exchange features, and P2P marketplaces remain
-unavailable. Before final `0.5.8` qualification, `hns-rs` must land its dated
-release commit, `hns-wallet-rs` must repin to it, and mobile must repin to that
-resulting final wallet commit and regenerate its lockfile and notices. None of
-the public builds listed above contains these controls.
+unavailable. The final protocol → wallet → mobile dependency sequence is
+complete; exact-head CI and artifact/store gates remain. None of the public
+builds listed above contains these controls.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).

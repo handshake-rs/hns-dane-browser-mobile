@@ -4,21 +4,21 @@ Last audited: 2026-08-10
 
 Current candidate source coordinates Android `0.5.8` / code `49`, the embedded
 non-publishable Rust workspace `0.5.8`, and iOS `0.5.8` / build `58`. It pins
-`hns-wallet-mobile 0.1.0` to exact intermediate wallet release-preparation source
-`f83d42363305de04bfa955f864cb1e9136c4d648`, whose HNS primitives resolve from
-pre-release `hns-rs` checkpoint
-`abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2`.
+`hns-wallet-mobile 0.1.0` to exact final wallet source
+`4e78bb2587bc448d3a65341c7628b2e62cae79cd`, whose HNS primitives resolve from
+final `hns-rs 0.2.0` source
+`b24b66c382de53330ec21dd3137e056a2bea3e2d`.
 
-This pin is intentionally not the final publication authority. After `hns-rs`
-lands its dated release commit, `hns-wallet-rs` must repin and land a final
-wallet commit; mobile must then repin to that commit, update source policy and
-the lockfile, regenerate notices, and rerun every exact-candidate gate.
+The final protocol → wallet → mobile source sequence is complete. Source
+policy, the lockfile, and notices now bind that exact chain. This establishes
+dependency authority only; every exact-candidate CI, signing, screenshot, and
+store gate still applies.
 
 The prior exact source at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`
 passed Required CI run `31393998309`, including Rust/supply-chain, Android,
 emulator, Apple ABI/XCFramework/app/simulator, and aggregate gates. Its exact
 debug APK also passed a fresh-install Pixel 9 native-wallet exercise. The
-version/repin/metadata commit must pass its own exact-head gates, and no signed
+final repin/metadata commit must pass its own exact-head gates, and no signed
 `0.5.8` artifact has been built or submitted.
 
 ## Configured and Local Gates

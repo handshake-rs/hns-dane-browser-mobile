@@ -24,7 +24,7 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_coordinated_058_identity_and_intermediate_wallet_pin(self) -> None:
+    def test_coordinated_058_identity_and_final_wallet_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"0\.5\.8\"$")
         self.assertRegex(gradle, r"(?m)^\s*versionCode = 49$")
@@ -37,12 +37,65 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(wallet["version"], "=0.1.0")
         self.assertEqual(
             wallet["rev"],
-            "f83d42363305de04bfa955f864cb1e9136c4d648",
+            "4e78bb2587bc448d3a65341c7628b2e62cae79cd",
         )
+
+        lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
+        self.assertIn(
+            "hns-wallet-rs.git?rev="
+            "4e78bb2587bc448d3a65341c7628b2e62cae79cd",
+            lockfile,
+        )
+        self.assertIn(
+            "hns-rs.git?rev=b24b66c382de53330ec21dd3137e056a2bea3e2d",
+            lockfile,
+        )
+        self.assertNotIn("f83d42363305de04bfa955f864cb1e9136c4d648", lockfile)
+        self.assertNotIn("abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2", lockfile)
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
         self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 0\.5\.8$")
         self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 58$")
+
+    def test_unshipped_named_service_market_and_value_closures_stay_absent(self) -> None:
+        with (ROOT / "rust/Cargo.lock").open("rb") as source:
+            lockfile = tomllib.load(source)
+        package_names = {package["name"] for package in lockfile["package"]}
+        forbidden_packages = {
+            "hns-hnsr-protocol",
+            "hns-marketplace-protocol",
+            "hns-p2p-experimental",
+            "hns-service-authority",
+            "hns-wallet-bitcoin-kyoto",
+            "hns-wallet-ethereum",
+            "hns-wallet-market",
+            "hns-wallet-shakedex",
+        }
+        self.assertTrue(forbidden_packages.isdisjoint(package_names))
+
+        android_protocol = (
+            ROOT
+            / "android/app/src/main/java/com/denuoweb/hnsdane/wallet/"
+            "MobileWalletProviderProtocol.kt"
+        ).read_text(encoding="utf-8")
+        for gate in (
+            "PROVIDER_BRIDGE_RELEASE_QUALIFIED",
+            "WALLET_RUNTIME_RELEASE_QUALIFIED",
+            "APPROVAL_RUNTIME_RELEASE_QUALIFIED",
+            "VALUE_RUNTIME_RELEASE_QUALIFIED",
+        ):
+            self.assertIn(f"const val {gate} = false", android_protocol)
+
+        ios_protocol = (
+            ROOT / "ios/HnsDaneBrowser/Wallet/WalletProviderProtocol.swift"
+        ).read_text(encoding="utf-8")
+        for gate in (
+            "providerBridgeReleaseQualified",
+            "walletRuntimeReleaseQualified",
+            "approvalRuntimeReleaseQualified",
+            "valueRuntimeReleaseQualified",
+        ):
+            self.assertIn(f"static let {gate} = false", ios_protocol)
 
     def test_store_and_privacy_copy_describes_limited_native_wallet(self) -> None:
         paths = (

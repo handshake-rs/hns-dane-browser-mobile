@@ -29,12 +29,10 @@ All notable changes to this project will be documented in this file.
   Rust workspace `0.5.8`, and iOS `0.5.8` (build `58`) as one
   release-preparation candidate. No signed `0.5.8` store artifact has been
   uploaded or published.
-- Repinned `hns-wallet-mobile` and its exact lockfile closure to the current
-  intermediate wallet release-preparation source
-  `f83d42363305de04bfa955f864cb1e9136c4d648`, including its pre-release
-  `hns-rs` checkpoint. Before final qualification, mobile must
-  repin once more to the wallet commit that consumes the dated final `hns-rs`
-  release, then regenerate its lockfile and notices.
+- Repinned `hns-wallet-mobile` and its exact lockfile closure to final wallet
+  `0.1.0` source `4e78bb2587bc448d3a65341c7628b2e62cae79cd`, including final
+  `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`,
+  then regenerated the lock-derived notices and source-policy fingerprint.
 - Replaced the unreleased Android/iOS private wallet ABI-v1 scaffold with a
   fail-closed ABI-v2 public-projection boundary while retaining website Provider
   API schema and `providerApiVersion` 1.

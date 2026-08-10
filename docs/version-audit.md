@@ -14,7 +14,8 @@ into the app.
 | Android app | `0.5.8` / code `49` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `0.5.8` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `0.5.8` / build `58` | `ios/project.yml` |
-| Native wallet controller | `hns-wallet-mobile 0.1.0` at `f83d42363305de04bfa955f864cb1e9136c4d648` | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| Native wallet controller | `hns-wallet-mobile 0.1.0` at `4e78bb2587bc448d3a65341c7628b2e62cae79cd` | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| Wallet protocol closure | `hns-rs 0.2.0` at `b24b66c382de53330ec21dd3137e056a2bea3e2d` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
 | Consolidated engine adapters | Git `0.2.0` at `b8bdfbf7e234e64166886ade6f79d698e23056af` | Cargo manifests and lock |
@@ -49,13 +50,11 @@ Notes:
   one-time recovery display, and one local non-value HNS account identity.
   Balances, transfers, names, website-provider access, settlement, exchange
   features, HNSA/HNSR controls, and P2P marketplaces remain unavailable.
-- `hns-wallet-mobile` is pinned to intermediate wallet release-preparation
-  commit `f83d42363305de04bfa955f864cb1e9136c4d648`. Its lock closure uses
-  pre-release `hns-rs` checkpoint
-  `abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2`. This is not the final release
-  authority: after `hns-rs` lands its dated release commit, `hns-wallet-rs`
-  must repin to it and mobile must consume the resulting wallet commit before
-  exact final-candidate qualification.
+- `hns-wallet-mobile` is pinned to final wallet `0.1.0` source
+  `4e78bb2587bc448d3a65341c7628b2e62cae79cd`. Its lock closure uses final
+  `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`.
+  The dependency sequence is complete; exact final-candidate CI and artifact
+  qualification remain separate gates.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on
   2026-08-09 still reports `0.5.5` as current; older review-state notes in
   this repository describe the submission chronology, not the current status.
