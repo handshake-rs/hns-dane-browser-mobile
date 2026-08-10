@@ -11,14 +11,18 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from verify_cargo_git_policy import (  # noqa: E402
     APPROVED_ENGINE_GIT,
+    APPROVED_PROTOCOL_GIT,
+    APPROVED_WALLET_GIT,
     CRATES_IO_SOURCE,
     ENGINE_GIT_URL,
     ENGINE_PACKAGES,
     ENGINE_REQUIREMENTS,
     ENGINE_VERSIONS,
     MIGRATED_LOCAL_CRATES,
+    PROTOCOL_GIT_URL,
+    WALLET_GIT_URL,
     CargoSourcePolicyError,
-    is_approved_engine_git_source,
+    is_approved_git_source,
     verify_repository,
 )
 
@@ -89,11 +93,27 @@ class CargoSourcePolicyTests(unittest.TestCase):
         name = "hns-browser-chain"
         version, revision = APPROVED_ENGINE_GIT[name]
         source = f"git+{ENGINE_GIT_URL}?rev={revision}#{revision}"
-        self.assertTrue(is_approved_engine_git_source(name, version, source))
-        self.assertFalse(is_approved_engine_git_source(name, "9.9.9", source))
+        self.assertTrue(is_approved_git_source(name, version, source))
+        self.assertFalse(is_approved_git_source(name, "9.9.9", source))
         self.assertFalse(
-            is_approved_engine_git_source(name, version, source.replace(revision, "0" * 40))
+            is_approved_git_source(name, version, source.replace(revision, "0" * 40))
         )
+
+    def test_accepts_only_exact_reviewed_wallet_and_protocol_source_ids(self) -> None:
+        for name, approved, url in (
+            ("hns-wallet-mobile", APPROVED_WALLET_GIT, WALLET_GIT_URL),
+            ("hns-covenants", APPROVED_PROTOCOL_GIT, PROTOCOL_GIT_URL),
+        ):
+            with self.subTest(package=name):
+                version, revision = approved[name]
+                source = f"git+{url}?rev={revision}#{revision}"
+                self.assertTrue(is_approved_git_source(name, version, source))
+                self.assertFalse(is_approved_git_source(name, "9.9.9", source))
+                self.assertFalse(
+                    is_approved_git_source(
+                        name, version, source.replace(revision, "0" * 40)
+                    )
+                )
 
     def test_rejects_restored_product_local_engine_crate(self) -> None:
         temporary, root = self.create_fixture()

@@ -12,6 +12,7 @@ allow = [
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "CC0-1.0",
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
@@ -29,4 +30,8 @@ wildcards = "allow"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-allow-git = ["https://github.com/handshake-rs/hns-dane-engine.git"]
+allow-git = [
+    "https://github.com/handshake-rs/hns-dane-engine.git",
+    "https://github.com/handshake-rs/hns-rs.git",
+    "https://github.com/handshake-rs/hns-wallet-rs.git",
+]

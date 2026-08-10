@@ -12,3 +12,4 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 hns-mobile-platform-runtime.workspace = true
+hns-wallet-mobile.workspace = true

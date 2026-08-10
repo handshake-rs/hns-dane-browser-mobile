@@ -9,11 +9,11 @@ dependencies are retained conservatively. Workspace-owned HNS DANE Browser crate
 test-only, lint, platform build-tool, fuzz, and snapshot-exporter dependencies are excluded.
 
 Shipped Rust target closure counts:
-  aarch64-linux-android: 188 third-party components
-  x86_64-linux-android: 188 third-party components
-  aarch64-apple-ios: 177 third-party components
-  aarch64-apple-ios-sim: 177 third-party components
-  x86_64-apple-ios: 177 third-party components
+  aarch64-linux-android: 237 third-party components
+  x86_64-linux-android: 237 third-party components
+  aarch64-apple-ios: 225 third-party components
+  aarch64-apple-ios-sim: 225 third-party components
+  x86_64-apple-ios: 225 third-party components
 
 License expressions and declared license files come from verified package metadata. The
 reproduced texts come from checksum-verified Cargo registry packages, exact-revision
@@ -22,16 +22,16 @@ does not imply endorsement by the component authors.
 
 Generator schema: 3
 Generated input SHA-256:
-  scripts/generate-third-party-notices.py = f11c57412f698ae94e0f77e77ea2cfff2dcc0fed0e670ebf083ba5a098b29d4f
-  scripts/verify_cargo_git_policy.py = b7ff360bff606c8b72396c6a6d9e25818278901c59c50e3eeb350bb456c19a46
-  rust/Cargo.toml = 1207b04a9d396a68b08157f0cbc7acb0ad8ea9f5276a67dfdd12495dade9243c
-  rust/Cargo.lock = 3b785008d059be4cca8d81e79962ea7df57daa8f169dca2f9add56e7e0b5282e
+  scripts/generate-third-party-notices.py = 08583e4b8d5c724600edda04a298d99571ab5e57bce459ba4ec31054f87782f2
+  scripts/verify_cargo_git_policy.py = 194d2472b24f1a3cd9219c17253dcee45fa7d42c7797d6f895339a4a227e3ba3
+  rust/Cargo.toml = e6b789636d63b989ae36573d3fd78a4a2ad134c8b7f3d97497e43868c3cf90d7
+  rust/Cargo.lock = fe01af4168272867a3b0ade68646c988f35f615d024a67935dd0847d959bee65
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
-  rust/crates/android-ffi/Cargo.toml = aa1a41a1d91ad5b0e1a7e965b1e82747911ba56a943260340f076d8aa326af9a
+  rust/crates/android-ffi/Cargo.toml = 74eb8ed9727dc53b3225b38e705dcc58b7155a3391017a8a035f91a3bccb5f14
   rust/crates/hns-mobile-platform-runtime/Cargo.toml = d1277558e397275c16506465a68f8680f87ab85cf6d0938962fbfa8e10342309
-  rust/crates/ios-ffi/Cargo.toml = a7a7e59af8c8a90209a9166038d4737d4dba53e4728f4509b552b03852d05241
+  rust/crates/ios-ffi/Cargo.toml = 0e8ecce1ecbb912c1c178fd8e811237d0f37fa5e471a0436892d4bfab297d06e
 
 ANDROID RUNTIME COMPONENTS (40)
   androidx.activity:activity-ktx:1.13.0 | Apache-2.0
@@ -75,7 +75,10 @@ ANDROID RUNTIME COMPONENTS (40)
   org.jetbrains:annotations:23.0.0 | Apache-2.0
   org.jspecify:jspecify:1.0.0 | Apache-2.0
 
-RUST COMPONENTS (188)
+RUST COMPONENTS (237)
+  aead 0.5.2 | MIT OR Apache-2.0
+  argon2 0.5.3 | MIT OR Apache-2.0
+  arrayvec 0.7.8 | MIT OR Apache-2.0
   asn1-rs 0.7.2 | MIT OR Apache-2.0
   asn1-rs-derive 0.6.0 | MIT OR Apache-2.0
   asn1-rs-impl 0.2.0 | MIT/Apache-2.0
@@ -83,7 +86,11 @@ RUST COMPONENTS (188)
   autocfg 1.5.1 | Apache-2.0 OR MIT
   base16ct 0.2.0 | Apache-2.0 OR MIT
   base64 0.22.1 | MIT OR Apache-2.0
+  base64ct 1.8.3 | Apache-2.0 OR MIT
+  bech32 0.11.1 | MIT
+  bip39 2.2.2 | CC0-1.0
   bit-vec 0.9.1 | Apache-2.0 OR MIT
+  bitcoin_hashes 0.14.101 | CC0-1.0
   bitflags 2.13.0 | MIT OR Apache-2.0
   blake2 0.10.6 | MIT OR Apache-2.0
   block-buffer 0.10.4 | MIT OR Apache-2.0
@@ -92,6 +99,9 @@ RUST COMPONENTS (188)
   cesu8 1.1.0 | Apache-2.0/MIT
   cfg-if 1.0.4 | MIT OR Apache-2.0
   cfg_aliases 0.2.1 | MIT
+  chacha20 0.9.1 | Apache-2.0 OR MIT
+  chacha20poly1305 0.10.1 | Apache-2.0 OR MIT
+  cipher 0.4.4 | MIT OR Apache-2.0
   combine 4.6.7 | MIT
   const-oid 0.9.6 | Apache-2.0 OR MIT
   cpufeatures 0.2.17 | MIT OR Apache-2.0
@@ -106,6 +116,7 @@ RUST COMPONENTS (188)
   ecdsa 0.16.9 | Apache-2.0 OR MIT
   elliptic-curve 0.13.8 | Apache-2.0 OR MIT
   equivalent 1.0.2 | Apache-2.0 OR MIT
+  errno 0.3.14 | MIT OR Apache-2.0
   fallible-iterator 0.3.0 | MIT/Apache-2.0
   fallible-streaming-iterator 0.1.9 | MIT/Apache-2.0
   fastrand 2.4.1 | Apache-2.0 OR MIT
@@ -113,6 +124,7 @@ RUST COMPONENTS (188)
   find-msvc-tools 0.1.9 | MIT OR Apache-2.0
   fnv 1.0.7 | Apache-2.0 / MIT
   foldhash 0.2.0 | Zlib
+  form_urlencoded 1.2.2 | MIT OR Apache-2.0
   futures 0.3.32 | MIT OR Apache-2.0
   futures-channel 0.3.32 | MIT OR Apache-2.0
   futures-core 0.3.32 | MIT OR Apache-2.0
@@ -133,6 +145,8 @@ RUST COMPONENTS (188)
   hashbrown 0.17.1 | MIT OR Apache-2.0
   hashlink 0.11.1 | MIT OR Apache-2.0
   hex 0.4.3 | MIT OR Apache-2.0
+  hex-conservative 0.2.2 | CC0-1.0
+  hkdf 0.12.4 | MIT OR Apache-2.0
   hmac 0.12.1 | MIT OR Apache-2.0
   hns-browser-chain 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-dane 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
@@ -148,10 +162,26 @@ RUST COMPONENTS (188)
   hns-browser-transport 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-urkel 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-cache 0.2.0 | MIT OR Apache-2.0
+  hns-covenants 0.2.0 | MIT OR Apache-2.0
   hns-dns-wire 0.2.0 | MIT OR Apache-2.0
+  hns-encoding 0.2.0 | MIT OR Apache-2.0
   hns-icann-dane 0.1.0 | MIT OR Apache-2.0
   hns-namespace-resolution 0.1.0 | MIT OR Apache-2.0
+  hns-primitives 0.2.0 | MIT OR Apache-2.0
   hns-resolution-policy 0.1.0 | MIT OR Apache-2.0
+  hns-script 0.2.0 | MIT OR Apache-2.0
+  hns-swap 0.2.0 | MIT OR Apache-2.0
+  hns-transaction 0.2.0 | MIT OR Apache-2.0
+  hns-urkel-proof 0.2.0 | MIT OR Apache-2.0
+  hns-wallet-chain-api 0.1.0 | MIT OR Apache-2.0
+  hns-wallet-ffi 0.1.0 | MIT OR Apache-2.0
+  hns-wallet-hns 0.1.0 | MIT OR Apache-2.0
+  hns-wallet-host 0.1.0 | MIT OR Apache-2.0
+  hns-wallet-mobile 0.1.0 | MIT OR Apache-2.0
+  hns-wallet-provider 0.1.0 | MIT OR Apache-2.0
+  hns-wallet-service 0.1.0 | MIT OR Apache-2.0
+  hns-wallet-store 0.1.0 | MIT OR Apache-2.0
+  hns-wallet-types 0.1.0 | MIT OR Apache-2.0
   http 1.4.2 | MIT OR Apache-2.0
   httparse 1.10.1 | MIT OR Apache-2.0
   icu_collections 2.2.0 | Unicode-3.0
@@ -164,15 +194,18 @@ RUST COMPONENTS (188)
   idna 1.1.0 | MIT OR Apache-2.0
   idna_adapter 1.2.2 | Apache-2.0 OR MIT
   indexmap 2.14.0 | Apache-2.0 OR MIT
+  inout 0.1.4 | MIT OR Apache-2.0
   itoa 1.0.18 | MIT OR Apache-2.0
   jni 0.21.1 | MIT/Apache-2.0
   jni-sys 0.3.1 | MIT OR Apache-2.0
   jni-sys 0.4.1 | MIT OR Apache-2.0
   jni-sys-macros 0.4.1 | MIT OR Apache-2.0
+  k256 0.13.4 | Apache-2.0 OR MIT
   keccak 0.1.6 | Apache-2.0 OR MIT
   lazy_static 1.5.0 | MIT OR Apache-2.0
   libc 0.2.186 | MIT OR Apache-2.0
   libsqlite3-sys 0.37.0 | MIT
+  linux-raw-sys 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
   litemap 0.8.2 | Unicode-3.0
   log 0.4.33 | MIT OR Apache-2.0
   lru-slab 0.1.2 | MIT OR Apache-2.0 OR Zlib
@@ -186,9 +219,14 @@ RUST COMPONENTS (188)
   num-traits 0.2.19 | MIT OR Apache-2.0
   oid-registry 0.8.1 | MIT OR Apache-2.0
   once_cell 1.21.4 | MIT OR Apache-2.0
+  opaque-debug 0.3.1 | MIT OR Apache-2.0
   p256 0.13.2 | Apache-2.0 OR MIT
+  password-hash 0.5.0 | MIT OR Apache-2.0
+  percent-encoding 2.3.2 | MIT OR Apache-2.0
   pin-project-lite 0.2.17 | Apache-2.0 OR MIT
+  pkcs8 0.10.2 | Apache-2.0 OR MIT
   pkg-config 0.3.33 | MIT OR Apache-2.0
+  poly1305 0.8.0 | Apache-2.0 OR MIT
   potential_utf 0.1.5 | Unicode-3.0
   powerfmt 0.2.0 | MIT OR Apache-2.0
   ppv-lite86 0.2.21 | MIT OR Apache-2.0
@@ -198,16 +236,20 @@ RUST COMPONENTS (188)
   quinn-proto 0.11.15 | MIT OR Apache-2.0
   quinn-udp 0.5.14 | MIT OR Apache-2.0
   quote 1.0.46 | MIT OR Apache-2.0
+  rand 0.8.7 | MIT OR Apache-2.0
   rand 0.9.4 | MIT OR Apache-2.0
+  rand_chacha 0.3.1 | MIT OR Apache-2.0
   rand_chacha 0.9.0 | MIT OR Apache-2.0
   rand_core 0.6.4 | MIT OR Apache-2.0
   rand_core 0.9.5 | MIT OR Apache-2.0
   rcgen 0.14.8 | MIT OR Apache-2.0
   rfc6979 0.4.0 | Apache-2.0 OR MIT
   ring 0.17.14 | Apache-2.0 AND ISC
+  ripemd 0.1.3 | MIT OR Apache-2.0
   rusqlite 0.39.0 | MIT
   rustc-hash 2.1.2 | Apache-2.0 OR MIT
   rusticata-macros 4.1.0 | MIT/Apache-2.0
+  rustix 1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
   rustls 0.23.41 | Apache-2.0 OR ISC OR MIT
   rustls-pki-types 1.14.1 | MIT OR Apache-2.0
   rustls-webpki 0.103.13 | ISC
@@ -216,6 +258,7 @@ RUST COMPONENTS (188)
   serde 1.0.228 | MIT OR Apache-2.0
   serde_core 1.0.228 | MIT OR Apache-2.0
   serde_derive 1.0.228 | MIT OR Apache-2.0
+  serde_json 1.0.151 | MIT OR Apache-2.0
   sha1 0.10.6 | MIT OR Apache-2.0
   sha2 0.10.9 | MIT OR Apache-2.0
   sha3 0.10.9 | MIT OR Apache-2.0
@@ -224,6 +267,7 @@ RUST COMPONENTS (188)
   slab 0.4.12 | MIT
   smallvec 1.15.2 | MIT OR Apache-2.0
   socket2 0.6.4 | MIT OR Apache-2.0
+  spki 0.7.3 | Apache-2.0 OR MIT
   stable_deref_trait 1.2.1 | MIT OR Apache-2.0
   subtle 2.6.1 | BSD-3-Clause
   syn 2.0.118 | MIT OR Apache-2.0
@@ -246,7 +290,10 @@ RUST COMPONENTS (188)
   tracing-core 0.1.36 | MIT
   typenum 1.20.1 | MIT OR Apache-2.0
   unicode-ident 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0
+  unicode-normalization 0.1.25 | MIT OR Apache-2.0
+  universal-hash 0.5.1 | MIT OR Apache-2.0
   untrusted 0.9.0 | ISC
+  url 2.5.8 | MIT OR Apache-2.0
   utf8_iter 1.0.4 | Apache-2.0 OR MIT
   vcpkg 0.2.15 | MIT/Apache-2.0
   version_check 0.9.5 | MIT/Apache-2.0
@@ -261,9 +308,11 @@ RUST COMPONENTS (188)
   zerofrom 0.1.8 | Unicode-3.0
   zerofrom-derive 0.1.7 | Unicode-3.0
   zeroize 1.9.0 | Apache-2.0 OR MIT
+  zeroize_derive 1.5.0 | Apache-2.0 OR MIT
   zerotrie 0.2.4 | Unicode-3.0
   zerovec 0.11.6 | Unicode-3.0
   zerovec-derive 0.11.3 | Unicode-3.0
+  zmij 1.0.23 | MIT
 
 LICENSE AND NOTICE TEXTS
 
@@ -281,6 +330,39 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: 033a9383ff21d1e4811d98dd2e0081b0ba0d9c9a31d6c7ba9e63e3488479bf29
+Applies to:
+  - Rust crate unicode-normalization 0.1.25
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2015 The Rust Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 
 ================================================================================
 Notice SHA-256: 045a1c4f9aa0a307b3a4a153e9646adc7ceb5c6c5c27c272b4486b92f96438a8
@@ -358,6 +440,15 @@ Applies to:
   - Rust crate hns-icann-dane 0.1.0
   - Rust crate hns-namespace-resolution 0.1.0
   - Rust crate hns-resolution-policy 0.1.0
+  - Rust crate hns-wallet-chain-api 0.1.0
+  - Rust crate hns-wallet-ffi 0.1.0
+  - Rust crate hns-wallet-hns 0.1.0
+  - Rust crate hns-wallet-host 0.1.0
+  - Rust crate hns-wallet-mobile 0.1.0
+  - Rust crate hns-wallet-provider 0.1.0
+  - Rust crate hns-wallet-service 0.1.0
+  - Rust crate hns-wallet-store 0.1.0
+  - Rust crate hns-wallet-types 0.1.0
   - Rust crate quinn 0.11.11
   - Rust crate quinn-proto 0.11.15
   - Rust crate quinn-udp 0.5.14
@@ -393,6 +484,39 @@ SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
 OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+================================================================================
+Notice SHA-256: 07ce2f16212bdab8e8bf9ddad7f37f1e16e2fdc57031dab901356a66348cdf00
+Applies to:
+  - Rust crate spki 0.7.3
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2021-2023 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 
 ================================================================================
 Notice SHA-256: 0895f3760ba77d5c6212ff44f5d3f6b78be786fdc6d8058e6e169073e6cb7ab6
@@ -587,6 +711,39 @@ Source file names:
 --------------------------------------------------------------------------------
 Copyright (c) 2014 Steve "Sc00bz" Thomas (steve at tobtu dot com)
 Copyright (c) 2022 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: 1038b7737a0a04bd9268bbb8d17ee4e13c9bb3cf36f39da46c3a1818c798aa20
+Applies to:
+  - Rust crate zeroize_derive 1.5.0
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2019-2026 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -1022,9 +1179,26 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ================================================================================
+Notice SHA-256: 20cec30ad77804372faa6c82e5a1a4be426a75e32808a159ef646c2037649071
+Applies to:
+  - Rust crate unicode-normalization 0.1.25
+Source file names:
+  - COPYRIGHT
+--------------------------------------------------------------------------------
+Licensed under the Apache License, Version 2.0
+<LICENSE-APACHE or
+http://www.apache.org/licenses/LICENSE-2.0> or the MIT
+license <LICENSE-MIT or http://opensource.org/licenses/MIT>,
+at your option. All files in the project carrying such
+notice may not be copied, modified, or distributed except
+according to those terms.
+
+================================================================================
 Notice SHA-256: 2411d70acb18e15ac32f7aace439a5c2725b8d0074510caf651d4c270d7c05aa
 Applies to:
+  - Rust crate rand 0.8.7
   - Rust crate rand 0.9.4
+  - Rust crate rand_chacha 0.3.1
   - Rust crate rand_chacha 0.9.0
   - Rust crate rand_core 0.6.4
   - Rust crate rand_core 0.9.5
@@ -1327,15 +1501,64 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ================================================================================
+Notice SHA-256: 282b5e566e851a7cf2ae4b0f226593c9a1e4bd69bec314c451a2624bb752cfac
+Applies to:
+  - Rust crate chacha20 0.9.1
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2019-2023 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
 Notice SHA-256: 283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b
 Applies to:
   - Rust crate hns-browser-observability 0.1.2
   - Rust crate hns-browser-runtime 0.1.0
   - Rust crate hns-cache 0.2.0
+  - Rust crate hns-covenants 0.2.0
   - Rust crate hns-dns-wire 0.2.0
+  - Rust crate hns-encoding 0.2.0
   - Rust crate hns-icann-dane 0.1.0
   - Rust crate hns-namespace-resolution 0.1.0
+  - Rust crate hns-primitives 0.2.0
   - Rust crate hns-resolution-policy 0.1.0
+  - Rust crate hns-script 0.2.0
+  - Rust crate hns-swap 0.2.0
+  - Rust crate hns-transaction 0.2.0
+  - Rust crate hns-urkel-proof 0.2.0
+  - Rust crate hns-wallet-chain-api 0.1.0
+  - Rust crate hns-wallet-ffi 0.1.0
+  - Rust crate hns-wallet-hns 0.1.0
+  - Rust crate hns-wallet-host 0.1.0
+  - Rust crate hns-wallet-mobile 0.1.0
+  - Rust crate hns-wallet-provider 0.1.0
+  - Rust crate hns-wallet-service 0.1.0
+  - Rust crate hns-wallet-store 0.1.0
+  - Rust crate hns-wallet-types 0.1.0
   - Rust crate lru-slab 0.1.2
   - Rust crate quinn 0.11.11
   - Rust crate quinn-proto 0.11.15
@@ -1343,6 +1566,7 @@ Applies to:
   - Rust crate tinyvec 1.11.0
   - Rust crate utf8_iter 1.0.4
   - Rust crate zeroize 1.9.0
+  - Rust crate zeroize_derive 1.5.0
 Source file names:
   - canonical MIT OR Apache-2.0 text from quinn 0.11.11/LICENSE-APACHE
   - LICENSE-APACHE
@@ -1551,6 +1775,267 @@ Apache License
    limitations under the License.
 
 ================================================================================
+Notice SHA-256: 2ab57d98da8310e83d38b9e53f97187cefb44b21917f7ccb4b78aa191854b717
+Applies to:
+  - Rust crate hkdf 0.12.4
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2015-2018 Vlad Filippov
+Copyright (c) 2018-2021 RustCrypto Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: 2f213ec6b1355dc841dc489c9e7ce1dddd07611df474efcf61b8a960797398e9
+Applies to:
+  - Rust crate linux-raw-sys 0.12.1
+  - Rust crate rustix 1.1.4
+Source file names:
+  - LICENSE-Apache-2.0_WITH_LLVM-exception
+--------------------------------------------------------------------------------
+Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [yyyy] [name of copyright owner]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+
+--- LLVM Exceptions to the Apache 2.0 License ----
+
+As an exception, if, as a result of your compiling your source code, portions
+of this Software are embedded into an Object form of such source code, you
+may redistribute such embedded portions in such Object form without complying
+with the conditions of Sections 4(a), 4(b) and 4(d) of the License.
+
+In addition, if you combine or link compiled forms of this Software with
+software that is licensed under the GPLv2 ("Combined Software") and if a
+court of competent jurisdiction determines that the patent provision (Section
+3), the indemnity provision (Section 9) or other Section of the License
+conflicts with the conditions of the GPLv2, you may retroactively and
+prospectively choose to deem waived or otherwise exclude such Section(s) of
+the License, but only in their entirety and only with respect to the Combined
+Software.
+
+================================================================================
 Notice SHA-256: 2ff0b8901359ce9bb419096f7761f0ac53b4c0f90755901161dc2cdddc8a7671
 Applies to:
   - Rust crate fallible-iterator 0.3.0
@@ -1585,15 +2070,18 @@ Applies to:
   - Rust crate fastrand 2.4.1
   - Rust crate group 0.13.0
   - Rust crate itoa 1.0.18
+  - Rust crate linux-raw-sys 0.12.1
   - Rust crate minimal-lexical 0.2.1
   - Rust crate once_cell 1.21.4
   - Rust crate pin-project-lite 0.2.17
   - Rust crate proc-macro2 1.0.106
   - Rust crate quote 1.0.46
   - Rust crate rustc-hash 2.1.2
+  - Rust crate rustix 1.1.4
   - Rust crate serde 1.0.228
   - Rust crate serde_core 1.0.228
   - Rust crate serde_derive 1.0.228
+  - Rust crate serde_json 1.0.151
   - Rust crate syn 2.0.118
   - Rust crate syn 3.0.3
   - Rust crate thiserror 1.0.69
@@ -1601,9 +2089,43 @@ Applies to:
   - Rust crate thiserror-impl 1.0.69
   - Rust crate thiserror-impl 2.0.19
   - Rust crate unicode-ident 1.0.24
+  - Rust crate zmij 1.0.23
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: 33ed9a8ecf556f161ec5d7e8761712f404d082bf9eeb8f6085d43517b5938be4
+Applies to:
+  - Rust crate form_urlencoded 1.2.2
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2013-2016 The rust-url developers
+
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the
@@ -3400,6 +3922,7 @@ limitations under the License.
 Notice SHA-256: 692b1604961dd580cfcde8cc33d2c587f5f6349b00c449662194fb1586e850c5
 Applies to:
   - Rust crate crypto-common 0.1.7
+  - Rust crate ripemd 0.1.3
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -3491,6 +4014,7 @@ SOFTWARE.
 Notice SHA-256: 6b118915d98a1411a19001b2e77010ce4333fa8245e2d5839c119968e096f232
 Applies to:
   - Rust crate der 0.7.10
+  - Rust crate pkcs8 0.10.2
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -3582,6 +4106,138 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: 6d489af6292662d9e36d34ce49423784984a5f6e41d7b58f49b01264df59fa03
+Applies to:
+  - Rust crate bip39 2.2.2
+  - Rust crate bitcoin_hashes 0.14.101
+  - Rust crate hex-conservative 0.2.2
+Source file names:
+  - canonical CC0-1.0 text from bip39 2.2.2/LICENSE
+  - LICENSE
+--------------------------------------------------------------------------------
+Creative Commons Legal Code
+
+CC0 1.0 Universal
+
+    CREATIVE COMMONS CORPORATION IS NOT A LAW FIRM AND DOES NOT PROVIDE
+    LEGAL SERVICES. DISTRIBUTION OF THIS DOCUMENT DOES NOT CREATE AN
+    ATTORNEY-CLIENT RELATIONSHIP. CREATIVE COMMONS PROVIDES THIS
+    INFORMATION ON AN "AS-IS" BASIS. CREATIVE COMMONS MAKES NO WARRANTIES
+    REGARDING THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS
+    PROVIDED HEREUNDER, AND DISCLAIMS LIABILITY FOR DAMAGES RESULTING FROM
+    THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS PROVIDED
+    HEREUNDER.
+
+Statement of Purpose
+
+The laws of most jurisdictions throughout the world automatically confer
+exclusive Copyright and Related Rights (defined below) upon the creator
+and subsequent owner(s) (each and all, an "owner") of an original work of
+authorship and/or a database (each, a "Work").
+
+Certain owners wish to permanently relinquish those rights to a Work for
+the purpose of contributing to a commons of creative, cultural and
+scientific works ("Commons") that the public can reliably and without fear
+of later claims of infringement build upon, modify, incorporate in other
+works, reuse and redistribute as freely as possible in any form whatsoever
+and for any purposes, including without limitation commercial purposes.
+These owners may contribute to the Commons to promote the ideal of a free
+culture and the further production of creative, cultural and scientific
+works, or to gain reputation or greater distribution for their Work in
+part through the use and efforts of others.
+
+For these and/or other purposes and motivations, and without any
+expectation of additional consideration or compensation, the person
+associating CC0 with a Work (the "Affirmer"), to the extent that he or she
+is an owner of Copyright and Related Rights in the Work, voluntarily
+elects to apply CC0 to the Work and publicly distribute the Work under its
+terms, with knowledge of his or her Copyright and Related Rights in the
+Work and the meaning and intended legal effect of CC0 on those rights.
+
+1. Copyright and Related Rights. A Work made available under CC0 may be
+protected by copyright and related or neighboring rights ("Copyright and
+Related Rights"). Copyright and Related Rights include, but are not
+limited to, the following:
+
+  i. the right to reproduce, adapt, distribute, perform, display,
+     communicate, and translate a Work;
+ ii. moral rights retained by the original author(s) and/or performer(s);
+iii. publicity and privacy rights pertaining to a person's image or
+     likeness depicted in a Work;
+ iv. rights protecting against unfair competition in regards to a Work,
+     subject to the limitations in paragraph 4(a), below;
+  v. rights protecting the extraction, dissemination, use and reuse of data
+     in a Work;
+ vi. database rights (such as those arising under Directive 96/9/EC of the
+     European Parliament and of the Council of 11 March 1996 on the legal
+     protection of databases, and under any national implementation
+     thereof, including any amended or successor version of such
+     directive); and
+vii. other similar, equivalent or corresponding rights throughout the
+     world based on applicable law or treaty, and any national
+     implementations thereof.
+
+2. Waiver. To the greatest extent permitted by, but not in contravention
+of, applicable law, Affirmer hereby overtly, fully, permanently,
+irrevocably and unconditionally waives, abandons, and surrenders all of
+Affirmer's Copyright and Related Rights and associated claims and causes
+of action, whether now known or unknown (including existing as well as
+future claims and causes of action), in the Work (i) in all territories
+worldwide, (ii) for the maximum duration provided by applicable law or
+treaty (including future time extensions), (iii) in any current or future
+medium and for any number of copies, and (iv) for any purpose whatsoever,
+including without limitation commercial, advertising or promotional
+purposes (the "Waiver"). Affirmer makes the Waiver for the benefit of each
+member of the public at large and to the detriment of Affirmer's heirs and
+successors, fully intending that such Waiver shall not be subject to
+revocation, rescission, cancellation, termination, or any other legal or
+equitable action to disrupt the quiet enjoyment of the Work by the public
+as contemplated by Affirmer's express Statement of Purpose.
+
+3. Public License Fallback. Should any part of the Waiver for any reason
+be judged legally invalid or ineffective under applicable law, then the
+Waiver shall be preserved to the maximum extent permitted taking into
+account Affirmer's express Statement of Purpose. In addition, to the
+extent the Waiver is so judged Affirmer hereby grants to each affected
+person a royalty-free, non transferable, non sublicensable, non exclusive,
+irrevocable and unconditional license to exercise Affirmer's Copyright and
+Related Rights in the Work (i) in all territories worldwide, (ii) for the
+maximum duration provided by applicable law or treaty (including future
+time extensions), (iii) in any current or future medium and for any number
+of copies, and (iv) for any purpose whatsoever, including without
+limitation commercial, advertising or promotional purposes (the
+"License"). The License shall be deemed effective as of the date CC0 was
+applied by Affirmer to the Work. Should any part of the License for any
+reason be judged legally invalid or ineffective under applicable law, such
+partial invalidity or ineffectiveness shall not invalidate the remainder
+of the License, and in such case Affirmer hereby affirms that he or she
+will not (i) exercise any of his or her remaining Copyright and Related
+Rights in the Work or (ii) assert any associated claims and causes of
+action with respect to the Work, in either case contrary to Affirmer's
+express Statement of Purpose.
+
+4. Limitations and Disclaimers.
+
+ a. No trademark or patent rights held by Affirmer are waived, abandoned,
+    surrendered, licensed or otherwise affected by this document.
+ b. Affirmer offers the Work as-is and makes no representations or
+    warranties of any kind concerning the Work, express, implied,
+    statutory or otherwise, including without limitation warranties of
+    title, merchantability, fitness for a particular purpose, non
+    infringement, or the absence of latent or other defects, accuracy, or
+    the present or absence of errors, whether or not discoverable, all to
+    the greatest extent permissible under applicable law.
+ c. Affirmer disclaims responsibility for clearing rights of other persons
+    that may apply to the Work or any use thereof, including without
+    limitation any person's Copyright and Related Rights in the Work.
+    Further, Affirmer disclaims responsibility for obtaining any necessary
+    consents, permissions or other rights required for any use of the
+    Work.
+ d. Affirmer understands and acknowledges that Creative Commons is not a
+    party to this document and has no duty or obligation with respect to
+    this CC0 or use of the Work.
 
 ================================================================================
 Notice SHA-256: 6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a
@@ -3826,6 +4482,40 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
+Notice SHA-256: 71366a4092ad07b6fc29c4aa94ceeac8b892f7a24fcdedf8df7cba8112cdc15b
+Applies to:
+  - Rust crate inout 0.1.4
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2022 The RustCrypto Project Developers
+Copyright (c) 2022 Artyom Pavlov
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
 Notice SHA-256: 720a36b5c6f3bab95528ad54d8fdf0800282dd500776b3dd289e97c0a067532c
 Applies to:
   - Rust crate sha3 0.10.9
@@ -4006,13 +4696,152 @@ licensed under the Apache License, Version 2.0 <LICENSE-APACHE> or
 <LICENSE-MIT> or <http://opensource.org/licenses/MIT>, at your option.
 
 ================================================================================
+Notice SHA-256: 7813bacdaa2b101210b073010307f381a880d6457bed79d2becf26901dc3b93f
+Applies to:
+  - Rust crate linux-raw-sys 0.12.1
+Source file names:
+  - COPYRIGHT
+--------------------------------------------------------------------------------
+Short version for non-lawyers:
+
+`linux-raw-sys` is triple-licensed under Apache 2.0 with the LLVM Exception,
+Apache 2.0, and MIT terms.
+
+
+Longer version:
+
+Copyrights in the `linux-raw-sys` project are retained by their contributors.
+No copyright assignment is required to contribute to the `linux-raw-sys`
+project.
+
+Some files include code derived from Rust's `libstd`; see the comments in
+the code for details.
+
+Except as otherwise noted (below and/or in individual files), `linux-raw-sys`
+is licensed under:
+
+ - the Apache License, Version 2.0, with the LLVM Exception
+   <LICENSE-Apache-2.0_WITH_LLVM-exception> or
+   <http://llvm.org/foundation/relicensing/LICENSE.txt>
+ - the Apache License, Version 2.0
+   <LICENSE-APACHE> or
+   <http://www.apache.org/licenses/LICENSE-2.0>,
+ - or the MIT license
+   <LICENSE-MIT> or
+   <http://opensource.org/licenses/MIT>,
+
+at your option.
+
+================================================================================
+Notice SHA-256: 7873dbb4b8660923e8fdfb93c71ee31ed8bb44bffb5851e6d6a5e62adf65adbd
+Applies to:
+  - Rust crate opaque-debug 0.3.1
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2018-2024 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: 79697635de7275c58e2f250f12e2a4addba33e919e61f127331f48068d36fd99
+Applies to:
+  - Rust crate base64ct 1.8.3
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2014 Steve "Sc00bz" Thomas (steve at tobtu dot com)
+Copyright (c) 2021-2025 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
 Notice SHA-256: 7a8093fb4a93f23e2bc9081b53b6187ea14a1c9303e513184726d8cdcbfa418a
 Applies to:
   - Rust crate idna 1.1.0
+  - Rust crate percent-encoding 2.3.2
+  - Rust crate url 2.5.8
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
 Copyright (c) 2013-2025 The rust-url developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: 7cfd98aeed13ac52b89eb0b91cb2900f3723686a85786c317d706f0d94ae657f
+Applies to:
+  - Rust crate universal-hash 0.5.1
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2019-2020 RustCrypto Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -4394,6 +5223,39 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ================================================================================
+Notice SHA-256: 7f91c2a4eddb48282e1f4c1e6a8f9e7d1842655212bcb9b5c0f9f8044aaf0ac5
+Applies to:
+  - Rust crate errno 0.3.14
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2014 Chris Wong
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
 Notice SHA-256: 7fdbca77dec6709aaa7ce778f43f3e8c5c860302c029f989dddc141bb036c87a
 Applies to:
   - Rust crate time 0.3.51
@@ -4530,6 +5392,7 @@ Applies to:
   - Rust crate serde 1.0.228
   - Rust crate serde_core 1.0.228
   - Rust crate serde_derive 1.0.228
+  - Rust crate serde_json 1.0.151
   - Rust crate syn 2.0.118
   - Rust crate syn 3.0.3
   - Rust crate thiserror 1.0.69
@@ -4959,6 +5822,7 @@ limitations under the License.
 Notice SHA-256: 8a87674755cec4feeaa77d7d0f55d25f0c018516fe838e2b0626fb8bc870129e
 Applies to:
   - Rust crate p256 0.13.2
+  - Rust crate password-hash 0.5.0
   - Rust crate primeorder 0.13.6
 Source file names:
   - LICENSE-MIT
@@ -5030,6 +5894,72 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ================================================================================
+Notice SHA-256: 92c666480f818e051a4c16f0d8d29d1cc47fc5abaa6e89c681e5024dd6291e7c
+Applies to:
+  - Rust crate arrayvec 0.7.8
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) Ulrik Sverdrup "bluss" 2015-2023
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: 92f01fc7ca904e16f13e27d4897e507b5446e42516bb7efacc4c5ed189008c31
+Applies to:
+  - Rust crate cipher 0.4.4
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2016-2020 RustCrypto Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
 Notice SHA-256: 943f36fd309fb5ea67a82f577433f4ed3bc877e5b00f9b874e2f8b7f72bf0bdc
 Applies to:
   - Rust crate tinyvec 1.11.0
@@ -5051,6 +5981,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 ================================================================================
 Notice SHA-256: 954f335b8baf5e1a5748b3a1bf6eeb2ec0b28ae19813f02063d64be005765a76
 Applies to:
+  - Rust crate arrayvec 0.7.8
   - Rust crate asn1-rs 0.7.2
   - Rust crate asn1-rs-derive 0.6.0
   - Rust crate asn1-rs-impl 0.2.0
@@ -5063,10 +5994,12 @@ Applies to:
   - Rust crate der-parser 10.0.0
   - Rust crate displaydoc 0.2.6
   - Rust crate equivalent 1.0.2
+  - Rust crate errno 0.3.14
   - Rust crate fastrand 2.4.1
   - Rust crate ff 0.13.1
   - Rust crate find-msvc-tools 0.1.9
   - Rust crate fnv 1.0.7
+  - Rust crate form_urlencoded 1.2.2
   - Rust crate group 0.13.0
   - Rust crate hashbrown 0.16.1
   - Rust crate hashbrown 0.17.1
@@ -5076,19 +6009,24 @@ Applies to:
   - Rust crate indexmap 2.14.0
   - Rust crate jni 0.21.1
   - Rust crate lazy_static 1.5.0
+  - Rust crate linux-raw-sys 0.12.1
   - Rust crate log 0.4.33
   - Rust crate num-bigint 0.4.8
   - Rust crate num-integer 0.1.46
   - Rust crate num-traits 0.2.19
   - Rust crate oid-registry 0.8.1
   - Rust crate once_cell 1.21.4
+  - Rust crate percent-encoding 2.3.2
   - Rust crate pkg-config 0.3.33
   - Rust crate ring 0.17.14
   - Rust crate rusticata-macros 4.1.0
+  - Rust crate rustix 1.1.4
   - Rust crate rustls 0.23.41
   - Rust crate smallvec 1.15.2
   - Rust crate socket2 0.6.4
   - Rust crate stable_deref_trait 1.2.1
+  - Rust crate unicode-normalization 0.1.25
+  - Rust crate url 2.5.8
   - Rust crate vcpkg 0.2.15
   - Rust crate version_check 0.9.5
   - Rust crate x509-parser 0.18.1
@@ -5731,6 +6669,41 @@ their own copyright notices and license terms:
   copyright itself, held by the contributor.
 
 ================================================================================
+Notice SHA-256: 984637c53b31c216912aaa876374d5bcf69c1cb0cb589a5adcd68bbe7b5bb2da
+Applies to:
+  - Rust crate hns-covenants 0.2.0
+  - Rust crate hns-encoding 0.2.0
+  - Rust crate hns-primitives 0.2.0
+  - Rust crate hns-script 0.2.0
+  - Rust crate hns-swap 0.2.0
+  - Rust crate hns-transaction 0.2.0
+  - Rust crate hns-urkel-proof 0.2.0
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2026 Denuo contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
 Notice SHA-256: 98ed0ad9db8a72957b9c45941fe2ed31933a3beacbd193e662df483d0643a13d
 Applies to:
   - Rust crate zerocopy 0.8.52
@@ -6105,6 +7078,39 @@ Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
 Copyright 2023 The Fuchsia Authors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: a14b16aef08f15ecf81969a41585030fe1897bb27c69ef6576e0177e26617393
+Applies to:
+  - Rust crate argon2 0.5.3
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2021-2024 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -6888,6 +7894,40 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ================================================================================
+Notice SHA-256: b38f573d5bc805e32f92fa8772ad44f1330a7de85022d133b2cd3d17424f8c22
+Applies to:
+  - Rust crate aead 0.5.2
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2019 The RustCrypto Project Developers
+Copyright (c) 2019 MobileCoin, LLC
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
 Notice SHA-256: b420d8add23b5cf7663f17f012b06a4c16b722c5dd8fb049b285417214b5702e
 Applies to:
   - Rust crate futures 0.3.32
@@ -6904,6 +7944,39 @@ Source file names:
 --------------------------------------------------------------------------------
 Copyright (c) 2016 Alex Crichton
 Copyright (c) 2017 The Tokio Authors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Notice SHA-256: b447a5a29f72f5cce54137aef33973789b2d0efef4d4eb03e0d0d62c3940986a
+Applies to:
+  - Rust crate k256 0.13.4
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2020-2024 RustCrypto Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -7286,6 +8359,39 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ================================================================================
+Notice SHA-256: c633e1182641d8aee82d8659fb4843ee1cecac23e852546ce0eed8cc8845354b
+Applies to:
+  - Rust crate bech32 0.11.1
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2017 Clark Moody
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
 Notice SHA-256: c804065b0956d00a65ce119456ec48ee456f5446b904b07ee85225ba5a88ce41
 Applies to:
   - Rust crate mio 1.2.1
@@ -7363,7 +8469,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ================================================================================
 Notice SHA-256: cc367a7134c2b07d995a2f8dea591094a1d100e49c68513f729fdf3eaf580a21
 Applies to:
+  - Rust crate rand 0.8.7
   - Rust crate rand 0.9.4
+  - Rust crate rand_chacha 0.3.1
   - Rust crate rand_chacha 0.9.0
   - Rust crate rand_core 0.6.4
   - Rust crate rand_core 0.9.5
@@ -7698,6 +8806,7 @@ Notice SHA-256: e7330bf53074b4a9c5896f4a03d782be7f163381e45923d5e2369fe194a19f99
 Applies to:
   - Rust crate getrandom 0.2.17
   - Rust crate getrandom 0.3.4
+  - Rust crate rand_chacha 0.3.1
 Source file names:
   - LICENSE-APACHE
 --------------------------------------------------------------------------------
@@ -7904,11 +9013,50 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ================================================================================
+Notice SHA-256: e827371937a118a491f2ea16188de92b23f94d7013c271c41d5e2761ba5a0f92
+Applies to:
+  - Rust crate poly1305 0.8.0
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2015-2019 RustCrypto Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
 Notice SHA-256: e8541ea93f027a6c2cf077362f74492bdf0bb8354f63029962d84f1c130937a4
 Applies to:
+  - Rust crate aead 0.5.2
+  - Rust crate argon2 0.5.3
   - Rust crate base16ct 0.2.0
+  - Rust crate base64ct 1.8.3
   - Rust crate blake2 0.10.6
   - Rust crate block-buffer 0.10.4
+  - Rust crate chacha20 0.9.1
+  - Rust crate chacha20poly1305 0.10.1
+  - Rust crate cipher 0.4.4
   - Rust crate const-oid 0.9.6
   - Rust crate cpufeatures 0.2.17
   - Rust crate crypto-bigint 0.5.5
@@ -7916,15 +9064,25 @@ Applies to:
   - Rust crate der 0.7.10
   - Rust crate digest 0.10.7
   - Rust crate elliptic-curve 0.13.8
+  - Rust crate hkdf 0.12.4
   - Rust crate hmac 0.12.1
+  - Rust crate inout 0.1.4
+  - Rust crate k256 0.13.4
   - Rust crate keccak 0.1.6
+  - Rust crate opaque-debug 0.3.1
   - Rust crate p256 0.13.2
+  - Rust crate password-hash 0.5.0
+  - Rust crate pkcs8 0.10.2
+  - Rust crate poly1305 0.8.0
   - Rust crate primeorder 0.13.6
+  - Rust crate ripemd 0.1.3
   - Rust crate sec1 0.7.3
   - Rust crate sha1 0.10.6
   - Rust crate sha2 0.10.9
   - Rust crate sha3 0.10.9
   - Rust crate signature 2.2.0
+  - Rust crate spki 0.7.3
+  - Rust crate universal-hash 0.5.1
 Source file names:
   - LICENSE-APACHE
 --------------------------------------------------------------------------------
@@ -8129,6 +9287,39 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+================================================================================
+Notice SHA-256: e90ad0f8f6fea705ccd7ff56392c6379bb51b8602dd197a567140acabda179ce
+Applies to:
+  - Rust crate chacha20poly1305 0.10.1
+Source file names:
+  - LICENSE-MIT
+--------------------------------------------------------------------------------
+Copyright (c) 2019 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 
 ================================================================================
 Notice SHA-256: e915669a595b11a200873df8286561881b0e04932f6412a585db6297ba0bc97c
@@ -8834,6 +10025,43 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ================================================================================
+Notice SHA-256: fde2a68c47d279384c0113efbc29bb43e263dd4cb33137c87365b0218a11d6aa
+Applies to:
+  - Rust crate rustix 1.1.4
+Source file names:
+  - COPYRIGHT
+--------------------------------------------------------------------------------
+Short version for non-lawyers:
+
+`rustix` is triple-licensed under Apache 2.0 with the LLVM Exception,
+Apache 2.0, and MIT terms.
+
+
+Longer version:
+
+Copyrights in the `rustix` project are retained by their contributors.
+No copyright assignment is required to contribute to the `rustix`
+project.
+
+Some files include code derived from Rust's `libstd`; see the comments in
+the code for details.
+
+Except as otherwise noted (below and/or in individual files), `rustix`
+is licensed under:
+
+ - the Apache License, Version 2.0, with the LLVM Exception
+   <LICENSE-Apache-2.0_WITH_LLVM-exception> or
+   <http://llvm.org/foundation/relicensing/LICENSE.txt>
+ - the Apache License, Version 2.0
+   <LICENSE-APACHE> or
+   <http://www.apache.org/licenses/LICENSE-2.0>,
+ - or the MIT license
+   <LICENSE-MIT> or
+   <http://opensource.org/licenses/MIT>,
+
+at your option.
+
+================================================================================
 Notice SHA-256: fe1c9e29858fe97afdc7c88c8c59c232d30a3309e284e1765e28f240537c72c6
 Applies to:
   - Rust crate tinyvec_macros 0.1.1
@@ -9045,6 +10273,7 @@ Apache License
 ================================================================================
 Notice SHA-256: fee4d7ce394c9161daabd2797e22d8d5ed80ea3c0f4524b242ab22582d2cc412
 Applies to:
+  - Rust crate rand 0.8.7
   - Rust crate rand 0.9.4
   - Rust crate rand_chacha 0.9.0
 Source file names:

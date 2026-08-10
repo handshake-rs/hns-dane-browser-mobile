@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require registry inputs or exact reviewed engine migration revisions."""
+"""Require registry inputs or exact reviewed ecosystem revisions."""
 
 from __future__ import annotations
 
@@ -22,6 +22,10 @@ ENGINE_VERSIONS = {
     "hns-resolution-policy": "0.1.0",
 }
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
+WALLET_GIT_URL = "https://github.com/handshake-rs/hns-wallet-rs.git"
+WALLET_GIT_REVISION = "f105b6970ec1c163756df43b1ca7adab1d8d8992"
+PROTOCOL_GIT_URL = "https://github.com/handshake-rs/hns-rs.git"
+PROTOCOL_GIT_REVISION = "b33b346780c8f6a9bb18a54390019486cdab0221"
 APPROVED_ENGINE_GIT = {
     "hns-dane": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
     "hns-browser-dane": ("0.2.0", "b8bdfbf7e234e64166886ade6f79d698e23056af"),
@@ -53,6 +57,47 @@ APPROVED_ENGINE_GIT = {
     "hns-namespace-resolution": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
     "hns-resolution-policy": ("0.1.0", "1ab4ab626f945712b0f960945986cb52efefef7c"),
 }
+APPROVED_WALLET_GIT = {
+    package: ("0.1.0", WALLET_GIT_REVISION)
+    for package in {
+        "hns-wallet-bitcoin-kyoto",
+        "hns-wallet-chain-api",
+        "hns-wallet-ethereum",
+        "hns-wallet-ffi",
+        "hns-wallet-hns",
+        "hns-wallet-host",
+        "hns-wallet-market",
+        "hns-wallet-mobile",
+        "hns-wallet-provider",
+        "hns-wallet-service",
+        "hns-wallet-shakedex",
+        "hns-wallet-store",
+        "hns-wallet-testkit",
+        "hns-wallet-types",
+    }
+}
+APPROVED_PROTOCOL_GIT = {
+    package: ("0.2.0", PROTOCOL_GIT_REVISION)
+    for package in {
+        "hns-chat-protocol",
+        "hns-covenants",
+        "hns-dns-relay-protocol",
+        "hns-encoding",
+        "hns-header-consensus",
+        "hns-hnsr-protocol",
+        "hns-marketplace-protocol",
+        "hns-mining",
+        "hns-odoh-protocol",
+        "hns-p2p-experimental",
+        "hns-p2p-wire",
+        "hns-primitives",
+        "hns-script",
+        "hns-service-authority",
+        "hns-swap",
+        "hns-transaction",
+        "hns-urkel-proof",
+    }
+}
 ENGINE_GIT_PACKAGE_NAMES = {
     "hns-dane": "hns-browser-dane",
     "hns-dnssec": "hns-browser-dnssec",
@@ -68,6 +113,23 @@ ENGINE_GIT_PACKAGE_NAMES = {
 }
 for engine_package in APPROVED_ENGINE_GIT:
     ENGINE_GIT_PACKAGE_NAMES.setdefault(engine_package, engine_package)
+APPROVED_CARGO_GIT = {
+    **{
+        package: (version, revision, ENGINE_GIT_URL)
+        for package, (version, revision) in APPROVED_ENGINE_GIT.items()
+    },
+    **{
+        package: (version, revision, WALLET_GIT_URL)
+        for package, (version, revision) in APPROVED_WALLET_GIT.items()
+    },
+    **{
+        package: (version, revision, PROTOCOL_GIT_URL)
+        for package, (version, revision) in APPROVED_PROTOCOL_GIT.items()
+    },
+}
+CARGO_GIT_PACKAGE_NAMES = dict(ENGINE_GIT_PACKAGE_NAMES)
+for approved_package in APPROVED_CARGO_GIT:
+    CARGO_GIT_PACKAGE_NAMES.setdefault(approved_package, approved_package)
 ENGINE_REQUIREMENTS = {
     package: f"={version}" for package, version in ENGINE_VERSIONS.items()
 }
@@ -143,12 +205,18 @@ def path_specs(
             yield from path_specs(child, (*path, str(index)))
 
 
-def is_approved_engine_git_source(name: str, version: str, source: str) -> bool:
-    approved = APPROVED_ENGINE_GIT.get(name)
+def is_approved_git_source(name: str, version: str, source: str) -> bool:
+    approved = APPROVED_CARGO_GIT.get(name)
     if approved is None or version != approved[0]:
         return False
     revision = approved[1]
-    return source == f"git+{ENGINE_GIT_URL}?rev={revision}#{revision}"
+    url = approved[2]
+    return source == f"git+{url}?rev={revision}#{revision}"
+
+
+def approved_git_revision(name: str) -> str | None:
+    approved = APPROVED_CARGO_GIT.get(name)
+    return approved[1] if approved is not None else None
 
 
 def load_toml(path: Path) -> dict[str, Any]:
@@ -162,13 +230,13 @@ def validate_manifests(root: Path, manifests: list[Path]) -> None:
         for location, specification in git_specs(document):
             rendered_location = ".".join(location) or "<document root>"
             package = location[-1] if location else ""
-            approved = APPROVED_ENGINE_GIT.get(package)
-            expected_package = ENGINE_GIT_PACKAGE_NAMES.get(package)
+            approved = APPROVED_CARGO_GIT.get(package)
+            expected_package = CARGO_GIT_PACKAGE_NAMES.get(package)
             actual_package = specification.get("package", package)
             expected_requirement = f"={approved[0]}" if approved is not None else ""
             if (
                 approved is None
-                or specification.get("git") != ENGINE_GIT_URL
+                or specification.get("git") != approved[2]
                 or specification.get("rev") != approved[1]
                 or actual_package != expected_package
                 or (
@@ -180,15 +248,15 @@ def validate_manifests(root: Path, manifests: list[Path]) -> None:
             ):
                 raise CargoSourcePolicyError(
                     f"{relative_path}:{rendered_location}: Cargo Git dependency "
-                    "is not an exact reviewed hns-dane-engine revision"
+                    "is not an exact reviewed ecosystem revision"
                 )
         for location, specification in path_specs(document):
             dependency = location[-1] if location else ""
             package = specification.get("package", dependency)
-            if dependency in APPROVED_ENGINE_GIT or package in APPROVED_ENGINE_GIT:
+            if dependency in APPROVED_CARGO_GIT or package in APPROVED_CARGO_GIT:
                 rendered_location = ".".join(location) or "<document root>"
                 raise CargoSourcePolicyError(
-                    f"{relative_path}:{rendered_location}: migrated engine dependency "
+                    f"{relative_path}:{rendered_location}: reviewed ecosystem dependency "
                     "must not use a local path"
                 )
 
@@ -237,7 +305,7 @@ def validate_lockfiles(root: Path) -> None:
             source = package.get("source")
             name = package.get("name", "<unknown>")
             if isinstance(source, str) and source.startswith("git+"):
-                if not is_approved_engine_git_source(
+                if not is_approved_git_source(
                     name, package.get("version", ""), source
                 ):
                     raise CargoSourcePolicyError(
@@ -308,7 +376,7 @@ def main() -> int:
     )
     print(
         "Cargo source policy permits registry inputs plus exact reviewed "
-        "hns-dane-engine migration revisions and pins the five canonical "
+        "engine, protocol, and wallet revisions and pins the five canonical "
         f"compatibility packages: {versions}."
     )
     return 0

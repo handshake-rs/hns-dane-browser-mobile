@@ -3,12 +3,41 @@
 version = 4
 
 [[package]]
+name = "aead"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d122413f284cf2d62fb1b7db97e02edb8cda96d769b16e443a4f6195e35662b0"
+dependencies = [
+ "crypto-common",
+ "generic-array",
+]
+
+[[package]]
 name = "android-ffi"
 version = "0.5.6"
 dependencies = [
  "hns-mobile-platform-runtime",
+ "hns-wallet-mobile",
  "jni",
 ]
+
+[[package]]
+name = "argon2"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072"
+dependencies = [
+ "base64ct",
+ "blake2",
+ "cpufeatures",
+ "password-hash",
+]
+
+[[package]]
+name = "arrayvec"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
 
 [[package]]
 name = "asn1-rs"
@@ -74,12 +103,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "base64ct"
+version = "1.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
+
+[[package]]
+name = "bech32"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32637268377fc7b10a8c6d51de3e7fba1ce5dd371a96e342b34e6078db558e7f"
+
+[[package]]
+name = "bip39"
+version = "2.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc"
+dependencies = [
+ "bitcoin_hashes",
+ "rand 0.8.7",
+ "rand_core 0.6.4",
+ "serde",
+ "unicode-normalization",
+ "zeroize",
+]
+
+[[package]]
 name = "bit-vec"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b71798fca2c1fe1086445a7258a4bc81e6e49dcd24c8d0dd9a1e57395b603f51"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.14.101"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bca4c7abb40c8817d77403c880988cfd484f23ab2365726afb2f798363e2c4a2"
+dependencies = [
+ "hex-conservative",
 ]
 
 [[package]]
@@ -147,6 +211,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chacha20"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818"
+dependencies = [
+ "cfg-if",
+ "cipher",
+ "cpufeatures",
+]
+
+[[package]]
+name = "chacha20poly1305"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35"
+dependencies = [
+ "aead",
+ "chacha20",
+ "cipher",
+ "poly1305",
+ "zeroize",
+]
+
+[[package]]
+name = "cipher"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
+dependencies = [
+ "crypto-common",
+ "inout",
+ "zeroize",
+]
+
+[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -190,6 +289,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
+ "rand_core 0.6.4",
  "typenum",
 ]
 
@@ -263,6 +363,7 @@ dependencies = [
  "elliptic-curve",
  "rfc6979",
  "signature",
+ "spki",
 ]
 
 [[package]]
@@ -277,6 +378,7 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
+ "pkcs8",
  "rand_core 0.6.4",
  "sec1",
  "subtle",
@@ -288,6 +390,16 @@ name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
+
+[[package]]
+name = "errno"
+version = "0.3.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+dependencies = [
+ "libc",
+ "windows-sys 0.52.0",
+]
 
 [[package]]
 name = "fallible-iterator"
@@ -334,6 +446,15 @@ name = "foldhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
+name = "form_urlencoded"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
+dependencies = [
+ "percent-encoding",
+]
 
 [[package]]
 name = "futures"
@@ -550,6 +671,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hex-conservative"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fda06d18ac606267c40c04e41b9947729bf8b9efe74bd4e82b61a5f26a510b9f"
+dependencies = [
+ "arrayvec",
+]
+
+[[package]]
+name = "hkdf"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
+dependencies = [
+ "hmac",
+]
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -740,9 +879,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "hns-covenants"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=b33b346780c8f6a9bb18a54390019486cdab0221#b33b346780c8f6a9bb18a54390019486cdab0221"
+dependencies = [
+ "blake2",
+ "hns-encoding",
+ "hns-primitives",
+ "sha3",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "hns-dns-wire"
 version = "0.2.0"
 source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=b8bdfbf7e234e64166886ade6f79d698e23056af#b8bdfbf7e234e64166886ade6f79d698e23056af"
+
+[[package]]
+name = "hns-encoding"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=b33b346780c8f6a9bb18a54390019486cdab0221#b33b346780c8f6a9bb18a54390019486cdab0221"
+dependencies = [
+ "thiserror 2.0.19",
+]
 
 [[package]]
 name = "hns-icann-dane"
@@ -783,9 +942,212 @@ version = "0.1.0"
 source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab626f945712b0f960945986cb52efefef7c#1ab4ab626f945712b0f960945986cb52efefef7c"
 
 [[package]]
+name = "hns-primitives"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=b33b346780c8f6a9bb18a54390019486cdab0221#b33b346780c8f6a9bb18a54390019486cdab0221"
+dependencies = [
+ "hex",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "hns-resolution-policy"
 version = "0.1.0"
 source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=1ab4ab626f945712b0f960945986cb52efefef7c#1ab4ab626f945712b0f960945986cb52efefef7c"
+
+[[package]]
+name = "hns-script"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=b33b346780c8f6a9bb18a54390019486cdab0221#b33b346780c8f6a9bb18a54390019486cdab0221"
+dependencies = [
+ "blake2",
+ "hns-encoding",
+ "hns-primitives",
+ "hns-transaction",
+ "k256",
+ "ripemd",
+ "sha1",
+ "sha2",
+ "sha3",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-swap"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=b33b346780c8f6a9bb18a54390019486cdab0221#b33b346780c8f6a9bb18a54390019486cdab0221"
+dependencies = [
+ "blake2",
+ "hns-covenants",
+ "hns-encoding",
+ "hns-primitives",
+ "hns-script",
+ "hns-transaction",
+ "k256",
+ "sha2",
+ "sha3",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-transaction"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=b33b346780c8f6a9bb18a54390019486cdab0221#b33b346780c8f6a9bb18a54390019486cdab0221"
+dependencies = [
+ "blake2",
+ "hns-covenants",
+ "hns-encoding",
+ "hns-primitives",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-urkel-proof"
+version = "0.2.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=b33b346780c8f6a9bb18a54390019486cdab0221#b33b346780c8f6a9bb18a54390019486cdab0221"
+dependencies = [
+ "blake2",
+ "hns-primitives",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-wallet-chain-api"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "hns-wallet-types",
+ "serde",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
+name = "hns-wallet-ffi"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "hns-covenants",
+ "hns-wallet-types",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
+name = "hns-wallet-hns"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "bech32",
+ "bip39",
+ "blake2",
+ "getrandom 0.3.4",
+ "hex",
+ "hkdf",
+ "hns-covenants",
+ "hns-primitives",
+ "hns-script",
+ "hns-swap",
+ "hns-transaction",
+ "hns-urkel-proof",
+ "hns-wallet-chain-api",
+ "hns-wallet-store",
+ "hns-wallet-types",
+ "k256",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sha3",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
+name = "hns-wallet-host"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "getrandom 0.3.4",
+ "hns-wallet-ffi",
+ "hns-wallet-types",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-wallet-mobile"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "hns-wallet-ffi",
+ "hns-wallet-hns",
+ "hns-wallet-host",
+ "hns-wallet-service",
+ "hns-wallet-store",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
+name = "hns-wallet-provider"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "hns-wallet-store",
+ "hns-wallet-types",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.19",
+ "url",
+]
+
+[[package]]
+name = "hns-wallet-service"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "getrandom 0.3.4",
+ "hns-wallet-ffi",
+ "hns-wallet-hns",
+ "hns-wallet-provider",
+ "hns-wallet-store",
+ "hns-wallet-types",
+ "serde_json",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
+name = "hns-wallet-store"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "argon2",
+ "chacha20poly1305",
+ "getrandom 0.3.4",
+ "hmac",
+ "hns-wallet-types",
+ "rusqlite",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.19",
+ "zeroize",
+]
+
+[[package]]
+name = "hns-wallet-types"
+version = "0.1.0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=f105b6970ec1c163756df43b1ca7adab1d8d8992#f105b6970ec1c163756df43b1ca7adab1d8d8992"
+dependencies = [
+ "hex",
+ "serde",
+ "thiserror 2.0.19",
+]
 
 [[package]]
 name = "http"
@@ -917,10 +1279,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "inout"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
 name = "ios-ffi"
 version = "0.5.6"
 dependencies = [
  "hns-mobile-platform-runtime",
+ "hns-wallet-mobile",
 ]
 
 [[package]]
@@ -985,6 +1357,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "k256"
+version = "0.13.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
+dependencies = [
+ "cfg-if",
+ "ecdsa",
+ "elliptic-curve",
+ "once_cell",
+ "sha2",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1015,6 +1400,12 @@ dependencies = [
  "pkg-config",
  "vcpkg",
 ]
+
+[[package]]
+name = "linux-raw-sys"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litemap"
@@ -1117,6 +1508,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
+name = "opaque-debug"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
+
+[[package]]
 name = "p256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1129,16 +1526,54 @@ dependencies = [
 ]
 
 [[package]]
+name = "password-hash"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+dependencies = [
+ "base64ct",
+ "rand_core 0.6.4",
+ "subtle",
+]
+
+[[package]]
+name = "percent-encoding"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
+name = "pkcs8"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7"
+dependencies = [
+ "der",
+ "spki",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
+
+[[package]]
+name = "poly1305"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
+dependencies = [
+ "cpufeatures",
+ "opaque-debug",
+ "universal-hash",
+]
 
 [[package]]
 name = "potential_utf"
@@ -1212,7 +1647,7 @@ dependencies = [
  "bytes",
  "getrandom 0.3.4",
  "lru-slab",
- "rand",
+ "rand 0.9.4",
  "ring",
  "rustc-hash",
  "rustls",
@@ -1255,12 +1690,33 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "rand"
+version = "0.8.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22f6172bdec972074665ed81ed53b71da00bfc44b65a753cfde883ec4c702a1a"
+dependencies = [
+ "libc",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea"
 dependencies = [
- "rand_chacha",
+ "rand_chacha 0.9.0",
  "rand_core 0.9.5",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
+dependencies = [
+ "ppv-lite86",
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -1278,6 +1734,9 @@ name = "rand_core"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+dependencies = [
+ "getrandom 0.2.17",
+]
 
 [[package]]
 name = "rand_core"
@@ -1327,6 +1786,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ripemd"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
+dependencies = [
+ "digest",
+]
+
+[[package]]
 name = "rsqlite-vfs"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1364,6 +1832,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632"
 dependencies = [
  "nom",
+]
+
+[[package]]
+name = "rustix"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
+dependencies = [
+ "bitflags",
+ "errno",
+ "libc",
+ "linux-raw-sys",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1425,6 +1906,7 @@ dependencies = [
  "base16ct",
  "der",
  "generic-array",
+ "pkcs8",
  "subtle",
  "zeroize",
 ]
@@ -1457,6 +1939,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.151"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+dependencies = [
+ "itoa",
+ "memchr",
+ "serde",
+ "serde_core",
+ "zmij",
 ]
 
 [[package]]
@@ -1527,6 +2022,16 @@ checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "spki"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
+dependencies = [
+ "base64ct",
+ "der",
 ]
 
 [[package]]
@@ -1750,10 +2255,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 
 [[package]]
+name = "unicode-normalization"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
+dependencies = [
+ "tinyvec",
+]
+
+[[package]]
+name = "universal-hash"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea"
+dependencies = [
+ "crypto-common",
+ "subtle",
+]
+
+[[package]]
 name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+
+[[package]]
+name = "url"
+version = "2.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
+dependencies = [
+ "form_urlencoded",
+ "idna",
+ "percent-encoding",
+ "serde",
+ "serde_derive",
+]
 
 [[package]]
 name = "utf8_iter"
@@ -2134,6 +2671,20 @@ name = "zeroize"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
+]
 
 [[package]]
 name = "zerotrie"
@@ -2167,3 +2718,9 @@ dependencies = [
  "quote",
  "syn 2.0.118",
 ]
+
+[[package]]
+name = "zmij"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"

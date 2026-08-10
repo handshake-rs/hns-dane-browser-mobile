@@ -24,9 +24,9 @@ import xml.etree.ElementTree as ElementTree
 import zipfile
 
 from verify_cargo_git_policy import (
-    APPROVED_ENGINE_GIT,
     CRATES_IO_SOURCE,
-    is_approved_engine_git_source,
+    approved_git_revision,
+    is_approved_git_source,
 )
 
 
@@ -70,6 +70,7 @@ RUST_LICENSE_FILE_FALLBACKS = {
 # contain no duplicate workspace-level license files. Reuse the same canonical
 # texts from a checksum-verified package in the locked shipping closure.
 DECLARED_LICENSE_FILE_FALLBACKS = {
+    "CC0-1.0": ("bip39", "2.2.2"),
     "MIT OR Apache-2.0": ("quinn", "0.11.11"),
 }
 
@@ -478,10 +479,14 @@ def rust_package_license_files(package: dict) -> list[tuple[str, str]]:
     package_dir = Path(package["manifest_path"]).resolve().parent
     if source == CRATES_IO_SOURCE:
         return package_license_files(package, package_dir)
-    if isinstance(source, str) and is_approved_engine_git_source(
+    if isinstance(source, str) and is_approved_git_source(
         package["name"], package["version"], source
     ):
-        revision = APPROVED_ENGINE_GIT[package["name"]][1]
+        revision = approved_git_revision(package["name"])
+        if revision is None:
+            raise RuntimeError(
+                f"Missing reviewed revision for {package['name']} {package['version']}."
+            )
         checkout_root = verified_git_checkout_root(package_dir, revision)
         return package_license_files(
             package, checkout_root, require_git_tracked=True
