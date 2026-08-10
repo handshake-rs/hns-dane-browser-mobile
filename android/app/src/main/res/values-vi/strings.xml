@@ -474,4 +474,9 @@
 <string name="proof_current_tip_text">chiều cao %1$s, cây %2$s</string>
 <string name="proof_markdown_dnssec_title">Chi tiết # DNSSEC</string>
 <string name="proof_markdown_hns_title"># Chi tiết bằng chứng HNS</string>
+    <string name="security_indicator_content_description">Security status: %1$s. Opens resolver details.</string>
+    <string name="hns_load_failed_title">This HNS page could not load</string>
+    <string name="hns_sync_wait_body">The browser is still validating Handshake headers. This page will retry automatically when the chain is current.</string>
+    <string name="hns_load_failed_body">The secure HNS gateway did not return a response. Check your connection, then try again.</string>
+    <string name="hns_retry">Try again</string>
 </resources>
