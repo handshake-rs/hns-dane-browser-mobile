@@ -1,6 +1,8 @@
 package com.denuoweb.hnsdane.ui
 
 import android.content.Intent
+import android.graphics.Insets
+import android.view.WindowInsets
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
@@ -20,6 +22,29 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class HnsProofDetailsActivityInstrumentationTest {
+    @Test
+    fun appliedSystemBarsAreConsumedWithoutDiscardingImeInsets() {
+        val source = WindowInsets.Builder()
+            .setInsets(WindowInsets.Type.statusBars(), Insets.of(0, 51, 0, 0))
+            .setInsets(WindowInsets.Type.navigationBars(), Insets.of(0, 0, 0, 24))
+            .setInsets(WindowInsets.Type.ime(), Insets.of(0, 0, 0, 320))
+            .setVisible(WindowInsets.Type.statusBars(), true)
+            .setVisible(WindowInsets.Type.navigationBars(), true)
+            .setVisible(WindowInsets.Type.ime(), true)
+            .build()
+
+        val descendants = consumeAppliedSystemBarInsets(source)
+
+        assertEquals(
+            Insets.NONE,
+            descendants.getInsets(WindowInsets.Type.systemBars()),
+        )
+        assertEquals(
+            Insets.of(0, 0, 0, 320),
+            descendants.getInsets(WindowInsets.Type.ime()),
+        )
+    }
+
     @Test
     fun retainedHnsSelectionUsesHnsProofDetailsEvenThoughDnsHostsUseNativeGateway() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
