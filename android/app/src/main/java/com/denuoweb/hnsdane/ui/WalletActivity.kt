@@ -23,8 +23,14 @@ import androidx.activity.ComponentActivity
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
+import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
 import com.denuoweb.hnsdane.wallet.ProcessWalletStorageOwnership
+import com.denuoweb.hnsdane.wallet.WalletLeaseReleaseHandoff
 import com.denuoweb.hnsdane.wallet.WalletStorageOwnershipGate
+import com.denuoweb.hnsdane.wallet.displayAmount
+import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
+import com.denuoweb.hnsdane.wallet.walletReadMayPublish
+import com.denuoweb.hnsdane.wallet.walletReadCodeLabel
 import com.denuoweb.hnsdane.wallet.walletSetupMayInspectStorage
 import com.denuoweb.hnsdane.wallet.walletStorageNamespace
 import java.io.File
@@ -40,6 +46,11 @@ class WalletActivity : ComponentActivity() {
     private lateinit var walletStoragePath: String
     private lateinit var statusView: TextView
     private lateinit var accountView: TextView
+    private lateinit var readStatusView: TextView
+    private lateinit var balanceView: TextView
+    private lateinit var receiveView: TextView
+    private lateinit var historyView: TextView
+    private lateinit var trackedNamesView: TextView
     private lateinit var restoreInput: EditText
     private lateinit var recoveryView: RecoveryPhraseView
 
@@ -50,6 +61,7 @@ class WalletActivity : ComponentActivity() {
     private var unconfirmedDatabaseKey: ByteArray? = null
     private var storageOwner: WalletStorageOwnershipGate.Owner? = null
     private var storageLease: WalletStorageOwnershipGate.Lease? = null
+    private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         savedInstanceState?.clear()
@@ -74,6 +86,11 @@ class WalletActivity : ComponentActivity() {
             text = getString(R.string.wallet_account_locked),
             maxLines = Int.MAX_VALUE,
         )
+        readStatusView = walletReadSummary(R.string.wallet_reads_unavailable)
+        balanceView = walletReadSummary(R.string.wallet_reads_balance_unavailable)
+        receiveView = walletReadSummary(R.string.wallet_reads_receive_unavailable)
+        historyView = walletReadSummary(R.string.wallet_reads_history_unavailable)
+        trackedNamesView = walletReadSummary(R.string.wallet_reads_names_unavailable)
         restoreInput = sensitiveRestoreInput()
         recoveryView = RecoveryPhraseView(this)
 
@@ -137,6 +154,35 @@ class WalletActivity : ComponentActivity() {
                     lockWallet()
                 })
             })
+            addView(screenSection(getString(R.string.section_wallet_reads)) {
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_read_module),
+                    summaryView = readStatusView,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_read_balance),
+                    summaryView = balanceView,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_read_receive),
+                    summaryView = receiveView,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_read_history),
+                    summaryView = historyView,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_read_names),
+                    summaryView = trackedNamesView,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_read_sync),
+                    summary = getString(R.string.row_wallet_read_sync_summary),
+                    actionLabel = getString(R.string.action_sync_wallet_reads),
+                ) {
+                    synchronizeWalletReads()
+                })
+            })
         }
     }
 
@@ -144,6 +190,7 @@ class WalletActivity : ComponentActivity() {
         super.onStart()
         foreground = true
         lifecycleEpoch += 1
+        resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
         lateinit var owner: WalletStorageOwnershipGate.Owner
         owner = ProcessWalletStorageOwnership.newOwner(walletStoragePath) {
             runOnUiThread { revokeStorageOwnership(owner) }
@@ -162,12 +209,14 @@ class WalletActivity : ComponentActivity() {
         val hadUnconfirmedWallet = unconfirmedDatabaseKey != null
         unconfirmedDatabaseKey?.fill(0)
         unconfirmedDatabaseKey = null
-        destroyController()
         val lease = storageLease
+        val retirementStarted = lease != null && retireControllerAfterNativeOperation(lease)
+        if (!retirementStarted) destroyController()
+        resetReadProjection(R.string.wallet_reads_unavailable)
         if (hadUnconfirmedWallet && lease != null) {
             deleteWalletFiles()
         }
-        if (!busy && lease != null) releaseStorageLease(lease)
+        if (!busy && lease != null) releaseStorageLeaseAfterOperation(lease)
         super.onStop()
     }
 
@@ -191,7 +240,7 @@ class WalletActivity : ComponentActivity() {
                 busy = false
                 if (!operationIsCurrent(epoch, lease)) {
                     NativeWalletBridge.destroy(opened)
-                    releaseStorageLease(lease)
+                    releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
                 if (opened == INVALID_HANDLE) {
@@ -238,7 +287,7 @@ class WalletActivity : ComponentActivity() {
                     if (current) {
                         statusView.text = getString(R.string.wallet_status_create_failed)
                     } else {
-                        releaseStorageLease(lease)
+                        releaseStorageLeaseAfterOperation(lease)
                     }
                     return@runOnUiThread
                 }
@@ -247,6 +296,7 @@ class WalletActivity : ComponentActivity() {
                 recoveryView.showSecret(recovery)
                 statusView.text = getString(R.string.wallet_status_recovery_required)
                 accountView.text = getString(R.string.wallet_account_locked)
+                resetReadProjection(R.string.wallet_reads_recovery_unconfirmed)
             }
         }
     }
@@ -285,7 +335,7 @@ class WalletActivity : ComponentActivity() {
                         statusView.text = getString(R.string.wallet_status_restore_failed)
                         accountView.text = getString(R.string.wallet_account_unavailable)
                     } else {
-                        releaseStorageLease(lease)
+                        releaseStorageLeaseAfterOperation(lease)
                     }
                     return@runOnUiThread
                 }
@@ -301,7 +351,7 @@ class WalletActivity : ComponentActivity() {
                     runCatching { keyStore.deleteDatabaseKey() }
                     deleteWalletFiles()
                     if (!operationIsCurrent(epoch, lease)) {
-                        releaseStorageLease(lease)
+                        releaseStorageLeaseAfterOperation(lease)
                         return@runOnUiThread
                     }
                     statusView.text = getString(R.string.wallet_status_restore_failed)
@@ -314,7 +364,7 @@ class WalletActivity : ComponentActivity() {
                 // the newer owner and retire only this native controller.
                 if (!operationIsCurrent(epoch, lease)) {
                     NativeWalletBridge.destroy(restored)
-                    releaseStorageLease(lease)
+                    releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
                 walletHandle = restored
@@ -379,7 +429,7 @@ class WalletActivity : ComponentActivity() {
             runOnUiThread {
                 busy = false
                 if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
-                    releaseStorageLease(lease)
+                    releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
                 if (!unlocked) {
@@ -405,7 +455,7 @@ class WalletActivity : ComponentActivity() {
             runOnUiThread {
                 busy = false
                 if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
-                    releaseStorageLease(lease)
+                    releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
                 if (!locked) {
@@ -416,16 +466,64 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
+    private fun synchronizeWalletReads() {
+        val lease = currentStorageLease() ?: return
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE || unconfirmedDatabaseKey != null) {
+            resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
+            return
+        }
+        val status = NativeWalletBridge.status(handle)
+        if (status == null || status.locked) {
+            resetReadProjection(R.string.wallet_reads_locked)
+            return
+        }
+        if (!NativeWalletBridge.hasHnsReads(handle)) {
+            resetReadProjection(R.string.wallet_reads_unavailable)
+            return
+        }
+        if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
+        readStatusView.text = getString(R.string.wallet_reads_syncing)
+        val epoch = lifecycleEpoch
+        thread(name = "hns-wallet-read-sync") {
+            val snapshot = NativeWalletBridge.synchronizeHnsReads(handle)
+            runOnUiThread {
+                busy = false
+                val ownsLease = currentStorageLease() === lease
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = ownsLease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                refreshControllerState()
+                if (snapshot == null) {
+                    resetReadProjection(R.string.wallet_reads_sync_failed)
+                } else {
+                    renderReadSnapshot(snapshot)
+                }
+            }
+        }
+    }
+
     private fun refreshControllerState() {
         val status = NativeWalletBridge.status(walletHandle)
         if (status == null) {
             statusView.text = getString(R.string.wallet_status_unavailable)
             accountView.text = getString(R.string.wallet_account_unavailable)
+            resetReadProjection(R.string.wallet_reads_unavailable)
             return
         }
         if (status.locked) {
             statusView.text = getString(R.string.wallet_status_locked)
             accountView.text = getString(R.string.wallet_account_locked)
+            resetReadProjection(R.string.wallet_reads_locked)
             return
         }
         statusView.text = getString(
@@ -443,11 +541,17 @@ class WalletActivity : ComponentActivity() {
                 account.accountId,
             )
         }
+        if (NativeWalletBridge.hasHnsReads(walletHandle)) {
+            resetReadProjection(R.string.wallet_reads_ready_to_sync)
+        } else {
+            resetReadProjection(R.string.wallet_reads_unavailable)
+        }
     }
 
     private fun requestStorageLease(owner: WalletStorageOwnershipGate.Owner) {
         statusView.text = getString(R.string.wallet_status_starting)
         accountView.text = getString(R.string.wallet_account_unavailable)
+        resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
         val accepted = ProcessWalletStorageOwnership.acquire(owner) { lease ->
             runOnUiThread {
                 if (
@@ -480,6 +584,9 @@ class WalletActivity : ComponentActivity() {
             statusView.text = getString(R.string.wallet_status_key_store_unavailable)
             accountView.text = getString(R.string.wallet_account_unavailable)
         } else if (!busy && walletHandle == INVALID_HANDLE && hasDatabaseKey) {
+            // Reopening establishes the only controller state eligible for a
+            // future product-owned scoped read credential. This screen never
+            // sources an endpoint or credential from user-controlled input.
             openExistingWallet()
         } else if (!busy && walletHandle == INVALID_HANDLE) {
             showNoWallet()
@@ -495,12 +602,14 @@ class WalletActivity : ComponentActivity() {
         val hadUnconfirmedWallet = unconfirmedDatabaseKey != null
         unconfirmedDatabaseKey?.fill(0)
         unconfirmedDatabaseKey = null
-        destroyController()
         val lease = storageLease
+        val retirementStarted = lease != null && retireControllerAfterNativeOperation(lease)
+        if (!retirementStarted) destroyController()
         if (hadUnconfirmedWallet && lease != null) deleteWalletFiles()
-        if (!busy && lease != null) releaseStorageLease(lease)
+        if (!busy && lease != null) releaseStorageLeaseAfterOperation(lease)
         statusView.text = getString(R.string.wallet_status_unavailable)
         accountView.text = getString(R.string.wallet_account_unavailable)
+        resetReadProjection(R.string.wallet_reads_unavailable)
     }
 
     private fun currentStorageLease(): WalletStorageOwnershipGate.Lease? {
@@ -525,6 +634,38 @@ class WalletActivity : ComponentActivity() {
     private fun releaseStorageLease(lease: WalletStorageOwnershipGate.Lease) {
         if (storageLease === lease) storageLease = null
         ProcessWalletStorageOwnership.release(lease)
+    }
+
+    private fun releaseStorageLeaseAfterOperation(lease: WalletStorageOwnershipGate.Lease) {
+        if (leaseReleaseHandoff.operationMayRelease(lease)) {
+            releaseStorageLease(lease)
+        }
+    }
+
+    /**
+     * A bounded RPC may still own the native controller mutex when onStop or a
+     * replacement Activity revokes this owner. Retire on a worker and retain
+     * the storage lease until native destruction finishes; the stale operation
+     * callback is explicitly denied release authority for the handed-off lease.
+     */
+    private fun retireControllerAfterNativeOperation(
+        lease: WalletStorageOwnershipGate.Lease,
+    ): Boolean {
+        if (!busy) return false
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE) return false
+        check(leaseReleaseHandoff.handOffToRetirement(lease)) {
+            "Wallet storage lease already handed to controller retirement"
+        }
+        walletHandle = INVALID_HANDLE
+        thread(name = "hns-wallet-controller-retire") {
+            NativeWalletBridge.destroy(handle)
+            ProcessWalletStorageOwnership.release(lease)
+            runOnUiThread {
+                if (storageLease === lease) storageLease = null
+            }
+        }
+        return true
     }
 
     private fun canStartNewWallet(lease: WalletStorageOwnershipGate.Lease): Boolean {
@@ -559,6 +700,7 @@ class WalletActivity : ComponentActivity() {
         if (busy || currentStorageLease() !== lease) return false
         busy = true
         statusView.text = status
+        resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
         return true
     }
 
@@ -569,7 +711,92 @@ class WalletActivity : ComponentActivity() {
             getString(R.string.wallet_status_native_unavailable)
         }
         accountView.text = getString(R.string.wallet_account_unavailable)
+        resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
     }
+
+    private fun walletReadSummary(text: Int): TextView = preferenceSummary(
+        text = getString(text),
+        maxLines = Int.MAX_VALUE,
+    )
+
+    private fun resetReadProjection(status: Int) {
+        readStatusView.text = getString(status)
+        balanceView.text = getString(R.string.wallet_reads_balance_unavailable)
+        receiveView.text = getString(R.string.wallet_reads_receive_unavailable)
+        historyView.text = getString(R.string.wallet_reads_history_unavailable)
+        trackedNamesView.text = getString(R.string.wallet_reads_names_unavailable)
+    }
+
+    private fun renderReadSnapshot(snapshot: NativeWalletReadSnapshot) {
+        readStatusView.text = getString(R.string.wallet_reads_ready, snapshot.height)
+        balanceView.text = getString(
+            R.string.wallet_reads_balance,
+            formatHnsBaseUnits(snapshot.balanceBaseUnits),
+        )
+        receiveView.text = getString(
+            R.string.wallet_reads_receive,
+            snapshot.receiveAddress,
+            snapshot.derivationIndex,
+        )
+        val visibleTransactions = snapshot.transactions.take(MAX_VISIBLE_READ_ITEMS)
+        historyView.text = if (visibleTransactions.isEmpty()) {
+            getString(R.string.wallet_reads_history_empty)
+        } else {
+            val entries = visibleTransactions.joinToString("\n\n") { transaction ->
+                val chainPosition = if (transaction.blockHeight == null) {
+                    getString(R.string.wallet_reads_transaction_unconfirmed)
+                } else {
+                    getString(
+                        R.string.wallet_reads_transaction_confirmed,
+                        transaction.blockHeight,
+                        transaction.confirmationCount,
+                    )
+                }
+                getString(
+                    R.string.wallet_reads_transaction,
+                    walletReadCodeLabel(transaction.status),
+                    transaction.displayAmount(),
+                    transaction.txid,
+                    chainPosition,
+                )
+            }
+            appendRemainingCount(entries, snapshot.transactions.size - visibleTransactions.size)
+        }
+        val visibleNames = snapshot.trackedNames.take(MAX_VISIBLE_READ_ITEMS)
+        trackedNamesView.text = if (visibleNames.isEmpty()) {
+            getString(R.string.wallet_reads_names_empty)
+        } else {
+            val entries = visibleNames.joinToString("\n\n") { name ->
+                val state = listOfNotNull(
+                    walletReadCodeLabel(name.ownershipStatus),
+                    walletReadCodeLabel(name.resourceStatus),
+                    name.registered?.let { registered ->
+                        getString(
+                            if (registered) R.string.wallet_reads_name_registered
+                            else R.string.wallet_reads_name_not_registered,
+                        )
+                    },
+                    name.expired?.let { expired ->
+                        getString(
+                            if (expired) R.string.wallet_reads_name_expired
+                            else R.string.wallet_reads_name_current,
+                        )
+                    },
+                ).joinToString(" · ")
+                getString(
+                    R.string.wallet_reads_name,
+                    name.name,
+                    name.proofHeight,
+                    state,
+                    name.nameHash,
+                )
+            }
+            appendRemainingCount(entries, snapshot.trackedNames.size - visibleNames.size)
+        }
+    }
+
+    private fun appendRemainingCount(entries: String, remaining: Int): String =
+        if (remaining <= 0) entries else "$entries\n\n${getString(R.string.wallet_reads_more, remaining)}"
 
     private fun reconcileIncompleteStorage() {
         val database = walletDatabaseFile
@@ -697,6 +924,7 @@ class WalletActivity : ComponentActivity() {
         const val DATABASE_KEY_BYTES = 32
         const val MAX_RECOVERY_CHARACTERS = 256
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
+        const val MAX_VISIBLE_READ_ITEMS = 20
         const val WALLET_DATABASE = "wallet.sqlite3"
         const val NUL_CHARACTER = "\u0000"
     }

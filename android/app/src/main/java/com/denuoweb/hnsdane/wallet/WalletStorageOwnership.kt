@@ -31,6 +31,36 @@ internal fun walletSetupMayInspectStorage(
         !hasController &&
         !hasUnconfirmedKey
 
+internal fun walletReadMayPublish(
+    expectedEpoch: Long,
+    currentEpoch: Long,
+    foreground: Boolean,
+    ownsCurrentLease: Boolean,
+    expectedHandle: Long,
+    currentHandle: Long,
+): Boolean =
+    expectedEpoch == currentEpoch &&
+        foreground &&
+        ownsCurrentLease &&
+        expectedHandle > 0L &&
+        expectedHandle == currentHandle
+
+/**
+ * Records leases whose release is owned by native-controller retirement rather
+ * than the stale operation callback. Membership is retained for this short
+ * Activity lifetime so a duplicate callback can never release the same lease.
+ */
+internal class WalletLeaseReleaseHandoff {
+    private val lock = Any()
+    private val retirementOwned = mutableSetOf<WalletStorageOwnershipGate.Lease>()
+
+    fun handOffToRetirement(lease: WalletStorageOwnershipGate.Lease): Boolean =
+        synchronized(lock) { retirementOwned.add(lease) }
+
+    fun operationMayRelease(lease: WalletStorageOwnershipGate.Lease): Boolean =
+        synchronized(lock) { lease !in retirementOwned }
+}
+
 /**
  * Serializes access to each process-local wallet database path across Activity
  * replacement. A newer owner revokes the old owner immediately, but cannot

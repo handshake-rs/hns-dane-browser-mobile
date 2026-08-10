@@ -38,6 +38,25 @@ class NativeWalletBridgeTest {
         assertNull(NativeWalletBridge.parseSingleAccountBundle(accountBundle(module = 1, flags = 1)))
     }
 
+    @Test
+    fun unavailableReadConfigurationStillConsumesAuthorizationInput() {
+        val authorization = "Bearer scoped-read-secret".toCharArray()
+        assertFalse(
+            NativeWalletBridge.configureHnsReads(
+                handle = 0,
+                loopbackPort = 12_039,
+                authorization = authorization,
+            ),
+        )
+        assertTrue(authorization.all { it == '\u0000' })
+        assertFalse(NativeWalletBridge.hasHnsReads(0))
+        assertNull(NativeWalletBridge.synchronizeHnsReads(0))
+
+        val rejectedBundle = "not a wallet snapshot".toByteArray()
+        assertNull(NativeWalletBridge.parseAndWipeHnsReadBundle(rejectedBundle))
+        assertTrue(rejectedBundle.all { it == 0.toByte() })
+    }
+
     private fun statusBundle(flags: Int, walletId: ByteArray): ByteArray =
         ByteBuffer.allocate(24).order(ByteOrder.BIG_ENDIAN).apply {
             put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'W'.code.toByte(), 'S'.code.toByte()))

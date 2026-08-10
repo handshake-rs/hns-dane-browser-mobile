@@ -100,4 +100,41 @@ class WalletStorageOwnershipTest {
             ),
         )
     }
+
+    @Test
+    fun synchronizedReadsPublishOnlyToTheSameForegroundEpochLeaseAndHandle() {
+        assertTrue(
+            walletReadMayPublish(
+                expectedEpoch = 7,
+                currentEpoch = 7,
+                foreground = true,
+                ownsCurrentLease = true,
+                expectedHandle = 11,
+                currentHandle = 11,
+            ),
+        )
+        assertFalse(walletReadMayPublish(7, 8, true, true, 11, 11))
+        assertFalse(walletReadMayPublish(7, 7, false, true, 11, 11))
+        assertFalse(walletReadMayPublish(7, 7, true, false, 11, 11))
+        assertFalse(walletReadMayPublish(7, 7, true, true, 11, 12))
+        assertFalse(walletReadMayPublish(7, 7, true, true, 0, 0))
+    }
+
+    @Test
+    fun controllerRetirementOwnsItsLeaseReleaseExactlyOnce() {
+        val storage = WalletStorageOwnershipGate()
+        val owner = storage.newOwner("/wallet/mainnet/wallet.sqlite3") {}
+        var lease: WalletStorageOwnershipGate.Lease? = null
+        assertTrue(storage.acquire(owner) { lease = it })
+        val captured = checkNotNull(lease)
+        val handoff = WalletLeaseReleaseHandoff()
+
+        assertTrue(handoff.operationMayRelease(captured))
+        assertTrue(handoff.handOffToRetirement(captured))
+        assertFalse(handoff.handOffToRetirement(captured))
+        assertFalse(handoff.operationMayRelease(captured))
+        assertFalse(handoff.operationMayRelease(captured))
+        assertTrue(storage.release(captured))
+        assertFalse(storage.release(captured))
+    }
 }

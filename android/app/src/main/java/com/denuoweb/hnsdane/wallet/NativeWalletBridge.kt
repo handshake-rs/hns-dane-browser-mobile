@@ -80,6 +80,46 @@ internal object NativeWalletBridge {
             null
         }
 
+    /**
+     * Installs an app-owned read-only sidecar binding. The caller must source a
+     * scoped credential from trusted native configuration; this is deliberately
+     * not reachable from preferences, intents, links, or ordinary wallet UI.
+     */
+    fun configureHnsReads(
+        handle: Long,
+        loopbackPort: Int,
+        authorization: CharArray,
+    ): Boolean = try {
+        isValidHandle(handle) &&
+            isAvailable &&
+            loopbackPort in 1..USHORT_MAX &&
+            authorization.size in 1..MAX_AUTHORIZATION_CHARACTERS &&
+            runCatching {
+                nativeConfigureHnsReads(handle, loopbackPort, authorization)
+            }.getOrDefault(false)
+    } finally {
+        authorization.fill('\u0000')
+    }
+
+    fun hasHnsReads(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeHasHnsReads(handle) }.getOrDefault(false)
+
+    fun synchronizeHnsReads(handle: Long): NativeWalletReadSnapshot? =
+        if (isValidHandle(handle) && isAvailable) {
+            val bundle = runCatching { nativeSynchronizeHnsReads(handle) }.getOrNull()
+                ?: return null
+            parseAndWipeHnsReadBundle(bundle)
+        } else {
+            null
+        }
+
+    internal fun parseAndWipeHnsReadBundle(bundle: ByteArray): NativeWalletReadSnapshot? = try {
+        NativeWalletReadSnapshot.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
     fun unlock(handle: Long, databaseKey: ByteArray): Boolean =
         consumeDatabaseKey(databaseKey) { key ->
             isValidHandle(handle) && isAvailable &&
@@ -202,6 +242,19 @@ internal object NativeWalletBridge {
     private external fun nativeAccounts(handle: Long): ByteArray?
 
     @JvmStatic
+    private external fun nativeConfigureHnsReads(
+        handle: Long,
+        loopbackPort: Int,
+        authorization: CharArray,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativeHasHnsReads(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeSynchronizeHnsReads(handle: Long): ByteArray?
+
+    @JvmStatic
     private external fun nativeUnlock(handle: Long, databaseKey: ByteArray): Boolean
 
     @JvmStatic
@@ -218,6 +271,8 @@ internal object NativeWalletBridge {
     private const val WALLET_ID_BYTES = 16
     private const val ACCOUNT_ID_BYTES = 16
     private const val MAX_RECOVERY_CHARACTERS = 256
+    private const val MAX_AUTHORIZATION_CHARACTERS = 4_096
+    private const val USHORT_MAX = 65_535
     private const val MAX_ACCOUNT_LABEL_BYTES = 128
     private const val STATUS_BUNDLE_BYTES = 24
     private const val ACCOUNT_FIXED_BYTES = 28

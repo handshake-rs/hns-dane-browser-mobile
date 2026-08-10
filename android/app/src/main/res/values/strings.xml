@@ -22,6 +22,7 @@
     <string name="action_unlock_wallet" translatable="false">Unlock</string>
     <string name="action_lock_wallet" translatable="false">Lock</string>
     <string name="action_saved_wallet_recovery" translatable="false">I saved it</string>
+    <string name="action_sync_wallet_reads" translatable="false">Synchronize</string>
 
     <string name="common_copied">Copied</string>
     <string name="common_copied_label">Copied %1$s</string>
@@ -145,6 +146,7 @@
     <string name="section_wallet_setup" translatable="false">Create or restore</string>
     <string name="section_wallet_recovery" translatable="false">Recovery backup</string>
     <string name="section_wallet_access" translatable="false">Local access</string>
+    <string name="section_wallet_reads" translatable="false">Read-only HNS wallet</string>
 
     <string name="row_agreement">Agreement</string>
     <string name="row_app_downloads">App downloads</string>
@@ -233,6 +235,13 @@
     <string name="row_wallet_unlock_summary" translatable="false">Unwrap the database key from Android Keystore for this foreground session.</string>
     <string name="row_wallet_lock" translatable="false">Lock</string>
     <string name="row_wallet_lock_summary" translatable="false">End the current native wallet session.</string>
+    <string name="row_wallet_read_module" translatable="false">Module status</string>
+    <string name="row_wallet_read_balance" translatable="false">Confirmed spendable balance</string>
+    <string name="row_wallet_read_receive" translatable="false">Receive address</string>
+    <string name="row_wallet_read_history" translatable="false">Transaction history</string>
+    <string name="row_wallet_read_names" translatable="false">Tracked names</string>
+    <string name="row_wallet_read_sync" translatable="false">Refresh wallet reads</string>
+    <string name="row_wallet_read_sync_summary" translatable="false">Run one bounded, tip-consistent synchronization off the UI thread. This cannot send HNS or operate a marketplace.</string>
 
     <string name="wallet_restore_phrase_hint" translatable="false">24-word recovery phrase</string>
     <string name="wallet_restore_phrase_required" translatable="false">Enter the complete 24-word recovery phrase.</string>
@@ -243,6 +252,7 @@
     <string name="wallet_status_restoring" translatable="false">Restoring native wallet…</string>
     <string name="wallet_status_unlocking" translatable="false">Unlocking native wallet…</string>
     <string name="wallet_status_locking" translatable="false">Locking native wallet…</string>
+    <string name="wallet_status_syncing_reads" translatable="false">Synchronizing read-only HNS wallet…</string>
     <string name="wallet_status_not_created" translatable="false">No native wallet exists on this device.</string>
     <string name="wallet_status_native_unavailable" translatable="false">Native wallet core is unavailable.</string>
     <string name="wallet_status_recovery_required" translatable="false">Save the recovery phrase offline, then confirm. Leaving this screen discards the unconfirmed wallet.</string>
@@ -258,6 +268,31 @@
     <string name="wallet_status_key_store_unavailable" translatable="false">Android Keystore is unavailable. Wallet storage was left unchanged.</string>
     <string name="wallet_account_locked" translatable="false">Unlock to inspect the single HNS account identity.</string>
     <string name="wallet_account_unavailable" translatable="false">No account identity is exposed.</string>
+    <string name="wallet_reads_unavailable" translatable="false">Read-only HNS synchronization is unavailable because no scoped trusted loopback gateway is provisioned. Send, HNSA, HNSR, and P2P marketplace controls remain disabled.</string>
+    <string name="wallet_reads_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet to inspect synchronized HNS reads.</string>
+    <string name="wallet_reads_recovery_unconfirmed" translatable="false">Confirm the recovery backup before any wallet read backend can be installed.</string>
+    <string name="wallet_reads_locked" translatable="false">Unlock the wallet before synchronizing read-only HNS data.</string>
+    <string name="wallet_reads_ready_to_sync" translatable="false">The read-only HNS module is configured. Synchronize to refresh its tip-bound projection.</string>
+    <string name="wallet_reads_syncing" translatable="false">Synchronizing one bounded HNS read snapshot…</string>
+    <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read failed closed. Reopen and unlock the wallet before retrying.</string>
+    <string name="wallet_reads_ready" translatable="false">Handshake reads are ready at height %1$d. Send, HNSA, HNSR, and marketplace controls are unavailable.</string>
+    <string name="wallet_reads_balance_unavailable" translatable="false">No synchronized balance is exposed.</string>
+    <string name="wallet_reads_balance" translatable="false">%1$s HNS confirmed spendable</string>
+    <string name="wallet_reads_receive_unavailable" translatable="false">No receive address is exposed.</string>
+    <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d</string>
+    <string name="wallet_reads_history_unavailable" translatable="false">No synchronized transaction history is exposed.</string>
+    <string name="wallet_reads_history_empty" translatable="false">No wallet transactions were found in the synchronized snapshot.</string>
+    <string name="wallet_reads_transaction" translatable="false">%1$s · %2$s\n%3$s\n%4$s</string>
+    <string name="wallet_reads_transaction_unconfirmed" translatable="false">Unconfirmed</string>
+    <string name="wallet_reads_transaction_confirmed" translatable="false">Block %1$d · %2$d confirmations</string>
+    <string name="wallet_reads_names_unavailable" translatable="false">No synchronized tracked-name state is exposed.</string>
+    <string name="wallet_reads_names_empty" translatable="false">No names are tracked by this wallet yet.</string>
+    <string name="wallet_reads_name" translatable="false">%1$s · proof height %2$d\n%3$s\n%4$s</string>
+    <string name="wallet_reads_name_registered" translatable="false">registered</string>
+    <string name="wallet_reads_name_not_registered" translatable="false">not registered</string>
+    <string name="wallet_reads_name_expired" translatable="false">expired</string>
+    <string name="wallet_reads_name_current" translatable="false">current</string>
+    <string name="wallet_reads_more" translatable="false">%1$d more items are present in this synchronized snapshot.</string>
     <string name="wallet_account_identity" translatable="false">%1$s\nModule: %2$s\nAccount: %3$s</string>
     <string name="wallet_recovery_confirm_title" translatable="false">Recovery phrase saved?</string>
     <string name="wallet_recovery_confirm_message" translatable="false">Confirm only after storing all 24 words offline. The phrase cannot be shown again.</string>

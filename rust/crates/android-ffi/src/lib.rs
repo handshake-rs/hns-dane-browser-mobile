@@ -7,13 +7,15 @@
 
 use hns_mobile_platform_runtime::*;
 use hns_wallet_mobile::{
-    HnsBootstrapPolicy, HnsNetwork, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MobileDatabaseKey,
-    MobilePlatform, MobileRecoveryPhrase, MobileWalletController,
+    HnsBootstrapPolicy, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MobileDatabaseKey, MobileHnsReadController, MobilePlatform,
+    MobileRecoveryPhrase, MobileWalletController,
 };
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JCharArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jcharArray, jint, jlong, jstring};
 use std::collections::{HashMap, HashSet};
+use std::net::{Ipv4Addr, SocketAddr};
 use std::os::fd::{FromRawFd, RawFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
@@ -39,6 +41,10 @@ static NEXT_PROXY_HANDLE: AtomicU64 = AtomicU64::new(1);
 static PROXY_HANDLES: OnceLock<Mutex<HashMap<jlong, Arc<AndroidProxyRecord>>>> = OnceLock::new();
 const MAX_ANDROID_WALLET_HANDLES: usize = 4;
 const MAX_ANDROID_WALLET_PATH_BYTES: usize = 4_096;
+const MAX_ANDROID_WALLET_RPC_AUTHORIZATION_CHARACTERS: usize = 4_096;
+const ANDROID_WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
+const ANDROID_WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
+const ANDROID_WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 const ANDROID_WALLET_NETWORK_MAINNET: jint = 1;
 const ANDROID_WALLET_NETWORK_TESTNET: jint = 2;
 const ANDROID_WALLET_NETWORK_REGTEST: jint = 3;
@@ -48,6 +54,11 @@ const WALLET_STATUS_BUNDLE_BYTES: usize = 24;
 const WALLET_ACCOUNT_BUNDLE_MAGIC: &[u8; 4] = b"HNWA";
 const WALLET_ACCOUNT_BUNDLE_VERSION: u8 = 1;
 const MAX_WALLET_ACCOUNT_LABEL_BYTES: usize = 128;
+const WALLET_READ_BUNDLE_MAGIC: &[u8; 4] = b"HNWR";
+const WALLET_READ_BUNDLE_VERSION: u8 = 1;
+const WALLET_READ_BUNDLE_FLAGS: u8 = 1;
+const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
 static WALLET_HANDLES: OnceLock<BoundedMonotonicRegistry<AndroidWalletRecord>> = OnceLock::new();
 const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
 static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
@@ -122,27 +133,162 @@ impl Drop for SensitiveUtf16 {
     }
 }
 
+struct SensitiveString(String);
+
+impl SensitiveString {
+    fn take(&mut self) -> String {
+        std::mem::take(&mut self.0)
+    }
+}
+
+impl Drop for SensitiveString {
+    fn drop(&mut self) {
+        wipe_string(&mut self.0);
+    }
+}
+
 fn lock_if_active<'a, T>(active: &AtomicBool, value: &'a Mutex<T>) -> Option<MutexGuard<'a, T>> {
     let guard = value.lock().ok()?;
     active.load(Ordering::Acquire).then_some(guard)
 }
 
+enum AndroidWalletController {
+    Lifecycle(MobileWalletController),
+    Reads(MobileHnsReadController<HnsNodeRpcBackend>),
+    Failed,
+}
+
+impl AndroidWalletController {
+    fn status_bundle(&mut self) -> Option<Vec<u8>> {
+        let (status, read_mode) = match self {
+            Self::Lifecycle(controller) => (controller.status().ok()?, false),
+            Self::Reads(controller) => (controller.status().ok()?, true),
+            Self::Failed => return None,
+        };
+        let active_wallet = status
+            .active_wallet
+            .as_ref()
+            .map(|wallet| wallet.as_bytes());
+        let enabled_modules_valid = if read_mode {
+            status.enabled_modules.len() == 1
+                && status
+                    .enabled_modules
+                    .iter()
+                    .next()
+                    .is_some_and(|module| format!("{module:?}") == "Handshake")
+        } else {
+            status.enabled_modules.is_empty()
+        };
+        wallet_status_bundle(
+            status.locked,
+            active_wallet,
+            enabled_modules_valid,
+            status.mainnet_settlement_enabled,
+        )
+    }
+
+    fn account_bundle(&mut self) -> Option<Vec<u8>> {
+        let mut accounts = match self {
+            Self::Lifecycle(controller) => controller.accounts().ok()?,
+            Self::Reads(controller) => controller.accounts().ok()?,
+            Self::Failed => return None,
+        };
+        if accounts.len() != 1 {
+            return None;
+        }
+        let account = accounts.pop()?;
+        let module = format!("{:?}", account.module);
+        wallet_account_bundle(
+            account.account_id.as_bytes(),
+            module.as_str(),
+            account.label.as_str(),
+            account.receive_display.is_some(),
+        )
+    }
+
+    fn unlock(&mut self, key: &MobileDatabaseKey) -> bool {
+        match self {
+            Self::Lifecycle(controller) => controller.unlock(key).is_ok(),
+            Self::Reads(controller) => controller.unlock(key).is_ok(),
+            Self::Failed => false,
+        }
+    }
+
+    fn lock(&mut self) -> bool {
+        match self {
+            Self::Lifecycle(controller) => controller.lock().is_ok(),
+            Self::Reads(controller) => controller.lock().is_ok(),
+            Self::Failed => false,
+        }
+    }
+
+    fn install_hns_reads(&mut self, backend: HnsNodeRpcBackend) -> bool {
+        if !matches!(self, Self::Lifecycle(_)) {
+            return false;
+        }
+        let lifecycle = match std::mem::replace(self, Self::Failed) {
+            Self::Lifecycle(controller) => controller,
+            _ => return false,
+        };
+        match lifecycle.into_hns_reads(backend) {
+            Ok(controller) => {
+                *self = Self::Reads(controller);
+                true
+            }
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet HNS read controller installation failed closed: {error}"
+                ));
+                false
+            }
+        }
+    }
+
+    const fn has_hns_reads(&self) -> bool {
+        matches!(self, Self::Reads(_))
+    }
+
+    fn synchronize_hns_reads(&mut self) -> Option<Vec<u8>> {
+        let Self::Reads(controller) = self else {
+            return None;
+        };
+        let snapshot = match controller.synchronize() {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                android_log_error(&format!("wallet HNS read synchronization failed: {error}"));
+                return None;
+            }
+        };
+        let mut json = serde_json::to_vec(&snapshot).ok()?;
+        let bundle = wallet_read_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+}
+
 struct AndroidWalletRecord {
     active: AtomicBool,
-    controller: Arc<Mutex<MobileWalletController>>,
+    controller: Arc<Mutex<AndroidWalletController>>,
     pending_recovery: Mutex<Option<SensitiveUtf16>>,
+    hns_reads_installable: bool,
 }
 
 impl AndroidWalletRecord {
     fn new(controller: MobileWalletController, recovery: Option<SensitiveUtf16>) -> Self {
+        // A newly generated wallet cannot acquire a network read backend until
+        // its confirmed key has been reopened in a new native controller. This
+        // keeps taking the one-shot recovery display distinct from durable
+        // platform-key publication.
+        let hns_reads_installable = recovery.is_none();
         Self {
             active: AtomicBool::new(true),
-            controller: Arc::new(Mutex::new(controller)),
+            controller: Arc::new(Mutex::new(AndroidWalletController::Lifecycle(controller))),
             pending_recovery: Mutex::new(recovery),
+            hns_reads_installable,
         }
     }
 
-    fn controller_if_active(&self) -> Option<MutexGuard<'_, MobileWalletController>> {
+    fn controller_if_active(&self) -> Option<MutexGuard<'_, AndroidWalletController>> {
         lock_if_active(&self.active, self.controller.as_ref())
     }
 
@@ -356,14 +502,34 @@ fn android_wallet_recovery_phrase(
     MobileRecoveryPhrase::new(phrase).ok()
 }
 
+fn android_wallet_rpc_authorization(
+    env: &mut JNIEnv<'_>,
+    input: &JCharArray<'_>,
+) -> Option<SensitiveString> {
+    let length = usize::try_from(env.get_array_length(input).ok()?).ok()?;
+    if length == 0 || length > MAX_ANDROID_WALLET_RPC_AUTHORIZATION_CHARACTERS {
+        return None;
+    }
+    let mut characters = vec![0_u16; length];
+    let read = env.get_char_array_region(input, 0, characters.as_mut_slice());
+    let zeros = vec![0_u16; length];
+    let wiped = env.set_char_array_region(input, 0, zeros.as_slice());
+    if read.is_err() || wiped.is_err() {
+        characters.fill(0);
+        return None;
+    }
+    let authorization = String::from_utf16(characters.as_slice()).ok();
+    characters.fill(0);
+    authorization.map(SensitiveString)
+}
+
 fn wallet_status_bundle(
     locked: bool,
     active_wallet: Option<&[u8; 16]>,
-    enabled_modules_are_empty: bool,
+    enabled_modules_valid: bool,
     mainnet_settlement_enabled: bool,
 ) -> Option<Vec<u8>> {
-    if !enabled_modules_are_empty || mainnet_settlement_enabled || locked == active_wallet.is_some()
-    {
+    if !enabled_modules_valid || mainnet_settlement_enabled || locked == active_wallet.is_some() {
         return None;
     }
     let mut bundle = Vec::with_capacity(WALLET_STATUS_BUNDLE_BYTES);
@@ -404,6 +570,25 @@ fn wallet_account_bundle(
     bundle.extend_from_slice(&label_length.to_be_bytes());
     bundle.extend_from_slice(label);
     Some(bundle)
+}
+
+fn wallet_read_bundle(json: &[u8]) -> Option<Vec<u8>> {
+    if json.is_empty()
+        || json.len() > MAX_WALLET_READ_JSON_BYTES
+        || json.first() != Some(&b'{')
+        || json.last() != Some(&b'}')
+    {
+        return None;
+    }
+    let json_length = u32::try_from(json.len()).ok()?;
+    let mut bundle = Vec::with_capacity(WALLET_READ_BUNDLE_HEADER_BYTES + json.len());
+    bundle.extend_from_slice(WALLET_READ_BUNDLE_MAGIC);
+    bundle.push(WALLET_READ_BUNDLE_VERSION);
+    bundle.push(WALLET_READ_BUNDLE_FLAGS);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&json_length.to_be_bytes());
+    bundle.extend_from_slice(json);
+    (bundle.len() == WALLET_READ_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
 }
 
 struct AndroidRequestMetricsObserver;
@@ -1912,17 +2097,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
         let mut controller = record.controller_if_active()?;
-        let status = controller.status().ok()?;
-        let active_wallet = status
-            .active_wallet
-            .as_ref()
-            .map(|wallet| wallet.as_bytes());
-        let bundle = wallet_status_bundle(
-            status.locked,
-            active_wallet,
-            status.enabled_modules.is_empty(),
-            status.mainnet_settlement_enabled,
-        )?;
+        let bundle = controller.status_bundle()?;
         env.byte_array_from_slice(bundle.as_slice())
             .ok()
             .map(JByteArray::into_raw)
@@ -1941,21 +2116,111 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
         let mut controller = record.controller_if_active()?;
-        let mut accounts = controller.accounts().ok()?;
-        if accounts.len() != 1 {
-            return None;
-        }
-        let account = accounts.pop()?;
-        let module = format!("{:?}", account.module);
-        let bundle = wallet_account_bundle(
-            account.account_id.as_bytes(),
-            module.as_str(),
-            account.label.as_str(),
-            account.receive_display.is_some(),
-        )?;
+        let bundle = controller.account_bundle()?;
         env.byte_array_from_slice(bundle.as_slice())
             .ok()
             .map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeConfigureHnsReads(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    loopback_port: jint,
+    authorization: JCharArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(mut authorization) = android_wallet_rpc_authorization(&mut env, &authorization)
+        else {
+            return false;
+        };
+        let Ok(loopback_port) = u16::try_from(loopback_port) else {
+            return false;
+        };
+        if loopback_port == 0 {
+            return false;
+        }
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        if !record.active.load(Ordering::Acquire) || !record.hns_reads_installable {
+            return false;
+        }
+        let Some(pending_recovery) = record.pending_recovery_if_active() else {
+            return false;
+        };
+        if pending_recovery.is_some() {
+            return false;
+        }
+        drop(pending_recovery);
+        let endpoint = SocketAddr::from((Ipv4Addr::LOCALHOST, loopback_port));
+        let config =
+            match HnsNodeRpcConfig::new(endpoint, authorization.take()).and_then(|config| {
+                config.with_timeouts(
+                    ANDROID_WALLET_RPC_CONNECT_TIMEOUT,
+                    ANDROID_WALLET_RPC_READ_TIMEOUT,
+                    ANDROID_WALLET_RPC_WRITE_TIMEOUT,
+                )
+            }) {
+                Ok(config) => config,
+                Err(error) => {
+                    android_log_error(&format!("wallet HNS read configuration rejected: {error}"));
+                    return false;
+                }
+            };
+        let backend = match HnsNodeRpcBackend::new(config) {
+            Ok(backend) => backend,
+            Err(error) => {
+                android_log_error(&format!("wallet HNS read backend rejected: {error}"));
+                return false;
+            }
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.install_hns_reads(backend)
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeHasHnsReads(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.has_hns_reads()
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeSynchronizeHnsReads(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.synchronize_hns_reads()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
     }))
     .ok()
     .flatten()
@@ -1979,7 +2244,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
-        controller.unlock(&key).is_ok()
+        controller.unlock(&key)
     }))
     .unwrap_or(false)
     .into()
@@ -1998,7 +2263,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
-        controller.lock().is_ok()
+        controller.lock()
     }))
     .unwrap_or(false)
     .into()
@@ -2133,6 +2398,26 @@ mod tests {
         assert_eq!(&account[8..24], &account_id);
         assert!(wallet_account_bundle(&account_id, "Bitcoin", "Bitcoin", false).is_none());
         assert!(wallet_account_bundle(&account_id, "Handshake", "Handshake", true).is_none());
+    }
+
+    #[test]
+    fn wallet_read_bundle_is_versioned_exact_and_bounded() {
+        let json = br#"{"balance":{}}"#;
+        let bundle = wallet_read_bundle(json).expect("bounded wallet read bundle");
+        assert_eq!(&bundle[..4], WALLET_READ_BUNDLE_MAGIC);
+        assert_eq!(bundle[4], WALLET_READ_BUNDLE_VERSION);
+        assert_eq!(bundle[5], WALLET_READ_BUNDLE_FLAGS);
+        assert_eq!(&bundle[6..8], &[0, 0]);
+        assert_eq!(
+            u32::from_be_bytes(bundle[8..12].try_into().expect("length field")),
+            json.len() as u32
+        );
+        assert_eq!(&bundle[WALLET_READ_BUNDLE_HEADER_BYTES..], json);
+
+        assert!(wallet_read_bundle(b"").is_none());
+        assert!(wallet_read_bundle(b"[]").is_none());
+        assert!(wallet_read_bundle(b"{broken").is_none());
+        assert!(wallet_read_bundle(&vec![b' '; MAX_WALLET_READ_JSON_BYTES + 1]).is_none());
     }
 
     #[test]
