@@ -165,8 +165,8 @@ class MainActivity : ComponentActivity() {
                 if (activityDestroyed) return@runOnUiThread
                 proxyAvailable = available
                 if (::securityIndicator.isInitialized) refreshSecurityState()
-            },
-        )
+            }
+        }
         webViewGatewayInterceptor = HnsWebViewGatewayInterceptor(
             dataDir = filesDir,
             namespacePolicy = NativeBridge,
