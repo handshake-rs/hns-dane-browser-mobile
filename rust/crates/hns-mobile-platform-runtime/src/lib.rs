@@ -54,12 +54,11 @@ use hns_loopback_proxy::{
 };
 use hns_namespace_resolution::{
     AbsenceKind, AliasKind, AliasStep, ApplicationProtocol, CanonicalHost, CanonicalTlsa,
-    ClassificationError, DefaultPrecedence, EvidenceProvenance, Freshness,
-    HnsNetwork, IcannChainState, Namespace, NamespaceDecision, OriginPlanInput, OriginQuery,
-    OriginScheme, OutcomeKind, ProtocolCapabilities, RootFailure, RootFailureKind, RootLookup,
-    SelectionPolicy, SelectionReason, ServiceBinding, ServiceBindingInput, ServiceParameter,
-    ServiceTransport, TlsTrustPolicy, ValidatedAbsence, ValidatedOriginPlan, decide_namespace,
-    decision_fingerprint,
+    ClassificationError, DefaultPrecedence, EvidenceProvenance, Freshness, HnsNetwork,
+    IcannChainState, Namespace, NamespaceDecision, OriginPlanInput, OriginQuery, OriginScheme,
+    OutcomeKind, ProtocolCapabilities, RootFailure, RootFailureKind, RootLookup, SelectionPolicy,
+    SelectionReason, ServiceBinding, ServiceBindingInput, ServiceParameter, ServiceTransport,
+    TlsTrustPolicy, ValidatedAbsence, ValidatedOriginPlan, decide_namespace, decision_fingerprint,
 };
 use hns_p2p::{
     DnsRelayClient, DnsRelayClientError, DnsSeedPeerSource, EXPERIMENTAL_DNS_RELAY_SERVICE,
@@ -77,9 +76,9 @@ use hns_resolver::{
     DelegatedResolver, DelegatingResolver, DnsEndpointPolicy, DnsInterceptionStatus, DnsTransport,
     HnsDelegation, HnsProofProvider, HnsResourceValueProvider, NameClass,
     PreparedNamespaceResolution, ProvenNameRecords, ResolutionAnswer, ResolutionRequest, Resolver,
-    ResolverError,
-    ResourceValueAnchor, SqliteResourceValueProvider, SystemDnssecVerifier, UdpTcpDnsTransport,
-    VerifiedResourceValue as ResolverVerifiedResourceValue, classify_name, hns_root_label,
+    ResolverError, ResourceValueAnchor, SqliteResourceValueProvider, SystemDnssecVerifier,
+    UdpTcpDnsTransport, VerifiedResourceValue as ResolverVerifiedResourceValue, classify_name,
+    hns_root_label,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -17939,9 +17938,7 @@ mod tests {
                         .map(|kind| RootFailure::new(Namespace::Hns, query.clone(), kind, None)),
                     icann_root_failure: icann_failure
                         .map(|kind| RootFailure::new(Namespace::Icann, query.clone(), kind, None)),
-                    classification_error: Some(
-                        ClassificationError::DivergenceRequiresSelection,
-                    ),
+                    classification_error: Some(ClassificationError::DivergenceRequiresSelection),
                     state_fingerprint: None,
                     selected_answers: HashMap::new(),
                     hns_observation: None,
