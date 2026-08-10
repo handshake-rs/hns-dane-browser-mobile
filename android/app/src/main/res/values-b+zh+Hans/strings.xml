@@ -72,7 +72,12 @@
 <string name="sync_progress_target_unknown">目标未知</string>
 <string name="sync_progress_accepted">已接受+%1$s</string>
 <string name="sync_progress_peers">同行 %1$s</string>
+<string name="sync_progress_root_ready">HNS 根 %1$s 已就绪</string>
+<string name="sync_progress_root_required">需要 HNS 根 %1$s</string>
+<string name="sync_progress_root_unknown">HNS 根目标未知</string>
 <string name="sync_progress_summary">%1$s • 最佳高度 %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_waiting">正在等待经过验证的 Handshake 区块头，之后才能加载 %1$s。</string>
+<string name="sync_gate_failed">加载 %1$s 前必须恢复 Handshake 区块头同步。请查看上方的同步详情。</string>
 <string name="screen_cookie_options">Cookie 选项</string>
 <string name="screen_diagnostics">诊断</string>
 <string name="screen_dnssec_details">DNSSEC详细信息</string>

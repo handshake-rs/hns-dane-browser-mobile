@@ -72,7 +72,12 @@
 <string name="sync_progress_target_unknown">cel nieznany</string>
 <string name="sync_progress_accepted">zaakceptowane +%1$s</string>
 <string name="sync_progress_peers">rówieśnicy %1$s</string>
+<string name="sync_progress_root_ready">Korzeń HNS %1$s jest gotowy</string>
+<string name="sync_progress_root_required">Wymagany jest korzeń HNS %1$s</string>
+<string name="sync_progress_root_unknown">Cel korzenia HNS jest nieznany</string>
 <string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_waiting">Oczekiwanie na uwierzytelnione nagłówki Handshake przed wczytaniem %1$s.</string>
+<string name="sync_gate_failed">Synchronizacja nagłówków Handshake musi zostać przywrócona przed wczytaniem %1$s. Sprawdź szczegóły synchronizacji powyżej.</string>
 <string name="screen_cookie_options">Opcje plików cookie</string>
 <string name="screen_diagnostics">Diagnostyka</string>
 <string name="screen_dnssec_details">Szczegóły DNSSEC</string>

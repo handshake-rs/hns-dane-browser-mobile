@@ -72,7 +72,12 @@
 <string name="sync_progress_target_unknown">doel onbekend</string>
 <string name="sync_progress_accepted">geaccepteerd +%1$s</string>
 <string name="sync_progress_peers">soortgenoten %1$s</string>
+<string name="sync_progress_root_ready">HNS-root %1$s gereed</string>
+<string name="sync_progress_root_required">HNS-root %1$s vereist</string>
+<string name="sync_progress_root_unknown">doel van HNS-root onbekend</string>
 <string name="sync_progress_summary">%1$s • beste hoogte %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_waiting">Wachten op geverifieerde Handshake-headers voordat %1$s wordt geladen.</string>
+<string name="sync_gate_failed">De synchronisatie van Handshake-headers moet zijn hersteld voordat %1$s wordt geladen. Controleer de synchronisatiedetails hierboven.</string>
 <string name="screen_cookie_options">Cookie-opties</string>
 <string name="screen_diagnostics">Diagnostiek</string>
 <string name="screen_dnssec_details">DNSSEC-details</string>

@@ -92,14 +92,7 @@ object BrowserSecurityPolicy {
         ) {
             return SecurityState.ProofUnavailable
         }
-        if (
-            syncStatusJson.hasAuthoritativeTreeRoot() &&
-            (
-                syncStatusJson.hasSyncStatus("synced") ||
-                    syncStatusJson.hasSyncStatus("up_to_date") ||
-                    syncStatusJson.hasSyncStatus("attempted")
-                )
-        ) {
+        if (syncStatusJson.hasAuthoritativeTreeRoot()) {
             return SecurityState.Loading
         }
 

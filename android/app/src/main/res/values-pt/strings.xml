@@ -72,7 +72,12 @@
     <string name="sync_progress_target_unknown">alvo desconhecido</string>
     <string name="sync_progress_accepted">aceito +%1$s</string>
     <string name="sync_progress_peers">pares %1$s</string>
+    <string name="sync_progress_root_ready">Raiz HNS %1$s pronta</string>
+    <string name="sync_progress_root_required">raiz HNS %1$s necessária</string>
+    <string name="sync_progress_root_unknown">alvo da raiz HNS desconhecido</string>
     <string name="sync_progress_summary">%1$s • melhorAltura %2$s • %3$s%4$s%5$s</string>
+    <string name="sync_gate_waiting">Aguardando cabeçalhos Handshake autenticados antes de carregar %1$s.</string>
+    <string name="sync_gate_failed">A sincronização dos cabeçalhos Handshake deve ser recuperada antes de carregar %1$s. Verifique os detalhes da sincronização acima.</string>
     <string name="screen_cookie_options">Opções de cookies</string>
     <string name="screen_diagnostics">Diagnóstico</string>
     <string name="screen_dnssec_details">Detalhes DNSSEC</string>

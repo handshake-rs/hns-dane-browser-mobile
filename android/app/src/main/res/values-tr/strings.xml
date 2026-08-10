@@ -72,7 +72,12 @@
 <string name="sync_progress_target_unknown">hedef bilinmiyor</string>
 <string name="sync_progress_accepted">kabul edildi +%1$s</string>
 <string name="sync_progress_peers">akranlar %1$s</string>
+<string name="sync_progress_root_ready">HNS kökü %1$s hazır</string>
+<string name="sync_progress_root_required">HNS kökü %1$s gerekli</string>
+<string name="sync_progress_root_unknown">HNS kök hedefi bilinmiyor</string>
 <string name="sync_progress_summary">%1$s • en iyiYükseklik %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_waiting">%1$s yüklenmeden önce kimliği doğrulanmış Handshake başlıkları bekleniyor.</string>
+<string name="sync_gate_failed">%1$s yüklenmeden önce Handshake başlık eşitlemesinin kurtarılması gerekir. Yukarıdaki eşitleme ayrıntılarını kontrol edin.</string>
 <string name="screen_cookie_options">Çerez Seçenekleri</string>
 <string name="screen_diagnostics">Teşhis</string>
 <string name="screen_dnssec_details">DNSSEC Ayrıntıları</string>

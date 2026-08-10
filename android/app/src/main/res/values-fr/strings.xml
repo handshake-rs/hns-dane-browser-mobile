@@ -72,7 +72,12 @@
     <string name="sync_progress_target_unknown">cible inconnue</string>
     <string name="sync_progress_accepted">accepté +%1$s</string>
     <string name="sync_progress_peers">pairs %1$s</string>
+    <string name="sync_progress_root_ready">Racine HNS %1$s prête</string>
+    <string name="sync_progress_root_required">racine HNS %1$s requise</string>
+    <string name="sync_progress_root_unknown">cible de racine HNS inconnue</string>
     <string name="sync_progress_summary">%1$s • meilleure hauteur %2$s • %3$s%4$s%5$s</string>
+    <string name="sync_gate_waiting">En attente des en-têtes Handshake authentifiés avant le chargement de %1$s.</string>
+    <string name="sync_gate_failed">La synchronisation des en-têtes Handshake doit être rétablie avant de charger %1$s. Consultez les détails de synchronisation ci-dessus.</string>
     <string name="screen_cookie_options">Options des cookies</string>
     <string name="screen_diagnostics">Diagnostic</string>
     <string name="screen_dnssec_details">Détails DNSSEC</string>

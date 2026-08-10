@@ -97,7 +97,8 @@ data class HnsSyncProgress(
         }
 
     val shouldContinueSoon: Boolean
-        get() = !isCurrent && (accepted ?: 0L) > 0L
+        get() = status == "syncing" &&
+            (accepted ?: 0L) > 0L
 
     val shouldRetrySoon: Boolean
         get() = status in RETRY_STATUSES || needsPeerDiscovery

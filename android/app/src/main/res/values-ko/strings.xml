@@ -72,7 +72,12 @@
 <string name="sync_progress_target_unknown">타겟을 알 수 없음</string>
 <string name="sync_progress_accepted">+%1$s 허용됨</string>
 <string name="sync_progress_peers">동료 %1$s</string>
+<string name="sync_progress_root_ready">HNS 루트 %1$s 준비됨</string>
+<string name="sync_progress_root_required">HNS 루트 %1$s 필요</string>
+<string name="sync_progress_root_unknown">HNS 루트 대상 알 수 없음</string>
 <string name="sync_progress_summary">%1$s • 최고 높이 %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_waiting">%1$s을(를) 로드하기 전에 인증된 Handshake 헤더를 기다리는 중입니다.</string>
+<string name="sync_gate_failed">%1$s을(를) 로드하려면 먼저 Handshake 헤더 동기화가 복구되어야 합니다. 위의 동기화 세부정보를 확인하세요.</string>
 <string name="screen_cookie_options">쿠키 옵션</string>
 <string name="screen_diagnostics">진단</string>
 <string name="screen_dnssec_details">DNSSEC 세부정보</string>

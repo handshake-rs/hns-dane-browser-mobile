@@ -72,7 +72,12 @@
 <string name="sync_progress_target_unknown">mục tiêu không xác định</string>
 <string name="sync_progress_accepted">đã chấp nhận +%1$s</string>
 <string name="sync_progress_peers">đồng nghiệp %1$s</string>
+<string name="sync_progress_root_ready">Gốc HNS %1$s đã sẵn sàng</string>
+<string name="sync_progress_root_required">cần gốc HNS %1$s</string>
+<string name="sync_progress_root_unknown">không xác định được gốc HNS mục tiêu</string>
 <string name="sync_progress_summary">%1$s • chiều cao tốt nhất %2$s • %3$s%4$s%5$s</string>
+<string name="sync_gate_waiting">Đang chờ các tiêu đề Handshake đã xác thực trước khi tải %1$s.</string>
+<string name="sync_gate_failed">Phải khôi phục đồng bộ tiêu đề Handshake trước khi tải %1$s. Hãy kiểm tra chi tiết đồng bộ ở trên.</string>
 <string name="screen_cookie_options">Tùy chọn cookie</string>
 <string name="screen_diagnostics">Chẩn đoán</string>
 <string name="screen_dnssec_details">Chi tiết DNSSEC</string>
