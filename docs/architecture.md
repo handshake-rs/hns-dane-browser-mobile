@@ -87,10 +87,12 @@ iOS UI / Browser Shell                             [public; device qualification
   account identity. Platform-owned screens and device-bound 32-byte database
   keys manage this controller; there are no balance, names, sending,
   settlement, HNSA/HNSR, exchange, or marketplace operations. The underlying
-  tranche passed fresh-install Android qualification and the complete Apple CI
-  gate at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`; exact final-candidate CI,
-  signed artifacts, store screenshots, and submission remain open. No listed
-  public binary contains this source tranche.
+  tranche passed fresh-install Android qualification. The `0.5.8` candidate
+  application source `f21bee1c3afccd06604dc99fccb51528e2441055` passed exact
+  Required CI run
+  `31402758394`, including the complete Apple gate; signed artifacts, fresh
+  commit-bound store screenshots, and submission remain open. No listed public
+  binary contains this source tranche.
 - The website-facing mobile wallet-provider projection remains dormant.
   Website Provider API schema 1 remains separate from private provider ABI 2
   and public approval schema 3. Closed approval summaries and typed events

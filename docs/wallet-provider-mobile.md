@@ -12,12 +12,14 @@ That wallet revision consumes final `hns-rs 0.2.0` source
 `b24b66c382de53330ec21dd3137e056a2bea3e2d`. Mobile source policy, its lockfile,
 and generated notices bind the complete final protocol → wallet chain.
 
-The configured `0.5.8` release-preparation candidate is Android code `49`,
-embedded Rust `0.5.8`, and iOS build `58`. Its underlying native-wallet tranche passed a
-fresh-install Pixel 9 exercise and exact-source Required CI run `31393998309`,
-including the complete Apple gate, at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The final dependency-pinned
-candidate still requires exact-head CI before signing or store submission.
+The configured `0.5.8` candidate is Android code `49`, embedded Rust `0.5.8`,
+and iOS build `58`. Its application source at
+`f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
+`31402758394`, including Android build/unit/native instrumentation,
+Rust/supply-chain, and the complete Apple
+ABI/XCFramework/app/simulator gate, after the underlying native-wallet tranche
+passed a fresh-install Pixel 9 lifecycle exercise. Signing, fresh commit-bound
+screenshots, and store submission remain open.
 
 The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
 and App Store `0.5.5` / build `57` binaries predate the native controller and
@@ -172,11 +174,13 @@ payload.
 
 ## Remaining integration and qualification
 
-Before release, the exact final `0.5.8` commit must pass Required CI and
-CodeQL, fresh App Store screenshots must be bound to that commit, signed
-artifacts must pass their archive gates, and both stores' privacy/category
-answers must be reconciled with the native local data. Those release gates do
-not authorize the dormant website projection or any value capability.
+The exact `0.5.8` application source at
+`f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
+`31402758394`; its CodeQL and quality workflows are also green. Before release,
+fresh App Store screenshots must be bound to that commit, signed artifacts must
+pass their archive gates, and both stores' privacy/category answers must be
+reconciled with the native local data. Those release gates do not authorize the
+dormant website projection or any value capability.
 
 Enabling the website boundary still requires the generated and reviewed
 provider/service JNI and C bindings, a canonical engine result carrying exact
@@ -197,6 +201,6 @@ The underlying native tranche has portable Rust, bridge, and platform coverage,
 passed the complete macOS ABI/XCFramework/app/simulator workflow, and passed a
 fresh Android reinstall with create/confirm/unlock/lock/process-reopen and
 mainnet/testnet storage isolation. The exact `0.5.8` repin/version/metadata
-commit still needs remote CI, signed-product gates, current screenshots, and
-store declaration readback. Those facts are not evidence that the currently
+commit passed remote CI; signed-product gates, current screenshots, and store
+declaration readback remain. Those facts are not evidence that the currently
 published apps contain these controls.
