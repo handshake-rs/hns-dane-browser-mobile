@@ -108,8 +108,9 @@ Android installed-device and final iOS CI qualification remain release gates.
 
 On Android, a create-only Android KeyStore AES-GCM key wraps the 32-byte wallet
 database key and requires an unlocked device. Borrowed plaintext key arrays are
-wiped, wallet files live under no-backup storage, and the dedicated non-exported
-activity uses `FLAG_SECURE`. Recovery output remains a mutable `CharArray`
+wiped, and both the Android no-backup root and the network-scoped wallet
+directory are hardened to owner-only access before Rust validates or opens the
+database. The dedicated non-exported activity uses `FLAG_SECURE`. Recovery output remains a mutable `CharArray`
 drawn directly by a non-selectable, non-autofill, non-accessibility custom view.
 Restore input is likewise hidden from autofill and accessibility services,
 preventing those processes from reading the phrase at the cost of making this

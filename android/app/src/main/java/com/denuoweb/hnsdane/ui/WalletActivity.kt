@@ -594,12 +594,21 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareWalletDirectory() {
+        val noBackupRoot = noBackupFilesDir.absoluteFile
         val directory = checkNotNull(walletDatabaseFile.parentFile)
-        if (!directory.exists()) check(directory.mkdir()) { "Wallet directory could not be created" }
+        check(directory.parentFile == noBackupRoot) { "Wallet directory escaped no-backup storage" }
+        hardenOwnerPrivateDirectory(noBackupRoot, create = false)
+        hardenOwnerPrivateDirectory(directory, create = true)
+    }
+
+    private fun hardenOwnerPrivateDirectory(directory: File, create: Boolean) {
+        if (!directory.exists()) {
+            check(create && directory.mkdir()) { "Wallet directory could not be created" }
+        }
         check(directory.isDirectory) { "Wallet directory is invalid" }
-        directory.setReadable(false, false)
-        directory.setWritable(false, false)
-        directory.setExecutable(false, false)
+        check(directory.setReadable(false, false)) { "Wallet directory read mode could not be cleared" }
+        check(directory.setWritable(false, false)) { "Wallet directory write mode could not be cleared" }
+        check(directory.setExecutable(false, false)) { "Wallet directory execute mode could not be cleared" }
         check(directory.setReadable(true, true)) { "Wallet directory is not owner-readable" }
         check(directory.setWritable(true, true)) { "Wallet directory is not owner-writable" }
         check(directory.setExecutable(true, true)) { "Wallet directory is not owner-searchable" }

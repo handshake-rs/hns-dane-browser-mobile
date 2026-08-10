@@ -32,9 +32,10 @@ Android uses a non-exported `WalletActivity`, a narrow JNI bridge, bounded
 monotonic native handles, and `AndroidWalletKeyStore`. The 32-byte database key
 is wrapped with an Android KeyStore AES-GCM key that requires an unlocked
 device. The wrapping identity is create-only rather than silently replaceable,
-and borrowed plaintext key arrays are wiped after use. Wallet files and
-wrapping identities are scoped to the captured Handshake network under the
-no-backup app directory. A process-local storage lease remains owned through
+and borrowed plaintext key arrays are wiped after use. The app hardens the
+Android no-backup root and network wallet directory to owner-only access before
+the Rust store validates or opens them. Wallet files and wrapping identities
+are scoped to the captured Handshake network. A process-local storage lease remains owned through
 asynchronous completion, so an older or concurrently launched Activity cannot
 delete another Activity's live database/key pair. Creation keeps the new
 database key only in process until the user confirms the one-time recovery
