@@ -1,4 +1,3 @@
-import Darwin
 import Security
 import UIKit
 
@@ -87,20 +86,22 @@ final class WalletViewController: UIViewController {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        restorePhraseField?.text = nil
         recoverySecret?.clear()
-        if storageLease != nil, var key = unconfirmedDatabaseKey {
+        let lease = storageLease
+        if var key = unconfirmedDatabaseKey {
             unconfirmedDatabaseKey = nil
-            Self.wipe(&key)
+            WalletSecretBytes.wipe(&key)
             wallet?.close()
-            if let path = resolvedDatabasePath {
+            if lease != nil, let path = resolvedDatabasePath {
                 try? Self.deleteWalletFiles(databasePath: path)
             }
-        } else if storageLease != nil {
+        } else {
             try? wallet?.lock()
             wallet?.close()
         }
-        releaseStorageLease()
+        if let lease {
+            WalletStorageLeaseRegistry.release(lease)
+        }
     }
 
     private func configureView() {
@@ -201,32 +202,32 @@ final class WalletViewController: UIViewController {
         presentBirthdayPrompt(title: "Create wallet") { [weak self] birthdayHeight in
             self?.performWalletOperation {
                 guard let self else { return }
-                guard try canStartNewWallet() else { return }
-                let path = try walletDatabasePath()
+                guard try self.canStartNewWallet() else { return }
+                let path = try self.walletDatabasePath()
                 var key = try Self.randomDatabaseKey()
                 var keyAdopted = false
                 defer {
-                    if !keyAdopted { Self.wipe(&key) }
+                    if !keyAdopted { WalletSecretBytes.wipe(&key) }
                 }
 
                 let controller = try key.withUnsafeBytes { databaseKey in
                     try RustNativeWallet.create(
                         databasePath: path,
                         databaseKey: databaseKey,
-                        network: network,
+                        network: self.network,
                         birthdayHeight: birthdayHeight
                     )
                 }
                 do {
                     let secret = try controller.takeRecoveryPhrase()
                     let display = try secret.displayText()
-                    wallet = controller
-                    unconfirmedDatabaseKey = key
+                    self.wallet = controller
+                    self.unconfirmedDatabaseKey = key
                     keyAdopted = true
-                    recoverySecret = secret
-                    recoveryTextView.text = display
-                    recoveryTitle.isHidden = false
-                    recoveryTextView.isHidden = false
+                    self.recoverySecret = secret
+                    self.recoveryTextView.text = display
+                    self.recoveryTitle.isHidden = false
+                    self.recoveryTextView.isHidden = false
                 } catch {
                     controller.close()
                     try? Self.deleteWalletFiles(databasePath: path)
@@ -264,27 +265,27 @@ final class WalletViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "Restore", style: .default) { [weak self, weak alert] _ in
             guard let self, let alert else { return }
             var phrase = Array((alert.textFields?.first?.text ?? "").utf8)
-            clearRestoreInput()
+            self.clearRestoreInput()
             guard !phrase.isEmpty,
                   phrase.count <= 256,
                   let birthdayText = alert.textFields?.dropFirst().first?.text,
                   let birthdayHeight = UInt64(birthdayText) else {
-                Self.wipe(&phrase)
-                showErrorMessage("Enter a bounded recovery phrase and a valid birthday height.")
+                WalletSecretBytes.wipe(&phrase)
+                self.showErrorMessage("Enter a bounded recovery phrase and a valid birthday height.")
                 return
             }
-            performWalletOperation {
-                defer { Self.wipe(&phrase) }
-                guard try canStartNewWallet() else { return }
-                let path = try walletDatabasePath()
+            self.performWalletOperation {
+                defer { WalletSecretBytes.wipe(&phrase) }
+                guard try self.canStartNewWallet() else { return }
+                let path = try self.walletDatabasePath()
                 var key = try Self.randomDatabaseKey()
-                defer { Self.wipe(&key) }
+                defer { WalletSecretBytes.wipe(&key) }
                 let controller = try key.withUnsafeBytes { databaseKey in
                     try phrase.withUnsafeBytes { recoveryPhrase in
                         try RustNativeWallet.restore(
                             databasePath: path,
                             databaseKey: databaseKey,
-                            network: network,
+                            network: self.network,
                             birthdayHeight: birthdayHeight,
                             recoveryPhrase: recoveryPhrase
                         )
@@ -292,10 +293,10 @@ final class WalletViewController: UIViewController {
                 }
                 do {
                     try key.withUnsafeBytes { databaseKey in
-                        try keychain.storeDatabaseKey(databaseKey)
+                        try self.keychain.storeDatabaseKey(databaseKey)
                     }
-                    wallet = controller
-                    persistentWalletExists = true
+                    self.wallet = controller
+                    self.persistentWalletExists = true
                 } catch {
                     controller.close()
                     try? Self.deleteWalletFiles(databasePath: path)
@@ -357,7 +358,7 @@ final class WalletViewController: UIViewController {
         guard var key = unconfirmedDatabaseKey else { return }
         unconfirmedDatabaseKey = nil
         performWalletOperation {
-            defer { Self.wipe(&key) }
+            defer { WalletSecretBytes.wipe(&key) }
             do {
                 try key.withUnsafeBytes { databaseKey in
                     try keychain.storeDatabaseKey(databaseKey)
@@ -549,7 +550,7 @@ final class WalletViewController: UIViewController {
     private func abortIncompleteWallet() {
         if var key = unconfirmedDatabaseKey {
             unconfirmedDatabaseKey = nil
-            Self.wipe(&key)
+            WalletSecretBytes.wipe(&key)
         }
         discardWalletAndFiles()
     }
@@ -652,7 +653,7 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private static func deleteWalletFiles(databasePath: String) throws {
+    nonisolated private static func deleteWalletFiles(databasePath: String) throws {
         for path in [databasePath] + walletSidecars(databasePath: databasePath) {
             if FileManager.default.fileExists(atPath: path) {
                 try FileManager.default.removeItem(atPath: path)
@@ -660,7 +661,7 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private static func walletSidecars(databasePath: String) -> [String] {
+    nonisolated private static func walletSidecars(databasePath: String) -> [String] {
         ["-wal", "-shm", "-journal"].map { databasePath + $0 }
     }
 
@@ -671,7 +672,7 @@ final class WalletViewController: UIViewController {
                 SecRandomCopyBytes(kSecRandomDefault, buffer.count, buffer.baseAddress!)
             }
             guard status == errSecSuccess else {
-                wipe(&key)
+                WalletSecretBytes.wipe(&key)
                 throw WalletProviderError(
                     code: "randomUnavailable",
                     message: "Secure wallet-key randomness is unavailable."
@@ -679,14 +680,6 @@ final class WalletViewController: UIViewController {
             }
         } while key.allSatisfy { $0 == 0 }
         return key
-    }
-
-    private static func wipe(_ bytes: inout [UInt8]) {
-        bytes.withUnsafeMutableBytes { (buffer: UnsafeMutableRawBufferPointer) in
-            guard let baseAddress = buffer.baseAddress else { return }
-            explicit_bzero(baseAddress, buffer.count)
-        }
-        bytes.removeAll(keepingCapacity: false)
     }
 
     private func showError(_ error: Error) {
@@ -714,19 +707,27 @@ struct WalletStorageLeaseToken: Equatable {
     let owner: UUID
 }
 
-@MainActor
+private final class WalletStorageLeaseRegistryState: @unchecked Sendable {
+    let lock = NSLock()
+    var owners: [String: UUID] = [:]
+}
+
 enum WalletStorageLeaseRegistry {
-    private static var owners: [String: UUID] = [:]
+    private static let state = WalletStorageLeaseRegistryState()
 
     static func acquire(path: String) -> WalletStorageLeaseToken? {
-        guard owners[path] == nil else { return nil }
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        guard state.owners[path] == nil else { return nil }
         let owner = UUID()
-        owners[path] = owner
+        state.owners[path] = owner
         return WalletStorageLeaseToken(path: path, owner: owner)
     }
 
     static func release(_ token: WalletStorageLeaseToken) {
-        guard owners[token.path] == token.owner else { return }
-        owners.removeValue(forKey: token.path)
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        guard state.owners[token.path] == token.owner else { return }
+        state.owners.removeValue(forKey: token.path)
     }
 }

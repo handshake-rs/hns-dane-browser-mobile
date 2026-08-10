@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import Security
 
@@ -77,7 +76,7 @@ final class WalletKeychainStore {
         _ body: (UnsafeRawBufferPointer) throws -> T
     ) throws -> T? {
         guard var key = try copyDatabaseKey(prompt: prompt) else { return nil }
-        defer { Self.wipe(&key) }
+        defer { WalletSecretBytes.wipe(&key) }
         return try key.withUnsafeBytes(body)
     }
 
@@ -109,14 +108,6 @@ final class WalletKeychainStore {
             throw keychainError(status)
         }
         return [UInt8](data)
-    }
-
-    private static func wipe(_ bytes: inout [UInt8]) {
-        bytes.withUnsafeMutableBytes { (buffer: UnsafeMutableRawBufferPointer) in
-            guard let baseAddress = buffer.baseAddress else { return }
-            explicit_bzero(baseAddress, buffer.count)
-        }
-        bytes.removeAll(keepingCapacity: false)
     }
 
     private func keychainError(_ status: OSStatus) -> WalletProviderError {

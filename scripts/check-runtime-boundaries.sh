@@ -137,6 +137,8 @@ android_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/Ma
 android_classifier="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserUrlClassifier.kt"
 android_host_policy="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/HnsHostPolicy.kt"
 ios_runtime="$ROOT_DIR/ios/HnsDaneBrowser/Core/RustBrowserRuntime.swift"
+ios_bridging_header="$ROOT_DIR/ios/HnsDaneBrowser/Support/HnsDaneBrowser-Bridging-Header.h"
+ios_native_wallet="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/RustNativeWallet.swift"
 
 require_source_contains "$android_trace" \
   'optJSONObject("namespaceResolution")' \
@@ -181,5 +183,19 @@ require_source_absent "$ios_runtime" \
 require_source_contains "$ios_runtime" \
   'if selectedNamespace == "icann"' \
   "iOS WebPKI fallback must require the retained ICANN namespace decision."
+require_source_contains "$ios_bridging_header" \
+  'volatile unsigned char *cursor' \
+  "iOS wallet secret clearing must retain its optimizer-visible C primitive."
+require_source_contains "$ios_native_wallet" \
+  'hns_wallet_secure_zero(baseAddress, buffer.count)' \
+  "iOS wallet secrets must use the SDK-compatible secure-zero primitive."
+if matches="$(grep -RInE \
+  --include='*.swift' \
+  'explicit_bzero[[:space:]]*\(' \
+  "$ios_dir" || true)" && [[ -n "$matches" ]]; then
+  echo "ERROR: iOS Swift sources must use the bridging-header secure-zero primitive." >&2
+  printf '%s\n' "$matches" >&2
+  exit 1
+fi
 
 echo "Shared runtime, proxy, and platform-adapter boundary checks passed"

@@ -1,6 +1,18 @@
-import Darwin
 import Foundation
 import HnsBrowserRuntime
+
+/// Compiler-resistant clearing for process-local mutable wallet secrets.
+/// The C primitive uses volatile stores because Swift's Darwin overlay does
+/// not expose `explicit_bzero` consistently across supported Xcode SDKs.
+enum WalletSecretBytes {
+    static func wipe(_ bytes: inout [UInt8]) {
+        bytes.withUnsafeMutableBytes { (buffer: UnsafeMutableRawBufferPointer) in
+            guard let baseAddress = buffer.baseAddress else { return }
+            hns_wallet_secure_zero(baseAddress, buffer.count)
+        }
+        bytes.removeAll(keepingCapacity: false)
+    }
+}
 
 struct NativeWalletStatus: Decodable, Equatable {
     let locked: Bool
@@ -33,11 +45,7 @@ final class WalletRecoverySecret {
     }
 
     func clear() {
-        bytes.withUnsafeMutableBytes { (buffer: UnsafeMutableRawBufferPointer) in
-            guard let baseAddress = buffer.baseAddress else { return }
-            explicit_bzero(baseAddress, buffer.count)
-        }
-        bytes.removeAll(keepingCapacity: false)
+        WalletSecretBytes.wipe(&bytes)
     }
 
     deinit {
