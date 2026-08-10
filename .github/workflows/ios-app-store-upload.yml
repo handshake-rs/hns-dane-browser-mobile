@@ -3,6 +3,10 @@ name: iOS App Store Upload
 on:
   workflow_dispatch:
     inputs:
+      expected_commit:
+        description: Exact lowercase 40-character main-branch commit to upload
+        required: true
+        type: string
       confirm_upload:
         description: Upload the current main-branch iOS build to App Store Connect
         required: true
@@ -13,24 +17,69 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-app-store-upload
+  group: sha-${{ inputs.expected_commit }}-ios-app-store-upload
   cancel-in-progress: false
 
 jobs:
   upload:
     name: Validate, sign, and upload
     if: ${{ github.ref == 'refs/heads/main' && inputs.confirm_upload }}
+    concurrency:
+      group: global-ios-app-store-upload-lease
+      cancel-in-progress: false
     runs-on: macos-26
     timeout-minutes: 180
     environment: app-store
     steps:
-      - name: Check out the reviewed main branch
+      - name: Validate the exact main-branch upload request
+        env:
+          DISPATCH_COMMIT: ${{ github.sha }}
+          DISPATCH_REF: ${{ github.ref }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s\n' "$EXPECTED_COMMIT" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "expected_commit must be one lowercase 40-character Git SHA" >&2
+            exit 2
+          fi
+          [[ "$DISPATCH_REF" == refs/heads/main ]] || {
+            echo "The upload workflow must be dispatched from main." >&2
+            exit 2
+          }
+          [[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]] || {
+            echo "expected_commit must equal the main commit selected at dispatch." >&2
+            exit 2
+          }
+
+      - name: Check out the exact reviewed commit
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          ref: ${{ inputs.expected_commit }}
           persist-credentials: false
+
+      - name: Read back the exact reviewed commit
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
 
       - name: Run the complete unsigned iOS gate
         run: ./scripts/run-ios-gate.sh
+
+      - name: Recheck current main before using upload credentials
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          current_main="$(git ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+          if ! printf '%s\n' "$current_main" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Could not resolve one exact current main commit." >&2
+            exit 1
+          fi
+          [[ "$current_main" == "$EXPECTED_COMMIT" ]] || {
+            echo "main moved after dispatch; review and qualify the new commit before uploading." >&2
+            exit 1
+          }
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
 
       - name: Materialize temporary signing credentials
         env:
@@ -68,13 +117,55 @@ jobs:
           HNS_ASC_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           HNS_IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
           HNS_IOS_IPA_OUTPUT_PATH: ${{ runner.temp }}/hns-dane-browser-ios-app-store.ipa
+          HNS_RELEASE_EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: ./scripts/upload-ios-app-store.sh
+
+      - name: Record signed IPA provenance
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          IPA_PATH: ${{ runner.temp }}/hns-dane-browser-ios-app-store.ipa
+          PROVENANCE_PATH: ${{ runner.temp }}/hns-dane-browser-ios-app-store.provenance.json
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          python3 - "$IPA_PATH" "$PROVENANCE_PATH" "$EXPECTED_COMMIT" <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import sys
+
+          ipa_path = Path(sys.argv[1])
+          provenance_path = Path(sys.argv[2])
+          expected_commit = sys.argv[3]
+          if not ipa_path.is_file() or ipa_path.stat().st_size <= 0:
+              raise SystemExit(f"signed IPA is missing or empty: {ipa_path}")
+          digest = hashlib.sha256()
+          with ipa_path.open("rb") as handle:
+              for block in iter(lambda: handle.read(1024 * 1024), b""):
+                  digest.update(block)
+          provenance_path.write_text(
+              json.dumps(
+                  {
+                      "artifact": ipa_path.name,
+                      "sha256": digest.hexdigest(),
+                      "size": ipa_path.stat().st_size,
+                      "sourceCommit": expected_commit,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
 
       - name: Retain the signed App Store IPA for release publication
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ios-app-store-ipa-${{ github.sha }}
-          path: ${{ runner.temp }}/hns-dane-browser-ios-app-store.ipa
+          name: ios-app-store-ipa-${{ inputs.expected_commit }}
+          path: |
+            ${{ runner.temp }}/hns-dane-browser-ios-app-store.ipa
+            ${{ runner.temp }}/hns-dane-browser-ios-app-store.provenance.json
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -96,11 +187,29 @@ jobs:
         continue-on-error: true
         run: ./scripts/generate-ios-app-store-screenshots.sh
 
+      - name: Verify live screenshot source provenance
+        if: ${{ steps.live_capture.outcome == 'success' }}
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          python3 - "$EXPECTED_COMMIT" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          expected_commit = sys.argv[1]
+          manifest_path = Path("build/app-store-live-screenshots/manifest.json")
+          with manifest_path.open(encoding="utf-8") as handle:
+              manifest = json.load(handle)
+          if manifest.get("capture", {}).get("commit") != expected_commit:
+              raise SystemExit("screenshot manifest source commit does not match expected_commit")
+          PY
+
       - name: Upload live screenshots and provenance for human review
         if: ${{ steps.live_capture.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ios-app-store-live-screenshots-${{ github.sha }}
+          name: ios-app-store-live-screenshots-${{ inputs.expected_commit }}
           path: |
             build/app-store-live-screenshots/*.jpg
             build/app-store-live-screenshots/manifest.json
@@ -112,7 +221,7 @@ jobs:
         if: ${{ steps.live_capture.outcome == 'failure' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ios-app-store-screenshot-diagnostics-${{ github.sha }}
+          name: ios-app-store-screenshot-diagnostics-${{ inputs.expected_commit }}
           path: build/ios-screenshot-diagnostics
           if-no-files-found: warn
           retention-days: 7

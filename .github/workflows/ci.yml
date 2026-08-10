@@ -45,6 +45,7 @@ jobs:
       - name: Verify repository policy and release metadata
         run: |
           python3 -m unittest -v tests/test_ci_changed_targets.py
+          python3 -m unittest -v tests/test_release_safety.py
           python3 ./scripts/verify_android_translations.py
           ./scripts/verify-supply-chain.sh
           python3 ./scripts/generate-third-party-notices.py --check

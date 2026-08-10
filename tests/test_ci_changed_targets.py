@@ -113,6 +113,14 @@ class CiChangedTargetsTests(unittest.TestCase):
                     ios=True,
                 )
 
+    def test_release_safety_test_stays_in_lightweight_scope_job(self) -> None:
+        self.assert_targets(
+            ("tests/test_release_safety.py",),
+            rust=False,
+            android=False,
+            ios=False,
+        )
+
     def test_rust_tooling_does_not_build_apps(self) -> None:
         for path in (
             "rust/fuzz/fuzz_targets/dns_message.rs",

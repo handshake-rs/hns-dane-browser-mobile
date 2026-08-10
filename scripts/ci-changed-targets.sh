@@ -39,6 +39,13 @@ classify_path() {
       set_all_targets
       ;;
 
+    # Credentialed release and exact-source artifact policy is exercised in
+    # the always-running lightweight scope job. Test-only changes do not need
+    # a native application build.
+    tests/test_release_safety.py)
+      :
+      ;;
+
     # Apple release/capture workflows and their helpers cannot affect the
     # Android package or shared Rust behavior.
     .github/workflows/ios-*.yml | \

@@ -60,15 +60,26 @@ base64 -w0 /trusted/path/app-store.mobileprovision | gh secret set --repo handsh
 ## Upload a build
 
 The workflow is manual, refuses non-`main` refs, has read-only GitHub
-permissions, and runs the complete unsigned simulator/device-link gate before
-credentials are materialized. It uploads the build to App Store Connect and
-retains the same App Store-signed IPA as a private workflow artifact for seven
-days so the release operator can publish it with the matching GitHub Release.
+permissions, and requires the exact lowercase 40-character commit already
+reviewed and qualified. The requested commit must equal the `main` commit
+selected at dispatch; after the complete unsigned simulator/device-link gate,
+the workflow re-reads remote `main` and stops before materializing credentials
+if the branch moved. The signed-upload helper checks the exact clean tracked
+source and hard-coded repository `main` again immediately before Apple's
+irreversible upload call. A global upload lease also prevents two different
+commit-keyed runs from signing or uploading concurrently. The workflow uploads
+the build to App Store Connect and retains the same App Store-signed IPA plus a
+SHA-256/size/source-commit provenance record as a private, commit-keyed workflow
+artifact for seven days so the release operator can publish it with the
+matching GitHub Release.
 
 ```sh
+expected_commit="$(git rev-parse HEAD)"
+printf '%s\n' "$expected_commit" | grep -Eq '^[0-9a-f]{40}$'
 gh workflow run ios-app-store-upload.yml \
   --repo handshake-rs/hns-dane-browser-mobile \
   --ref main \
+  -f expected_commit="$expected_commit" \
   -f confirm_upload=true
 ```
 
@@ -79,8 +90,10 @@ The workflow then:
 3. verifies the identity and profile against the fixed team and bundle IDs, then creates a Release archive using manual App Store distribution signing in a disposable keychain;
 4. verifies the archived app identity and compiled AppIcon catalog, then
    exports the signed IPA, validates/exports the archive with App Store Connect
-   authentication, uploads build `57`, and retains
-   `ios-app-store-ipa-<commit>` for release publication;
+   authentication, rechecks exact source and current remote `main`, uploads the
+   configured candidate build, and retains
+   `ios-app-store-ipa-<commit>` with
+   `hns-dane-browser-ios-app-store.provenance.json` for release publication;
 5. deletes the temporary keychain, installed profile, API key, `.p12`, and profile while GitHub discards the runner.
 
 Apple associates the uploaded build with the app record using its bundle ID,

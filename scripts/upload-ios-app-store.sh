@@ -11,8 +11,10 @@ DISTRIBUTION_P12_PATH="${HNS_IOS_DISTRIBUTION_P12_PATH:-}"
 DISTRIBUTION_P12_PASSWORD="${HNS_IOS_DISTRIBUTION_P12_PASSWORD:-}"
 APP_STORE_PROFILE_PATH="${HNS_IOS_APP_STORE_PROFILE_PATH:-}"
 IPA_OUTPUT_PATH="${HNS_IOS_IPA_OUTPUT_PATH:-}"
+EXPECTED_COMMIT="${HNS_RELEASE_EXPECTED_COMMIT:-}"
 IOS_SDK_VERSION="26.5"
 FRAMEWORK_PATH="$ROOT_DIR/build/apple/HnsBrowserRuntime.xcframework"
+RELEASE_REMOTE_URL="https://github.com/handshake-rs/hns-dane-browser-mobile.git"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -42,12 +44,35 @@ grep -Fq -- "$private_key_header" "$API_KEY_PATH" ||
 grep -Fq -- "$private_key_footer" "$API_KEY_PATH" ||
   fail "the App Store Connect key does not contain a private-key footer."
 
-for command in openssl plutil python3 rustup security xcode-select xcodebuild xcrun; do
+for command in git openssl plutil python3 rustup security xcode-select xcodebuild xcrun; do
   command -v "$command" >/dev/null 2>&1 ||
     fail "required command is unavailable: $command"
 done
 [[ -x /usr/libexec/PlistBuddy ]] ||
   fail "required command is unavailable: /usr/libexec/PlistBuddy"
+[[ "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]] ||
+  fail "HNS_RELEASE_EXPECTED_COMMIT must be one lowercase 40-character Git SHA."
+[[ "$(git -C "$ROOT_DIR" rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] ||
+  fail "the checked-out source does not match HNS_RELEASE_EXPECTED_COMMIT."
+
+verify_exact_current_main() {
+  local current_head current_main
+  current_head="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+  [[ "$current_head" == "$EXPECTED_COMMIT" ]] ||
+    fail "the checked-out source moved away from HNS_RELEASE_EXPECTED_COMMIT."
+  git -C "$ROOT_DIR" diff --quiet -- . ||
+    fail "tracked source changed after the exact release commit was selected."
+  git -C "$ROOT_DIR" diff --cached --quiet -- . ||
+    fail "staged source changed after the exact release commit was selected."
+  current_main="$(
+    git ls-remote --exit-code "$RELEASE_REMOTE_URL" refs/heads/main |
+      awk '{print $1}'
+  )"
+  [[ "$current_main" =~ ^[0-9a-f]{40}$ ]] ||
+    fail "could not resolve one exact current remote main commit."
+  [[ "$current_main" == "$EXPECTED_COMMIT" ]] ||
+    fail "remote main moved; review and qualify the new commit before uploading."
+}
 
 if [[ -n "${HNS_XCODE_DEVELOPER_DIR:-}" ]]; then
   xcode_candidates=("$HNS_XCODE_DEVELOPER_DIR")
@@ -374,6 +399,7 @@ if [[ -n "$IPA_OUTPUT_PATH" ]]; then
   printf 'Retained signed IPA for release publication: %s\n' "$IPA_OUTPUT_PATH"
 fi
 
+verify_exact_current_main
 xcodebuild \
   -exportArchive \
   -archivePath "$archive_path" \

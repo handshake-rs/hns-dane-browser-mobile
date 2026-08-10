@@ -3,6 +3,10 @@ name: Live iOS App Store Screenshots
 on:
   workflow_dispatch:
     inputs:
+      expected_commit:
+        description: Exact lowercase 40-character commit to capture
+        required: true
+        type: string
       reason:
         description: Why a fresh live submission set is needed
         required: false
@@ -12,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-live-app-store-screenshots-${{ github.ref }}
+  group: ios-live-app-store-screenshots-${{ inputs.expected_commit }}
   cancel-in-progress: true
 
 jobs:
@@ -21,10 +25,26 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 180
     steps:
-      - name: Check out repository
+      - name: Validate the requested commit
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s\n' "$EXPECTED_COMMIT" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "expected_commit must be one lowercase 40-character Git SHA" >&2
+            exit 2
+          fi
+
+      - name: Check out the exact reviewed commit
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          ref: ${{ inputs.expected_commit }}
           persist-credentials: false
+
+      - name: Read back the exact reviewed commit
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
 
       - name: Build the Rust XCFramework required for live capture
         run: |
@@ -39,10 +59,27 @@ jobs:
         id: live_capture
         run: ./scripts/generate-ios-app-store-screenshots.sh
 
+      - name: Verify screenshot source provenance
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          python3 - "$EXPECTED_COMMIT" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          expected_commit = sys.argv[1]
+          manifest_path = Path("build/app-store-live-screenshots/manifest.json")
+          with manifest_path.open(encoding="utf-8") as handle:
+              manifest = json.load(handle)
+          if manifest.get("capture", {}).get("commit") != expected_commit:
+              raise SystemExit("screenshot manifest source commit does not match expected_commit")
+          PY
+
       - name: Upload live screenshots and provenance for human review
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ios-app-store-live-screenshots-${{ github.sha }}
+          name: ios-app-store-live-screenshots-${{ inputs.expected_commit }}
           path: |
             build/app-store-live-screenshots/*.jpg
             build/app-store-live-screenshots/manifest.json
@@ -54,7 +91,7 @@ jobs:
         if: failure() && steps.live_capture.outcome == 'failure'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ios-app-store-screenshot-diagnostics-${{ github.sha }}
+          name: ios-app-store-screenshot-diagnostics-${{ inputs.expected_commit }}
           path: build/ios-screenshot-diagnostics
           if-no-files-found: error
           retention-days: 7

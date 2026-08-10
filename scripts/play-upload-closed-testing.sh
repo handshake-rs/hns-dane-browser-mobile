@@ -2,6 +2,9 @@
 set -euo pipefail
 umask 077
 
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+android_gradle="$root_dir/android/app/build.gradle.kts"
+
 if [[ $# -gt 1 ]]; then
   echo "usage: $0 [signed-release.aab]" >&2
   exit 2
@@ -13,6 +16,36 @@ release_status="${PLAY_RELEASE_STATUS:-completed}"
 aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.7-play-upload-signed.aab}"
 release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.7}"
 release_notes="${PLAY_RELEASE_NOTES:-0.5.7 lowers Android compatibility to Android 11 / API 30 while preserving explicit UTF-8 search encoding; the shared Rust engine and iOS app are unchanged.}"
+
+configured_version_code="$(
+  sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\).*/\1/p' "$android_gradle"
+)"
+if [[ -z "$configured_version_code" || "$configured_version_code" == *$'\n'* ]]; then
+  echo "Could not read one configured Android versionCode from $android_gradle." >&2
+  exit 2
+fi
+
+valid_version_code() {
+  local value="$1"
+  [[ "$value" =~ ^[1-9][0-9]{0,9}$ ]] && (( 10#$value <= 2100000000 ))
+}
+
+if ! valid_version_code "$configured_version_code"; then
+  echo "Configured Android versionCode is invalid: $configured_version_code" >&2
+  exit 2
+fi
+if [[ ${PLAY_EXPECTED_VERSION_CODE+x} == x ]]; then
+  expected_version_code="$PLAY_EXPECTED_VERSION_CODE"
+  expected_version_source="PLAY_EXPECTED_VERSION_CODE override"
+else
+  expected_version_code="$configured_version_code"
+  expected_version_source="android/app/build.gradle.kts"
+fi
+if ! valid_version_code "$expected_version_code"; then
+  echo "Expected Play versionCode is invalid: $expected_version_code" >&2
+  exit 2
+fi
+echo "Expected Play bundle versionCode: ${expected_version_code} (${expected_version_source})"
 
 if [[ ! "$package_name" =~ ^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$ ]]; then
   echo "Invalid Play package name: $package_name" >&2
@@ -120,6 +153,15 @@ request POST "${upload_base}/edits/${edit_id}/bundles?uploadType=media" "$bundle
   --data-binary "@${aab_path}"
 version_code="$(json_get "$bundle_json" versionCode)"
 echo "Uploaded bundle versionCode: ${version_code}"
+if ! valid_version_code "$version_code"; then
+  echo "Play returned an invalid bundle versionCode: $version_code" >&2
+  exit 1
+fi
+if [[ "$version_code" != "$expected_version_code" ]]; then
+  echo "Refusing to assign or commit bundle versionCode ${version_code}; expected ${expected_version_code}." >&2
+  exit 1
+fi
+echo "Verified uploaded bundle versionCode ${version_code}."
 
 track_body="$tmpdir/track-body.json"
 python3 - "$track_body" "$version_code" "$release_status" "$release_name" "$release_notes" <<'PY'

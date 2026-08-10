@@ -6,14 +6,20 @@ because it performs real network navigation and is intended to create a
 reviewed submission artifact, not a required pull-request check.
 
 ```sh
+expected_commit="$(git rev-parse HEAD)"
+printf '%s\n' "$expected_commit" | grep -Eq '^[0-9a-f]{40}$'
 gh workflow run ios-screenshots.yml \
   --repo handshake-rs/hns-dane-browser-mobile \
   --ref main \
-  -f reason='App Store 0.5.5 submission'
+  -f expected_commit="$expected_commit" \
+  -f reason='Qualified App Store candidate refresh'
 ```
 
-Download the artifact named `ios-app-store-live-screenshots-COMMIT_SHA`. It
-contains:
+The workflow checks out and reads back that exact commit, keys concurrency and
+artifact names to it, and refuses an uppercase, abbreviated, or otherwise
+malformed revision. Download the artifact named
+`ios-app-store-live-screenshots-COMMIT_SHA`. Before upload, the workflow also
+requires `manifest.json` to name the same exact commit. The artifact contains:
 
 - `01-hns-page.jpg`, captured after the shipping runtime loads
   `https://denuoweb/`

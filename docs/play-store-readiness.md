@@ -106,6 +106,39 @@ returned HTTP `200`, independently confirming that Play recognizes the uploaded
 version code. Service-account JSON remains outside the repository and is ignored
 by `.gitignore`.
 
+For a future guarded upload, `scripts/play-upload-closed-testing.sh` reads the
+single `versionCode` configured in `android/app/build.gradle.kts` before making
+an API request. After Play receives the signed AAB inside an uncommitted edit,
+the script validates the API-returned bundle `versionCode` and requires it to
+equal that expected value before it constructs a track body, assigns a track,
+or commits the edit. A missing, malformed, out-of-range, or mismatched value
+stops the operation with no track assignment and no edit commit.
+
+Use the configured code for an AAB built from the current release source:
+
+```sh
+PLAY_TRACK=alpha PLAY_RELEASE_STATUS=draft \
+  ./scripts/play-upload-closed-testing.sh /trusted/path/signed-release.aab
+```
+
+`PLAY_EXPECTED_VERSION_CODE` is an explicit expected-value override for an AAB
+built from a separately reviewed source tree whose configuration is not the
+current checkout. It must be a positive Play-compatible integer and does not
+disable the comparison with Play's response:
+
+```sh
+PLAY_EXPECTED_VERSION_CODE=48 PLAY_TRACK=alpha PLAY_RELEASE_STATUS=draft \
+  ./scripts/play-upload-closed-testing.sh /trusted/path/signed-release.aab
+```
+
+Before any credentialed run, exercise the static workflow assertions and
+mocked Android Publisher request boundary locally; these tests perform no
+network calls and make no store changes:
+
+```sh
+python3 -m unittest -v tests/test_release_safety.py
+```
+
 ## Play Console Declarations
 
 Use these values to reconcile the existing live production listing. Re-check
