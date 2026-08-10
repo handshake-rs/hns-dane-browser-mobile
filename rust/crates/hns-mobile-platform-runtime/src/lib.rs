@@ -27,7 +27,7 @@ use hns_chain::{
 };
 use hns_core::dns::{
     DnsEncodeConfig, DnsFlags, DnsHeader, DnsMessage, DnsName, DnsQuestion, RecordType,
-    ResourceRecord, SVCB_PARAM_MANDATORY, SVCB_PARAM_NO_DEFAULT_ALPN, SvcbRecord,
+    ResourceRecord, SVCB_PARAM_ECH, SVCB_PARAM_MANDATORY, SVCB_PARAM_NO_DEFAULT_ALPN, SvcbRecord,
 };
 pub use hns_core::network::NetworkKind;
 use hns_core::network_policy::{
@@ -8491,12 +8491,17 @@ fn root_service_bindings(
                     .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
                     .collect();
             }
+            if mandatory_keys.contains(&SVCB_PARAM_ECH) {
+                return Err(());
+            }
             for parameter in selected.params {
-                if parameter.key == 5 {
-                    // The retained native transport has no ECH application
-                    // hook. Treat advertised ECH as unsupported rather than
-                    // silently producing a plan that cannot be executed.
-                    return Err(());
+                if parameter.key == SVCB_PARAM_MANDATORY || parameter.key == SVCB_PARAM_ECH {
+                    // RFC 9460 permits clients to ignore an optional SvcParam
+                    // they do not implement. The retained native transport has
+                    // no ECH application hook, so omit optional ECH. Mandatory
+                    // ECH was rejected above; Mandatory itself is represented
+                    // by mandatory_keys rather than as a service parameter.
+                    continue;
                 }
                 parameters
                     .push(ServiceParameter::new(parameter.key, parameter.value).map_err(|_| ())?);
@@ -23716,6 +23721,59 @@ mod tests {
         }
     }
 
+    fn https_alpn_ech_record(owner: &str, mandatory_keys: &[u16]) -> ResourceRecord {
+        let mut rdata = vec![0, 1, 0];
+        if !mandatory_keys.is_empty() {
+            rdata.extend(SVCB_PARAM_MANDATORY.to_be_bytes());
+            rdata.extend(
+                u16::try_from(mandatory_keys.len() * 2)
+                    .unwrap()
+                    .to_be_bytes(),
+            );
+            for key in mandatory_keys {
+                rdata.extend(key.to_be_bytes());
+            }
+        }
+        let alpn = [2, b'h', b'2'];
+        rdata.extend(hns_core::dns::SVCB_PARAM_ALPN.to_be_bytes());
+        rdata.extend(u16::try_from(alpn.len()).unwrap().to_be_bytes());
+        rdata.extend(alpn);
+        let ech = [1, 2, 3];
+        rdata.extend(SVCB_PARAM_ECH.to_be_bytes());
+        rdata.extend(u16::try_from(ech.len()).unwrap().to_be_bytes());
+        rdata.extend(ech);
+        ResourceRecord {
+            name: DnsName::from_ascii(owner).unwrap(),
+            record_type: RecordType::Https,
+            class: DNS_CLASS_IN,
+            ttl: 20,
+            rdata,
+        }
+    }
+
+    fn service_bindings_with_ech(mandatory_keys: &[u16]) -> Result<Vec<ServiceBinding>, ()> {
+        let host = CanonicalHost::parse("api.example").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let answers = HashMap::from([(
+            request,
+            resolution_answer(
+                host.as_str(),
+                vec![https_alpn_ech_record(host.as_str(), mandatory_keys)],
+                false,
+            ),
+        )]);
+        root_service_bindings(&query, &host, &answers)
+    }
+
     fn tlsa_record(owner: &str, digest: u8) -> ResourceRecord {
         let mut rdata = vec![3, 1, 1];
         rdata.extend([digest; 32]);
@@ -24911,6 +24969,46 @@ mod tests {
             services[2].advertised_alpn(),
             &[b"h3".to_vec(), b"h2".to_vec()]
         );
+    }
+
+    #[test]
+    fn optional_ech_svcparam_does_not_reject_usable_service_binding() {
+        let services = service_bindings_with_ech(&[]).unwrap();
+
+        assert_eq!(
+            services
+                .iter()
+                .map(ServiceBinding::selected_protocol)
+                .collect::<Vec<_>>(),
+            vec![ApplicationProtocol::Http2, ApplicationProtocol::Http11]
+        );
+        assert!(
+            services
+                .iter()
+                .all(|service| service.ech_config().is_none())
+        );
+        assert!(services.iter().all(|service| {
+            service
+                .parameters()
+                .iter()
+                .all(|parameter| parameter.key() != SVCB_PARAM_ECH)
+        }));
+    }
+
+    #[test]
+    fn supported_mandatory_svcparam_remains_usable_with_optional_ech() {
+        let services = service_bindings_with_ech(&[hns_core::dns::SVCB_PARAM_ALPN]).unwrap();
+
+        assert!(
+            services
+                .iter()
+                .all(|service| { service.mandatory_keys() == [hns_core::dns::SVCB_PARAM_ALPN] })
+        );
+    }
+
+    #[test]
+    fn mandatory_ech_svcparam_remains_unsupported() {
+        assert!(service_bindings_with_ech(&[SVCB_PARAM_ECH]).is_err());
     }
 
     #[test]
