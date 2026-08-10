@@ -169,10 +169,10 @@ project.
 The existing local cryptographic coverage should still be run independently:
 
 ```sh
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-dnssec
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-resolver
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-transport
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-p2p
+cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-dnssec
+cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-resolver
+cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-transport
+cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-p2p
 cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-mobile-platform-runtime
 ```
 
