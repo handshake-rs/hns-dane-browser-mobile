@@ -52,7 +52,7 @@ class HnsSyncSchedulerTest {
             13L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
-                    statusJson = """{"syncStatusSchemaVersion":2,"status":"up_to_date","bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+                    statusJson = """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
                     updatedAtMillis = 2L,
                 ),
             ),
@@ -61,7 +61,7 @@ class HnsSyncSchedulerTest {
             13L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
-                    statusJson = """{"syncStatusSchemaVersion":2,"status":"synced","accepted":1,"bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+                    statusJson = """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"synced","accepted":1,"bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
                     updatedAtMillis = 6L,
                 ),
             ),
@@ -70,7 +70,7 @@ class HnsSyncSchedulerTest {
             13L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
-                    statusJson = """{"syncStatusSchemaVersion":2,"status":"attempted","bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+                    statusJson = """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"attempted","bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
                     updatedAtMillis = 7L,
                 ),
             ),

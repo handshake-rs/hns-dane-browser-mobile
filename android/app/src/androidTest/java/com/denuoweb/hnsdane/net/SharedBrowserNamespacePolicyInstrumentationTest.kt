@@ -26,7 +26,7 @@ class SharedBrowserNamespacePolicyInstrumentationTest {
             assertTrue(NativeBridge.isLoaded)
             val status = JSONObject(NativeBridge.syncStatus(dataDir.absolutePath, "regtest"))
 
-            assertEquals(2, status.getInt("syncStatusSchemaVersion"))
+            assertEquals(3, status.getInt("syncStatusSchemaVersion"))
             assertEquals("regtest", status.getString("network"))
             assertEquals("idle", status.getString("status"))
             assertEquals(0L, status.getLong("bestHeight"))

@@ -16,10 +16,10 @@ The proof-backed path does not trust a single peer, a recursive HNS resolver's a
 - Sync stale: block HNS secure state and show a sync-specific browser error.
 - Sync attempts that make no progress must distinguish up-to-date peers from all-peer failure.
 - Raw `bestPeerHeight` and the estimated mainnet tip are diagnostic only.
-  Authoritative currentness requires sync-status schema version 2, a non-genesis
-  locally validated tip within two blocks of the effective target, at least
-  three recent independent peer address groups, and explicitly non-expired
-  target evidence.
+  Authoritative currentness requires sync-status schema version 3, a non-genesis
+  locally validated tip within two blocks of the effective target, a locally
+  available authoritative HNS name-tree root, at least three recent independent
+  peer address groups, and explicitly non-expired target evidence.
 - HNS browser state must not show ready unless the proxy is active, native
   status is `attempted`, `synced`, or `up_to_date` with that authoritative
   currentness contract, and the current main-frame HNS gateway response has not

@@ -55,12 +55,13 @@ Notes:
 - First-run sync starts automatically from the main browser activity. The
   one-second scheduler interval is used only after accepted header progress;
   current and no-progress states use a 10-minute check, with bounded failure
-  retry. Sync-status schema version 2 derives the authoritative effective
+  retry. Sync-status schema version 3 derives the authoritative effective
   target from recent successful observations across at least three independent
-  address groups and applies a two-block currentness limit. Raw peer maximum
-  and schedule estimate remain diagnostic. The main page shows the local and
-  effective target heights plus freshness, with separate WebView loading and
-  the existing browser/settings controls.
+  address groups, applies a two-block currentness limit, and reports whether the
+  locally validated chain contains the authoritative HNS name-tree root. Raw
+  peer maximum and schedule estimate remain diagnostic. The main page shows the
+  local and effective target heights plus freshness and name-tree readiness,
+  with separate WebView loading and the existing browser/settings controls.
 - Header synchronization now performs network I/O, quorum collection,
   snapshot preparation, and peer merging in a private staged SQLite database.
   Generation-and-tip-bound conditional publication atomically exposes

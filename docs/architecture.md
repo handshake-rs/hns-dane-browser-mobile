@@ -175,12 +175,12 @@ automatic relay-capability handshakes, and manual static-relay probes cannot
 make an old height fresh or copy their advertised version height into sync
 state.
 
-The native sync JSON declares `syncStatusSchemaVersion: 2`. Android and iOS
-require that exact version plus the effective target, exact two-block
-threshold, three-group quorum, and explicit non-expired evidence before showing
-headers as current. Legacy or malformed status fails closed. No-progress states
-use a ten-minute cadence; the short cadence is reserved for runs that accepted
-headers.
+The native sync JSON declares `syncStatusSchemaVersion: 3`. Android and iOS
+require that exact version, a locally available authoritative HNS name-tree
+root, the effective target, exact two-block threshold, three-group quorum, and
+explicit non-expired evidence before showing name authority as current. Legacy
+or malformed status fails closed. No-progress states use a ten-minute cadence;
+the short cadence is reserved for runs that accepted headers.
 
 `X-HNS-Resolution-Trace` includes `localBestHeight`, `targetHeight`,
 `estimatedTargetHeight`, `localChainLagBlocks`, `localChainFreshness`,

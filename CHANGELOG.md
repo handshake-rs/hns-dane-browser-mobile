@@ -28,6 +28,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Aligned Android sync fixtures, native-runtime instrumentation, and the sync
+  contract documentation with schema v3 name-tree readiness fields.
 - Fixed clean-checkout Cargo metadata after the standalone snapshot exporter
   retained paths to deleted local engine crates.
 - Removed the deleted local loopback-proxy package from the runtime-boundary
