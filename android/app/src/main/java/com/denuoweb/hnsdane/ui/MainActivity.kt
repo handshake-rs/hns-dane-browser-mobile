@@ -27,7 +27,6 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.SslErrorHandler
 import android.webkit.URLUtil
-import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -152,7 +151,6 @@ class MainActivity : ComponentActivity() {
     private var failedMainFrameUrl: String? = null
     private var activityStopped: Boolean = false
     private var observedHeaderResetGeneration: Long = 0L
-    private var pendingReadinessNavigation: PendingReadinessNavigation? = null
     private var syncHeadersCurrent: Boolean = false
     private var syncWaitMainFrameUrl: String? = null
     private var syncWaitPageVisible: Boolean = false
@@ -844,7 +842,6 @@ class MainActivity : ComponentActivity() {
         if (!preserveAutomaticRetryBudget) {
             automaticHnsRetryUsed = false
         }
-        pendingReadinessNavigation = null
         if (::syncGateNotice.isInitialized) {
             syncGateNotice.visibility = View.GONE
         }
@@ -1295,30 +1292,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        override fun onReceivedError(
-            view: WebView,
-            request: WebResourceRequest,
-            error: WebResourceError,
-        ) {
-            val requestUrl = request.url.toString()
-            if (
-                !isCurrentMainFrameFailure(
-                    isForMainFrame = request.isForMainFrame,
-                    requestUrl = requestUrl,
-                    admittedUrl = admittedMainFrameUrl,
-                    pendingUrl = pendingMainFrameUrl,
-                )
-            ) {
-                return
-            }
-            failedMainFrameUrl = requestUrl
-            pageIsLoading = false
-            pageLoadProgress = 0
-            refreshSecurityState()
-            refreshPageProgress()
-            refreshTransportWarning()
-        }
-
         override fun onPageFinished(view: WebView, url: String) {
             if (pendingMainFrameUrl != null) return
             val admittedUrl = admittedMainFrameUrl ?: return
@@ -1358,14 +1331,27 @@ class MainActivity : ComponentActivity() {
             error: WebResourceError,
         ) {
             super.onReceivedError(view, request, error)
-            if (!request.isForMainFrame || pendingMainFrameUrl != null) return
-
             val requestUrl = request.url.toString()
-            val admittedUrl = admittedMainFrameUrl ?: return
-            if (admittedUrl.mainFrameMatchKey() != requestUrl.mainFrameMatchKey()) return
-            if (classifier.classify(requestUrl).kind !in NATIVE_GATEWAY_TARGET_KINDS) return
-
-            showHnsLoadFailurePage(view, requestUrl)
+            if (
+                !isCurrentMainFrameFailure(
+                    isForMainFrame = request.isForMainFrame,
+                    requestUrl = requestUrl,
+                    admittedUrl = admittedMainFrameUrl,
+                    pendingUrl = pendingMainFrameUrl,
+                )
+            ) {
+                return
+            }
+            failedMainFrameUrl = requestUrl
+            pageIsLoading = false
+            pageLoadProgress = 0
+            if (classifier.classify(requestUrl).kind in NATIVE_GATEWAY_TARGET_KINDS) {
+                showHnsLoadFailurePage(view, requestUrl)
+            } else {
+                refreshSecurityState()
+                refreshPageProgress()
+                refreshTransportWarning()
+            }
         }
 
         override fun onReceivedHttpError(
