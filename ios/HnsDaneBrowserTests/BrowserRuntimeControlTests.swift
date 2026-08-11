@@ -1094,6 +1094,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(policy.delay(after: regtest, consecutiveFailures: 0), 600)
     }
 
+    @MainActor
     func testSyncDiagnosticVisibilityTransitionsFromCurrentToInFlightAndBack() throws {
         let current = try RustBrowserRuntime.syncSummary(from: publicAuthorityStatus())
         XCTAssertTrue(current.isCaughtUp)
