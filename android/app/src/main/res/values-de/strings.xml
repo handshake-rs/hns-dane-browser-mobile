@@ -69,13 +69,11 @@
     <string name="sync_status_peer_failed">Peer ist gescheitert</string>
     <string name="sync_progress_target">Ziel %1$s</string>
     <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
-    <string name="sync_progress_target_unknown">Ziel unbekannt</string>
+    <string name="sync_progress_best_height">bestHeight %1$s</string>
     <string name="sync_progress_accepted">akzeptiert +%1$s</string>
     <string name="sync_progress_peers">Kollegen %1$s</string>
     <string name="sync_progress_root_ready">HNS-Root %1$s bereit</string>
     <string name="sync_progress_root_required">HNS-Root %1$s erforderlich</string>
-    <string name="sync_progress_root_unknown">Ziel des HNS-Roots unbekannt</string>
-    <string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
     <string name="sync_gate_waiting">Authentifizierte Handshake-Header werden abgewartet, bevor %1$s geladen wird.</string>
     <string name="sync_gate_failed">Die Synchronisierung der Handshake-Header muss wiederhergestellt sein, bevor %1$s geladen wird. Prüfen Sie die Synchronisierungsdetails oben.</string>
     <string name="screen_cookie_options">Cookie-Optionen</string>

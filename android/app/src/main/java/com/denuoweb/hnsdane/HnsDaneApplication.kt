@@ -43,6 +43,17 @@ class HnsDaneApplication : Application() {
     @Volatile
     private var proxyAvailable: Boolean = false
 
+    @Volatile
+    internal var isHeaderRecoveryInProgress: Boolean = false
+        private set
+
+    @Volatile
+    internal var headerResetGeneration: Long = 0L
+        private set
+
+    @Volatile
+    private var headerResetMutationInFlight: Boolean = false
+
     internal lateinit var browserProxyCoordinator: BrowserProxyCoordinator
         private set
 
@@ -80,17 +91,42 @@ class HnsDaneApplication : Application() {
 
     internal fun onHandshakeNetworkChanged() {
         browserProxyCoordinator.ensure(null)
-        if (!foregroundActivities.isForeground) {
-            latestSyncSnapshot = null
-            return
-        }
-        stopForegroundSync()
-        latestSyncSnapshot = null
-        startForegroundSync()
+        restartForegroundSync()
     }
 
+    /** Revokes the authority-bound proxy before native header storage is replaced. */
+    @Synchronized
+    internal fun beginHeadersReset() {
+        headerResetMutationInFlight = true
+        isHeaderRecoveryInProgress = true
+        headerResetGeneration = if (headerResetGeneration == Long.MAX_VALUE) {
+            1L
+        } else {
+            headerResetGeneration + 1L
+        }
+        browserProxyCoordinator.ensure(null)
+        stopForegroundSync()
+        latestSyncSnapshot = null
+    }
+
+    /** Immediately starts peer recovery after a reset attempt releases native maintenance. */
+    @Synchronized
+    internal fun finishHeadersReset() {
+        headerResetMutationInFlight = false
+        restartForegroundSync()
+    }
+
+    private fun restartForegroundSync() {
+        stopForegroundSync()
+        latestSyncSnapshot = null
+        if (foregroundActivities.isForeground) {
+            startForegroundSync()
+        }
+    }
+
+    @Synchronized
     private fun startForegroundSync() {
-        if (foregroundSync != null) {
+        if (headerResetMutationInFlight || foregroundSync != null) {
             return
         }
 
@@ -115,6 +151,9 @@ class HnsDaneApplication : Application() {
                     false
                 } else {
                     latestSyncSnapshot = snapshot
+                    if (progress.isAuthorityReady) {
+                        isHeaderRecoveryInProgress = false
+                    }
                     true
                 }
             }

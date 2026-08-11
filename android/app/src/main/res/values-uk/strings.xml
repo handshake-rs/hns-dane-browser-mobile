@@ -69,13 +69,11 @@
 <string name="sync_status_peer_failed">одноранговий невдало</string>
 <string name="sync_progress_target">мета %1$s</string>
 <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
-<string name="sync_progress_target_unknown">ціль невідома</string>
+<string name="sync_progress_best_height">bestHeight %1$s</string>
 <string name="sync_progress_accepted">прийнято +%1$s</string>
 <string name="sync_progress_peers">ровесники %1$s</string>
 <string name="sync_progress_root_ready">Корінь HNS %1$s готовий</string>
 <string name="sync_progress_root_required">Потрібен корінь HNS %1$s</string>
-<string name="sync_progress_root_unknown">Цільовий корінь HNS невідомий</string>
-<string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
 <string name="sync_gate_waiting">Очікування автентифікованих заголовків Handshake перед завантаженням %1$s.</string>
 <string name="sync_gate_failed">Перед завантаженням %1$s необхідно відновити синхронізацію заголовків Handshake. Перевірте відомості про синхронізацію вище.</string>
 <string name="screen_cookie_options">Параметри файлів cookie</string>

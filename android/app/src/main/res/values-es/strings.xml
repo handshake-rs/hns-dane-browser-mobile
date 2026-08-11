@@ -69,13 +69,11 @@
     <string name="sync_status_peer_failed">compañero falló</string>
     <string name="sync_progress_target">objetivo %1$s</string>
     <string name="sync_progress_best_peer_height">mejorPeerHeight %1$s</string>
-    <string name="sync_progress_target_unknown">objetivo desconocido</string>
+    <string name="sync_progress_best_height">mejor altura %1$s</string>
     <string name="sync_progress_accepted">aceptado +%1$s</string>
     <string name="sync_progress_peers">compañeros %1$s</string>
     <string name="sync_progress_root_ready">Raíz HNS %1$s lista</string>
     <string name="sync_progress_root_required">se necesita la raíz HNS %1$s</string>
-    <string name="sync_progress_root_unknown">objetivo de raíz HNS desconocido</string>
-    <string name="sync_progress_summary">%1$s • mejor altura %2$s • %3$s%4$s%5$s</string>
     <string name="sync_gate_waiting">Esperando encabezados de Handshake autenticados antes de cargar %1$s.</string>
     <string name="sync_gate_failed">La sincronización de encabezados de Handshake debe recuperarse antes de cargar %1$s. Compruebe los detalles de sincronización anteriores.</string>
     <string name="screen_cookie_options">Opciones de cookies</string>

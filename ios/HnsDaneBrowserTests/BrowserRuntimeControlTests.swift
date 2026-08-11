@@ -1086,10 +1086,25 @@ final class BrowserRuntimeControlTests: XCTestCase {
             accepted: 0,
             bestHeight: 42
         )
+        let resetGenesisStatuses = ["idle", "syncing", "up_to_date", "attempted", "synced"]
 
         XCTAssertTrue(unknownTarget.hasUnknownTargetProgress)
         XCTAssertEqual(policy.delay(after: unknownTarget, consecutiveFailures: 0), 10)
+        for status in resetGenesisStatuses {
+            let resetGenesis = BrowserSyncSummary(
+                headline: "Syncing",
+                detail: "Recovering from genesis",
+                syncStatusSchemaVersion: 3,
+                status: status,
+                network: BrowserHandshakeNetwork.mainnet.rawValue,
+                accepted: 0,
+                bestHeight: 0
+            )
+            XCTAssertTrue(resetGenesis.needsHeaderBootstrap)
+            XCTAssertEqual(policy.delay(after: resetGenesis, consecutiveFailures: 0), 10)
+        }
         XCTAssertEqual(policy.delay(after: progressing, consecutiveFailures: 0), 30)
+        XCTAssertFalse(regtest.needsHeaderBootstrap)
         XCTAssertFalse(regtest.hasUnknownTargetProgress)
         XCTAssertEqual(policy.delay(after: regtest, consecutiveFailures: 0), 600)
     }
@@ -1112,8 +1127,10 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(inFlight.displayedSyncHeight, 339_344)
         XCTAssertEqual(inFlight.syncProgressFraction, 1)
         XCTAssertEqual(inFlight.headline, "Syncing Handshake headers")
-        XCTAssertTrue(inFlight.syncDiagnosticText.contains("Committed 339308"))
+        XCTAssertFalse(inFlight.syncDiagnosticText.contains("Committed"))
         XCTAssertTrue(inFlight.syncDiagnosticText.contains("staged validated 339344"))
+        XCTAssertTrue(inFlight.syncDiagnosticText.contains("effective target 339308"))
+        XCTAssertTrue(inFlight.syncDiagnosticText.contains("HNS root 339301 ready"))
         XCTAssertTrue(inFlight.syncDiagnosticText.contains("staged accepted +36"))
         XCTAssertTrue(
             HNSSyncViewController.statusText(
@@ -1147,6 +1164,30 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(currentAgain.shouldShowSyncProgress)
         XCTAssertEqual(currentAgain.displayedSyncHeight, currentAgain.bestHeight)
         XCTAssertEqual(currentAgain.headline, "Handshake headers current")
+    }
+
+    func testSyncDiagnosticOmitsUnknownTargetAndRootClauses() throws {
+        let summary = try RustBrowserRuntime.syncSummary(from: [
+            "syncStatusSchemaVersion": 3,
+            "network": "mainnet",
+            "status": "syncing",
+            "bestHeight": 300_000,
+            "bestPeerHeight": 337_000,
+            "estimatedTipHeight": 336_900,
+            "freshness": "unknown",
+            "syncInFlight": true,
+            "stagedBestHeight": 324_000,
+            "stagedAccepted": 24_000,
+        ])
+
+        XCTAssertEqual(
+            summary.detail,
+            "staged validated 324000 · freshness unknown · raw peer 337000 "
+                + "· estimate 336900 · staged accepted +24000"
+        )
+        XCTAssertFalse(summary.syncDiagnosticText.contains("Committed"))
+        XCTAssertFalse(summary.syncDiagnosticText.contains("target unknown"))
+        XCTAssertFalse(summary.syncDiagnosticText.contains("HNS root unknown"))
     }
 
     func testIOSRecognizesAndroidCurrentSyncStates() throws {

@@ -56,10 +56,13 @@ class HnsSyncProgressTest {
         assertTrue(progress.hasUnknownTargetProgress)
         assertTrue(progress.shouldContinueSoon)
         assertEquals(null, progress.progressPermille())
+        val summary = progress.summary()
         assertEquals(
-            "syncing • bestHeight 92,000 • target unknown • HNS root unknown • estimate 335,684 • accepted +2,000",
-            progress.summary(),
+            "syncing • bestHeight 92,000 • estimate 335,684 • accepted +2,000",
+            summary,
         )
+        assertFalse(summary.contains("target unknown"))
+        assertFalse(summary.contains("HNS root unknown"))
     }
 
     @Test
@@ -183,10 +186,13 @@ class HnsSyncProgressTest {
         assertTrue(progress.shouldShowProgress)
         assertTrue(progress.isAuthorityReady)
         assertEquals(961, progress.progressPermille())
+        val summary = progress.summary()
         assertEquals(
-            "syncing • bestHeight committed 300,000 • staged validated 324,000 • target 337,000 • HNS root 299,989 ready • raw peer 337,000 • staged accepted +24,000",
-            progress.summary(),
+            "syncing • staged validated 324,000 • target 337,000 • HNS root 299,989 ready • raw peer 337,000 • staged accepted +24,000",
+            summary,
         )
+        assertFalse(summary.contains("committed"))
+        assertFalse(summary.contains("300,000"))
     }
 
     @Test

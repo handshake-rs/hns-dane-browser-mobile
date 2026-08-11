@@ -69,13 +69,11 @@
     <string name="sync_status_peer_failed">فشل الأقران</string>
     <string name="sync_progress_target">الهدف %1$s</string>
     <string name="sync_progress_best_peer_height">أفضل ارتفاع نظير %1$s</string>
-    <string name="sync_progress_target_unknown">الهدف غير معروف</string>
+    <string name="sync_progress_best_height">أفضل ارتفاع %1$s</string>
     <string name="sync_progress_accepted">مقبول +%1$s</string>
     <string name="sync_progress_peers">أقرانهم %1$s</string>
     <string name="sync_progress_root_ready">جذر HNS ‏%1$s جاهز</string>
     <string name="sync_progress_root_required">يلزم جذر HNS ‏%1$s</string>
-    <string name="sync_progress_root_unknown">هدف جذر HNS غير معروف</string>
-    <string name="sync_progress_summary">%1$s • أفضل ارتفاع %2$s • %3$s%4$s%5$s</string>
     <string name="sync_gate_waiting">بانتظار رؤوس Handshake الموثّقة قبل تحميل %1$s.</string>
     <string name="sync_gate_failed">يجب استعادة مزامنة رؤوس Handshake قبل تحميل %1$s. تحقّق من تفاصيل المزامنة أعلاه.</string>
     <string name="screen_cookie_options">خيارات ملفات تعريف الارتباط</string>

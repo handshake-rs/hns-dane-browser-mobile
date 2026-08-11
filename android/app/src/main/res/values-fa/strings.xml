@@ -69,13 +69,11 @@
     <string name="sync_status_peer_failed">همتا شکست خورد</string>
     <string name="sync_progress_target">هدف %1$s</string>
     <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
-    <string name="sync_progress_target_unknown">هدف ناشناخته</string>
+    <string name="sync_progress_best_height">بهترین ارتفاع %1$s</string>
     <string name="sync_progress_accepted">پذیرفته شد +%1$s</string>
     <string name="sync_progress_peers">همتایان %1$s</string>
     <string name="sync_progress_root_ready">ریشه HNS ‏%1$s آماده است</string>
     <string name="sync_progress_root_required">ریشه HNS ‏%1$s لازم است</string>
-    <string name="sync_progress_root_unknown">هدف ریشه HNS ناشناخته است</string>
-    <string name="sync_progress_summary">%1$s • بهترین ارتفاع %2$s • %3$s%4$s%5$s</string>
     <string name="sync_gate_waiting">پیش از بارگیری %1$s، منتظر سرآیندهای تأییدشده Handshake هستیم.</string>
     <string name="sync_gate_failed">همگام‌سازی سرآیندهای Handshake باید پیش از بارگیری %1$s بازیابی شود. جزئیات همگام‌سازی بالا را بررسی کنید.</string>
     <string name="screen_cookie_options">گزینه های کوکی</string>

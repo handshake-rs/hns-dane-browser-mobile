@@ -1115,18 +1115,37 @@ final class BrowserViewController: UIViewController {
         refreshSettingsIfPresented()
         process.resetHeadersFromPeers { [weak self, weak presenter] result in
             guard let self, !self.isDestroyed else { return }
-            self.isHeaderResetInFlight = false
-            self.setControlOperationInFlight(false)
             switch result {
-            case .success(let summary):
-                self.updateSyncSummary(summary)
-                self.showRuntimeSummary(summary, presenter: presenter)
-                if self.isForeground {
-                    self.process.resumeForegroundSync { [weak self] updated in
-                        self?.updateSyncSummary(updated)
+            case .success:
+                guard self.isForeground else {
+                    self.isHeaderResetInFlight = false
+                    self.setControlOperationInFlight(false)
+                    return
+                }
+                self.showTransientSyncStatus("Syncing Handshake headers…")
+                self.refreshSettingsIfPresented()
+                self.process.syncNow { [weak self, weak presenter] syncResult in
+                    guard let self, !self.isDestroyed else { return }
+                    self.isHeaderResetInFlight = false
+                    self.setControlOperationInFlight(false)
+                    guard self.isForeground else { return }
+                    switch syncResult {
+                    case .success(let summary):
+                        self.updateSyncSummary(summary)
+                        self.showRuntimeSummary(summary, presenter: presenter)
+                    case .failure(let error):
+                        self.updateSyncSummary(.failure(error))
+                        self.showOperationError(
+                            title: "Header resync failed",
+                            error: error,
+                            presenter: presenter
+                        )
                     }
                 }
             case .failure(let error):
+                self.isHeaderResetInFlight = false
+                self.setControlOperationInFlight(false)
+                guard self.isForeground else { return }
                 if let environment = self.environment {
                     self.updateSyncSummary(environment.runtime.syncSummary())
                 }
@@ -1299,7 +1318,7 @@ final class BrowserViewController: UIViewController {
             syncProgressView.accessibilityValue = "\(Int((fraction * 100).rounded())) percent"
         } else {
             syncProgressView.setProgress(0, animated: false)
-            syncProgressView.accessibilityValue = "Target unknown"
+            syncProgressView.accessibilityValue = "Indeterminate"
         }
         guard let coordinator else {
             refreshSettingsIfPresented()
@@ -1334,7 +1353,7 @@ final class BrowserViewController: UIViewController {
         syncLabel.accessibilityLabel = text
         syncLabel.isHidden = false
         syncProgressView.setProgress(0, animated: false)
-        syncProgressView.accessibilityValue = "Target unknown"
+        syncProgressView.accessibilityValue = "Indeterminate"
         syncProgressView.isHidden = false
     }
 

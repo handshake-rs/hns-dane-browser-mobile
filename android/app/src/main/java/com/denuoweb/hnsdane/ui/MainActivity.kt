@@ -24,6 +24,7 @@ import android.view.inputmethod.InputMethodManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.HttpAuthHandler
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.SslErrorHandler
 import android.webkit.URLUtil
 import android.webkit.WebResourceRequest
@@ -118,6 +119,7 @@ class MainActivity : ComponentActivity() {
     private val serviceWorkerClientOwner: ServiceWorkerClientOwnershipGate.Owner =
         ProcessServiceWorkerClientOwnership.newOwner()
     private val proxyNavigationOwner = Any()
+    @Volatile
     private var proxyAvailable: Boolean = false
     private var currentTargetKind: BrowserTargetKind? = null
     private var mainFrameHnsStatusCode: Int? = null
@@ -141,7 +143,11 @@ class MainActivity : ComponentActivity() {
     private var pageIsLoading: Boolean = false
     private var pageLoadProgress: Int = 0
     private var navigationGeneration: Long = 0L
-    private var pendingReadinessNavigation: PendingReadinessNavigation? = null
+    private var pendingNavigation: PendingNavigation? = null
+    private var proxyNavigationSubmittedGeneration: Long? = null
+    private var failedMainFrameUrl: String? = null
+    private var activityStopped: Boolean = false
+    private var observedHeaderResetGeneration: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -152,12 +158,19 @@ class MainActivity : ComponentActivity() {
         NativeBridge.pruneGatewayResponseBodyFiles(filesDir.absolutePath)
         HnsNativeDownloadFetcher.pruneStaging(filesDir)
         val app = application as HnsDaneApplication
+        observedHeaderResetGeneration = app.headerResetGeneration
         proxyCoordinator = app.browserProxyCoordinator
         proxyAvailabilitySubscription = app.observeProxyAvailability { available ->
             runOnUiThread {
                 if (activityDestroyed) return@runOnUiThread
                 proxyAvailable = available
-                if (::securityLabel.isInitialized) refreshSecurityState()
+                if (!available) {
+                    proxyNavigationSubmittedGeneration = null
+                }
+                if (::securityLabel.isInitialized) {
+                    refreshSecurityState()
+                    refreshSyncGateNotice()
+                }
             }
         }
         webViewGatewayInterceptor = HnsWebViewGatewayInterceptor(
@@ -249,9 +262,11 @@ class MainActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(dp(32), dp(32), dp(32), dp(32))
             setTextColor(colors.primaryText)
+            setBackgroundColor(colors.background)
             textSize = 16f
             visibility = View.GONE
             isClickable = true
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
         pageProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = PAGE_PROGRESS_MAX
@@ -351,9 +366,19 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        if (savedInstanceState == null) {
+        val restoredUrl = savedInstanceState?.getString(STATE_MAIN_FRAME_URL)
+        if (!restoredUrl.isNullOrBlank()) {
+            loadTarget(classifier.classify(restoredUrl))
+        } else {
             loadInitialPage(intent)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        (pendingMainFrameUrl ?: activeMainFrameUrl ?: currentPageUrl())?.let { url ->
+            outState.putString(STATE_MAIN_FRAME_URL, url)
+        }
+        super.onSaveInstanceState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -367,15 +392,27 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        activityStopped = false
         gatewayInterceptionEnabled = true
         BrowserCookiePreferences.applyTo(webView)
+        val resetReloadQueued = reconcileHeaderResetGeneration()
         val resumeUrl = pendingMainFrameUrl ?: activeMainFrameUrl ?: currentPageUrl()
-        if (reloadHnsPageOnNextStart && pendingMainFrameUrl == null && resumeUrl != null) {
+        if (
+            !resetReloadQueued &&
+            reloadHnsPageOnNextStart &&
+            pendingMainFrameUrl == null &&
+            resumeUrl != null
+        ) {
             reloadHnsPageOnNextStart = false
             val target = classifier.classify(resumeUrl)
             enqueueNavigation(target) { webView.reload() }
         }
-        resumeUrl?.let { url -> proxyCoordinator.ensure(proxyConfigForUrl(url)) }
+        resumeUrl?.let { url ->
+            val target = classifier.classify(url)
+            val mayRestoreProxy =
+                !targetRequiresDualRootReadiness(target) || hasCurrentHeaderAuthority()
+            proxyCoordinator.ensure(if (mayRestoreProxy) proxyConfigForTarget(target) else null)
+        }
         refreshSecurityState()
         refreshSyncProgress()
         syncStatusExecutor.execute {
@@ -400,6 +437,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        activityStopped = true
+        proxyNavigationSubmittedGeneration = null
         gatewayInterceptionEnabled = false
         // Only a page interrupted mid-load needs a reload after backgrounding;
         // the process-owned proxy and a fully loaded page remain intact.
@@ -415,7 +454,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         activityDestroyed = true
-        pendingReadinessNavigation = null
+        pendingNavigation = null
+        proxyNavigationSubmittedGeneration = null
+        failedMainFrameUrl = null
         gatewayInterceptionEnabled = false
         stopObservingForegroundSync()
         proxyAvailabilitySubscription?.close()
@@ -456,7 +497,7 @@ class MainActivity : ComponentActivity() {
                     interceptor = webViewGatewayInterceptor,
                     namespacePolicy = NativeBridge,
                     enabled = {
-                        gatewayInterceptionEnabled && currentSyncProgress().isAuthorityReady
+                        gatewayInterceptionEnabled && hasCurrentHeaderAuthority()
                     },
                     proxyRoute = { request ->
                         serviceWorkerProxyRoute(
@@ -760,7 +801,9 @@ class MainActivity : ComponentActivity() {
     private fun enqueueNavigation(target: BrowserTarget, load: () -> Unit) {
         navigationGeneration = navigationGeneration.wrappingIncrement()
         val generation = navigationGeneration
-        pendingReadinessNavigation = null
+        pendingNavigation = null
+        proxyNavigationSubmittedGeneration = null
+        failedMainFrameUrl = null
         if (::syncGateNotice.isInitialized) {
             syncGateNotice.visibility = View.GONE
         }
@@ -780,8 +823,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         pendingMainFrameUrl = target.url
-        if (targetRequiresDualRootReadiness(target) && !currentSyncProgress().isAuthorityReady) {
-            pendingReadinessNavigation = PendingReadinessNavigation(target, generation, load)
+        pendingNavigation = PendingNavigation(target, generation, load)
+        if (targetRequiresDualRootReadiness(target) && !hasCurrentHeaderAuthority()) {
             pageIsLoading = false
             pageLoadProgress = 0
             refreshSecurityState()
@@ -794,26 +837,43 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startAdmittedNavigation(target: BrowserTarget, generation: Long, load: () -> Unit) {
-        if (generation != navigationGeneration || activityDestroyed) return
-        pageIsLoading = true
-        pageLoadProgress = 0
-        refreshSecurityState()
-        refreshPageProgress()
-        refreshTransportWarning()
+        if (generation != navigationGeneration || activityDestroyed || activityStopped) return
+        val requiresReadiness = targetRequiresDualRootReadiness(target)
+        if (requiresReadiness && !hasCurrentHeaderAuthority()) return
+        if (proxyNavigationSubmittedGeneration == generation) return
+        proxyNavigationSubmittedGeneration = generation
+        if (requiresReadiness) {
+            refreshSyncGateNotice()
+        }
         val config = proxyConfigForTarget(target)
         val targetHost = config?.let { target.displayHost }
         proxyCoordinator.navigate(proxyNavigationOwner, config, targetHost) {
+            if (proxyNavigationSubmittedGeneration == generation) {
+                proxyNavigationSubmittedGeneration = null
+            }
             if (
                 activityDestroyed ||
+                activityStopped ||
                 generation != navigationGeneration ||
-                pendingMainFrameUrl?.mainFrameMatchKey() != target.url.mainFrameMatchKey()
+                pendingMainFrameUrl?.mainFrameMatchKey() != target.url.mainFrameMatchKey() ||
+                (requiresReadiness && !hasCurrentHeaderAuthority())
             ) {
                 return@navigate
+            }
+            if (pendingNavigation?.generation == generation) {
+                pendingNavigation = null
+                syncGateNotice.visibility = View.GONE
             }
             pendingMainFrameUrl = null
             admittedMainFrameUrl = target.url
             activeMainFrameUrl = target.url
             currentTargetKind = target.kind
+            failedMainFrameUrl = null
+            pageIsLoading = true
+            pageLoadProgress = 0
+            refreshSecurityState()
+            refreshPageProgress()
+            refreshTransportWarning()
             load()
         }
     }
@@ -831,18 +891,52 @@ class MainActivity : ComponentActivity() {
     private fun currentSyncProgress(): HnsSyncProgress =
         HnsSyncProgress.fromJson(lastSyncSnapshot?.statusJson)
 
-    private fun resumeReadinessNavigationIfReady(progress: HnsSyncProgress) {
-        val pending = pendingReadinessNavigation ?: return
-        if (!progress.isAuthorityReady || pending.generation != navigationGeneration) return
-        pendingReadinessNavigation = null
-        syncGateNotice.visibility = View.GONE
+    /** Reset recovery may expose diagnostics, but never the previous authority generation. */
+    private fun hasCurrentHeaderAuthority(progress: HnsSyncProgress = currentSyncProgress()): Boolean =
+        (application as? HnsDaneApplication)?.isHeaderRecoveryInProgress != true &&
+            progress.isAuthorityReady
+
+    private fun resumePendingNavigationIfReady(progress: HnsSyncProgress) {
+        val pending = pendingNavigation ?: return
+        if (pending.generation != navigationGeneration) return
+        if (
+            targetRequiresDualRootReadiness(pending.target) &&
+            !hasCurrentHeaderAuthority(progress)
+        ) {
+            return
+        }
         startAdmittedNavigation(pending.target, pending.generation, pending.load)
+    }
+
+    private fun restoreActiveProxyIfReady(progress: HnsSyncProgress) {
+        if (!hasCurrentHeaderAuthority(progress) || pendingNavigation != null || activityStopped) return
+        val activeUrl = activeMainFrameUrl ?: return
+        val target = classifier.classify(activeUrl)
+        if (!targetRequiresDualRootReadiness(target)) return
+        proxyCoordinator.ensure(proxyConfigForTarget(target))
+    }
+
+    /** Invalidates old-page trust and replays a completed HNS page after header storage reset. */
+    private fun reconcileHeaderResetGeneration(): Boolean {
+        val generation = (application as? HnsDaneApplication)?.headerResetGeneration ?: return false
+        if (generation == observedHeaderResetGeneration) return false
+        observedHeaderResetGeneration = generation
+        proxyNavigationSubmittedGeneration = null
+        failedMainFrameUrl = null
+        clearMainFrameHnsStatus()
+        if (pendingNavigation != null) return false
+        val activeUrl = activeMainFrameUrl ?: return false
+        val target = classifier.classify(activeUrl)
+        if (!targetRequiresDualRootReadiness(target)) return false
+        reloadHnsPageOnNextStart = false
+        enqueueNavigation(target) { webView.reload() }
+        return true
     }
 
     private fun refreshSyncGateNotice() {
         if (!::syncGateNotice.isInitialized) return
-        val pending = pendingReadinessNavigation
-        if (pending == null) {
+        val pending = pendingNavigation
+        if (pending == null || !targetRequiresDualRootReadiness(pending.target)) {
             syncGateNotice.visibility = View.GONE
             return
         }
@@ -857,6 +951,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSecurityState() {
+        val failedUrl = failedMainFrameUrl
+        if (
+            failedUrl != null &&
+            failedUrl.mainFrameMatchKey() == admittedMainFrameUrl?.mainFrameMatchKey()
+        ) {
+            setSecurityState(SecurityState.ValidationFailed)
+            return
+        }
+        val securityTarget = (pendingMainFrameUrl ?: activeMainFrameUrl)?.let(classifier::classify)
+        if (
+            (application as? HnsDaneApplication)?.isHeaderRecoveryInProgress == true &&
+            securityTarget?.let(::targetRequiresDualRootReadiness) == true
+        ) {
+            setSecurityState(SecurityState.Syncing)
+            return
+        }
         if (
             pageIsLoading &&
             currentTargetKind in NATIVE_GATEWAY_TARGET_KINDS &&
@@ -923,7 +1033,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val progress = HnsSyncProgress.fromJson(lastSyncSnapshot?.statusJson)
+        val progress = currentSyncProgress()
         if (progress.shouldShowProgress) {
             syncProgressBar.visibility = View.VISIBLE
             syncProgressStats.visibility = View.VISIBLE
@@ -938,7 +1048,8 @@ class MainActivity : ComponentActivity() {
             syncProgressStats.visibility = View.GONE
         }
         refreshSyncGateNotice()
-        resumeReadinessNavigationIfReady(progress)
+        resumePendingNavigationIfReady(progress)
+        restoreActiveProxyIfReady(progress)
     }
 
     private fun refreshPageProgress() {
@@ -1041,6 +1152,7 @@ class MainActivity : ComponentActivity() {
                 return
             }
             pageIsLoading = true
+            failedMainFrameUrl = null
             pageLoadProgress = pageLoadProgress.coerceAtLeast(5)
             omnibox.setText(url)
             admittedMainFrameUrl = url
@@ -1122,7 +1234,7 @@ class MainActivity : ComponentActivity() {
                 return when (
                     protectedWebViewRequestAction(
                         proxyAvailable = proxyAvailable,
-                        treeRootReady = currentSyncProgress().isAuthorityReady,
+                        treeRootReady = hasCurrentHeaderAuthority(),
                     )
                 ) {
                     ProtectedWebViewRequestAction.ProcessProxy -> null
@@ -1147,6 +1259,30 @@ class MainActivity : ComponentActivity() {
             } else {
                 handler.cancel()
             }
+        }
+
+        override fun onReceivedError(
+            view: WebView,
+            request: WebResourceRequest,
+            error: WebResourceError,
+        ) {
+            val requestUrl = request.url.toString()
+            if (
+                !isCurrentMainFrameFailure(
+                    isForMainFrame = request.isForMainFrame,
+                    requestUrl = requestUrl,
+                    admittedUrl = admittedMainFrameUrl,
+                    pendingUrl = pendingMainFrameUrl,
+                )
+            ) {
+                return
+            }
+            failedMainFrameUrl = requestUrl
+            pageIsLoading = false
+            pageLoadProgress = 0
+            refreshSecurityState()
+            refreshPageProgress()
+            refreshTransportWarning()
         }
 
         override fun onPageFinished(view: WebView, url: String) {
@@ -1199,10 +1335,8 @@ class MainActivity : ComponentActivity() {
 
     private inner class BrowserChromeClient : WebChromeClient() {
         override fun onProgressChanged(view: WebView, newProgress: Int) {
+            if (!pageIsLoading) return
             pageLoadProgress = newProgress.coerceIn(0, PAGE_PROGRESS_MAX)
-            if (pageLoadProgress < PAGE_PROGRESS_MAX) {
-                pageIsLoading = true
-            }
             refreshPageProgress()
         }
     }
@@ -1449,9 +1583,6 @@ class MainActivity : ComponentActivity() {
                 .trim()
                 .takeIf { it.isNotBlank() && it != "about:blank" }
 
-    private fun proxyConfigForUrl(url: String?): RustBrowserProxyConfig? =
-        url?.let(classifier::classify)?.let(::proxyConfigForTarget)
-
     private fun proxyConfigForTarget(target: BrowserTarget): RustBrowserProxyConfig? {
         val host = if (target.kind in NATIVE_GATEWAY_TARGET_KINDS) {
             target.displayHost
@@ -1507,6 +1638,7 @@ class MainActivity : ComponentActivity() {
         private const val MENU_POPUP_WIDTH_DP = MENU_ICON_BUTTON_SIZE_DP * 3
         private const val MENU_ROW_HEIGHT_DP = 55
         private const val MAX_DOWNLOAD_FILE_NAME_CHARS = 120
+        private const val STATE_MAIN_FRAME_URL = "main_frame_url"
         private const val WHOLE_BROWSER_PROXY_SCOPE = "whole-browser.invalid"
         private val UNSAFE_DOWNLOAD_FILE_CHARS = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
         private val WEB_NAVIGATION_SCHEMES = setOf("http", "https")
@@ -1521,13 +1653,23 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class PendingReadinessNavigation(
+private data class PendingNavigation(
     val target: BrowserTarget,
     val generation: Long,
     val load: () -> Unit,
 )
 
 private fun Long.wrappingIncrement(): Long = if (this == Long.MAX_VALUE) 1L else this + 1L
+
+internal fun isCurrentMainFrameFailure(
+    isForMainFrame: Boolean,
+    requestUrl: String,
+    admittedUrl: String?,
+    pendingUrl: String?,
+): Boolean =
+    isForMainFrame &&
+        pendingUrl == null &&
+        admittedUrl?.let(::normalizedMainFrameMatchKey) == normalizedMainFrameMatchKey(requestUrl)
 
 private val EXTERNAL_VIEW_SCHEMES = setOf("mailto", "tel", "sms", "geo")
 

@@ -69,13 +69,11 @@
 <string name="sync_status_peer_failed">peer is mislukt</string>
 <string name="sync_progress_target">doel %1$s</string>
 <string name="sync_progress_best_peer_height">bestePeerHeight %1$s</string>
-<string name="sync_progress_target_unknown">doel onbekend</string>
+<string name="sync_progress_best_height">beste hoogte %1$s</string>
 <string name="sync_progress_accepted">geaccepteerd +%1$s</string>
 <string name="sync_progress_peers">soortgenoten %1$s</string>
 <string name="sync_progress_root_ready">HNS-root %1$s gereed</string>
 <string name="sync_progress_root_required">HNS-root %1$s vereist</string>
-<string name="sync_progress_root_unknown">doel van HNS-root onbekend</string>
-<string name="sync_progress_summary">%1$s • beste hoogte %2$s • %3$s%4$s%5$s</string>
 <string name="sync_gate_waiting">Wachten op geverifieerde Handshake-headers voordat %1$s wordt geladen.</string>
 <string name="sync_gate_failed">De synchronisatie van Handshake-headers moet zijn hersteld voordat %1$s wordt geladen. Controleer de synchronisatiedetails hierboven.</string>
 <string name="screen_cookie_options">Cookie-opties</string>

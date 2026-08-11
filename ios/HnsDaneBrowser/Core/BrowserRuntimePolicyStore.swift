@@ -203,6 +203,9 @@ struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
         if summary?.madeHeaderProgress == true {
             return progressInterval
         }
+        if summary?.needsHeaderBootstrap == true {
+            return retryInterval
+        }
         if summary?.hasUnknownTargetProgress == true {
             return retryInterval
         }

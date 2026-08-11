@@ -576,6 +576,14 @@ struct BrowserSyncSummary: Equatable, Sendable {
             && effectiveTargetHeight == nil
     }
 
+    /// A freshly reset public-network store must keep prompting peer recovery
+    /// regardless of the zero-progress status label returned by that pass.
+    var needsHeaderBootstrap: Bool {
+        syncStatusSchemaVersion == 3
+            && network != BrowserHandshakeNetwork.regtest.rawValue
+            && bestHeight == 0
+    }
+
     /// The global diagnostic row stays visible while work is active or the
     /// committed chain is not current. This is intentionally independent of
     /// `hasAuthoritativeTreeRoot`, which remains the navigation security gate.

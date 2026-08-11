@@ -1,10 +1,14 @@
 package com.denuoweb.hnsdane.net
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class HnsSyncSchedulerTest {
     @Test
@@ -133,6 +137,48 @@ class HnsSyncSchedulerTest {
     }
 
     @Test
+    fun postResetMainnetGenesisRetriesWithoutHotPollingLegacyOrRegtestStatus() {
+        val scheduler = HnsSyncScheduler(
+            dataDir = File("/tmp/hns-dane-browser-test"),
+            bridge = RecordingSyncBridge("{}"),
+            activeIntervalMs = 7L,
+            retryIntervalMs = 11L,
+            idleIntervalMs = 13L,
+        )
+
+        listOf("idle", "syncing", "up_to_date", "attempted", "synced").forEach { status ->
+            assertEquals(
+                11L,
+                scheduler.nextDelayMs(
+                    HnsSyncSnapshot(
+                        statusJson = """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"$status","bestHeight":0,"peerCount":23}""",
+                        updatedAtMillis = 1L,
+                    ),
+                ),
+            )
+        }
+        assertEquals(
+            13L,
+            scheduler.nextDelayMs(
+                HnsSyncSnapshot(
+                    statusJson = """{"syncStatusSchemaVersion":3,"network":"regtest","status":"idle","bestHeight":0,"peerCount":2}""",
+                    updatedAtMillis = 2L,
+                ),
+            ),
+        )
+        assertEquals(
+            13L,
+            scheduler.nextDelayMs(
+                HnsSyncSnapshot(
+                    statusJson = """{"network":"mainnet","status":"idle","bestHeight":0,"peerCount":23}""",
+                    updatedAtMillis = 3L,
+                ),
+            ),
+        )
+        scheduler.close()
+    }
+
+    @Test
     fun singleFlightRejectsOverlappingNativeWorkWithoutBlocking() {
         val gate = HnsSyncSingleFlight()
         var nestedRan = false
@@ -146,6 +192,40 @@ class HnsSyncSchedulerTest {
         assertEquals("done", outer)
         assertEquals(false, nestedRan)
         assertEquals(false, gate.isRunning())
+    }
+
+    @Test
+    fun explicitMaintenanceWaitsForCurrentSyncThenRunsExclusively() {
+        val gate = HnsSyncSingleFlight()
+        val syncStarted = CountDownLatch(1)
+        val releaseSync = CountDownLatch(1)
+        val maintenanceFinished = CountDownLatch(1)
+        val order = mutableListOf<String>()
+        val syncThread = Thread {
+            gate.tryRun {
+                synchronized(order) { order += "sync" }
+                syncStarted.countDown()
+                releaseSync.await()
+            }
+        }
+        val maintenanceThread = Thread {
+            gate.runExclusive {
+                synchronized(order) { order += "maintenance" }
+            }
+            maintenanceFinished.countDown()
+        }
+
+        syncThread.start()
+        assertTrue(syncStarted.await(1, TimeUnit.SECONDS))
+        maintenanceThread.start()
+        assertFalse(maintenanceFinished.await(100, TimeUnit.MILLISECONDS))
+        releaseSync.countDown()
+
+        assertTrue(maintenanceFinished.await(1, TimeUnit.SECONDS))
+        syncThread.join(1_000)
+        maintenanceThread.join(1_000)
+        assertEquals(listOf("sync", "maintenance"), synchronized(order) { order.toList() })
+        assertFalse(gate.isRunning())
     }
 
     private class RecordingSyncBridge(

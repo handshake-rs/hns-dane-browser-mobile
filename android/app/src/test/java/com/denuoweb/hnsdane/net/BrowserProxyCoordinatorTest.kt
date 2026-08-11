@@ -278,6 +278,45 @@ class BrowserProxyCoordinatorTest {
     }
 
     @Test
+    fun clearingDesiredConfigRetiresActiveProxyBeforeSameConfigNavigationUsesFreshProxy() {
+        val fixture = Fixture()
+        val stale = fixture.activate("alpha")
+        fixture.loads.clear()
+        val fresh = fixture.proxy("alpha", port = 43211)
+        fixture.factory.results += fresh
+
+        fixture.coordinator.ensure(null)
+        fixture.coordinator.navigate(fixture.config("alpha"), "alpha") {
+            fixture.loads += "fresh"
+        }
+
+        assertEquals(1, stale.stopCalls)
+        assertEquals(0, stale.joinCalls)
+        assertFalse(fixture.coordinator.isProxyAvailable)
+        assertTrue(fixture.loads.isEmpty())
+        assertEquals(1, fixture.factory.startedConfigs.size)
+        assertEquals(1, fixture.overrideController.clearCalls)
+
+        fixture.worker.runNext()
+        assertEquals(1, stale.joinCalls)
+        assertEquals(1, fixture.factory.startedConfigs.size)
+        assertTrue(fixture.loads.isEmpty())
+
+        fixture.overrideController.completeClear()
+        assertEquals(1, fixture.worker.size)
+        fixture.worker.runNext()
+        assertEquals(2, fixture.factory.startedConfigs.size)
+        assertEquals(listOf(43210 to "alpha", 43211 to "alpha"), fixture.overrideController.applyCalls)
+        assertTrue(fixture.loads.isEmpty())
+
+        fixture.overrideController.completeApply(true)
+        assertEquals(listOf("fresh"), fixture.loads)
+        assertEquals(listOf("alpha"), fresh.discardedHosts)
+        assertEquals(0, fresh.stopCalls)
+        assertTrue(fixture.coordinator.isProxyAvailable)
+    }
+
+    @Test
     fun staleSuccessfulApplyIsActivelyClearedAndNeverLoadsOldNavigation() {
         val fixture = Fixture()
         val first = fixture.proxy("alpha")

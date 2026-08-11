@@ -3,6 +3,7 @@ package com.denuoweb.hnsdane.net
 import java.io.Closeable
 import java.io.File
 import java.util.concurrent.Executors
+import java.util.concurrent.Semaphore
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -96,20 +97,30 @@ class HnsSyncScheduler(
 }
 
 class HnsSyncSingleFlight {
-    private val running = AtomicBoolean(false)
+    private val permit = Semaphore(1, true)
 
     fun <T> tryRun(operation: () -> T): T? {
-        if (!running.compareAndSet(false, true)) {
+        if (!permit.tryAcquire()) {
             return null
         }
         return try {
             operation()
         } finally {
-            running.set(false)
+            permit.release()
         }
     }
 
-    fun isRunning(): Boolean = running.get()
+    /** Queues an explicit maintenance action behind the current sync without blocking the UI. */
+    fun <T> runExclusive(operation: () -> T): T {
+        permit.acquire()
+        return try {
+            operation()
+        } finally {
+            permit.release()
+        }
+    }
+
+    fun isRunning(): Boolean = permit.availablePermits() == 0
 }
 
 internal val ProcessHnsSyncSingleFlight = HnsSyncSingleFlight()

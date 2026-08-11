@@ -69,13 +69,11 @@
 <string name="sync_status_peer_failed">одноранговый узел не удалось</string>
 <string name="sync_progress_target">целевой %1$s</string>
 <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
-<string name="sync_progress_target_unknown">цель неизвестна</string>
+<string name="sync_progress_best_height">bestHeight %1$s</string>
 <string name="sync_progress_accepted">принято +%1$s</string>
 <string name="sync_progress_peers">коллеги %1$s</string>
 <string name="sync_progress_root_ready">Корень HNS %1$s готов</string>
 <string name="sync_progress_root_required">Требуется корень HNS %1$s</string>
-<string name="sync_progress_root_unknown">Целевой корень HNS неизвестен</string>
-<string name="sync_progress_summary">%1$s • bestHeight %2$s • %3$s%4$s%5$s</string>
 <string name="sync_gate_waiting">Ожидание проверенных заголовков Handshake перед загрузкой %1$s.</string>
 <string name="sync_gate_failed">Перед загрузкой %1$s необходимо восстановить синхронизацию заголовков Handshake. Проверьте сведения о синхронизации выше.</string>
 <string name="screen_cookie_options">Параметры файлов cookie</string>

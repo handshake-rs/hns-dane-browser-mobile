@@ -18,6 +18,17 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Android and iOS sync diagnostics now omit the committed snapshot while a
+  private validation run is advancing and omit unknown target/root clauses,
+  while retaining staged progress and all available peer, estimate, root, and
+  acceptance details. Android's full-screen header-readiness notice is now
+  opaque so the prior page cannot reduce its legibility.
+- Header reset now revokes the authority-bound browser proxy before replacing
+  storage and immediately chains into peer synchronization on Android and iOS.
+  Android queues an explicit reset behind any active sync, retries a reset
+  genesis state promptly, invalidates trust in the pre-reset page, and replays
+  the requested page through a fresh proxy. Matching main-frame WebView errors
+  now end the toolbar loading state instead of leaving it stuck.
 - Android and iOS now keep their global header-sync diagnostics visible while
   a sync is in flight or committed headers are not current, then collapse them
   only after committed currentness is restored. A schema-v3 mainnet/testnet

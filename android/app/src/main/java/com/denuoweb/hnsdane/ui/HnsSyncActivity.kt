@@ -20,6 +20,7 @@ class HnsSyncActivity : ComponentActivity() {
     private lateinit var headerResyncStatus: TextView
     private var syncRunInProgress = false
     private var activePoller: AtomicBoolean? = null
+    private var activePollerTracksRecovery = false
     private var syncSnapshotSubscription: Closeable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,6 +72,9 @@ class HnsSyncActivity : ComponentActivity() {
                 }
             }
         }
+        if (app.isHeaderRecoveryInProgress) {
+            startHeaderRecoveryStatusPolling(app)
+        }
     }
 
     override fun onStop() {
@@ -78,6 +82,10 @@ class HnsSyncActivity : ComponentActivity() {
         syncSnapshotSubscription = null
         activePoller?.set(false)
         activePoller = null
+        if (activePollerTracksRecovery) {
+            syncRunInProgress = false
+        }
+        activePollerTracksRecovery = false
         super.onStop()
     }
 
@@ -97,6 +105,7 @@ class HnsSyncActivity : ComponentActivity() {
 
         val running = AtomicBoolean(true)
         activePoller = running
+        activePollerTracksRecovery = false
         val network = HnsResolutionPreferences.handshakeNetworkId(this)
         val dataDir = filesDir.absolutePath
         thread(name = "hns-sync-status-poll") {
@@ -123,6 +132,8 @@ class HnsSyncActivity : ComponentActivity() {
                 if (isDestroyed || activePoller !== running) {
                     return@runOnUiThread
                 }
+                activePoller = null
+                activePollerTracksRecovery = false
                 if (status == null) {
                     syncStatus.text = NativeBridge.syncStatus(dataDir, network)
                     Toast.makeText(this, getString(R.string.sync_already_running), Toast.LENGTH_SHORT).show()
@@ -155,34 +166,89 @@ class HnsSyncActivity : ComponentActivity() {
         val network = HnsResolutionPreferences.handshakeNetwork(this)
         val networkName = network.displayName(this)
         val appContext = applicationContext
+        val app = application as? HnsDaneApplication
         val dataDir = filesDir.absolutePath
         syncRunInProgress = true
         headerResyncStatus.text = getString(R.string.common_running)
+        app?.beginHeadersReset()
         thread(name = "hns-header-reset") {
-            val result = ProcessHnsSyncSingleFlight.tryRun {
-                if (network == HandshakeNetwork.Mainnet) {
-                    HeaderSnapshotInstaller.disableBundledSnapshot(appContext, network.id)
+            val result = runCatching {
+                ProcessHnsSyncSingleFlight.runExclusive {
+                    if (network == HandshakeNetwork.Mainnet) {
+                        HeaderSnapshotInstaller.disableBundledSnapshot(appContext, network.id)
+                    }
+                    NativeBridge.resetHeadersFromPeers(dataDir, network.id)
                 }
-                NativeBridge.resetHeadersFromPeers(dataDir, network.id)
             }
-            val status = result?.let { runCatching { JSONObject(it).optString("status") }.getOrDefault("") }
+            val status = result.getOrNull()?.let {
+                runCatching { JSONObject(it).optString("status") }.getOrDefault("")
+            }
             runOnUiThread {
-                syncRunInProgress = false
+                app?.finishHeadersReset()
                 if (isDestroyed) {
                     return@runOnUiThread
                 }
                 when (status) {
-                    null -> Toast.makeText(this, getString(R.string.sync_already_running), Toast.LENGTH_SHORT).show()
                     "headers_reset" -> {
                         headerResyncStatus.text = getString(R.string.settings_header_resync_started_status, networkName)
+                        syncStatus.text = getString(R.string.common_running)
                         Toast.makeText(this, getString(R.string.settings_header_resync_started), Toast.LENGTH_SHORT).show()
-                        runSyncNow()
                     }
                     else -> {
                         headerResyncStatus.text = getString(R.string.settings_header_resync_failed_status)
                         Toast.makeText(this, getString(R.string.settings_header_resync_failed), Toast.LENGTH_SHORT).show()
                     }
                 }
+                if (syncSnapshotSubscription != null) {
+                    app?.let(::startHeaderRecoveryStatusPolling)
+                }
+                syncRunInProgress = activePollerTracksRecovery
+            }
+        }
+    }
+
+    /** Displays native staged telemetry while the application-owned recovery sync is running. */
+    private fun startHeaderRecoveryStatusPolling(app: HnsDaneApplication) {
+        if (!app.isHeaderRecoveryInProgress) return
+        if (activePoller != null) {
+            if (activePollerTracksRecovery) {
+                syncRunInProgress = true
+            }
+            return
+        }
+        syncRunInProgress = true
+        val running = AtomicBoolean(true)
+        activePoller = running
+        activePollerTracksRecovery = true
+        val network = HnsResolutionPreferences.handshakeNetworkId(this)
+        val dataDir = filesDir.absolutePath
+        thread(name = "hns-reset-sync-status-poll") {
+            while (running.get()) {
+                val observedStatus = NativeBridge.syncStatus(dataDir, network)
+                val recoveryComplete = !app.isHeaderRecoveryInProgress
+                val status = if (recoveryComplete) {
+                    NativeBridge.syncStatus(dataDir, network)
+                } else {
+                    observedStatus
+                }
+                runOnUiThread {
+                    if (activePoller !== running) return@runOnUiThread
+                    syncStatus.text = if (recoveryComplete) {
+                        status
+                    } else {
+                        getString(R.string.common_running_status, status)
+                    }
+                    if (recoveryComplete) {
+                        activePoller = null
+                        activePollerTracksRecovery = false
+                        syncRunInProgress = false
+                    }
+                }
+                if (recoveryComplete) {
+                    running.set(false)
+                    break
+                }
+                Thread.sleep(SYNC_STATUS_POLL_MS)
             }
         }
     }

@@ -117,7 +117,10 @@ data class HnsSyncProgress(
             (accepted ?: 0L) > 0L
 
     val shouldRetrySoon: Boolean
-        get() = status in RETRY_STATUSES || needsPeerDiscovery || hasUnknownTargetProgress
+        get() = status in RETRY_STATUSES ||
+            needsPeerDiscovery ||
+            needsHeaderBootstrap ||
+            hasUnknownTargetProgress
 
     val hasUnknownTargetProgress: Boolean
         get() = syncStatusSchemaVersion == CURRENT_SCHEMA_VERSION &&
@@ -129,6 +132,16 @@ data class HnsSyncProgress(
     val needsPeerDiscovery: Boolean
         get() = status == "idle" && (peerCount ?: 0L) == 0L
 
+    /**
+     * A reset mainnet/testnet store is initialized at genesis while its retained peers may still
+     * be temporarily ineligible. Keep retrying it without applying this cadence to legacy status
+     * payloads or deliberately local regtest state.
+     */
+    val needsHeaderBootstrap: Boolean
+        get() = syncStatusSchemaVersion == CURRENT_SCHEMA_VERSION &&
+            network != "regtest" &&
+            bestHeight == 0L
+
     fun progressPermille(): Int? {
         // Staged height is presentation-only. Authority and navigation decisions
         // continue to use the committed fields above.
@@ -139,92 +152,82 @@ data class HnsSyncProgress(
     }
 
     fun summary(): String {
-        val formattedBest = bestHeight?.formatHeight() ?: "unknown"
-        val committedAndStaged = stagedBestHeight?.takeIf { syncInFlight }?.let {
-            "committed $formattedBest • staged validated ${it.formatHeight()}"
-        } ?: formattedBest
-        val target = targetHeight
-        val targetPart = when {
-            isBehind && target != null -> "target ${target.formatHeight()}"
-            target != null -> "target ${target.formatHeight()}"
-            else -> "target unknown"
-        }
-        val authorityPart = when {
-            isAuthorityReady && authoritativeTreeRootHeight != null ->
-                " • HNS root ${authoritativeTreeRootHeight.formatHeight()} ready"
-            authoritativeTreeRootHeight != null ->
-                " • needs HNS root ${authoritativeTreeRootHeight.formatHeight()}"
-            else -> " • HNS root unknown"
-        }
-        val diagnosticPart = when {
-            bestPeerHeight != null -> " • raw peer ${bestPeerHeight.formatHeight()}"
-            estimatedTipHeight != null -> " • estimate ${estimatedTipHeight.formatHeight()}"
-            else -> ""
-        }
-        val acceptedPart = if (syncInFlight) {
-            stagedAccepted?.let { " • staged accepted +${it.formatHeight()}" }.orEmpty()
-        } else {
-            accepted
-                ?.takeIf { it > 0L }
-                ?.let { " • accepted +${it.formatHeight()}" }
-                .orEmpty()
-        }
-        val peerPart = peerCount
-            ?.takeIf { it > 0L }
-            ?.let { " • peers ${it.formatHeight()}" }
-            .orEmpty()
-        return "$displayStatus • bestHeight $committedAndStaged • $targetPart$authorityPart$diagnosticPart$acceptedPart$peerPart"
+        return renderSummary(
+            statusText = displayStatus,
+            formattedBest = bestHeight?.formatHeight() ?: "unknown",
+            bestHeightText = { "bestHeight $it" },
+            formatHeight = { it.formatHeight() },
+            targetText = { "target ${it.formatHeight()}" },
+            rootReadyText = { "HNS root ${it.formatHeight()} ready" },
+            rootRequiredText = { "needs HNS root ${it.formatHeight()}" },
+            acceptedText = { "accepted +${it.formatHeight()}" },
+            stagedAcceptedText = { "staged accepted +${it.formatHeight()}" },
+            peersText = { "peers ${it.formatHeight()}" },
+        )
     }
 
     fun summary(context: Context): String {
-        val formattedBest = bestHeight?.formatHeight(context) ?: context.getString(R.string.common_unknown)
-        val committedAndStaged = stagedBestHeight?.takeIf { syncInFlight }?.let {
-            context.getString(
-                R.string.sync_progress_committed_and_staged,
-                formattedBest,
-                it.formatHeight(context),
-            )
-        } ?: formattedBest
-        val target = targetHeight
-        val targetPart = when {
-            isBehind && target != null -> context.getString(R.string.sync_progress_target, target.formatHeight(context))
-            target != null -> context.getString(R.string.sync_progress_target, target.formatHeight(context))
-            else -> context.getString(R.string.sync_progress_target_unknown)
-        }
-        val authorityPart = when {
-            isAuthorityReady && authoritativeTreeRootHeight != null ->
-                " • ${context.getString(R.string.sync_progress_root_ready, authoritativeTreeRootHeight.formatHeight(context))}"
-            authoritativeTreeRootHeight != null ->
-                " • ${context.getString(R.string.sync_progress_root_required, authoritativeTreeRootHeight.formatHeight(context))}"
-            else -> " • ${context.getString(R.string.sync_progress_root_unknown)}"
-        }
-        val diagnosticPart = when {
-            bestPeerHeight != null -> " • raw peer ${bestPeerHeight.formatHeight(context)}"
-            estimatedTipHeight != null -> " • estimate ${estimatedTipHeight.formatHeight(context)}"
-            else -> ""
-        }
-        val acceptedPart = if (syncInFlight) {
-            stagedAccepted?.let {
-                " • ${context.getString(R.string.sync_progress_staged_accepted, it.formatHeight(context))}"
-            }.orEmpty()
-        } else {
-            accepted
-                ?.takeIf { it > 0L }
-                ?.let { " • ${context.getString(R.string.sync_progress_accepted, it.formatHeight(context))}" }
-                .orEmpty()
-        }
-        val peerPart = peerCount
-            ?.takeIf { it > 0L }
-            ?.let { " • ${context.getString(R.string.sync_progress_peers, it.formatHeight(context))}" }
-            .orEmpty()
-        return context.getString(
-            R.string.sync_progress_summary,
-            statusLabel(context),
-            committedAndStaged,
-            targetPart,
-            authorityPart + diagnosticPart + acceptedPart,
-            peerPart,
+        return renderSummary(
+            statusText = statusLabel(context),
+            formattedBest = bestHeight?.formatHeight(context) ?: context.getString(R.string.common_unknown),
+            bestHeightText = {
+                context.getString(R.string.sync_progress_best_height, it)
+            },
+            formatHeight = { it.formatHeight(context) },
+            targetText = {
+                context.getString(R.string.sync_progress_target, it.formatHeight(context))
+            },
+            rootReadyText = {
+                context.getString(R.string.sync_progress_root_ready, it.formatHeight(context))
+            },
+            rootRequiredText = {
+                context.getString(R.string.sync_progress_root_required, it.formatHeight(context))
+            },
+            acceptedText = {
+                context.getString(R.string.sync_progress_accepted, it.formatHeight(context))
+            },
+            stagedAcceptedText = {
+                context.getString(R.string.sync_progress_staged_accepted, it.formatHeight(context))
+            },
+            peersText = {
+                context.getString(R.string.sync_progress_peers, it.formatHeight(context))
+            },
         )
+    }
+
+    private fun renderSummary(
+        statusText: String,
+        formattedBest: String,
+        bestHeightText: (String) -> String,
+        formatHeight: (Long) -> String,
+        targetText: (Long) -> String,
+        rootReadyText: (Long) -> String,
+        rootRequiredText: (Long) -> String,
+        acceptedText: (Long) -> String,
+        stagedAcceptedText: (Long) -> String,
+        peersText: (Long) -> String,
+    ): String {
+        val parts = mutableListOf(statusText)
+        if (syncInFlight) {
+            stagedBestHeight?.let { parts += "staged validated ${formatHeight(it)}" }
+        } else {
+            parts += bestHeightText(formattedBest)
+        }
+        targetHeight?.let { parts += targetText(it) }
+        authoritativeTreeRootHeight?.let {
+            parts += if (isAuthorityReady) rootReadyText(it) else rootRequiredText(it)
+        }
+        when {
+            bestPeerHeight != null -> parts += "raw peer ${formatHeight(bestPeerHeight)}"
+            estimatedTipHeight != null -> parts += "estimate ${formatHeight(estimatedTipHeight)}"
+        }
+        if (syncInFlight) {
+            stagedAccepted?.let { parts += stagedAcceptedText(it) }
+        } else {
+            accepted?.takeIf { it > 0L }?.let { parts += acceptedText(it) }
+        }
+        peerCount?.takeIf { it > 0L }?.let { parts += peersText(it) }
+        return parts.joinToString(" • ")
     }
 
     private fun Long.formatHeight(): String =

@@ -417,21 +417,30 @@ final class RustBrowserRuntime: BrowserRuntime {
             detail = "The runtime resolver cache now contains \(cacheEntries) entries."
         } else {
             let best = bestHeight.map(String.init) ?? "unknown"
-            let target = effectiveTargetHeight.map(String.init) ?? "unknown"
             let peer = peerHeight.map(String.init) ?? "unknown"
             let estimate = estimatedTipHeight.map(String.init) ?? "unknown"
-            let root = authoritativeTreeRootHeight.map(String.init) ?? "unknown"
-            let rootState = hasAuthoritativeTreeRoot ? "ready" : "waiting"
-            let height: String
+            var details: [String] = []
             if syncInFlight, let stagedBestHeight {
-                height = "Committed \(best) · staged validated \(stagedBestHeight)"
-            } else {
-                height = "Local height \(best)"
+                details.append("staged validated \(stagedBestHeight)")
+            } else if !syncInFlight {
+                details.append("Local height \(best)")
             }
-            let acceptedDetail = syncInFlight
-                ? "staged accepted +\(stagedAccepted)"
-                : "accepted \(accepted)/\(attempted)"
-            detail = "\(height) · effective target \(target) · HNS root \(root) \(rootState) · freshness \(freshness) · raw peer \(peer) · estimate \(estimate) · \(acceptedDetail)"
+            if let effectiveTargetHeight {
+                details.append("effective target \(effectiveTargetHeight)")
+            }
+            if let authoritativeTreeRootHeight {
+                let rootState = hasAuthoritativeTreeRoot ? "ready" : "waiting"
+                details.append("HNS root \(authoritativeTreeRootHeight) \(rootState)")
+            }
+            details.append("freshness \(freshness)")
+            details.append("raw peer \(peer)")
+            details.append("estimate \(estimate)")
+            if syncInFlight {
+                details.append("staged accepted +\(stagedAccepted)")
+            } else {
+                details.append("accepted \(accepted)/\(attempted)")
+            }
+            detail = details.joined(separator: " · ")
         }
 
         return BrowserSyncSummary(

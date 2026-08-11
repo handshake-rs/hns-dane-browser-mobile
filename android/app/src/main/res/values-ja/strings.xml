@@ -69,13 +69,11 @@
     <string name="sync_status_peer_failed">ピアが失敗しました</string>
     <string name="sync_progress_target">ターゲット %1$s</string>
     <string name="sync_progress_best_peer_height">最高のピア高さ %1$s</string>
-    <string name="sync_progress_target_unknown">ターゲット不明</string>
+    <string name="sync_progress_best_height">最高の高さ %1$s</string>
     <string name="sync_progress_accepted">承認済み +%1$s</string>
     <string name="sync_progress_peers">ピア %1$s</string>
     <string name="sync_progress_root_ready">HNS ルート %1$s は準備完了です</string>
     <string name="sync_progress_root_required">HNS ルート %1$s が必要です</string>
-    <string name="sync_progress_root_unknown">HNS ルートのターゲットは不明です</string>
-    <string name="sync_progress_summary">%1$s • 最高の高さ %2$s • %3$s%4$s%5$s</string>
     <string name="sync_gate_waiting">%1$s を読み込む前に、認証済みの Handshake ヘッダーを待機しています。</string>
     <string name="sync_gate_failed">%1$s を読み込む前に、Handshake ヘッダーの同期を復旧する必要があります。上の同期詳細を確認してください。</string>
     <string name="screen_cookie_options">クッキーのオプション</string>
