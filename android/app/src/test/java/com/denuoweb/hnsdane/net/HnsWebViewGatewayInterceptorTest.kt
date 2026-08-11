@@ -65,6 +65,54 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
+    fun webResponseHeadersDropContentTypeAndConnectionManagementHeaders() {
+        val bridge = RecordingGatewayBridge(
+            (
+                "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: text/javascript\r\n" +
+                    "Content-Length: 2\r\n" +
+                    "Connection: close\r\n" +
+                    "Proxy-Connection: close\r\n" +
+                    "Keep-Alive: timeout=5\r\n" +
+                    "Transfer-Encoding: identity\r\n" +
+                    "TE: trailers\r\n" +
+                    "Trailer: Expires\r\n" +
+                    "Upgrade: h2c\r\n" +
+                    "Cache-Control: no-store\r\n" +
+                    "ETag: \"abc\"\r\n\r\nok"
+                ).toByteArray(StandardCharsets.ISO_8859_1),
+        )
+        val dataDir = createTempDirectory("hns-webview-header-dedup-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = interceptor.intercept(
+            method = "GET",
+            url = "https://welcome/app.js",
+            requestHeaders = emptyMap(),
+        )
+
+        requireNotNull(response)
+        assertEquals("text/javascript", response.mimeType)
+        val forwarded = response.webResponseHeaders()
+        for (name in listOf(
+            "Content-Type",
+            "Content-Length",
+            "Connection",
+            "Proxy-Connection",
+            "Keep-Alive",
+            "Transfer-Encoding",
+            "TE",
+            "Trailer",
+            "Upgrade",
+        )) {
+            assertFalse(forwarded.keys.any { it.equals(name, ignoreCase = true) })
+        }
+        assertEquals("no-store", forwarded["Cache-Control"])
+        assertEquals("\"abc\"", forwarded["ETag"])
+        dataDir.deleteRecursively()
+    }
+
+    @Test
     fun hnsHttpsGetCanUseFileBackedNativeGatewayBody() {
         val bridge = FileGatewayBridge(
             "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 8\r\n\r\n"

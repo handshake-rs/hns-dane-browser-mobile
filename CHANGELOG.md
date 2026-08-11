@@ -50,6 +50,12 @@ All notable changes to this project will be documented in this file.
   They never retry with a plaintext ClientHello, and their connection pool,
   resumption, verifier, and Alt-Svc state cannot cross ECH configurations.
 
+### Fixed
+
+- Android native gateway responses no longer forward MIME, framing, or
+  connection-management headers that `WebResourceResponse` synthesizes,
+  preventing duplicate JavaScript MIME values from blocking module execution.
+
 ### Qualification
 
 - This source and pinned engine revision

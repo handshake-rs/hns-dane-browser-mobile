@@ -407,7 +407,7 @@ internal data class HnsInterceptedResponse(
     }
 
     internal fun webResponseHeaders(): Map<String, String> =
-        headers.filterKeys { name -> !name.startsWith(HNS_INTERNAL_HEADER_PREFIX, ignoreCase = true) }
+        headers.filterKeys { name -> !isSyntheticWebResponseHeader(name) }
 
     internal fun openBodyStream(): InputStream =
         bodyStream ?: bodyFile?.let(GatewayResponseBodyStore::openReleasing) ?: ByteArrayInputStream(body)
@@ -659,6 +659,23 @@ private fun ByteArray.indexOfHeaderEnd(): Int {
         }
     }
     return -1
+}
+
+// WebResourceResponse receives Content-Type through its mimeType/encoding arguments.
+// Forwarding the parsed header again makes Chromium combine duplicate MIME values, which
+// fails strict module-script MIME checks. WebView also owns response framing and connection
+// management, so those fields must not be copied from the native gateway response head.
+private fun isSyntheticWebResponseHeader(name: String): Boolean {
+    return name.equals("Content-Type", ignoreCase = true) ||
+        name.equals("Content-Length", ignoreCase = true) ||
+        name.equals("Connection", ignoreCase = true) ||
+        name.equals("Proxy-Connection", ignoreCase = true) ||
+        name.equals("Keep-Alive", ignoreCase = true) ||
+        name.equals("Transfer-Encoding", ignoreCase = true) ||
+        name.equals("TE", ignoreCase = true) ||
+        name.equals("Trailer", ignoreCase = true) ||
+        name.equals("Upgrade", ignoreCase = true) ||
+        name.startsWith(HNS_INTERNAL_HEADER_PREFIX, ignoreCase = true)
 }
 
 private fun isHopByHopOrSyntheticHeader(name: String): Boolean {
