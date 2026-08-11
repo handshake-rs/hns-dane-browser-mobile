@@ -994,14 +994,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSecurityState() {
-        if (syncWaitPageVisible) {
-            setSecurityState(
-                if (syncHeadersCurrent) {
-                    SecurityState.ValidationFailed
-                } else {
-                    SecurityState.ProofUnavailable
-                },
-            )
+        mainFrameFailureSecurityState(syncWaitPageVisible, syncHeadersCurrent)?.let {
+            setSecurityState(it)
             return
         }
         val failedUrl = failedMainFrameUrl
@@ -1974,4 +1968,15 @@ internal fun omniboxEditorDecision(
         (enterKey && keyAction == KeyEvent.ACTION_DOWN)
     val consume = submit || (enterKey && keyAction == KeyEvent.ACTION_UP)
     return OmniboxEditorDecision(submit = submit, consume = consume)
+}
+
+internal fun mainFrameFailureSecurityState(
+    syncWaitPageVisible: Boolean,
+    syncHeadersCurrent: Boolean,
+): SecurityState? = if (!syncWaitPageVisible) {
+    null
+} else if (syncHeadersCurrent) {
+    SecurityState.ValidationFailed
+} else {
+    SecurityState.ProofUnavailable
 }
