@@ -234,7 +234,7 @@ class MainActivity : ComponentActivity() {
 
         securityIndicator = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER
-            minHeight = dp(TOOLBAR_CONTROL_HEIGHT_DP)
+            minimumHeight = dp(TOOLBAR_CONTROL_HEIGHT_DP)
             setPadding(dp(8), 0, dp(8), 0)
             setImageResource(R.drawable.ic_security_info)
             imageTintList = ColorStateList.valueOf(colors.secondaryText)
