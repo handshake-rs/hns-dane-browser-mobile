@@ -162,8 +162,8 @@
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
   lockfile, source policy, and notices are aligned.
 - Mobile engine source unification remains complete: every adapter and
-  canonical contract resolves as `0.2.0` from pinned source
-  `6fe6e25bd0a8ea639509068e1e96cf23e519bacf`; the temporary crates.io patch
+  canonical contract resolves as `0.2.1` from pinned source
+  `65c397e8347f37085ea67d2c9c745ce896328e64`; the temporary crates.io patch
   bridge is removed, and the ECH-and-sync-telemetry pin requires fresh platform
   qualification. The standalone HNSA/HNSR-capable facade remains excluded
   until upstream provides a mobile-safe dependency boundary that does not pull

@@ -18,7 +18,7 @@ into the app.
 | Wallet protocol closure | `hns-rs 0.2.0` at `b24b66c382de53330ec21dd3137e056a2bea3e2d` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
-| Mobile engine adapters and canonical contracts | Git `0.2.0` at `6fe6e25bd0a8ea639509068e1e96cf23e519bacf` (fresh platform qualification pending) | Cargo manifests and all three locks |
+| Mobile engine adapters and canonical contracts | Git `0.2.1` at `65c397e8347f37085ea67d2c9c745ce896328e64` (fresh platform qualification pending) | Cargo manifests and all three locks |
 | Standalone engine facade | Not in the mobile graph; upstream mobile-safe dependency boundary required | Cargo manifests and target-filtered metadata |
 | Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
 | Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |

@@ -156,8 +156,8 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hns-browser-chain"
-version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
 dependencies = [
  "hns-browser-primitives",
  "rusqlite",
@@ -166,8 +166,8 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-p2p"
-version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
 dependencies = [
  "getrandom",
  "hns-browser-primitives",
@@ -178,8 +178,8 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-primitives"
-version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
 dependencies = [
  "blake2",
  "hex",
@@ -192,8 +192,8 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-sync"
-version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
 dependencies = [
  "hns-browser-chain",
  "hns-browser-p2p",
@@ -204,8 +204,8 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-urkel"
-version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
 dependencies = [
  "hns-browser-primitives",
  "thiserror",

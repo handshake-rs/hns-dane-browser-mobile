@@ -208,8 +208,8 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
 ```
 
 Cargo and platform builds fetch the mobile browser adapters and five canonical
-contracts at `0.2.0` only from pinned source
-`6fe6e25bd0a8ea639509068e1e96cf23e519bacf`. This ECH-and-sync-telemetry revision requires
+contracts at `0.2.1` only from pinned source
+`65c397e8347f37085ea67d2c9c745ce896328e64`. This ECH-and-sync-telemetry revision requires
 fresh exact-commit platform qualification. The umbrella
 `hns-dane-engine` facade is intentionally not in the mobile dependency graph:
 that source currently brings its public OpenSSL-backed DANE/DNSSEC stack into

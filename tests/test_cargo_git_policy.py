@@ -33,11 +33,11 @@ class CargoSourcePolicyTests(unittest.TestCase):
         self.assertEqual(
             ENGINE_VERSIONS,
             {
-                "hns-browser-observability": "0.2.0",
-                "hns-browser-runtime": "0.2.0",
-                "hns-icann-dane": "0.2.0",
-                "hns-namespace-resolution": "0.2.0",
-                "hns-resolution-policy": "0.2.0",
+                "hns-browser-observability": "0.2.1",
+                "hns-browser-runtime": "0.2.1",
+                "hns-icann-dane": "0.2.1",
+                "hns-namespace-resolution": "0.2.1",
+                "hns-resolution-policy": "0.2.1",
             },
         )
         self.assertEqual(ENGINE_PACKAGES, frozenset(ENGINE_VERSIONS))

@@ -23,9 +23,9 @@ does not imply endorsement by the component authors.
 Generator schema: 3
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 08583e4b8d5c724600edda04a298d99571ab5e57bce459ba4ec31054f87782f2
-  scripts/verify_cargo_git_policy.py = a43509230b4d9a0fc0d4d1c8d3dc197297430845a48b46a8ca2af37c5d949e11
-  rust/Cargo.toml = d3dedd4830f747354024700a2cfa4da735d6da8c5280a702a611f1145cf0e929
-  rust/Cargo.lock = 37e335c666cd4fddce5350b29898860036f6433e2b7b6f06985050f418392724
+  scripts/verify_cargo_git_policy.py = 00900fa74de553a8e2bc4f240c8f50241fb5753b3e1769cbcf7e66b22b73bf2f
+  rust/Cargo.toml = 4fb2baae70531fcbfa956536e050e2a49869ef9c84ab5b1fca563584ad7adcb1
+  rust/Cargo.lock = 32dd5a086f68b2418647f9db6c9cb20d8072d4172eb467723b8e208eb3203eb4
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
@@ -153,27 +153,27 @@ RUST COMPONENTS (243)
   hex-conservative 0.2.2 | CC0-1.0
   hkdf 0.12.4 | MIT OR Apache-2.0
   hmac 0.12.1 | MIT OR Apache-2.0
-  hns-browser-chain 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-dane 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-dnssec 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-gateway 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-loopback-proxy 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-observability 0.2.0 | MIT OR Apache-2.0
-  hns-browser-p2p 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-primitives 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-resolver 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-runtime 0.2.0 | MIT OR Apache-2.0
-  hns-browser-sync 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-transport 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-urkel 0.2.0 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-cache 0.2.0 | MIT OR Apache-2.0
+  hns-browser-chain 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-dane 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-dnssec 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-gateway 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-loopback-proxy 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-observability 0.2.1 | MIT OR Apache-2.0
+  hns-browser-p2p 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-primitives 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-resolver 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-runtime 0.2.1 | MIT OR Apache-2.0
+  hns-browser-sync 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-transport 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-urkel 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-cache 0.2.1 | MIT OR Apache-2.0
   hns-covenants 0.2.0 | MIT OR Apache-2.0
-  hns-dns-wire 0.2.0 | MIT OR Apache-2.0
+  hns-dns-wire 0.2.1 | MIT OR Apache-2.0
   hns-encoding 0.2.0 | MIT OR Apache-2.0
-  hns-icann-dane 0.2.0 | MIT OR Apache-2.0
-  hns-namespace-resolution 0.2.0 | MIT OR Apache-2.0
+  hns-icann-dane 0.2.1 | MIT OR Apache-2.0
+  hns-namespace-resolution 0.2.1 | MIT OR Apache-2.0
   hns-primitives 0.2.0 | MIT OR Apache-2.0
-  hns-resolution-policy 0.2.0 | MIT OR Apache-2.0
+  hns-resolution-policy 0.2.1 | MIT OR Apache-2.0
   hns-script 0.2.0 | MIT OR Apache-2.0
   hns-swap 0.2.0 | MIT OR Apache-2.0
   hns-transaction 0.2.0 | MIT OR Apache-2.0
@@ -510,17 +510,17 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 0895f3760ba77d5c6212ff44f5d3f6b78be786fdc6d8058e6e169073e6cb7ab6
 Applies to:
-  - Rust crate hns-browser-chain 0.2.0
-  - Rust crate hns-browser-dane 0.2.0
-  - Rust crate hns-browser-dnssec 0.2.0
-  - Rust crate hns-browser-gateway 0.2.0
-  - Rust crate hns-browser-loopback-proxy 0.2.0
-  - Rust crate hns-browser-p2p 0.2.0
-  - Rust crate hns-browser-primitives 0.2.0
-  - Rust crate hns-browser-resolver 0.2.0
-  - Rust crate hns-browser-sync 0.2.0
-  - Rust crate hns-browser-transport 0.2.0
-  - Rust crate hns-browser-urkel 0.2.0
+  - Rust crate hns-browser-chain 0.2.1
+  - Rust crate hns-browser-dane 0.2.1
+  - Rust crate hns-browser-dnssec 0.2.1
+  - Rust crate hns-browser-gateway 0.2.1
+  - Rust crate hns-browser-loopback-proxy 0.2.1
+  - Rust crate hns-browser-p2p 0.2.1
+  - Rust crate hns-browser-primitives 0.2.1
+  - Rust crate hns-browser-resolver 0.2.1
+  - Rust crate hns-browser-sync 0.2.1
+  - Rust crate hns-browser-transport 0.2.1
+  - Rust crate hns-browser-urkel 0.2.1
 Source file names:
   - LICENSE-POLYFORM-NONCOMMERCIAL
 --------------------------------------------------------------------------------
@@ -3586,13 +3586,13 @@ Applies to:
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0
   - org.jetbrains:annotations:23.0.0
   - org.jspecify:jspecify:1.0.0
-  - Rust crate hns-browser-observability 0.2.0
-  - Rust crate hns-browser-runtime 0.2.0
-  - Rust crate hns-cache 0.2.0
-  - Rust crate hns-dns-wire 0.2.0
-  - Rust crate hns-icann-dane 0.2.0
-  - Rust crate hns-namespace-resolution 0.2.0
-  - Rust crate hns-resolution-policy 0.2.0
+  - Rust crate hns-browser-observability 0.2.1
+  - Rust crate hns-browser-runtime 0.2.1
+  - Rust crate hns-cache 0.2.1
+  - Rust crate hns-dns-wire 0.2.1
+  - Rust crate hns-icann-dane 0.2.1
+  - Rust crate hns-namespace-resolution 0.2.1
+  - Rust crate hns-resolution-policy 0.2.1
   - Rust crate num-conv 0.2.2
   - Rust crate pin-project-lite 0.2.17
   - Rust crate time 0.3.51
@@ -10619,13 +10619,13 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: f9165598d16dd8f69f8b1ff9a0e2871821b9f7e6c0bece512dfd4de11e613ae5
 Applies to:
-  - Rust crate hns-browser-observability 0.2.0
-  - Rust crate hns-browser-runtime 0.2.0
-  - Rust crate hns-cache 0.2.0
-  - Rust crate hns-dns-wire 0.2.0
-  - Rust crate hns-icann-dane 0.2.0
-  - Rust crate hns-namespace-resolution 0.2.0
-  - Rust crate hns-resolution-policy 0.2.0
+  - Rust crate hns-browser-observability 0.2.1
+  - Rust crate hns-browser-runtime 0.2.1
+  - Rust crate hns-cache 0.2.1
+  - Rust crate hns-dns-wire 0.2.1
+  - Rust crate hns-icann-dane 0.2.1
+  - Rust crate hns-namespace-resolution 0.2.1
+  - Rust crate hns-resolution-policy 0.2.1
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------

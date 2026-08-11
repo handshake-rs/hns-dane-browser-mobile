@@ -18,6 +18,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Raised the shared mobile loopback proxy's same-host request budget from 80
+  to the unchanged aggregate budget of 240 requests per 10 seconds, allowing
+  code-split asset bursts without increasing total proxy admission.
 - Android and iOS sync diagnostics now omit the committed snapshot while a
   private validation run is advancing and omit unknown target/root clauses,
   while retaining staged progress and all available peer, estimate, root, and
@@ -50,7 +53,7 @@ All notable changes to this project will be documented in this file.
 ### Qualification
 
 - This source and pinned engine revision
-  `6fe6e25bd0a8ea639509068e1e96cf23e519bacf` require fresh exact-commit Rust,
+  `65c397e8347f37085ea67d2c9c745ce896328e64` require fresh exact-commit Rust,
   Android, Apple, CodeQL, installed-product, and live-network evidence.
 
 ## 0.5.9 - 2026-08-10

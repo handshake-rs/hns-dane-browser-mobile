@@ -14,20 +14,20 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 ENGINE_VERSIONS = {
-    "hns-browser-observability": "0.2.0",
-    "hns-browser-runtime": "0.2.0",
-    "hns-icann-dane": "0.2.0",
-    "hns-namespace-resolution": "0.2.0",
-    "hns-resolution-policy": "0.2.0",
+    "hns-browser-observability": "0.2.1",
+    "hns-browser-runtime": "0.2.1",
+    "hns-icann-dane": "0.2.1",
+    "hns-namespace-resolution": "0.2.1",
+    "hns-resolution-policy": "0.2.1",
 }
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
-ENGINE_GIT_REVISION = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
+ENGINE_GIT_REVISION = "65c397e8347f37085ea67d2c9c745ce896328e64"
 WALLET_GIT_URL = "https://github.com/handshake-rs/hns-wallet-rs.git"
 WALLET_GIT_REVISION = "2229be849557d58a8eb723bcc03349f0f2df9796"
 PROTOCOL_GIT_URL = "https://github.com/handshake-rs/hns-rs.git"
 PROTOCOL_GIT_REVISION = "b24b66c382de53330ec21dd3137e056a2bea3e2d"
 APPROVED_ENGINE_GIT = {
-    package: ("0.2.0", ENGINE_GIT_REVISION)
+    package: ("0.2.1", ENGINE_GIT_REVISION)
     for package in {
         "hns-dane",
         "hns-browser-dane",
