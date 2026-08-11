@@ -353,12 +353,18 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             scrollDown(in: table, untilFullyVisible: walletRow),
             "Native Handshake wallet setting did not become fully visible"
         )
-        let walletRowLabel = walletRow.label.trimmingCharacters(
+        let walletTitle = walletRow.staticTexts["Handshake wallet"]
+        XCTAssertTrue(
+            walletTitle.waitForExistence(timeout: timeout),
+            "Visible native wallet row did not expose its shipping title"
+        )
+        let walletRowLabel = walletTitle.label.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        XCTAssertTrue(
-            walletRowLabel.hasPrefix("Handshake wallet"),
-            "Visible native wallet row did not carry its shipping label"
+        XCTAssertEqual(
+            walletRowLabel,
+            "Handshake wallet",
+            "Visible native wallet title did not match its shipping copy"
         )
         assertNoNavigationAlert()
         return [
