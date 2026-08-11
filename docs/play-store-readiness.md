@@ -1,10 +1,10 @@
 # Google Play Readiness Checklist
 
-Last audited: 2026-08-10
+Last audited: 2026-08-11
 
-Current Android candidate source is `0.5.9` (`versionCode 50`) and supports
+Current Android candidate source is `0.5.10` (`versionCode 51`) and supports
 Android 11 / API 30 or later. Google Play production remains on `0.5.6` / code
-`47`; no code `50` AAB has been built, uploaded, or submitted.
+`47`; no code `51` AAB has been built, uploaded, or submitted.
 
 This checklist maps HNS DANE Browser to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
@@ -30,8 +30,8 @@ fresh-install Pixel 9 qualification plus Required CI run `31393998309` at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394` and a fresh Pixel 9 install; documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`; that remains historical code `49` evidence. Code-bearing code
-`50` source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31411048376`; that remains historical code `49` evidence. Prior code `50`
+source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including Android build/unit, API 37 native instrumentation,
 Rust/supply-chain, and the complete Apple gate. Exact debug artifact
 `9080493058` contains a 65,680,703-byte APK with SHA-256
@@ -47,7 +47,9 @@ package/data. Production remained installed and untouched; the on-device APK
 digest matched. Cold launch succeeded and the fresh-install HNS wallet screen
 showed no wallet/account, its create/restore controls, the fail-closed read rows
 and sync action, and disabled value/marketplace copy. No wallet, secret,
-account, credentialed sync, or value action ran. The current product
+account, credentialed sync, or value action ran. That is historical code `50`
+evidence; the exact code `51` source and product require fresh qualification.
+The current product
 installs no scoped loopback read credential or indexed wallet backend, so every
 read field remains fail-closed and unavailable. The live pruned `hsrd` is
 unsuitable because it lacks wallet indexing/authentication. Existing-wallet
@@ -62,23 +64,23 @@ behavior against the exact signed candidate before upload.
 
 | Area | Status | Evidence / Action |
 | --- | --- | --- |
-| Minimum API level | Configured and code 50 CI-qualified | `minSdk = 30`, with cargo-ndk platform 30. Exact code-bearing source passed Android build/unit and API 37 instrumentation in full CI `31433931682`; the debug artifact manifest confirms minimum API 30 and target API 37. |
+| Minimum API level | Code 51 configured; prior code 50 CI-qualified | `minSdk = 30`, with cargo-ndk platform 30. Prior source passed Android build/unit and API 37 instrumentation in full CI `31433931682`; its debug artifact confirms minimum API 30 and target API 37. Fresh code 51 qualification remains required. |
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 production complete | The signed 60,276,192-byte AAB has SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`. Edit `07330408575596336357` assigned code `47` to production with status `completed`, and `generatedApks/47` returned HTTP `200`. |
 | Android runtime hotfix | Shipped and exact-artifact validated | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the locked `libc 0.2.186` Android `flock` path with the same lock semantics; upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. The exact signed APK upgraded a Pixel 9 from code `46` with data preserved, cold-launched, and reached `up_to_date` at height `340348`, lag `0`, freshness `current`, and `error: null` after manual sync. |
-| Native wallet candidate | HNWR projection CI- and installed-UI-qualified; backend and product gates pending | Source links final wallet `0.1.0` commit `2229be849557d58a8eb723bcc03349f0f2df9796`, with final `hns-rs 0.2.0` closure `b24b66c382de53330ec21dd3137e056a2bea3e2d`, through a non-exported native activity, create-only Android KeyStore-wrapped database key, and strict read-only HNWR UI. Exact code `50` debug source passed full CI, then the exact artifact installed/cold-launched on a Pixel 9 and exposed the expected no-wallet controls and fail-closed rows. No wallet was created/restored and no credentialed sync ran. No scoped credential/indexed backend is provisioned, so reads are visibly unavailable; name import and every provider/send/value/HNSA/HNSR/market path remain absent or gated. Play signing, fresh screenshots, and Console review/upload remain open. |
+| Native wallet candidate | Prior HNWR projection and installed-UI evidence retained; current product gates pending | Source links final wallet `0.1.0` commit `2229be849557d58a8eb723bcc03349f0f2df9796`, with final `hns-rs 0.2.0` closure `b24b66c382de53330ec21dd3137e056a2bea3e2d`, through a non-exported native activity, create-only Android KeyStore-wrapped database key, and strict read-only HNWR UI. Exact code `50` debug source passed full CI, then its artifact installed/cold-launched on a Pixel 9 and exposed the expected no-wallet controls and fail-closed rows. No wallet was created/restored and no credentialed sync ran. No scoped credential/indexed backend is provisioned, so reads are visibly unavailable; name import and every provider/send/value/HNSA/HNSR/market path remain absent or gated. Code `51` CI, Play signing, fresh screenshots, and Console review/upload remain open. |
 | Proof Details namespace | Fixed and release-device confirmed | Every canonical DNS host uses the native dual-root gateway, so that route cannot identify HNS versus ICANN. Before the fix, Pixel 9 API 37 instrumentation reproduced an HNS-selected trace being shown as DNSSEC with synthetic ICANN details, and paired instrumentation passed after the correction. HNS browsing and corrected proof presentation then passed manually with the exact signed release APK. |
 | 64-bit / 16 KiB native code | Code 47 signed gates passed | The code `47` APK/AAB passed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, archive/APK signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
-| Privacy policy | Historical lifecycle policy deployed; HNWR copy pending | `https://denuoweb.com/work/hns-dane-browser/privacy` remains canonical. Hosted source `909dbd1a713f322f0a8d4cff88e765c612e184f3` covers relay/recovery and wallet lifecycle. Deploy/read back the repository's HNWR-aware revision and reconcile live Play answers before submission. |
+| Privacy policy | Current read boundary deployed and read back | `https://denuoweb.com/work/hns-dane-browser/privacy` remains canonical. Version-neutral source `a5539cb063fb4b19fed4dff5400a3bc991acdc4f` covers relay/recovery, wallet lifecycle, and unavailable read rows; Firebase run `31485234945` and HTTP readback passed. Reconcile live Play answers before submission. |
 | Data safety form | Live reconciliation required | The current `No data collected / No data shared` posture is consistent with Google's open-web, on-device, and user-initiated-transfer exclusions. Confirm current WebView-provider Safe Browsing guidance before resubmission. |
 | Ads declaration | Ready | Declare “No ads.” Donations do not unlock features. |
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
-| App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `50` contains a limited local wallet controller and visible fail-closed read rows. Reconcile every current financial-feature/category declaration and describe the unprovisioned reads and unavailable value/provider/marketplace boundaries accurately. |
+| App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `51` contains a limited local wallet controller and visible fail-closed read rows. Reconcile every current financial-feature/category declaration and describe the unprovisioned reads and unavailable value/provider/marketplace boundaries accurately. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
 | Release track | Code 47 production complete | The Android Publisher API committed edit `07330408575596336357` with production status `completed`; `generatedApks/47` returned HTTP `200`. This was an update to an existing public listing, not a first closed-test launch. |
-| CI regression | Code 50 full CI passed | Exact source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed run `31433931682`, including policy, Rust/supply-chain, Android build/unit, API 37 native instrumentation, complete Apple, and Required CI. Historical run `30484282637` remains code 47 Proof Details evidence only. |
+| CI regression | Prior code 50 full CI passed; code 51 pending | Exact source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed run `31433931682`, including policy, Rust/supply-chain, Android build/unit, API 37 native instrumentation, complete Apple, and Required CI. Historical run `30484282637` remains code 47 Proof Details evidence only. The final code `51` source requires fresh CI. |
 | Store assets | Reconciliation required | Local icon, feature graphic, screenshots, and listing text exist in `store-assets/play-store/`, but they must be compared with the live listing. Recapture stale screenshots, including the diagnostic image showing an older version, before the next listing-asset update. |
 
 ## Release Signing
@@ -141,11 +143,17 @@ the script validates the API-returned bundle `versionCode` and requires it to
 equal that expected value before it constructs a track body, assigns a track,
 or commits the edit. A missing, malformed, out-of-range, or mismatched value
 stops the operation with no track assignment and no edit commit.
+The commit uses `changesInReviewBehavior=ERROR_IF_IN_REVIEW`, so a separate
+review already in flight makes the operation fail instead of cancelling that
+review. Set `PLAY_UPDATE_LISTING=true` only when the reviewed en-US title,
+short description, and full description in `store-assets/play-store/metadata/`
+must be applied in the same edit. The script validates their Play field limits
+before the bundle upload.
 
 Use the configured code for an AAB built from the current release source:
 
 ```sh
-PLAY_TRACK=alpha PLAY_RELEASE_STATUS=draft \
+PLAY_TRACK=alpha PLAY_RELEASE_STATUS=draft PLAY_UPDATE_LISTING=false \
   ./scripts/play-upload-closed-testing.sh /trusted/path/signed-release.aab
 ```
 
@@ -155,7 +163,7 @@ current checkout. It must be a positive Play-compatible integer and does not
 disable the comparison with Play's response:
 
 ```sh
-PLAY_EXPECTED_VERSION_CODE=49 PLAY_TRACK=alpha PLAY_RELEASE_STATUS=draft \
+PLAY_EXPECTED_VERSION_CODE=51 PLAY_TRACK=alpha PLAY_RELEASE_STATUS=draft \
   ./scripts/play-upload-closed-testing.sh /trusted/path/signed-release.aab
 ```
 
@@ -195,7 +203,7 @@ resubmission:
 - Web browsing: do not declare URLs or browsing history solely because the browser contacts a user-selected site or sends the necessary HNS DNS query to a relay peer. Continue to disclose those network effects, including the relay peer's visibility into queried names/types and the client's network address, in the privacy policy even though Play excludes them from the Data safety form.
 - Default start page: the app loads a bundled `appassets.androidplatform.net` asset with a restrictive Content Security Policy and no network resources; it does not contact a developer server. A remote homepage is loaded only after the user configures one.
 - Safe Browsing: the installed Android WebView provider may check URLs through its Safe Browsing service. Confirm the provider's current Data safety guidance before submission. If it requires declaring a listed data type for this integration, update the form for that flow; do not imply that Denuo Web operates the service.
-- App activity: code `50` stores browsing history, diagnostics, download records, settings, resolver cache, HNS sync/cache state, cookies-adjacent WebView state, and a private network-scoped wallet database plus device-bound wrapped database key locally on device. No wallet-read backend is provisioned and the native controller does not transmit wallet data. Reconcile the form against Google's current on-device-processing definitions rather than copying code `47` answers.
+- App activity: code `51` stores browsing history, diagnostics, download records, settings, resolver cache, HNS sync/cache state, cookies-adjacent WebView state, and a private network-scoped wallet database plus device-bound wrapped database key locally on device. No wallet-read backend is provisioned and the native controller does not transmit wallet data. Reconcile the form against Google's current on-device-processing definitions rather than copying code `47` answers.
 - Files/docs: user-initiated downloads are saved to public Downloads. Normal WebPKI downloads use Android DownloadManager; HNS downloads are fetched through the native gateway and saved through Android MediaStore.
 - Device or other IDs: `No` unless a future SDK adds one. Current app code does not read advertising ID, IMEI, contacts, installed apps, or account identifiers.
 - Encryption in transit: not applicable when the form correctly remains `No collected / No shared`. If WebView-provider guidance causes a data type to be declared, answer this question for the declared flow rather than for excluded open-web traffic.
@@ -209,10 +217,10 @@ Use an active, publicly accessible, non-PDF URL. Current hosted URL:
 
 The repository policy adds the candidate's local wallet storage and recovery
 lifecycle to the existing relay requester, dual-root, and configured-recursive
-recovery disclosures. Wallet-aware hosted source
-`909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed to this route and read
-back as historical wallet-lifecycle policy. Deploy/read back the repository's
-HNWR-aware revision; Play Console form/category readback also remains open.
+recovery disclosures. Version-neutral hosted source
+`a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed in Firebase run
+`31485234945` and read back at this route with the HNWR boundary present. Play
+Console form/category readback remains open.
 
 ### Content Rating
 
@@ -228,16 +236,16 @@ Use a conservative general-purpose browser posture:
 
 ### Production Deployment and Remaining Device Qualification
 
-Code `50` is a release-preparation candidate only. Historical code `49` wallet
+Code `51` is the release candidate. Historical code `49` wallet
 lifecycle source passed the focused exact-artifact Android exercise, Required CI
 `31402758394`, and full docs-parent CI `31411048376`. Code `50` adds the strict
 HNWR read projection but no credential/backend provision. Its pre-ECH exact
 source passed full CI `31433931682`; its exact debug artifact installed, cold-launched,
 and exposed the expected fail-closed wallet UI on a Pixel 9. No wallet was
 created/restored and no credentialed read or value action ran. Signed AAB
-verification, current screenshots, live Console reconciliation, HNWR-aware
-policy deployment/readback, and intentional upload remain open. No
-credentialed Play operation has been performed for code `50`.
+verification, current screenshots, live Console reconciliation, and intentional
+upload remain open. No
+credentialed Play operation has been performed for code `51`.
 
 Google Play production contains the `0.5.6` / code `47` Android hotfix with
 shared Rust `0.5.6`, built from exact shipping source
@@ -300,11 +308,11 @@ Full description draft:
 
 - App icon: 512×512 PNG for Play Console: `store-assets/play-store/hns-dane-browser-play-icon-512.png`.
 - Feature graphic: 1024×500 PNG24, no alpha: `store-assets/play-store/hns-dane-browser-feature-graphic-1024x500.png`.
-- Phone screenshots: recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, diagnostics, and the non-secret wallet control/read-unavailable boundary against exact code `50`. Never show a recovery phrase or account identifier. The current screenshots predate this candidate and must be replaced.
+- Phone screenshots: recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, diagnostics, and the non-secret wallet control/read-unavailable boundary against exact code `51`. Never show a recovery phrase or account identifier. The current screenshots predate this candidate and must be replaced.
 - Tablet screenshots: recommended if tablet distribution remains enabled.
 - Privacy policy URL: keep the existing Play listing on the selected canonical
-  route. Historical relay/wallet-lifecycle source `909dbd1` is deployed and was
-  read back; deploy the HNWR-aware revision and confirm the Console URL before
+  route. Version-neutral read-boundary source `a5539cb` was deployed in run
+  `31485234945` and read back successfully; confirm the Console URL before
   submission.
 - Content rating questionnaire: reconcile the saved live answers as a general-purpose browser that is not child-directed.
 

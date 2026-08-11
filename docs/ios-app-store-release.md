@@ -12,10 +12,10 @@ The committed application identity is:
   rechecked through the public record on 2026-08-09
 - Published iOS build: `0.5.5` (`57`) at source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`
-- Configured release-preparation candidate: `0.5.9` (`59`), not uploaded
+- Configured release candidate: `0.5.10` (`60`), not uploaded
 - Device family: iPhone
 
-Candidate build `59` includes a native-only wallet screen for
+Candidate build `60` includes a native-only wallet screen for
 create/restore/open/status/unlock/lock, one HNS account identity, and strict
 HNWR-v1 read-only fields for balance, receive target, history, tracked names,
 and module status.
@@ -31,8 +31,9 @@ descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
 and aggregate Required CI. Build `57` does not contain the controller. The
 current candidate pins wallet `2229be8`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
-back for the historical lifecycle boundary. The repository's HNWR-aware policy
-still needs deployment/readback. The `0.5.9` description, What's New, and review
+back for the historical lifecycle boundary. Version-neutral HNWR-aware source
+`a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed and read back in
+Firebase run `31485234945`. The `0.5.10` description, What's New, and review
 notes are updated, while
 fresh exact-release-checkout screenshots, App Privacy/category answers,
 signing, processing, submission, and the physical-iPhone matrix remain release
@@ -141,6 +142,57 @@ The workflow then:
 6. deletes the temporary keychain, installed profile, API key, `.p12`, and
    profile while GitHub discards the runner.
 
+## Apply metadata and submit through the API
+
+After the upload run succeeds and build `60` finishes processing, use the
+separate protected workflow. Its default `discover` mode performs authenticated
+GET requests only. Mutation modes require the exact current `main` commit, the
+successful upload run for that commit, its verified screenshot artifact, and
+release-specific confirmation strings. The client applies and reads back the
+version/app-info localizations, manual release type, exact build, App Review
+details, and four exact-commit screenshots. `submit` then creates or safely
+resumes a Review Submission containing only this App Store version and marks it
+submitted as its final mutation.
+
+```sh
+expected_commit="$(git rev-parse HEAD)"
+
+gh workflow run ios-app-store-submit.yml \
+  --repo handshake-rs/hns-dane-browser-mobile \
+  --ref main \
+  -f expected_commit="$expected_commit" \
+  -f mode=discover \
+  -f review_contact_source_version=0.5.5 \
+  -f confirm_account_readiness=false
+```
+
+After recording the successful `ios-app-store-upload.yml` run ID and confirming
+that App Privacy, unrestricted-web age rating, content rights, DSA, export,
+category, price, availability, and routing answers remain accurate, apply the
+metadata and intentionally submit:
+
+```sh
+upload_run_id=REPLACE_WITH_SUCCESSFUL_UPLOAD_RUN_ID
+
+gh workflow run ios-app-store-submit.yml \
+  --repo handshake-rs/hns-dane-browser-mobile \
+  --ref main \
+  -f expected_commit="$expected_commit" \
+  -f expected_upload_run_id="$upload_run_id" \
+  -f mode=submit \
+  -f review_contact_source_version=0.5.5 \
+  -f confirm_metadata=APPLY_METADATA_0.5.10_60 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_0.5.10_60 \
+  -f confirm_account_readiness=true
+```
+
+If the exact build is not yet `VALID`, the workflow fails closed before
+submission and can be rerun after processing. It copies the private review
+contact fields from the already published `0.5.5` version only if they are
+complete; it never prints them. App/account-level declarations that the API
+client deliberately does not mutate must be retained as separate readback
+evidence.
+
 Apple associates the uploaded build with the app record using its bundle ID,
 version, and build number. Build `49` is superseded. Builds `50`–`56` were not
 uploaded; their live runs identified and
@@ -162,10 +214,11 @@ debug entitlement, icon, and encryption declaration all match the release.
 Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
-Build `59` is the configured candidate. Application-source CI, CodeQL,
-lockfile/notices, and the complete Apple app/simulator gate are satisfied at
-exact source `893ba8271787f1ab7247fa78ed8787462b5542fc`. HNWR-aware hosted-policy
-deployment/readback is not. Build `59` must not be uploaded until a fresh
+Build `60` is the configured candidate. Historical HNWR application-source CI,
+CodeQL, lockfile/notices, and the complete Apple app/simulator gate are
+satisfied at exact source `893ba8271787f1ab7247fa78ed8787462b5542fc`; the
+current release commit still requires its own gates. Build `60` must not be
+uploaded until a fresh
 screenshot manifest names the exact release checkout selected for signing and
 carries provenance schema 3 with `settings.wallet.native-controls` visible;
 the protected workflow must then rerun its complete exact-checkout gate before
@@ -186,9 +239,9 @@ Apple approves it, add the supplied export-compliance code to the next build.
 
 ## Release gate after upload
 
-For `0.5.9`, every item in
+For `0.5.10`, every item in
 `store-assets/app-store/submission-checklist.md` remains a pre-submission gate.
-In particular, build `59` has not been signed, uploaded, processed, selected,
+In particular, build `60` has not been signed, uploaded, processed, selected,
 or submitted. The paragraphs below preserve the public `0.5.5` chronology.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review

@@ -36,12 +36,14 @@ status. No TestFlight distribution was created. The hosted privacy policy at
 the canonical product URL was aligned with that historical public release.
 Wallet-aware hosted-policy source
 `909dbd1a713f322f0a8d4cff88e765c612e184f3` was subsequently deployed and read
-back for the historical `0.5.8` candidate. Store privacy/category answers still
-require exact-candidate reconciliation before submission.
+back for the historical `0.5.8` candidate. Version-neutral read-boundary source
+`a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed and read back in run
+`31485234945`. Store privacy/category answers still require exact-candidate
+reconciliation before submission.
 
-Current source is the coordinated `0.5.9` release-preparation candidate:
-Android code `50`, embedded non-publishable Rust workspace `0.5.9`, and iOS
-build `59`. It pins final `hns-wallet-rs 0.1.0` source
+Current source is the `0.5.10` release candidate: Android code `51`, embedded
+non-publishable Rust workspace `0.5.9`, and iOS build `60`. It pins final
+`hns-wallet-rs 0.1.0` source
 `2229be849557d58a8eb723bcc03349f0f2df9796`, whose protocol closure uses final
 `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`. Both native
 shells expose local create, restore, open, status, unlock, lock, and one-account

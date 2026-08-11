@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.10 - 2026-08-11
+
 ### Added
 
 - Added process-local, diagnostic-only header-sync telemetry for the private
@@ -18,6 +20,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Coordinated Android `0.5.10` (`versionCode 51`) and iOS `0.5.10` (build
+  `60`) while retaining the independently versioned, non-publishable embedded
+  Rust workspace at `0.5.9` and engine `0.2.1` at exact revision
+  `65c397e8347f37085ea67d2c9c745ce896328e64`.
 - Raised the shared mobile loopback proxy's same-host request budget from 80
   to the unchanged aggregate budget of 240 requests per 10 seconds, allowing
   code-split asset bursts without increasing total proxy admission.
@@ -52,6 +58,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Android activity roots now consume system-bar and display-cutout insets after
+  applying them, so descendant WebViews do not expose already-applied offsets
+  again as CSS safe-area values.
 - Android native gateway responses no longer forward MIME, framing, or
   connection-management headers that `WebResourceResponse` synthesizes,
   preventing duplicate JavaScript MIME values from blocking module execution.

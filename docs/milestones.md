@@ -157,6 +157,11 @@
   debug package/data; the production package remained installed and untouched.
   No wallet was created/restored and no credentialed read, secret, account, or
   value action ran.
+- Prepared the `0.5.10` platform release identity: Android code `51` and iOS
+  build `60` retain embedded Rust `0.5.9` and exact engine `0.2.1` source
+  `65c397e8347f37085ea67d2c9c745ce896328e64`. Exact release-source CI, signed
+  artifacts, installed-product evidence, screenshots, and store readback remain
+  pending.
 - Completed release dependency sequence: mobile pins final wallet `0.1.0`
   source `2229be849557d58a8eb723bcc03349f0f2df9796`, which consumes final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
@@ -172,7 +177,7 @@
   provisioning, signed store artifacts, fresh commit-bound screenshots,
   privacy/category declaration readback, intentional store upload, Android
   credentialed read/create lifecycle qualification, and the physical-iPhone
-  matrix remain for `0.5.9`. No currently published Play, GitHub, or App Store
+  matrix remain for `0.5.10`. No currently published Play, GitHub, or App Store
   binary contains the native controls.
 - Pending named-service adoption: first consume a qualified upstream mobile-safe
   HNSA/HNSR API boundary, then instantiate its admission/requester lifecycle

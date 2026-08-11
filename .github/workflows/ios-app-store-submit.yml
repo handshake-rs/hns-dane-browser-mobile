@@ -1,0 +1,253 @@
+name: iOS App Store Metadata and Submission
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: Exact lowercase 40-character current main commit
+        required: true
+        type: string
+      expected_upload_run_id:
+        description: Successful iOS App Store Upload run for this commit (required to mutate)
+        required: false
+        type: string
+      mode:
+        description: Discovery is GET-only; the other modes mutate App Store Connect
+        required: true
+        default: discover
+        type: choice
+        options:
+          - discover
+          - apply-metadata
+          - submit
+      review_contact_source_version:
+        description: Prior version whose private App Review contact fields may be copied
+        required: true
+        default: 0.5.5
+        type: string
+      confirm_metadata:
+        description: For mutation, enter APPLY_METADATA_0.5.10_60
+        required: false
+        type: string
+      confirm_submit:
+        description: For submission, enter SUBMIT_FOR_REVIEW_0.5.10_60
+        required: false
+        type: string
+      confirm_account_readiness:
+        description: Attest hosted privacy/readback, App Privacy, age rating, DSA, export, category, price, availability, and routing
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: sha-${{ inputs.expected_commit }}-ios-app-store-submit
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Discover, reconcile, or submit exact iOS release
+    if: ${{ github.ref == 'refs/heads/main' }}
+    concurrency:
+      group: global-ios-app-store-upload-lease
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: app-store
+    steps:
+      - name: Validate the exact release request before checkout
+        env:
+          ACCOUNT_READY: ${{ inputs.confirm_account_readiness }}
+          CONFIRM_METADATA: ${{ inputs.confirm_metadata }}
+          CONFIRM_SUBMIT: ${{ inputs.confirm_submit }}
+          DISPATCH_COMMIT: ${{ github.sha }}
+          DISPATCH_REF: ${{ github.ref }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          EXPECTED_UPLOAD_RUN_ID: ${{ inputs.expected_upload_run_id }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$EXPECTED_COMMIT" | grep -Eq '^[0-9a-f]{40}$' || {
+            echo "expected_commit must be one lowercase 40-character Git SHA" >&2
+            exit 2
+          }
+          [[ "$DISPATCH_REF" == refs/heads/main ]] || {
+            echo "This workflow must be dispatched from main." >&2
+            exit 2
+          }
+          [[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]] || {
+            echo "expected_commit must equal the main commit selected at dispatch." >&2
+            exit 2
+          }
+          case "$MODE" in
+            discover)
+              ;;
+            apply-metadata)
+              [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+              [[ "$CONFIRM_METADATA" == APPLY_METADATA_0.5.10_60 ]]
+              ;;
+            submit)
+              [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+              [[ "$CONFIRM_METADATA" == APPLY_METADATA_0.5.10_60 ]]
+              [[ "$CONFIRM_SUBMIT" == SUBMIT_FOR_REVIEW_0.5.10_60 ]]
+              [[ "$ACCOUNT_READY" == true ]]
+              ;;
+            *)
+              echo "unsupported release mode" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Check out the exact reviewed commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.expected_commit }}
+          persist-credentials: false
+
+      - name: Validate local metadata and exact source identity
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          python3 store-assets/app-store/validate.py --metadata-only
+          python3 scripts/app_store_connect_release.py \
+            --mode plan \
+            --expected-commit "$EXPECTED_COMMIT" \
+            --expected-version 0.5.10 \
+            --expected-build 60 >/dev/null
+
+      - name: Validate the successful exact-commit upload run
+        if: ${{ inputs.mode != 'discover' }}
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          UPLOAD_RUN_ID: ${{ inputs.expected_upload_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          run_json="$(gh api "repos/$REPOSITORY/actions/runs/$UPLOAD_RUN_ID")"
+          jobs_json="$(gh api "repos/$REPOSITORY/actions/runs/$UPLOAD_RUN_ID/jobs?per_page=100")"
+          artifacts_json="$(gh api "repos/$REPOSITORY/actions/runs/$UPLOAD_RUN_ID/artifacts?per_page=100")"
+          jq -e \
+            --arg expected_commit "$EXPECTED_COMMIT" \
+            '.event == "workflow_dispatch"
+             and .head_branch == "main"
+             and .head_sha == $expected_commit
+             and .conclusion == "success"
+             and .path == ".github/workflows/ios-app-store-upload.yml"' \
+            <<<"$run_json" >/dev/null || {
+              echo "upload run must be a successful exact-commit iOS App Store Upload run" >&2
+              exit 2
+            }
+          jq -e \
+            '([.jobs[] | select(.name == "Validate, sign, and upload")] | length) == 1
+             and ([.jobs[] | select(.name == "Validate, sign, and upload")][0].conclusion == "success")' \
+            <<<"$jobs_json" >/dev/null || {
+              echo "the credentialed iOS upload job did not complete successfully" >&2
+              exit 2
+            }
+          screenshot_artifact="ios-app-store-live-screenshots-${EXPECTED_COMMIT}"
+          ipa_artifact="ios-app-store-ipa-${EXPECTED_COMMIT}"
+          jq -e \
+            --arg screenshot_artifact "$screenshot_artifact" \
+            --arg ipa_artifact "$ipa_artifact" \
+            '([.artifacts[] | select(
+                .name == $screenshot_artifact and .expired == false and .size_in_bytes > 0
+              )] | length) == 1
+             and ([.artifacts[] | select(
+                .name == $ipa_artifact and .expired == false and .size_in_bytes > 0
+              )] | length) == 1' \
+            <<<"$artifacts_json" >/dev/null || {
+              echo "exact-commit screenshot and signed-IPA evidence must both be retained" >&2
+              exit 2
+            }
+
+      - name: Download exact-commit App Store screenshots
+        if: ${{ inputs.mode != 'discover' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ios-app-store-live-screenshots-${{ inputs.expected_commit }}
+          path: build/app-store-live-screenshots
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.expected_upload_run_id }}
+
+      - name: Verify screenshots came from the exact release commit
+        if: ${{ inputs.mode != 'discover' }}
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          python3 scripts/ios_screenshot_tools.py verify-live \
+            --directory build/app-store-live-screenshots \
+            --expected-commit "$EXPECTED_COMMIT"
+
+      - name: Recheck current main before materializing the API key
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          current_main="$(git ls-remote --exit-code origin refs/heads/main | awk '{print $1}')"
+          printf '%s\n' "$current_main" | grep -Eq '^[0-9a-f]{40}$'
+          [[ "$current_main" == "$EXPECTED_COMMIT" ]] || {
+            echo "main moved; review and qualify the new commit before continuing." >&2
+            exit 2
+          }
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+
+      - name: Materialize the temporary App Store Connect API key
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$API_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]
+          [[ -n "$API_PRIVATE_KEY" ]]
+          key_path="$RUNNER_TEMP/AuthKey_${API_KEY_ID}.p8"
+          umask 077
+          printf '%s' "$API_PRIVATE_KEY" >"$key_path"
+          [[ -s "$key_path" ]]
+          printf 'HNS_ASC_API_KEY_PATH=%s\n' "$key_path" >>"$GITHUB_ENV"
+
+      - name: Run guarded App Store Connect release client
+        env:
+          ACCOUNT_READY: ${{ inputs.confirm_account_readiness }}
+          CONFIRM_METADATA: ${{ inputs.confirm_metadata }}
+          CONFIRM_SUBMIT: ${{ inputs.confirm_submit }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          HNS_ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          HNS_ASC_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          MODE: ${{ inputs.mode }}
+          REVIEW_CONTACT_SOURCE_VERSION: ${{ inputs.review_contact_source_version }}
+        run: |
+          set -euo pipefail
+          arguments=(
+            --mode "$MODE"
+            --expected-commit "$EXPECTED_COMMIT"
+            --expected-version 0.5.10
+            --expected-build 60
+            --review-contact-source-version "$REVIEW_CONTACT_SOURCE_VERSION"
+          )
+          if [[ "$MODE" != discover ]]; then
+            arguments+=(
+              --screenshots-dir build/app-store-live-screenshots
+              --confirm-metadata "$CONFIRM_METADATA"
+            )
+          fi
+          if [[ "$MODE" == submit ]]; then
+            arguments+=(--confirm-submit "$CONFIRM_SUBMIT")
+            [[ "$ACCOUNT_READY" == true ]]
+            arguments+=(--confirm-account-readiness)
+          fi
+          python3 scripts/app_store_connect_release.py "${arguments[@]}"
+
+      - name: Remove the temporary API key
+        if: ${{ always() }}
+        run: |
+          if [[ -n "${HNS_ASC_API_KEY_PATH:-}" ]]; then
+            rm -f -- "$HNS_ASC_API_KEY_PATH"
+          fi

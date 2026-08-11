@@ -1,10 +1,12 @@
 # Google Play Metadata Package
 
 This directory contains the reviewed source text and field guidance for the
-Android `0.5.9` / code `50` release-preparation candidate for package
-`com.denuoweb.hnsdane`. It coordinates Android and the embedded Rust workspace
-at `0.5.9` and includes native lifecycle controls plus strict HNWR-v1 read-only
-fields for one device-local HNS account identity.
+Android `0.5.10` / code `51` release candidate for package
+`com.denuoweb.hnsdane`. Its independently versioned embedded Rust workspace
+remains at `0.5.9`; the app includes native lifecycle controls plus strict
+HNWR-v1 read-only fields for one device-local HNS account identity.
+The runtime uses engine `0.2.1` at exact revision
+`65c397e8347f37085ea67d2c9c745ce896328e64`.
 
 The underlying wallet lifecycle tranche passed its installed Pixel 9
 qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The candidate
@@ -13,8 +15,9 @@ source `b24b66c`; source policy, lockfile, and notices are aligned. Historical
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 `31402758394` and a fresh Pixel 9 install, while documentation-only parent
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI
-`31411048376`. That evidence predates the current read projection. Current
-code-bearing source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31411048376`. That evidence predates the current read projection. Prior
+`0.5.9` code-bearing source `893ba8271787f1ab7247fa78ed8787462b5542fc`
+passed full CI
 `31433931682`, including Android build/unit, API 37 native instrumentation,
 Rust/supply-chain, Apple, and Required CI. Exact debug artifact `9080493058`
 contains a 65,680,703-byte APK with SHA-256
@@ -29,9 +32,11 @@ debug-package-only reinstall left production installed and untouched. The
 installed digest matched, cold launch succeeded, and the native wallet screen
 displayed the no-wallet controls and fail-closed HNWR rows with disabled
 value/marketplace copy. No wallet was created/restored and no secret, account,
-credentialed sync, or value action ran. A signed and verified AAB, refreshed
-screenshots, live Play Console declaration reconciliation, and intentional
-upload remain open. No code `50` AAB has been built, uploaded, or submitted.
+credentialed sync, or value action ran. This is historical code `50` evidence,
+not qualification for the current candidate. Exact code `51` CI, artifact and
+signer inspection, installed-device qualification, refreshed screenshots, live
+Play Console declaration reconciliation, and intentional upload remain open.
+No code `51` AAB has been built, uploaded, or submitted.
 
 The listing deliberately describes the limited native controller and its visible
 read rows. The product installs no scoped loopback credential or indexed wallet
@@ -47,7 +52,7 @@ marketplaces remain absent or gated off.
 - App name: `en-US/title.txt`
 - Short description: `en-US/short-description.txt`
 - Full description: `en-US/full-description.txt`
-- 0.5.9 release notes: `en-US/release-notes.txt`
+- 0.5.10 release notes: `en-US/release-notes.txt`
 
 ## Store Assets
 
@@ -62,7 +67,7 @@ marketplaces remain absent or gated off.
 - Ads declaration: No ads
 - Privacy policy URL: `https://denuoweb.com/work/hns-dane-browser/privacy`
 - Candidate upload artifact (signed, verified, and intentionally untracked):
-  `dist/play-store/hns-dane-browser-v0.5.9-play-upload-signed.aab`
+  `dist/play-store/hns-dane-browser-v0.5.10-play-upload-signed.aab`
 - Foreground service type: none; remove any stale `dataSync` declaration
   because sync is application-foreground scoped and the manifest declares no
   service.

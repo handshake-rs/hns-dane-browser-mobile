@@ -24,10 +24,10 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_coordinated_059_identity_and_final_wallet_pin(self) -> None:
+    def test_0510_platform_identity_and_final_wallet_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"0\.5\.9\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 50$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"0\.5\.10\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 51$")
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
@@ -54,8 +54,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertNotIn("abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2", lockfile)
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 0\.5\.9$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 59$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 0\.5\.10$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 60$")
 
     def test_unshipped_named_service_market_and_value_closures_stay_absent(self) -> None:
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
@@ -340,9 +340,13 @@ class PlayUploadVersionCodeTests(unittest.TestCase):
                     response = {"id": "mock-edit"}
                 elif method == "POST" and "/bundles?uploadType=media" in url:
                     response = {"versionCode": os.environ["MOCK_VERSION_CODE"]}
+                elif method == "PUT" and "/listings/en-US" in url:
+                    response = {"language": "en-US"}
                 elif method == "PUT" and "/tracks/" in url:
                     response = {"track": "mock"}
-                elif method == "POST" and url.endswith(":commit"):
+                elif method == "POST" and url.endswith(
+                    ":commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW"
+                ):
                     response = {"id": "mock-edit", "expiryTimeSeconds": "1"}
                 else:
                     raise SystemExit(f"unexpected mocked request: {method} {url}")
@@ -369,6 +373,8 @@ class PlayUploadVersionCodeTests(unittest.TestCase):
         api_version_code: str,
         *,
         expected_version_code: str | None = None,
+        update_listing: bool = False,
+        track_name: str | None = "alpha",
     ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         for name in tuple(env):
@@ -383,10 +389,14 @@ class PlayUploadVersionCodeTests(unittest.TestCase):
                 "PLAY_RELEASE_STATUS": "draft",
             }
         )
+        if track_name is not None:
+            env["PLAY_TRACK"] = track_name
         if expected_version_code is None:
             env.pop("PLAY_EXPECTED_VERSION_CODE", None)
         else:
             env["PLAY_EXPECTED_VERSION_CODE"] = expected_version_code
+        if update_listing:
+            env["PLAY_UPDATE_LISTING"] = "true"
         return subprocess.run(
             [str(PLAY_UPLOAD), str(self.aab_path)],
             cwd=ROOT,
@@ -410,7 +420,34 @@ class PlayUploadVersionCodeTests(unittest.TestCase):
         requests = self.request_lines()
         self.assertEqual(len(requests), 4)
         self.assertTrue(any("/tracks/" in request for request in requests))
-        self.assertTrue(any(request.endswith(":commit") for request in requests))
+        self.assertTrue(
+            any(
+                request.endswith(
+                    ":commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW"
+                )
+                for request in requests
+            )
+        )
+
+    def test_explicit_listing_update_uses_reviewed_en_us_copy(self) -> None:
+        result = self.run_upload(
+            self.configured_version_code,
+            update_listing=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Updated Play listing text: en-US", result.stdout)
+        requests = self.request_lines()
+        self.assertEqual(len(requests), 5)
+        self.assertTrue(any("/listings/en-US" in request for request in requests))
+        self.assertTrue(any("/tracks/" in request for request in requests))
+        self.assertTrue(
+            any(
+                request.endswith(
+                    ":commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW"
+                )
+                for request in requests
+            )
+        )
 
     def test_mismatch_stops_before_track_assignment_and_commit(self) -> None:
         mismatched = str(int(self.configured_version_code) + 1)
@@ -420,7 +457,7 @@ class PlayUploadVersionCodeTests(unittest.TestCase):
         requests = self.request_lines()
         self.assertEqual(len(requests), 2)
         self.assertFalse(any("/tracks/" in request for request in requests))
-        self.assertFalse(any(request.endswith(":commit") for request in requests))
+        self.assertFalse(any(":commit?" in request for request in requests))
 
     def test_matching_explicit_expected_version_code_allows_commit(self) -> None:
         overridden = str(int(self.configured_version_code) + 1)
@@ -443,7 +480,7 @@ class PlayUploadVersionCodeTests(unittest.TestCase):
         requests = self.request_lines()
         self.assertEqual(len(requests), 2)
         self.assertFalse(any("/tracks/" in request for request in requests))
-        self.assertFalse(any(request.endswith(":commit") for request in requests))
+        self.assertFalse(any(":commit?" in request for request in requests))
 
     def test_invalid_override_fails_before_any_api_request(self) -> None:
         result = self.run_upload(
@@ -452,6 +489,15 @@ class PlayUploadVersionCodeTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("Expected Play versionCode is invalid", result.stderr)
+        self.assertEqual(self.request_lines(), [])
+
+    def test_missing_track_fails_before_any_api_request(self) -> None:
+        result = self.run_upload(
+            self.configured_version_code,
+            track_name=None,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Set PLAY_TRACK explicitly", result.stderr)
         self.assertEqual(self.request_lines(), [])
 
 

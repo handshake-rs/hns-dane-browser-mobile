@@ -71,7 +71,6 @@ done
 
 android_current_only_files=(
   "scripts/play-upload-closed-testing.sh"
-  "store-assets/play-store/metadata/README.md"
   "store-assets/play-store/metadata/en-US/release-notes.txt"
 )
 

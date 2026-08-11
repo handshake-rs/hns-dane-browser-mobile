@@ -79,13 +79,14 @@ The complete simulator gate passed for historical `0.5.8` application source
 `f21bee1c3afccd06604dc99fccb51528e2441055` in Required CI run `31402758394`,
 and documentation-only commit
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed the full matrix again in
-manual run `31411048376`. Those runs predate the HNWR projection. Current
+manual run `31411048376`. Those runs predate the HNWR projection. Historical
 code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed the complete Apple
 ABI/XCFramework/app/simulator gate and Required CI in run `31433931682`. This
-qualifies the current simulator/build boundary, not a signed physical device.
+qualifies that simulator/build boundary, not the current release candidate or a
+signed physical device. The final `0.5.10` source requires a fresh Apple gate.
 The following matrix remains an optional installed-iPhone qualification
-activity for the exact `0.5.9` release checkout:
+activity for the exact `0.5.10` release checkout:
 
 - On a fresh install, open Settings → Handshake wallet and confirm the screen
   reports no local wallet without announcing a website provider.

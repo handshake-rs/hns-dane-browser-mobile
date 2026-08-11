@@ -1,6 +1,6 @@
 # Complete Rust Handshake Ecosystem: Mobile Delta Audit
 
-Last audited: 2026-08-10
+Last audited: 2026-08-11
 
 This audit maps this checkout only to `Complete Rust Handshake Ecosystem.pdf`
 (57 pages, SHA-256
@@ -18,8 +18,8 @@ to `WAITING_FOR_REVIEW` are retained submission evidence, not current status.
 The public iOS `0.5.5`, Play Android `0.5.6`, and GitHub Android `0.5.7`
 descriptions accurately advertise browser releases with no wallet or exchange;
 those artifacts predate the native controller source described below. Current
-source is the coordinated `0.5.9` release-preparation candidate (Android code
-`50`, embedded Rust `0.5.9`, iOS build `59`). Code-bearing source
+source is the `0.5.10` release candidate (Android code `51`, embedded Rust
+`0.5.9`, iOS build `60`). The preceding HNWR code-bearing source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
 `31433931682`, including the complete Android and Apple gates and aggregate
 Required CI. Exact debug APK artifact `9080493058` has SHA-256
@@ -175,7 +175,7 @@ WebKit network-process behavior.
 
 ## Checkpoint Verification
 
-### Current `0.5.9` Source and Debug-Artifact Evidence
+### Prior `0.5.9` Source and Debug-Artifact Evidence
 
 - Code-bearing commit `893ba8271787f1ab7247fa78ed8787462b5542fc`
   passed full CI `31433931682`. Policy, Rust/supply-chain, Android build/unit,
@@ -270,7 +270,7 @@ facade adoption remains pending.
   headers, DANE-verified HNS, same-navigation Proof Details, and authenticated
   ICANN WebPKI. That historical set passed its submission validator; the
   current candidate validator intentionally rejects it because it predates the
-  exact `0.5.9` commit and required native wallet/read-row provenance.
+  exact `0.5.10` commit and required native wallet/read-row provenance.
 - Protected upload run `30456522039` passed the unsigned gate, signed and
   uploaded build `57`, and retained the 47,930,601-byte IPA with SHA-256
   `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.

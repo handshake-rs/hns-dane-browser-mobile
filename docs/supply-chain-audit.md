@@ -1,9 +1,9 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-08-10
+Last audited: 2026-08-11
 
-Current candidate source coordinates Android `0.5.9` / code `50`, the embedded
-non-publishable Rust workspace `0.5.9`, and iOS `0.5.9` / build `59`. It pins
+Current candidate source coordinates Android `0.5.10` / code `51`, the embedded
+non-publishable Rust workspace `0.5.9`, and iOS `0.5.10` / build `60`. It pins
 `hns-wallet-mobile 0.1.0` to exact final wallet source
 `2229be849557d58a8eb723bcc03349f0f2df9796`, whose HNS primitives resolve from
 final `hns-rs 0.2.0` source
@@ -74,7 +74,7 @@ been built or submitted.
 
 ## Audit Results
 
-### Current `0.5.9` CI Debug Artifact
+### Prior `0.5.9` CI Debug Artifact
 
 - Full CI run `31433931682` passed for exact source
   `893ba8271787f1ab7247fa78ed8787462b5542fc`, including policy,

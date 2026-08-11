@@ -1,20 +1,23 @@
 # App Store metadata
 
-This directory is the reviewed source package for the coordinated iOS `0.5.9`
-release-preparation candidate. The binary upload workflow does not upload
-listing metadata; the operator must reconcile these exact fields in App Store
-Connect before submission.
+This directory is the reviewed source package for the iOS `0.5.10` / build
+`60` release candidate. The binary upload workflow does not upload
+listing metadata. The separate protected metadata/submission workflow applies
+and reads back the reviewed fields, exact screenshots, build relationship, and
+App Review details before using Apple's Review Submissions API. Account-level
+privacy, age-rating, DSA, pricing, availability, export, and routing answers
+still require explicit reconciliation and attestation.
 
 The native wallet lifecycle tranche passed its dated complete Apple gate in
 Required CI run `31393998309` at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The `0.5.9` package pins final
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The current package retains final
 wallet `0.1.0` source `2229be8` and final `hns-rs 0.2.0` source `b24b66c`;
 source policy, lockfile, and notices are aligned. Historical `0.5.8` application
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 `31402758394`; documentation-only parent
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI
-`31411048376`; those runs predate the current read projection. Code-bearing
-source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31411048376`; those runs predate the current read projection. Prior `0.5.9`
+code-bearing source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including the complete Apple app/simulator gate. Android debug
 artifact `9080493058` has APK SHA-256
 `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
@@ -26,11 +29,13 @@ No wallet was created/restored and no credentialed read or value action ran;
 this Android UI result is not iOS evidence. Fresh
 exact-release-checkout screenshots, signing, processing, metadata readback,
 intentional submission, and the physical-iPhone matrix remain open. Nothing in
-this package proves that build `59` has been uploaded or published.
+this package proves that build `60` has been uploaded or published. Build `59`
+was superseded without upload; build `60` requires fresh exact-source Apple CI,
+screenshots, signing, upload, processing, and API readback.
 
 The current public Apple baseline remains `0.5.5` / build `57`, published on
 2026-07-31 from `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Its retained
-submission and artifact evidence is release history, not evidence for `0.5.9`.
+submission and artifact evidence is release history, not evidence for `0.5.10`.
 No TestFlight distribution is planned by this repository workflow.
 
 The checked-in description and review notes accurately describe the native
@@ -55,8 +60,8 @@ needs the scoped credential/backend/data boundary before reads can be enabled.
 - SKU: `hns-dane-browser-ios`
 - Apple Team ID: `45NQQK3G3S`
 - User access: Full Access
-- Version: `0.5.9`
-- Build: `59`
+- Version: `0.5.10`
+- Build: `60`
 - Primary category: Utilities, pending candidate-specific review
 - Price: Free
 - Device family: iPhone
@@ -66,7 +71,7 @@ coverage exist.
 
 ## Canonical update fields
 
-Use these files for the `0.5.9` record:
+Use these files for the `0.5.10` record:
 
 - `name.txt`
 - `subtitle.txt`
@@ -88,7 +93,7 @@ its mutation scope; read those back separately.
 
 The retained screenshots under `../screenshots/en-US/` come from public
 `0.5.5` source and do not show the native wallet controls. They are historical
-assets only. Generate a fresh exact-commit set for `0.5.9`; the protected
+assets only. Generate a fresh exact-commit set for `0.5.10`; the protected
 upload workflow rejects a screenshot set whose commit does not match the
 candidate or whose provenance does not prove the visible native wallet row.
 The retained historical set deliberately fails the current full validator.
@@ -110,14 +115,14 @@ python3 store-assets/app-store/validate.py \
 1. Retain the application-source Required CI `31402758394` and full manual
    docs-parent CI `31411048376` evidence; the protected upload workflow must
    still rerun its exact-release-checkout gate before signing.
-2. Deploy and read back the repository's HNWR-aware privacy policy at the
-   canonical hosted URL. Source `909dbd1` is retained as evidence for the earlier
-   wallet-lifecycle policy only.
+2. Retain deployment and readback evidence for version-neutral HNWR-aware
+   privacy source `a5539cb` in Firebase run `31485234945`; source `909dbd1`
+   remains earlier wallet-lifecycle history only.
 3. Reconcile App Privacy, age rating, category, content rights, export
    compliance, DSA, price, availability, and routing against the exact build.
 4. Generate and review current iPhone screenshots from the exact source.
 5. Supply App Review with `en-US/review-notes.txt`; no login is required.
-6. Select processed build `59`, choose manual release, and complete
+6. Select processed build `60`, choose manual release, and complete
    `../submission-checklist.md` before adding the version for review.
 
 The API private key used by CI must exist only in the protected GitHub

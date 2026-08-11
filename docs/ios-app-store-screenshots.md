@@ -9,7 +9,8 @@ mandatory pre-credential gate; capture or verification failure blocks signing
 and upload.
 
 The checked-in images and manifest are retained `0.5.5` history and are not
-submission-ready for the configured `0.5.9` / build `59` candidate. Code-bearing
+submission-ready for the configured `0.5.10` / build `60` candidate. Prior
+code-bearing
 source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including the complete Apple app/simulator gate. No fresh
 candidate screenshot artifact has been captured or staged; dispatch this
@@ -138,9 +139,9 @@ The committed `0.5.5` set was captured from exact source
 digests remain published historical evidence. They passed the submission gate
 for that release, but intentionally fail the current candidate validator
 because they predate provenance schema 3, the native wallet/read-row evidence,
-and the exact `0.5.9` candidate commit.
+and the exact `0.5.10` candidate commit.
 
-That successful historical validation does not satisfy the `0.5.9` manifest
+That successful historical validation does not satisfy the `0.5.10` manifest
 commit gate. Replace the set only with an artifact captured from the exact
 final candidate.
 

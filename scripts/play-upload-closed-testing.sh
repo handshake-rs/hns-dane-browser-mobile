@@ -11,11 +11,13 @@ if [[ $# -gt 1 ]]; then
 fi
 
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
-track_name="${PLAY_TRACK:-alpha}"
-release_status="${PLAY_RELEASE_STATUS:-completed}"
-aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.9-play-upload-signed.aab}"
-release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.9}"
-release_notes="${PLAY_RELEASE_NOTES:-0.5.9 adds strict native read-only wallet fields for balance, receive target, history, tracked names, and module status. This candidate installs no scoped companion credential or indexed backend, so those fields remain unavailable. Name import, sending/value, website-provider access, HNSA/HNSR, settlement, exchange, and P2P marketplaces remain disabled.}"
+track_name="${PLAY_TRACK:-}"
+release_status="${PLAY_RELEASE_STATUS:-draft}"
+aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.10-play-upload-signed.aab}"
+release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.10}"
+release_notes="${PLAY_RELEASE_NOTES:-0.5.10 adds device-local native wallet lifecycle controls and read-only balance, receive, history, names, and status fields, which remain unavailable without a scoped indexed backend. It also adds ECH for supported HNS origins, clearer sync/reset recovery, and code-split asset-burst handling. Android corrects WebView headers and safe-area padding and prevents service-worker cache misses from using a blocking whole-body fallback.}"
+update_listing="${PLAY_UPDATE_LISTING:-false}"
+listing_language="${PLAY_LISTING_LANGUAGE:-en-US}"
 
 configured_version_code="$(
   sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\).*/\1/p' "$android_gradle"
@@ -51,6 +53,10 @@ if [[ ! "$package_name" =~ ^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$ ]]; then
   echo "Invalid Play package name: $package_name" >&2
   exit 2
 fi
+if [[ -z "$track_name" ]]; then
+  echo "Set PLAY_TRACK explicitly (for example, alpha or production)." >&2
+  exit 2
+fi
 if [[ ! "$track_name" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "Invalid Play track name: $track_name" >&2
   exit 2
@@ -62,6 +68,17 @@ case "$release_status" in
     exit 2
     ;;
 esac
+case "$update_listing" in
+  true|false) ;;
+  *)
+    echo "PLAY_UPDATE_LISTING must be true or false." >&2
+    exit 2
+    ;;
+esac
+if [[ ! "$listing_language" =~ ^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$ ]]; then
+  echo "Invalid Play listing language: $listing_language" >&2
+  exit 2
+fi
 
 if [[ ! -f "$aab_path" ]]; then
   echo "AAB not found: $aab_path" >&2
@@ -71,7 +88,8 @@ fi
 if [[ -n "${PLAY_ACCESS_TOKEN:-}" ]]; then
   access_token="$PLAY_ACCESS_TOKEN"
 elif command -v gcloud >/dev/null 2>&1; then
-  access_token="$(gcloud auth print-access-token)"
+  access_token="$(gcloud auth application-default print-access-token \
+    --scopes=https://www.googleapis.com/auth/androidpublisher)"
 else
   echo "Set PLAY_ACCESS_TOKEN or install/login with gcloud." >&2
   exit 1
@@ -147,6 +165,44 @@ request POST "${api_base}/edits" "$edit_json" -H "Content-Type: application/json
 edit_id="$(json_get "$edit_json" id)"
 echo "Created Play edit: ${edit_id}"
 
+if [[ "$update_listing" == true ]]; then
+  listing_dir="$root_dir/store-assets/play-store/metadata/$listing_language"
+  listing_body="$tmpdir/listing-body.json"
+  python3 - "$listing_body" "$listing_language" \
+    "$listing_dir/title.txt" \
+    "$listing_dir/short-description.txt" \
+    "$listing_dir/full-description.txt" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+output, language, title_path, short_path, full_path = sys.argv[1:6]
+
+def field(path: str, name: str, maximum: int) -> str:
+    value = Path(path).read_text(encoding="utf-8").strip()
+    if not value or "\x00" in value or len(value) > maximum:
+        raise SystemExit(
+            f"Invalid Play {name}: expected 1..{maximum} Unicode characters"
+        )
+    return value
+
+document = {
+    "language": language,
+    "title": field(title_path, "title", 30),
+    "shortDescription": field(short_path, "short description", 80),
+    "fullDescription": field(full_path, "full description", 4000),
+}
+Path(output).write_text(json.dumps(document), encoding="utf-8")
+PY
+  listing_json="$tmpdir/listing.json"
+  request PUT \
+    "${api_base}/edits/${edit_id}/listings/${listing_language}" \
+    "$listing_json" \
+    -H "Content-Type: application/json" \
+    --data-binary "@${listing_body}"
+  echo "Updated Play listing text: ${listing_language}"
+fi
+
 bundle_json="$tmpdir/bundle.json"
 request POST "${upload_base}/edits/${edit_id}/bundles?uploadType=media" "$bundle_json" \
   -H "Content-Type: application/octet-stream" \
@@ -190,6 +246,8 @@ request PUT "${api_base}/edits/${edit_id}/tracks/${track_name}" "$track_json" \
 echo "Assigned versionCode ${version_code} to Play track: ${track_name}"
 
 commit_json="$tmpdir/commit.json"
-request POST "${api_base}/edits/${edit_id}:commit" "$commit_json" \
+request POST \
+  "${api_base}/edits/${edit_id}:commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW" \
+  "$commit_json" \
   -H "Content-Type: application/json"
 echo "Committed Play edit ${edit_id}."

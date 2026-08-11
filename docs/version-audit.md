@@ -1,9 +1,8 @@
 # Version Audit
 
-Audit date: 2026-08-10.
+Audit date: 2026-08-11.
 
-This table records the versions configured for the `0.5.9`
-release-preparation candidate.
+This table records the versions configured for the `0.5.10` release candidate.
 It is not evidence that signed artifacts were built or published. Android
 runtime dependencies use stable releases; separate build-tool transitive
 dependencies may carry preview labels selected by AGP and are not packaged
@@ -11,9 +10,9 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `0.5.9` / code `50` | `android/app/build.gradle.kts` |
+| Android app | `0.5.10` / code `51` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `0.5.9` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `0.5.9` / build `59` | `ios/project.yml` |
+| iOS app | `0.5.10` / build `60` | `ios/project.yml` |
 | Native wallet controller | `hns-wallet-mobile 0.1.0` at `2229be849557d58a8eb723bcc03349f0f2df9796` | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | `hns-rs 0.2.0` at `b24b66c382de53330ec21dd3137e056a2bea3e2d` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
@@ -40,16 +39,15 @@ into the app.
 
 Notes:
 
-- Code-bearing candidate source
+- Prior HNWR code-bearing source
   `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
   `31433931682`, including repository policy, Rust/supply-chain, Android
   build/unit, API 37 native-runtime instrumentation, the complete Apple
   ABI/XCFramework/app/simulator gate, and aggregate Required CI. CodeQL run
   `31433931259` and Code Quality run `31433931278` also passed.
 - Documentation-only reconciliation successors record but do not inherit or
-  relabel that exact code-bearing evidence. Until executable source changes,
-  `893ba8271787f1ab7247fa78ed8787462b5542fc` remains the candidate's
-  code-bearing identity.
+  relabel that exact code-bearing evidence. The current release commit requires
+  fresh exact-source qualification.
 - CI artifact `9080493058` is the exact debug APK for that commit. The extracted
   APK is 65,680,703 bytes with SHA-256
   `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`.
