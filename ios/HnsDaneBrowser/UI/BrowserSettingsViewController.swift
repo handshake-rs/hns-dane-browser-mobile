@@ -1089,6 +1089,7 @@ final class HNSSyncViewController: UITableViewController {
 
         switch row {
         case .syncStatus:
+            let syncIsRunning = isOperationInFlight || summary.syncInFlight
             content.text = "Sync status"
             content.secondaryText = Self.statusText(
                 summary: summary,
@@ -1096,7 +1097,7 @@ final class HNSSyncViewController: UITableViewController {
             )
             cell.accessibilityIdentifier = "hns-sync.status"
             cell.selectionStyle = .none
-            if isOperationInFlight {
+            if syncIsRunning {
                 let spinner = UIActivityIndicatorView(style: .medium)
                 spinner.startAnimating()
                 spinner.accessibilityLabel = "Sync running"
@@ -1178,7 +1179,7 @@ final class HNSSyncViewController: UITableViewController {
         summary: BrowserSyncSummary,
         isOperationInFlight: Bool
     ) -> String {
-        var lines = [isOperationInFlight ? "Running…" : summary.headline]
+        var lines = [isOperationInFlight || summary.syncInFlight ? "Running…" : summary.headline]
         if !summary.detail.isEmpty {
             lines.append(summary.detail)
         }

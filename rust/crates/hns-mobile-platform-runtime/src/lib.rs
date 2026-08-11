@@ -1775,6 +1775,7 @@ impl Drop for AdmittedDeliveryPermit<'_> {
 
 struct RuntimeCoordination {
     sync_lock: Mutex<()>,
+    header_sync_progress: Mutex<TransientHeaderSyncProgress>,
     maintenance: RwLock<()>,
     maintenance_epoch: AtomicU64,
     header_state_base: PathBuf,
@@ -1782,6 +1783,58 @@ struct RuntimeCoordination {
     header_sync_lock_path: PathBuf,
     peer_state: Arc<Mutex<()>>,
     relay: SharedDnsRelayState,
+}
+
+/// Process-local, diagnostic-only visibility into the private header stage.
+///
+/// These values must never participate in authority admission. Only the
+/// generation-bound live stores can authorize browsing; this snapshot exists
+/// solely so platform chrome can report validated catch-up progress before an
+/// atomic publication completes.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct TransientHeaderSyncProgress {
+    in_flight: bool,
+    staged_best_height: Option<u32>,
+    staged_accepted: usize,
+}
+
+struct TransientHeaderSyncRun {
+    coordination: Arc<RuntimeCoordination>,
+}
+
+impl TransientHeaderSyncRun {
+    fn begin(
+        coordination: Arc<RuntimeCoordination>,
+        committed_best_height: Option<u32>,
+    ) -> Result<Self, RuntimeError> {
+        *coordination
+            .header_sync_progress
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("header sync progress"))? =
+            TransientHeaderSyncProgress {
+                in_flight: true,
+                staged_best_height: committed_best_height,
+                staged_accepted: 0,
+            };
+        Ok(Self { coordination })
+    }
+
+    fn record(&self, staged_best_height: Option<u32>, staged_accepted: usize) {
+        if let Ok(mut progress) = self.coordination.header_sync_progress.lock()
+            && progress.in_flight
+        {
+            progress.staged_best_height = staged_best_height;
+            progress.staged_accepted = staged_accepted;
+        }
+    }
+}
+
+impl Drop for TransientHeaderSyncRun {
+    fn drop(&mut self) {
+        if let Ok(mut progress) = self.coordination.header_sync_progress.lock() {
+            *progress = TransientHeaderSyncProgress::default();
+        }
+    }
 }
 
 struct RequestMetricsCapture<'a> {
@@ -2215,6 +2268,7 @@ fn runtime_coordination(base: &Path) -> Result<Arc<RuntimeCoordination>, Runtime
         .map_err(RuntimeError::Operation)?;
     let coordination = Arc::new(RuntimeCoordination {
         sync_lock: Mutex::new(()),
+        header_sync_progress: Mutex::new(TransientHeaderSyncProgress::default()),
         maintenance: RwLock::new(()),
         maintenance_epoch: AtomicU64::new(1),
         header_state_base: identity.clone(),
@@ -3261,6 +3315,11 @@ impl BrowserRuntime {
         }
         drop(header_state_lock);
 
+        let transient_progress = TransientHeaderSyncRun::begin(
+            Arc::clone(&self.inner.coordination),
+            current_status.best_height,
+        )?;
+
         let staged = prepare_header_sync_stage(
             &self.inner.data_dir,
             self.inner.configuration.network,
@@ -3273,6 +3332,9 @@ impl BrowserRuntime {
             self.inner.configuration.sync.seed_peers,
             self.inner.configuration.sync.timeout,
             self.inner.configuration.sync.resource_cache_limit_bytes,
+            |staged_best_height, staged_accepted| {
+                transient_progress.record(staged_best_height, staged_accepted);
+            },
         )
         .map_err(RuntimeError::Operation)?;
 
@@ -3388,8 +3450,25 @@ impl BrowserRuntime {
             .read()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
         let _header_state_lock = self.acquire_ready_header_state()?;
-        read_sync_status(&self.inner.data_dir, self.inner.configuration.network)
-            .map_err(RuntimeError::Operation)
+        let mut status = read_sync_status(&self.inner.data_dir, self.inner.configuration.network)
+            .map_err(RuntimeError::Operation)?;
+        let progress = *self
+            .inner
+            .coordination
+            .header_sync_progress
+            .lock()
+            .map_err(|_| RuntimeError::Synchronization("header sync progress"))?;
+        status.sync_in_flight = progress.in_flight;
+        status.staged_best_height = progress
+            .in_flight
+            .then_some(progress.staged_best_height)
+            .flatten();
+        status.staged_accepted = if progress.in_flight {
+            progress.staged_accepted
+        } else {
+            0
+        };
+        Ok(status)
     }
 
     /// Returns the authoritative Handshake name-tree epoch used to scope validated HTTP objects.
@@ -15009,6 +15088,7 @@ fn run_sync_once(
     seed_on_empty: bool,
     timeout: Duration,
     resource_cache_limit_bytes: usize,
+    mut on_progress: impl FnMut(Option<u32>, usize),
 ) -> Result<NativeSyncStatus, String> {
     let base = network_base_path(data_dir, network_kind);
     let peer_store_path = base.join("peers.sqlite");
@@ -15064,12 +15144,18 @@ fn run_sync_once(
         },
     );
     let result = runner
-        .sync_once_parallel_and_persist_with_completion_time(
+        .sync_once_parallel_and_persist_with_completion_time_and_progress(
             &mut coordinator,
             &mut peers,
             &peer_store,
             now_unix_seconds(),
             now_unix_seconds,
+            |progress| {
+                on_progress(
+                    progress.best_height.map(|height| height.0),
+                    progress.accepted,
+                );
+            },
         )
         .map_err(|error| format!("sync headers: {error}"))?;
     let best = coordinator
@@ -15119,6 +15205,9 @@ fn run_sync_once(
         attempted: result.attempted,
         successful: result.successful,
         accepted: result.accepted,
+        sync_in_flight: false,
+        staged_best_height: None,
+        staged_accepted: 0,
         failed,
         peer_count,
         peer_groups,
@@ -15175,7 +15264,9 @@ fn classify_sync_status(
             "synced"
         }
     } else if successful > 0 {
-        if is_sync_behind(best_height, effective_target_height) {
+        if is_sync_behind(best_height, effective_target_height)
+            || is_sync_target_unknown(best_height, effective_target_height)
+        {
             "syncing"
         } else {
             "up_to_date"
@@ -15771,6 +15862,9 @@ fn read_sync_status(data_dir: &str, network: NetworkKind) -> Result<NativeSyncSt
         attempted: 0,
         successful: 0,
         accepted: 0,
+        sync_in_flight: false,
+        staged_best_height: None,
+        staged_accepted: 0,
         failed: 0,
         peer_count: peers.len(),
         peer_groups: peers.address_group_count(now),
@@ -15948,6 +16042,14 @@ pub struct SyncStatus {
     pub attempted: usize,
     pub successful: usize,
     pub accepted: usize,
+    /// True only while this process is validating a private header stage.
+    /// It is diagnostic and never authorizes browsing.
+    pub sync_in_flight: bool,
+    /// Best validated height in the private stage, if a sync is in flight.
+    /// The authoritative committed height remains [`Self::best_height`].
+    pub staged_best_height: Option<u32>,
+    /// Cumulative headers validated into the current private stage.
+    pub staged_accepted: usize,
     pub failed: usize,
     pub peer_count: usize,
     pub peer_groups: usize,
@@ -15991,6 +16093,9 @@ impl SyncStatus {
             attempted: 0,
             successful: 0,
             accepted: 0,
+            sync_in_flight: false,
+            staged_best_height: None,
+            staged_accepted: 0,
             failed: 0,
             peer_count: 0,
             peer_groups: 0,
@@ -16029,6 +16134,9 @@ impl SyncStatus {
             attempted: 0,
             successful: 0,
             accepted: 0,
+            sync_in_flight: false,
+            staged_best_height: None,
+            staged_accepted: 0,
             failed: 0,
             peer_count: 0,
             peer_groups: 0,
@@ -16073,6 +16181,10 @@ impl SyncStatus {
             .effective_target_height
             .map(|height| height.to_string())
             .unwrap_or_else(|| "null".to_owned());
+        let staged_best_height = self
+            .staged_best_height
+            .map(|height| height.to_string())
+            .unwrap_or_else(|| "null".to_owned());
         let lag_blocks = self
             .lag_blocks
             .map(|lag| lag.to_string())
@@ -16107,13 +16219,16 @@ impl SyncStatus {
             .join(",");
 
         format!(
-            r#"{{"syncStatusSchemaVersion":{},"network":"{}","status":"{}","attempted":{},"successful":{},"accepted":{},"failed":{},"peerCount":{},"peerGroups":{},"bestHeight":{},"bestPeerHeight":{},"estimatedTipHeight":{},"effectiveTargetHeight":{},"lagBlocks":{},"freshness":"{}","freshnessThresholdBlocks":{},"treeIntervalBlocks":{},"authoritativeTreeRootHeight":{},"localTreeRootHeight":{},"treeRootReady":{},"blocksUntilAuthoritativeTreeRoot":{},"targetSource":"{}","targetPeerGroups":{},"targetEvidenceExpired":{},"targetEvidenceValidUntilUnix":{},"resourceCacheEntries":{},"resourceCacheBytes":{},"resourceCacheEvicted":{},"error":{},"failures":[{}]}}"#,
+            r#"{{"syncStatusSchemaVersion":{},"network":"{}","status":"{}","attempted":{},"successful":{},"accepted":{},"syncInFlight":{},"stagedBestHeight":{},"stagedAccepted":{},"failed":{},"peerCount":{},"peerGroups":{},"bestHeight":{},"bestPeerHeight":{},"estimatedTipHeight":{},"effectiveTargetHeight":{},"lagBlocks":{},"freshness":"{}","freshnessThresholdBlocks":{},"treeIntervalBlocks":{},"authoritativeTreeRootHeight":{},"localTreeRootHeight":{},"treeRootReady":{},"blocksUntilAuthoritativeTreeRoot":{},"targetSource":"{}","targetPeerGroups":{},"targetEvidenceExpired":{},"targetEvidenceValidUntilUnix":{},"resourceCacheEntries":{},"resourceCacheBytes":{},"resourceCacheEvicted":{},"error":{},"failures":[{}]}}"#,
             SYNC_STATUS_SCHEMA_VERSION,
             self.network.as_str(),
             self.status,
             self.attempted,
             self.successful,
             self.accepted,
+            self.sync_in_flight,
+            staged_best_height,
+            self.staged_accepted,
             self.failed,
             self.peer_count,
             self.peer_groups,
@@ -18596,6 +18711,31 @@ mod tests {
     }
 
     #[test]
+    fn browser_runtime_sync_status_overlays_only_live_transient_progress() {
+        let data_dir = temp_dir_path("browser-runtime-transient-sync-progress");
+        let runtime =
+            BrowserRuntime::open(RuntimeConfiguration::new(&data_dir, NetworkKind::Regtest))
+                .unwrap();
+        let run = TransientHeaderSyncRun::begin(Arc::clone(&runtime.inner.coordination), Some(0))
+            .unwrap();
+        run.record(Some(42), 42);
+
+        let in_flight = runtime.sync_status().unwrap();
+        assert_eq!(in_flight.best_height, Some(0));
+        assert!(in_flight.sync_in_flight);
+        assert_eq!(in_flight.staged_best_height, Some(42));
+        assert_eq!(in_flight.staged_accepted, 42);
+
+        drop(run);
+        let completed = runtime.sync_status().unwrap();
+        assert_eq!(completed.best_height, Some(0));
+        assert!(!completed.sync_in_flight);
+        assert_eq!(completed.staged_best_height, None);
+        assert_eq!(completed.staged_accepted, 0);
+        cleanup_dir(&data_dir);
+    }
+
+    #[test]
     fn browser_runtime_sync_takes_exclusive_maintenance_lock() {
         let data_dir = temp_dir_path("browser-runtime-sync-maintenance-write");
         let runtime = BrowserRuntime::open(
@@ -18617,6 +18757,25 @@ mod tests {
             receiver.recv_timeout(Duration::from_millis(100)),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout)
         ));
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let in_flight = loop {
+            let progress = *runtime
+                .inner
+                .coordination
+                .header_sync_progress
+                .lock()
+                .unwrap();
+            if progress.in_flight {
+                break progress;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "sync did not expose transient stage progress"
+            );
+            thread::sleep(Duration::from_millis(1));
+        };
+        assert_eq!(in_flight.staged_best_height, Some(0));
+        assert_eq!(in_flight.staged_accepted, 0);
         drop(maintenance);
         assert!(
             receiver
@@ -18625,6 +18784,10 @@ mod tests {
                 .is_ok()
         );
         call.join().unwrap();
+        let completed = runtime.sync_status().unwrap();
+        assert!(!completed.sync_in_flight);
+        assert_eq!(completed.staged_best_height, None);
+        assert_eq!(completed.staged_accepted, 0);
         cleanup_dir(&data_dir);
     }
 
@@ -20636,6 +20799,9 @@ mod tests {
             attempted: 1,
             successful: 0,
             accepted: 0,
+            sync_in_flight: false,
+            staged_best_height: None,
+            staged_accepted: 0,
             failed: 1,
             peer_count: 1,
             peer_groups: 1,
@@ -20670,6 +20836,9 @@ mod tests {
 
         assert!(json.contains(r#""status":"peer_failed""#));
         assert!(json.contains(r#""failed":1"#));
+        assert!(json.contains(r#""syncInFlight":false"#));
+        assert!(json.contains(r#""stagedBestHeight":null"#));
+        assert!(json.contains(r#""stagedAccepted":0"#));
         assert!(json.contains(r#""estimatedTipHeight":335684"#));
         assert!(json.contains(r#""effectiveTargetHeight":null"#));
         assert!(json.contains(r#""lagBlocks":null"#));
@@ -20704,6 +20873,10 @@ mod tests {
         );
         assert_eq!(
             classify_sync_status(4, 1, 0, 3, false, Some(93_344), Some(335_684)),
+            "syncing",
+        );
+        assert_eq!(
+            classify_sync_status(4, 1, 0, 3, false, Some(93_344), None),
             "syncing",
         );
         assert_eq!(

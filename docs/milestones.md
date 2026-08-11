@@ -163,8 +163,8 @@
   lockfile, source policy, and notices are aligned.
 - Mobile engine source unification remains complete: every adapter and
   canonical contract resolves as `0.2.0` from pinned source
-  `0346c25973d5c91de94d49b47349ec9b9efce3a0`; the temporary crates.io patch
-  bridge is removed, and the ECH-capable pin requires fresh platform
+  `6fe6e25bd0a8ea639509068e1e96cf23e519bacf`; the temporary crates.io patch
+  bridge is removed, and the ECH-and-sync-telemetry pin requires fresh platform
   qualification. The standalone HNSA/HNSR-capable facade remains excluded
   until upstream provides a mobile-safe dependency boundary that does not pull
   its OpenSSL-backed public DANE/DNSSEC stack into Android and Apple closures.

@@ -177,15 +177,18 @@ final class BrowserRuntimePolicyStore {
 
 struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
     let progressInterval: TimeInterval
+    let retryInterval: TimeInterval
     let caughtUpInterval: TimeInterval
     let failureBackoff: [TimeInterval]
 
     init(
         progressInterval: TimeInterval = 30,
+        retryInterval: TimeInterval = 10,
         caughtUpInterval: TimeInterval = 600,
         failureBackoff: [TimeInterval] = [5, 15, 60]
     ) {
         self.progressInterval = progressInterval
+        self.retryInterval = retryInterval
         self.caughtUpInterval = caughtUpInterval
         self.failureBackoff = failureBackoff
     }
@@ -197,6 +200,12 @@ struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
         if summary?.isCaughtUp == true {
             return caughtUpInterval
         }
-        return summary?.madeHeaderProgress == true ? progressInterval : caughtUpInterval
+        if summary?.madeHeaderProgress == true {
+            return progressInterval
+        }
+        if summary?.hasUnknownTargetProgress == true {
+            return retryInterval
+        }
+        return caughtUpInterval
     }
 }

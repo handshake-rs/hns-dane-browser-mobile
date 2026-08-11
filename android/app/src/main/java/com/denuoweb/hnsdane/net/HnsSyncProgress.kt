@@ -15,6 +15,9 @@ data class HnsSyncProgress(
     val successful: Long?,
     val accepted: Long?,
     val failed: Long?,
+    val syncInFlight: Boolean,
+    val stagedBestHeight: Long?,
+    val stagedAccepted: Long?,
     val peerCount: Long?,
     val peerGroups: Long?,
     val estimatedTipHeight: Long?,
@@ -33,6 +36,9 @@ data class HnsSyncProgress(
 ) {
     val targetHeight: Long?
         get() = effectiveTargetHeight
+
+    private val displayStatus: String
+        get() = if (syncInFlight) "syncing" else status.ifBlank { "idle" }
 
     val isBehind: Boolean
         get() {
@@ -96,24 +102,37 @@ data class HnsSyncProgress(
                 targetEvidenceExpired == false
         }
 
+    /**
+     * Whether the global diagnostic sync indicator should be visible.
+     *
+     * This is deliberately stricter than [isAuthorityReady]: the latest committed
+     * name-tree root can remain safe to browse while newer headers are still being
+     * synchronized. UI visibility must not be used as a navigation security gate.
+     */
+    val shouldShowProgress: Boolean
+        get() = syncInFlight || !isCurrent
+
     val shouldContinueSoon: Boolean
         get() = status == "syncing" &&
             (accepted ?: 0L) > 0L
 
     val shouldRetrySoon: Boolean
-        get() = status in RETRY_STATUSES || needsPeerDiscovery
+        get() = status in RETRY_STATUSES || needsPeerDiscovery || hasUnknownTargetProgress
 
     val hasUnknownTargetProgress: Boolean
-        get() = bestHeight != null &&
+        get() = syncStatusSchemaVersion == CURRENT_SCHEMA_VERSION &&
+            network != "regtest" &&
+            bestHeight != null &&
             bestHeight > 0L &&
-            effectiveTargetHeight == null &&
-            ((accepted ?: 0L) > 0L || status == "syncing")
+            effectiveTargetHeight == null
 
     val needsPeerDiscovery: Boolean
         get() = status == "idle" && (peerCount ?: 0L) == 0L
 
     fun progressPermille(): Int? {
-        val best = bestHeight ?: return null
+        // Staged height is presentation-only. Authority and navigation decisions
+        // continue to use the committed fields above.
+        val best = stagedBestHeight?.takeIf { syncInFlight } ?: bestHeight ?: return null
         val target = targetHeight ?: return null
         if (target <= 0L) return null
         return ((best.coerceIn(0L, target) * 1000L) / target).toInt()
@@ -121,6 +140,9 @@ data class HnsSyncProgress(
 
     fun summary(): String {
         val formattedBest = bestHeight?.formatHeight() ?: "unknown"
+        val committedAndStaged = stagedBestHeight?.takeIf { syncInFlight }?.let {
+            "committed $formattedBest • staged validated ${it.formatHeight()}"
+        } ?: formattedBest
         val target = targetHeight
         val targetPart = when {
             isBehind && target != null -> "target ${target.formatHeight()}"
@@ -139,19 +161,30 @@ data class HnsSyncProgress(
             estimatedTipHeight != null -> " • estimate ${estimatedTipHeight.formatHeight()}"
             else -> ""
         }
-        val acceptedPart = accepted
-            ?.takeIf { it > 0L }
-            ?.let { " • accepted +${it.formatHeight()}" }
-            .orEmpty()
+        val acceptedPart = if (syncInFlight) {
+            stagedAccepted?.let { " • staged accepted +${it.formatHeight()}" }.orEmpty()
+        } else {
+            accepted
+                ?.takeIf { it > 0L }
+                ?.let { " • accepted +${it.formatHeight()}" }
+                .orEmpty()
+        }
         val peerPart = peerCount
             ?.takeIf { it > 0L }
             ?.let { " • peers ${it.formatHeight()}" }
             .orEmpty()
-        return "${status.ifBlank { "idle" }} • bestHeight $formattedBest • $targetPart$authorityPart$diagnosticPart$acceptedPart$peerPart"
+        return "$displayStatus • bestHeight $committedAndStaged • $targetPart$authorityPart$diagnosticPart$acceptedPart$peerPart"
     }
 
     fun summary(context: Context): String {
         val formattedBest = bestHeight?.formatHeight(context) ?: context.getString(R.string.common_unknown)
+        val committedAndStaged = stagedBestHeight?.takeIf { syncInFlight }?.let {
+            context.getString(
+                R.string.sync_progress_committed_and_staged,
+                formattedBest,
+                it.formatHeight(context),
+            )
+        } ?: formattedBest
         val target = targetHeight
         val targetPart = when {
             isBehind && target != null -> context.getString(R.string.sync_progress_target, target.formatHeight(context))
@@ -170,10 +203,16 @@ data class HnsSyncProgress(
             estimatedTipHeight != null -> " • estimate ${estimatedTipHeight.formatHeight(context)}"
             else -> ""
         }
-        val acceptedPart = accepted
-            ?.takeIf { it > 0L }
-            ?.let { " • ${context.getString(R.string.sync_progress_accepted, it.formatHeight(context))}" }
-            .orEmpty()
+        val acceptedPart = if (syncInFlight) {
+            stagedAccepted?.let {
+                " • ${context.getString(R.string.sync_progress_staged_accepted, it.formatHeight(context))}"
+            }.orEmpty()
+        } else {
+            accepted
+                ?.takeIf { it > 0L }
+                ?.let { " • ${context.getString(R.string.sync_progress_accepted, it.formatHeight(context))}" }
+                .orEmpty()
+        }
         val peerPart = peerCount
             ?.takeIf { it > 0L }
             ?.let { " • ${context.getString(R.string.sync_progress_peers, it.formatHeight(context))}" }
@@ -181,7 +220,7 @@ data class HnsSyncProgress(
         return context.getString(
             R.string.sync_progress_summary,
             statusLabel(context),
-            formattedBest,
+            committedAndStaged,
             targetPart,
             authorityPart + diagnosticPart + acceptedPart,
             peerPart,
@@ -195,14 +234,14 @@ data class HnsSyncProgress(
         NumberFormat.getIntegerInstance(context.resources.configuration.locales[0] ?: Locale.getDefault()).format(this)
 
     private fun statusLabel(context: Context): String =
-        when (status.ifBlank { "idle" }) {
+        when (displayStatus) {
             "idle" -> context.getString(R.string.sync_status_idle)
             "syncing" -> context.getString(R.string.sync_status_syncing)
             "up_to_date" -> context.getString(R.string.sync_status_up_to_date)
             "error" -> context.getString(R.string.sync_status_error)
             "seed_failed" -> context.getString(R.string.sync_status_seed_failed)
             "peer_failed" -> context.getString(R.string.sync_status_peer_failed)
-            else -> status.replace('_', ' ')
+            else -> displayStatus.replace('_', ' ')
         }
 
     companion object {
@@ -222,6 +261,9 @@ data class HnsSyncProgress(
                     successful = null,
                     accepted = null,
                     failed = null,
+                    syncInFlight = false,
+                    stagedBestHeight = null,
+                    stagedAccepted = null,
                     peerCount = null,
                     peerGroups = null,
                     estimatedTipHeight = null,
@@ -249,6 +291,9 @@ data class HnsSyncProgress(
                 successful = longField(statusJson, "successful"),
                 accepted = longField(statusJson, "accepted"),
                 failed = longField(statusJson, "failed"),
+                syncInFlight = booleanField(statusJson, "syncInFlight") ?: false,
+                stagedBestHeight = longField(statusJson, "stagedBestHeight"),
+                stagedAccepted = longField(statusJson, "stagedAccepted"),
                 peerCount = longField(statusJson, "peerCount"),
                 peerGroups = longField(statusJson, "peerGroups"),
                 estimatedTipHeight = longField(statusJson, "estimatedTipHeight"),

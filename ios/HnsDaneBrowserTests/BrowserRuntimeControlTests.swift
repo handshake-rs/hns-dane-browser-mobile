@@ -1055,6 +1055,99 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
     }
 
+    func testSyncSchedulingRetriesUnknownTargetPromptlyWithoutChangingProgressCadence() {
+        let policy = BrowserSyncSchedulingPolicy(
+            progressInterval: 30,
+            retryInterval: 10,
+            caughtUpInterval: 600
+        )
+        let unknownTarget = BrowserSyncSummary(
+            headline: "Syncing",
+            detail: "Waiting for corroborated target",
+            syncStatusSchemaVersion: 3,
+            status: "up_to_date",
+            network: BrowserHandshakeNetwork.mainnet.rawValue,
+            accepted: 0,
+            bestHeight: 300_000
+        )
+        let progressing = BrowserSyncSummary(
+            headline: "Syncing",
+            detail: "Validating headers",
+            status: "syncing",
+            accepted: 2_000,
+            bestHeight: 302_000
+        )
+        let regtest = BrowserSyncSummary(
+            headline: "Syncing",
+            detail: "Local regression-test network",
+            syncStatusSchemaVersion: 3,
+            status: "syncing",
+            network: BrowserHandshakeNetwork.regtest.rawValue,
+            accepted: 0,
+            bestHeight: 42
+        )
+
+        XCTAssertTrue(unknownTarget.hasUnknownTargetProgress)
+        XCTAssertEqual(policy.delay(after: unknownTarget, consecutiveFailures: 0), 10)
+        XCTAssertEqual(policy.delay(after: progressing, consecutiveFailures: 0), 30)
+        XCTAssertFalse(regtest.hasUnknownTargetProgress)
+        XCTAssertEqual(policy.delay(after: regtest, consecutiveFailures: 0), 600)
+    }
+
+    func testSyncDiagnosticVisibilityTransitionsFromCurrentToInFlightAndBack() throws {
+        let current = try RustBrowserRuntime.syncSummary(from: publicAuthorityStatus())
+        XCTAssertTrue(current.isCaughtUp)
+        XCTAssertFalse(current.shouldShowSyncProgress)
+
+        var inFlightStatus = publicAuthorityStatus()
+        inFlightStatus["syncInFlight"] = true
+        inFlightStatus["stagedBestHeight"] = 339_344
+        inFlightStatus["stagedAccepted"] = 36
+        let inFlight = try RustBrowserRuntime.syncSummary(from: inFlightStatus)
+
+        XCTAssertTrue(inFlight.isCaughtUp, "staged telemetry must not change committed currentness")
+        XCTAssertTrue(inFlight.shouldShowSyncProgress)
+        XCTAssertEqual(inFlight.bestHeight, 339_308)
+        XCTAssertEqual(inFlight.displayedSyncHeight, 339_344)
+        XCTAssertEqual(inFlight.syncProgressFraction, 1)
+        XCTAssertEqual(inFlight.headline, "Syncing Handshake headers")
+        XCTAssertTrue(inFlight.syncDiagnosticText.contains("Committed 339308"))
+        XCTAssertTrue(inFlight.syncDiagnosticText.contains("staged validated 339344"))
+        XCTAssertTrue(inFlight.syncDiagnosticText.contains("staged accepted +36"))
+        XCTAssertTrue(
+            HNSSyncViewController.statusText(
+                summary: inFlight,
+                isOperationInFlight: false
+            ).hasPrefix("Running…")
+        )
+
+        var stagedOnlyStatus = publicAuthorityStatus(
+            status: "syncing",
+            bestHeight: 339_000,
+            treeRootReady: false,
+            blocksUntilAuthority: 301
+        )
+        stagedOnlyStatus["syncInFlight"] = true
+        stagedOnlyStatus["stagedBestHeight"] = 339_308
+        stagedOnlyStatus["stagedAccepted"] = 308
+        let stagedOnly = try RustBrowserRuntime.syncSummary(from: stagedOnlyStatus)
+        XCTAssertFalse(stagedOnly.hasAuthoritativeTreeRoot)
+        XCTAssertFalse(stagedOnly.isCaughtUp)
+        XCTAssertFalse(
+            BrowserAuthorityAdmissionPolicy().allowsProxyResume(
+                network: .mainnet,
+                isForeground: true,
+                syncSummary: stagedOnly
+            ),
+            "private staged progress must never authorize browsing"
+        )
+
+        let currentAgain = try RustBrowserRuntime.syncSummary(from: publicAuthorityStatus())
+        XCTAssertFalse(currentAgain.shouldShowSyncProgress)
+        XCTAssertEqual(currentAgain.displayedSyncHeight, currentAgain.bestHeight)
+        XCTAssertEqual(currentAgain.headline, "Handshake headers current")
+    }
+
     func testIOSRecognizesAndroidCurrentSyncStates() throws {
         let policy = BrowserSyncSchedulingPolicy()
         for status in ["up_to_date", "synced", "attempted"] {
@@ -1419,6 +1512,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "attempted": 4,
             "successful": 3,
             "accepted": 2,
+            "syncInFlight": true,
+            "stagedBestHeight": 251_024,
+            "stagedAccepted": 1_024,
             "failed": 1,
             "peerCount": 8,
             "peerGroups": 3,
@@ -1450,6 +1546,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(summary.attempted, 4)
         XCTAssertEqual(summary.successful, 3)
         XCTAssertEqual(summary.accepted, 2)
+        XCTAssertTrue(summary.syncInFlight)
+        XCTAssertEqual(summary.stagedBestHeight, 251_024)
+        XCTAssertEqual(summary.stagedAccepted, 1_024)
         XCTAssertEqual(summary.failed, 1)
         XCTAssertEqual(summary.peerCount, 8)
         XCTAssertEqual(summary.peerGroups, 3)

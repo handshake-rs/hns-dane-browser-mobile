@@ -344,6 +344,9 @@ final class RustBrowserRuntime: BrowserRuntime {
         let attempted = nonnegativeInt(in: object, key: "attempted") ?? 0
         let successful = nonnegativeInt(in: object, key: "successful") ?? 0
         let accepted = nonnegativeInt(in: object, key: "accepted") ?? 0
+        let syncInFlight = boolean(in: object, key: "syncInFlight") ?? false
+        let stagedBestHeight = unsignedInteger(in: object, key: "stagedBestHeight")
+        let stagedAccepted = nonnegativeInt(in: object, key: "stagedAccepted") ?? 0
         let failed = nonnegativeInt(in: object, key: "failed") ?? 0
         let cacheEntries = nonnegativeInt(in: object, key: "resourceCacheEntries") ?? 0
         let cacheBytes = unsignedInteger(in: object, key: "resourceCacheBytes") ?? 0
@@ -390,7 +393,9 @@ final class RustBrowserRuntime: BrowserRuntime {
             && hasAuthoritativeCurrentness
 
         let headline: String
-        if isCurrent {
+        if syncInFlight {
+            headline = "Syncing Handshake headers"
+        } else if isCurrent {
             headline = "Handshake headers current"
         } else if hasAuthoritativeTreeRoot {
             headline = "Handshake name state ready"
@@ -417,7 +422,16 @@ final class RustBrowserRuntime: BrowserRuntime {
             let estimate = estimatedTipHeight.map(String.init) ?? "unknown"
             let root = authoritativeTreeRootHeight.map(String.init) ?? "unknown"
             let rootState = hasAuthoritativeTreeRoot ? "ready" : "waiting"
-            detail = "Local height \(best) · effective target \(target) · HNS root \(root) \(rootState) · freshness \(freshness) · raw peer \(peer) · estimate \(estimate) · accepted \(accepted)/\(attempted)"
+            let height: String
+            if syncInFlight, let stagedBestHeight {
+                height = "Committed \(best) · staged validated \(stagedBestHeight)"
+            } else {
+                height = "Local height \(best)"
+            }
+            let acceptedDetail = syncInFlight
+                ? "staged accepted +\(stagedAccepted)"
+                : "accepted \(accepted)/\(attempted)"
+            detail = "\(height) · effective target \(target) · HNS root \(root) \(rootState) · freshness \(freshness) · raw peer \(peer) · estimate \(estimate) · \(acceptedDetail)"
         }
 
         return BrowserSyncSummary(
@@ -429,6 +443,9 @@ final class RustBrowserRuntime: BrowserRuntime {
             attempted: attempted,
             successful: successful,
             accepted: accepted,
+            syncInFlight: syncInFlight,
+            stagedBestHeight: stagedBestHeight,
+            stagedAccepted: stagedAccepted,
             failed: failed,
             peerCount: nonnegativeInt(in: object, key: "peerCount") ?? 0,
             peerGroups: nonnegativeInt(in: object, key: "peerGroups") ?? 0,

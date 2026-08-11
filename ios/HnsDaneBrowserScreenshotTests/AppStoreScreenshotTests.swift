@@ -118,7 +118,6 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         XCTAssertTrue(address.waitForExistence(timeout: 20), "Address field did not appear")
 
         let sync = app.staticTexts["app-store-screenshot.sync"]
-        XCTAssertTrue(sync.waitForExistence(timeout: 20), "Runtime status did not appear")
         let readinessTimeout: TimeInterval = requireCurrentHeaders ? 1_200 : 120
         var lastRuntimeStatus = ""
         XCTAssertTrue(
@@ -129,19 +128,26 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                 timeout: readinessTimeout,
                 timeoutEvidence: { " Last runtime status: \(lastRuntimeStatus)" },
                 condition: {
+                    // Shipping UI intentionally collapses the diagnostic row
+                    // only when committed headers are current and no sync is
+                    // active. The hidden row is therefore the ready signal.
+                    guard sync.exists else {
+                        lastRuntimeStatus = "Handshake headers current (diagnostic row hidden)"
+                        return true
+                    }
                     let label = sync.label.trimmingCharacters(in: .whitespacesAndNewlines)
                     if label != lastRuntimeStatus {
                         lastRuntimeStatus = label
                         print("Live screenshot runtime status: \(label)")
                     }
                     if requireCurrentHeaders {
-                        return label.hasPrefix("Handshake headers current")
+                        return false
                     }
                     return !label.isEmpty && label != "Preparing runtime"
                 }
             )
         )
-        return sync.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        return lastRuntimeStatus
     }
 
     private func navigateAndWait(

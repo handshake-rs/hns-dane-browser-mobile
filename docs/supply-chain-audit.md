@@ -18,7 +18,7 @@ projection and remains historical. The pre-ECH code-bearing source
 `31433931682`, CodeQL `31433931259`, and Code Quality `31433931278`.
 Its exact debug artifact subsequently installed and cold-launched on a Pixel 9;
 the installed APK digest and fail-closed native wallet UI matched expectations.
-The current ECH-capable source requires fresh exact-source CI and platform
+The current ECH-and-sync-telemetry source requires fresh exact-source CI and platform
 evidence.
 Signing, exact screenshots, store declaration/readback and upload, and the
 physical-iPhone matrix remain open.
@@ -59,7 +59,7 @@ been built or submitted.
 - Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums. Git inputs are limited to named `hns-dane-engine`, `hns-wallet-rs`, and transitive `hns-rs` packages at exact reviewed full revisions; unreviewed Git sources and restored local engine paths are denied.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
 - Gradle 9.6.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
-- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. The five canonical contracts and consolidated private mobile adapters resolve as exact `0.2.0` requirements from pinned `hns-dane-engine` source `0346c25973d5c91de94d49b47349ec9b9efce3a0`; the temporary crates.io patch bridge is removed, and the ECH-capable source requires fresh platform qualification. The standalone facade is excluded because its current public DANE/DNSSEC dependencies would add OpenSSL to Android and Apple target closures. Focused policy tests reject unreviewed Git inputs, moving requirements, split revisions, alternate sources, restored local engine crates, stale engine path dependencies, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
+- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. The five canonical contracts and consolidated private mobile adapters resolve as exact `0.2.0` requirements from pinned `hns-dane-engine` source `6fe6e25bd0a8ea639509068e1e96cf23e519bacf`; the temporary crates.io patch bridge is removed, and the ECH-and-sync-telemetry source requires fresh platform qualification. The standalone facade is excluded because its current public DANE/DNSSEC dependencies would add OpenSSL to Android and Apple target closures. Focused policy tests reject unreviewed Git inputs, moving requirements, split revisions, alternate sources, restored local engine crates, stale engine path dependencies, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
 - Android JNI release builds reject unknown profiles, compiler/linker/profile overrides, and unexpected cargo-ndk/NDK versions; use `--locked`; force the release profile; require both ABI outputs; and restrict cleanup to `android/app/build`. Path-prefix maps remove checkout, home, Cargo, Rustup, and NDK paths while retaining line-table debug information for AGP. Gradle pins AGP to NDK `28.2.13676358`, treats the NDK location and `source.properties` as incremental inputs, and includes Rust `.txt` data files such as the ICANN TLD snapshot.
 - The required Android job now enables KVM and runs the focused fresh-runtime
   regression plus paired HNS/ICANN Proof Details activity instrumentation on a
@@ -158,7 +158,7 @@ been built or submitted.
   not the Play AAB or unchanged iOS build.
 - Current source consumes the consolidated mobile engine adapters and canonical
   contracts from exact pinned engine `0.2.0` source
-  `0346c25973d5c91de94d49b47349ec9b9efce3a0`; this ECH-capable pin requires
+  `6fe6e25bd0a8ea639509068e1e96cf23e519bacf`; this ECH-and-sync-telemetry pin requires
   fresh platform qualification, and the standalone facade is not a mobile
   input. All other Cargo Git inputs are limited to the exact reviewed wallet
   and transitive protocol revisions.

@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Added process-local, diagnostic-only header-sync telemetry for the private
+  validation stage. Android and iOS can now show the staged validated height
+  and cumulative accepted headers while the committed database remains the
+  sole authority for browsing.
 - Added end-to-end RFC 9848/9849 Encrypted ClientHello for HTTPS and secure
   WebSocket origins. The resolver retains a compatible ECHConfigList from the
   selected root-scoped HTTPS/SVCB record, and the shared Rust transport uses
@@ -14,6 +18,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Android and iOS now keep their global header-sync diagnostics visible while
+  a sync is in flight or committed headers are not current, then collapse them
+  only after committed currentness is restored. A schema-v3 mainnet/testnet
+  sync with a non-genesis height but no corroborated target retries after ten
+  seconds; accepted progress retains the existing active cadence, and regtest
+  retains the idle cadence.
 - HTTPS/SVCB records are now filtered for client compatibility before service
   priority selection. Valid but unsupported optional ECH is ignored, mandatory
   unsupported ECH makes that record ineligible, malformed ECH rejects the
@@ -29,7 +39,7 @@ All notable changes to this project will be documented in this file.
 ### Qualification
 
 - This source and pinned engine revision
-  `0346c25973d5c91de94d49b47349ec9b9efce3a0` require fresh exact-commit Rust,
+  `6fe6e25bd0a8ea639509068e1e96cf23e519bacf` require fresh exact-commit Rust,
   Android, Apple, CodeQL, installed-product, and live-network evidence.
 
 ## 0.5.9 - 2026-08-10

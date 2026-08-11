@@ -758,7 +758,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-chain"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-browser-primitives",
  "rusqlite",
@@ -768,7 +768,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-dane"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-browser-dnssec",
  "hns-browser-primitives",
@@ -780,7 +780,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-dnssec"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-browser-primitives",
  "num-bigint",
@@ -795,7 +795,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-gateway"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-browser-dane",
  "hns-browser-primitives",
@@ -810,7 +810,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-loopback-proxy"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "base64",
  "hns-browser-dane",
@@ -830,7 +830,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-observability"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-browser-runtime",
  "hns-icann-dane",
@@ -842,7 +842,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-p2p"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "getrandom 0.3.4",
  "hns-browser-primitives",
@@ -854,7 +854,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-primitives"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "blake2",
  "hex",
@@ -868,7 +868,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-resolver"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-browser-dane",
  "hns-browser-dnssec",
@@ -882,12 +882,12 @@ dependencies = [
 [[package]]
 name = "hns-browser-runtime"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 
 [[package]]
 name = "hns-browser-sync"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-browser-chain",
  "hns-browser-p2p",
@@ -899,7 +899,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-transport"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "bytes",
  "h2",
@@ -920,7 +920,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-urkel"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-browser-primitives",
  "thiserror 2.0.19",
@@ -929,7 +929,7 @@ dependencies = [
 [[package]]
 name = "hns-cache"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 dependencies = [
  "hns-dns-wire",
  "sha2",
@@ -951,7 +951,7 @@ dependencies = [
 [[package]]
 name = "hns-dns-wire"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 
 [[package]]
 name = "hns-encoding"
@@ -964,7 +964,7 @@ dependencies = [
 [[package]]
 name = "hns-icann-dane"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 
 [[package]]
 name = "hns-mobile-platform-runtime"
@@ -997,7 +997,7 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 
 [[package]]
 name = "hns-primitives"
@@ -1011,7 +1011,7 @@ dependencies = [
 [[package]]
 name = "hns-resolution-policy"
 version = "0.2.0"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=0346c25973d5c91de94d49b47349ec9b9efce3a0#0346c25973d5c91de94d49b47349ec9b9efce3a0"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6fe6e25bd0a8ea639509068e1e96cf23e519bacf#6fe6e25bd0a8ea639509068e1e96cf23e519bacf"
 
 [[package]]
 name = "hns-script"

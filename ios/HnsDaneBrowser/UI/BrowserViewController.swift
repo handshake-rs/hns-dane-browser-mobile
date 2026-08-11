@@ -32,6 +32,7 @@ final class BrowserViewController: UIViewController {
     private let addressField = UITextField()
     private let securityLabel = UILabel()
     private let syncLabel = UILabel()
+    private let syncProgressView = UIProgressView(progressViewStyle: .bar)
     private let progressView = UIProgressView(progressViewStyle: .bar)
     private let webContainer = UIView()
     private let placeholderLabel = UILabel()
@@ -179,10 +180,14 @@ final class BrowserViewController: UIViewController {
         syncLabel.font = .preferredFont(forTextStyle: .caption2)
         syncLabel.adjustsFontForContentSizeCategory = true
         syncLabel.textColor = .tertiaryLabel
-        syncLabel.numberOfLines = 1
-        syncLabel.textAlignment = .right
+        syncLabel.numberOfLines = 0
+        syncLabel.textAlignment = .left
         syncLabel.text = "Preparing runtime"
         syncLabel.accessibilityIdentifier = "app-store-screenshot.sync"
+
+        syncProgressView.progress = 0
+        syncProgressView.accessibilityLabel = "Handshake header sync progress"
+        syncProgressView.accessibilityIdentifier = "hns-sync.progress"
 
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
         placeholderLabel.font = .preferredFont(forTextStyle: .title3)
@@ -210,15 +215,15 @@ final class BrowserViewController: UIViewController {
         shareButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
         controlsButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
 
-        let statusRow = UIStackView(arrangedSubviews: [securityLabel, syncLabel])
-        statusRow.axis = .horizontal
-        statusRow.alignment = .firstBaseline
-        statusRow.distribution = .fill
-        statusRow.spacing = 8
-        securityLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        syncLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        let chrome = UIStackView(arrangedSubviews: [addressRow, statusRow, progressView])
+        let chrome = UIStackView(
+            arrangedSubviews: [
+                addressRow,
+                securityLabel,
+                syncProgressView,
+                syncLabel,
+                progressView,
+            ]
+        )
         chrome.axis = .vertical
         chrome.spacing = 6
         chrome.isLayoutMarginsRelativeArrangement = true
@@ -931,7 +936,7 @@ final class BrowserViewController: UIViewController {
         progressObservation = nil
         placeholderLabel.isHidden = false
         placeholderLabel.text = "Switching to \(network.title)…"
-        syncLabel.text = "Switching network"
+        showTransientSyncStatus("Switching network")
 
         process.switchNetwork(to: network) { [weak self, weak presenter] result in
             guard let self, !self.isDestroyed else { return }
@@ -1023,7 +1028,7 @@ final class BrowserViewController: UIViewController {
         progressObservation = nil
         placeholderLabel.isHidden = false
         placeholderLabel.text = "Applying runtime policy…"
-        syncLabel.text = "Applying policy"
+        showTransientSyncStatus("Applying policy")
 
         process.updatePolicy(policy) { [weak self] result in
             guard let self, !self.isDestroyed else { return }
@@ -1037,7 +1042,7 @@ final class BrowserViewController: UIViewController {
             }
             switch result {
             case .success(let revision):
-                self.syncLabel.text = "Runtime policy revision \(revision)"
+                self.showTransientSyncStatus("Runtime policy revision \(revision)")
             case .failure(let error):
                 self.showOperationError(
                     title: "Policy update failed",
@@ -1054,7 +1059,7 @@ final class BrowserViewController: UIViewController {
             refreshSettingsIfPresented()
             return
         }
-        syncLabel.text = "Syncing Handshake headers…"
+        showTransientSyncStatus("Syncing Handshake headers…")
         refreshSettingsIfPresented()
         process.syncNow { [weak self] result in
             guard let self, !self.isDestroyed else { return }
@@ -1106,7 +1111,7 @@ final class BrowserViewController: UIViewController {
             isProxyAdmissionGranted = false
             coordinator?.suspend()
         }
-        syncLabel.text = "Resetting Handshake headers…"
+        showTransientSyncStatus("Resetting Handshake headers…")
         refreshSettingsIfPresented()
         process.resetHeadersFromPeers { [weak self, weak presenter] result in
             guard let self, !self.isDestroyed else { return }
@@ -1284,8 +1289,18 @@ final class BrowserViewController: UIViewController {
 
     private func updateSyncSummary(_ summary: BrowserSyncSummary) {
         latestSyncSummary = summary
-        syncLabel.text = summary.headline
+        syncLabel.text = summary.syncDiagnosticText
         syncLabel.accessibilityLabel = "\(summary.headline). \(summary.detail)"
+        let shouldShowProgress = summary.shouldShowSyncProgress
+        syncLabel.isHidden = !shouldShowProgress
+        syncProgressView.isHidden = !shouldShowProgress
+        if let fraction = summary.syncProgressFraction {
+            syncProgressView.setProgress(Float(fraction), animated: true)
+            syncProgressView.accessibilityValue = "\(Int((fraction * 100).rounded())) percent"
+        } else {
+            syncProgressView.setProgress(0, animated: false)
+            syncProgressView.accessibilityValue = "Target unknown"
+        }
         guard let coordinator else {
             refreshSettingsIfPresented()
             return
@@ -1312,6 +1327,15 @@ final class BrowserViewController: UIViewController {
                 : "Waiting for authenticated Handshake headers before loading this address."
         }
         refreshSettingsIfPresented()
+    }
+
+    private func showTransientSyncStatus(_ text: String) {
+        syncLabel.text = text
+        syncLabel.accessibilityLabel = text
+        syncLabel.isHidden = false
+        syncProgressView.setProgress(0, animated: false)
+        syncProgressView.accessibilityValue = "Target unknown"
+        syncProgressView.isHidden = false
     }
 
     private func recordGatewayEvent(

@@ -93,6 +93,8 @@
     <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
     <string name="sync_progress_target_unknown">target unknown</string>
     <string name="sync_progress_accepted">accepted +%1$s</string>
+    <string name="sync_progress_committed_and_staged" translatable="false">committed %1$s • staged validated %2$s</string>
+    <string name="sync_progress_staged_accepted" translatable="false">staged accepted +%1$s</string>
     <string name="sync_progress_peers">peers %1$s</string>
     <string name="sync_progress_root_ready">HNS root %1$s ready</string>
     <string name="sync_progress_root_required">needs HNS root %1$s</string>

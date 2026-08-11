@@ -609,7 +609,7 @@ object NativeBridge :
         error: String = "rust-core-unavailable",
         network: String = DEFAULT_NETWORK,
     ): String =
-        """{"syncStatusSchemaVersion":3,"network":"${jsonEscape(network)}","status":"error","attempted":0,"successful":0,"accepted":0,"failed":0,"peerCount":0,"peerGroups":0,"bestHeight":null,"bestPeerHeight":null,"estimatedTipHeight":null,"effectiveTargetHeight":null,"lagBlocks":null,"freshness":"unknown","freshnessThresholdBlocks":2,"treeIntervalBlocks":null,"authoritativeTreeRootHeight":null,"localTreeRootHeight":null,"treeRootReady":null,"blocksUntilAuthoritativeTreeRoot":null,"targetSource":"unknown","targetPeerGroups":0,"targetEvidenceExpired":true,"resourceCacheEntries":0,"resourceCacheBytes":0,"resourceCacheEvicted":0,"error":"$error","failures":[]}"""
+        """{"syncStatusSchemaVersion":3,"network":"${jsonEscape(network)}","status":"error","attempted":0,"successful":0,"accepted":0,"syncInFlight":false,"stagedBestHeight":null,"stagedAccepted":0,"failed":0,"peerCount":0,"peerGroups":0,"bestHeight":null,"bestPeerHeight":null,"estimatedTipHeight":null,"effectiveTargetHeight":null,"lagBlocks":null,"freshness":"unknown","freshnessThresholdBlocks":2,"treeIntervalBlocks":null,"authoritativeTreeRootHeight":null,"localTreeRootHeight":null,"treeRootReady":null,"blocksUntilAuthoritativeTreeRoot":null,"targetSource":"unknown","targetPeerGroups":0,"targetEvidenceExpired":true,"resourceCacheEntries":0,"resourceCacheBytes":0,"resourceCacheEvicted":0,"error":"$error","failures":[]}"""
 
     private fun jsonEscape(value: String): String =
         value

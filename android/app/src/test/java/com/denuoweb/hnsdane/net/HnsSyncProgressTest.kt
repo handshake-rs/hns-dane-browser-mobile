@@ -30,14 +30,19 @@ class HnsSyncProgressTest {
     @Test
     fun upToDateProgressUsesIdlePolling() {
         val progress = HnsSyncProgress.fromJson(
-            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","syncInFlight":false,"stagedBestHeight":null,"stagedAccepted":0,"bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
         )
 
         assertFalse(progress.isBehind)
         assertTrue(progress.isCurrent)
         assertTrue(progress.isAuthorityReady)
+        assertFalse(progress.shouldShowProgress)
         assertFalse(progress.shouldContinueSoon)
         assertEquals(1000, progress.progressPermille())
+        assertEquals(
+            "up_to_date • bestHeight 335,684 • target 335,684 • HNS root 335,665 ready • raw peer 335,684",
+            progress.summary(),
+        )
     }
 
     @Test
@@ -136,7 +141,63 @@ class HnsSyncProgressTest {
         assertTrue(progress.isBehind)
         assertFalse(progress.isCurrent)
         assertTrue(progress.isAuthorityReady)
+        assertTrue(progress.shouldShowProgress)
         assertTrue(progress.shouldContinueSoon)
+    }
+
+    @Test
+    fun diagnosticProgressReturnsWhenReadyNodeStartsSyncingAgain() {
+        val current = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+        )
+        val syncingWithUsableRoot = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"syncing","accepted":0,"bestHeight":335684,"bestPeerHeight":335700,"effectiveTargetHeight":335700,"lagBlocks":16,"freshness":"stale","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+        )
+        val currentAgain = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","bestHeight":335700,"bestPeerHeight":335700,"effectiveTargetHeight":335700,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+        )
+        val currentWithNewSyncInFlight = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","syncInFlight":true,"stagedBestHeight":335700,"stagedAccepted":0,"bestHeight":335700,"bestPeerHeight":335700,"effectiveTargetHeight":335700,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+        )
+
+        assertTrue(current.isAuthorityReady)
+        assertFalse(current.shouldShowProgress)
+        assertTrue(syncingWithUsableRoot.isAuthorityReady)
+        assertTrue(syncingWithUsableRoot.shouldShowProgress)
+        assertTrue(currentAgain.isAuthorityReady)
+        assertFalse(currentAgain.shouldShowProgress)
+        assertTrue(currentWithNewSyncInFlight.isCurrent)
+        assertTrue(currentWithNewSyncInFlight.isAuthorityReady)
+        assertTrue(currentWithNewSyncInFlight.shouldShowProgress)
+    }
+
+    @Test
+    fun inFlightTelemetryShowsValidatedProgressWithoutChangingAuthority() {
+        val progress = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","accepted":0,"syncInFlight":true,"stagedBestHeight":324000,"stagedAccepted":24000,"bestHeight":300000,"bestPeerHeight":337000,"effectiveTargetHeight":337000,"lagBlocks":37000,"freshness":"stale","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":299989,"localTreeRootHeight":299989,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+        )
+
+        assertTrue(progress.syncInFlight)
+        assertEquals(324_000L, progress.stagedBestHeight)
+        assertEquals(24_000L, progress.stagedAccepted)
+        assertTrue(progress.shouldShowProgress)
+        assertTrue(progress.isAuthorityReady)
+        assertEquals(961, progress.progressPermille())
+        assertEquals(
+            "syncing • bestHeight committed 300,000 • staged validated 324,000 • target 337,000 • HNS root 299,989 ready • raw peer 337,000 • staged accepted +24,000",
+            progress.summary(),
+        )
+    }
+
+    @Test
+    fun stagedHeightCannotSatisfyCommittedAuthorityReadiness() {
+        val progress = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"syncing","syncInFlight":true,"stagedBestHeight":324000,"stagedAccepted":24020,"bestHeight":299980,"bestPeerHeight":337000,"effectiveTargetHeight":337000,"lagBlocks":37020,"freshness":"stale","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":299989,"localTreeRootHeight":299989,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+        )
+
+        assertFalse(progress.isAuthorityReady)
+        assertTrue(progress.shouldShowProgress)
+        assertEquals(961, progress.progressPermille())
     }
 
     @Test

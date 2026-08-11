@@ -398,6 +398,11 @@ struct BrowserSyncSummary: Equatable, Sendable {
     let attempted: Int
     let successful: Int
     let accepted: Int
+    /// Process-local presentation telemetry. These fields describe a private
+    /// validation stage and must never participate in authority admission.
+    let syncInFlight: Bool
+    let stagedBestHeight: UInt64?
+    let stagedAccepted: Int
     let failed: Int
     let peerCount: Int
     let peerGroups: Int
@@ -430,6 +435,9 @@ struct BrowserSyncSummary: Equatable, Sendable {
         attempted: Int = 0,
         successful: Int = 0,
         accepted: Int = 0,
+        syncInFlight: Bool = false,
+        stagedBestHeight: UInt64? = nil,
+        stagedAccepted: Int = 0,
         failed: Int = 0,
         peerCount: Int = 0,
         peerGroups: Int = 0,
@@ -461,6 +469,9 @@ struct BrowserSyncSummary: Equatable, Sendable {
         self.attempted = attempted
         self.successful = successful
         self.accepted = accepted
+        self.syncInFlight = syncInFlight
+        self.stagedBestHeight = stagedBestHeight
+        self.stagedAccepted = stagedAccepted
         self.failed = failed
         self.peerCount = peerCount
         self.peerGroups = peerGroups
@@ -553,6 +564,43 @@ struct BrowserSyncSummary: Equatable, Sendable {
 
     var madeHeaderProgress: Bool {
         !isCaughtUp && accepted > 0
+    }
+
+    /// A target-less non-genesis sync needs another prompt pass even when the
+    /// just-completed pass accepted no headers. Otherwise iOS waits at its
+    /// ordinary ten-minute idle cadence before peer evidence is refreshed.
+    var hasUnknownTargetProgress: Bool {
+        syncStatusSchemaVersion == 3
+            && network != BrowserHandshakeNetwork.regtest.rawValue
+            && bestHeight.map { $0 > 0 } == true
+            && effectiveTargetHeight == nil
+    }
+
+    /// The global diagnostic row stays visible while work is active or the
+    /// committed chain is not current. This is intentionally independent of
+    /// `hasAuthoritativeTreeRoot`, which remains the navigation security gate.
+    var shouldShowSyncProgress: Bool {
+        syncInFlight || !isCaughtUp
+    }
+
+    /// Presentation-only height used by the progress bar. Staged state is
+    /// ignored as soon as its matching in-flight marker clears.
+    var displayedSyncHeight: UInt64? {
+        syncInFlight ? (stagedBestHeight ?? bestHeight) : bestHeight
+    }
+
+    var syncProgressFraction: Double? {
+        guard let displayedSyncHeight,
+              let effectiveTargetHeight,
+              effectiveTargetHeight > 0 else {
+            return nil
+        }
+        return Double(min(displayedSyncHeight, effectiveTargetHeight))
+            / Double(effectiveTargetHeight)
+    }
+
+    var syncDiagnosticText: String {
+        detail.isEmpty ? headline : "\(headline)\n\(detail)"
     }
 
     static let unavailable = BrowserSyncSummary(

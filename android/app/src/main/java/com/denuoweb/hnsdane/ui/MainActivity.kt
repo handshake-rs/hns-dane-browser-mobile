@@ -924,10 +924,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val progress = HnsSyncProgress.fromJson(lastSyncSnapshot?.statusJson)
-        if (progress.isAuthorityReady) {
-            syncProgressBar.visibility = View.GONE
-            syncProgressStats.visibility = View.GONE
-        } else {
+        if (progress.shouldShowProgress) {
             syncProgressBar.visibility = View.VISIBLE
             syncProgressStats.visibility = View.VISIBLE
             val permille = progress.progressPermille()
@@ -936,6 +933,9 @@ class MainActivity : ComponentActivity() {
                 syncProgressBar.progress = permille
             }
             syncProgressStats.text = progress.summary(this)
+        } else {
+            syncProgressBar.visibility = View.GONE
+            syncProgressStats.visibility = View.GONE
         }
         refreshSyncGateNotice()
         resumeReadinessNavigationIfReady(progress)

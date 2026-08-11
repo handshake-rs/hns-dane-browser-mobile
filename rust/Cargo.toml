@@ -20,28 +20,28 @@ blake2 = "0.10"
 bytes = "1"
 hex = "0.4"
 getrandom = "0.3"
-hns-cache = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-chain = { package = "hns-browser-chain", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-dane = { package = "hns-browser-dane", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-dnssec = { package = "hns-browser-dnssec", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-gateway = { package = "hns-browser-gateway", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0", default-features = false, features = ["mobile"] }
-hns-browser-observability = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-browser-runtime = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-icann-dane = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0", default-features = false, features = ["mobile"] }
+hns-cache = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-chain = { package = "hns-browser-chain", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-core = { package = "hns-browser-primitives", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-dane = { package = "hns-browser-dane", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-dnssec = { package = "hns-browser-dnssec", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-gateway = { package = "hns-browser-gateway", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf", default-features = false, features = ["mobile"] }
+hns-browser-observability = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-browser-runtime = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-icann-dane = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf", default-features = false, features = ["mobile"] }
 hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "2229be849557d58a8eb723bcc03349f0f2df9796" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
-hns-namespace-resolution = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-resolution-policy = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
+hns-namespace-resolution = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-resolution-policy = { version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
 h2 = "0.4"
 h3 = "0.0.8"
 h3-quinn = "0.0.10"
-hns-p2p = { package = "hns-browser-p2p", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-resolver = { package = "hns-browser-resolver", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-sync = { package = "hns-browser-sync", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
-hns-transport = { package = "hns-browser-transport", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0", default-features = false, features = ["mobile"] }
-hns-urkel = { package = "hns-browser-urkel", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "0346c25973d5c91de94d49b47349ec9b9efce3a0" }
+hns-p2p = { package = "hns-browser-p2p", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-resolver = { package = "hns-browser-resolver", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-sync = { package = "hns-browser-sync", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
+hns-transport = { package = "hns-browser-transport", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf", default-features = false, features = ["mobile"] }
+hns-urkel = { package = "hns-browser-urkel", version = "=0.2.0", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6fe6e25bd0a8ea639509068e1e96cf23e519bacf" }
 http = "1"
 httparse = "1.10"
 idna = "1.1"

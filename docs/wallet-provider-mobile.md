@@ -240,7 +240,7 @@ The historical `0.5.8` application source at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394`; its CodeQL and quality workflows are also green. This evidence
 predates the `0.5.9` synchronized-read tranche. The pre-ECH `0.5.9` source passed
-full CI `31433931682`; the current ECH-capable source requires fresh platform
+full CI `31433931682`; the current ECH-and-sync-telemetry source requires fresh platform
 qualification. Before release, fresh App Store screenshots must be bound to the
 exact release checkout selected for signing, signed artifacts must pass their
 archive gates, and both stores' privacy/category answers must be reconciled
