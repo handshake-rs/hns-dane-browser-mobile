@@ -51,10 +51,11 @@ class HnsWebViewGatewayInterceptor(
             requestHeaders = request.requestHeaders.orEmpty(),
             isForMainFrame = false,
             // Chromium cannot surface proxy-auth or local-TLS challenges for service-worker
-            // requests because they have no WebContents. Body-bearing HNS service-worker
-            // requests therefore fail closed instead of falling through to the proxy.
+            // requests because they have no WebContents. Require a streamed native response
+            // for every validated-cache miss so this interception thread never retries through
+            // a synchronous whole-body gateway path.
             allowBodyRequestProxyFallback = false,
-            preferStreaming = true,
+            requireStreamingOnMiss = true,
         )?.toWebResourceResponse()
 
     internal fun intercept(
@@ -71,7 +72,7 @@ class HnsWebViewGatewayInterceptor(
         requestHeaders: Map<String, String>,
         isForMainFrame: Boolean,
         allowBodyRequestProxyFallback: Boolean = allowProxyFallbackForBodyRequests(),
-        preferStreaming: Boolean = false,
+        requireStreamingOnMiss: Boolean = false,
     ): HnsInterceptedResponse? {
         val response = interceptInternal(
             method,
@@ -79,7 +80,7 @@ class HnsWebViewGatewayInterceptor(
             requestHeaders,
             MAX_HNS_REDIRECTS,
             allowBodyRequestProxyFallback,
-            preferStreaming,
+            requireStreamingOnMiss,
         )
         if (response != null && (isForMainFrame || reportAllHnsStatuses)) {
             onMainFrameHnsStatus(
@@ -107,7 +108,7 @@ class HnsWebViewGatewayInterceptor(
         requestHeaders: Map<String, String>,
         redirectsRemaining: Int,
         allowBodyRequestProxyFallback: Boolean,
-        preferStreaming: Boolean,
+        requireStreamingOnMiss: Boolean,
     ): HnsInterceptedResponse? {
         val target = HnsWebViewTarget.parse(url) ?: return null
         when (HnsHostPolicy.nativeGatewayDecision(target.host, namespacePolicy)) {
@@ -151,7 +152,7 @@ class HnsWebViewGatewayInterceptor(
                 return cached
             }
         }
-        val streamingResponse = if (preferStreaming && assetCacheScope == null) {
+        val streamingResponse = if (requireStreamingOnMiss) {
             hnsGatewayBridge.httpResponseStreaming(
                 dataDir = dataDir.absolutePath,
                 config = runtimeConfig,
@@ -172,6 +173,20 @@ class HnsWebViewGatewayInterceptor(
             }
         } else {
             null
+        }
+        if (requireStreamingOnMiss && streamingResponse == null) {
+            return plainInterceptResponse(
+                statusCode = 503,
+                reason = "HNS Streaming Unavailable",
+                detail = "The secure service-worker request could not start streaming.",
+            ).also {
+                GatewayEventLog.record(
+                    "webview_sw_streaming_unavailable",
+                    target.host,
+                    503,
+                    "HNS Streaming Unavailable",
+                )
+            }
         }
         val response = streamingResponse ?: hnsGatewayBridge.httpResponseBodyFile(
             dataDir = dataDir.absolutePath,
@@ -228,7 +243,7 @@ class HnsWebViewGatewayInterceptor(
             requestHeaders = requestHeaders,
             redirectsRemaining = redirectsRemaining,
             allowBodyRequestProxyFallback = allowBodyRequestProxyFallback,
-            preferStreaming = preferStreaming,
+            requireStreamingOnMiss = requireStreamingOnMiss,
         )
         return if (
             assetCacheScope != null && cacheableDirectResponse && finalResponse.statusCode == 200
@@ -300,7 +315,7 @@ class HnsWebViewGatewayInterceptor(
         requestHeaders: Map<String, String>,
         redirectsRemaining: Int,
         allowBodyRequestProxyFallback: Boolean,
-        preferStreaming: Boolean,
+        requireStreamingOnMiss: Boolean,
     ): HnsInterceptedResponse {
         if (statusCode !in REDIRECT_STATUS_CODES) {
             return this
@@ -356,7 +371,7 @@ class HnsWebViewGatewayInterceptor(
             requestHeaders = requestHeaders,
             redirectsRemaining = redirectsRemaining - 1,
             allowBodyRequestProxyFallback = allowBodyRequestProxyFallback,
-            preferStreaming = preferStreaming,
+            requireStreamingOnMiss = requireStreamingOnMiss,
         ) ?: plainInterceptResponse(
             statusCode = 502,
             reason = "HNS Redirect Unsupported",

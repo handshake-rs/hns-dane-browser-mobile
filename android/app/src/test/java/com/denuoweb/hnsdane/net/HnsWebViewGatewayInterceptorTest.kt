@@ -181,7 +181,7 @@ class HnsWebViewGatewayInterceptorTest {
             url = "https://welcome/stream",
             requestHeaders = emptyMap(),
             isForMainFrame = false,
-            preferStreaming = true,
+            requireStreamingOnMiss = true,
         )
 
         requireNotNull(response)
@@ -191,27 +191,115 @@ class HnsWebViewGatewayInterceptorTest {
     }
 
     @Test
-    fun unavailableStreamingGatewayFallsBackToFileBackedResponse() {
-        val bridge = FileGatewayBridge(
-            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 8\r\n\r\n"
-                .toByteArray(StandardCharsets.ISO_8859_1),
-            "fallback".toByteArray(StandardCharsets.UTF_8),
+    fun serviceWorkerCacheMissFailsClosedWhenStreamingCannotStart() {
+        val bridge = StrictStreamingGatewayBridge { null }
+        val dataDir = createTempDirectory("hns-webview-streaming-unavailable-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir = dataDir,
+            hnsGatewayBridge = bridge,
+            namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
+            chainTipToken = { "100:hash:root" },
         )
-        val dataDir = createTempDirectory("hns-webview-streaming-fallback-test").toFile()
+
+        val response = requireNotNull(
+            interceptor.intercept(
+                method = "GET",
+                url = "https://welcome/assets/client-Bk8h6irO.js",
+                requestHeaders = emptyMap(),
+                isForMainFrame = false,
+                requireStreamingOnMiss = true,
+            ),
+        )
+
+        assertEquals(503, response.statusCode)
+        assertEquals("HNS Streaming Unavailable", response.reason)
+        assertEquals(1, bridge.streamingCalls.size)
+        assertEquals(0, bridge.fileCalls)
+        assertEquals(0, bridge.bufferedCalls)
+        val event = GatewayEventLog.snapshot().single()
+        assertEquals("webview_sw_streaming_unavailable", event.stage)
+        assertEquals("welcome", event.host)
+        assertEquals(503, event.status)
+        assertEquals("HNS_Streaming_Unavailable", event.reason)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun serviceWorkerMalformedStreamingHeadClosesBodyWithoutFallback() {
+        var bodyClosed = false
+        val body = object : ByteArrayInputStream("unused".toByteArray()) {
+            override fun close() {
+                bodyClosed = true
+                super.close()
+            }
+        }
+        val bridge = StrictStreamingGatewayBridge {
+            HnsGatewayStreamingResponse("malformed".toByteArray(), body)
+        }
+        val dataDir = createTempDirectory("hns-webview-malformed-stream-test").toFile()
         val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
 
         val response = requireNotNull(
             interceptor.intercept(
                 method = "GET",
-                url = "https://welcome/fallback",
+                url = "https://welcome/malformed-stream",
                 requestHeaders = emptyMap(),
                 isForMainFrame = false,
-                preferStreaming = true,
+                requireStreamingOnMiss = true,
             ),
         )
 
-        assertEquals("fallback", response.openBodyStream().use { it.readBytes() }.decodeToString())
-        assertEquals(1, bridge.calls.size)
+        assertEquals(503, response.statusCode)
+        assertEquals("HNS Streaming Unavailable", response.reason)
+        assertTrue(bodyClosed)
+        assertEquals(1, bridge.streamingCalls.size)
+        assertEquals(0, bridge.fileCalls)
+        assertEquals(0, bridge.bufferedCalls)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun serviceWorkerRedirectKeepsStreamingRequired() {
+        var redirectBodyClosed = false
+        val redirectBody = object : ByteArrayInputStream(ByteArray(0)) {
+            override fun close() {
+                redirectBodyClosed = true
+                super.close()
+            }
+        }
+        val bridge = StrictStreamingGatewayBridge { call ->
+            if (call.pathAndQuery == "/start") {
+                HnsGatewayStreamingResponse(
+                    (
+                        "HTTP/1.1 302 Found\r\n" +
+                            "Location: /next\r\n" +
+                            "Content-Length: 0\r\n\r\n"
+                        ).toByteArray(StandardCharsets.ISO_8859_1),
+                    redirectBody,
+                )
+            } else {
+                null
+            }
+        }
+        val dataDir = createTempDirectory("hns-webview-streaming-redirect-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(dataDir, bridge, TEST_BROWSER_NAMESPACE_POLICY)
+
+        val response = requireNotNull(
+            interceptor.intercept(
+                method = "GET",
+                url = "https://welcome/start",
+                requestHeaders = emptyMap(),
+                isForMainFrame = false,
+                requireStreamingOnMiss = true,
+            ),
+        )
+
+        assertEquals(503, response.statusCode)
+        assertEquals("HNS Streaming Unavailable", response.reason)
+        assertTrue(redirectBodyClosed)
+        assertEquals(listOf("/start", "/next"), bridge.streamingCalls.map { it.pathAndQuery })
+        assertEquals(0, bridge.fileCalls)
+        assertEquals(0, bridge.bufferedCalls)
         dataDir.deleteRecursively()
     }
 
@@ -992,7 +1080,6 @@ class HnsWebViewGatewayInterceptorTest {
                 url,
                 emptyMap(),
                 isForMainFrame = false,
-                preferStreaming = true,
             ),
         )
         assertEquals("no-store", first.headerValue("Cache-Control"))
@@ -1007,12 +1094,54 @@ class HnsWebViewGatewayInterceptorTest {
                 url,
                 emptyMap(),
                 isForMainFrame = false,
-                preferStreaming = true,
             ),
         )
         assertEquals("no-store", second.headerValue("Cache-Control"))
         assertEquals("cached module", second.openBodyStream().use { it.readBytes() }.decodeToString())
         assertEquals(1, bridge.calls.size)
+        dataDir.deleteRecursively()
+    }
+
+    @Test
+    fun serviceWorkerCacheMissStreamsThenPublishesValidatedAsset() {
+        val bridge = StreamingAssetGatewayBridge("streamed cache module")
+        val dataDir = createTempDirectory("hns-streamed-asset-cache-test").toFile()
+        val interceptor = HnsWebViewGatewayInterceptor(
+            dataDir = dataDir,
+            hnsGatewayBridge = bridge,
+            namespacePolicy = TEST_BROWSER_NAMESPACE_POLICY,
+            chainTipToken = { "100:hash:root" },
+        )
+        val url = "https://app.pirate/assets/client-Bk8h6irO.js"
+
+        val first = requireNotNull(
+            interceptor.intercept(
+                method = "GET",
+                url = url,
+                requestHeaders = emptyMap(),
+                isForMainFrame = false,
+                requireStreamingOnMiss = true,
+            ),
+        )
+        assertEquals(
+            "streamed cache module",
+            first.openBodyStream().use { it.readBytes() }.decodeToString(),
+        )
+
+        val second = requireNotNull(
+            interceptor.intercept(
+                method = "GET",
+                url = url,
+                requestHeaders = emptyMap(),
+                isForMainFrame = false,
+                requireStreamingOnMiss = true,
+            ),
+        )
+        assertEquals(
+            "streamed cache module",
+            second.openBodyStream().use { it.readBytes() }.decodeToString(),
+        )
+        assertEquals(1, bridge.calls)
         dataDir.deleteRecursively()
     }
 
@@ -1044,7 +1173,6 @@ class HnsWebViewGatewayInterceptorTest {
                 url,
                 emptyMap(),
                 isForMainFrame = false,
-                preferStreaming = true,
             ),
         )
             .openBodyStream()
@@ -1056,7 +1184,6 @@ class HnsWebViewGatewayInterceptorTest {
                 url,
                 emptyMap(),
                 isForMainFrame = false,
-                preferStreaming = true,
             ),
         )
             .openBodyStream()
@@ -1336,6 +1463,69 @@ class HnsWebViewGatewayInterceptorTest {
         }
     }
 
+    private class StrictStreamingGatewayBridge(
+        private val response: (GatewayCall) -> HnsGatewayStreamingResponse?,
+    ) : HnsGatewayBridge {
+        val streamingCalls = mutableListOf<GatewayCall>()
+        var fileCalls = 0
+        var bufferedCalls = 0
+
+        override fun httpResponse(
+            dataDir: String,
+            config: HnsGatewayRuntimeConfig,
+            method: String,
+            scheme: String,
+            host: String,
+            port: Int,
+            pathAndQuery: String,
+            headers: List<Pair<String, String>>,
+            body: ByteArray,
+        ): ByteArray? {
+            bufferedCalls += 1
+            return null
+        }
+
+        override fun httpResponseBodyFile(
+            dataDir: String,
+            config: HnsGatewayRuntimeConfig,
+            method: String,
+            scheme: String,
+            host: String,
+            port: Int,
+            pathAndQuery: String,
+            headers: List<Pair<String, String>>,
+            body: ByteArray,
+        ): HnsGatewayFileResponse? {
+            fileCalls += 1
+            return null
+        }
+
+        override fun httpResponseStreaming(
+            dataDir: String,
+            config: HnsGatewayRuntimeConfig,
+            method: String,
+            scheme: String,
+            host: String,
+            port: Int,
+            pathAndQuery: String,
+            headers: List<Pair<String, String>>,
+            body: ByteArray,
+        ): HnsGatewayStreamingResponse? {
+            val call = GatewayCall(
+                dataDir,
+                method,
+                scheme,
+                host,
+                port,
+                pathAndQuery,
+                headers,
+                body.toString(StandardCharsets.ISO_8859_1),
+            )
+            streamingCalls += call
+            return response(call)
+        }
+    }
+
     private class StreamingAssetGatewayBridge(body: String) : HnsGatewayBridge {
         private val responseBody = body.toByteArray(StandardCharsets.UTF_8)
         var calls = 0
@@ -1351,6 +1541,18 @@ class HnsWebViewGatewayInterceptorTest {
             headers: List<Pair<String, String>>,
             body: ByteArray,
         ): ByteArray = error("buffered fallback should not be used")
+
+        override fun httpResponseBodyFile(
+            dataDir: String,
+            config: HnsGatewayRuntimeConfig,
+            method: String,
+            scheme: String,
+            host: String,
+            port: Int,
+            pathAndQuery: String,
+            headers: List<Pair<String, String>>,
+            body: ByteArray,
+        ): HnsGatewayFileResponse = error("file fallback should not be used")
 
         override fun httpResponseStreaming(
             dataDir: String,
@@ -1368,6 +1570,7 @@ class HnsWebViewGatewayInterceptorTest {
                 (
                     "HTTP/1.1 200 OK\r\n" +
                         "Content-Type: application/javascript\r\n" +
+                        "Cache-Control: public, max-age=31536000, immutable\r\n" +
                         "Content-Length: ${responseBody.size}\r\n\r\n"
                 ).toByteArray(StandardCharsets.ISO_8859_1),
                 ByteArrayInputStream(responseBody),

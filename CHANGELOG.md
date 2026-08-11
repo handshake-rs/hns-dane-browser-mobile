@@ -55,6 +55,9 @@ All notable changes to this project will be documented in this file.
 - Android native gateway responses no longer forward MIME, framing, or
   connection-management headers that `WebResourceResponse` synthesizes,
   preventing duplicate JavaScript MIME values from blocking module execution.
+- Android service-worker cache misses now require native streaming and fail
+  closed if a stream cannot start, avoiding the synchronous whole-body fallback
+  that could block WebView interception while preserving validated cache hits.
 
 ### Qualification
 
