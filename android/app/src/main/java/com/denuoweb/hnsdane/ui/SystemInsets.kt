@@ -38,10 +38,10 @@ internal fun View.applySystemBarPadding() {
 }
 
 /**
- * The activity root already keeps every child inside the system bars. Do not
- * forward those same window-relative insets to descendants: WebView exposes
- * forwarded values as CSS safe-area insets even though its own viewport starts
- * below the browser toolbar, causing pages to reserve the status bar twice.
+ * The root has already applied system-bar and display-cutout insets as native
+ * padding. Clear only those inset types before dispatching to descendants so
+ * WebView reports CSS safe-area values relative to its already-inset viewport.
+ * Preserve IME and all other inset types.
  */
 internal fun consumeAppliedSystemBarInsets(insets: WindowInsets): WindowInsets =
     WindowInsets.Builder(insets)
