@@ -106,6 +106,7 @@ class MainActivity : ComponentActivity() {
     }
     private lateinit var webView: WebView
     private lateinit var omnibox: EditText
+    private var omniboxFullUrl: String = ""
     private lateinit var securityLabel: TextView
     private lateinit var hamburgerButton: TextView
     private lateinit var syncProgressBar: ProgressBar
@@ -227,6 +228,14 @@ class MainActivity : ComponentActivity() {
                     loadFromInput()
                 }
                 decision.consume
+            }
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    setText(omniboxFullUrl)
+                    post { selectAll() }
+                } else {
+                    setText(OmniboxDisplay.displayText(omniboxFullUrl))
+                }
             }
         }
 
@@ -790,6 +799,13 @@ class MainActivity : ComponentActivity() {
         enqueueNavigation(target) { webView.loadUrl(target.url) }
     }
 
+    private fun showOmniboxUrl(url: String) {
+        omniboxFullUrl = url
+        if (!omnibox.hasFocus()) {
+            omnibox.setText(OmniboxDisplay.displayText(url))
+        }
+    }
+
     private fun navigateHistory(offset: Int) {
         val history = webView.copyBackForwardList()
         val targetIndex = history.currentIndex + offset
@@ -808,7 +824,7 @@ class MainActivity : ComponentActivity() {
             syncGateNotice.visibility = View.GONE
         }
         webView.stopLoading()
-        omnibox.setText(target.url)
+        showOmniboxUrl(target.url)
         currentTargetKind = target.kind
         clearMainFrameHnsStatus()
         if (target.kind == BrowserTargetKind.Blocked) {
@@ -1154,7 +1170,7 @@ class MainActivity : ComponentActivity() {
             pageIsLoading = true
             failedMainFrameUrl = null
             pageLoadProgress = pageLoadProgress.coerceAtLeast(5)
-            omnibox.setText(url)
+            showOmniboxUrl(url)
             admittedMainFrameUrl = url
             activeMainFrameUrl = url
             val target = classifier.classify(url)
@@ -1289,7 +1305,7 @@ class MainActivity : ComponentActivity() {
             if (pendingMainFrameUrl != null) return
             val admittedUrl = admittedMainFrameUrl ?: return
             if (admittedUrl.mainFrameMatchKey() != url.mainFrameMatchKey()) return
-            omnibox.setText(url)
+            showOmniboxUrl(url)
             activeMainFrameUrl = url
             admittedMainFrameUrl = url
             val target = classifier.classify(url)
@@ -1344,7 +1360,7 @@ class MainActivity : ComponentActivity() {
     private fun openResolverTrace() {
         startActivity(
             Intent(this, HnsResolverTraceActivity::class.java)
-                .putExtra(HnsResolverTraceActivity.EXTRA_URL, omnibox.text.toString())
+                .putExtra(HnsResolverTraceActivity.EXTRA_URL, omniboxFullUrl)
                 .putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, mainFrameHnsTraceJson),
         )
     }
@@ -1579,7 +1595,7 @@ class MainActivity : ComponentActivity() {
         webView.url
             ?.trim()
             ?.takeIf { it.isNotBlank() && it != "about:blank" }
-            ?: omnibox.text.toString()
+            ?: omniboxFullUrl
                 .trim()
                 .takeIf { it.isNotBlank() && it != "about:blank" }
 
