@@ -14,6 +14,7 @@ internal data class ThemeColors(
     val destructive: Int,
     val divider: Int,
     val securityText: Int,
+    val securityWarning: Int,
 )
 
 internal fun Context.themeColors(): ThemeColors =
@@ -29,6 +30,7 @@ internal fun Context.themeColors(): ThemeColors =
             destructive = Color.rgb(242, 139, 130),
             divider = Color.rgb(60, 64, 67),
             securityText = Color.rgb(128, 203, 196),
+            securityWarning = Color.rgb(255, 213, 79),
         )
     } else {
         ThemeColors(
@@ -42,5 +44,6 @@ internal fun Context.themeColors(): ThemeColors =
             destructive = Color.rgb(183, 28, 28),
             divider = Color.rgb(218, 220, 224),
             securityText = Color.rgb(28, 71, 75),
+            securityWarning = Color.rgb(176, 110, 0),
         )
     }

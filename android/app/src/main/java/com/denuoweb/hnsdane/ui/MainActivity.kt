@@ -3,6 +3,7 @@ package com.denuoweb.hnsdane.ui
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.ContentValues
+import android.content.res.ColorStateList
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
@@ -35,6 +36,7 @@ import android.webkit.WebViewClient
 import android.net.http.SslError
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.ProgressBar
@@ -106,7 +108,7 @@ class MainActivity : ComponentActivity() {
     }
     private lateinit var webView: WebView
     private lateinit var omnibox: EditText
-    private lateinit var securityLabel: TextView
+    private lateinit var securityIndicator: ImageView
     private lateinit var hamburgerButton: TextView
     private lateinit var syncProgressBar: ProgressBar
     private lateinit var syncProgressStats: TextView
@@ -167,7 +169,7 @@ class MainActivity : ComponentActivity() {
                 if (!available) {
                     proxyNavigationSubmittedGeneration = null
                 }
-                if (::securityLabel.isInitialized) {
+                if (::securityIndicator.isInitialized) {
                     refreshSecurityState()
                     refreshSyncGateNotice()
                 }
@@ -230,15 +232,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        securityLabel = TextView(this).apply {
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            textSize = 13f
+        securityIndicator = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER
             minHeight = dp(TOOLBAR_CONTROL_HEIGHT_DP)
             setPadding(dp(8), 0, dp(8), 0)
-            setTextColor(colors.securityText)
-            text = getString(R.string.security_syncing)
+            setImageResource(R.drawable.ic_security_info)
+            imageTintList = ColorStateList.valueOf(colors.secondaryText)
             contentDescription = getString(R.string.security_status_content_description)
             isClickable = true
             isFocusable = true
@@ -305,8 +304,8 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), 0, dp(8), 0)
-            addView(securityLabel, LinearLayout.LayoutParams(
-                dp(SECURITY_LABEL_WIDTH_DP),
+            addView(securityIndicator, LinearLayout.LayoutParams(
+                dp(SECURITY_INDICATOR_WIDTH_DP),
                 dp(TOOLBAR_CONTROL_HEIGHT_DP),
             ))
             addView(omnibox, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -972,7 +971,7 @@ class MainActivity : ComponentActivity() {
             currentTargetKind in NATIVE_GATEWAY_TARGET_KINDS &&
             mainFrameHnsStatusCode == null
         ) {
-            securityLabel.text = getString(R.string.security_loading)
+            setSecurityState(SecurityState.Loading)
             return
         }
 
@@ -1078,28 +1077,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setSecurityState(state: SecurityState) {
-        val baseLabel = when (state) {
-            SecurityState.LocalContent -> getString(R.string.security_local_content)
-            SecurityState.Syncing -> getString(R.string.security_syncing)
-            SecurityState.Loading -> getString(R.string.security_loading)
-            SecurityState.HnsVerified -> getString(R.string.security_hns_verified)
-            SecurityState.HnsViaAuthoritativeDoh -> getString(R.string.security_hns_via_authoritative_doh)
-            SecurityState.HnsViaAuthoritativeDns53 -> getString(R.string.security_hns_via_authoritative_dns53)
-            SecurityState.HnsViaP2pDnsRelay -> getString(R.string.security_hns_via_p2p_dns_relay)
-            SecurityState.HnsViaUserConfiguredRecoveryDoh ->
-                getString(R.string.security_hns_via_user_configured_recovery_doh)
-            SecurityState.DaneVerified -> getString(R.string.security_dane_verified)
-            SecurityState.DaneViaAuthoritativeDoh -> getString(R.string.security_dane_via_authoritative_doh)
-            SecurityState.DaneViaAuthoritativeDns53 -> getString(R.string.security_dane_via_authoritative_dns53)
-            SecurityState.DaneViaP2pDnsRelay -> getString(R.string.security_dane_via_p2p_dns_relay)
-            SecurityState.DaneViaUserConfiguredRecoveryDoh ->
-                getString(R.string.security_dane_via_user_configured_recovery_doh)
-            SecurityState.StatelessDane -> getString(R.string.security_stateless_dane)
-            SecurityState.DaneViaIcannDoh -> getString(R.string.security_dane_via_icann_doh)
-            SecurityState.WebPkiOnly -> getString(R.string.security_webpki)
-            SecurityState.ValidationFailed -> getString(R.string.security_failed)
-            SecurityState.ProofUnavailable -> getString(R.string.security_proof_unavailable)
-        }
+        val presentation = SecurityIndicator.forState(state)
+        val baseLabel = getString(presentation.labelRes)
         val resolution = mainFrameHnsTraceJson
             ?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?.optJSONObject("namespaceResolution")
@@ -1116,15 +1095,21 @@ class MainActivity : ComponentActivity() {
             "hnsOnly", "icannOnly" -> selectedLabel
             else -> null
         }
-        securityLabel.text = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
-        securityLabel.contentDescription = if (selectedLabel != null) {
+        val detailLabel = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
+        val accessibilityDetail = if (selectedLabel != null) {
             mainFrameHnsTraceJson
                 ?.let { LocalizedTraceText.namespace(this, runCatching { JSONObject(it) }.getOrNull()) }
                 ?.let { "$baseLabel. $it" }
-                ?: baseLabel
+                ?: detailLabel
         } else {
-            baseLabel
+            detailLabel
         }
+        securityIndicator.setImageResource(presentation.iconRes)
+        securityIndicator.imageTintList = ColorStateList.valueOf(
+            SecurityIndicator.toneColor(themeColors(), presentation.tone),
+        )
+        securityIndicator.contentDescription =
+            "$accessibilityDetail. ${getString(R.string.security_status_content_description)}"
     }
 
     private inner class BrowserClient : WebViewClient() {
@@ -1631,7 +1616,7 @@ class MainActivity : ComponentActivity() {
         private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
         private const val SYNC_STATUS_POLL_MS = 2_000L
-        private const val SECURITY_LABEL_WIDTH_DP = 136
+        private const val SECURITY_INDICATOR_WIDTH_DP = 44
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22
         private const val MENU_ICON_BUTTON_SIZE_DP = 55
