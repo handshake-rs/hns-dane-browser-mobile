@@ -110,7 +110,7 @@ fresh-install Android exercise at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394` and a fresh Pixel 9 install, and documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`; those are historical `0.5.8` results. Current code-bearing source
+`31411048376`; those are historical `0.5.8` results. The pre-ECH code-bearing source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including Android instrumentation and the complete Apple gate.
 Its exact debug APK is artifact `9080493058`, SHA-256

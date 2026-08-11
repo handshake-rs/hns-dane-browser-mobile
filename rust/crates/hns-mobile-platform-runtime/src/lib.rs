@@ -27,7 +27,8 @@ use hns_chain::{
 };
 use hns_core::dns::{
     DnsEncodeConfig, DnsFlags, DnsHeader, DnsMessage, DnsName, DnsQuestion, RecordType,
-    ResourceRecord, SVCB_PARAM_MANDATORY, SVCB_PARAM_NO_DEFAULT_ALPN, SvcbRecord,
+    ResourceRecord, SVCB_PARAM_ALPN, SVCB_PARAM_ECH, SVCB_PARAM_MANDATORY,
+    SVCB_PARAM_NO_DEFAULT_ALPN, SVCB_PARAM_PORT, SvcbRecord,
 };
 pub use hns_core::network::NetworkKind;
 use hns_core::network_policy::{
@@ -128,9 +129,9 @@ pub use hns_transport::DEFAULT_MAX_REQUEST_BODY_BYTES;
 #[cfg(test)]
 use hns_transport::TransportLimits;
 use hns_transport::{
-    OriginProtocol, OriginRequest, OriginResponse, OriginResponseHead, OriginTransport,
-    OriginTunnel, ReadWrite, TcpHttpTransport, TlsCertificateInspection, TlsValidation,
-    TlsaRecordSource, TlsaTransport, TransportError,
+    EchConfigListCompatibility, OriginProtocol, OriginRequest, OriginResponse, OriginResponseHead,
+    OriginTransport, OriginTunnel, ReadWrite, TcpHttpTransport, TlsCertificateInspection,
+    TlsValidation, TlsaRecordSource, TlsaTransport, TransportError, classify_ech_config_list,
 };
 use hns_urkel::UrkelProofVerifier;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -8440,67 +8441,49 @@ fn root_service_bindings(
     let mut advertised_alpn = Vec::new();
     let mut effective_port = query.origin_port();
     let mut parameters = Vec::new();
-    let ech_config = None;
+    let mut ech_config = None;
     let mut selected_protocols = vec![ApplicationProtocol::Http11];
 
     if query.scheme().uses_tls() {
         let owner = DnsName::from_ascii(terminal_target.as_str()).map_err(|_| ())?;
-        let mut candidates = answers
+        let service_records = answers
             .values()
             .flat_map(|answer| answer.records.iter())
             .filter(|record| record.name == owner && record.record_type == RecordType::Https)
-            .map(SvcbRecord::from_record)
+            .collect::<Vec<_>>();
+        let parsed = service_records
+            .iter()
+            .map(|record| SvcbRecord::from_record(record))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| ())?;
-        if candidates.iter().any(SvcbRecord::is_alias_mode) {
+        if parsed.iter().any(SvcbRecord::is_alias_mode) {
             return Err(());
         }
-        candidates.sort_by_key(|candidate| candidate.svc_priority);
-        if candidates.len() > 1
-            && candidates[0].svc_priority == candidates[1].svc_priority
-            && candidates[0] != candidates[1]
-        {
+        let mut candidates = Vec::new();
+        for candidate in parsed {
+            if let Some(candidate) = prepare_service_record(query, terminal_target, candidate)? {
+                candidates.push(candidate);
+            }
+        }
+        // RFC 9460 recommends shuffling records within a priority level. This
+        // single-plan adapter instead uses a complete canonical order so the
+        // independently built HNS and ICANN plans make the same choice. The
+        // plan model must retain alternatives before per-session shuffling can
+        // be added without creating false dual-root divergence.
+        candidates.sort();
+        if !service_records.is_empty() && candidates.is_empty() {
             return Err(());
         }
         let selected = candidates.into_iter().next();
         if let Some(selected) = selected {
             priority = Some(selected.svc_priority);
-            service_target = if selected.target_name == DnsName::root() {
-                terminal_target.clone()
-            } else {
-                CanonicalHost::parse(&selected.target_name.to_string()).map_err(|_| ())?
-            };
-            advertised_alpn = selected.alpn_ids().map_err(|_| ())?;
-            selected_protocols = application_protocol_candidates(
-                query.supported_protocols(),
-                &advertised_alpn,
-                selected.param(SVCB_PARAM_NO_DEFAULT_ALPN).is_some(),
-            );
-            if selected_protocols.is_empty() {
-                return Err(());
-            }
-            if let Some(port) = selected.port().map_err(|_| ())? {
-                effective_port = NonZeroU16::new(port).ok_or(())?;
-            }
-            if let Some(value) = selected.param(SVCB_PARAM_MANDATORY) {
-                if value.len() % 2 != 0 {
-                    return Err(());
-                }
-                mandatory_keys = value
-                    .chunks_exact(2)
-                    .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
-                    .collect();
-            }
-            for parameter in selected.params {
-                if parameter.key == 5 {
-                    // The retained native transport has no ECH application
-                    // hook. Treat advertised ECH as unsupported rather than
-                    // silently producing a plan that cannot be executed.
-                    return Err(());
-                }
-                parameters
-                    .push(ServiceParameter::new(parameter.key, parameter.value).map_err(|_| ())?);
-            }
+            service_target = selected.service_target;
+            mandatory_keys = selected.mandatory_keys;
+            advertised_alpn = selected.advertised_alpn;
+            effective_port = selected.effective_port;
+            parameters = selected.parameters;
+            ech_config = selected.ech_config;
+            selected_protocols = selected.selected_protocols;
         }
     }
     selected_protocols
@@ -8526,6 +8509,144 @@ fn root_service_bindings(
             .map_err(|_| ())
         })
         .collect()
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct PreparedServiceRecord {
+    svc_priority: u16,
+    service_target: CanonicalHost,
+    mandatory_keys: Vec<u16>,
+    advertised_alpn: Vec<Vec<u8>>,
+    effective_port: NonZeroU16,
+    parameters: Vec<ServiceParameter>,
+    ech_config: Option<Vec<u8>>,
+    selected_protocols: Vec<ApplicationProtocol>,
+}
+
+fn prepare_service_record(
+    query: &OriginQuery,
+    terminal_target: &CanonicalHost,
+    candidate: SvcbRecord,
+) -> Result<Option<PreparedServiceRecord>, ()> {
+    // SvcbRecord::from_record already rejects an empty, odd-length,
+    // unsorted, duplicate, or self-referential Mandatory value.
+    let mandatory_keys = candidate
+        .param(SVCB_PARAM_MANDATORY)
+        .map(|value| {
+            value
+                .chunks_exact(2)
+                .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    // RFC 9460 rejects the complete RRset if any recognized SvcParamValue is
+    // malformed, even when another property makes this particular endpoint
+    // incompatible. SvcbRecord validates every other recognized wire format;
+    // ECHConfigList needs the TLS implementation's additional structure check.
+    let ech_compatibility = candidate
+        .param(SVCB_PARAM_ECH)
+        .map(classify_ech_config_list);
+    if ech_compatibility == Some(EchConfigListCompatibility::Malformed) {
+        return Err(());
+    }
+    if mandatory_keys
+        .iter()
+        .any(|key| candidate.param(*key).is_none())
+    {
+        return Ok(None);
+    }
+    if mandatory_keys
+        .iter()
+        .any(|key| !is_supported_mandatory_svcb_key(*key))
+    {
+        return Ok(None);
+    }
+
+    let service_target = if candidate.target_name == DnsName::root() {
+        terminal_target.clone()
+    } else {
+        match CanonicalHost::parse(&candidate.target_name.to_string()) {
+            Ok(target) => target,
+            // The DNS name is well formed, but this browser cannot use it as
+            // an origin endpoint (for example, an underscore label).
+            Err(_) => return Ok(None),
+        }
+    };
+    let advertised_alpn = candidate.alpn_ids().map_err(|_| ())?;
+    let selected_protocols = application_protocol_candidates(
+        query.supported_protocols(),
+        &advertised_alpn,
+        candidate.param(SVCB_PARAM_NO_DEFAULT_ALPN).is_some(),
+    );
+    if selected_protocols.is_empty() {
+        return Ok(None);
+    }
+    let effective_port = match candidate.port().map_err(|_| ())? {
+        Some(port) => match NonZeroU16::new(port) {
+            Some(port) => port,
+            None => return Ok(None),
+        },
+        None => query.origin_port(),
+    };
+    let ech_is_mandatory = mandatory_keys.contains(&SVCB_PARAM_ECH);
+    let ech_config = match (candidate.param(SVCB_PARAM_ECH), ech_compatibility) {
+        (Some(value), Some(compatibility)) => match compatibility {
+            EchConfigListCompatibility::Compatible => Some(value.to_vec()),
+            EchConfigListCompatibility::Unsupported if ech_is_mandatory => return Ok(None),
+            EchConfigListCompatibility::Unsupported => {
+                // RFC 9849 recommends global GREASE when no usable ECHConfig
+                // is available. rustls' GREASE builder also forces TLS 1.3,
+                // so applying it only to this optional-parameter case would
+                // create a compatibility cliff while ordinary no-ECH origins
+                // retain TLS 1.2. A future browser-wide GREASE policy can
+                // model that separately; this optional key is ignored here.
+                None
+            }
+            EchConfigListCompatibility::Malformed => return Err(()),
+        },
+        (None, None) => None,
+        _ => return Err(()),
+    };
+
+    let parameters = candidate
+        .params
+        .into_iter()
+        .filter(|parameter| {
+            is_retained_svcb_key(parameter.key)
+                && (parameter.key != SVCB_PARAM_ECH || ech_config.is_some())
+        })
+        .map(|parameter| ServiceParameter::new(parameter.key, parameter.value).map_err(|_| ()))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(PreparedServiceRecord {
+        svc_priority: candidate.svc_priority,
+        service_target,
+        mandatory_keys,
+        advertised_alpn,
+        effective_port,
+        parameters,
+        ech_config,
+        selected_protocols,
+    }))
+}
+
+fn is_supported_mandatory_svcb_key(key: u16) -> bool {
+    // Address hints are recognized and retained, but RFC 9460 recommends
+    // ignoring them when authenticated A/AAAA answers are locally available.
+    // This resolver always obtains those answers and never substitutes a hint
+    // for its validated endpoint path.
+    matches!(
+        key,
+        SVCB_PARAM_ALPN
+            | SVCB_PARAM_NO_DEFAULT_ALPN
+            | SVCB_PARAM_PORT
+            | hns_core::dns::SVCB_PARAM_IPV4HINT
+            | SVCB_PARAM_ECH
+            | hns_core::dns::SVCB_PARAM_IPV6HINT
+    )
+}
+
+fn is_retained_svcb_key(key: u16) -> bool {
+    is_supported_mandatory_svcb_key(key)
 }
 
 fn application_protocol_candidates(
@@ -23699,14 +23820,38 @@ mod tests {
     }
 
     fn https_alpn_record(owner: &str, protocols: &[&[u8]]) -> ResourceRecord {
-        let mut alpn = Vec::new();
-        for protocol in protocols {
-            alpn.push(u8::try_from(protocol.len()).unwrap());
-            alpn.extend_from_slice(protocol);
+        https_service_record(
+            owner,
+            1,
+            vec![(SVCB_PARAM_ALPN, alpn_svcb_value(protocols))],
+        )
+    }
+
+    fn https_service_record(
+        owner: &str,
+        priority: u16,
+        parameters: Vec<(u16, Vec<u8>)>,
+    ) -> ResourceRecord {
+        https_service_record_for_target(owner, priority, ".", parameters)
+    }
+
+    fn https_service_record_for_target(
+        owner: &str,
+        priority: u16,
+        target: &str,
+        parameters: Vec<(u16, Vec<u8>)>,
+    ) -> ResourceRecord {
+        let mut rdata = Vec::new();
+        rdata.extend(priority.to_be_bytes());
+        DnsName::from_ascii(target)
+            .unwrap()
+            .encode_wire(&mut rdata)
+            .unwrap();
+        for (key, value) in parameters {
+            rdata.extend(key.to_be_bytes());
+            rdata.extend(u16::try_from(value.len()).unwrap().to_be_bytes());
+            rdata.extend(value);
         }
-        let mut rdata = vec![0, 1, 0, 0, 1];
-        rdata.extend(u16::try_from(alpn.len()).unwrap().to_be_bytes());
-        rdata.extend(alpn);
         ResourceRecord {
             name: DnsName::from_ascii(owner).unwrap(),
             record_type: RecordType::Https,
@@ -23714,6 +23859,48 @@ mod tests {
             ttl: 20,
             rdata,
         }
+    }
+
+    fn alpn_svcb_value(protocols: &[&[u8]]) -> Vec<u8> {
+        let mut value = Vec::new();
+        for protocol in protocols {
+            value.push(u8::try_from(protocol.len()).unwrap());
+            value.extend_from_slice(protocol);
+        }
+        value
+    }
+
+    fn mandatory_svcb_value(keys: &[u16]) -> Vec<u8> {
+        keys.iter().flat_map(|key| key.to_be_bytes()).collect()
+    }
+
+    fn service_bindings_for_records(
+        records: Vec<ResourceRecord>,
+    ) -> Result<Vec<ServiceBinding>, ()> {
+        let host = CanonicalHost::parse("api.example").unwrap();
+        let query = OriginQuery::new(
+            host.clone(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let request = ResolutionRequest {
+            qname: host.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let answers = HashMap::from([(request, resolution_answer(host.as_str(), records, true))]);
+        root_service_bindings(&query, &host, &answers)
+    }
+
+    fn test_ech_config_list() -> Vec<u8> {
+        // RFC-format ECHConfigList using the standardized 0xfe0d version and
+        // one suite supported by the shared Rust TLS transport.
+        vec![
+            0, 69, 254, 13, 0, 65, 251, 0, 32, 0, 32, 34, 62, 233, 148, 85, 152, 125, 143, 197, 34,
+            168, 119, 78, 69, 170, 69, 24, 250, 250, 207, 253, 171, 248, 243, 158, 107, 87, 55, 81,
+            235, 160, 25, 0, 4, 0, 1, 0, 1, 0, 18, 99, 108, 111, 117, 100, 102, 108, 97, 114, 101,
+            45, 101, 99, 104, 46, 99, 111, 109, 0, 0,
+        ]
     }
 
     fn tlsa_record(owner: &str, digest: u8) -> ResourceRecord {
@@ -24911,6 +25098,288 @@ mod tests {
             services[2].advertised_alpn(),
             &[b"h3".to_vec(), b"h2".to_vec()]
         );
+    }
+
+    #[test]
+    fn optional_ech_bytes_are_preserved_for_every_protocol_candidate() {
+        let ech = test_ech_config_list();
+        let services = service_bindings_for_records(vec![https_service_record(
+            "api.example",
+            1,
+            vec![
+                (SVCB_PARAM_ALPN, alpn_svcb_value(&[b"h2"])),
+                (SVCB_PARAM_ECH, ech.clone()),
+            ],
+        )])
+        .unwrap();
+
+        assert_eq!(
+            services
+                .iter()
+                .map(ServiceBinding::selected_protocol)
+                .collect::<Vec<_>>(),
+            vec![ApplicationProtocol::Http2, ApplicationProtocol::Http11]
+        );
+        for service in services {
+            assert_eq!(service.ech_config(), Some(ech.as_slice()));
+            assert_eq!(
+                service
+                    .parameters()
+                    .iter()
+                    .find(|parameter| parameter.key() == SVCB_PARAM_ECH)
+                    .map(ServiceParameter::value),
+                Some(ech.as_slice())
+            );
+        }
+    }
+
+    #[test]
+    fn unsupported_ech_obeys_optional_and_mandatory_semantics() {
+        let unsupported_ech = vec![0, 4, 0x12, 0x34, 0, 0];
+        let optional = service_bindings_for_records(vec![
+            https_service_record(
+                "api.example",
+                1,
+                vec![(SVCB_PARAM_ECH, unsupported_ech.clone())],
+            ),
+            https_service_record("api.example", 2, Vec::new()),
+        ])
+        .unwrap();
+        assert_eq!(optional[0].priority(), Some(1));
+        assert!(optional[0].ech_config().is_none());
+        assert!(optional[0].parameters().is_empty());
+
+        let compatible_ech = test_ech_config_list();
+        let mandatory = service_bindings_for_records(vec![
+            https_service_record(
+                "api.example",
+                1,
+                vec![
+                    (
+                        SVCB_PARAM_MANDATORY,
+                        mandatory_svcb_value(&[SVCB_PARAM_ECH]),
+                    ),
+                    (SVCB_PARAM_ECH, unsupported_ech),
+                ],
+            ),
+            https_service_record(
+                "api.example",
+                2,
+                vec![(SVCB_PARAM_ECH, compatible_ech.clone())],
+            ),
+        ])
+        .unwrap();
+        assert_eq!(mandatory[0].priority(), Some(2));
+        assert_eq!(mandatory[0].ech_config(), Some(compatible_ech.as_slice()));
+    }
+
+    #[test]
+    fn all_supported_mandatory_parameters_are_applied() {
+        let ech = test_ech_config_list();
+        let mandatory = [
+            SVCB_PARAM_ALPN,
+            SVCB_PARAM_NO_DEFAULT_ALPN,
+            SVCB_PARAM_PORT,
+            SVCB_PARAM_ECH,
+        ];
+        let services = service_bindings_for_records(vec![https_service_record(
+            "api.example",
+            4,
+            vec![
+                (SVCB_PARAM_MANDATORY, mandatory_svcb_value(&mandatory)),
+                (SVCB_PARAM_ALPN, alpn_svcb_value(&[b"h2"])),
+                (SVCB_PARAM_NO_DEFAULT_ALPN, Vec::new()),
+                (SVCB_PARAM_PORT, 8443_u16.to_be_bytes().to_vec()),
+                (SVCB_PARAM_ECH, ech.clone()),
+            ],
+        )])
+        .unwrap();
+
+        assert_eq!(services.len(), 1);
+        let service = &services[0];
+        assert_eq!(service.priority(), Some(4));
+        assert_eq!(service.mandatory_keys(), mandatory);
+        assert_eq!(service.selected_protocol(), ApplicationProtocol::Http2);
+        assert_eq!(service.effective_port().get(), 8443);
+        assert_eq!(service.ech_config(), Some(ech.as_slice()));
+        assert_eq!(
+            service
+                .parameters()
+                .iter()
+                .map(ServiceParameter::key)
+                .collect::<Vec<_>>(),
+            vec![
+                SVCB_PARAM_ALPN,
+                SVCB_PARAM_NO_DEFAULT_ALPN,
+                SVCB_PARAM_PORT,
+                SVCB_PARAM_ECH,
+            ]
+        );
+    }
+
+    #[test]
+    fn incompatible_records_are_filtered_before_priority_selection() {
+        let ech = test_ech_config_list();
+        let unknown_key = 65_000;
+        let incompatible = [
+            https_service_record(
+                "api.example",
+                1,
+                vec![(
+                    SVCB_PARAM_MANDATORY,
+                    mandatory_svcb_value(&[SVCB_PARAM_ECH]),
+                )],
+            ),
+            https_service_record(
+                "api.example",
+                1,
+                vec![
+                    (SVCB_PARAM_MANDATORY, mandatory_svcb_value(&[unknown_key])),
+                    (unknown_key, vec![1]),
+                ],
+            ),
+            https_service_record(
+                "api.example",
+                1,
+                vec![
+                    (SVCB_PARAM_ALPN, alpn_svcb_value(&[b"not-http"])),
+                    (SVCB_PARAM_NO_DEFAULT_ALPN, Vec::new()),
+                ],
+            ),
+            https_service_record(
+                "api.example",
+                1,
+                vec![(SVCB_PARAM_PORT, 0_u16.to_be_bytes().to_vec())],
+            ),
+        ];
+        for record in incompatible {
+            let services = service_bindings_for_records(vec![
+                record,
+                https_service_record("api.example", 2, Vec::new()),
+            ])
+            .unwrap();
+            assert!(services.iter().all(|service| service.priority() == Some(2)));
+        }
+        let unusable_target = service_bindings_for_records(vec![
+            https_service_record_for_target("api.example", 1, "_service.api.example", Vec::new()),
+            https_service_record("api.example", 2, Vec::new()),
+        ])
+        .unwrap();
+        assert!(
+            unusable_target
+                .iter()
+                .all(|service| service.priority() == Some(2))
+        );
+
+        let mut canonical_ech = ech.clone();
+        *canonical_ech.get_mut(6).unwrap() = 250;
+        for records in [
+            vec![
+                https_service_record("api.example", 1, vec![(SVCB_PARAM_ECH, ech.clone())]),
+                https_service_record(
+                    "api.example",
+                    1,
+                    vec![(SVCB_PARAM_ECH, canonical_ech.clone())],
+                ),
+            ],
+            vec![
+                https_service_record(
+                    "api.example",
+                    1,
+                    vec![(SVCB_PARAM_ECH, canonical_ech.clone())],
+                ),
+                https_service_record("api.example", 1, vec![(SVCB_PARAM_ECH, ech.clone())]),
+            ],
+        ] {
+            let services = service_bindings_for_records(records).unwrap();
+            assert_eq!(services[0].ech_config(), Some(canonical_ech.as_slice()),);
+        }
+    }
+
+    #[test]
+    fn malformed_record_rejects_the_entire_rrset() {
+        let empty_ech = https_service_record("api.example", 2, vec![(SVCB_PARAM_ECH, Vec::new())]);
+        let malformed_ech =
+            https_service_record("api.example", 3, vec![(SVCB_PARAM_ECH, vec![1, 2, 3])]);
+        let mut truncated = https_service_record(
+            "api.example",
+            4,
+            vec![(SVCB_PARAM_ALPN, alpn_svcb_value(&[b"h2"]))],
+        );
+        truncated.rdata.pop();
+        let invalid_mandatory_wire = https_service_record(
+            "api.example",
+            5,
+            vec![(SVCB_PARAM_MANDATORY, vec![SVCB_PARAM_ECH as u8])],
+        );
+        let incompatible_with_malformed_ech = https_service_record(
+            "api.example",
+            6,
+            vec![
+                (SVCB_PARAM_MANDATORY, mandatory_svcb_value(&[65_000])),
+                (SVCB_PARAM_ECH, vec![1, 2, 3]),
+                (65_000, vec![1]),
+            ],
+        );
+        for malformed in [
+            empty_ech,
+            malformed_ech,
+            truncated,
+            invalid_mandatory_wire,
+            incompatible_with_malformed_ech,
+        ] {
+            assert!(
+                service_bindings_for_records(vec![
+                    malformed,
+                    https_service_record("api.example", 9, Vec::new()),
+                ])
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn address_hints_are_retained_but_not_claimed_as_connection_inputs() {
+        let ipv4hint = hns_core::dns::SVCB_PARAM_IPV4HINT;
+        let ipv6hint = hns_core::dns::SVCB_PARAM_IPV6HINT;
+        let ipv4_value = vec![192, 0, 2, 1];
+        let ipv6_value = Ipv6Addr::LOCALHOST.octets().to_vec();
+        let hints = [
+            (ipv4hint, ipv4_value.clone()),
+            (ipv6hint, ipv6_value.clone()),
+        ];
+        let optional = service_bindings_for_records(vec![https_service_record(
+            "api.example",
+            1,
+            hints.to_vec(),
+        )])
+        .unwrap();
+        assert!(optional[0].connection_hints().is_empty());
+        assert_eq!(
+            optional[0]
+                .parameters()
+                .iter()
+                .map(ServiceParameter::key)
+                .collect::<Vec<_>>(),
+            vec![ipv4hint, ipv6hint],
+        );
+
+        let mandatory = service_bindings_for_records(vec![https_service_record(
+            "api.example",
+            1,
+            vec![
+                (
+                    SVCB_PARAM_MANDATORY,
+                    mandatory_svcb_value(&[ipv4hint, ipv6hint]),
+                ),
+                (ipv4hint, ipv4_value),
+                (ipv6hint, ipv6_value),
+            ],
+        )])
+        .unwrap();
+        assert_eq!(mandatory[0].mandatory_keys(), &[ipv4hint, ipv6hint]);
+        assert!(mandatory[0].connection_hints().is_empty());
+        assert_eq!(mandatory[0].parameters(), optional[0].parameters());
     }
 
     #[test]

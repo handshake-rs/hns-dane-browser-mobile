@@ -208,8 +208,9 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
 ```
 
 Cargo and platform builds fetch the mobile browser adapters and five canonical
-contracts at `0.2.0` only from qualified source
-`2b23bd55d14d36fe60073606869d75b4796c54f7`. The umbrella
+contracts at `0.2.0` only from pinned source
+`0346c25973d5c91de94d49b47349ec9b9efce3a0`. This ECH-capable revision requires
+fresh exact-commit platform qualification. The umbrella
 `hns-dane-engine` facade is intentionally not in the mobile dependency graph:
 that source currently brings its public OpenSSL-backed DANE/DNSSEC stack into
 Android and Apple target closures. A mobile-safe upstream facade split or

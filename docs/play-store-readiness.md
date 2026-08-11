@@ -231,8 +231,8 @@ Use a conservative general-purpose browser posture:
 Code `50` is a release-preparation candidate only. Historical code `49` wallet
 lifecycle source passed the focused exact-artifact Android exercise, Required CI
 `31402758394`, and full docs-parent CI `31411048376`. Code `50` adds the strict
-HNWR read projection but no credential/backend provision. Its exact source
-passed full CI `31433931682`; its exact debug artifact installed, cold-launched,
+HNWR read projection but no credential/backend provision. Its pre-ECH exact
+source passed full CI `31433931682`; its exact debug artifact installed, cold-launched,
 and exposed the expected fail-closed wallet UI on a Pixel 9. No wallet was
 created/restored and no credentialed read or value action ran. Signed AAB
 verification, current screenshots, live Console reconciliation, HNWR-aware

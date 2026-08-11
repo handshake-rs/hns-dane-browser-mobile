@@ -161,10 +161,11 @@
   source `2229be849557d58a8eb723bcc03349f0f2df9796`, which consumes final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
   lockfile, source policy, and notices are aligned.
-- Completed mobile engine source unification: every adapter and canonical
-  contract resolves as `0.2.0` from qualified source
-  `2b23bd55d14d36fe60073606869d75b4796c54f7`; the temporary crates.io patch
-  bridge is removed. The standalone HNSA/HNSR-capable facade remains excluded
+- Mobile engine source unification remains complete: every adapter and
+  canonical contract resolves as `0.2.0` from pinned source
+  `0346c25973d5c91de94d49b47349ec9b9efce3a0`; the temporary crates.io patch
+  bridge is removed, and the ECH-capable pin requires fresh platform
+  qualification. The standalone HNSA/HNSR-capable facade remains excluded
   until upstream provides a mobile-safe dependency boundary that does not pull
   its OpenSSL-backed public DANE/DNSSEC stack into Android and Apple closures.
 - Pending release qualification: scoped credential/indexed backend/data

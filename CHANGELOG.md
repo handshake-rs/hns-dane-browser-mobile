@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Added end-to-end RFC 9848/9849 Encrypted ClientHello for HTTPS and secure
+  WebSocket origins. The resolver retains a compatible ECHConfigList from the
+  selected root-scoped HTTPS/SVCB record, and the shared Rust transport uses
+  it for HTTP/1.1, HTTP/2, HTTP/3, and WebSocket TLS before sending application
+  data.
+
+### Changed
+
+- HTTPS/SVCB records are now filtered for client compatibility before service
+  priority selection. Valid but unsupported optional ECH is ignored, mandatory
+  unsupported ECH makes that record ineligible, malformed ECH rejects the
+  RRset, and distinct records at one priority are selected by a canonical order
+  that preserves independent HNS/ICANN plan convergence.
+- Browser-wide GREASE ECH remains future policy. Applying rustls GREASE only
+  when an optional unsupported configuration is advertised would force TLS 1.3
+  in that one case while ordinary origins retain TLS 1.2 compatibility.
+- ECH-bearing connections require TLS 1.3 and fail closed on ECH rejection.
+  They never retry with a plaintext ClientHello, and their connection pool,
+  resumption, verifier, and Alt-Svc state cannot cross ECH configurations.
+
+### Qualification
+
+- This source and pinned engine revision
+  `0346c25973d5c91de94d49b47349ec9b9efce3a0` require fresh exact-commit Rust,
+  Android, Apple, CodeQL, installed-product, and live-network evidence.
+
 ## 0.5.9 - 2026-08-10
 
 ### Added
