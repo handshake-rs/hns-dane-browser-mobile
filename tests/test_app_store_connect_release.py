@@ -467,6 +467,35 @@ class SubmissionSafetyTests(unittest.TestCase):
                 manager._ensure_screenshots("localization")
             self.assertFalse(any(event[0] == "DELETE" for event in api.events))
 
+    def test_screenshot_readback_reports_exact_api_order_and_attributes(self):
+        first = complete_screenshot("screenshot-b", "02-settings.jpg", b"settings")
+        second = complete_screenshot("screenshot-a", "01-home.jpg", b"home")
+        first["attributes"]["sourceFileChecksum"] = (
+            first["attributes"]["sourceFileChecksum"].upper()
+        )
+
+        self.assertEqual(
+            release_client.ReleaseManager.screenshot_readback([first, second]),
+            [
+                {
+                    "position": 1,
+                    "id": "screenshot-b",
+                    "fileName": "02-settings.jpg",
+                    "fileSize": len(b"settings"),
+                    "sourceFileChecksum": hashlib.md5(b"settings").hexdigest().upper(),  # noqa: S324
+                    "state": "COMPLETE",
+                },
+                {
+                    "position": 2,
+                    "id": "screenshot-a",
+                    "fileName": "01-home.jpg",
+                    "fileSize": len(b"home"),
+                    "sourceFileChecksum": hashlib.md5(b"home").hexdigest(),  # noqa: S324
+                    "state": "COMPLETE",
+                },
+            ],
+        )
+
     def test_confirmed_screenshot_replacement_is_scoped_stable_and_read_back_empty(self):
         with tempfile.TemporaryDirectory() as temporary:
             screenshot = Path(temporary) / "01-home.jpg"

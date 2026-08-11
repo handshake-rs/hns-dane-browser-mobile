@@ -701,6 +701,26 @@ class ReleaseManager:
             },
         )
 
+    @staticmethod
+    def screenshot_readback(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Return non-sensitive ordered screenshot attributes for GET-only diagnosis."""
+        readback: list[dict[str, Any]] = []
+        for position, resource in enumerate(resources, start=1):
+            attributes = _resource_attributes(resource)
+            delivery = attributes.get("assetDeliveryState")
+            state = delivery.get("state") if isinstance(delivery, dict) else None
+            readback.append(
+                {
+                    "position": position,
+                    "id": _resource_id(resource, "appScreenshots"),
+                    "fileName": attributes.get("fileName"),
+                    "fileSize": attributes.get("fileSize"),
+                    "sourceFileChecksum": attributes.get("sourceFileChecksum"),
+                    "state": state,
+                }
+            )
+        return readback
+
     def active_review_submissions(self, app_id: str) -> list[dict[str, Any]]:
         values = self.api.list(
             f"/v1/apps/{app_id}/reviewSubmissions",
@@ -748,14 +768,11 @@ class ReleaseManager:
                 screenshot_set = self.screenshot_set(localization_id)
                 if screenshot_set is not None:
                     screenshots = self.screenshots(_resource_id(screenshot_set, "appScreenshotSets"))
+                    screenshot_readback = self.screenshot_readback(screenshots)
                     screenshot_summary = {
                         "count": len(screenshots),
-                        "states": [
-                            _resource_attributes(item).get("assetDeliveryState", {}).get("state")
-                            if isinstance(_resource_attributes(item).get("assetDeliveryState"), dict)
-                            else None
-                            for item in screenshots
-                        ],
+                        "states": [item["state"] for item in screenshot_readback],
+                        "resources": screenshot_readback,
                     }
             result["version"] = {
                 "appStoreState": attrs.get("appStoreState"),
