@@ -146,21 +146,26 @@ The workflow then:
 
 After the upload run succeeds and build `60` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
-GET requests only. Mutation modes require the exact current `main` commit, the
-successful upload run for that commit, its verified screenshot artifact, and
-release-specific confirmation strings. The client applies and reads back the
-version/app-info localizations, manual release type, exact build, App Review
-details, and four exact-commit screenshots. `submit` then creates or safely
-resumes a Review Submission containing only this App Store version and marks it
-submitted as its final mutation.
+GET requests only. Pin both the exact current `main` automation commit and the
+signed-artifact commit from the successful upload run. They may differ only by
+the guarded release-workflow, client, tests, and this release guide; any app or
+metadata change fails closed. Mutation modes additionally require that upload
+run, its verified screenshot artifact, and release-specific confirmation
+strings. The client applies and reads back the version/app-info localizations,
+manual release type, exact build, App Review details, and four exact-artifact
+screenshots. `submit` then creates or safely resumes a Review Submission
+containing only this App Store version and marks it submitted as its final
+mutation.
 
 ```sh
 expected_commit="$(git rev-parse HEAD)"
+artifact_commit=REPLACE_WITH_SUCCESSFUL_UPLOAD_RUN_HEAD_SHA
 
 gh workflow run ios-app-store-submit.yml \
   --repo handshake-rs/hns-dane-browser-mobile \
   --ref main \
   -f expected_commit="$expected_commit" \
+  -f expected_artifact_commit="$artifact_commit" \
   -f mode=discover \
   -f review_contact_source_version=0.5.5 \
   -f confirm_account_readiness=false
@@ -178,6 +183,7 @@ gh workflow run ios-app-store-submit.yml \
   --repo handshake-rs/hns-dane-browser-mobile \
   --ref main \
   -f expected_commit="$expected_commit" \
+  -f expected_artifact_commit="$artifact_commit" \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version=0.5.5 \
@@ -185,6 +191,13 @@ gh workflow run ios-app-store-submit.yml \
   -f confirm_submit=SUBMIT_FOR_REVIEW_0.5.10_60 \
   -f confirm_account_readiness=true
 ```
+
+Apple may carry the prior public version's screenshots into a new editable
+version. A byte mismatch still fails closed. After visually reviewing the
+retained exact-artifact images, a metadata-only run may replace only that
+version's mismatching `APP_IPHONE_65` set by adding the exact confirmation
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_0.5.10_60`. Without
+that input the client issues no screenshot deletion requests.
 
 If the exact build is not yet `VALID`, the workflow fails closed before
 submission and can be rerun after processing. It copies the private review

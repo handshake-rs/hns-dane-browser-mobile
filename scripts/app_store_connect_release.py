@@ -31,7 +31,10 @@ API_ORIGIN = "https://api.appstoreconnect.apple.com"
 BUNDLE_ID = "com.denuoweb.hnsdane.ios"
 LOCALE = "en-US"
 SCREENSHOT_DISPLAY_TYPE = "APP_IPHONE_65"
+MAX_SCREENSHOTS_PER_SET = 10
 EXACT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
+MD5_CHECKSUM = re.compile(r"^[0-9a-fA-F]{32}$")
+SAFE_RESOURCE_ID = re.compile(r"^[A-Za-z0-9-]+$")
 API_KEY_ID = re.compile(r"^[A-Z0-9]{10}$")
 ISSUER_ID = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
@@ -85,10 +88,22 @@ REQUIRED_REVIEW_CONTACT_FIELDS = (
     "contactPhone",
     "contactEmail",
 )
+RELEASE_AUTOMATION_ALLOWLIST = frozenset(
+    {
+        ".github/workflows/ios-app-store-submit.yml",
+        "docs/ios-app-store-release.md",
+        "scripts/app_store_connect_release.py",
+        "tests/test_app_store_connect_release.py",
+    }
+)
 
 
 class ReleaseError(RuntimeError):
     """A safe, operator-actionable release failure."""
+
+
+class ScreenshotSetMismatch(ReleaseError):
+    """The existing screenshot resources are not the reviewed release prefix."""
 
 
 class ApiError(ReleaseError):
@@ -108,6 +123,7 @@ class NoRedirect(HTTPRedirectHandler):
 class LocalRelease:
     root: Path
     expected_commit: str
+    artifact_commit: str
     version: str
     build: str
     metadata: dict[str, str]
@@ -119,6 +135,10 @@ class LocalRelease:
     @property
     def submit_confirmation(self) -> str:
         return f"SUBMIT_FOR_REVIEW_{self.version}_{self.build}"
+
+    @property
+    def screenshot_replacement_confirmation(self) -> str:
+        return f"REPLACE_SCREENSHOTS_{self.version}_{self.build}"
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -353,11 +373,14 @@ def _one_regex(value: str, pattern: str, label: str) -> str:
 def load_local_release(
     root: Path,
     expected_commit: str,
+    artifact_commit: str,
     expected_version: str,
     expected_build: str,
 ) -> LocalRelease:
     if not EXACT_COMMIT.fullmatch(expected_commit):
         raise ReleaseError("expected commit must be one lowercase 40-character Git SHA")
+    if not EXACT_COMMIT.fullmatch(artifact_commit):
+        raise ReleaseError("artifact commit must be one lowercase 40-character Git SHA")
     project = (root / "ios/project.yml").read_text(encoding="utf-8")
     version = _one_regex(project, r"^\s*MARKETING_VERSION:\s*([^\s#]+)\s*$", "version")
     build = _one_regex(project, r"^\s*CURRENT_PROJECT_VERSION:\s*([^\s#]+)\s*$", "build")
@@ -382,7 +405,64 @@ def load_local_release(
     for key in ("name", "description", "keywords", "supportUrl", "copyright", "whatsNew", "reviewNotes", "privacyPolicyUrl"):
         if not metadata[key]:
             raise ReleaseError(f"required App Store metadata field is empty: {key}")
-    return LocalRelease(root, expected_commit, version, build, metadata)
+    return LocalRelease(root, expected_commit, artifact_commit, version, build, metadata)
+
+
+def verify_release_automation_diff(release: LocalRelease) -> None:
+    artifact = subprocess.run(
+        ["git", "cat-file", "-e", f"{release.artifact_commit}^{{commit}}"],
+        cwd=release.root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if artifact.returncode != 0:
+        raise ReleaseError("the pinned signed-artifact commit is not available locally")
+    ancestry = subprocess.run(
+        [
+            "git",
+            "merge-base",
+            "--is-ancestor",
+            release.artifact_commit,
+            release.expected_commit,
+        ],
+        cwd=release.root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if ancestry.returncode != 0:
+        raise ReleaseError(
+            "the pinned signed-artifact commit is not an ancestor of current main"
+        )
+    changed = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "-z",
+            f"{release.artifact_commit}..{release.expected_commit}",
+            "--",
+        ],
+        cwd=release.root,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout
+    try:
+        paths = {
+            value.decode("utf-8")
+            for value in changed.split(b"\0")
+            if value
+        }
+    except UnicodeDecodeError as error:
+        raise ReleaseError("the release commit diff contains a non-UTF-8 path") from error
+    unexpected = sorted(paths - RELEASE_AUTOMATION_ALLOWLIST)
+    if unexpected:
+        raise ReleaseError(
+            "the signed-artifact-to-main diff changes non-automation files: "
+            + ", ".join(unexpected)
+        )
 
 
 def verify_exact_current_main(release: LocalRelease) -> None:
@@ -406,6 +486,7 @@ def verify_exact_current_main(release: LocalRelease) -> None:
     ).stdout
     if status_output:
         raise ReleaseError("the release checkout is not clean")
+    verify_release_automation_diff(release)
     remote = subprocess.run(
         ["git", "ls-remote", "--exit-code", "origin", "refs/heads/main"],
         cwd=release.root,
@@ -427,7 +508,18 @@ def validate_confirmations(
     metadata_confirmation: str | None,
     submit_confirmation: str | None,
     account_readiness: bool,
+    screenshot_replacement_confirmation: str | None = None,
 ) -> None:
+    if screenshot_replacement_confirmation:
+        if mode not in {"apply-metadata", "submit"}:
+            raise ReleaseError(
+                "screenshot replacement confirmation is only valid for a mutating mode"
+            )
+        if screenshot_replacement_confirmation != release.screenshot_replacement_confirmation:
+            raise ReleaseError(
+                "screenshot replacement requires --confirm-screenshot-replacement "
+                f"{release.screenshot_replacement_confirmation}"
+            )
     if mode in {"apply-metadata", "submit"}:
         if metadata_confirmation != release.metadata_confirmation:
             raise ReleaseError(
@@ -496,12 +588,14 @@ class ReleaseManager:
         *,
         review_contact_source_version: str,
         screenshot_paths: list[Path] | None = None,
+        allow_screenshot_replacement: bool = False,
         asset_timeout_seconds: int = 300,
     ):
         self.api = api
         self.release = release
         self.review_contact_source_version = review_contact_source_version
         self.screenshot_paths = screenshot_paths
+        self.allow_screenshot_replacement = allow_screenshot_replacement
         self.asset_timeout_seconds = asset_timeout_seconds
 
     def find_app(self) -> dict[str, Any]:
@@ -967,44 +1061,160 @@ class ReleaseManager:
                 expected=(201,),
             )
             screenshot_set = _data_resource(document, "appScreenshotSets")
-        screenshot_set_id = _resource_id(screenshot_set, "appScreenshotSets")
+        screenshot_set_id = self._validated_screenshot_set_id(screenshot_set)
         existing = self.screenshots(screenshot_set_id)
         if existing:
-            self._resume_exact_screenshot_prefix(existing)
+            try:
+                self._resume_exact_screenshot_prefix(existing)
+            except ScreenshotSetMismatch:
+                if not self.allow_screenshot_replacement:
+                    raise
+                self._replace_mismatching_screenshots(screenshot_set, existing)
+                existing = []
         for path in (self.screenshot_paths or [])[len(existing) :]:
             self._upload_screenshot(screenshot_set_id, path)
         self._wait_for_screenshots(screenshot_set_id)
         self._verify_screenshot_resources(self.screenshots(screenshot_set_id))
         return screenshot_set_id
 
+    @staticmethod
+    def _validated_screenshot_set_id(screenshot_set: dict[str, Any]) -> str:
+        screenshot_set_id = _resource_id(screenshot_set, "appScreenshotSets")
+        if not SAFE_RESOURCE_ID.fullmatch(screenshot_set_id):
+            raise ReleaseError("the App Store screenshot set has an unsafe resource ID")
+        attributes = _resource_attributes(screenshot_set)
+        if attributes.get("screenshotDisplayType") != SCREENSHOT_DISPLAY_TYPE:
+            raise ReleaseError(
+                f"refusing to mutate a screenshot set other than {SCREENSHOT_DISPLAY_TYPE}"
+            )
+        return screenshot_set_id
+
+    @staticmethod
+    def _screenshot_snapshot(
+        resources: list[dict[str, Any]],
+    ) -> tuple[tuple[str, str, int, str, str], ...]:
+        if not resources or len(resources) > MAX_SCREENSHOTS_PER_SET:
+            raise ReleaseError(
+                "the mismatching App Store screenshot set is not a sane non-empty set"
+            )
+        records: list[tuple[str, str, int, str, str]] = []
+        ids: set[str] = set()
+        for resource in resources:
+            screenshot_id = _resource_id(resource, "appScreenshots")
+            if (
+                not SAFE_RESOURCE_ID.fullmatch(screenshot_id)
+                or screenshot_id in ids
+            ):
+                raise ReleaseError(
+                    "the mismatching App Store screenshot set has invalid resource IDs"
+                )
+            ids.add(screenshot_id)
+            attributes = _resource_attributes(resource)
+            filename = attributes.get("fileName")
+            file_size = attributes.get("fileSize")
+            checksum = attributes.get("sourceFileChecksum")
+            delivery = attributes.get("assetDeliveryState")
+            state = delivery.get("state") if isinstance(delivery, dict) else None
+            if (
+                not isinstance(filename, str)
+                or not filename
+                or filename != Path(filename).name
+                or len(filename) > 255
+                or not isinstance(file_size, int)
+                or isinstance(file_size, bool)
+                or file_size <= 0
+                or not isinstance(checksum, str)
+                or not MD5_CHECKSUM.fullmatch(checksum)
+                or state != "COMPLETE"
+            ):
+                raise ReleaseError(
+                    "the mismatching App Store screenshot set is not complete and sane; "
+                    "refusing deletion"
+                )
+            records.append(
+                (screenshot_id, filename, file_size, checksum.casefold(), state)
+            )
+        return tuple(sorted(records))
+
+    def _replace_mismatching_screenshots(
+        self,
+        screenshot_set: dict[str, Any],
+        resources: list[dict[str, Any]],
+    ) -> None:
+        screenshot_set_id = self._validated_screenshot_set_id(screenshot_set)
+        expected_snapshot = self._screenshot_snapshot(resources)
+        refreshed = self.screenshots(screenshot_set_id)
+        if self._screenshot_snapshot(refreshed) != expected_snapshot:
+            raise ReleaseError(
+                "the App Store screenshot set changed during replacement validation"
+            )
+        screenshot_ids = {record[0] for record in expected_snapshot}
+        for screenshot_id in sorted(screenshot_ids):
+            self.api.request(
+                "DELETE",
+                f"/v1/appScreenshots/{screenshot_id}",
+                expected=(204,),
+            )
+        self._wait_for_empty_screenshot_set(screenshot_set_id, screenshot_ids)
+
+    def _wait_for_empty_screenshot_set(
+        self,
+        screenshot_set_id: str,
+        deleted_ids: set[str],
+    ) -> None:
+        deadline = time.monotonic() + self.asset_timeout_seconds
+        while True:
+            resources = self.screenshots(screenshot_set_id)
+            if not resources:
+                return
+            remaining_ids = {
+                _resource_id(resource, "appScreenshots") for resource in resources
+            }
+            if not remaining_ids.issubset(deleted_ids):
+                raise ReleaseError(
+                    "an unexpected screenshot appeared while verifying replacement deletion"
+                )
+            if time.monotonic() >= deadline:
+                raise ReleaseError(
+                    "timed out waiting for the replaced screenshot set to become empty"
+                )
+            time.sleep(5)
+
     def _resume_exact_screenshot_prefix(self, resources: list[dict[str, Any]]) -> None:
         paths = self.screenshot_paths or []
         if len(resources) > len(paths):
-            raise ReleaseError(
+            raise ScreenshotSetMismatch(
                 "the existing App Store screenshot set differs from the exact release set; "
-                "refusing destructive replacement"
+                "refusing destructive replacement without its release-specific confirmation"
             )
+        resumable: list[tuple[dict[str, Any], Path, str, str]] = []
         for resource, path in zip(resources, paths):
             attributes = _resource_attributes(resource)
             if (
                 attributes.get("fileName") != path.name
                 or attributes.get("fileSize") != path.stat().st_size
             ):
-                raise ReleaseError(
+                raise ScreenshotSetMismatch(
                     "the existing App Store screenshot set differs from the exact release set; "
-                    "refusing destructive replacement"
+                    "refusing destructive replacement without its release-specific confirmation"
                 )
             delivery = attributes.get("assetDeliveryState")
             state = delivery.get("state") if isinstance(delivery, dict) else None
             checksum = hashlib.md5(path.read_bytes()).hexdigest()  # noqa: S324 - Apple API contract
             if state == "COMPLETE":
                 if attributes.get("sourceFileChecksum") != checksum:
-                    raise ReleaseError(
+                    raise ScreenshotSetMismatch(
                         "the existing App Store screenshot set differs from the exact release set; "
-                        "refusing destructive replacement"
+                        "refusing destructive replacement without its release-specific confirmation"
                     )
-                continue
+            elif state not in {"AWAITING_UPLOAD", "UPLOAD_COMPLETE"}:
+                raise ReleaseError(
+                    "the existing App Store screenshot reservation cannot be resumed safely"
+                )
+            resumable.append((resource, path, checksum, state))
+        for resource, path, checksum, state in resumable:
             if state == "AWAITING_UPLOAD":
+                attributes = _resource_attributes(resource)
                 self._validate_and_upload_operations(path, attributes.get("uploadOperations"))
                 screenshot_id = _resource_id(resource, "appScreenshots")
                 self.api.request(
@@ -1021,19 +1231,13 @@ class ReleaseManager:
                         }
                     },
                 )
-                continue
-            if state == "UPLOAD_COMPLETE":
-                continue
-            raise ReleaseError(
-                "the existing App Store screenshot reservation cannot be resumed safely"
-            )
 
     def _verify_screenshot_resources(self, resources: list[dict[str, Any]]) -> None:
         paths = self.screenshot_paths or []
         if len(resources) != len(paths):
-            raise ReleaseError(
+            raise ScreenshotSetMismatch(
                 "the existing App Store screenshot set differs from the exact release set; "
-                "refusing destructive replacement"
+                "refusing destructive replacement without its release-specific confirmation"
             )
         for resource, path in zip(resources, paths):
             attributes = _resource_attributes(resource)
@@ -1046,9 +1250,9 @@ class ReleaseManager:
                 or attributes.get("sourceFileChecksum") != checksum
                 or state != "COMPLETE"
             ):
-                raise ReleaseError(
+                raise ScreenshotSetMismatch(
                     "the existing App Store screenshot set differs from the exact release set; "
-                    "refusing destructive replacement"
+                    "refusing destructive replacement without its release-specific confirmation"
                 )
 
     def _upload_screenshot(self, screenshot_set_id: str, path: Path) -> None:
@@ -1337,8 +1541,12 @@ def local_plan(release: LocalRelease) -> dict[str, Any]:
         "version": release.version,
         "build": release.build,
         "expectedCommit": release.expected_commit,
+        "artifactCommit": release.artifact_commit,
         "metadataSha256": digests,
         "requiredMetadataConfirmation": release.metadata_confirmation,
+        "requiredScreenshotReplacementConfirmation": (
+            release.screenshot_replacement_confirmation
+        ),
         "requiredSubmitConfirmation": release.submit_confirmation,
     }
 
@@ -1381,12 +1589,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="plan",
     )
     parser.add_argument("--expected-commit", required=True)
+    parser.add_argument("--expected-artifact-commit")
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--expected-build", required=True)
     parser.add_argument("--review-contact-source-version", default="0.5.5")
     parser.add_argument("--screenshots-dir", default="build/app-store-live-screenshots")
     parser.add_argument("--asset-timeout-seconds", type=int, default=300)
     parser.add_argument("--confirm-metadata")
+    parser.add_argument("--confirm-screenshot-replacement")
     parser.add_argument("--confirm-submit")
     parser.add_argument("--confirm-account-readiness", action="store_true")
     return parser
@@ -1399,6 +1609,7 @@ def main() -> int:
         release = load_local_release(
             root,
             args.expected_commit,
+            args.expected_artifact_commit or args.expected_commit,
             args.expected_version,
             args.expected_build,
         )
@@ -1408,6 +1619,7 @@ def main() -> int:
             args.confirm_metadata,
             args.confirm_submit,
             args.confirm_account_readiness,
+            args.confirm_screenshot_replacement,
         )
         if args.mode == "plan":
             print(json.dumps(local_plan(release), indent=2, sort_keys=True))
@@ -1422,13 +1634,17 @@ def main() -> int:
         if args.mode in {"apply-metadata", "submit"}:
             verify_exact_current_main(release)
             screenshot_paths = verified_screenshot_paths(
-                root, (root / args.screenshots_dir).resolve(), release.expected_commit
+                root, (root / args.screenshots_dir).resolve(), release.artifact_commit
             )
         manager = ReleaseManager(
             api,
             release,
             review_contact_source_version=args.review_contact_source_version,
             screenshot_paths=screenshot_paths,
+            allow_screenshot_replacement=(
+                args.confirm_screenshot_replacement
+                == release.screenshot_replacement_confirmation
+            ),
             asset_timeout_seconds=args.asset_timeout_seconds,
         )
         result = execute_authenticated_mode(manager, args.mode)

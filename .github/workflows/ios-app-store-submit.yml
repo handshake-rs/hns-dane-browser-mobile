@@ -7,8 +7,12 @@ on:
         description: Exact lowercase 40-character current main commit
         required: true
         type: string
+      expected_artifact_commit:
+        description: Exact signed IPA and screenshot source commit
+        required: true
+        type: string
       expected_upload_run_id:
-        description: Successful iOS App Store Upload run for this commit (required to mutate)
+        description: Successful iOS App Store Upload run for the artifact commit (required to mutate)
         required: false
         type: string
       mode:
@@ -27,6 +31,10 @@ on:
         type: string
       confirm_metadata:
         description: For mutation, enter APPLY_METADATA_0.5.10_60
+        required: false
+        type: string
+      confirm_screenshot_replacement:
+        description: To replace a mismatching 6.5-inch set, enter REPLACE_SCREENSHOTS_0.5.10_60
         required: false
         type: string
       confirm_submit:
@@ -65,13 +73,19 @@ jobs:
           CONFIRM_SUBMIT: ${{ inputs.confirm_submit }}
           DISPATCH_COMMIT: ${{ github.sha }}
           DISPATCH_REF: ${{ github.ref }}
+          EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
           EXPECTED_UPLOAD_RUN_ID: ${{ inputs.expected_upload_run_id }}
           MODE: ${{ inputs.mode }}
+          SCREENSHOT_REPLACEMENT: ${{ inputs.confirm_screenshot_replacement }}
         run: |
           set -euo pipefail
           printf '%s\n' "$EXPECTED_COMMIT" | grep -Eq '^[0-9a-f]{40}$' || {
             echo "expected_commit must be one lowercase 40-character Git SHA" >&2
+            exit 2
+          }
+          printf '%s\n' "$EXPECTED_ARTIFACT_COMMIT" | grep -Eq '^[0-9a-f]{40}$' || {
+            echo "expected_artifact_commit must be one lowercase 40-character Git SHA" >&2
             exit 2
           }
           [[ "$DISPATCH_REF" == refs/heads/main ]] || {
@@ -82,6 +96,16 @@ jobs:
             echo "expected_commit must equal the main commit selected at dispatch." >&2
             exit 2
           }
+          if [[ -n "$SCREENSHOT_REPLACEMENT" ]]; then
+            [[ "$MODE" == apply-metadata || "$MODE" == submit ]] || {
+              echo "screenshot replacement is only valid for a mutating mode" >&2
+              exit 2
+            }
+            [[ "$SCREENSHOT_REPLACEMENT" == REPLACE_SCREENSHOTS_0.5.10_60 ]] || {
+              echo "invalid release-specific screenshot replacement confirmation" >&2
+              exit 2
+            }
+          fi
           case "$MODE" in
             discover)
               ;;
@@ -105,10 +129,46 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ inputs.expected_commit }}
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Prove the signed-artifact-to-main automation boundary
+        env:
+          EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+        run: |
+          set -euo pipefail
+          git cat-file -e "${EXPECTED_ARTIFACT_COMMIT}^{commit}"
+          git merge-base --is-ancestor "$EXPECTED_ARTIFACT_COMMIT" "$EXPECTED_COMMIT" || {
+            echo "expected_artifact_commit must be an ancestor of expected_commit." >&2
+            exit 2
+          }
+          diff_file="$RUNNER_TEMP/ios-release-automation-diff"
+          git diff --name-only -z \
+            "$EXPECTED_ARTIFACT_COMMIT..$EXPECTED_COMMIT" -- >"$diff_file"
+          unexpected=()
+          while IFS= read -r -d '' changed_path; do
+            case "$changed_path" in
+              .github/workflows/ios-app-store-submit.yml|\
+              docs/ios-app-store-release.md|\
+              scripts/app_store_connect_release.py|\
+              tests/test_app_store_connect_release.py)
+                ;;
+              *)
+                unexpected+=("$changed_path")
+                ;;
+            esac
+          done <"$diff_file"
+          rm -f -- "$diff_file"
+          if ((${#unexpected[@]})); then
+            printf 'signed-artifact-to-main diff contains non-automation path: %s\n' \
+              "${unexpected[@]}" >&2
+            exit 2
+          fi
 
       - name: Validate local metadata and exact source identity
         env:
+          EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: |
           set -euo pipefail
@@ -117,13 +177,14 @@ jobs:
           python3 scripts/app_store_connect_release.py \
             --mode plan \
             --expected-commit "$EXPECTED_COMMIT" \
+            --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT" \
             --expected-version 0.5.10 \
             --expected-build 60 >/dev/null
 
       - name: Validate the successful exact-commit upload run
         if: ${{ inputs.mode != 'discover' }}
         env:
-          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           UPLOAD_RUN_ID: ${{ inputs.expected_upload_run_id }}
@@ -134,10 +195,10 @@ jobs:
           jobs_json="$(gh api "repos/$REPOSITORY/actions/runs/$UPLOAD_RUN_ID/jobs?per_page=100")"
           artifacts_json="$(gh api "repos/$REPOSITORY/actions/runs/$UPLOAD_RUN_ID/artifacts?per_page=100")"
           jq -e \
-            --arg expected_commit "$EXPECTED_COMMIT" \
+            --arg artifact_commit "$EXPECTED_ARTIFACT_COMMIT" \
             '.event == "workflow_dispatch"
              and .head_branch == "main"
-             and .head_sha == $expected_commit
+             and .head_sha == $artifact_commit
              and .conclusion == "success"
              and .path == ".github/workflows/ios-app-store-upload.yml"' \
             <<<"$run_json" >/dev/null || {
@@ -151,8 +212,8 @@ jobs:
               echo "the credentialed iOS upload job did not complete successfully" >&2
               exit 2
             }
-          screenshot_artifact="ios-app-store-live-screenshots-${EXPECTED_COMMIT}"
-          ipa_artifact="ios-app-store-ipa-${EXPECTED_COMMIT}"
+          screenshot_artifact="ios-app-store-live-screenshots-${EXPECTED_ARTIFACT_COMMIT}"
+          ipa_artifact="ios-app-store-ipa-${EXPECTED_ARTIFACT_COMMIT}"
           jq -e \
             --arg screenshot_artifact "$screenshot_artifact" \
             --arg ipa_artifact "$ipa_artifact" \
@@ -171,7 +232,7 @@ jobs:
         if: ${{ inputs.mode != 'discover' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: ios-app-store-live-screenshots-${{ inputs.expected_commit }}
+          name: ios-app-store-live-screenshots-${{ inputs.expected_artifact_commit }}
           path: build/app-store-live-screenshots
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
@@ -180,11 +241,11 @@ jobs:
       - name: Verify screenshots came from the exact release commit
         if: ${{ inputs.mode != 'discover' }}
         env:
-          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
         run: |
           python3 scripts/ios_screenshot_tools.py verify-live \
             --directory build/app-store-live-screenshots \
-            --expected-commit "$EXPECTED_COMMIT"
+            --expected-commit "$EXPECTED_ARTIFACT_COMMIT"
 
       - name: Recheck current main before materializing the API key
         env:
@@ -198,6 +259,7 @@ jobs:
             exit 2
           }
           test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+          test -z "$(git status --porcelain --untracked-files=all)"
 
       - name: Materialize the temporary App Store Connect API key
         env:
@@ -217,8 +279,10 @@ jobs:
         env:
           ACCOUNT_READY: ${{ inputs.confirm_account_readiness }}
           CONFIRM_METADATA: ${{ inputs.confirm_metadata }}
+          CONFIRM_SCREENSHOT_REPLACEMENT: ${{ inputs.confirm_screenshot_replacement }}
           CONFIRM_SUBMIT: ${{ inputs.confirm_submit }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           HNS_ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           HNS_ASC_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           MODE: ${{ inputs.mode }}
@@ -228,6 +292,7 @@ jobs:
           arguments=(
             --mode "$MODE"
             --expected-commit "$EXPECTED_COMMIT"
+            --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT"
             --expected-version 0.5.10
             --expected-build 60
             --review-contact-source-version "$REVIEW_CONTACT_SOURCE_VERSION"
@@ -237,6 +302,11 @@ jobs:
               --screenshots-dir build/app-store-live-screenshots
               --confirm-metadata "$CONFIRM_METADATA"
             )
+            if [[ -n "$CONFIRM_SCREENSHOT_REPLACEMENT" ]]; then
+              arguments+=(
+                --confirm-screenshot-replacement "$CONFIRM_SCREENSHOT_REPLACEMENT"
+              )
+            fi
           fi
           if [[ "$MODE" == submit ]]; then
             arguments+=(--confirm-submit "$CONFIRM_SUBMIT")
