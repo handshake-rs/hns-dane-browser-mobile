@@ -20,7 +20,7 @@ use std::os::fd::{FromRawFd, RawFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
 const MAX_LOCAL_CERTIFICATE_DER_BYTES: usize = 64 * 1024;
@@ -61,11 +61,13 @@ const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
 static WALLET_HANDLES: OnceLock<BoundedMonotonicRegistry<AndroidWalletRecord>> = OnceLock::new();
 const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
+const STREAMING_GATEWAY_CAPACITY_WAIT: Duration = Duration::from_secs(30);
 static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
     StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
 
 struct StreamingGatewayLimiter {
     active: Mutex<usize>,
+    capacity_available: Condvar,
     limit: usize,
 }
 
@@ -73,6 +75,7 @@ impl StreamingGatewayLimiter {
     const fn new(limit: usize) -> Self {
         Self {
             active: Mutex::new(0),
+            capacity_available: Condvar::new(),
             limit,
         }
     }
@@ -80,6 +83,19 @@ impl StreamingGatewayLimiter {
     fn try_acquire(&self) -> Option<StreamingGatewayPermit<'_>> {
         let mut active = self.active.lock().ok()?;
         if *active >= self.limit {
+            return None;
+        }
+        *active += 1;
+        Some(StreamingGatewayPermit { limiter: self })
+    }
+
+    fn acquire_timeout(&self, timeout: Duration) -> Option<StreamingGatewayPermit<'_>> {
+        let active = self.active.lock().ok()?;
+        let (mut active, wait) = self
+            .capacity_available
+            .wait_timeout_while(active, timeout, |active| *active >= self.limit)
+            .ok()?;
+        if wait.timed_out() && *active >= self.limit {
             return None;
         }
         *active += 1;
@@ -95,6 +111,8 @@ impl Drop for StreamingGatewayPermit<'_> {
     fn drop(&mut self) {
         if let Ok(mut active) = self.limiter.active.lock() {
             *active = active.saturating_sub(1);
+            drop(active);
+            self.limiter.capacity_available.notify_one();
         }
     }
 }
@@ -1700,7 +1718,10 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
         let Some((((runtime, policy), request), mut writer)) = inputs else {
             return std::ptr::null_mut();
         };
-        let Some(permit) = STREAMING_GATEWAY_REQUESTS.try_acquire() else {
+        let Some(permit) =
+            STREAMING_GATEWAY_REQUESTS.acquire_timeout(STREAMING_GATEWAY_CAPACITY_WAIT)
+        else {
+            android_log_error("streaming gateway capacity wait timed out");
             return std::ptr::null_mut();
         };
         let (head_tx, head_rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(1);
@@ -2449,6 +2470,30 @@ mod tests {
         assert!(limiter.try_acquire().is_none());
         permits.pop();
         assert!(limiter.try_acquire().is_some());
+    }
+
+    #[test]
+    fn streaming_gateway_limiter_queues_until_capacity_is_released() {
+        let limiter = StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
+        let mut permits = (0..MAX_STREAMING_GATEWAY_REQUESTS)
+            .map(|_| limiter.try_acquire().expect("permit below the limit"))
+            .collect::<Vec<_>>();
+
+        std::thread::scope(|scope| {
+            let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
+            scope.spawn(|| {
+                let permit = limiter.acquire_timeout(Duration::from_secs(1));
+                result_tx.send(permit.is_some()).expect("result receiver");
+            });
+
+            assert!(result_rx.recv_timeout(Duration::from_millis(20)).is_err());
+            permits.pop();
+            assert!(
+                result_rx
+                    .recv_timeout(Duration::from_secs(1))
+                    .expect("released capacity wakes the queued request")
+            );
+        });
     }
 
     #[test]
