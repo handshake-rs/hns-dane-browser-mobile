@@ -3,6 +3,7 @@ package com.denuoweb.hnsdane.ui
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.ContentValues
+import android.content.res.ColorStateList
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
@@ -19,6 +20,7 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.RenderProcessGoneDetail
@@ -35,6 +37,7 @@ import android.webkit.WebViewClient
 import android.net.http.SslError
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.ProgressBar
@@ -106,12 +109,12 @@ class MainActivity : ComponentActivity() {
     }
     private lateinit var webView: WebView
     private lateinit var omnibox: EditText
-    private lateinit var securityLabel: TextView
+    private var omniboxFullUrl: String = ""
+    private lateinit var securityIndicator: ImageView
     private lateinit var hamburgerButton: TextView
-    private lateinit var syncProgressBar: ProgressBar
-    private lateinit var syncProgressStats: TextView
-    private lateinit var syncGateNotice: TextView
-    private lateinit var pageProgressBar: ProgressBar
+    private lateinit var loadingOverlay: LinearLayout
+    private lateinit var loadingSpinner: ProgressBar
+    private lateinit var loadingLabel: TextView
     private lateinit var httpWarningBar: TextView
     private lateinit var proxyCoordinator: BrowserProxyCoordinator
     private lateinit var assetLoader: WebViewAssetLoader
@@ -141,6 +144,7 @@ class MainActivity : ComponentActivity() {
     private var admittedMainFrameUrl: String? = null
     private var reloadHnsPageOnNextStart: Boolean = false
     private var pageIsLoading: Boolean = false
+    private var showFullPageLoadingOverlay: Boolean = true
     private var pageLoadProgress: Int = 0
     private var navigationGeneration: Long = 0L
     private var pendingNavigation: PendingNavigation? = null
@@ -148,6 +152,8 @@ class MainActivity : ComponentActivity() {
     private var failedMainFrameUrl: String? = null
     private var activityStopped: Boolean = false
     private var observedHeaderResetGeneration: Long = 0L
+    private var fullscreenMediaView: View? = null
+    private var fullscreenMediaCallback: WebChromeClient.CustomViewCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -167,7 +173,7 @@ class MainActivity : ComponentActivity() {
                 if (!available) {
                     proxyNavigationSubmittedGeneration = null
                 }
-                if (::securityLabel.isInitialized) {
+                if (::securityIndicator.isInitialized) {
                     refreshSecurityState()
                     refreshSyncGateNotice()
                 }
@@ -228,17 +234,22 @@ class MainActivity : ComponentActivity() {
                 }
                 decision.consume
             }
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    setText(omniboxFullUrl)
+                    post { selectAll() }
+                } else {
+                    setText(OmniboxDisplay.displayText(omniboxFullUrl))
+                }
+            }
         }
 
-        securityLabel = TextView(this).apply {
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            textSize = 13f
-            minHeight = dp(TOOLBAR_CONTROL_HEIGHT_DP)
+        securityIndicator = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER
+            minimumHeight = dp(TOOLBAR_CONTROL_HEIGHT_DP)
             setPadding(dp(8), 0, dp(8), 0)
-            setTextColor(colors.securityText)
-            text = getString(R.string.security_syncing)
+            setImageResource(R.drawable.ic_security_info)
+            imageTintList = ColorStateList.valueOf(colors.secondaryText)
             contentDescription = getString(R.string.security_status_content_description)
             isClickable = true
             isFocusable = true
@@ -246,32 +257,35 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { openResolverTrace() }
         }
 
-        syncProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = SYNC_PROGRESS_MAX
+        loadingSpinner = ProgressBar(this).apply {
             isIndeterminate = true
         }
-        syncProgressStats = TextView(this).apply {
-            setPadding(16, 0, 16, 8)
-            setTextColor(colors.secondaryText)
-            textSize = 12f
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
-            text = HnsSyncProgress.fromJson(null).summary(this@MainActivity)
-        }
-        syncGateNotice = TextView(this).apply {
+        loadingLabel = TextView(this).apply {
             gravity = Gravity.CENTER
-            setPadding(dp(32), dp(32), dp(32), dp(32))
+            setPadding(0, dp(20), 0, 0)
             setTextColor(colors.primaryText)
-            setBackgroundColor(colors.background)
             textSize = 16f
-            visibility = View.GONE
-            isClickable = true
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        pageProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = PAGE_PROGRESS_MAX
-            progress = 0
+        loadingOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(32), dp(32), dp(32), dp(32))
+            setBackgroundColor(colors.background)
             visibility = View.GONE
+            isClickable = true
+            addView(ImageView(this@MainActivity).apply {
+                setImageResource(R.drawable.hns_dane_mark)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                contentDescription = null
+            }, LinearLayout.LayoutParams(dp(112), dp(112)))
+            addView(loadingSpinner, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+                topMargin = dp(24)
+            })
+            addView(loadingLabel, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ))
         }
         httpWarningBar = TextView(this).apply {
             text = getString(R.string.http_transport_warning)
@@ -305,8 +319,8 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), 0, dp(8), 0)
-            addView(securityLabel, LinearLayout.LayoutParams(
-                dp(SECURITY_LABEL_WIDTH_DP),
+            addView(securityIndicator, LinearLayout.LayoutParams(
+                dp(SECURITY_INDICATOR_WIDTH_DP),
                 dp(TOOLBAR_CONTROL_HEIGHT_DP),
             ))
             addView(omnibox, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -321,18 +335,6 @@ class MainActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
-            addView(syncProgressBar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
-            addView(syncProgressStats, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
-            addView(pageProgressBar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
             addView(httpWarningBar, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(HTTP_WARNING_BAR_HEIGHT_DP),
@@ -342,7 +344,7 @@ class MainActivity : ComponentActivity() {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
                 ))
-                addView(syncGateNotice, FrameLayout.LayoutParams(
+                addView(loadingOverlay, FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
                 ))
@@ -357,7 +359,9 @@ class MainActivity : ComponentActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
+                if (fullscreenMediaView != null) {
+                    hideFullscreenMedia()
+                } else if (webView.canGoBack()) {
                     navigateHistory(-1)
                 } else {
                     isEnabled = false
@@ -463,6 +467,7 @@ class MainActivity : ComponentActivity() {
         proxyAvailabilitySubscription = null
         proxyCoordinator.releaseNavigationOwner(proxyNavigationOwner)
         disableServiceWorkerInterception()
+        hideFullscreenMedia()
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
@@ -790,25 +795,40 @@ class MainActivity : ComponentActivity() {
         enqueueNavigation(target) { webView.loadUrl(target.url) }
     }
 
+    private fun showOmniboxUrl(url: String) {
+        omniboxFullUrl = url
+        if (!omnibox.hasFocus()) {
+            omnibox.setText(OmniboxDisplay.displayText(url))
+        }
+    }
+
     private fun navigateHistory(offset: Int) {
         val history = webView.copyBackForwardList()
         val targetIndex = history.currentIndex + offset
         if (targetIndex !in 0 until history.size) return
         val url = history.getItemAtIndex(targetIndex).url ?: return
-        enqueueNavigation(classifier.classify(url)) { webView.goBackOrForward(offset) }
+        enqueueNavigation(
+            classifier.classify(url),
+            showFullPageLoadingOverlay = false,
+        ) { webView.goBackOrForward(offset) }
     }
 
-    private fun enqueueNavigation(target: BrowserTarget, load: () -> Unit) {
+    private fun enqueueNavigation(
+        target: BrowserTarget,
+        showFullPageLoadingOverlay: Boolean = true,
+        load: () -> Unit,
+    ) {
         navigationGeneration = navigationGeneration.wrappingIncrement()
         val generation = navigationGeneration
+        this.showFullPageLoadingOverlay = showFullPageLoadingOverlay
         pendingNavigation = null
         proxyNavigationSubmittedGeneration = null
         failedMainFrameUrl = null
-        if (::syncGateNotice.isInitialized) {
-            syncGateNotice.visibility = View.GONE
+        if (::loadingOverlay.isInitialized) {
+            loadingOverlay.visibility = View.GONE
         }
         webView.stopLoading()
-        omnibox.setText(target.url)
+        showOmniboxUrl(target.url)
         currentTargetKind = target.kind
         clearMainFrameHnsStatus()
         if (target.kind == BrowserTargetKind.Blocked) {
@@ -862,7 +882,7 @@ class MainActivity : ComponentActivity() {
             }
             if (pendingNavigation?.generation == generation) {
                 pendingNavigation = null
-                syncGateNotice.visibility = View.GONE
+                loadingOverlay.visibility = View.GONE
             }
             pendingMainFrameUrl = null
             admittedMainFrameUrl = target.url
@@ -871,6 +891,7 @@ class MainActivity : ComponentActivity() {
             failedMainFrameUrl = null
             pageIsLoading = true
             pageLoadProgress = 0
+            webView.settings.mediaPlaybackRequiresUserGesture = !allowInlineAutoplay(target.kind)
             refreshSecurityState()
             refreshPageProgress()
             refreshTransportWarning()
@@ -934,20 +955,37 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSyncGateNotice() {
-        if (!::syncGateNotice.isInitialized) return
+        if (!::loadingOverlay.isInitialized) return
         val pending = pendingNavigation
-        if (pending == null || !targetRequiresDualRootReadiness(pending.target)) {
-            syncGateNotice.visibility = View.GONE
+        val waitingForAuthority = pending != null && targetRequiresDualRootReadiness(pending.target)
+        val progress = currentSyncProgress()
+        if (!shouldShowFullPageLoadingOverlay(
+                enabledForNavigation = showFullPageLoadingOverlay,
+                pageIsLoading = pageIsLoading,
+                waitingForAuthority = waitingForAuthority,
+            )
+        ) {
+            loadingOverlay.visibility = View.GONE
             return
         }
-        val progress = currentSyncProgress()
-        val host = pending.target.displayHost ?: pending.target.url
-        syncGateNotice.text = if (progress.status in SYNC_FAILURE_STATUSES) {
-            getString(R.string.sync_gate_failed, host)
-        } else {
-            getString(R.string.sync_gate_waiting, host)
+        when {
+            waitingForAuthority -> {
+                val failed = progress.status in SYNC_FAILURE_STATUSES
+                loadingLabel.text = if (failed) {
+                    getString(R.string.security_failed)
+                } else {
+                    getString(R.string.security_syncing)
+                }
+                loadingSpinner.visibility = if (failed) View.GONE else View.VISIBLE
+                loadingOverlay.visibility = View.VISIBLE
+            }
+            pageIsLoading -> {
+                loadingLabel.text = getString(R.string.security_loading)
+                loadingSpinner.visibility = View.VISIBLE
+                loadingOverlay.visibility = View.VISIBLE
+            }
+            else -> loadingOverlay.visibility = View.GONE
         }
-        syncGateNotice.visibility = View.VISIBLE
     }
 
     private fun refreshSecurityState() {
@@ -972,7 +1010,7 @@ class MainActivity : ComponentActivity() {
             currentTargetKind in NATIVE_GATEWAY_TARGET_KINDS &&
             mainFrameHnsStatusCode == null
         ) {
-            securityLabel.text = getString(R.string.security_loading)
+            setSecurityState(SecurityState.Loading)
             return
         }
 
@@ -1029,41 +1067,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSyncProgress() {
-        if (!::syncProgressBar.isInitialized || !::syncProgressStats.isInitialized) {
-            return
-        }
-
         val progress = currentSyncProgress()
-        if (progress.shouldShowProgress) {
-            syncProgressBar.visibility = View.VISIBLE
-            syncProgressStats.visibility = View.VISIBLE
-            val permille = progress.progressPermille()
-            syncProgressBar.isIndeterminate = permille == null
-            if (permille != null) {
-                syncProgressBar.progress = permille
-            }
-            syncProgressStats.text = progress.summary(this)
-        } else {
-            syncProgressBar.visibility = View.GONE
-            syncProgressStats.visibility = View.GONE
-        }
         refreshSyncGateNotice()
         resumePendingNavigationIfReady(progress)
         restoreActiveProxyIfReady(progress)
     }
 
     private fun refreshPageProgress() {
-        if (!::pageProgressBar.isInitialized) {
-            return
-        }
-
-        if (pageIsLoading) {
-            pageProgressBar.visibility = View.VISIBLE
-            pageProgressBar.progress = pageLoadProgress.coerceIn(0, PAGE_PROGRESS_MAX)
-        } else {
-            pageProgressBar.progress = PAGE_PROGRESS_MAX
-            pageProgressBar.visibility = View.GONE
-        }
+        refreshSyncGateNotice()
     }
 
     private fun refreshTransportWarning() {
@@ -1078,28 +1089,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setSecurityState(state: SecurityState) {
-        val baseLabel = when (state) {
-            SecurityState.LocalContent -> getString(R.string.security_local_content)
-            SecurityState.Syncing -> getString(R.string.security_syncing)
-            SecurityState.Loading -> getString(R.string.security_loading)
-            SecurityState.HnsVerified -> getString(R.string.security_hns_verified)
-            SecurityState.HnsViaAuthoritativeDoh -> getString(R.string.security_hns_via_authoritative_doh)
-            SecurityState.HnsViaAuthoritativeDns53 -> getString(R.string.security_hns_via_authoritative_dns53)
-            SecurityState.HnsViaP2pDnsRelay -> getString(R.string.security_hns_via_p2p_dns_relay)
-            SecurityState.HnsViaUserConfiguredRecoveryDoh ->
-                getString(R.string.security_hns_via_user_configured_recovery_doh)
-            SecurityState.DaneVerified -> getString(R.string.security_dane_verified)
-            SecurityState.DaneViaAuthoritativeDoh -> getString(R.string.security_dane_via_authoritative_doh)
-            SecurityState.DaneViaAuthoritativeDns53 -> getString(R.string.security_dane_via_authoritative_dns53)
-            SecurityState.DaneViaP2pDnsRelay -> getString(R.string.security_dane_via_p2p_dns_relay)
-            SecurityState.DaneViaUserConfiguredRecoveryDoh ->
-                getString(R.string.security_dane_via_user_configured_recovery_doh)
-            SecurityState.StatelessDane -> getString(R.string.security_stateless_dane)
-            SecurityState.DaneViaIcannDoh -> getString(R.string.security_dane_via_icann_doh)
-            SecurityState.WebPkiOnly -> getString(R.string.security_webpki)
-            SecurityState.ValidationFailed -> getString(R.string.security_failed)
-            SecurityState.ProofUnavailable -> getString(R.string.security_proof_unavailable)
-        }
+        val presentation = SecurityIndicator.forState(state)
+        val baseLabel = getString(presentation.labelRes)
         val resolution = mainFrameHnsTraceJson
             ?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?.optJSONObject("namespaceResolution")
@@ -1116,15 +1107,21 @@ class MainActivity : ComponentActivity() {
             "hnsOnly", "icannOnly" -> selectedLabel
             else -> null
         }
-        securityLabel.text = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
-        securityLabel.contentDescription = if (selectedLabel != null) {
+        val detailLabel = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
+        val accessibilityDetail = if (selectedLabel != null) {
             mainFrameHnsTraceJson
                 ?.let { LocalizedTraceText.namespace(this, runCatching { JSONObject(it) }.getOrNull()) }
                 ?.let { "$baseLabel. $it" }
-                ?: baseLabel
+                ?: detailLabel
         } else {
-            baseLabel
+            detailLabel
         }
+        securityIndicator.setImageResource(presentation.iconRes)
+        securityIndicator.imageTintList = ColorStateList.valueOf(
+            SecurityIndicator.toneColor(themeColors(), presentation.tone),
+        )
+        securityIndicator.contentDescription =
+            "$accessibilityDetail. ${getString(R.string.security_status_content_description)}"
     }
 
     private inner class BrowserClient : WebViewClient() {
@@ -1154,7 +1151,7 @@ class MainActivity : ComponentActivity() {
             pageIsLoading = true
             failedMainFrameUrl = null
             pageLoadProgress = pageLoadProgress.coerceAtLeast(5)
-            omnibox.setText(url)
+            showOmniboxUrl(url)
             admittedMainFrameUrl = url
             activeMainFrameUrl = url
             val target = classifier.classify(url)
@@ -1289,7 +1286,7 @@ class MainActivity : ComponentActivity() {
             if (pendingMainFrameUrl != null) return
             val admittedUrl = admittedMainFrameUrl ?: return
             if (admittedUrl.mainFrameMatchKey() != url.mainFrameMatchKey()) return
-            omnibox.setText(url)
+            showOmniboxUrl(url)
             activeMainFrameUrl = url
             admittedMainFrameUrl = url
             val target = classifier.classify(url)
@@ -1316,6 +1313,18 @@ class MainActivity : ComponentActivity() {
             refreshTransportWarning()
         }
 
+        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+            super.doUpdateVisitedHistory(view, url, isReload)
+            if (pendingMainFrameUrl != null) return
+            val target = classifier.classify(url)
+            if (target.kind == BrowserTargetKind.Blocked || target.kind == BrowserTargetKind.Search) return
+            showOmniboxUrl(url)
+            activeMainFrameUrl = url
+            admittedMainFrameUrl = url
+            currentTargetKind = target.kind
+            refreshTransportWarning()
+        }
+
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
             gatewayInterceptionEnabled = false
             pageIsLoading = false
@@ -1339,12 +1348,48 @@ class MainActivity : ComponentActivity() {
             pageLoadProgress = newProgress.coerceIn(0, PAGE_PROGRESS_MAX)
             refreshPageProgress()
         }
+
+        override fun onShowCustomView(
+            view: View,
+            callback: WebChromeClient.CustomViewCallback,
+        ) {
+            if (fullscreenMediaView != null) {
+                callback.onCustomViewHidden()
+                return
+            }
+            fullscreenMediaView = view
+            fullscreenMediaCallback = callback
+            webView.visibility = View.GONE
+            addContentView(
+                view,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+
+        override fun onHideCustomView() {
+            hideFullscreenMedia()
+        }
+    }
+
+    private fun hideFullscreenMedia() {
+        val view = fullscreenMediaView ?: return
+        (view.parent as? ViewGroup)?.removeView(view)
+        fullscreenMediaView = null
+        val callback = fullscreenMediaCallback
+        fullscreenMediaCallback = null
+        callback?.onCustomViewHidden()
+        if (::webView.isInitialized) {
+            webView.visibility = View.VISIBLE
+        }
     }
 
     private fun openResolverTrace() {
         startActivity(
             Intent(this, HnsResolverTraceActivity::class.java)
-                .putExtra(HnsResolverTraceActivity.EXTRA_URL, omnibox.text.toString())
+                .putExtra(HnsResolverTraceActivity.EXTRA_URL, omniboxFullUrl)
                 .putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, mainFrameHnsTraceJson),
         )
     }
@@ -1579,7 +1624,7 @@ class MainActivity : ComponentActivity() {
         webView.url
             ?.trim()
             ?.takeIf { it.isNotBlank() && it != "about:blank" }
-            ?: omnibox.text.toString()
+            ?: omniboxFullUrl
                 .trim()
                 .takeIf { it.isNotBlank() && it != "about:blank" }
 
@@ -1628,10 +1673,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_LOAD_URL = "com.denuoweb.hnsdane.LOAD_URL"
 
-        private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
         private const val SYNC_STATUS_POLL_MS = 2_000L
-        private const val SECURITY_LABEL_WIDTH_DP = 136
+        private const val SECURITY_INDICATOR_WIDTH_DP = 44
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22
         private const val MENU_ICON_BUTTON_SIZE_DP = 55
@@ -1660,6 +1704,12 @@ private data class PendingNavigation(
 )
 
 private fun Long.wrappingIncrement(): Long = if (this == Long.MAX_VALUE) 1L else this + 1L
+
+internal fun shouldShowFullPageLoadingOverlay(
+    enabledForNavigation: Boolean,
+    pageIsLoading: Boolean,
+    waitingForAuthority: Boolean,
+): Boolean = enabledForNavigation && (pageIsLoading || waitingForAuthority)
 
 internal fun isCurrentMainFrameFailure(
     isForMainFrame: Boolean,

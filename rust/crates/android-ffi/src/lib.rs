@@ -15,13 +15,14 @@ use jni::JNIEnv;
 use jni::objects::{JByteArray, JCharArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jcharArray, jint, jlong, jstring};
 use std::collections::{HashMap, HashSet};
+use std::io::{self, Write};
 use std::net::{Ipv4Addr, SocketAddr};
-use std::os::fd::{FromRawFd, RawFd};
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant};
 
 const MAX_LOCAL_CERTIFICATE_DER_BYTES: usize = 64 * 1024;
 const MAX_BROWSER_NAMESPACE_INPUT_BYTES: usize = 1_024;
@@ -61,11 +62,117 @@ const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
 static WALLET_HANDLES: OnceLock<BoundedMonotonicRegistry<AndroidWalletRecord>> = OnceLock::new();
 const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
+const MAX_BLOCKED_PIPE_DRAINS: usize = MAX_STREAMING_GATEWAY_REQUESTS;
+const STREAMING_GATEWAY_CAPACITY_WAIT: Duration = Duration::from_secs(30);
+const STREAMING_PIPE_DRAIN_WAIT: Duration = Duration::from_secs(10);
 static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
     StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
+static BLOCKED_PIPE_DRAINS: StreamingGatewayLimiter =
+    StreamingGatewayLimiter::new(MAX_BLOCKED_PIPE_DRAINS);
+
+#[cfg(any(target_os = "android", target_os = "linux"))]
+mod pipe_sys {
+    use std::io;
+    use std::time::Duration;
+
+    const F_GETFL: i32 = 3;
+    const F_SETFL: i32 = 4;
+    const O_NONBLOCK: i32 = 0o4000;
+    const POLLOUT: i16 = 0x0004;
+    const POLLERR: i16 = 0x0008;
+    const POLLHUP: i16 = 0x0010;
+    const POLLNVAL: i16 = 0x0020;
+
+    #[cfg(target_os = "android")]
+    type PollCount = u32;
+    #[cfg(target_os = "linux")]
+    type PollCount = usize;
+
+    #[repr(C)]
+    struct PollFd {
+        fd: i32,
+        events: i16,
+        revents: i16,
+    }
+
+    unsafe extern "C" {
+        fn fcntl(fd: i32, command: i32, ...) -> i32;
+        fn poll(fds: *mut PollFd, count: PollCount, timeout_ms: i32) -> i32;
+    }
+
+    pub(super) fn set_nonblocking(fd: i32) -> io::Result<()> {
+        // SAFETY: fd is an owned, live descriptor. F_GETFL does not mutate
+        // memory and returns the descriptor's current flags.
+        let flags = unsafe { fcntl(fd, F_GETFL) };
+        if flags < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: fd remains live and the current flags are preserved while
+        // adding the Linux/Android O_NONBLOCK bit.
+        if unsafe { fcntl(fd, F_SETFL, flags | O_NONBLOCK) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    pub(super) fn wait_until_writable(fd: i32, timeout: Duration) -> io::Result<bool> {
+        let timeout_ms = i32::try_from(timeout.as_millis()).unwrap_or(i32::MAX);
+        let mut poll_fd = PollFd {
+            fd,
+            events: POLLOUT,
+            revents: 0,
+        };
+        loop {
+            // SAFETY: poll_fd points to one initialized descriptor for the
+            // duration of the call, and its fd remains owned by the caller.
+            let result = unsafe { poll(&mut poll_fd, 1, timeout_ms) };
+            if result > 0 {
+                if poll_fd.revents & (POLLERR | POLLHUP | POLLNVAL) != 0 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::BrokenPipe,
+                        "stream pipe reader closed",
+                    ));
+                }
+                if poll_fd.revents & POLLOUT != 0 {
+                    return Ok(true);
+                }
+                continue;
+            }
+            if result == 0 {
+                return Ok(false);
+            }
+            let error = io::Error::last_os_error();
+            if error.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(error);
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "android", target_os = "linux")))]
+mod pipe_sys {
+    use std::io;
+    use std::time::Duration;
+
+    pub(super) fn set_nonblocking(_fd: i32) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "nonblocking stream pipes are unsupported on this target",
+        ))
+    }
+
+    pub(super) fn wait_until_writable(_fd: i32, _timeout: Duration) -> io::Result<bool> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "stream pipe polling is unsupported on this target",
+        ))
+    }
+}
 
 struct StreamingGatewayLimiter {
     active: Mutex<usize>,
+    capacity_available: Condvar,
     limit: usize,
 }
 
@@ -73,6 +180,7 @@ impl StreamingGatewayLimiter {
     const fn new(limit: usize) -> Self {
         Self {
             active: Mutex::new(0),
+            capacity_available: Condvar::new(),
             limit,
         }
     }
@@ -80,6 +188,24 @@ impl StreamingGatewayLimiter {
     fn try_acquire(&self) -> Option<StreamingGatewayPermit<'_>> {
         let mut active = self.active.lock().ok()?;
         if *active >= self.limit {
+            return None;
+        }
+        *active += 1;
+        Some(StreamingGatewayPermit { limiter: self })
+    }
+
+    #[cfg(test)]
+    fn active_count(&self) -> usize {
+        self.active.lock().map(|active| *active).unwrap_or_default()
+    }
+
+    fn acquire_timeout(&self, timeout: Duration) -> Option<StreamingGatewayPermit<'_>> {
+        let active = self.active.lock().ok()?;
+        let (mut active, wait) = self
+            .capacity_available
+            .wait_timeout_while(active, timeout, |active| *active >= self.limit)
+            .ok()?;
+        if wait.timed_out() && *active >= self.limit {
             return None;
         }
         *active += 1;
@@ -95,7 +221,107 @@ impl Drop for StreamingGatewayPermit<'_> {
     fn drop(&mut self) {
         if let Ok(mut active) = self.limiter.active.lock() {
             *active = active.saturating_sub(1);
+            drop(active);
+            self.limiter.capacity_available.notify_one();
         }
+    }
+}
+
+struct StreamingPipePermits<'a> {
+    request: Option<StreamingGatewayPermit<'a>>,
+    drain: Option<StreamingGatewayPermit<'a>>,
+    drain_limiter: &'a StreamingGatewayLimiter,
+}
+
+impl<'a> StreamingPipePermits<'a> {
+    fn new(
+        request: StreamingGatewayPermit<'a>,
+        drain_limiter: &'a StreamingGatewayLimiter,
+    ) -> Self {
+        Self {
+            request: Some(request),
+            drain: None,
+            drain_limiter,
+        }
+    }
+
+    fn enter_backpressure(&mut self) -> io::Result<()> {
+        if self.drain.is_some() {
+            return Ok(());
+        }
+        let drain = self.drain_limiter.try_acquire();
+        // Once the local pipe has filled, this response is no longer useful as
+        // an origin-work admission slot. Release that slot even when the
+        // bounded drain pool is saturated so unrelated page assets can start.
+        self.request.take();
+        let Some(drain) = drain else {
+            android_log_request_metrics(&format!(
+                "stream_backpressure outcome=saturated drain_limit={}",
+                self.drain_limiter.limit,
+            ));
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "stream pipe drain capacity timeout",
+            ));
+        };
+        self.drain = Some(drain);
+        android_log_request_metrics(&format!(
+            "stream_backpressure outcome=admitted drain_limit={}",
+            self.drain_limiter.limit,
+        ));
+        Ok(())
+    }
+}
+
+struct StreamingPipeWriter<'a> {
+    file: std::fs::File,
+    permits: StreamingPipePermits<'a>,
+}
+
+impl<'a> StreamingPipeWriter<'a> {
+    fn new(
+        file: std::fs::File,
+        request_permit: StreamingGatewayPermit<'a>,
+        drain_limiter: &'a StreamingGatewayLimiter,
+    ) -> io::Result<Self> {
+        pipe_sys::set_nonblocking(file.as_raw_fd())?;
+        Ok(Self {
+            file,
+            permits: StreamingPipePermits::new(request_permit, drain_limiter),
+        })
+    }
+
+    fn wait_until_writable(&self) -> io::Result<()> {
+        if pipe_sys::wait_until_writable(self.file.as_raw_fd(), STREAMING_PIPE_DRAIN_WAIT)? {
+            return Ok(());
+        }
+        android_log_request_metrics(&format!(
+            "stream_backpressure outcome=timed_out drain_wait_ms={}",
+            STREAMING_PIPE_DRAIN_WAIT.as_millis(),
+        ));
+        Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "stream pipe drain inactivity timeout",
+        ))
+    }
+}
+
+impl Write for StreamingPipeWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        loop {
+            match self.file.write(bytes) {
+                Ok(written) => return Ok(written),
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    self.permits.enter_backpressure()?;
+                    self.wait_until_writable()?;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.file.flush()
     }
 }
 
@@ -591,12 +817,40 @@ fn wallet_read_bundle(json: &[u8]) -> Option<Vec<u8>> {
     (bundle.len() == WALLET_READ_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
 }
 
+/// Saturating whole-milliseconds since `started`. Diagnostics only.
+fn elapsed_millis(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
+/// Classifies a streaming failure into a stable, privacy-safe code.
+///
+/// The message is inspected but never logged: gateway errors can embed host,
+/// path, and query material. Only the returned code reaches the log.
+fn classify_streaming_failure(message: &str) -> &'static str {
+    let lowered = message.to_ascii_lowercase();
+    if lowered.contains("head receiver closed") {
+        "head_receiver_closed"
+    } else if lowered.contains("authority") {
+        "authority_revoked"
+    } else if lowered.contains("permission denied") {
+        "permission_denied"
+    } else if lowered.contains("broken pipe") || lowered.contains("os error 32") {
+        "broken_pipe"
+    } else if lowered.contains("connection reset") || lowered.contains("os error 104") {
+        "connection_reset"
+    } else if lowered.contains("timed out") || lowered.contains("timeout") {
+        "timed_out"
+    } else {
+        "other"
+    }
+}
+
 struct AndroidRequestMetricsObserver;
 
 impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
     fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics) {
         android_log_request_metrics(&format!(
-            "request_id={} route={:?} host={} method={} active={} queued={} admission_wait_ms={} prepare_ms={} dns_timings_available={} hns_dns_ms={} icann_dns_ms={} live_proof_timings_available={} live_proof_selection_ms={} live_proof_connect_ms={} live_proof_handshake_ms={} live_proof_verify_store_ms={} live_proof_persistence_ms={} live_proof_total_ms={} live_proof_peers_started={} live_proof_peers_completed={} gateway_ms={} origin_timing_available={} origin_ms={} publish_ms={} total_ms={} status={} outcome={}",
+            "request_id={} route={:?} host={} method={} active={} queued={} admission_wait_ms={} prepare_ms={} dns_timings_available={} hns_dns_ms={} icann_dns_ms={} live_proof_timings_available={} live_proof_selection_ms={} live_proof_connect_ms={} live_proof_handshake_ms={} live_proof_verify_store_ms={} live_proof_persistence_ms={} live_proof_total_ms={} live_proof_peers_started={} live_proof_peers_completed={} gateway_ms={} origin_timing_available={} origin_ms={} stream_timing_available={} stream_head_ms={} stream_drain_ms={} publish_ms={} total_ms={} status={} outcome={}",
             metrics.request_id,
             metrics.route,
             metrics.host,
@@ -620,6 +874,9 @@ impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
             metrics.gateway_ms,
             metrics.origin_timing_available,
             metrics.origin_ms,
+            metrics.stream_timing_available,
+            metrics.stream_head_ms,
+            metrics.stream_drain_ms,
             metrics.publish_ms,
             metrics.total_ms,
             metrics
@@ -627,6 +884,15 @@ impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
                 .map(|status| status.to_string())
                 .unwrap_or_else(|| "none".to_owned()),
             metrics.outcome,
+        ));
+    }
+
+    fn observe_publication_rejection(&self, rejection: &PublicationRejection) {
+        android_log_request_metrics(&format!(
+            "publication_rejected sequence={} reason={} family={}",
+            rejection.sequence,
+            rejection.reason.code(),
+            rejection.reason.family(),
         ));
     }
 }
@@ -1697,16 +1963,40 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
                 },
             ))
             .zip(writer);
-        let Some((((runtime, policy), request), mut writer)) = inputs else {
+        let Some((((runtime, policy), request), writer)) = inputs else {
             return std::ptr::null_mut();
         };
-        let Some(permit) = STREAMING_GATEWAY_REQUESTS.try_acquire() else {
+        // Capacity wait happens before runtime request metrics begin. The
+        // request permit remains attached to the writer until the pipe first
+        // applies back-pressure; at that point it transitions into the separate
+        // bounded drain pool so an abandoned WebView consumer cannot starve all
+        // origin work.
+        let capacity_wait_started = Instant::now();
+        let Some(permit) =
+            STREAMING_GATEWAY_REQUESTS.acquire_timeout(STREAMING_GATEWAY_CAPACITY_WAIT)
+        else {
+            android_log_request_metrics(&format!(
+                "stream_capacity outcome=timed_out capacity_wait_ms={} limit={}",
+                elapsed_millis(capacity_wait_started),
+                MAX_STREAMING_GATEWAY_REQUESTS,
+            ));
+            android_log_error("streaming gateway capacity wait timed out");
+            return std::ptr::null_mut();
+        };
+        let capacity_wait_ms = elapsed_millis(capacity_wait_started);
+        android_log_request_metrics(&format!(
+            "stream_capacity outcome=acquired capacity_wait_ms={capacity_wait_ms} limit={MAX_STREAMING_GATEWAY_REQUESTS}",
+        ));
+        let Ok(mut writer) =
+            StreamingPipeWriter::new(writer, permit, &BLOCKED_PIPE_DRAINS)
+        else {
+            android_log_error("streaming gateway pipe setup failed");
             return std::ptr::null_mut();
         };
         let (head_tx, head_rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(1);
         std::thread::spawn(move || {
-            let _permit = permit;
             let mut head_sent = false;
+            let stream_started = Instant::now();
             let result = runtime.raw_gateway_request_body_streaming(
                 request,
                 policy,
@@ -1719,22 +2009,44 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
                     Ok(())
                 },
             );
-            if let Err(error) = result
-                && !head_sent
-            {
+            if let Err(error) = result {
+                // Classify only. The underlying message can carry host and path
+                // material, so it is never logged.
+                let failure = classify_streaming_failure(&runtime_error_message(error));
                 android_log_error(&format!(
-                    "raw_gateway_request_body_streaming failed before head: {}",
-                    runtime_error_message(error),
+                    "raw_gateway_request_body_streaming failed head_sent={head_sent} failure={failure} capacity_wait_ms={capacity_wait_ms} stream_ms={}",
+                    elapsed_millis(stream_started),
                 ));
             }
         });
-        match head_rx
-            .recv_timeout(Duration::from_secs(30))
-            .ok()
-            .and_then(|head| env.byte_array_from_slice(&head).ok())
-        {
-            Some(array) => array.into_raw(),
-            None => std::ptr::null_mut(),
+        let head_wait_started = Instant::now();
+        match head_rx.recv_timeout(Duration::from_secs(30)) {
+            Ok(head) => match env.byte_array_from_slice(&head) {
+                Ok(array) => array.into_raw(),
+                Err(_) => {
+                    android_log_error(&format!(
+                        "streaming gateway head conversion failed head_wait_ms={} capacity_wait_ms={capacity_wait_ms}",
+                        elapsed_millis(head_wait_started),
+                    ));
+                    std::ptr::null_mut()
+                }
+            },
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // The worker deliberately remains alive here and still owns its
+                // permit. Record the stacked wait without changing that behavior.
+                android_log_request_metrics(&format!(
+                    "stream_head outcome=timed_out head_wait_ms={} capacity_wait_ms={capacity_wait_ms}",
+                    elapsed_millis(head_wait_started),
+                ));
+                std::ptr::null_mut()
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                android_log_request_metrics(&format!(
+                    "stream_head outcome=disconnected head_wait_ms={} capacity_wait_ms={capacity_wait_ms}",
+                    elapsed_millis(head_wait_started),
+                ));
+                std::ptr::null_mut()
+            }
         }
     }))
     .unwrap_or_else(|panic| {
@@ -2439,6 +2751,53 @@ mod tests {
     }
 
     #[test]
+    fn streaming_failure_classes_separate_authority_pipe_and_receiver_faults() {
+        assert_eq!(
+            classify_streaming_failure("runtime authority changed during response streaming"),
+            "authority_revoked"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream authority changed during body delivery"),
+            "authority_revoked"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream head receiver closed"),
+            "head_receiver_closed"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream gateway: Permission denied (os error 13)"),
+            "permission_denied"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream gateway: Broken pipe (os error 32)"),
+            "broken_pipe"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream gateway: Connection reset by peer"),
+            "connection_reset"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream gateway: operation timed out"),
+            "timed_out"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream pipe drain inactivity timeout"),
+            "timed_out"
+        );
+        assert_eq!(classify_streaming_failure("stream gateway: eof"), "other");
+    }
+
+    #[test]
+    fn streaming_failure_class_never_echoes_the_underlying_message() {
+        // Gateway errors can embed host and path material; only the code is
+        // ever logged, so no classification may return borrowed input.
+        let message = "stream gateway: failed to reach app.example path /secret?token=abc";
+        let class = classify_streaming_failure(message);
+        assert!(!message.contains(class));
+        assert_eq!(class, "other");
+    }
+
+    #[test]
     fn streaming_gateway_limiter_fails_fast_when_exhausted() {
         let limiter = StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
         let mut permits = Vec::new();
@@ -2449,6 +2808,72 @@ mod tests {
         assert!(limiter.try_acquire().is_none());
         permits.pop();
         assert!(limiter.try_acquire().is_some());
+    }
+
+    #[test]
+    fn streaming_gateway_limiter_queues_until_capacity_is_released() {
+        let limiter = StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
+        let mut permits = (0..MAX_STREAMING_GATEWAY_REQUESTS)
+            .map(|_| limiter.try_acquire().expect("permit below the limit"))
+            .collect::<Vec<_>>();
+
+        std::thread::scope(|scope| {
+            let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
+            let waiting_limiter = &limiter;
+            scope.spawn(move || {
+                let permit = waiting_limiter.acquire_timeout(Duration::from_secs(1));
+                result_tx.send(permit.is_some()).expect("result receiver");
+            });
+
+            assert!(result_rx.recv_timeout(Duration::from_millis(20)).is_err());
+            permits.pop();
+            assert!(
+                result_rx
+                    .recv_timeout(Duration::from_secs(1))
+                    .expect("released capacity wakes the queued request")
+            );
+        });
+    }
+
+    #[test]
+    fn streaming_pipe_permits_move_backpressure_out_of_request_capacity() {
+        let request_limiter = StreamingGatewayLimiter::new(1);
+        let drain_limiter = StreamingGatewayLimiter::new(1);
+        let request = request_limiter
+            .try_acquire()
+            .expect("request capacity available");
+        let mut permits = StreamingPipePermits::new(request, &drain_limiter);
+
+        assert_eq!(request_limiter.active_count(), 1);
+        assert_eq!(drain_limiter.active_count(), 0);
+        permits
+            .enter_backpressure()
+            .expect("drain capacity available");
+        assert_eq!(request_limiter.active_count(), 0);
+        assert_eq!(drain_limiter.active_count(), 1);
+
+        drop(permits);
+        assert_eq!(drain_limiter.active_count(), 0);
+    }
+
+    #[test]
+    fn streaming_pipe_permits_fail_closed_when_drain_capacity_is_full() {
+        let request_limiter = StreamingGatewayLimiter::new(1);
+        let drain_limiter = StreamingGatewayLimiter::new(1);
+        let _occupied_drain = drain_limiter
+            .try_acquire()
+            .expect("first drain capacity available");
+        let request = request_limiter
+            .try_acquire()
+            .expect("request capacity available");
+        let mut permits = StreamingPipePermits::new(request, &drain_limiter);
+
+        let error = permits
+            .enter_backpressure()
+            .expect_err("saturated drain pool must fail closed");
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert_eq!(request_limiter.active_count(), 0);
+        assert_eq!(drain_limiter.active_count(), 1);
     }
 
     #[test]

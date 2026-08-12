@@ -6,6 +6,7 @@ import android.webkit.WebView
 import androidx.annotation.OptIn
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
+import com.denuoweb.hnsdane.core.BrowserTargetKind
 
 internal object BrowserWebViewHardening {
     @OptIn(markerClass = [WebSettingsCompat.ExperimentalSpeculativeLoading::class])
@@ -49,3 +50,6 @@ internal object BrowserWebViewHardening {
         webView.removeJavascriptInterface("searchBoxJavaBridge_")
     }
 }
+
+internal fun allowInlineAutoplay(targetKind: BrowserTargetKind): Boolean =
+    targetKind == BrowserTargetKind.HnsName || targetKind == BrowserTargetKind.NativeGateway
