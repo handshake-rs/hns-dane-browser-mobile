@@ -21,7 +21,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const MAX_LOCAL_CERTIFICATE_DER_BYTES: usize = 64 * 1024;
 const MAX_BROWSER_NAMESPACE_INPUT_BYTES: usize = 1_024;
@@ -610,12 +610,40 @@ fn wallet_read_bundle(json: &[u8]) -> Option<Vec<u8>> {
     (bundle.len() == WALLET_READ_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
 }
 
+/// Saturating whole-milliseconds since `started`. Diagnostics only.
+fn elapsed_millis(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
+/// Classifies a streaming failure into a stable, privacy-safe code.
+///
+/// The message is inspected but never logged: gateway errors can embed host,
+/// path, and query material. Only the returned code reaches the log.
+fn classify_streaming_failure(message: &str) -> &'static str {
+    let lowered = message.to_ascii_lowercase();
+    if lowered.contains("head receiver closed") {
+        "head_receiver_closed"
+    } else if lowered.contains("authority") {
+        "authority_revoked"
+    } else if lowered.contains("permission denied") {
+        "permission_denied"
+    } else if lowered.contains("broken pipe") || lowered.contains("os error 32") {
+        "broken_pipe"
+    } else if lowered.contains("connection reset") || lowered.contains("os error 104") {
+        "connection_reset"
+    } else if lowered.contains("timed out") || lowered.contains("timeout") {
+        "timed_out"
+    } else {
+        "other"
+    }
+}
+
 struct AndroidRequestMetricsObserver;
 
 impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
     fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics) {
         android_log_request_metrics(&format!(
-            "request_id={} route={:?} host={} method={} active={} queued={} admission_wait_ms={} prepare_ms={} dns_timings_available={} hns_dns_ms={} icann_dns_ms={} live_proof_timings_available={} live_proof_selection_ms={} live_proof_connect_ms={} live_proof_handshake_ms={} live_proof_verify_store_ms={} live_proof_persistence_ms={} live_proof_total_ms={} live_proof_peers_started={} live_proof_peers_completed={} gateway_ms={} origin_timing_available={} origin_ms={} publish_ms={} total_ms={} status={} outcome={}",
+            "request_id={} route={:?} host={} method={} active={} queued={} admission_wait_ms={} prepare_ms={} dns_timings_available={} hns_dns_ms={} icann_dns_ms={} live_proof_timings_available={} live_proof_selection_ms={} live_proof_connect_ms={} live_proof_handshake_ms={} live_proof_verify_store_ms={} live_proof_persistence_ms={} live_proof_total_ms={} live_proof_peers_started={} live_proof_peers_completed={} gateway_ms={} origin_timing_available={} origin_ms={} stream_timing_available={} stream_head_ms={} stream_drain_ms={} publish_ms={} total_ms={} status={} outcome={}",
             metrics.request_id,
             metrics.route,
             metrics.host,
@@ -639,6 +667,9 @@ impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
             metrics.gateway_ms,
             metrics.origin_timing_available,
             metrics.origin_ms,
+            metrics.stream_timing_available,
+            metrics.stream_head_ms,
+            metrics.stream_drain_ms,
             metrics.publish_ms,
             metrics.total_ms,
             metrics
@@ -646,6 +677,15 @@ impl BrowserRequestMetricsObserver for AndroidRequestMetricsObserver {
                 .map(|status| status.to_string())
                 .unwrap_or_else(|| "none".to_owned()),
             metrics.outcome,
+        ));
+    }
+
+    fn observe_publication_rejection(&self, rejection: &PublicationRejection) {
+        android_log_request_metrics(&format!(
+            "publication_rejected sequence={} reason={} family={}",
+            rejection.sequence,
+            rejection.reason.code(),
+            rejection.reason.family(),
         ));
     }
 }
@@ -1719,16 +1759,31 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
         let Some((((runtime, policy), request), mut writer)) = inputs else {
             return std::ptr::null_mut();
         };
+        // The permit is held for the whole streaming call below, which includes
+        // writing every body byte into the WebView pipe. Time spent waiting for
+        // one is therefore invisible to the runtime's own request metrics, which
+        // only begin once the permit is held.
+        let capacity_wait_started = Instant::now();
         let Some(permit) =
             STREAMING_GATEWAY_REQUESTS.acquire_timeout(STREAMING_GATEWAY_CAPACITY_WAIT)
         else {
+            android_log_request_metrics(&format!(
+                "stream_capacity outcome=timed_out capacity_wait_ms={} limit={}",
+                elapsed_millis(capacity_wait_started),
+                MAX_STREAMING_GATEWAY_REQUESTS,
+            ));
             android_log_error("streaming gateway capacity wait timed out");
             return std::ptr::null_mut();
         };
+        let capacity_wait_ms = elapsed_millis(capacity_wait_started);
+        android_log_request_metrics(&format!(
+            "stream_capacity outcome=acquired capacity_wait_ms={capacity_wait_ms} limit={MAX_STREAMING_GATEWAY_REQUESTS}",
+        ));
         let (head_tx, head_rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(1);
         std::thread::spawn(move || {
             let _permit = permit;
             let mut head_sent = false;
+            let stream_started = Instant::now();
             let result = runtime.raw_gateway_request_body_streaming(
                 request,
                 policy,
@@ -1741,22 +1796,44 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
                     Ok(())
                 },
             );
-            if let Err(error) = result
-                && !head_sent
-            {
+            if let Err(error) = result {
+                // Classify only. The underlying message can carry host and path
+                // material, so it is never logged.
+                let failure = classify_streaming_failure(&runtime_error_message(error));
                 android_log_error(&format!(
-                    "raw_gateway_request_body_streaming failed before head: {}",
-                    runtime_error_message(error),
+                    "raw_gateway_request_body_streaming failed head_sent={head_sent} failure={failure} capacity_wait_ms={capacity_wait_ms} stream_ms={}",
+                    elapsed_millis(stream_started),
                 ));
             }
         });
-        match head_rx
-            .recv_timeout(Duration::from_secs(30))
-            .ok()
-            .and_then(|head| env.byte_array_from_slice(&head).ok())
-        {
-            Some(array) => array.into_raw(),
-            None => std::ptr::null_mut(),
+        let head_wait_started = Instant::now();
+        match head_rx.recv_timeout(Duration::from_secs(30)) {
+            Ok(head) => match env.byte_array_from_slice(&head) {
+                Ok(array) => array.into_raw(),
+                Err(_) => {
+                    android_log_error(&format!(
+                        "streaming gateway head conversion failed head_wait_ms={} capacity_wait_ms={capacity_wait_ms}",
+                        elapsed_millis(head_wait_started),
+                    ));
+                    std::ptr::null_mut()
+                }
+            },
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // The worker deliberately remains alive here and still owns its
+                // permit. Record the stacked wait without changing that behavior.
+                android_log_request_metrics(&format!(
+                    "stream_head outcome=timed_out head_wait_ms={} capacity_wait_ms={capacity_wait_ms}",
+                    elapsed_millis(head_wait_started),
+                ));
+                std::ptr::null_mut()
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                android_log_request_metrics(&format!(
+                    "stream_head outcome=disconnected head_wait_ms={} capacity_wait_ms={capacity_wait_ms}",
+                    elapsed_millis(head_wait_started),
+                ));
+                std::ptr::null_mut()
+            }
         }
     }))
     .unwrap_or_else(|panic| {
@@ -2458,6 +2535,49 @@ mod tests {
         );
         assert_eq!(android_wallet_network(0), None);
         assert_eq!(android_wallet_network(4), None);
+    }
+
+    #[test]
+    fn streaming_failure_classes_separate_authority_pipe_and_receiver_faults() {
+        assert_eq!(
+            classify_streaming_failure("runtime authority changed during response streaming"),
+            "authority_revoked"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream authority changed during body delivery"),
+            "authority_revoked"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream head receiver closed"),
+            "head_receiver_closed"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream gateway: Permission denied (os error 13)"),
+            "permission_denied"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream gateway: Broken pipe (os error 32)"),
+            "broken_pipe"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream gateway: Connection reset by peer"),
+            "connection_reset"
+        );
+        assert_eq!(
+            classify_streaming_failure("stream gateway: operation timed out"),
+            "timed_out"
+        );
+        assert_eq!(classify_streaming_failure("stream gateway: eof"), "other");
+    }
+
+    #[test]
+    fn streaming_failure_class_never_echoes_the_underlying_message() {
+        // Gateway errors can embed host and path material; only the code is
+        // ever logged, so no classification may return borrowed input.
+        let message = "stream gateway: failed to reach app.example path /secret?token=abc";
+        let class = classify_streaming_failure(message);
+        assert!(!message.contains(class));
+        assert_eq!(class, "other");
     }
 
     #[test]

@@ -826,15 +826,120 @@ pub struct BrowserRequestMetrics {
     pub live_proof_peers_completed: usize,
     pub gateway_ms: u64,
     pub origin_timing_available: bool,
+    /// Accumulated origin transport time. On buffered routes this is origin-only
+    /// because the body is staged before publication. On streaming routes the
+    /// measured call also writes every body byte into the consumer, so this
+    /// value includes consumer drain time and must NOT be read as origin-only.
+    /// Prefer `stream_head_ms` / `stream_drain_ms` whenever
+    /// `stream_timing_available` is set.
     pub origin_ms: u64,
+    /// True when this request used the streaming route and the head/drain split
+    /// below is populated.
+    pub stream_timing_available: bool,
+    /// Time from gateway dispatch until the response head was ready to publish.
+    pub stream_head_ms: u64,
+    /// Time from head publication until the body finished draining into the
+    /// consumer. Large values here indicate consumer back-pressure, not a slow
+    /// origin.
+    pub stream_drain_ms: u64,
     pub publish_ms: u64,
     pub total_ms: u64,
     pub status_code: Option<u16>,
     pub outcome: &'static str,
 }
 
+/// Privacy-bounded reason a publication permit was refused. Reason codes carry
+/// no host, path, query, header, or payload material.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PublicationRejectionReason {
+    CapabilityMismatch,
+    AuthorityBindingChanged,
+    AuthorityStampMissing,
+    MaintenanceLockPoisoned,
+    MaintenanceEpochChanged,
+    HeaderStateLockUnavailable,
+    HeaderStateLockContended,
+    HeaderStateIdentityUnreadable,
+    StorageIdentityUnreadable,
+    StorageIdentityMismatch,
+    AuthorityRevoked,
+    AuthoritySynchronization,
+    SelectionRecordFailed,
+}
+
+impl PublicationRejectionReason {
+    /// Stable, privacy-safe code for diagnostics.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::CapabilityMismatch => "capability_mismatch",
+            Self::AuthorityBindingChanged => "authority_binding_changed",
+            Self::AuthorityStampMissing => "authority_stamp_missing",
+            Self::MaintenanceLockPoisoned => "maintenance_lock_poisoned",
+            Self::MaintenanceEpochChanged => "maintenance_epoch_changed",
+            Self::HeaderStateLockUnavailable => "header_state_lock_unavailable",
+            Self::HeaderStateLockContended => "header_state_lock_contended",
+            Self::HeaderStateIdentityUnreadable => "header_state_identity_unreadable",
+            Self::StorageIdentityUnreadable => "storage_identity_unreadable",
+            Self::StorageIdentityMismatch => "storage_identity_mismatch",
+            Self::AuthorityRevoked => "authority_revoked",
+            Self::AuthoritySynchronization => "authority_synchronization",
+            Self::SelectionRecordFailed => "selection_record_failed",
+        }
+    }
+
+    /// Coarse family the code belongs to, so a reader can separate an expected
+    /// authority rotation from lock contention or an internal fault.
+    pub fn family(self) -> &'static str {
+        match self {
+            Self::CapabilityMismatch => "capability",
+            Self::AuthorityBindingChanged
+            | Self::AuthorityStampMissing
+            | Self::AuthorityRevoked => "authority",
+            Self::MaintenanceEpochChanged => "maintenance_epoch",
+            Self::HeaderStateIdentityUnreadable | Self::StorageIdentityMismatch => {
+                "storage_identity"
+            }
+            Self::HeaderStateLockContended => "lock_contention",
+            Self::MaintenanceLockPoisoned
+            | Self::HeaderStateLockUnavailable
+            | Self::StorageIdentityUnreadable
+            | Self::AuthoritySynchronization
+            | Self::SelectionRecordFailed => "internal",
+        }
+    }
+
+    /// Backend error this reason surfaces as. Must mirror the pre-instrumentation
+    /// mapping exactly so diagnostics never change publication behaviour.
+    fn backend_error(self) -> ProxyBackendError {
+        match self {
+            Self::MaintenanceLockPoisoned
+            | Self::HeaderStateLockUnavailable
+            | Self::StorageIdentityUnreadable
+            | Self::AuthoritySynchronization
+            | Self::SelectionRecordFailed => ProxyBackendError::Internal,
+            _ => ProxyBackendError::PolicyDenied,
+        }
+    }
+}
+
+/// A refused publication permit. Emitted on the diagnostic sink because this
+/// boundary sits outside `RequestMetricsCapture`: the backend request has
+/// already recorded `outcome=success` by the time publication is refused, and
+/// the refusal publishes zero bytes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PublicationRejection {
+    pub sequence: u64,
+    pub reason: PublicationRejectionReason,
+}
+
 pub trait BrowserRequestMetricsObserver: Send + Sync + 'static {
     fn observe_request_metrics(&self, metrics: &BrowserRequestMetrics);
+
+    /// Observes a refused publication permit. Defaulted so existing sinks keep
+    /// compiling; only diagnostic sinks need to override it.
+    fn observe_publication_rejection(&self, rejection: &PublicationRejection) {
+        let _ = rejection;
+    }
 }
 
 impl<F> BrowserRequestMetricsObserver for F
@@ -1883,6 +1988,9 @@ impl<'a> RequestMetricsCapture<'a> {
                 gateway_ms: 0,
                 origin_timing_available: false,
                 origin_ms: 0,
+                stream_timing_available: false,
+                stream_head_ms: 0,
+                stream_drain_ms: 0,
                 publish_ms: 0,
                 total_ms: 0,
                 status_code: None,
@@ -2382,6 +2490,19 @@ impl BrowserRuntime {
     fn observe_request_metrics(&self, metrics: BrowserRequestMetrics) {
         if let Ok(observer) = self.inner.request_metrics_observer.read() {
             observer.observe_request_metrics(&metrics);
+        }
+    }
+
+    /// Records a refused publication permit on the diagnostic sink. The
+    /// sequence shares the request-metric id space so a rejection can be
+    /// ordered against the backend request that preceded it.
+    fn observe_publication_rejection(&self, reason: PublicationRejectionReason) {
+        let rejection = PublicationRejection {
+            sequence: next_request_metrics_id(&self.inner),
+            reason,
+        };
+        if let Ok(observer) = self.inner.request_metrics_observer.read() {
+            observer.observe_publication_rejection(&rejection);
         }
     }
 
@@ -4073,6 +4194,11 @@ impl BrowserRuntime {
             metrics.attach_dns_trace(prepared.dns_trace.clone());
             let gateway_started = Instant::now();
             let mut namespace_published = false;
+            // Stamped when the head is ready to publish, so body drain time can
+            // be separated from origin time. `origin_ms` on this route spans the
+            // whole streaming call, including writes into the consumer.
+            let mut head_ready_ms = None;
+            let mut head_published = false;
             let mut publish_head = |response: &hns_gateway::GatewayResponseHead| {
                 if !self.authority_admits(authority_binding, authority_stamp) {
                     return Err(TransportError::InvalidRequest);
@@ -4128,16 +4254,41 @@ impl BrowserRuntime {
                     security_path,
                     &trace,
                 );
-                on_head(encoded).map_err(|_| TransportError::Io("head receiver closed".into()))
+                head_ready_ms.get_or_insert_with(|| elapsed_millis(gateway_started));
+                on_head(encoded).map_err(|_| TransportError::Io("head receiver closed".into()))?;
+                head_published = true;
+                Ok(())
             };
-            let response = prepared
-                .gateway
-                .handle_to_writer_streaming(&prepared.request, body, &mut publish_head)
-                .map_err(|error| RuntimeError::Operation(format!("stream gateway: {error}")))?;
+            let stream_result = prepared.gateway.handle_to_writer_streaming(
+                &prepared.request,
+                body,
+                &mut publish_head,
+            );
             metrics.metrics.gateway_ms = elapsed_millis(gateway_started);
             metrics.metrics.origin_ms = prepared.origin_metrics.load(Ordering::Acquire);
             metrics.metrics.origin_timing_available = true;
+            if let Some(head_ms) = head_ready_ms {
+                metrics.metrics.stream_timing_available = true;
+                metrics.metrics.stream_head_ms = head_ms;
+                metrics.metrics.stream_drain_ms =
+                    metrics.metrics.gateway_ms.saturating_sub(head_ms);
+            }
+            let response = match stream_result {
+                Ok(response) => response,
+                Err(error) => {
+                    // A failure after the head was published delivers a head with
+                    // a truncated or empty body, which surfaces in the browser as
+                    // an empty response rather than an error page.
+                    metrics.metrics.outcome = if head_published {
+                        "stream_failed_after_head"
+                    } else {
+                        "stream_failed_before_head"
+                    };
+                    return Err(RuntimeError::Operation(format!("stream gateway: {error}")));
+                }
+            };
             if !self.authority_admits(authority_binding, authority_stamp) {
+                metrics.metrics.outcome = "stream_authority_changed_after_body";
                 return Err(RuntimeError::Operation(
                     "stream authority changed during body delivery".to_owned(),
                 ));
@@ -5338,6 +5489,16 @@ impl BrowserRuntime {
     }
 }
 
+impl RuntimeProxyBackend {
+    /// Records a privacy-safe rejection reason and returns the backend error
+    /// that reason has always mapped to. Diagnostics only: the returned error
+    /// is identical to the pre-instrumentation behaviour.
+    fn reject_publication(&self, reason: PublicationRejectionReason) -> ProxyBackendError {
+        self.runtime.observe_publication_rejection(reason);
+        reason.backend_error()
+    }
+}
+
 impl ProxyBackend for RuntimeProxyBackend {
     fn execute(
         &self,
@@ -5586,15 +5747,19 @@ impl ProxyBackend for RuntimeProxyBackend {
     ) -> Result<Box<dyn PublicationPermit + '_>, ProxyBackendError> {
         let authorization = capability
             .downcast_ref::<RuntimePublicationAuthorization>()
-            .ok_or(ProxyBackendError::PolicyDenied)?;
+            .ok_or_else(|| {
+                self.reject_publication(PublicationRejectionReason::CapabilityMismatch)
+            })?;
         if self
             .authority_binding
             .is_some_and(|binding| binding != authorization.binding)
         {
-            return Err(ProxyBackendError::PolicyDenied);
+            return Err(
+                self.reject_publication(PublicationRejectionReason::AuthorityBindingChanged)
+            );
         }
         let Some(stamp) = authorization.stamp else {
-            return Err(ProxyBackendError::PolicyDenied);
+            return Err(self.reject_publication(PublicationRejectionReason::AuthorityStampMissing));
         };
         let maintenance = self
             .runtime
@@ -5602,7 +5767,9 @@ impl ProxyBackend for RuntimeProxyBackend {
             .coordination
             .maintenance
             .read()
-            .map_err(|_| ProxyBackendError::Internal)?;
+            .map_err(|_| {
+                self.reject_publication(PublicationRejectionReason::MaintenanceLockPoisoned)
+            })?;
         if self
             .runtime
             .inner
@@ -5610,44 +5777,58 @@ impl ProxyBackend for RuntimeProxyBackend {
             .publication_epoch(&maintenance)
             != Some(authorization.maintenance_epoch)
         {
-            return Err(ProxyBackendError::PolicyDenied);
+            return Err(
+                self.reject_publication(PublicationRejectionReason::MaintenanceEpochChanged)
+            );
         }
         let mut header_state_lock = HeaderStateFileLock::try_shared(
             &self.runtime.inner.coordination.header_state_lock_path,
         )
-        .map_err(|_| ProxyBackendError::Internal)?
-        .ok_or(ProxyBackendError::PolicyDenied)?;
-        let recorded_identity = header_state_lock
-            .ready_identity()
-            .map_err(|_| ProxyBackendError::PolicyDenied)?;
+        .map_err(|_| {
+            self.reject_publication(PublicationRejectionReason::HeaderStateLockUnavailable)
+        })?
+        .ok_or_else(|| {
+            self.reject_publication(PublicationRejectionReason::HeaderStateLockContended)
+        })?;
+        let recorded_identity = header_state_lock.ready_identity().map_err(|_| {
+            self.reject_publication(PublicationRejectionReason::HeaderStateIdentityUnreadable)
+        })?;
         let storage_identity =
             read_header_sync_storage_identity(&self.runtime.inner.coordination.header_state_base)
-                .map_err(|_| ProxyBackendError::Internal)?;
+                .map_err(|_| {
+                self.reject_publication(PublicationRejectionReason::StorageIdentityUnreadable)
+            })?;
         if recorded_identity != storage_identity
             || authorization
                 .storage_identity
                 .is_some_and(|identity| identity != storage_identity)
         {
-            return Err(ProxyBackendError::PolicyDenied);
+            return Err(
+                self.reject_publication(PublicationRejectionReason::StorageIdentityMismatch)
+            );
         }
         let authority = match self
             .runtime
             .authorized_publication_guard(authorization.binding, stamp)
         {
             Ok(authority) => authority,
-            Err(RuntimeError::Synchronization(_)) => return Err(ProxyBackendError::Internal),
+            Err(RuntimeError::Synchronization(_)) => {
+                return Err(
+                    self.reject_publication(PublicationRejectionReason::AuthoritySynchronization)
+                );
+            }
             Err(
                 RuntimeError::InvalidConfiguration(_)
                 | RuntimeError::Operation(_)
                 | RuntimeError::PublicationSuppressed(_),
             ) => {
-                return Err(ProxyBackendError::PolicyDenied);
+                return Err(self.reject_publication(PublicationRejectionReason::AuthorityRevoked));
             }
         };
         if let Some(selection) = &authorization.selection {
-            selection
-                .record()
-                .map_err(|_| ProxyBackendError::Internal)?;
+            selection.record().map_err(|_| {
+                self.reject_publication(PublicationRejectionReason::SelectionRecordFailed)
+            })?;
         }
         Ok(Box::new(RuntimePublicationPermit {
             _maintenance: maintenance,
@@ -17325,6 +17506,64 @@ mod tests {
 
         proxy.stop();
         cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn publication_rejection_reasons_preserve_the_original_backend_errors() {
+        // Instrumentation must not change publication behaviour: every reason
+        // has to surface as the error its branch returned before reason codes
+        // were recorded.
+        for reason in [
+            PublicationRejectionReason::CapabilityMismatch,
+            PublicationRejectionReason::AuthorityBindingChanged,
+            PublicationRejectionReason::AuthorityStampMissing,
+            PublicationRejectionReason::MaintenanceEpochChanged,
+            PublicationRejectionReason::HeaderStateLockContended,
+            PublicationRejectionReason::HeaderStateIdentityUnreadable,
+            PublicationRejectionReason::StorageIdentityMismatch,
+            PublicationRejectionReason::AuthorityRevoked,
+        ] {
+            assert_eq!(reason.backend_error(), ProxyBackendError::PolicyDenied);
+        }
+        for reason in [
+            PublicationRejectionReason::MaintenanceLockPoisoned,
+            PublicationRejectionReason::HeaderStateLockUnavailable,
+            PublicationRejectionReason::StorageIdentityUnreadable,
+            PublicationRejectionReason::AuthoritySynchronization,
+            PublicationRejectionReason::SelectionRecordFailed,
+        ] {
+            assert_eq!(reason.backend_error(), ProxyBackendError::Internal);
+        }
+    }
+
+    #[test]
+    fn publication_rejection_codes_are_distinct_and_privacy_safe() {
+        let reasons = [
+            PublicationRejectionReason::CapabilityMismatch,
+            PublicationRejectionReason::AuthorityBindingChanged,
+            PublicationRejectionReason::AuthorityStampMissing,
+            PublicationRejectionReason::MaintenanceLockPoisoned,
+            PublicationRejectionReason::MaintenanceEpochChanged,
+            PublicationRejectionReason::HeaderStateLockUnavailable,
+            PublicationRejectionReason::HeaderStateLockContended,
+            PublicationRejectionReason::HeaderStateIdentityUnreadable,
+            PublicationRejectionReason::StorageIdentityUnreadable,
+            PublicationRejectionReason::StorageIdentityMismatch,
+            PublicationRejectionReason::AuthorityRevoked,
+            PublicationRejectionReason::AuthoritySynchronization,
+            PublicationRejectionReason::SelectionRecordFailed,
+        ];
+        let codes = reasons
+            .iter()
+            .map(|reason| reason.code())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(codes.len(), reasons.len());
+        for reason in reasons {
+            let code = reason.code();
+            assert!(!code.is_empty());
+            assert!(code.chars().all(|c| c.is_ascii_lowercase() || c == '_'));
+            assert!(!reason.family().is_empty());
+        }
     }
 
     #[test]
