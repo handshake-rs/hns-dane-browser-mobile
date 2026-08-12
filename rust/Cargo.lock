@@ -19,7 +19,6 @@ dependencies = [
  "hns-mobile-platform-runtime",
  "hns-wallet-mobile",
  "jni",
- "libc",
  "serde_json",
 ]
 

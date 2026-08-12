@@ -14,5 +14,4 @@ crate-type = ["cdylib", "rlib"]
 hns-mobile-platform-runtime.workspace = true
 hns-wallet-mobile.workspace = true
 jni.workspace = true
-libc = "0.2"
 serde_json = "1"

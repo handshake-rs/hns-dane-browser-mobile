@@ -70,6 +70,106 @@ static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
 static BLOCKED_PIPE_DRAINS: StreamingGatewayLimiter =
     StreamingGatewayLimiter::new(MAX_BLOCKED_PIPE_DRAINS);
 
+#[cfg(any(target_os = "android", target_os = "linux"))]
+mod pipe_sys {
+    use std::io;
+    use std::time::Duration;
+
+    const F_GETFL: i32 = 3;
+    const F_SETFL: i32 = 4;
+    const O_NONBLOCK: i32 = 0o4000;
+    const POLLOUT: i16 = 0x0004;
+    const POLLERR: i16 = 0x0008;
+    const POLLHUP: i16 = 0x0010;
+    const POLLNVAL: i16 = 0x0020;
+
+    #[cfg(target_os = "android")]
+    type PollCount = u32;
+    #[cfg(target_os = "linux")]
+    type PollCount = usize;
+
+    #[repr(C)]
+    struct PollFd {
+        fd: i32,
+        events: i16,
+        revents: i16,
+    }
+
+    unsafe extern "C" {
+        fn fcntl(fd: i32, command: i32, ...) -> i32;
+        fn poll(fds: *mut PollFd, count: PollCount, timeout_ms: i32) -> i32;
+    }
+
+    pub(super) fn set_nonblocking(fd: i32) -> io::Result<()> {
+        // SAFETY: fd is an owned, live descriptor. F_GETFL does not mutate
+        // memory and returns the descriptor's current flags.
+        let flags = unsafe { fcntl(fd, F_GETFL) };
+        if flags < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: fd remains live and the current flags are preserved while
+        // adding the Linux/Android O_NONBLOCK bit.
+        if unsafe { fcntl(fd, F_SETFL, flags | O_NONBLOCK) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    pub(super) fn wait_until_writable(fd: i32, timeout: Duration) -> io::Result<bool> {
+        let timeout_ms = i32::try_from(timeout.as_millis()).unwrap_or(i32::MAX);
+        let mut poll_fd = PollFd {
+            fd,
+            events: POLLOUT,
+            revents: 0,
+        };
+        loop {
+            // SAFETY: poll_fd points to one initialized descriptor for the
+            // duration of the call, and its fd remains owned by the caller.
+            let result = unsafe { poll(&mut poll_fd, 1, timeout_ms) };
+            if result > 0 {
+                if poll_fd.revents & (POLLERR | POLLHUP | POLLNVAL) != 0 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::BrokenPipe,
+                        "stream pipe reader closed",
+                    ));
+                }
+                if poll_fd.revents & POLLOUT != 0 {
+                    return Ok(true);
+                }
+                continue;
+            }
+            if result == 0 {
+                return Ok(false);
+            }
+            let error = io::Error::last_os_error();
+            if error.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(error);
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "android", target_os = "linux")))]
+mod pipe_sys {
+    use std::io;
+    use std::time::Duration;
+
+    pub(super) fn set_nonblocking(_fd: i32) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "nonblocking stream pipes are unsupported on this target",
+        ))
+    }
+
+    pub(super) fn wait_until_writable(_fd: i32, _timeout: Duration) -> io::Result<bool> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "stream pipe polling is unsupported on this target",
+        ))
+    }
+}
+
 struct StreamingGatewayLimiter {
     active: Mutex<usize>,
     capacity_available: Condvar,
@@ -184,7 +284,7 @@ impl<'a> StreamingPipeWriter<'a> {
         request_permit: StreamingGatewayPermit<'a>,
         drain_limiter: &'a StreamingGatewayLimiter,
     ) -> io::Result<Self> {
-        set_nonblocking(file.as_raw_fd())?;
+        pipe_sys::set_nonblocking(file.as_raw_fd())?;
         Ok(Self {
             file,
             permits: StreamingPipePermits::new(request_permit, drain_limiter),
@@ -192,49 +292,17 @@ impl<'a> StreamingPipeWriter<'a> {
     }
 
     fn wait_until_writable(&self) -> io::Result<()> {
-        let mut poll_fd = libc::pollfd {
-            fd: self.file.as_raw_fd(),
-            events: libc::POLLOUT,
-            revents: 0,
-        };
-        loop {
-            // SAFETY: poll_fd points to one initialized pollfd for the duration
-            // of the call, and the file descriptor remains owned by self.
-            let result = unsafe {
-                libc::poll(
-                    &mut poll_fd,
-                    1,
-                    STREAMING_PIPE_DRAIN_WAIT.as_millis() as libc::c_int,
-                )
-            };
-            if result > 0 {
-                if poll_fd.revents & (libc::POLLERR | libc::POLLHUP | libc::POLLNVAL) != 0 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::BrokenPipe,
-                        "stream pipe reader closed",
-                    ));
-                }
-                if poll_fd.revents & libc::POLLOUT != 0 {
-                    return Ok(());
-                }
-                continue;
-            }
-            if result == 0 {
-                android_log_request_metrics(&format!(
-                    "stream_backpressure outcome=timed_out drain_wait_ms={}",
-                    STREAMING_PIPE_DRAIN_WAIT.as_millis(),
-                ));
-                return Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "stream pipe drain inactivity timeout",
-                ));
-            }
-            let error = io::Error::last_os_error();
-            if error.kind() == io::ErrorKind::Interrupted {
-                continue;
-            }
-            return Err(error);
+        if pipe_sys::wait_until_writable(self.file.as_raw_fd(), STREAMING_PIPE_DRAIN_WAIT)? {
+            return Ok(());
         }
+        android_log_request_metrics(&format!(
+            "stream_backpressure outcome=timed_out drain_wait_ms={}",
+            STREAMING_PIPE_DRAIN_WAIT.as_millis(),
+        ));
+        Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "stream pipe drain inactivity timeout",
+        ))
     }
 }
 
@@ -255,20 +323,6 @@ impl Write for StreamingPipeWriter<'_> {
     fn flush(&mut self) -> io::Result<()> {
         self.file.flush()
     }
-}
-
-fn set_nonblocking(fd: RawFd) -> io::Result<()> {
-    // SAFETY: fd is an owned, live descriptor. F_GETFL does not mutate memory.
-    let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
-    if flags < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: fd remains live and the existing flags are preserved while
-    // adding O_NONBLOCK.
-    if unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    Ok(())
 }
 
 struct AndroidRuntimeRecord {
