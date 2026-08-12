@@ -80,6 +80,7 @@ impl StreamingGatewayLimiter {
         }
     }
 
+    #[cfg(test)]
     fn try_acquire(&self) -> Option<StreamingGatewayPermit<'_>> {
         let mut active = self.active.lock().ok()?;
         if *active >= self.limit {
@@ -2481,7 +2482,7 @@ mod tests {
 
         std::thread::scope(|scope| {
             let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
-            scope.spawn(|| {
+            scope.spawn(move || {
                 let permit = limiter.acquire_timeout(Duration::from_secs(1));
                 result_tx.send(permit.is_some()).expect("result receiver");
             });
