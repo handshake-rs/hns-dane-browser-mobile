@@ -2482,8 +2482,9 @@ mod tests {
 
         std::thread::scope(|scope| {
             let (result_tx, result_rx) = std::sync::mpsc::sync_channel(1);
+            let waiting_limiter = &limiter;
             scope.spawn(move || {
-                let permit = limiter.acquire_timeout(Duration::from_secs(1));
+                let permit = waiting_limiter.acquire_timeout(Duration::from_secs(1));
                 result_tx.send(permit.is_some()).expect("result receiver");
             });
 
