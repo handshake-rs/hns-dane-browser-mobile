@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
     private var admittedMainFrameUrl: String? = null
     private var reloadHnsPageOnNextStart: Boolean = false
     private var pageIsLoading: Boolean = false
+    private var showFullPageLoadingOverlay: Boolean = true
     private var pageLoadProgress: Int = 0
     private var navigationGeneration: Long = 0L
     private var pendingNavigation: PendingNavigation? = null
@@ -806,12 +807,20 @@ class MainActivity : ComponentActivity() {
         val targetIndex = history.currentIndex + offset
         if (targetIndex !in 0 until history.size) return
         val url = history.getItemAtIndex(targetIndex).url ?: return
-        enqueueNavigation(classifier.classify(url)) { webView.goBackOrForward(offset) }
+        enqueueNavigation(
+            classifier.classify(url),
+            showFullPageLoadingOverlay = false,
+        ) { webView.goBackOrForward(offset) }
     }
 
-    private fun enqueueNavigation(target: BrowserTarget, load: () -> Unit) {
+    private fun enqueueNavigation(
+        target: BrowserTarget,
+        showFullPageLoadingOverlay: Boolean = true,
+        load: () -> Unit,
+    ) {
         navigationGeneration = navigationGeneration.wrappingIncrement()
         val generation = navigationGeneration
+        this.showFullPageLoadingOverlay = showFullPageLoadingOverlay
         pendingNavigation = null
         proxyNavigationSubmittedGeneration = null
         failedMainFrameUrl = null
@@ -950,6 +959,15 @@ class MainActivity : ComponentActivity() {
         val pending = pendingNavigation
         val waitingForAuthority = pending != null && targetRequiresDualRootReadiness(pending.target)
         val progress = currentSyncProgress()
+        if (!shouldShowFullPageLoadingOverlay(
+                enabledForNavigation = showFullPageLoadingOverlay,
+                pageIsLoading = pageIsLoading,
+                waitingForAuthority = waitingForAuthority,
+            )
+        ) {
+            loadingOverlay.visibility = View.GONE
+            return
+        }
         when {
             waitingForAuthority -> {
                 val failed = progress.status in SYNC_FAILURE_STATUSES
@@ -1686,6 +1704,12 @@ private data class PendingNavigation(
 )
 
 private fun Long.wrappingIncrement(): Long = if (this == Long.MAX_VALUE) 1L else this + 1L
+
+internal fun shouldShowFullPageLoadingOverlay(
+    enabledForNavigation: Boolean,
+    pageIsLoading: Boolean,
+    waitingForAuthority: Boolean,
+): Boolean = enabledForNavigation && (pageIsLoading || waitingForAuthority)
 
 internal fun isCurrentMainFrameFailure(
     isForMainFrame: Boolean,
