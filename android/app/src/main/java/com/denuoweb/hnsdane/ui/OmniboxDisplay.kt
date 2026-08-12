@@ -27,6 +27,11 @@ internal object OmniboxDisplay {
             .takeIf { it in 1..65535 && it != defaultPort }
             ?.let { ":$it" }
             .orEmpty()
-        return host.lowercase(Locale.US) + port
+        val path = uri.rawPath
+            ?.takeUnless { it.isEmpty() || it == "/" }
+            .orEmpty()
+        val query = uri.rawQuery?.let { "?$it" }.orEmpty()
+        val fragment = uri.rawFragment?.let { "#$it" }.orEmpty()
+        return host.lowercase(Locale.US) + port + path + query + fragment
     }
 }

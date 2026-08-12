@@ -20,6 +20,7 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.RenderProcessGoneDetail
@@ -111,10 +112,9 @@ class MainActivity : ComponentActivity() {
     private var omniboxFullUrl: String = ""
     private lateinit var securityIndicator: ImageView
     private lateinit var hamburgerButton: TextView
-    private lateinit var syncProgressBar: ProgressBar
-    private lateinit var syncProgressStats: TextView
-    private lateinit var syncGateNotice: TextView
-    private lateinit var pageProgressBar: ProgressBar
+    private lateinit var loadingOverlay: LinearLayout
+    private lateinit var loadingSpinner: ProgressBar
+    private lateinit var loadingLabel: TextView
     private lateinit var httpWarningBar: TextView
     private lateinit var proxyCoordinator: BrowserProxyCoordinator
     private lateinit var assetLoader: WebViewAssetLoader
@@ -151,6 +151,8 @@ class MainActivity : ComponentActivity() {
     private var failedMainFrameUrl: String? = null
     private var activityStopped: Boolean = false
     private var observedHeaderResetGeneration: Long = 0L
+    private var fullscreenMediaView: View? = null
+    private var fullscreenMediaCallback: WebChromeClient.CustomViewCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -254,32 +256,35 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { openResolverTrace() }
         }
 
-        syncProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = SYNC_PROGRESS_MAX
+        loadingSpinner = ProgressBar(this).apply {
             isIndeterminate = true
         }
-        syncProgressStats = TextView(this).apply {
-            setPadding(16, 0, 16, 8)
-            setTextColor(colors.secondaryText)
-            textSize = 12f
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
-            text = HnsSyncProgress.fromJson(null).summary(this@MainActivity)
-        }
-        syncGateNotice = TextView(this).apply {
+        loadingLabel = TextView(this).apply {
             gravity = Gravity.CENTER
-            setPadding(dp(32), dp(32), dp(32), dp(32))
+            setPadding(0, dp(20), 0, 0)
             setTextColor(colors.primaryText)
-            setBackgroundColor(colors.background)
             textSize = 16f
-            visibility = View.GONE
-            isClickable = true
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        pageProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = PAGE_PROGRESS_MAX
-            progress = 0
+        loadingOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(32), dp(32), dp(32), dp(32))
+            setBackgroundColor(colors.background)
             visibility = View.GONE
+            isClickable = true
+            addView(ImageView(this@MainActivity).apply {
+                setImageResource(R.drawable.hns_dane_mark)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                contentDescription = null
+            }, LinearLayout.LayoutParams(dp(112), dp(112)))
+            addView(loadingSpinner, LinearLayout.LayoutParams(dp(48), dp(48)).apply {
+                topMargin = dp(24)
+            })
+            addView(loadingLabel, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ))
         }
         httpWarningBar = TextView(this).apply {
             text = getString(R.string.http_transport_warning)
@@ -329,18 +334,6 @@ class MainActivity : ComponentActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
-            addView(syncProgressBar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
-            addView(syncProgressStats, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
-            addView(pageProgressBar, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
             addView(httpWarningBar, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(HTTP_WARNING_BAR_HEIGHT_DP),
@@ -350,7 +343,7 @@ class MainActivity : ComponentActivity() {
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
                 ))
-                addView(syncGateNotice, FrameLayout.LayoutParams(
+                addView(loadingOverlay, FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
                 ))
@@ -365,7 +358,9 @@ class MainActivity : ComponentActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
+                if (fullscreenMediaView != null) {
+                    hideFullscreenMedia()
+                } else if (webView.canGoBack()) {
                     navigateHistory(-1)
                 } else {
                     isEnabled = false
@@ -471,6 +466,7 @@ class MainActivity : ComponentActivity() {
         proxyAvailabilitySubscription = null
         proxyCoordinator.releaseNavigationOwner(proxyNavigationOwner)
         disableServiceWorkerInterception()
+        hideFullscreenMedia()
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
@@ -819,8 +815,8 @@ class MainActivity : ComponentActivity() {
         pendingNavigation = null
         proxyNavigationSubmittedGeneration = null
         failedMainFrameUrl = null
-        if (::syncGateNotice.isInitialized) {
-            syncGateNotice.visibility = View.GONE
+        if (::loadingOverlay.isInitialized) {
+            loadingOverlay.visibility = View.GONE
         }
         webView.stopLoading()
         showOmniboxUrl(target.url)
@@ -877,7 +873,7 @@ class MainActivity : ComponentActivity() {
             }
             if (pendingNavigation?.generation == generation) {
                 pendingNavigation = null
-                syncGateNotice.visibility = View.GONE
+                loadingOverlay.visibility = View.GONE
             }
             pendingMainFrameUrl = null
             admittedMainFrameUrl = target.url
@@ -886,6 +882,7 @@ class MainActivity : ComponentActivity() {
             failedMainFrameUrl = null
             pageIsLoading = true
             pageLoadProgress = 0
+            webView.settings.mediaPlaybackRequiresUserGesture = !allowInlineAutoplay(target.kind)
             refreshSecurityState()
             refreshPageProgress()
             refreshTransportWarning()
@@ -949,20 +946,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSyncGateNotice() {
-        if (!::syncGateNotice.isInitialized) return
+        if (!::loadingOverlay.isInitialized) return
         val pending = pendingNavigation
-        if (pending == null || !targetRequiresDualRootReadiness(pending.target)) {
-            syncGateNotice.visibility = View.GONE
-            return
-        }
+        val waitingForAuthority = pending != null && targetRequiresDualRootReadiness(pending.target)
         val progress = currentSyncProgress()
-        val host = pending.target.displayHost ?: pending.target.url
-        syncGateNotice.text = if (progress.status in SYNC_FAILURE_STATUSES) {
-            getString(R.string.sync_gate_failed, host)
-        } else {
-            getString(R.string.sync_gate_waiting, host)
+        when {
+            waitingForAuthority -> {
+                val failed = progress.status in SYNC_FAILURE_STATUSES
+                loadingLabel.text = if (failed) {
+                    getString(R.string.security_failed)
+                } else {
+                    getString(R.string.security_syncing)
+                }
+                loadingSpinner.visibility = if (failed) View.GONE else View.VISIBLE
+                loadingOverlay.visibility = View.VISIBLE
+            }
+            pageIsLoading -> {
+                loadingLabel.text = getString(R.string.security_loading)
+                loadingSpinner.visibility = View.VISIBLE
+                loadingOverlay.visibility = View.VISIBLE
+            }
+            else -> loadingOverlay.visibility = View.GONE
         }
-        syncGateNotice.visibility = View.VISIBLE
     }
 
     private fun refreshSecurityState() {
@@ -1044,41 +1049,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSyncProgress() {
-        if (!::syncProgressBar.isInitialized || !::syncProgressStats.isInitialized) {
-            return
-        }
-
         val progress = currentSyncProgress()
-        if (progress.shouldShowProgress) {
-            syncProgressBar.visibility = View.VISIBLE
-            syncProgressStats.visibility = View.VISIBLE
-            val permille = progress.progressPermille()
-            syncProgressBar.isIndeterminate = permille == null
-            if (permille != null) {
-                syncProgressBar.progress = permille
-            }
-            syncProgressStats.text = progress.summary(this)
-        } else {
-            syncProgressBar.visibility = View.GONE
-            syncProgressStats.visibility = View.GONE
-        }
         refreshSyncGateNotice()
         resumePendingNavigationIfReady(progress)
         restoreActiveProxyIfReady(progress)
     }
 
     private fun refreshPageProgress() {
-        if (!::pageProgressBar.isInitialized) {
-            return
-        }
-
-        if (pageIsLoading) {
-            pageProgressBar.visibility = View.VISIBLE
-            pageProgressBar.progress = pageLoadProgress.coerceIn(0, PAGE_PROGRESS_MAX)
-        } else {
-            pageProgressBar.progress = PAGE_PROGRESS_MAX
-            pageProgressBar.visibility = View.GONE
-        }
+        refreshSyncGateNotice()
     }
 
     private fun refreshTransportWarning() {
@@ -1317,6 +1295,18 @@ class MainActivity : ComponentActivity() {
             refreshTransportWarning()
         }
 
+        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+            super.doUpdateVisitedHistory(view, url, isReload)
+            if (pendingMainFrameUrl != null) return
+            val target = classifier.classify(url)
+            if (target.kind == BrowserTargetKind.Blocked || target.kind == BrowserTargetKind.Search) return
+            showOmniboxUrl(url)
+            activeMainFrameUrl = url
+            admittedMainFrameUrl = url
+            currentTargetKind = target.kind
+            refreshTransportWarning()
+        }
+
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
             gatewayInterceptionEnabled = false
             pageIsLoading = false
@@ -1339,6 +1329,42 @@ class MainActivity : ComponentActivity() {
             if (!pageIsLoading) return
             pageLoadProgress = newProgress.coerceIn(0, PAGE_PROGRESS_MAX)
             refreshPageProgress()
+        }
+
+        override fun onShowCustomView(
+            view: View,
+            callback: WebChromeClient.CustomViewCallback,
+        ) {
+            if (fullscreenMediaView != null) {
+                callback.onCustomViewHidden()
+                return
+            }
+            fullscreenMediaView = view
+            fullscreenMediaCallback = callback
+            webView.visibility = View.GONE
+            addContentView(
+                view,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+
+        override fun onHideCustomView() {
+            hideFullscreenMedia()
+        }
+    }
+
+    private fun hideFullscreenMedia() {
+        val view = fullscreenMediaView ?: return
+        (view.parent as? ViewGroup)?.removeView(view)
+        fullscreenMediaView = null
+        val callback = fullscreenMediaCallback
+        fullscreenMediaCallback = null
+        callback?.onCustomViewHidden()
+        if (::webView.isInitialized) {
+            webView.visibility = View.VISIBLE
         }
     }
 
@@ -1629,7 +1655,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_LOAD_URL = "com.denuoweb.hnsdane.LOAD_URL"
 
-        private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
         private const val SYNC_STATUS_POLL_MS = 2_000L
         private const val SECURITY_INDICATOR_WIDTH_DP = 44
