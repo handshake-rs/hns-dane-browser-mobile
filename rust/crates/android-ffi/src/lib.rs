@@ -1963,7 +1963,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeG
                 },
             ))
             .zip(writer);
-        let Some((((runtime, policy), request), mut writer)) = inputs else {
+        let Some((((runtime, policy), request), writer)) = inputs else {
             return std::ptr::null_mut();
         };
         // Capacity wait happens before runtime request metrics begin. The
