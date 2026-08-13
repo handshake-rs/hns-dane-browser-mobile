@@ -107,6 +107,77 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
     }
 
+    func testNativeHNSReadPresentationMatchesBoundedAndroidDetail() throws {
+        XCTAssertEqual(WalletReadPresenter.formatHnsBaseUnits("0"), "0")
+        XCTAssertEqual(WalletReadPresenter.formatHnsBaseUnits("1"), "0.000001")
+        XCTAssertEqual(WalletReadPresenter.formatHnsBaseUnits("1000000"), "1")
+        XCTAssertEqual(WalletReadPresenter.formatHnsBaseUnits("123456789"), "123.456789")
+        XCTAssertEqual(
+            WalletReadPresenter.formatHnsBaseUnits("340282366920938463463374607431768211455"),
+            "340282366920938463463374607431768.211455"
+        )
+        XCTAssertEqual(WalletReadPresenter.visibleItemLimit(requested: 0), 1)
+        XCTAssertEqual(WalletReadPresenter.visibleItemLimit(requested: 20), 20)
+        XCTAssertEqual(WalletReadPresenter.visibleItemLimit(requested: Int.max), 20)
+        XCTAssertEqual(
+            WalletReadPresenter.codeLabel("watchOnlyCanonicalStateDecoderUnavailable"),
+            "watch only canonical state decoder unavailable"
+        )
+
+        let account = ([1] + Array(repeating: 0, count: 15)).map { String($0) }.joined(separator: ",")
+        let firstTransaction = ([2] + Array(repeating: 0, count: 31)).map { String($0) }.joined(separator: ",")
+        let secondTransaction = ([3] + Array(repeating: 0, count: 31)).map { String($0) }.joined(separator: ",")
+        let firstTransactionHex = "02" + String(repeating: "00", count: 31)
+        let secondTransactionHex = "03" + String(repeating: "00", count: 31)
+        let firstHash = String(repeating: "a", count: 64)
+        let secondHash = String(repeating: "b", count: 64)
+        let json = """
+        {
+          "balance":{"asset":"HNS","base_units":"12345678"},
+          "receiveTarget":{"module":"handshake","account":[\(account)],"display":"rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz","derivation_index":7},
+          "transactionHistory":[
+            {"module":"handshake","txid":[\(firstTransaction)],"status":"confirmed","net_amount":{"negative":true,"magnitude":"250000"},"fee":"10","block_height":40,"first_seen_unix":1,"confirmation_count":3},
+            {"module":"handshake","txid":[\(secondTransaction)],"status":"mempool","net_amount":{"negative":false,"magnitude":"1000000"},"fee":null,"block_height":null,"first_seen_unix":2,"confirmation_count":0}
+          ],
+          "knownNames":[
+            {"name":"example","nameHash":"\(firstHash)","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false},
+            {"name":"second","nameHash":"\(secondHash)","proofHeight":41,"resourceStatus":"empty","ownershipStatus":"notWalletOwned","registered":false,"expired":null}
+          ],
+          "moduleStatus":{"phase":"ready","validated_height":42,"scanned_height":42,"target_height":42,"last_error":null}
+        }
+        """
+        let snapshot = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))
+        let presentation = WalletReadPresenter.present(snapshot, maximumVisibleItems: 1)
+
+        XCTAssertEqual(
+            presentation.status,
+            "Handshake reads are ready at height 42. Value movement and marketplace controls are unavailable."
+        )
+        XCTAssertEqual(presentation.balance, "12.345678 HNS confirmed spendable")
+        XCTAssertEqual(
+            presentation.receive,
+            "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz\nDerivation index 7"
+        )
+        XCTAssertEqual(
+            presentation.history,
+            "confirmed · -0.25 HNS\n\(firstTransactionHex)\nBlock 40 · 3 confirmations\n\n1 more items are present in this synchronized snapshot."
+        )
+        XCTAssertEqual(
+            presentation.names,
+            "example · proof height 42\nwallet owned · canonical decoded · registered · current\n\(firstHash)\n\n1 more items are present in this synchronized snapshot."
+        )
+
+        let fullPresentation = WalletReadPresenter.present(snapshot, maximumVisibleItems: 2)
+        XCTAssertTrue(fullPresentation.history.contains(
+            "mempool · 1 HNS\n\(secondTransactionHex)\nUnconfirmed"
+        ))
+        XCTAssertTrue(fullPresentation.names.contains(
+            "second · proof height 41\nnot wallet owned · empty · not registered\n\(secondHash)"
+        ))
+        XCTAssertFalse(fullPresentation.history.contains("more items"))
+        XCTAssertFalse(fullPresentation.names.contains("more items"))
+    }
+
     func testNativeHNSReadConfigurationWipesCallerAuthorization() {
         var authorization = Array("Bearer scoped-read-fixture".utf8)
         let configuration = NativeHnsReadConfiguration(

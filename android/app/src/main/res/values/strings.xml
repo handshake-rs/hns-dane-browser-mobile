@@ -267,14 +267,14 @@
     <string name="wallet_status_key_store_unavailable" translatable="false">Android Keystore is unavailable. Wallet storage was left unchanged.</string>
     <string name="wallet_account_locked" translatable="false">Unlock to inspect the single HNS account identity.</string>
     <string name="wallet_account_unavailable" translatable="false">No account identity is exposed.</string>
-    <string name="wallet_reads_unavailable" translatable="false">Read-only HNS synchronization is unavailable because no scoped trusted loopback gateway is provisioned. Send, HNSA, HNSR, and P2P marketplace controls remain disabled.</string>
+    <string name="wallet_reads_unavailable" translatable="false">Read-only HNS synchronization is unavailable because no scoped trusted loopback gateway is provisioned. Value movement and marketplace controls remain disabled.</string>
     <string name="wallet_reads_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet to inspect synchronized HNS reads.</string>
     <string name="wallet_reads_recovery_unconfirmed" translatable="false">Confirm the recovery backup before any wallet read backend can be installed.</string>
     <string name="wallet_reads_locked" translatable="false">Unlock the wallet before synchronizing read-only HNS data.</string>
     <string name="wallet_reads_ready_to_sync" translatable="false">The read-only HNS module is configured. Synchronize to refresh its tip-bound projection.</string>
     <string name="wallet_reads_syncing" translatable="false">Synchronizing one bounded HNS read snapshot…</string>
     <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read failed closed. Reopen and unlock the wallet before retrying.</string>
-    <string name="wallet_reads_ready" translatable="false">Handshake reads are ready at height %1$d. Send, HNSA, HNSR, and marketplace controls are unavailable.</string>
+    <string name="wallet_reads_ready" translatable="false">Handshake reads are ready at height %1$d. Value movement and marketplace controls are unavailable.</string>
     <string name="wallet_reads_balance_unavailable" translatable="false">No synchronized balance is exposed.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS confirmed spendable</string>
     <string name="wallet_reads_receive_unavailable" translatable="false">No receive address is exposed.</string>

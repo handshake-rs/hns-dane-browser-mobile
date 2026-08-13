@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- iOS now renders the same bounded read-only wallet detail as Android,
+  including full transaction and name evidence, chain position, receive
+  derivation index, and explicit overflow counts; both platforms use
+  refactor-safe capability wording while value movement remains unavailable.
 - Android and iOS now present scheme-elided web URLs while the omnibox is idle,
   reveal the exact URL for editing, and follow same-document history updates
   without losing the full URL used by navigation and diagnostics.

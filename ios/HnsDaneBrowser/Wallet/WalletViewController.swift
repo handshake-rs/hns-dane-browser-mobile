@@ -474,22 +474,12 @@ final class WalletViewController: UIViewController {
     }
 
     private func publish(_ snapshot: NativeHnsReadSnapshot) {
-        readStatusLabel.text = "Read-only HNS wallet synchronized at height \(snapshot.moduleStatus.validatedHeight)."
-        balanceLabel.text = "Confirmed spendable balance: \(Self.hnsDisplay(snapshot.balance.baseUnits)) HNS"
-        receiveLabel.text = "Receive address: \(snapshot.receiveTarget.display)"
-        if snapshot.transactionHistory.isEmpty {
-            historyLabel.text = "Transaction history: no matched transactions."
-        } else {
-            let recent = snapshot.transactionHistory.prefix(3).map { transaction in
-                let direction = transaction.netAmount.negative ? "−" : "+"
-                let txid = transaction.txid.prefix(4).map { String(format: "%02x", $0) }.joined()
-                return "\(direction)\(Self.hnsDisplay(transaction.netAmount.magnitude)) HNS · \(transaction.status) · \(txid)…"
-            }
-            historyLabel.text = "Transaction history (\(snapshot.transactionHistory.count)):\n" + recent.joined(separator: "\n")
-        }
-        namesLabel.text = snapshot.knownNames.isEmpty
-            ? "Tracked names: none. Name import is not available in this build."
-            : "Tracked names: " + snapshot.knownNames.prefix(8).map(\.name).joined(separator: ", ")
+        let presentation = WalletReadPresenter.present(snapshot)
+        readStatusLabel.text = presentation.status
+        balanceLabel.text = presentation.balance
+        receiveLabel.text = presentation.receive
+        historyLabel.text = presentation.history
+        namesLabel.text = presentation.names
     }
 
     private func clearReadProjection() {
@@ -497,14 +487,6 @@ final class WalletViewController: UIViewController {
         receiveLabel.text = "Receive address: unavailable."
         historyLabel.text = "Transaction history: unavailable."
         namesLabel.text = "Tracked names: unavailable."
-    }
-
-    private static func hnsDisplay(_ baseUnits: String) -> String {
-        let padded = String(repeating: "0", count: max(0, 7 - baseUnits.count)) + baseUnits
-        let split = padded.index(padded.endIndex, offsetBy: -6)
-        let whole = padded[..<split]
-        let fractional = padded[split...]
-        return "\(whole).\(fractional)"
     }
 
     private func replaceWallet(with controller: RustNativeWallet) {
@@ -933,6 +915,129 @@ final class WalletViewController: UIViewController {
         )
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
+    }
+}
+
+struct WalletReadPresentation: Equatable, Sendable {
+    let status: String
+    let balance: String
+    let receive: String
+    let history: String
+    let names: String
+}
+
+/// Deterministic, bounded UIKit projection of a native-validated HNWR snapshot.
+/// This adapter does not infer authority or fetch data; publication remains
+/// gated by the exact wallet identity, storage lease, lifecycle, and generation.
+enum WalletReadPresenter {
+    static func present(
+        _ snapshot: NativeHnsReadSnapshot,
+        maximumVisibleItems: Int = 20
+    ) -> WalletReadPresentation {
+        let visibleItemLimit = visibleItemLimit(requested: maximumVisibleItems)
+        let transactions = snapshot.transactionHistory.prefix(visibleItemLimit)
+        let names = snapshot.knownNames.prefix(visibleItemLimit)
+
+        let history: String
+        if transactions.isEmpty {
+            history = "No wallet transactions were found in the synchronized snapshot."
+        } else {
+            let entries = transactions.map { transaction in
+                let chainPosition = transaction.blockHeight.map {
+                    "Block \($0) · \(transaction.confirmationCount) confirmations"
+                } ?? "Unconfirmed"
+                return [
+                    "\(codeLabel(transaction.status)) · \(displayAmount(transaction))",
+                    lowerHex(transaction.txid),
+                    chainPosition,
+                ].joined(separator: "\n")
+            }.joined(separator: "\n\n")
+            history = appendRemainingCount(
+                entries,
+                remaining: snapshot.transactionHistory.count - transactions.count
+            )
+        }
+
+        let trackedNames: String
+        if names.isEmpty {
+            trackedNames = "No names are tracked by this wallet yet."
+        } else {
+            let entries = names.map { name in
+                var states = [
+                    codeLabel(name.ownershipStatus),
+                    codeLabel(name.resourceStatus),
+                ]
+                if let registered = name.registered {
+                    states.append(registered ? "registered" : "not registered")
+                }
+                if let expired = name.expired {
+                    states.append(expired ? "expired" : "current")
+                }
+                return [
+                    "\(name.name) · proof height \(name.proofHeight)",
+                    states.joined(separator: " · "),
+                    name.nameHash,
+                ].joined(separator: "\n")
+            }.joined(separator: "\n\n")
+            trackedNames = appendRemainingCount(
+                entries,
+                remaining: snapshot.knownNames.count - names.count
+            )
+        }
+
+        return WalletReadPresentation(
+            status: "Handshake reads are ready at height \(snapshot.moduleStatus.validatedHeight). Value movement and marketplace controls are unavailable.",
+            balance: "\(formatHnsBaseUnits(snapshot.balance.baseUnits)) HNS confirmed spendable",
+            receive: "\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)",
+            history: history,
+            names: trackedNames
+        )
+    }
+
+    static func formatHnsBaseUnits(_ baseUnits: String) -> String {
+        let decimalPlaces = 6
+        let padded = String(repeating: "0", count: max(0, decimalPlaces + 1 - baseUnits.count)) + baseUnits
+        let split = padded.index(padded.endIndex, offsetBy: -decimalPlaces)
+        let whole = String(padded[..<split])
+        let fraction = String(padded[split...]).replacingOccurrences(
+            of: "0+$",
+            with: "",
+            options: .regularExpression
+        )
+        return fraction.isEmpty ? whole : "\(whole).\(fraction)"
+    }
+
+    static func visibleItemLimit(requested: Int) -> Int {
+        min(max(requested, 1), 20)
+    }
+
+    static func codeLabel(_ value: String) -> String {
+        var label = ""
+        for character in value {
+            if character == "_" {
+                label.append(" ")
+            } else if character.isUppercase {
+                if !label.isEmpty { label.append(" ") }
+                label.append(contentsOf: character.lowercased())
+            } else {
+                label.append(character)
+            }
+        }
+        return label
+    }
+
+    private static func displayAmount(_ transaction: NativeHnsReadSnapshot.Transaction) -> String {
+        let sign = transaction.netAmount.negative ? "-" : ""
+        return "\(sign)\(formatHnsBaseUnits(transaction.netAmount.magnitude)) HNS"
+    }
+
+    private static func lowerHex(_ bytes: [UInt8]) -> String {
+        bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func appendRemainingCount(_ entries: String, remaining: Int) -> String {
+        guard remaining > 0 else { return entries }
+        return "\(entries)\n\n\(remaining) more items are present in this synchronized snapshot."
     }
 }
 
