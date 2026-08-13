@@ -15407,11 +15407,19 @@ fn install_header_snapshot_inner(
         fs::File::open(snapshot_path).map_err(|error| format!("open header snapshot: {error}"))?;
     let metadata = read_header_snapshot_metadata(&mut snapshot)?;
     let mut chain = open_initialized_header_chain(&base, network)?;
-    if chain
+    let best_height = chain
         .best_header()
         .map_err(|error| format!("read best header before snapshot import: {error}"))?
-        .is_some_and(|header| header.height.0 >= metadata.target_height)
-    {
+        .map(|header| header.height.0);
+    let canonical_target_hash =
+        if best_height.is_some_and(|height| height >= metadata.target_height) {
+            chain
+                .canonical_header(Height(metadata.target_height))
+                .map(|header| header.hash)
+        } else {
+            None
+        };
+    if existing_snapshot_anchor_matches(best_height, canonical_target_hash, &metadata)? {
         return sync_status_with_override(data_dir, network, "snapshot_present", 1, 1, 0);
     }
 
@@ -15483,6 +15491,29 @@ fn insert_header_snapshot_batch(
 struct HeaderSnapshotMetadata {
     target_height: u32,
     tip_hash: hns_core::Hash,
+}
+
+fn existing_snapshot_anchor_matches(
+    best_height: Option<u32>,
+    canonical_target_hash: Option<hns_core::Hash>,
+    metadata: &HeaderSnapshotMetadata,
+) -> Result<bool, String> {
+    if best_height.is_none_or(|height| height < metadata.target_height) {
+        return Ok(false);
+    }
+    let canonical_target_hash = canonical_target_hash.ok_or_else(|| {
+        format!(
+            "existing header chain has no canonical header at snapshot height {}",
+            metadata.target_height
+        )
+    })?;
+    if canonical_target_hash != metadata.tip_hash {
+        return Err(format!(
+            "existing canonical header mismatch at snapshot height {}: got {}, expected {}",
+            metadata.target_height, canonical_target_hash, metadata.tip_hash
+        ));
+    }
+    Ok(true)
 }
 
 fn read_header_snapshot_metadata<R: Read>(
@@ -16658,6 +16689,30 @@ mod tests {
             core_version(),
             concat!("hns-dane-browser-rust-core/", env!("CARGO_PKG_VERSION"))
         );
+    }
+
+    #[test]
+    fn snapshot_present_requires_the_exact_existing_canonical_anchor() {
+        let expected = Hash::from_slice(&[7; 32]).unwrap();
+        let different = Hash::from_slice(&[8; 32]).unwrap();
+        let metadata = HeaderSnapshotMetadata {
+            target_height: 300_000,
+            tip_hash: expected,
+        };
+
+        assert!(!existing_snapshot_anchor_matches(Some(299_999), None, &metadata).unwrap());
+        assert!(
+            existing_snapshot_anchor_matches(Some(300_000), Some(expected), &metadata).unwrap()
+        );
+        assert!(
+            existing_snapshot_anchor_matches(Some(300_001), None, &metadata)
+                .unwrap_err()
+                .contains("no canonical header")
+        );
+        let mismatch = existing_snapshot_anchor_matches(Some(300_001), Some(different), &metadata)
+            .unwrap_err();
+        assert!(mismatch.contains("existing canonical header mismatch"));
+        assert!(mismatch.contains("300000"));
     }
 
     #[test]

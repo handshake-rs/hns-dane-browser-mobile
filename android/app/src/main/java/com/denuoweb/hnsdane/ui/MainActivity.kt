@@ -80,6 +80,7 @@ import com.denuoweb.hnsdane.net.ProtectedWebViewRequestAction
 import com.denuoweb.hnsdane.net.RustBrowserProxyConfig
 import com.denuoweb.hnsdane.net.ServiceWorkerClientOwnershipGate
 import com.denuoweb.hnsdane.net.blockedHnsProxyResponse
+import com.denuoweb.hnsdane.net.canonicalBrowserProxyHost
 import com.denuoweb.hnsdane.net.serviceWorkerProxyRoute
 import com.denuoweb.hnsdane.net.protectedWebViewRequestAction
 import java.io.File
@@ -106,6 +107,7 @@ class MainActivity : ComponentActivity() {
     }
     private lateinit var webView: WebView
     private lateinit var omnibox: EditText
+    private var omniboxFullUrl: String = ""
     private lateinit var securityLabel: TextView
     private lateinit var hamburgerButton: TextView
     private lateinit var syncProgressBar: ProgressBar
@@ -227,6 +229,14 @@ class MainActivity : ComponentActivity() {
                     loadFromInput()
                 }
                 decision.consume
+            }
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    setText(omniboxFullUrl)
+                    post { selectAll() }
+                } else {
+                    setText(OmniboxDisplay.displayText(omniboxFullUrl))
+                }
             }
         }
 
@@ -790,6 +800,13 @@ class MainActivity : ComponentActivity() {
         enqueueNavigation(target) { webView.loadUrl(target.url) }
     }
 
+    private fun showOmniboxUrl(url: String) {
+        omniboxFullUrl = url
+        if (!omnibox.hasFocus()) {
+            omnibox.setText(OmniboxDisplay.displayText(url))
+        }
+    }
+
     private fun navigateHistory(offset: Int) {
         val history = webView.copyBackForwardList()
         val targetIndex = history.currentIndex + offset
@@ -808,7 +825,7 @@ class MainActivity : ComponentActivity() {
             syncGateNotice.visibility = View.GONE
         }
         webView.stopLoading()
-        omnibox.setText(target.url)
+        showOmniboxUrl(target.url)
         currentTargetKind = target.kind
         clearMainFrameHnsStatus()
         if (target.kind == BrowserTargetKind.Blocked) {
@@ -1154,7 +1171,7 @@ class MainActivity : ComponentActivity() {
             pageIsLoading = true
             failedMainFrameUrl = null
             pageLoadProgress = pageLoadProgress.coerceAtLeast(5)
-            omnibox.setText(url)
+            showOmniboxUrl(url)
             admittedMainFrameUrl = url
             activeMainFrameUrl = url
             val target = classifier.classify(url)
@@ -1289,7 +1306,7 @@ class MainActivity : ComponentActivity() {
             if (pendingMainFrameUrl != null) return
             val admittedUrl = admittedMainFrameUrl ?: return
             if (admittedUrl.mainFrameMatchKey() != url.mainFrameMatchKey()) return
-            omnibox.setText(url)
+            showOmniboxUrl(url)
             activeMainFrameUrl = url
             admittedMainFrameUrl = url
             val target = classifier.classify(url)
@@ -1313,6 +1330,20 @@ class MainActivity : ComponentActivity() {
             recordHistoryEntry(url, view.title)
             refreshSecurityState()
             refreshPageProgress()
+            refreshTransportWarning()
+        }
+
+        override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+            super.doUpdateVisitedHistory(view, url, isReload)
+            if (pendingMainFrameUrl != null) return
+            val admittedUrl = admittedMainFrameUrl ?: return
+            if (!isSameAdmittedMainFrameOrigin(admittedUrl, url)) return
+            val target = classifier.classify(url)
+            if (target.kind == BrowserTargetKind.Blocked || target.kind == BrowserTargetKind.Search) return
+            showOmniboxUrl(url)
+            activeMainFrameUrl = url
+            admittedMainFrameUrl = url
+            currentTargetKind = target.kind
             refreshTransportWarning()
         }
 
@@ -1344,7 +1375,7 @@ class MainActivity : ComponentActivity() {
     private fun openResolverTrace() {
         startActivity(
             Intent(this, HnsResolverTraceActivity::class.java)
-                .putExtra(HnsResolverTraceActivity.EXTRA_URL, omnibox.text.toString())
+                .putExtra(HnsResolverTraceActivity.EXTRA_URL, omniboxFullUrl)
                 .putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, mainFrameHnsTraceJson),
         )
     }
@@ -1579,7 +1610,7 @@ class MainActivity : ComponentActivity() {
         webView.url
             ?.trim()
             ?.takeIf { it.isNotBlank() && it != "about:blank" }
-            ?: omnibox.text.toString()
+            ?: omniboxFullUrl
                 .trim()
                 .takeIf { it.isNotBlank() && it != "about:blank" }
 
@@ -1699,6 +1730,54 @@ internal fun normalizedMainFrameMatchKey(url: String): String {
     val path = uri.rawPath?.takeIf { it.isNotEmpty() } ?: "/"
     val query = uri.rawQuery?.let { "?$it" }.orEmpty()
     return "$scheme://$host$portPart$path$query"
+}
+
+internal fun isSameAdmittedMainFrameOrigin(admittedUrl: String?, visitedUrl: String?): Boolean {
+    val admittedOrigin = normalizedHttpOrigin(admittedUrl) ?: return false
+    val visitedOrigin = normalizedHttpOrigin(visitedUrl) ?: return false
+    return admittedOrigin == visitedOrigin
+}
+
+private data class NormalizedHttpOrigin(
+    val scheme: String,
+    val host: String,
+    val port: Int,
+)
+
+private fun normalizedHttpOrigin(url: String?): NormalizedHttpOrigin? {
+    val value = url?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val uri = runCatching { URI(value) }.getOrNull() ?: return null
+    val scheme = uri.scheme?.lowercase(Locale.US)?.takeIf { it == "http" || it == "https" }
+        ?: return null
+    if (uri.rawUserInfo != null) return null
+    val host = uri.host?.let(::canonicalBrowserProxyHost) ?: return null
+    val explicitPort = normalizedExplicitHttpPort(uri.rawAuthority ?: return null) ?: return null
+    if (explicitPort != uri.port) return null
+    val effectivePort = when {
+        explicitPort >= 0 -> explicitPort
+        scheme == "http" -> 80
+        else -> 443
+    }
+    return NormalizedHttpOrigin(scheme, host, effectivePort)
+}
+
+/** Returns `-1` for no port, the canonical port, or `null` for malformed syntax. */
+private fun normalizedExplicitHttpPort(authority: String): Int? {
+    if (authority.isEmpty() || authority.contains('@')) return null
+    val portText = if (authority.startsWith('[')) {
+        val closingBracket = authority.indexOf(']')
+        if (closingBracket <= 1) return null
+        val suffix = authority.substring(closingBracket + 1)
+        if (suffix.isEmpty()) return -1
+        if (!suffix.startsWith(':')) return null
+        suffix.drop(1)
+    } else {
+        val separator = authority.lastIndexOf(':')
+        if (separator < 0) return -1
+        authority.substring(separator + 1)
+    }
+    if (portText.isEmpty() || !portText.all(Char::isDigit)) return null
+    return portText.toIntOrNull()?.takeIf { it in 1..65535 }
 }
 
 private fun String?.isHttpUrl(): Boolean {

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Android now presents scheme-elided web URLs while the omnibox is idle,
+  reveals the exact URL for editing, and follows same-document history updates
+  without losing the full URL used by navigation and diagnostics.
+
+### Fixed
+
+- Bundled mainnet header snapshot installation now treats an existing snapshot
+  as present only when the canonical header at the snapshot height matches the
+  snapshot tip hash, failing closed on a missing or divergent chain anchor.
+
 ## 0.5.10 - 2026-08-11
 
 ### Added
