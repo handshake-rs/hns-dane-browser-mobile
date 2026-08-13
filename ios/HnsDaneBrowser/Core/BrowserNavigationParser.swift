@@ -1,5 +1,166 @@
 import Foundation
 
+/// Keeps the exact admitted address separate from the compact text shown while
+/// the omnibox is idle. It also provides the fail-closed origin comparison used
+/// for WebKit URL observations that do not pass through navigation policy (for
+/// example, `history.pushState`).
+struct BrowserAddressPresentation {
+    private static let startPageHost = "appassets.androidplatform.net"
+
+    private struct WebAddress {
+        let scheme: String
+        let host: String
+        let explicitPort: Int?
+        let percentEncodedPath: String
+        let percentEncodedQuery: String?
+        let percentEncodedFragment: String?
+
+        var effectivePort: Int {
+            explicitPort ?? (scheme == "https" ? 443 : 80)
+        }
+
+        var displayHost: String {
+            host.contains(":") ? "[\(host)]" : host
+        }
+    }
+
+    private struct ExplicitPort {
+        let value: Int?
+    }
+
+    static func editingText(for canonicalAddress: String?) -> String {
+        canonicalAddress ?? ""
+    }
+
+    static func displayText(for rawValue: String?) -> String {
+        let value = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !value.isEmpty, value != "about:blank" else { return "" }
+        guard let address = parseWebAddress(value) else { return value }
+
+        if address.scheme == "https",
+           address.effectivePort == 443,
+           address.host == startPageHost,
+           address.percentEncodedPath == "/assets/start.html",
+           address.percentEncodedQuery == nil,
+           address.percentEncodedFragment == nil {
+            return ""
+        }
+
+        let defaultPort = address.scheme == "https" ? 443 : 80
+        let port = address.explicitPort.flatMap { explicitPort in
+            explicitPort == defaultPort ? nil : ":\(explicitPort)"
+        } ?? ""
+        let path = address.percentEncodedPath == "/"
+            ? ""
+            : address.percentEncodedPath
+        let query = address.percentEncodedQuery.map { "?\($0)" } ?? ""
+        let fragment = address.percentEncodedFragment.map { "#\($0)" } ?? ""
+        return address.displayHost + port + path + query + fragment
+    }
+
+    static func isSameAdmittedWebOrigin(
+        _ admittedAddress: String?,
+        _ observedAddress: String?
+    ) -> Bool {
+        guard let admittedAddress,
+              let observedAddress,
+              let admitted = parseWebAddress(admittedAddress),
+              let observed = parseWebAddress(observedAddress) else {
+            return false
+        }
+        return admitted.scheme == observed.scheme
+            && admitted.host == observed.host
+            && admitted.effectivePort == observed.effectivePort
+    }
+
+    private static func parseWebAddress(_ value: String) -> WebAddress? {
+        guard value.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let schemeSeparator = value.range(of: "://") else {
+            return nil
+        }
+        let scheme = value[..<schemeSeparator.lowerBound].lowercased()
+        guard scheme == "http" || scheme == "https" else { return nil }
+
+        let remainder = value[schemeSeparator.upperBound...]
+        let authorityEnd = remainder.firstIndex { character in
+            character == "/" || character == "?" || character == "#"
+        } ?? remainder.endIndex
+        let authority = remainder[..<authorityEnd]
+        guard !authority.isEmpty,
+              !authority.contains("@"),
+              let explicitPort = parseExplicitPort(from: authority),
+              let components = URLComponents(string: value),
+              components.user == nil,
+              components.password == nil,
+              let componentScheme = components.scheme?.lowercased(),
+              componentScheme == scheme,
+              let extractedHost = components.host else {
+            return nil
+        }
+
+        let componentPort = components.port
+        guard componentPort == explicitPort.value else { return nil }
+
+        var host = extractedHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        if host.hasPrefix("[") && host.hasSuffix("]") {
+            host.removeFirst()
+            host.removeLast()
+        }
+        while host.hasSuffix(".") {
+            host.removeLast()
+        }
+        host = host.lowercased()
+        guard !host.isEmpty else { return nil }
+
+        return WebAddress(
+            scheme: scheme,
+            host: host,
+            explicitPort: explicitPort.value,
+            percentEncodedPath: components.percentEncodedPath,
+            percentEncodedQuery: components.percentEncodedQuery,
+            percentEncodedFragment: components.percentEncodedFragment
+        )
+    }
+
+    /// The wrapper distinguishes an absent port from malformed syntax before
+    /// Foundation is asked to expose `URLComponents.port`.
+    private static func parseExplicitPort(from authority: Substring) -> ExplicitPort? {
+        let portText: Substring?
+        if authority.hasPrefix("[") {
+            guard let closingBracket = authority.firstIndex(of: "]"),
+                  closingBracket != authority.index(after: authority.startIndex) else {
+                return nil
+            }
+            let suffix = authority[authority.index(after: closingBracket)...]
+            if suffix.isEmpty {
+                portText = nil
+            } else {
+                guard suffix.first == ":" else { return nil }
+                portText = suffix.dropFirst()
+            }
+        } else {
+            guard !authority.contains("[") && !authority.contains("]") else { return nil }
+            let separators = authority.indices.filter { authority[$0] == ":" }
+            guard separators.count <= 1 else { return nil }
+            if let separator = separators.first {
+                guard separator != authority.startIndex else { return nil }
+                portText = authority[authority.index(after: separator)...]
+            } else {
+                portText = nil
+            }
+        }
+
+        guard let portText else { return ExplicitPort(value: nil) }
+        guard !portText.isEmpty,
+              portText.allSatisfy({ $0.isNumber }),
+              let port = Int(portText),
+              (1...65_535).contains(port) else {
+            return nil
+        }
+        return ExplicitPort(value: port)
+    }
+}
+
 struct BrowserNavigationParser {
     let canonicalizeHost: (String) throws -> String
 

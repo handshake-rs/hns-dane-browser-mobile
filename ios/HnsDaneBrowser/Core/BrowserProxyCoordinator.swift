@@ -9,6 +9,10 @@ protocol BrowserProxyCoordinatorDelegate: AnyObject {
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, didUpdateAddress address: String)
     func proxyCoordinator(
         _ coordinator: BrowserProxyCoordinator,
+        didUpdateSameDocumentAddress address: String
+    )
+    func proxyCoordinator(
+        _ coordinator: BrowserProxyCoordinator,
         canGoBack: Bool,
         canGoForward: Bool,
         isLoading: Bool
@@ -70,6 +74,9 @@ final class BrowserProxyCoordinator: NSObject {
     private var activeProxy: BrowserProxySession?
     private var activeScope: BrowserProxyScope?
     private var webView: WKWebView?
+    private var addressObservation: NSKeyValueObservation?
+    // UI/share state only. This value never grants proxy or navigation authority.
+    private var acceptedMainFrameURL: URL?
     private var pendingNavigation: PendingNavigation?
     private var lastNavigation: PendingNavigation?
     private var history: [String] = []
@@ -115,7 +122,8 @@ final class BrowserProxyCoordinator: NSObject {
                 canGoForward: historyIndex + 1 < history.count,
                 isLoading: webView.isLoading
             )
-            if let address = webView.url?.absoluteString
+            if let address = acceptedMainFrameURL?.absoluteString
+                ?? webView.url?.absoluteString
                 ?? lastNavigation?.destination.url.absoluteString {
                 delegate.proxyCoordinator(self, didUpdateAddress: address)
             }
@@ -237,7 +245,9 @@ final class BrowserProxyCoordinator: NSObject {
         }
     }
 
-    var currentShareURL: URL? { webView?.url ?? lastNavigation?.destination.url }
+    var currentShareURL: URL? {
+        acceptedMainFrameURL ?? lastNavigation?.destination.url
+    }
     var currentResolutionTraceJSON: String? { activeProxy?.latestResolutionTraceJSON }
 
     /// Returns only a navigation that can be replayed after a live policy change without
@@ -440,6 +450,9 @@ final class BrowserProxyCoordinator: NSObject {
             preservingProvisionalFailureRecoveryAcrossRotation
         let webView = self.webView ?? makeWebView()
         self.webView = webView
+        if addressObservation == nil {
+            observeAddressChanges(in: webView)
+        }
         if isProvisionalFailureRecovery {
             pendingAutomaticProvisionalFailureReplay = pendingNavigation.request
             preservingProvisionalFailureRecoveryAcrossRotation = false
@@ -449,10 +462,7 @@ final class BrowserProxyCoordinator: NSObject {
         lastNavigation = pendingNavigation
         self.pendingNavigation = nil
         machine.navigationAdmitted(epoch: epoch, scope: scope)
-        delegate?.proxyCoordinator(
-            self,
-            didUpdateAddress: pendingNavigation.destination.url.absoluteString
-        )
+        publishAdmittedAddress(pendingNavigation.destination.url)
         delegate?.proxyCoordinator(
             self,
             canGoBack: historyIndex > 0,
@@ -652,11 +662,65 @@ final class BrowserProxyCoordinator: NSObject {
         return webView
     }
 
+    private func observeAddressChanges(in webView: WKWebView) {
+        addressObservation = webView.observe(\.url, options: [.new]) {
+            [weak self, weak webView] _, _ in
+            DispatchQueue.main.async { [weak self, weak webView] in
+                guard let self, let webView else { return }
+                self.publishObservedSameDocumentAddress(in: webView)
+            }
+        }
+    }
+
+    private func publishAdmittedAddress(_ url: URL) {
+        guard isAdmittedAddress(url) else { return }
+        acceptedMainFrameURL = url
+        delegate?.proxyCoordinator(self, didUpdateAddress: url.absoluteString)
+    }
+
+    private func isAdmittedAddress(_ url: URL) -> Bool {
+        guard activeProxy != nil,
+              let activeScope,
+              case .active(_, let machineScope) = machine.phase,
+              machineScope == activeScope,
+              let destination = try? runtime.classifyNavigation(url.absoluteString) else {
+            return false
+        }
+        return destination.proxyScope == activeScope
+    }
+
+    /// `WKWebView.url` is KVO-compliant and changes for History API mutations,
+    /// which do not necessarily produce a navigation delegate callback. This
+    /// observation is deliberately presentation-only: the already-admitted
+    /// normalized origin remains the authority, and none of the proxy,
+    /// navigation, history, replay, or security state is changed here.
+    private func publishObservedSameDocumentAddress(in webView: WKWebView) {
+        guard self.webView === webView,
+              pendingNavigation == nil,
+              case .active(_, _) = machine.phase,
+              let acceptedMainFrameURL,
+              let observedURL = webView.url,
+              observedURL.absoluteString != acceptedMainFrameURL.absoluteString,
+              BrowserAddressPresentation.isSameAdmittedWebOrigin(
+                  acceptedMainFrameURL.absoluteString,
+                  observedURL.absoluteString
+              ) else {
+            return
+        }
+        self.acceptedMainFrameURL = observedURL
+        delegate?.proxyCoordinator(
+            self,
+            didUpdateSameDocumentAddress: observedURL.absoluteString
+        )
+    }
+
     private func revokeWebView() {
         if !preservingProvisionalFailureRecoveryAcrossRotation {
             resetProvisionalFailureRecovery()
         }
         guard let webView else { return }
+        addressObservation = nil
+        acceptedMainFrameURL = nil
         self.webView = nil
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
@@ -881,7 +945,7 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
                     destination: destination,
                     historyTarget: historyTarget
                 )
-                delegate?.proxyCoordinator(self, didUpdateAddress: destination.url.absoluteString)
+                publishAdmittedAddress(destination.url)
                 decisionHandler(.allow, preferences)
                 return
             }
@@ -942,7 +1006,7 @@ extension BrowserProxyCoordinator: WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation?) {
         guard self.webView === webView, let url = webView.url else { return }
-        delegate?.proxyCoordinator(self, didUpdateAddress: url.absoluteString)
+        publishAdmittedAddress(url)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {

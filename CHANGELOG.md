@@ -6,8 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Android now presents scheme-elided web URLs while the omnibox is idle,
-  reveals the exact URL for editing, and follows same-document history updates
+- Android and iOS now present scheme-elided web URLs while the omnibox is idle,
+  reveal the exact URL for editing, and follow same-document history updates
   without losing the full URL used by navigation and diagnostics.
 
 ### Fixed

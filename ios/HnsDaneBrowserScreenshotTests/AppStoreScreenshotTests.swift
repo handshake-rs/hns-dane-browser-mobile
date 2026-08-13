@@ -94,7 +94,8 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             expectedHost: "denuoweb.com",
             expectedSecurity: .icannAuthenticated,
             timeout: 90,
-            allowBoundedICANNRetry: true
+            allowBoundedICANNRetry: true,
+            expectedAddressOnFocus: Self.hnsURL
         )
         capture(named: "LIVE_APPSTORE_SCREENSHOT_04_WEBPKI")
 
@@ -155,10 +156,22 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         expectedHost: String,
         expectedSecurity: SubmissionSecurityExpectation,
         timeout: TimeInterval,
-        allowBoundedICANNRetry: Bool = false
+        allowBoundedICANNRetry: Bool = false,
+        expectedAddressOnFocus: String? = nil
     ) throws -> [String: Any] {
         let address = app.textFields["app-store-screenshot.address"]
+        let expectedIdleAddress = try XCTUnwrap(
+            idleAddress(for: requestedURL),
+            "Requested screenshot URL could not be converted to idle omnibox text"
+        )
         address.tap()
+        if let expectedAddressOnFocus {
+            XCTAssertEqual(
+                address.value as? String,
+                expectedAddressOnFocus,
+                "Focusing the omnibox did not restore its exact canonical URL"
+            )
+        }
 
         clearAddressField(address)
         XCTAssertEqual(
@@ -181,7 +194,13 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                 timeout: timeout,
                 condition: {
                     guard let value = address.value as? String,
-                          let components = URLComponents(string: value),
+                          value == expectedIdleAddress else {
+                        return false
+                    }
+                    let candidate = value.contains("://")
+                        ? value
+                        : "https://\(value)"
+                    guard let components = URLComponents(string: candidate),
                           components.scheme?.caseInsensitiveCompare("https") == .orderedSame,
                           components.host?.caseInsensitiveCompare(expectedHost) == .orderedSame,
                           components.user == nil,
@@ -286,7 +305,8 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
 
         var evidence: [String: Any] = [
             "requestedURL": requestedURL,
-            "finalAddress": (address.value as? String) ?? "",
+            "finalAddress": requestedURL,
+            "finalDisplayedAddress": (address.value as? String) ?? "",
             "navigationAttemptCount": navigationAttemptCount,
             // This is evidence, not an assertion. HNS may honestly report DANE,
             // fallback, insecure, or blocked depending on the live response.
@@ -322,6 +342,25 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
     private func addressText(in address: XCUIElement) -> String {
         guard let value = address.value as? String else { return "" }
         return value == address.placeholderValue ? "" : value
+    }
+
+    private func idleAddress(for canonicalAddress: String) -> String? {
+        guard let components = URLComponents(string: canonicalAddress),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = components.host?.lowercased() else {
+            return nil
+        }
+        let defaultPort = scheme == "https" ? 443 : 80
+        let port = components.port.flatMap { value in
+            value == defaultPort ? nil : ":\(value)"
+        } ?? ""
+        let path = components.percentEncodedPath == "/"
+            ? ""
+            : components.percentEncodedPath
+        let query = components.percentEncodedQuery.map { "?\($0)" } ?? ""
+        let fragment = components.percentEncodedFragment.map { "#\($0)" } ?? ""
+        return host + port + path + query + fragment
     }
 
     private func openSettings(

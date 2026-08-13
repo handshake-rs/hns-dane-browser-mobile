@@ -25,7 +25,9 @@ internal object OmniboxDisplay {
             scheme == "https" &&
             uri.port in setOf(-1, 443) &&
             host.equals(START_PAGE_HOST, ignoreCase = true) &&
-            uri.rawPath == "/assets/start.html"
+            uri.rawPath == "/assets/start.html" &&
+            uri.rawQuery == null &&
+            uri.rawFragment == null
         ) {
             return ""
         }

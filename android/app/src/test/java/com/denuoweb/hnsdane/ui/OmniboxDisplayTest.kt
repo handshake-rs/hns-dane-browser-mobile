@@ -45,6 +45,18 @@ class OmniboxDisplayTest {
             "appassets.androidplatform.net/not-assets/start.html",
             OmniboxDisplay.displayText("https://appassets.androidplatform.net/not-assets/start.html"),
         )
+        assertEquals(
+            "appassets.androidplatform.net/assets/start.html?view=recent",
+            OmniboxDisplay.displayText(
+                "https://appassets.androidplatform.net/assets/start.html?view=recent",
+            ),
+        )
+        assertEquals(
+            "appassets.androidplatform.net/assets/start.html#restore",
+            OmniboxDisplay.displayText(
+                "https://appassets.androidplatform.net/assets/start.html#restore",
+            ),
+        )
         assertEquals("", OmniboxDisplay.displayText("about:blank"))
         assertEquals("", OmniboxDisplay.displayText(""))
         assertEquals("", OmniboxDisplay.displayText(null))

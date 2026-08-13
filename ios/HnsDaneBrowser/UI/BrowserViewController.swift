@@ -40,6 +40,7 @@ final class BrowserViewController: UIViewController {
     private var coordinator: BrowserProxyCoordinator?
     private var environment: BrowserProcess.Environment?
     private var progressObservation: NSKeyValueObservation?
+    private var canonicalAddress = ""
     private var pendingExternalAddress: String?
     private var isForeground = false
     private var isPreparing = false
@@ -263,6 +264,12 @@ final class BrowserViewController: UIViewController {
         button.addTarget(self, action: action, for: .touchUpInside)
     }
 
+    private func updateCanonicalAddress(_ address: String) {
+        canonicalAddress = address
+        guard !addressField.isFirstResponder else { return }
+        addressField.text = BrowserAddressPresentation.displayText(for: address)
+    }
+
 #if DEBUG && targetEnvironment(simulator)
     /// Provides deterministic, offline App Store artwork without shipping a
     /// screenshot-only code path in Release builds. UI tests are the only caller.
@@ -298,9 +305,11 @@ final class BrowserViewController: UIViewController {
 
         switch scene {
         case .hnsPage, .proofDetails:
-            addressField.text = scene == .proofDetails
-                ? "https://shakeshift/"
-                : "https://denuoweb/"
+            updateCanonicalAddress(
+                scene == .proofDetails
+                    ? "https://shakeshift/"
+                    : "https://denuoweb/"
+            )
             updateSecuritySummary(
                 BrowserSecuritySummary(
                     level: .handshakeDANE,
@@ -333,7 +342,7 @@ final class BrowserViewController: UIViewController {
             )
             shouldPresentScreenshotProof = scene == .proofDetails
         case .webPKIPage:
-            addressField.text = "https://denuoweb.com/work/hns-dane-browser"
+            updateCanonicalAddress("https://denuoweb.com/work/hns-dane-browser")
             updateSecuritySummary(
                 BrowserSecuritySummary(
                     level: .webPKI,
@@ -590,7 +599,7 @@ final class BrowserViewController: UIViewController {
             isOperationInFlight: isControlOperationInFlight,
             syncSummary: latestSyncSummary,
             resolverCacheSummary: resolverCacheSummary,
-            currentPageURL: coordinator?.currentShareURL?.absoluteString ?? addressField.text,
+            currentPageURL: coordinator?.currentShareURL?.absoluteString ?? canonicalAddress,
             homepage: BrowserSettingsPreferences.homepage,
             historyCount: BrowserHistoryStore.entries.count,
             downloadCount: BrowserDownloadStore.records.count,
@@ -611,7 +620,7 @@ final class BrowserViewController: UIViewController {
             isOperationInFlight: isControlOperationInFlight,
             syncSummary: latestSyncSummary,
             resolverCacheSummary: resolverCacheSummary,
-            currentPageURL: coordinator?.currentShareURL?.absoluteString ?? addressField.text,
+            currentPageURL: coordinator?.currentShareURL?.absoluteString ?? canonicalAddress,
             homepage: BrowserSettingsPreferences.homepage,
             historyCount: BrowserHistoryStore.entries.count,
             downloadCount: BrowserDownloadStore.records.count,
@@ -747,8 +756,7 @@ final class BrowserViewController: UIViewController {
 
     private func presentResolverTrace() {
         let address = coordinator?.currentShareURL?.absoluteString
-            ?? addressField.text
-            ?? "No current page"
+            ?? (canonicalAddress.isEmpty ? "No current page" : canonicalAddress)
         let security = securityLabel.accessibilityLabel ?? "Security unavailable"
         let nativeTrace = coordinator?.currentResolutionTraceJSON
         let trace = nativeTrace
@@ -1184,8 +1192,7 @@ final class BrowserViewController: UIViewController {
 
     private func showProofDetails() {
         let value = coordinator?.currentShareURL?.absoluteString
-            ?? addressField.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-            ?? ""
+            ?? canonicalAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else {
             presentHNSLookup(
                 title: "HNS Proof Details",
@@ -1231,8 +1238,7 @@ final class BrowserViewController: UIViewController {
 
     private func presentTLSADANEInspector() {
         let url = coordinator?.currentShareURL?.absoluteString
-            ?? addressField.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-            ?? ""
+            ?? canonicalAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         let report = BrowserDiagnosticReports.tlsaDANE(
             url: url,
             traceJSON: coordinator?.currentResolutionTraceJSON
@@ -1463,10 +1469,23 @@ final class BrowserViewController: UIViewController {
 
 extension BrowserViewController: UITextFieldDelegate {
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        textField.resignFirstResponder()
         guard let value = textField.text else { return false }
         coordinator?.navigate(rawValue: value)
+        textField.resignFirstResponder()
         return true
+    }
+
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        guard textField === addressField else { return }
+        textField.text = BrowserAddressPresentation.editingText(for: canonicalAddress)
+        DispatchQueue.main.async { [weak textField] in
+            textField?.selectAll(nil)
+        }
+    }
+
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        guard textField === addressField else { return }
+        textField.text = BrowserAddressPresentation.displayText(for: canonicalAddress)
     }
 }
 
@@ -1584,7 +1603,7 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
     }
 
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, didUpdateAddress address: String) {
-        addressField.text = address
+        updateCanonicalAddress(address)
         shareButton.isEnabled = true
         BrowserHistoryStore.record(url: address)
         recordGatewayEvent(
@@ -1593,6 +1612,15 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
             status: 102,
             reason: "Main-frame address updated"
         )
+        refreshSettingsIfPresented()
+    }
+
+    func proxyCoordinator(
+        _ coordinator: BrowserProxyCoordinator,
+        didUpdateSameDocumentAddress address: String
+    ) {
+        updateCanonicalAddress(address)
+        shareButton.isEnabled = true
         refreshSettingsIfPresented()
     }
 
