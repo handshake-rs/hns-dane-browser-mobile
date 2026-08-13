@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Mobile dual-root resolution now follows HTTPS, A, and AAAA CNAMEs within
+  their exact query lineage, combines address families only when their routes
+  agree, retains one complete independently steered ICANN route, and rejects
+  conflicting HNS lineage or negative evidence fail-closed.
 - Bundled mainnet header snapshot installation now treats an existing snapshot
   as present only when the canonical header at the snapshot height matches the
   snapshot tip hash, failing closed on a missing or divergent chain anchor.

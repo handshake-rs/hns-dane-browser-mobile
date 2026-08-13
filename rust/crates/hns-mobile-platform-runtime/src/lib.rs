@@ -7588,24 +7588,19 @@ fn build_present_root_plan(
         });
     }
 
-    let (mut alias_path, cname_terminal, _) = root_aliases_and_addresses(query.host(), &answers)
-        .map_err(|kind| {
-            (
-                RootFailure::new(namespace, query.clone(), kind, None),
-                answers.clone(),
-            )
-        })?;
-    let (https_aliases, terminal_target) = if query.scheme().uses_tls() {
-        root_https_alias_path(resolver, &cname_terminal, &mut answers).map_err(|error| {
+    // Address CNAMEs belong to the selected service endpoint lineage. They
+    // must not choose the owner for the independent HTTPS/SVCB query or be
+    // copied into the origin-level HTTPS alias path.
+    let (alias_path, terminal_target) = if query.scheme().uses_tls() {
+        root_https_alias_path(resolver, query.host(), &mut answers).map_err(|error| {
             (
                 root_failure(namespace, query.clone(), &error),
                 answers.clone(),
             )
         })?
     } else {
-        (Vec::new(), cname_terminal)
+        (Vec::new(), query.host().clone())
     };
-    alias_path.extend(https_aliases);
     let services = root_service_bindings(query, &terminal_target, &answers).map_err(|_| {
         (
             RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
@@ -7619,57 +7614,19 @@ fn build_present_root_plan(
         )
     })?;
     let mut endpoint_requests = Vec::new();
-    let mut endpoint_name_errors = Vec::new();
-    if endpoint_service.service_target() == query.host() {
-        endpoint_requests.extend(origin_requests.iter().filter_map(|request| {
-            matches!(
-                RecordType::from_code(request.qtype),
-                RecordType::A | RecordType::Aaaa
-            )
-            .then_some(request.clone())
-        }));
-    } else {
-        for record_type in [RecordType::A, RecordType::Aaaa] {
-            let request = ResolutionRequest {
-                qname: endpoint_service.service_target().as_str().to_owned(),
-                qtype: record_type.code(),
-            };
-            endpoint_requests.push(request.clone());
-            match resolver.resolve(&request) {
-                Ok(answer) => {
-                    answers.insert(request, answer);
-                }
-                Err(ResolverError::NameNotFound) => {
-                    endpoint_name_errors.push(request);
-                    break;
-                }
-                Err(error) => {
-                    return Err((root_failure(namespace, query.clone(), &error), answers));
-                }
-            }
-        }
-        if !endpoint_name_errors.is_empty() && endpoint_name_errors.len() != endpoint_requests.len()
-        {
-            return Err((
-                RootFailure::new(
-                    namespace,
-                    query.clone(),
-                    RootFailureKind::MalformedResponse,
-                    None,
-                ),
-                answers,
-            ));
-        }
-    }
-    let (endpoint_alias_path, endpoint_target, addresses) =
-        root_aliases_and_addresses(endpoint_service.service_target(), &answers).map_err(
-            |kind| {
-                (
-                    RootFailure::new(namespace, query.clone(), kind, None),
-                    answers.clone(),
-                )
-            },
-        )?;
+    let (endpoint_alias_path, endpoint_target, addresses) = resolve_root_service_endpoints(
+        resolver,
+        namespace,
+        endpoint_service.service_target(),
+        &mut answers,
+        &mut endpoint_requests,
+    )
+    .map_err(|error| {
+        (
+            root_failure(namespace, query.clone(), &error),
+            answers.clone(),
+        )
+    })?;
     if addresses.is_empty() {
         let absence = validated_no_endpoint_absence(
             namespace,
@@ -8368,80 +8325,223 @@ fn root_tlsa_resolution_request(
     })
 }
 
-fn root_aliases_and_addresses(
-    origin: &CanonicalHost,
-    answers: &HashMap<ResolutionRequest, ResolutionAnswer>,
-) -> Result<(Vec<AliasStep>, CanonicalHost, Vec<IpAddr>), RootFailureKind> {
-    let records = answers
-        .values()
-        .flat_map(|answer| answer.records.iter())
-        .collect::<Vec<_>>();
-    let mut current =
-        DnsName::from_ascii(origin.as_str()).map_err(|_| RootFailureKind::MalformedResponse)?;
-    let mut aliases = Vec::new();
-    let mut seen = BTreeSet::new();
-    seen.insert(current.to_string());
-    for _ in 0..=8 {
-        let mut cnames = Vec::new();
-        for record in records
-            .iter()
-            .filter(|record| record.name == current && record.record_type == RecordType::Cname)
-        {
-            let (target, end) = DnsName::parse_wire(&record.rdata, 0)
-                .map_err(|_| RootFailureKind::MalformedResponse)?;
-            if end != record.rdata.len() {
-                return Err(RootFailureKind::MalformedResponse);
-            }
-            let logical_record = (record.name.clone(), record.class, target);
-            if !cnames.contains(&logical_record) {
-                cnames.push(logical_record);
-            }
-        }
-        if cnames.is_empty() {
-            break;
-        }
-        if cnames.len() != 1 {
-            return Err(RootFailureKind::MalformedResponse);
-        }
-        let (_, _, target) = cnames.pop().ok_or(RootFailureKind::MalformedResponse)?;
-        if !seen.insert(target.to_string()) {
-            return Err(RootFailureKind::MalformedResponse);
-        }
-        aliases.push(
-            AliasStep::new(
-                AliasKind::Cname,
-                CanonicalHost::parse(&current.to_string())
-                    .map_err(|_| RootFailureKind::MalformedResponse)?,
-                CanonicalHost::parse(&target.to_string())
-                    .map_err(|_| RootFailureKind::MalformedResponse)?,
-            )
-            .map_err(|_| RootFailureKind::MalformedResponse)?,
-        );
-        current = target;
+type RootAddressResolution = (Vec<AliasStep>, CanonicalHost, Vec<IpAddr>);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RootAddressResponseKind {
+    Present,
+    NoData,
+    NxDomain,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RootAddressFamilyResolution {
+    alias_path: Vec<AliasStep>,
+    terminal: CanonicalHost,
+    addresses: Vec<IpAddr>,
+    kind: RootAddressResponseKind,
+}
+
+fn resolve_root_service_endpoints(
+    resolver: &dyn Resolver,
+    namespace: Namespace,
+    service_target: &CanonicalHost,
+    answers: &mut HashMap<ResolutionRequest, ResolutionAnswer>,
+    requests: &mut Vec<ResolutionRequest>,
+) -> Result<RootAddressResolution, ResolverError> {
+    let ipv4 =
+        resolve_root_address_family(resolver, service_target, RecordType::A, answers, requests)?;
+    if ipv4.kind == RootAddressResponseKind::NxDomain {
+        return Ok((ipv4.alias_path, ipv4.terminal, Vec::new()));
     }
-    let mut addresses = records
-        .iter()
-        .filter(|record| record.name == current)
-        .filter_map(|record| match record.record_type {
-            RecordType::A if record.rdata.len() == 4 => Some(IpAddr::V4(Ipv4Addr::new(
-                record.rdata[0],
-                record.rdata[1],
-                record.rdata[2],
-                record.rdata[3],
-            ))),
-            RecordType::Aaaa if record.rdata.len() == 16 => {
-                let mut bytes = [0u8; 16];
-                bytes.copy_from_slice(&record.rdata);
-                Some(IpAddr::V6(Ipv6Addr::from(bytes)))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+
+    let ipv6 = resolve_root_address_family(
+        resolver,
+        service_target,
+        RecordType::Aaaa,
+        answers,
+        requests,
+    )?;
+    if ipv6.kind == RootAddressResponseKind::NxDomain {
+        // HNS address families are authenticated as one namespace lineage.
+        // A later-family NXDOMAIN after any retained A-family answer is
+        // contradictory whole-name evidence, not authenticated absence. In
+        // particular, never let conflicting CNAME paths collapse into an HNS
+        // absence that could select ICANN.
+        if namespace == Namespace::Hns {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        return if ipv4.addresses.is_empty() {
+            Ok((ipv4.alias_path, ipv4.terminal, Vec::new()))
+        } else {
+            Err(ResolverError::InvalidDnsResponse)
+        };
+    }
+
+    let family_paths_match = ipv4.alias_path == ipv6.alias_path && ipv4.terminal == ipv6.terminal;
+    // ICANN authorities may return an alias chain for only one address
+    // family or independently steer two positive families. The canonical
+    // plan carries one endpoint lineage, so retain one complete ICANN route
+    // instead of attaching addresses authenticated by another route. HNS
+    // stays bound to one authenticated path and rejects any lineage drift.
+    let ipv4_only = namespace == Namespace::Icann
+        && !ipv4.addresses.is_empty()
+        && ipv6.addresses.is_empty()
+        && ipv6.kind == RootAddressResponseKind::NoData;
+    let ipv6_only = namespace == Namespace::Icann
+        && ipv4.addresses.is_empty()
+        && ipv4.kind == RootAddressResponseKind::NoData
+        && !ipv6.addresses.is_empty();
+    let independently_steered = namespace == Namespace::Icann
+        && !ipv4.addresses.is_empty()
+        && !ipv6.addresses.is_empty()
+        && !family_paths_match;
+
+    let (alias_path, terminal, mut addresses) = if family_paths_match {
+        let mut addresses = ipv4.addresses;
+        addresses.extend(ipv6.addresses);
+        (ipv4.alias_path, ipv4.terminal, addresses)
+    } else if independently_steered || ipv4_only {
+        (ipv4.alias_path, ipv4.terminal, ipv4.addresses)
+    } else if ipv6_only {
+        (ipv6.alias_path, ipv6.terminal, ipv6.addresses)
+    } else {
+        return Err(ResolverError::InvalidDnsResponse);
+    };
     addresses.sort_unstable();
     addresses.dedup();
-    let terminal = CanonicalHost::parse(&current.to_string())
-        .map_err(|_| RootFailureKind::MalformedResponse)?;
-    Ok((aliases, terminal, addresses))
+    Ok((alias_path, terminal, addresses))
+}
+
+fn resolve_root_address_family(
+    resolver: &dyn Resolver,
+    start: &CanonicalHost,
+    qtype: RecordType,
+    answers: &mut HashMap<ResolutionRequest, ResolutionAnswer>,
+    requests: &mut Vec<ResolutionRequest>,
+) -> Result<RootAddressFamilyResolution, ResolverError> {
+    if !matches!(qtype, RecordType::A | RecordType::Aaaa) {
+        return Err(ResolverError::InvalidDnsResponse);
+    }
+
+    let mut current = start.clone();
+    let mut aliases = Vec::new();
+    let mut seen = BTreeSet::from([current.as_str().to_owned()]);
+    for depth in 0..=hns_namespace_resolution::MAX_ALIAS_STEPS {
+        let request = ResolutionRequest {
+            qname: current.as_str().to_owned(),
+            qtype: qtype.code(),
+        };
+        if !requests.contains(&request) {
+            requests.push(request.clone());
+        }
+        let answer = if let Some(answer) = answers.get(&request).cloned() {
+            answer
+        } else {
+            match resolver.resolve(&request) {
+                Ok(answer) => {
+                    answers.insert(request, answer.clone());
+                    answer
+                }
+                Err(ResolverError::NameNotFound) => {
+                    return Ok(RootAddressFamilyResolution {
+                        alias_path: aliases,
+                        terminal: current,
+                        addresses: Vec::new(),
+                        kind: RootAddressResponseKind::NxDomain,
+                    });
+                }
+                Err(error) => return Err(error),
+            }
+        };
+        let owner =
+            DnsName::from_ascii(current.as_str()).map_err(|_| ResolverError::InvalidDnsResponse)?;
+        if answer.name != owner {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        let relevant = answer
+            .records
+            .iter()
+            .filter(|record| {
+                record.name == owner
+                    && (record.record_type == RecordType::Cname || record.record_type == qtype)
+            })
+            .collect::<Vec<_>>();
+        if relevant.iter().any(|record| record.class != DNS_CLASS_IN) {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        let cname_records = relevant
+            .iter()
+            .filter(|record| record.record_type == RecordType::Cname)
+            .copied()
+            .collect::<Vec<_>>();
+        let address_records = relevant
+            .iter()
+            .filter(|record| record.record_type == qtype)
+            .copied()
+            .collect::<Vec<_>>();
+        if !cname_records.is_empty() && !address_records.is_empty() {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+
+        let mut cname_targets = Vec::new();
+        for record in cname_records {
+            let (target, end) = DnsName::parse_wire(&record.rdata, 0)
+                .map_err(|_| ResolverError::InvalidDnsResponse)?;
+            if end != record.rdata.len() {
+                return Err(ResolverError::InvalidDnsResponse);
+            }
+            if !cname_targets.contains(&target) {
+                cname_targets.push(target);
+            }
+        }
+        if cname_targets.len() > 1 {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        if let Some(target) = cname_targets.pop() {
+            if depth == hns_namespace_resolution::MAX_ALIAS_STEPS {
+                return Err(ResolverError::InvalidDnsResponse);
+            }
+            let target = CanonicalHost::parse(&target.to_string())
+                .map_err(|_| ResolverError::InvalidDnsResponse)?;
+            if !seen.insert(target.as_str().to_owned()) {
+                return Err(ResolverError::InvalidDnsResponse);
+            }
+            aliases.push(
+                AliasStep::new(AliasKind::Cname, current, target.clone())
+                    .map_err(|_| ResolverError::InvalidDnsResponse)?,
+            );
+            current = target;
+            continue;
+        }
+
+        let mut addresses = address_records
+            .into_iter()
+            .map(|record| match (qtype, record.rdata.as_slice()) {
+                (RecordType::A, [a, b, c, d]) => Ok(IpAddr::V4(Ipv4Addr::new(*a, *b, *c, *d))),
+                (RecordType::Aaaa, bytes) if bytes.len() == 16 => {
+                    let mut address = [0u8; 16];
+                    address.copy_from_slice(bytes);
+                    Ok(IpAddr::V6(Ipv6Addr::from(address)))
+                }
+                _ => Err(ResolverError::InvalidDnsResponse),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        addresses.sort_unstable();
+        addresses.dedup();
+        let kind = if addresses.is_empty() {
+            RootAddressResponseKind::NoData
+        } else {
+            RootAddressResponseKind::Present
+        };
+        return Ok(RootAddressFamilyResolution {
+            alias_path: aliases,
+            terminal: current,
+            addresses,
+            kind,
+        });
+    }
+    Err(ResolverError::InvalidDnsResponse)
 }
 
 fn root_https_alias_path(
@@ -8452,33 +8552,80 @@ fn root_https_alias_path(
     let mut current = start.clone();
     let mut aliases = Vec::new();
     let mut seen = BTreeSet::from([current.as_str().to_owned()]);
-    for depth in 0..=8 {
+    for depth in 0..=hns_namespace_resolution::MAX_ALIAS_STEPS {
+        let request = ResolutionRequest {
+            qname: current.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let answer = if let Some(answer) = answers.get(&request).cloned() {
+            answer
+        } else {
+            let answer = resolver.resolve(&request)?;
+            answers.insert(request, answer.clone());
+            answer
+        };
         let owner =
             DnsName::from_ascii(current.as_str()).map_err(|_| ResolverError::InvalidDnsResponse)?;
-        let mut records = answers
-            .values()
-            .flat_map(|answer| answer.records.iter())
-            .filter(|record| record.name == owner && record.record_type == RecordType::Https)
-            .cloned()
+        if answer.name != owner {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        let relevant = answer
+            .records
+            .iter()
+            .filter(|record| {
+                record.name == owner
+                    && matches!(record.record_type, RecordType::Cname | RecordType::Https)
+            })
             .collect::<Vec<_>>();
-        if records.is_empty() && depth != 0 {
-            let request = ResolutionRequest {
-                qname: current.as_str().to_owned(),
-                qtype: RecordType::Https.code(),
-            };
-            if !answers.contains_key(&request) {
-                answers.insert(request.clone(), resolver.resolve(&request)?);
+        if relevant.iter().any(|record| record.class != DNS_CLASS_IN) {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        let cname_records = relevant
+            .iter()
+            .filter(|record| record.record_type == RecordType::Cname)
+            .copied()
+            .collect::<Vec<_>>();
+        let records = relevant
+            .iter()
+            .filter(|record| record.record_type == RecordType::Https)
+            .copied()
+            .collect::<Vec<_>>();
+        if !cname_records.is_empty() && !records.is_empty() {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        let mut cname_targets = Vec::new();
+        for record in cname_records {
+            let (target, end) = DnsName::parse_wire(&record.rdata, 0)
+                .map_err(|_| ResolverError::InvalidDnsResponse)?;
+            if end != record.rdata.len() {
+                return Err(ResolverError::InvalidDnsResponse);
             }
-            records = answers
-                .values()
-                .flat_map(|answer| answer.records.iter())
-                .filter(|record| record.name == owner && record.record_type == RecordType::Https)
-                .cloned()
-                .collect();
+            if !cname_targets.contains(&target) {
+                cname_targets.push(target);
+            }
+        }
+        if cname_targets.len() > 1 {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        if let Some(target) = cname_targets.pop() {
+            if depth == hns_namespace_resolution::MAX_ALIAS_STEPS {
+                return Err(ResolverError::InvalidDnsResponse);
+            }
+            let target = CanonicalHost::parse(&target.to_string())
+                .map_err(|_| ResolverError::InvalidDnsResponse)?;
+            if !seen.insert(target.as_str().to_owned()) {
+                return Err(ResolverError::InvalidDnsResponse);
+            }
+            aliases.push(
+                AliasStep::new(AliasKind::Cname, current, target.clone())
+                    .map_err(|_| ResolverError::InvalidDnsResponse)?,
+            );
+            current = target;
+            continue;
         }
         let parsed = records
             .iter()
-            .map(SvcbRecord::from_record)
+            .map(|record| SvcbRecord::from_record(record))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| ResolverError::InvalidDnsResponse)?;
         let alias_mode = parsed
@@ -8493,6 +8640,9 @@ fn root_https_alias_path(
             || !alias_mode[0].params.is_empty()
             || alias_mode[0].target_name == DnsName::root()
         {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        if depth == hns_namespace_resolution::MAX_ALIAS_STEPS {
             return Err(ResolverError::InvalidDnsResponse);
         }
         let target = CanonicalHost::parse(&alias_mode[0].target_name.to_string())
@@ -8525,8 +8675,13 @@ fn root_service_bindings(
 
     if query.scheme().uses_tls() {
         let owner = DnsName::from_ascii(terminal_target.as_str()).map_err(|_| ())?;
+        let request = ResolutionRequest {
+            qname: terminal_target.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
         let service_records = answers
-            .values()
+            .get(&request)
+            .into_iter()
             .flat_map(|answer| answer.records.iter())
             .filter(|record| record.name == owner && record.record_type == RecordType::Https)
             .collect::<Vec<_>>();
@@ -24181,42 +24336,62 @@ mod tests {
     }
 
     #[test]
-    fn identical_cname_evidence_across_address_families_is_deduplicated() {
+    fn matching_query_scoped_cname_lineages_merge_both_address_families() {
         let origin = CanonicalHost::parse("origin.example").unwrap();
         let target = "edge.example";
         let duplicate_cname = cname_record(origin.as_str(), target);
-        let answers = HashMap::from([
-            (
-                ResolutionRequest {
-                    qname: origin.as_str().to_owned(),
-                    qtype: RecordType::A.code(),
-                },
-                resolution_answer(
-                    origin.as_str(),
-                    vec![
-                        duplicate_cname.clone(),
-                        address_record(target, [192, 0, 2, 10]),
-                    ],
-                    true,
+        let observed_requests = Arc::new(Mutex::new(Vec::new()));
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(origin.as_str(), vec![duplicate_cname.clone()], true),
                 ),
-            ),
-            (
-                ResolutionRequest {
-                    qname: origin.as_str().to_owned(),
-                    qtype: RecordType::Aaaa.code(),
-                },
-                resolution_answer(
-                    origin.as_str(),
-                    vec![
-                        duplicate_cname,
-                        address_record_v6_for(target, "2001:db8::10".parse().unwrap()),
-                    ],
-                    true,
+                (
+                    ResolutionRequest {
+                        qname: target.to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(target, vec![address_record(target, [192, 0, 2, 10])], true),
                 ),
-            ),
-        ]);
-
-        let (aliases, terminal, addresses) = root_aliases_and_addresses(&origin, &answers).unwrap();
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(origin.as_str(), vec![duplicate_cname], true),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: target.to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(
+                        target,
+                        vec![address_record_v6_for(
+                            target,
+                            "2001:db8::10".parse().unwrap(),
+                        )],
+                        true,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::clone(&observed_requests),
+        };
+        let mut answers = HashMap::new();
+        let mut endpoint_requests = Vec::new();
+        let (aliases, terminal, addresses) = resolve_root_service_endpoints(
+            &resolver,
+            Namespace::Hns,
+            &origin,
+            &mut answers,
+            &mut endpoint_requests,
+        )
+        .unwrap();
 
         assert_eq!(aliases.len(), 1);
         assert_eq!(terminal.as_str(), target);
@@ -24227,8 +24402,380 @@ mod tests {
                 IpAddr::V6("2001:db8::10".parse().unwrap()),
             ]
         );
+        assert_eq!(*observed_requests.lock().unwrap(), endpoint_requests);
+    }
 
-        let conflicting = HashMap::from([
+    #[test]
+    fn hns_query_scoped_address_lineage_drift_fails_closed() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), "a.example")],
+                        true,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: "a.example".to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        "a.example",
+                        vec![address_record("a.example", [192, 0, 2, 1])],
+                        true,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), "b.example")],
+                        true,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: "b.example".to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(
+                        "b.example",
+                        vec![address_record_v6_for(
+                            "b.example",
+                            "2001:db8::1".parse().unwrap(),
+                        )],
+                        true,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        assert!(matches!(
+            resolve_root_service_endpoints(
+                &resolver,
+                Namespace::Hns,
+                &origin,
+                &mut HashMap::new(),
+                &mut Vec::new(),
+            ),
+            Err(ResolverError::InvalidDnsResponse)
+        ));
+    }
+
+    #[test]
+    fn hns_conflicting_cname_nodata_and_nxdomain_cannot_become_absence() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), "a.example")],
+                        true,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: "a.example".to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer("a.example", Vec::new(), true),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), "b.example")],
+                        true,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::from([ResolutionRequest {
+                qname: "b.example".to_owned(),
+                qtype: RecordType::Aaaa.code(),
+            }]),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        assert!(matches!(
+            resolve_root_service_endpoints(
+                &resolver,
+                Namespace::Hns,
+                &origin,
+                &mut HashMap::new(),
+                &mut Vec::new(),
+            ),
+            Err(ResolverError::InvalidDnsResponse)
+        ));
+    }
+
+    #[test]
+    fn icann_query_scoped_independent_address_lineages_keep_one_complete_route() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let ipv6 = "2001:db8::1".parse().unwrap();
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), "v4.example")],
+                        false,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: "v4.example".to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        "v4.example",
+                        vec![address_record("v4.example", [192, 0, 2, 4])],
+                        false,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), "v6.example")],
+                        false,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: "v6.example".to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(
+                        "v6.example",
+                        vec![address_record_v6_for("v6.example", ipv6)],
+                        false,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        let (aliases, terminal, addresses) = resolve_root_service_endpoints(
+            &resolver,
+            Namespace::Icann,
+            &origin,
+            &mut HashMap::new(),
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(aliases.len(), 1);
+        assert_eq!(terminal.as_str(), "v4.example");
+        assert_eq!(addresses, vec![IpAddr::V4(Ipv4Addr::new(192, 0, 2, 4))]);
+        assert!(!addresses.contains(&IpAddr::V6(ipv6)));
+    }
+
+    #[test]
+    fn icann_nodata_family_accepts_the_other_familys_alias_lineage() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), "edge.example")],
+                        false,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: "edge.example".to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        "edge.example",
+                        vec![address_record("edge.example", [192, 0, 2, 8])],
+                        false,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(origin.as_str(), Vec::new(), false),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        let (aliases, terminal, addresses) = resolve_root_service_endpoints(
+            &resolver,
+            Namespace::Icann,
+            &origin,
+            &mut HashMap::new(),
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(aliases.len(), 1);
+        assert_eq!(terminal.as_str(), "edge.example");
+        assert_eq!(addresses, vec![IpAddr::V4(Ipv4Addr::new(192, 0, 2, 8))]);
+    }
+
+    #[test]
+    fn unrelated_answer_map_records_cannot_rewrite_an_address_query_lineage() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let a_request = ResolutionRequest {
+            qname: origin.as_str().to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    a_request.clone(),
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![address_record(origin.as_str(), [192, 0, 2, 9])],
+                        false,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::Aaaa.code(),
+                    },
+                    resolution_answer(origin.as_str(), Vec::new(), false),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        let mut answers = HashMap::from([(
+            ResolutionRequest {
+                qname: "_443._tcp.origin.example".to_owned(),
+                qtype: RecordType::Tlsa.code(),
+            },
+            resolution_answer(
+                "_443._tcp.origin.example",
+                vec![cname_record(origin.as_str(), "attacker.example")],
+                false,
+            ),
+        )]);
+        let (_, terminal, addresses) = resolve_root_service_endpoints(
+            &resolver,
+            Namespace::Icann,
+            &origin,
+            &mut answers,
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(terminal, origin);
+        assert_eq!(addresses, vec![IpAddr::V4(Ipv4Addr::new(192, 0, 2, 9))]);
+        assert_eq!(
+            answers.get(&a_request).unwrap().name.to_string(),
+            "origin.example"
+        );
+    }
+
+    #[test]
+    fn https_query_cname_lineage_selects_the_terminal_service_records() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let target = "edge.example";
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::Https.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), target)],
+                        false,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: target.to_owned(),
+                        qtype: RecordType::Https.code(),
+                    },
+                    resolution_answer(
+                        target,
+                        vec![https_service_record(
+                            target,
+                            1,
+                            vec![(SVCB_PARAM_PORT, 8443u16.to_be_bytes().to_vec())],
+                        )],
+                        false,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        let mut answers = HashMap::new();
+        let (aliases, terminal) = root_https_alias_path(&resolver, &origin, &mut answers).unwrap();
+        let query = OriginQuery::new(
+            origin,
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let services = root_service_bindings(&query, &terminal, &answers).unwrap();
+
+        assert_eq!(aliases.len(), 1);
+        assert_eq!(aliases[0].kind(), AliasKind::Cname);
+        assert_eq!(terminal.as_str(), target);
+        assert_eq!(services[0].service_target().as_str(), target);
+        assert_eq!(services[0].effective_port().get(), 8443);
+    }
+
+    #[test]
+    fn unrelated_answer_map_records_cannot_supply_https_service_policy() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let query = OriginQuery::new(
+            origin.clone(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let exact_request = ResolutionRequest {
+            qname: origin.as_str().to_owned(),
+            qtype: RecordType::Https.code(),
+        };
+        let answers = HashMap::from([
+            (
+                exact_request,
+                resolution_answer(origin.as_str(), Vec::new(), false),
+            ),
             (
                 ResolutionRequest {
                     qname: origin.as_str().to_owned(),
@@ -24236,26 +24783,91 @@ mod tests {
                 },
                 resolution_answer(
                     origin.as_str(),
-                    vec![cname_record(origin.as_str(), "a.example")],
-                    true,
-                ),
-            ),
-            (
-                ResolutionRequest {
-                    qname: origin.as_str().to_owned(),
-                    qtype: RecordType::Aaaa.code(),
-                },
-                resolution_answer(
-                    origin.as_str(),
-                    vec![cname_record(origin.as_str(), "b.example")],
-                    true,
+                    vec![https_service_record(
+                        origin.as_str(),
+                        1,
+                        vec![(SVCB_PARAM_PORT, 8443u16.to_be_bytes().to_vec())],
+                    )],
+                    false,
                 ),
             ),
         ]);
-        assert_eq!(
-            root_aliases_and_addresses(&origin, &conflicting),
-            Err(RootFailureKind::MalformedResponse)
-        );
+
+        let services = root_service_bindings(&query, &origin, &answers).unwrap();
+        assert_eq!(services[0].effective_port().get(), 443);
+        assert_eq!(services[0].selected_protocol(), ApplicationProtocol::Http11);
+    }
+
+    #[test]
+    fn query_scoped_address_cname_loops_and_overlong_paths_fail_closed() {
+        let origin = CanonicalHost::parse("origin.example").unwrap();
+        let looped = RequestMapResolver {
+            answers: HashMap::from([
+                (
+                    ResolutionRequest {
+                        qname: origin.as_str().to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        origin.as_str(),
+                        vec![cname_record(origin.as_str(), "a.example")],
+                        true,
+                    ),
+                ),
+                (
+                    ResolutionRequest {
+                        qname: "a.example".to_owned(),
+                        qtype: RecordType::A.code(),
+                    },
+                    resolution_answer(
+                        "a.example",
+                        vec![cname_record("a.example", origin.as_str())],
+                        true,
+                    ),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        assert!(matches!(
+            resolve_root_address_family(
+                &looped,
+                &origin,
+                RecordType::A,
+                &mut HashMap::new(),
+                &mut Vec::new(),
+            ),
+            Err(ResolverError::InvalidDnsResponse)
+        ));
+
+        let mut overlong_answers = HashMap::new();
+        let mut owner = origin.as_str().to_owned();
+        for index in 0..=hns_namespace_resolution::MAX_ALIAS_STEPS {
+            let target = format!("c{index}.example");
+            overlong_answers.insert(
+                ResolutionRequest {
+                    qname: owner.clone(),
+                    qtype: RecordType::A.code(),
+                },
+                resolution_answer(&owner, vec![cname_record(&owner, &target)], true),
+            );
+            owner = target;
+        }
+        let overlong = RequestMapResolver {
+            answers: overlong_answers,
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        assert!(matches!(
+            resolve_root_address_family(
+                &overlong,
+                &origin,
+                RecordType::A,
+                &mut HashMap::new(),
+                &mut Vec::new(),
+            ),
+            Err(ResolverError::InvalidDnsResponse)
+        ));
     }
 
     #[test]
