@@ -32,10 +32,10 @@ descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
 and aggregate Required CI. Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed that complete Apple gate and
 aggregate Required CI in full run `31807520618`; CodeQL runs `31807519998` and
-`31807520229` also passed. That evidence predates the `bc5901f` exact-name
+`31807520229` also passed. That evidence predates the `2061a27` exact-name
 import tranche, whose complete Apple and aggregate exact-source CI is pending.
 Build `57` does not contain the controller. The
-current candidate pins wallet `bc5901f`. Wallet-aware hosted
+current candidate pins wallet `2061a27`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
 back for the historical lifecycle boundary. Version-neutral HNWR-aware source
 `a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed and read back in

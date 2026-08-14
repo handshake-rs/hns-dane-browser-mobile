@@ -162,6 +162,57 @@ final class NativeHnsReadConfiguration: @unchecked Sendable, CustomStringConvert
     }
 }
 
+enum WalletExactHnsNameInputError: Error, Equatable {
+    case consumed
+}
+
+/// Single-use mutable UTF-8 ownership for one trusted-native name prompt.
+/// Construction preserves the entered bytes exactly, while inspecting at most
+/// 64 bytes so an unbounded Swift allocation is never created for this bridge.
+final class WalletExactHnsNameInput: @unchecked Sendable {
+    private let stateLock = NSLock()
+    private var bytes: [UInt8]
+    private var consumed = false
+
+    init?(exactText: String?) {
+        guard let exactText else { return nil }
+        var candidate: [UInt8] = []
+        candidate.reserveCapacity(63)
+        for byte in exactText.utf8.prefix(64) {
+            guard candidate.count < 63 else {
+                WalletSecretBytes.wipe(&candidate)
+                return nil
+            }
+            candidate.append(byte)
+        }
+        guard !candidate.isEmpty else {
+            WalletSecretBytes.wipe(&candidate)
+            return nil
+        }
+        bytes = candidate
+    }
+
+    func consume<T>(_ body: (inout [UInt8]) throws -> T) throws -> T {
+        stateLock.lock()
+        guard !consumed else {
+            stateLock.unlock()
+            throw WalletExactHnsNameInputError.consumed
+        }
+        consumed = true
+        var retained = bytes
+        WalletSecretBytes.wipe(&bytes)
+        stateLock.unlock()
+        defer { WalletSecretBytes.wipe(&retained) }
+        return try body(&retained)
+    }
+
+    deinit {
+        stateLock.lock()
+        WalletSecretBytes.wipe(&bytes)
+        stateLock.unlock()
+    }
+}
+
 struct NativeHnsReadSnapshot: Equatable, Sendable {
     struct Amount: Decodable, Equatable, Sendable {
         let asset: String
@@ -541,20 +592,16 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
     }
 }
 
-/** Closed HNWI-v1 result from trusted-native exact-text name import. */
-enum NativeHnsNameImportResult: Equatable, Sendable {
-    case success(NativeHnsReadSnapshot.KnownName)
-    case invalidInput
-    case unavailable
-    case failed
-
-    static func decode(bundle: [UInt8]) throws -> NativeHnsNameImportResult {
+/// Success-only private HNWI-v1 result. Failures stay in the C result channel.
+enum NativeHnsNameImportBundle {
+    static func decode(bundle: [UInt8]) throws -> NativeHnsReadSnapshot.KnownName {
         let headerLength = 12
-        let maximumJSONBytes = 16 * 1_024
-        guard bundle.count >= headerLength,
+        let maximumJSONBytes = 4_096
+        guard bundle.count > headerLength,
               bundle.count <= headerLength + maximumJSONBytes,
               Array(bundle[0..<4]) == Array("HNWI".utf8),
               bundle[4] == 1,
+              bundle[5] == 0,
               bundle[6] == 0,
               bundle[7] == 0 else {
             throw NativeWalletBridgeError.invalidOutput("invalid HNS name import bundle header")
@@ -562,31 +609,22 @@ enum NativeHnsNameImportResult: Equatable, Sendable {
         let payloadLength = bundle[8..<12].reduce(UInt32(0)) { partial, byte in
             (partial << 8) | UInt32(byte)
         }
-        guard Int(payloadLength) == bundle.count - headerLength else {
+        guard payloadLength >= 2,
+              payloadLength <= UInt32(maximumJSONBytes),
+              Int(payloadLength) == bundle.count - headerLength,
+              bundle[headerLength] == UInt8(ascii: "{"),
+              bundle.last == UInt8(ascii: "}") else {
             throw NativeWalletBridgeError.invalidOutput("invalid HNS name import bundle length")
         }
-        switch bundle[5] {
-        case 1:
-            guard payloadLength >= 2,
-                  bundle[headerLength] == UInt8(ascii: "{"),
-                  bundle.last == UInt8(ascii: "}") else {
-                throw NativeWalletBridgeError.invalidOutput(
-                    "invalid HNS name import success payload"
-                )
-            }
-            return .success(try JSONDecoder().decode(
-                NativeHnsReadSnapshot.KnownName.self,
-                from: Data(bundle[headerLength...])
-            ))
-        case 2 where payloadLength == 0:
-            return .invalidInput
-        case 3 where payloadLength == 0:
-            return .unavailable
-        case 4 where payloadLength == 0:
-            return .failed
-        default:
-            throw NativeWalletBridgeError.invalidOutput("unsupported HNS name import outcome")
+        var payload = Data(bundle[headerLength...])
+        defer {
+            let bytes = payload.startIndex..<payload.endIndex
+            payload.resetBytes(in: bytes)
         }
+        return try JSONDecoder().decode(
+            NativeHnsReadSnapshot.KnownName.self,
+            from: payload
+        )
     }
 }
 
@@ -596,7 +634,7 @@ func walletNameImportRefreshMatches(
     refreshed: NativeHnsReadSnapshot
 ) -> Bool {
     refreshed.knownNames.contains { current in
-        Array(current.name.utf8) == Array(imported.name.utf8) &&
+        current.name.utf8.elementsEqual(imported.name.utf8) &&
             current.nameHash == imported.nameHash
     }
 }
@@ -789,14 +827,20 @@ final class RustNativeWallet: @unchecked Sendable {
         return try NativeHnsReadSnapshot.decode(bundle: bundle)
     }
 
-    /// Passes the exact Swift UTF-8 view without trimming, case conversion,
-    /// IDNA, Unicode normalization, or trailing-dot editing.
-    func importHnsNameExactText(_ exactText: String) throws -> NativeHnsNameImportResult {
-        guard exactText.utf8.count <= 4 * 1_024 else { return .invalidInput }
+    /// Passes the exact mutable UTF-8 bytes without trimming, case conversion,
+    /// IDNA, Unicode normalization, or trailing-dot editing, then wipes them.
+    func importHnsNameExactText(
+        _ exactName: inout [UInt8]
+    ) throws -> NativeHnsReadSnapshot.KnownName {
+        defer { WalletSecretBytes.wipe(&exactName) }
+        guard !exactName.isEmpty, exactName.count <= 63 else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "trusted-native HNS name input is outside its byte bound"
+            )
+        }
         var output = HnsBrowserBuffer()
-        let exactBytes = Array(exactText.utf8)
         let currentHandle = try liveHandle()
-        let result = exactBytes.withUnsafeBufferPointer { buffer in
+        let result = exactName.withUnsafeBufferPointer { buffer in
             hns_browser_wallet_import_hns_name_exact_text(
                 currentHandle,
                 HnsBrowserSlice(ptr: buffer.baseAddress, len: UInt64(buffer.count)),
@@ -804,26 +848,21 @@ final class RustNativeWallet: @unchecked Sendable {
             )
         }
         defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet HNS name import")
         do {
-            try NativeWalletBridge.check(result, operation: "wallet HNS name import")
             var bundle = try NativeWalletBridge.bytes(copying: output)
             defer { WalletSecretBytes.wipe(&bundle) }
-            let decoded = try NativeHnsNameImportResult.decode(bundle: bundle)
-            switch decoded {
-            case .success(let summary):
-                guard Array(summary.name.utf8) == exactBytes else {
-                    try? lock()
-                    throw NativeWalletBridgeError.invalidOutput(
-                        "HNS name import summary changed the exact input text"
-                    )
-                }
-            case .failed:
+            let summary = try NativeHnsNameImportBundle.decode(bundle: bundle)
+            guard summary.name.utf8.elementsEqual(exactName) else {
                 try? lock()
-            case .invalidInput, .unavailable:
-                break
+                throw NativeWalletBridgeError.invalidOutput(
+                    "HNS name import summary changed the exact input text"
+                )
             }
-            return decoded
+            return summary
         } catch {
+            // A successful C call means the import may already have committed.
+            // Fail closed if copying, decoding, or exact-echo validation fails.
             try? lock()
             throw error
         }

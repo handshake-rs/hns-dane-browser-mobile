@@ -109,33 +109,36 @@ internal object NativeWalletBridge {
             null
         }
 
-    /** Passes the field's exact UTF-8 bytes to the trusted native controller. */
-    fun importHnsNameExactText(
-        handle: Long,
-        exactText: String,
-    ): NativeWalletNameImportResult {
-        if (!isAvailable) return NativeWalletNameImportResult.Unavailable
-        if (!isValidHandle(handle)) return NativeWalletNameImportResult.Failed
-        val exactUtf8 = walletNameExactUtf8(exactText)
-            ?: return NativeWalletNameImportResult.InvalidInput
-        return try {
-            val bundle = runCatching { nativeImportHnsNameExactText(handle, exactUtf8) }
-                .getOrNull()
-            val result = bundle?.let(::parseAndWipeHnsNameImportBundle)
-                ?: NativeWalletNameImportResult.Failed
-            if (
-                result is NativeWalletNameImportResult.Success &&
-                !result.summary.name.toByteArray(Charsets.UTF_8).contentEquals(exactUtf8)
-            ) {
-                lock(handle)
-                NativeWalletNameImportResult.Failed
-            } else {
-                if (result === NativeWalletNameImportResult.Failed) lock(handle)
-                result
+    /** Consumes one exact UTF-8 name for the trusted native read controller only. */
+    fun importHnsNameExactText(handle: Long, exactUtf8: ByteArray): NativeWalletName? = try {
+        if (
+            !isAvailable || !isValidHandle(handle) ||
+            exactUtf8.size !in 1..MAX_HNS_NAME_BYTES
+        ) {
+            null
+        } else {
+            // JNI clears its input array before entering the potentially
+            // blocking controller call. Retain one bounded mutable comparison
+            // copy and wipe it on every return path.
+            val expectedUtf8 = exactUtf8.copyOf()
+            try {
+                val bundle = runCatching { nativeImportHnsNameExactText(handle, exactUtf8) }
+                    .getOrNull() ?: return null
+                val imported = parseAndWipeHnsNameImportBundle(bundle)
+                if (imported == null || !walletNameImportEchoMatches(imported, expectedUtf8)) {
+                    // A non-null native reply means the mutation may have committed.
+                    // Malformed or non-exact projection therefore poisons this session.
+                    lock(handle)
+                    null
+                } else {
+                    imported
+                }
+            } finally {
+                expectedUtf8.fill(0)
             }
-        } finally {
-            exactUtf8.fill(0)
         }
+    } finally {
+        exactUtf8.fill(0)
     }
 
     internal fun parseAndWipeHnsReadBundle(bundle: ByteArray): NativeWalletReadSnapshot? = try {
@@ -146,8 +149,8 @@ internal object NativeWalletBridge {
 
     internal fun parseAndWipeHnsNameImportBundle(
         bundle: ByteArray,
-    ): NativeWalletNameImportResult? = try {
-        NativeWalletNameImportResult.parse(bundle)
+    ): NativeWalletName? = try {
+        NativeWalletNameImportBundle.parse(bundle)
     } finally {
         bundle.fill(0)
     }
@@ -310,6 +313,7 @@ internal object NativeWalletBridge {
     private const val ACCOUNT_ID_BYTES = 16
     private const val MAX_RECOVERY_CHARACTERS = 256
     private const val MAX_ACCOUNT_LABEL_BYTES = 128
+    private const val MAX_HNS_NAME_BYTES = 63
     private const val STATUS_BUNDLE_BYTES = 24
     private const val ACCOUNT_FIXED_BYTES = 28
     private const val BUNDLE_VERSION = 1
@@ -332,16 +336,3 @@ internal data class NativeWalletAccount(
     val module: String,
     val label: String,
 )
-
-/** Encodes without normalization and rejects malformed UTF-16 or oversized input. */
-internal fun walletNameExactUtf8(value: String): ByteArray? {
-    val encoded = value.toByteArray(Charsets.UTF_8)
-    return encoded.takeIf {
-        it.size <= MAX_WALLET_NAME_INPUT_BYTES && it.toString(Charsets.UTF_8) == value
-    } ?: run {
-        encoded.fill(0)
-        null
-    }
-}
-
-private const val MAX_WALLET_NAME_INPUT_BYTES = 4 * 1024

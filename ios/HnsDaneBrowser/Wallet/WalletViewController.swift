@@ -30,6 +30,8 @@ final class WalletViewController: UIViewController {
     private var encryptedOrphanCleanupPending = false
     private var confirmedDeletionAccountID: String?
     private weak var restorePhraseField: UITextField?
+    private weak var walletNameImportAlert: UIAlertController?
+    private weak var walletNameImportField: UITextField?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -39,7 +41,6 @@ final class WalletViewController: UIViewController {
     private let nameReceiveLabel = UILabel()
     private let historyLabel = UILabel()
     private let namesLabel = UILabel()
-    private let nameImportField = UITextField()
     private let nameImportStatusLabel = UILabel()
     private let recoveryTitle = UILabel()
     private let recoveryTextView = UITextView()
@@ -166,19 +167,6 @@ final class WalletViewController: UIViewController {
         configureSummaryLabel(namesLabel, identifier: "wallet.names")
         configureSummaryLabel(nameImportStatusLabel, identifier: "wallet.name-import-status")
 
-        nameImportField.borderStyle = .roundedRect
-        nameImportField.placeholder = "Exact canonical Handshake name"
-        nameImportField.autocapitalizationType = .none
-        nameImportField.autocorrectionType = .no
-        nameImportField.spellCheckingType = .no
-        nameImportField.smartQuotesType = .no
-        nameImportField.smartDashesType = .no
-        nameImportField.smartInsertDeleteType = .no
-        nameImportField.keyboardType = .asciiCapable
-        nameImportField.returnKeyType = .done
-        nameImportField.textContentType = nil
-        nameImportField.accessibilityIdentifier = "wallet.name-import-input"
-
         recoveryTitle.font = .preferredFont(forTextStyle: .headline)
         recoveryTitle.adjustsFontForContentSizeCategory = true
         recoveryTitle.text = "One-time recovery phrase — record it now"
@@ -212,9 +200,10 @@ final class WalletViewController: UIViewController {
         )
         configureButton(
             importNameButton,
-            title: "Import exact name",
-            action: #selector(importWalletName)
+            title: "Track exact HNS name",
+            action: #selector(requestExactHnsNameImport)
         )
+        importNameButton.accessibilityIdentifier = "wallet.import-hns-name"
         configureButton(
             deleteButton,
             title: "Delete confirmed wallet",
@@ -247,7 +236,6 @@ final class WalletViewController: UIViewController {
             nameReceiveLabel,
             historyLabel,
             namesLabel,
-            nameImportField,
             nameImportStatusLabel,
             actions,
             recoveryTitle,
@@ -540,68 +528,120 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    @objc private func importWalletName() {
-        guard let lease = storageLease,
-              let wallet,
-              unconfirmedDatabaseKey == nil,
-              synchronizedReadsAvailable,
-              !isOperating else {
+    @objc private func requestExactHnsNameImport() {
+        let current = currentWalletNameImportState()
+        guard presentedViewController == nil,
+              let expected = current.authority,
+              walletNameImportMayStart(expected: expected, current: current) else {
+            nameImportStatusLabel.text =
+                "Exact-name tracking requires the current reopened, unlocked, read-configured wallet in protected foreground access."
             return
         }
-        let exactText = nameImportField.text ?? ""
+
+        let alert = UIAlertController(
+            title: "Track exact HNS name",
+            message: "Enter one canonical Handshake name exactly as stored on chain. The app will not trim, lowercase, normalize, apply IDNA, or remove a trailing dot.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { [weak self] field in
+            configureWalletNameImportTextField(field)
+            self?.walletNameImportField = field
+        }
+        walletNameImportAlert = alert
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) {
+            [weak self, weak alert] _ in
+            alert?.textFields?.first?.text = nil
+            self?.clearWalletNameImportPrompt(dismiss: false)
+        })
+        alert.addAction(UIAlertAction(title: "Track name", style: .default) {
+            [weak self, weak alert] _ in
+            let input = WalletExactHnsNameInput(
+                exactText: alert?.textFields?.first?.text
+            )
+            alert?.textFields?.first?.text = nil
+            guard let self else { return }
+            self.clearWalletNameImportPrompt(dismiss: false)
+            guard let input else {
+                self.nameImportStatusLabel.text =
+                    "Enter a nonempty HNS name no longer than 63 UTF-8 bytes. The text is used exactly as entered."
+                return
+            }
+            let rechecked = self.currentWalletNameImportState()
+            guard walletNameImportMayStart(
+                expected: expected,
+                current: rechecked
+            ) else {
+                self.nameImportStatusLabel.text =
+                    "Wallet authority changed while the prompt was open. No name was tracked."
+                return
+            }
+            self.beginExactHnsNameImport(input: input, authority: expected)
+        })
+        present(alert, animated: true)
+    }
+
+    private func beginExactHnsNameImport(
+        input: WalletExactHnsNameInput,
+        authority: WalletNameImportAuthority
+    ) {
+        let current = currentWalletNameImportState()
+        guard walletNameImportMayStart(expected: authority, current: current),
+              let wallet,
+              let lease = storageLease else {
+            nameImportStatusLabel.text =
+                "Wallet authority changed before name tracking began. No name was tracked."
+            return
+        }
         isOperating = true
         readGeneration &+= 1
         let generation = readGeneration
-        let walletIdentity = ObjectIdentifier(wallet)
-        let authorityGeneration = walletAuthorityGeneration
         nameImportStatusLabel.text =
-            "Importing exact name text and refreshing the tip-bound wallet rows…"
+            "Tracking one exact HNS name and refreshing synchronized wallet rows…"
         refreshButtonStates()
-        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, input] in
             let outcome: WalletHnsNameImportOutcome
             do {
-                switch try wallet.importHnsNameExactText(exactText) {
-                case .success(let summary):
-                    do {
-                        let refreshed = try wallet.synchronizeHnsReads()
-                        guard walletNameImportRefreshMatches(
-                            imported: summary,
-                            refreshed: refreshed
-                        ) else {
-                            throw NativeWalletBridgeError.invalidOutput(
-                                "fresh wallet rows do not contain the imported name identity"
-                            )
-                        }
-                        outcome = .success(summary, refreshed)
-                    } catch {
-                        try? wallet.lock()
-                        outcome = .successRefreshFailed(error.localizedDescription)
+                let imported = try input.consume { exactBytes in
+                    try wallet.importHnsNameExactText(&exactBytes)
+                }
+                do {
+                    let refreshed = try wallet.synchronizeHnsReads()
+                    guard walletNameImportRefreshMatches(
+                        imported: imported,
+                        refreshed: refreshed
+                    ) else {
+                        throw NativeWalletBridgeError.invalidOutput(
+                            "fresh wallet rows do not contain the imported name identity"
+                        )
                     }
-                case .invalidInput:
-                    outcome = .invalidInput
-                case .unavailable:
-                    outcome = .unavailable
-                case .failed:
+                    outcome = .success(imported, refreshed)
+                } catch {
                     try? wallet.lock()
-                    outcome = .failure("The native name import failed closed.")
+                    outcome = .successRefreshFailed(error.localizedDescription)
                 }
             } catch {
-                try? wallet.lock()
-                outcome = .failure(error.localizedDescription)
+                if walletNameImportFailureIsNonPoisoningInvalid(error) {
+                    outcome = .invalidInput
+                } else {
+                    try? wallet.lock()
+                    outcome = .failure(error.localizedDescription)
+                }
             }
             DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                guard walletReadMayPublish(
-                    expectedGeneration: generation,
-                    currentGeneration: self.readGeneration,
-                    expectedLease: lease,
-                    currentLease: self.storageLease,
-                    expectedWalletIdentity: walletIdentity,
-                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
-                    expectedAuthorityGeneration: authorityGeneration,
-                    currentAuthorityGeneration: self.walletAuthorityGeneration,
-                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
-                ) else {
+                guard let self,
+                      walletNameImportCompletionMayApply(
+                          expected: authority,
+                          current: self.currentWalletNameImportAuthority(),
+                          expectedGeneration: generation,
+                          currentGeneration: self.readGeneration,
+                          expectedLease: lease,
+                          currentLease: self.storageLease,
+                          lifecycleAllowsImport: self.walletLifecycleMayAcquireStorage,
+                          viewIsCurrent: self.walletAuthorityRequested &&
+                              self.viewIfLoaded?.window != nil,
+                          operationInFlight: self.isOperating
+                      ) else {
                     return
                 }
                 self.isOperating = false
@@ -616,20 +656,14 @@ final class WalletViewController: UIViewController {
                         "The required post-import refresh failed closed. Reopen and unlock before retrying."
                     self.clearReadProjection()
                     self.nameImportStatusLabel.text =
-                        "The import result could not be confirmed in fresh wallet rows. The wallet was locked and no imported row was published."
-                    self.showErrorMessage(detail)
+                        "The import result could not be confirmed in fresh wallet rows. The wallet was locked and no imported row was published. \(detail)"
                 case .invalidInput:
                     self.nameImportStatusLabel.text =
                         "The exact text is not one canonical Handshake name. Nothing was imported and the wallet remains usable."
-                case .unavailable:
-                    self.refreshState()
-                    self.nameImportStatusLabel.text =
-                        "Trusted name import is unavailable without a scoped indexed wallet backend."
                 case .failure(let detail):
                     self.refreshState()
                     self.nameImportStatusLabel.text =
-                        "Name import failed closed. Reopen and unlock the wallet before retrying."
-                    self.showErrorMessage(detail)
+                        "Name import failed closed. Reopen and unlock the wallet before retrying. \(detail)"
                 }
                 self.refreshButtonStates()
             }
@@ -919,7 +953,7 @@ final class WalletViewController: UIViewController {
         wallet = controller
         walletAuthorityGeneration &+= 1
         walletWasReopenedFromDurableStorage = reopenedFromDurableStorage
-        clearNameImportInput()
+        clearWalletNameImportPrompt(dismiss: true)
     }
 
     private func installWalletReadBootstrapIfAvailable() throws {
@@ -967,6 +1001,43 @@ final class WalletViewController: UIViewController {
             lifecycleAllowsBootstrap: walletLifecycleMayAcquireStorage,
             viewIsCurrent: viewIfLoaded?.window != nil,
             retirementInFlight: retirementInFlight
+        )
+    }
+
+    private func currentWalletNameImportAuthority() -> WalletNameImportAuthority? {
+        guard persistentWalletExists,
+              unconfirmedDatabaseKey == nil,
+              let wallet,
+              let databasePath = resolvedDatabasePath,
+              let lease = storageLease else {
+            return nil
+        }
+        return WalletNameImportAuthority(
+            network: network,
+            databasePath: databasePath,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(wallet),
+            ownerGeneration: walletAuthorityGeneration
+        )
+    }
+
+    private func currentWalletNameImportState() -> WalletNameImportState {
+        let status = try? wallet?.status()
+        let readsConfigured = (try? wallet?.hasHnsReads()) == true
+        let exactReadProfile = status?.locked == false &&
+            status?.enabledModules == ["handshake"] &&
+            status?.mainnetSettlementEnabled == false &&
+            status?.activeWallet?.isEmpty == false
+        return WalletNameImportState(
+            authority: currentWalletNameImportAuthority(),
+            reopenedDurableConfirmedWallet: walletWasReopenedFromDurableStorage,
+            protectedStorageIsAvailable: protectedStorageIsAvailable,
+            lifecycleAllowsImport: walletLifecycleMayAcquireStorage,
+            viewIsCurrent: walletAuthorityRequested && viewIfLoaded?.window != nil,
+            retirementInFlight: retirementInFlight,
+            operationInFlight: isOperating,
+            unlockedExactReadProfile: exactReadProfile,
+            synchronizedHnsReadsConfigured: readsConfigured
         )
     }
 
@@ -1112,8 +1183,10 @@ final class WalletViewController: UIViewController {
             !hasIncompleteWallet &&
             !isOperating
         synchronizeButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && synchronizedReadsAvailable && !isOperating
-        importNameButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && synchronizedReadsAvailable && !isOperating
-        nameImportField.isEnabled = importNameButton.isEnabled
+        let importState = currentWalletNameImportState()
+        importNameButton.isEnabled = importState.authority.map {
+            walletNameImportMayStart(expected: $0, current: importState)
+        } ?? false
         deleteButton.isEnabled = ownsStorage &&
             protectedStorageIsAvailable &&
             hasWallet &&
@@ -1215,8 +1288,8 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func protectWalletLifecycle() {
+        clearWalletNameImportPrompt(dismiss: true)
         clearRestoreInput()
-        clearNameImportInput()
         let shouldDeleteIncompleteWallet = unconfirmedDatabaseKey != nil
         if var key = unconfirmedDatabaseKey {
             unconfirmedDatabaseKey = nil
@@ -1335,9 +1408,14 @@ final class WalletViewController: UIViewController {
         restorePhraseField?.resignFirstResponder()
     }
 
-    private func clearNameImportInput() {
-        nameImportField.text = nil
-        nameImportField.resignFirstResponder()
+    private func clearWalletNameImportPrompt(dismiss: Bool) {
+        let alert = walletNameImportAlert
+        clearWalletNameImportManagedText(walletNameImportField)
+        walletNameImportField = nil
+        walletNameImportAlert = nil
+        if dismiss {
+            alert?.dismiss(animated: false)
+        }
     }
 
     private func presentBirthdayPrompt(
@@ -1407,6 +1485,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func invalidateReadOperation() {
+        clearWalletNameImportPrompt(dismiss: true)
         readGeneration &+= 1
         isOperating = false
         synchronizedReadsAvailable = false
@@ -1610,8 +1689,89 @@ private enum WalletHnsNameImportOutcome: Sendable {
     case success(NativeHnsReadSnapshot.KnownName, NativeHnsReadSnapshot)
     case successRefreshFailed(String)
     case invalidInput
-    case unavailable
     case failure(String)
+}
+
+@MainActor
+func configureWalletNameImportTextField(_ field: UITextField) {
+    field.placeholder = "exact-name"
+    field.keyboardType = .asciiCapable
+    field.autocapitalizationType = .none
+    field.autocorrectionType = .no
+    field.spellCheckingType = .no
+    field.smartDashesType = .no
+    field.smartQuotesType = .no
+    field.smartInsertDeleteType = .no
+    field.textContentType = nil
+    field.accessibilityIdentifier = "wallet.import-hns-name.text"
+}
+
+@MainActor
+func clearWalletNameImportManagedText(_ field: UITextField?) {
+    field?.text = nil
+    field?.resignFirstResponder()
+}
+
+func walletNameImportFailureIsNonPoisoningInvalid(_ error: Error) -> Bool {
+    guard let bridgeError = error as? NativeWalletBridgeError,
+          case .callFailed(_, let code, _) = bridgeError else {
+        return false
+    }
+    return code == HNS_BROWSER_RESULT_INVALID_ARGUMENT ||
+        code == HNS_BROWSER_RESULT_INVALID_UTF8
+}
+
+typealias WalletNameImportAuthority = WalletReadBootstrapAuthority
+
+struct WalletNameImportState: Equatable, Sendable {
+    let authority: WalletNameImportAuthority?
+    let reopenedDurableConfirmedWallet: Bool
+    let protectedStorageIsAvailable: Bool
+    let lifecycleAllowsImport: Bool
+    let viewIsCurrent: Bool
+    let retirementInFlight: Bool
+    let operationInFlight: Bool
+    let unlockedExactReadProfile: Bool
+    let synchronizedHnsReadsConfigured: Bool
+}
+
+func walletNameImportMayStart(
+    expected: WalletNameImportAuthority,
+    current: WalletNameImportState
+) -> Bool {
+    expected == current.authority &&
+        walletReadBootstrapAuthorityIsWellFormed(expected) &&
+        WalletStorageLeaseRegistry.isCurrent(expected.lease) &&
+        current.reopenedDurableConfirmedWallet &&
+        current.protectedStorageIsAvailable &&
+        current.lifecycleAllowsImport &&
+        current.viewIsCurrent &&
+        !current.retirementInFlight &&
+        !current.operationInFlight &&
+        current.unlockedExactReadProfile &&
+        current.synchronizedHnsReadsConfigured
+}
+
+func walletNameImportCompletionMayApply(
+    expected: WalletNameImportAuthority,
+    current: WalletNameImportAuthority?,
+    expectedGeneration: UInt64,
+    currentGeneration: UInt64,
+    expectedLease: WalletStorageLeaseToken,
+    currentLease: WalletStorageLeaseToken?,
+    lifecycleAllowsImport: Bool,
+    viewIsCurrent: Bool,
+    operationInFlight: Bool
+) -> Bool {
+    expected == current &&
+        walletReadBootstrapAuthorityIsWellFormed(expected) &&
+        expectedGeneration == currentGeneration &&
+        expectedLease == expected.lease &&
+        expectedLease == currentLease &&
+        WalletStorageLeaseRegistry.isCurrent(expectedLease) &&
+        lifecycleAllowsImport &&
+        viewIsCurrent &&
+        operationInFlight
 }
 
 func walletReadMayPublish(

@@ -44,7 +44,7 @@ reconciliation before submission.
 Current source is the `0.5.10` release candidate: Android code `51`, embedded
 non-publishable Rust workspace `0.5.9`, and iOS build `60`. It pins exact reviewed
 `hns-wallet-rs 0.1.0` source
-`bc5901f794450d29fa9f5630bab4fbf91e37bedf`, whose protocol closure uses
+`2061a27e0358c7f00fcc70497ef97f9b89d569da`, whose protocol closure uses
 `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Both native
 shells expose local create, restore, open, status, unlock, lock, and one-account
 identity controls plus strict, bounded HNWR-v2 emission and native UI for
@@ -81,7 +81,7 @@ Earlier HNWR-v2 code-bearing source
 tests, API 37 native-runtime instrumentation, the complete Apple
 ABI/XCFramework/app/simulator gate, and aggregate Required CI all succeeded.
 CodeQL runs `31807519998` and `31807520229` also succeeded. That evidence
-predates the `bc5901f` exact-name import tranche, whose complete exact-source
+predates the `2061a27` exact-name import tranche, whose complete exact-source
 CI remains pending. Debug artifact
 `9222123624` is bound to that source; its artifact-archive SHA-256 is
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it

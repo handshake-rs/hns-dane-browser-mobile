@@ -168,7 +168,7 @@
   artifacts, installed-product evidence, screenshots, and store readback remain
   pending.
 - Updated release dependency sequence: mobile pins wallet `0.1.0` source
-  `bc5901f794450d29fa9f5630bab4fbf91e37bedf`, which consumes
+  `2061a27e0358c7f00fcc70497ef97f9b89d569da`, which consumes
   `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`;
   lockfile, source policy, and notices are aligned.
 - Mobile engine source unification remains complete: every adapter and

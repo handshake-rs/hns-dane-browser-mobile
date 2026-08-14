@@ -87,7 +87,7 @@ Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed the complete Apple gate and
 Required CI in full run `31807520618`; CodeQL runs `31807519998` and
 `31807520229` also passed. That historical evidence predates wallet pin
-`bc5901f` and HNWI-v1. The current import source awaits the complete Apple and
+`2061a27` and HNWI-v1. The current import source awaits the complete Apple and
 aggregate exact-source CI gates; neither source is signed physical-device
 evidence.
 The following matrix remains an optional installed-iPhone qualification

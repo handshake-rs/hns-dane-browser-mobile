@@ -98,12 +98,10 @@ const WALLET_READ_BUNDLE_HNS_READ_ONLY: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
-const WALLET_NAME_IMPORT_STATUS_SUCCESS: u8 = 1;
-const WALLET_NAME_IMPORT_STATUS_INVALID: u8 = 2;
-const WALLET_NAME_IMPORT_STATUS_UNAVAILABLE: u8 = 3;
-const WALLET_NAME_IMPORT_STATUS_FAILED: u8 = 4;
+const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;
 const WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES: usize = 12;
-const MAX_WALLET_NAME_IMPORT_JSON_BYTES: usize = 16 * 1024;
+const MAX_WALLET_NAME_INPUT_BYTES: usize = 63;
+const MAX_WALLET_NAME_IMPORT_JSON_BYTES: usize = 4 * 1024;
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
 const WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -1006,6 +1004,22 @@ unsafe fn wallet_hns_read_backend(
         .map_err(|_| FfiFailure::invalid("wallet read loopback configuration is invalid"))
 }
 
+unsafe fn wallet_exact_hns_name(name: HnsBrowserSlice) -> Result<SensitiveBytes, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(name, MAX_WALLET_NAME_INPUT_BYTES) }?;
+    if bytes.is_empty() {
+        return Err(FfiFailure::invalid("wallet HNS name is empty"));
+    }
+    if std::str::from_utf8(&bytes).is_err() {
+        bytes.fill(0);
+        return Err(FfiFailure::new(
+            HNS_BROWSER_RESULT_INVALID_UTF8,
+            "wallet HNS name is not valid UTF-8",
+        ));
+    }
+    Ok(SensitiveBytes(bytes))
+}
+
 fn wallet_read_bundle(snapshot: &MobileHnsReadSnapshot) -> Result<SensitiveBytes, FfiFailure> {
     let mut payload = serde_json::to_vec(snapshot)
         .map_err(|_| wallet_runtime_failure("unable to encode synchronized HNS wallet reads"))?;
@@ -1029,38 +1043,18 @@ fn wallet_read_bundle(snapshot: &MobileHnsReadSnapshot) -> Result<SensitiveBytes
     Ok(SensitiveBytes(bundle))
 }
 
-fn wallet_name_import_bundle(
-    status: u8,
-    summary: Option<&MobileHnsNameSummary>,
-) -> Result<SensitiveBytes, FfiFailure> {
-    let success = status == WALLET_NAME_IMPORT_STATUS_SUCCESS;
-    if !matches!(
-        status,
-        WALLET_NAME_IMPORT_STATUS_SUCCESS
-            | WALLET_NAME_IMPORT_STATUS_INVALID
-            | WALLET_NAME_IMPORT_STATUS_UNAVAILABLE
-            | WALLET_NAME_IMPORT_STATUS_FAILED
-    ) || success != summary.is_some()
-    {
-        return Err(FfiFailure::internal());
-    }
-    let mut payload = if let Some(summary) = summary {
-        serde_json::to_vec(summary)
-            .map_err(|_| wallet_runtime_failure("unable to encode HNS name import summary"))?
-    } else {
-        Vec::new()
-    };
+fn wallet_name_import_bundle(summary: &MobileHnsNameSummary) -> Result<SensitiveBytes, FfiFailure> {
+    let mut payload = serde_json::to_vec(summary)
+        .map_err(|_| wallet_runtime_failure("unable to encode HNS name import summary"))?;
     let total = WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES
         .checked_add(payload.len())
         .ok_or_else(FfiFailure::internal)?;
-    if payload.len() > MAX_WALLET_NAME_IMPORT_JSON_BYTES
+    if payload.is_empty()
+        || payload.len() > MAX_WALLET_NAME_IMPORT_JSON_BYTES
         || total > MAX_OUTPUT_BUFFER_BYTES
         || payload.len() > u32::MAX as usize
-        || (success
-            && (payload.is_empty()
-                || payload.first() != Some(&b'{')
-                || payload.last() != Some(&b'}')))
-        || (!success && !payload.is_empty())
+        || payload.first() != Some(&b'{')
+        || payload.last() != Some(&b'}')
     {
         payload.fill(0);
         return Err(FfiFailure::new(
@@ -1071,14 +1065,15 @@ fn wallet_name_import_bundle(
     let mut bundle = Vec::with_capacity(total);
     bundle.extend_from_slice(WALLET_NAME_IMPORT_BUNDLE_MAGIC);
     bundle.push(WALLET_NAME_IMPORT_BUNDLE_VERSION);
-    bundle.push(status);
+    bundle.push(WALLET_NAME_IMPORT_BUNDLE_FLAGS);
     bundle.extend_from_slice(&[0, 0]);
     bundle.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-    bundle.append(&mut payload);
+    bundle.extend_from_slice(&payload);
+    payload.fill(0);
     Ok(SensitiveBytes(bundle))
 }
 
-fn wallet_name_import_error_status(error: &MobileWalletError) -> u8 {
+fn wallet_name_import_failure(error: &MobileWalletError) -> FfiFailure {
     if matches!(
         error,
         MobileWalletError::ServiceFailure {
@@ -1086,9 +1081,9 @@ fn wallet_name_import_error_status(error: &MobileWalletError) -> u8 {
             ..
         }
     ) {
-        WALLET_NAME_IMPORT_STATUS_INVALID
+        FfiFailure::invalid("wallet HNS name is not exact canonical text")
     } else {
-        WALLET_NAME_IMPORT_STATUS_FAILED
+        wallet_runtime_failure("trusted-native HNS name import failed")
     }
 }
 
@@ -2135,79 +2130,74 @@ pub unsafe extern "C" fn hns_browser_wallet_has_hns_reads(
 }
 
 #[unsafe(no_mangle)]
-/// Imports one exact UTF-8 Handshake name only through the trusted native HNS
-/// read controller. No trimming, case conversion, IDNA, Unicode normalization,
-/// or trailing-dot editing occurs. The returned private HNWI-v1 bundle contains
-/// either one minimized summary or a closed invalid/unavailable/failed outcome.
-/// Callers must free it promptly and must never expose it to website content.
+/// Imports one exact canonical Handshake name only through the trusted native
+/// HNS read controller. No trimming, case conversion, IDNA, Unicode
+/// normalization, or trailing-dot editing occurs. On success, the returned
+/// private HNWI-v1 bundle contains exactly one minimized summary. Every
+/// non-success is returned as a C result with an empty output descriptor.
+/// Callers must free successful output promptly and never expose it to website
+/// content.
 ///
 /// # Safety
 /// The exact-name slice must remain readable for its declared length and
-/// `out_result_bundle` must point to one writable owned-buffer value.
+/// `out_summary_bundle` must point to one writable owned-buffer value.
 pub unsafe extern "C" fn hns_browser_wallet_import_hns_name_exact_text(
     wallet: HnsBrowserWalletHandle,
     exact_name: HnsBrowserSlice,
-    out_result_bundle: *mut HnsBrowserBuffer,
+    out_summary_bundle: *mut HnsBrowserBuffer,
 ) -> HnsBrowserResult {
     ffi_call(|| {
-        require_output(out_result_bundle)?;
+        require_output(out_summary_bundle)?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
-        unsafe { write_output(out_result_bundle, HnsBrowserBuffer::empty()) };
+        unsafe { write_output(out_summary_bundle, HnsBrowserBuffer::empty()) };
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        // SAFETY: This export carries the caller's readable-slice contract.
-        // All bounded input-shape failures are ordinary non-poisoning HNWI
-        // invalid outcomes, including invalid UTF-8 and an excessive length.
-        let name = match unsafe { input_str(exact_name, MAX_NAME_INPUT_BYTES) } {
-            Ok(name) => name,
-            Err(_) => {
-                let bundle =
-                    match wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_INVALID, None) {
-                        Ok(bundle) => bundle,
-                        Err(error) => {
-                            entry.controller.lock_fail_closed();
-                            return Err(error);
-                        }
-                    };
-                let output = match allocate_output(&bundle.0, true) {
-                    Ok(output) => output,
-                    Err(error) => {
-                        entry.controller.lock_fail_closed();
-                        return Err(error);
-                    }
-                };
-                // SAFETY: Null was rejected above and the C contract requires writable output.
-                unsafe { write_output(out_result_bundle, output) };
-                return Ok(());
-            }
-        };
-        let (status, summary) = match &mut entry.controller {
+        let summary = match &mut entry.controller {
             NativeWalletController::HnsReads(controller) => {
-                match controller.import_name_exact_text(name.as_str()) {
-                    Ok(summary) if summary.name.as_bytes() == name.as_bytes() => {
-                        (WALLET_NAME_IMPORT_STATUS_SUCCESS, Some(summary))
-                    }
+                // Parse only after proving this is the read controller. Length
+                // is rejected before any caller pointer is dereferenced.
+                // SAFETY: This export carries the caller's readable-slice contract.
+                let name = unsafe { wallet_exact_hns_name(exact_name) }?;
+                let text = std::str::from_utf8(&name.0).map_err(|_| {
+                    FfiFailure::new(
+                        HNS_BROWSER_RESULT_INVALID_UTF8,
+                        "wallet HNS name is not valid UTF-8",
+                    )
+                })?;
+                match controller.import_name_exact_text(text) {
+                    Ok(summary) if summary.name.as_bytes() == name.0.as_slice() => summary,
                     Ok(_) => {
                         let _ = controller.lock();
-                        (WALLET_NAME_IMPORT_STATUS_FAILED, None)
+                        return Err(wallet_runtime_failure(
+                            "HNS name import summary changed the exact input text",
+                        ));
                     }
                     Err(error) => {
-                        let status = wallet_name_import_error_status(&error);
-                        if status == WALLET_NAME_IMPORT_STATUS_FAILED {
-                            // Projection/evidence failures can happen after the
-                            // service call, so enforce the lock at this ABI
-                            // boundary rather than relying on Swift or upstream.
+                        let failure = wallet_name_import_failure(&error);
+                        if failure.code != HNS_BROWSER_RESULT_INVALID_ARGUMENT {
+                            // Projection/evidence failures can occur after the
+                            // service call. Enforce the lock at this ABI boundary
+                            // rather than relying only on upstream behavior.
                             let _ = controller.lock();
                         }
-                        (status, None)
+                        return Err(failure);
                     }
                 }
             }
-            NativeWalletController::Lifecycle(_) => (WALLET_NAME_IMPORT_STATUS_UNAVAILABLE, None),
-            NativeWalletController::Failed => (WALLET_NAME_IMPORT_STATUS_FAILED, None),
+            NativeWalletController::Lifecycle(_) => {
+                return Err(FfiFailure::new(
+                    HNS_BROWSER_RESULT_NOT_READY,
+                    "trusted-native HNS name import requires synchronized wallet reads",
+                ));
+            }
+            NativeWalletController::Failed => {
+                return Err(wallet_runtime_failure(
+                    "native wallet controller has failed",
+                ));
+            }
         };
-        let bundle = match wallet_name_import_bundle(status, summary.as_ref()) {
+        let bundle = match wallet_name_import_bundle(&summary) {
             Ok(bundle) => bundle,
             Err(error) => {
                 entry.controller.lock_fail_closed();
@@ -2222,7 +2212,7 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_name_exact_text(
             }
         };
         // SAFETY: Null was rejected above and the C contract requires writable output.
-        unsafe { write_output(out_result_bundle, output) };
+        unsafe { write_output(out_summary_bundle, output) };
         Ok(())
     })
 }
@@ -2911,23 +2901,65 @@ mod tests {
     }
 
     #[test]
-    fn wallet_name_import_bundle_is_versioned_closed_and_exact() {
+    fn wallet_name_import_input_and_success_bundle_are_exact_and_bounded() {
         let _guard = test_guard();
+        for exact in [
+            b"Alpha".as_slice(),
+            b"alpha.".as_slice(),
+            "caf\u{e9}".as_bytes(),
+        ] {
+            // SAFETY: Each fixture remains readable for this call.
+            let copied = unsafe { wallet_exact_hns_name(ffi_slice(exact)) }
+                .ok()
+                .expect("bounded exact UTF-8 input");
+            assert_eq!(copied.0, exact);
+        }
+        // SAFETY: Empty input does not dereference its null pointer.
+        assert!(matches!(
+            unsafe { wallet_exact_hns_name(null_slice()) },
+            Err(FfiFailure {
+                code: HNS_BROWSER_RESULT_INVALID_ARGUMENT,
+                ..
+            })
+        ));
+        let invalid_utf8 = [0xff];
+        // SAFETY: The fixture remains readable for this call.
+        assert!(matches!(
+            unsafe { wallet_exact_hns_name(ffi_slice(&invalid_utf8)) },
+            Err(FfiFailure {
+                code: HNS_BROWSER_RESULT_INVALID_UTF8,
+                ..
+            })
+        ));
+        let oversized = HnsBrowserSlice {
+            ptr: ptr::without_provenance::<u8>(1),
+            len: (MAX_WALLET_NAME_INPUT_BYTES + 1) as u64,
+        };
+        // SAFETY: The length is rejected before its sentinel pointer is read.
+        assert!(matches!(
+            unsafe { wallet_exact_hns_name(oversized) },
+            Err(FfiFailure {
+                code: HNS_BROWSER_RESULT_INVALID_ARGUMENT,
+                ..
+            })
+        ));
+
         let summary = MobileHnsNameSummary {
             name: "alpha".to_owned(),
-            name_hash: "0".repeat(64),
+            name_hash: "271878f8a927b4566ac951fc815b18dfad8d0302d61d11d80cbe15b7a3a056af"
+                .to_owned(),
             proof_height: 7,
             resource_status: hns_wallet_mobile::MobileHnsNameResourceStatus::CanonicalDecoded,
             ownership_status: hns_wallet_mobile::MobileHnsNameOwnershipStatus::WalletOwned,
             registered: Some(true),
             expired: Some(false),
         };
-        let bundle = wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_SUCCESS, Some(&summary))
+        let bundle = wallet_name_import_bundle(&summary)
             .ok()
             .expect("success bundle");
         assert_eq!(&bundle.0[..4], WALLET_NAME_IMPORT_BUNDLE_MAGIC);
         assert_eq!(bundle.0[4], WALLET_NAME_IMPORT_BUNDLE_VERSION);
-        assert_eq!(bundle.0[5], WALLET_NAME_IMPORT_STATUS_SUCCESS);
+        assert_eq!(bundle.0[5], WALLET_NAME_IMPORT_BUNDLE_FLAGS);
         assert_eq!(&bundle.0[6..8], &[0, 0]);
         let payload_length = u32::from_be_bytes(
             bundle.0[8..12]
@@ -2945,34 +2977,42 @@ mod tests {
             .expect("minimized summary"),
             summary
         );
-
-        for status in [
-            WALLET_NAME_IMPORT_STATUS_INVALID,
-            WALLET_NAME_IMPORT_STATUS_UNAVAILABLE,
-            WALLET_NAME_IMPORT_STATUS_FAILED,
+        let payload = std::str::from_utf8(&bundle.0[WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES..])
+            .expect("summary JSON");
+        for forbidden in [
+            "proofState",
+            "currentState",
+            "rawResource",
+            "ownerOutpoint",
+            "derivation",
+            "provider",
+            "value",
         ] {
-            let bundle = wallet_name_import_bundle(status, None)
-                .ok()
-                .expect("outcome bundle");
-            assert_eq!(bundle.0.len(), WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES);
-            assert_eq!(bundle.0[5], status);
+            assert!(!payload.contains(forbidden));
         }
-        assert!(wallet_name_import_bundle(0, None).is_err());
-        assert!(wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_SUCCESS, None).is_err());
-        assert!(
-            wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_INVALID, Some(&summary)).is_err()
-        );
+
         assert_eq!(
-            wallet_name_import_error_status(&MobileWalletError::ServiceFailure {
+            wallet_name_import_failure(&MobileWalletError::ServiceFailure {
                 code: ServiceErrorCode::InvalidRequest,
                 message: "invalid".to_owned(),
-            }),
-            WALLET_NAME_IMPORT_STATUS_INVALID
+            })
+            .code,
+            HNS_BROWSER_RESULT_INVALID_ARGUMENT
         );
         assert_eq!(
-            wallet_name_import_error_status(&MobileWalletError::ControllerFailed),
-            WALLET_NAME_IMPORT_STATUS_FAILED
+            wallet_name_import_failure(&MobileWalletError::ControllerFailed).code,
+            HNS_BROWSER_RESULT_RUNTIME_ERROR
         );
+
+        let mut oversized_summary = summary;
+        oversized_summary.name = "a".repeat(MAX_WALLET_NAME_IMPORT_JSON_BYTES);
+        assert!(matches!(
+            wallet_name_import_bundle(&oversized_summary),
+            Err(FfiFailure {
+                code: HNS_BROWSER_RESULT_RESOURCE_EXHAUSTED,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -3248,50 +3288,22 @@ mod tests {
         assert_eq!(snapshot.len, 0);
         assert_eq!(snapshot.allocation_id, 0);
 
-        let invalid_utf8 = [0xff_u8];
-        let overlong_name = [b'a'; MAX_NAME_INPUT_BYTES + 1];
-        for invalid_name in [invalid_utf8.as_slice(), overlong_name.as_slice()] {
-            let mut invalid_import = HnsBrowserBuffer::empty();
-            // SAFETY: Input is readable for its declared length and output is writable.
-            assert_eq!(
-                unsafe {
-                    hns_browser_wallet_import_hns_name_exact_text(
-                        wallet,
-                        ffi_slice(invalid_name),
-                        &mut invalid_import,
-                    )
-                },
-                HNS_BROWSER_RESULT_OK
-            );
-            let invalid_bytes = owned_bytes(invalid_import);
-            assert_eq!(&invalid_bytes[..4], WALLET_NAME_IMPORT_BUNDLE_MAGIC);
-            assert_eq!(invalid_bytes[4], WALLET_NAME_IMPORT_BUNDLE_VERSION);
-            assert_eq!(invalid_bytes[5], WALLET_NAME_IMPORT_STATUS_INVALID);
-            assert_eq!(invalid_bytes.len(), WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES);
-            assert_eq!(
-                hns_browser_buffer_free(invalid_import),
-                HNS_BROWSER_RESULT_OK
-            );
-        }
-
-        let mut import = HnsBrowserBuffer::empty();
-        // SAFETY: Exact UTF-8 input is readable and output is writable.
+        let mut imported = HnsBrowserBuffer::empty();
+        // SAFETY: Exact UTF-8 input is readable and output is writable. A
+        // lifecycle controller must reject this surface without consuming it.
         assert_eq!(
             unsafe {
                 hns_browser_wallet_import_hns_name_exact_text(
                     wallet,
                     ffi_slice(b"alpha"),
-                    &mut import,
+                    &mut imported,
                 )
             },
-            HNS_BROWSER_RESULT_OK
+            HNS_BROWSER_RESULT_NOT_READY
         );
-        let import_bytes = owned_bytes(import);
-        assert_eq!(&import_bytes[..4], WALLET_NAME_IMPORT_BUNDLE_MAGIC);
-        assert_eq!(import_bytes[4], WALLET_NAME_IMPORT_BUNDLE_VERSION);
-        assert_eq!(import_bytes[5], WALLET_NAME_IMPORT_STATUS_UNAVAILABLE);
-        assert_eq!(import_bytes.len(), WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES);
-        assert_eq!(hns_browser_buffer_free(import), HNS_BROWSER_RESULT_OK);
+        assert!(imported.ptr.is_null());
+        assert_eq!(imported.len, 0);
+        assert_eq!(imported.allocation_id, 0);
 
         // SAFETY: Authorization is readable; port zero must be rejected before composition.
         assert_eq!(
@@ -3348,6 +3360,75 @@ mod tests {
             HNS_BROWSER_RESULT_OK
         );
         assert_eq!(enabled, 1);
+
+        // Once reads are installed, malformed input is rejected at the exact
+        // boundary without allocating an HNWI result or reaching node I/O.
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_import_hns_name_exact_text(wallet, null_slice(), &mut imported)
+            },
+            HNS_BROWSER_RESULT_INVALID_ARGUMENT
+        );
+        let invalid_utf8 = [0xff];
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_import_hns_name_exact_text(
+                    wallet,
+                    ffi_slice(&invalid_utf8),
+                    &mut imported,
+                )
+            },
+            HNS_BROWSER_RESULT_INVALID_UTF8
+        );
+        let oversized_name = HnsBrowserSlice {
+            ptr: ptr::without_provenance::<u8>(1),
+            len: (MAX_WALLET_NAME_INPUT_BYTES + 1) as u64,
+        };
+        assert_eq!(
+            unsafe {
+                hns_browser_wallet_import_hns_name_exact_text(wallet, oversized_name, &mut imported)
+            },
+            HNS_BROWSER_RESULT_INVALID_ARGUMENT
+        );
+        assert!(imported.ptr.is_null());
+        assert_eq!(imported.len, 0);
+        assert_eq!(imported.allocation_id, 0);
+
+        // Canonical validation remains upstream and non-poisoning. These exact
+        // malformed spellings must not be transformed before that rejection.
+        assert_eq!(
+            unsafe { hns_browser_wallet_unlock(wallet, ffi_slice(&database_key)) },
+            HNS_BROWSER_RESULT_OK
+        );
+        for malformed_exact in [
+            b" alpha".as_slice(),
+            b"Alpha".as_slice(),
+            b"alpha.".as_slice(),
+            "\u{e9}".as_bytes(),
+        ] {
+            assert_eq!(
+                unsafe {
+                    hns_browser_wallet_import_hns_name_exact_text(
+                        wallet,
+                        ffi_slice(malformed_exact),
+                        &mut imported,
+                    )
+                },
+                HNS_BROWSER_RESULT_INVALID_ARGUMENT
+            );
+            assert!(imported.ptr.is_null());
+        }
+        let mut unlocked_status = HnsBrowserBuffer::empty();
+        assert_eq!(
+            unsafe { hns_browser_wallet_status(wallet, &mut unlocked_status) },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert!(owned_string(unlocked_status).contains("\"locked\":false"));
+        assert_eq!(
+            hns_browser_buffer_free(unlocked_status),
+            HNS_BROWSER_RESULT_OK
+        );
+        assert_eq!(hns_browser_wallet_lock(wallet), HNS_BROWSER_RESULT_OK);
 
         let mut status = HnsBrowserBuffer::empty();
         // SAFETY: Output points to one writable buffer descriptor.

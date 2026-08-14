@@ -5,6 +5,8 @@
 _Static_assert(HNS_BROWSER_ABI_VERSION == 1u, "unexpected ABI version");
 _Static_assert(HNS_BROWSER_WALLET_READ_BUNDLE_VERSION == 2u,
                "unexpected wallet read bundle version");
+_Static_assert(HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION == 1u,
+               "unexpected wallet name import bundle version");
 _Static_assert(sizeof(HnsBrowserRuntimeHandle) == sizeof(uint64_t), "runtime handle width");
 _Static_assert(sizeof(HnsBrowserProxyHandle) == sizeof(uint64_t), "proxy handle width");
 _Static_assert(sizeof(HnsBrowserWalletHandle) == sizeof(uint64_t), "wallet handle width");
@@ -46,6 +48,10 @@ static void typecheck_api(void) {
     HnsBrowserResult (*wallet_synchronize_reads)(HnsBrowserWalletHandle,
                                                   HnsBrowserBuffer *) =
         hns_browser_wallet_synchronize_hns_reads;
+    HnsBrowserResult (*wallet_import_name)(HnsBrowserWalletHandle,
+                                           HnsBrowserSlice,
+                                           HnsBrowserBuffer *) =
+        hns_browser_wallet_import_hns_name_exact_text;
     HnsBrowserResult (*wallet_unlock)(HnsBrowserWalletHandle, HnsBrowserSlice) =
         hns_browser_wallet_unlock;
     HnsBrowserResult (*wallet_lock)(HnsBrowserWalletHandle) = hns_browser_wallet_lock;
@@ -67,6 +73,7 @@ static void typecheck_api(void) {
     (void)wallet_configure_reads;
     (void)wallet_has_reads;
     (void)wallet_synchronize_reads;
+    (void)wallet_import_name;
     (void)wallet_unlock;
     (void)wallet_lock;
     (void)wallet_recovery;

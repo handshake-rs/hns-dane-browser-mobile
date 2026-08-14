@@ -29,7 +29,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Repinned `hns-wallet-mobile 0.1.0` to exact source
-  `bc5901f794450d29fa9f5630bab4fbf91e37bedf` and its `hns-rs 0.3.0`
+  `2061a27e0358c7f00fcc70497ef97f9b89d569da` and its `hns-rs 0.3.0`
   closure to `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`; Cargo policy,
   the lockfile, and generated notices bind that reviewed chain.
 - iOS now renders the same bounded read-only wallet detail as Android,
@@ -63,7 +63,7 @@ All notable changes to this project will be documented in this file.
   expires 2026-08-17; it is debug-only, not store signed. Signed artifacts,
   screenshots, store declaration/upload, credentialed wallet workflows, and
   physical-device qualification remain open. That run qualifies only
-  `986accb7d86d220af63187031e629a9ce69d71e5` and predates the `bc5901f`
+  `986accb7d86d220af63187031e629a9ce69d71e5` and predates the `2061a27`
   pin/HNWI-v1 tranche; current exact-source Apple and aggregate CI remain
   pending.
 

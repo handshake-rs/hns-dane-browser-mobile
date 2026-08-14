@@ -5,59 +5,46 @@ import java.nio.ByteOrder
 import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativeWalletNameImportResultTest {
     @Test
     fun exactSuccessSummaryParsesThroughTheClosedHnwiV1Schema() {
-        val parsed = NativeWalletNameImportResult.parse(bundle(STATUS_SUCCESS, summary()))
-        val success = parsed as? NativeWalletNameImportResult.Success
-        assertEquals("alpha", success?.summary?.name)
-        assertEquals("ab".repeat(32), success?.summary?.nameHash)
-        assertEquals(7L, success?.summary?.proofHeight)
-        assertEquals("canonicalDecoded", success?.summary?.resourceStatus)
-        assertEquals("walletOwned", success?.summary?.ownershipStatus)
-        assertEquals(true, success?.summary?.registered)
-        assertEquals(false, success?.summary?.expired)
+        val parsed = NativeWalletNameImportBundle.parse(bundle(summary()))
+        assertEquals("alpha", parsed?.name)
+        assertEquals("ab".repeat(32), parsed?.nameHash)
+        assertEquals(7L, parsed?.proofHeight)
+        assertEquals("canonicalDecoded", parsed?.resourceStatus)
+        assertEquals("walletOwned", parsed?.ownershipStatus)
+        assertEquals(true, parsed?.registered)
+        assertEquals(false, parsed?.expired)
     }
 
     @Test
-    fun emptyNonSuccessOutcomesAreExactAndClosed() {
-        assertSame(
-            NativeWalletNameImportResult.InvalidInput,
-            NativeWalletNameImportResult.parse(bundle(STATUS_INVALID)),
+    fun envelopeFlagsReservedLengthAndTrailingBytesFailClosed() {
+        val valid = bundle(summary())
+        assertNull(NativeWalletNameImportBundle.parse(valid.copyOf().apply { this[0] = 0 }))
+        assertNull(NativeWalletNameImportBundle.parse(valid.copyOf().apply { this[4] = 2 }))
+        assertNull(NativeWalletNameImportBundle.parse(valid.copyOf().apply { this[5] = 1 }))
+        assertNull(NativeWalletNameImportBundle.parse(valid.copyOf().apply { this[6] = 1 }))
+        assertNull(NativeWalletNameImportBundle.parse(valid.copyOf().apply { this[7] = 1 }))
+        assertNull(NativeWalletNameImportBundle.parse(valid.copyOf(valid.size - 1)))
+        assertNull(NativeWalletNameImportBundle.parse(valid + byteArrayOf(0)))
+        assertNull(NativeWalletNameImportBundle.parse(valid.copyOf().apply { this[11]++ }))
+        assertNull(NativeWalletNameImportBundle.parse(rawBundle(ByteArray(0))))
+        assertNull(
+            NativeWalletNameImportBundle.parse(
+                rawBundle(ByteArray(MAX_IMPORT_JSON_BYTES + 1) { '{'.code.toByte() }),
+            ),
         )
-        assertSame(
-            NativeWalletNameImportResult.Unavailable,
-            NativeWalletNameImportResult.parse(bundle(STATUS_UNAVAILABLE)),
-        )
-        assertSame(
-            NativeWalletNameImportResult.Failed,
-            NativeWalletNameImportResult.parse(bundle(STATUS_FAILED)),
-        )
-        assertNull(NativeWalletNameImportResult.parse(bundle(0)))
-        assertNull(NativeWalletNameImportResult.parse(bundle(5)))
-        assertNull(NativeWalletNameImportResult.parse(bundle(STATUS_INVALID, summary())))
-        assertNull(NativeWalletNameImportResult.parse(bundle(STATUS_SUCCESS)))
     }
 
     @Test
-    fun envelopeVersionReservedLengthAndTrailingBytesFailClosed() {
-        val valid = bundle(STATUS_SUCCESS, summary())
-        assertNull(NativeWalletNameImportResult.parse(valid.copyOf().apply { this[0] = 0 }))
-        assertNull(NativeWalletNameImportResult.parse(valid.copyOf().apply { this[4] = 2 }))
-        assertNull(NativeWalletNameImportResult.parse(valid.copyOf().apply { this[6] = 1 }))
-        assertNull(NativeWalletNameImportResult.parse(valid.copyOf().apply { this[7] = 1 }))
-        assertNull(NativeWalletNameImportResult.parse(valid.copyOf(valid.size - 1)))
-        assertNull(NativeWalletNameImportResult.parse(valid + byteArrayOf(0)))
-        assertNull(NativeWalletNameImportResult.parse(valid.copyOf().apply { this[11]++ }))
-    }
-
-    @Test
-    fun successRequiresTheExactMinimizedNameShape() {
+    fun successRequiresTheCanonicalExactMinimizedNameShape() {
         rejectSuccess { it.put("ownerOutpoint", "private") }
         rejectSuccess { it.remove("nameHash") }
         rejectSuccess { it.put("name", " Alpha") }
@@ -78,40 +65,70 @@ class NativeWalletNameImportResultTest {
     }
 
     @Test
-    fun bridgeWipesBundlesAndExactUtf8EncodingNeverEditsText() {
-        val encoded = bundle(STATUS_SUCCESS, summary())
-        val parsed = NativeWalletBridge.parseAndWipeHnsNameImportBundle(encoded)
-        assertEquals("alpha", (parsed as NativeWalletNameImportResult.Success).summary.name)
-        assertTrue(encoded.all { it == 0.toByte() })
-
-        val exact = " Alpha-.".toByteArray(Charsets.UTF_8)
-        val bridged = walletNameExactUtf8(" Alpha-.")
-        assertArrayEquals(exact, bridged)
-        bridged?.fill(0)
-        assertNull(walletNameExactUtf8("\uD800"))
-        assertNull(walletNameExactUtf8("a".repeat(4 * 1024 + 1)))
+    fun exactUiEncodingPreservesTextAndRejectsMalformedEmptyOrOversizeInput() {
+        for (exact in listOf("Alpha", "alpha.", " alpha", "é")) {
+            assertArrayEquals(exact.toByteArray(Charsets.UTF_8), exactWalletNameUtf8(exact))
+        }
+        assertNull(exactWalletNameUtf8(""))
+        assertNull(exactWalletNameUtf8("a".repeat(64)))
+        assertNull(exactWalletNameUtf8("é".repeat(32)))
+        assertNull(exactWalletNameUtf8(String(charArrayOf('\ud800'))))
     }
 
     @Test
-    fun successRequiresTheSameExactNameAndHashInTheFreshSnapshot() {
-        val imported = (NativeWalletNameImportResult.parse(
-            bundle(STATUS_SUCCESS, summary()),
-        ) as NativeWalletNameImportResult.Success).summary
-        val matching = readSnapshot(imported)
-        assertTrue(walletNameImportRefreshMatches(imported, matching))
-        assertTrue(!walletNameImportRefreshMatches(imported, readSnapshot(imported.copy(
-            name = "beta",
-        ))))
-        assertTrue(!walletNameImportRefreshMatches(imported, readSnapshot(imported.copy(
-            nameHash = "cd".repeat(32),
-        ))))
-        assertTrue(!walletNameImportRefreshMatches(imported, readSnapshot(null)))
+    fun bridgeWipesBundlesAndRejectedCallerOwnedInput() {
+        val encoded = bundle(summary())
+        assertNotNull(NativeWalletBridge.parseAndWipeHnsNameImportBundle(encoded))
+        assertTrue(encoded.all { it == 0.toByte() })
+
+        val noHandle = "alpha".toByteArray(Charsets.UTF_8)
+        assertNull(NativeWalletBridge.importHnsNameExactText(0, noHandle))
+        assertTrue(noHandle.all { it == 0.toByte() })
+
+        val oversize = ByteArray(64) { 'a'.code.toByte() }
+        assertNull(NativeWalletBridge.importHnsNameExactText(1, oversize))
+        assertTrue(oversize.all { it == 0.toByte() })
+    }
+
+    @Test
+    fun successMustEchoTheExactRequestedUtf8() {
+        val imported = checkNotNull(NativeWalletNameImportBundle.parse(bundle(summary())))
+        val exact = "alpha".toByteArray(Charsets.UTF_8)
+        assertTrue(walletNameImportEchoMatches(imported, exact))
+        assertFalse(walletNameImportEchoMatches(imported, "Alpha".toByteArray(Charsets.UTF_8)))
+        exact.fill(0)
+    }
+
+    @Test
+    fun freshSnapshotRequiresExactlyOneMatchingNameAndHashIdentity() {
+        val imported = checkNotNull(NativeWalletNameImportBundle.parse(bundle(summary())))
+        assertTrue(walletNameImportRefreshMatches(imported, readSnapshot(listOf(imported))))
+        assertTrue(
+            walletNameImportRefreshMatches(
+                imported,
+                readSnapshot(listOf(imported.copy(proofHeight = 8))),
+            ),
+        )
+        assertFalse(walletNameImportRefreshMatches(imported, readSnapshot(emptyList())))
+        assertFalse(
+            walletNameImportRefreshMatches(
+                imported,
+                readSnapshot(listOf(imported.copy(name = "beta"))),
+            ),
+        )
+        assertFalse(
+            walletNameImportRefreshMatches(
+                imported,
+                readSnapshot(listOf(imported.copy(nameHash = "cd".repeat(32)))),
+            ),
+        )
+        assertFalse(walletNameImportRefreshMatches(imported, readSnapshot(listOf(imported, imported))))
     }
 
     private fun rejectSuccess(mutate: (JSONObject) -> Unit) {
         val candidate = summary()
         mutate(candidate)
-        assertNull(NativeWalletNameImportResult.parse(bundle(STATUS_SUCCESS, candidate)))
+        assertNull(NativeWalletNameImportBundle.parse(bundle(candidate)))
     }
 
     private fun summary(): JSONObject = JSONObject()
@@ -123,19 +140,25 @@ class NativeWalletNameImportResultTest {
         .put("registered", true)
         .put("expired", false)
 
-    private fun bundle(status: Int, value: JSONObject? = null): ByteArray {
-        val json = value?.toString()?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
-        return ByteBuffer.allocate(12 + json.size).order(ByteOrder.BIG_ENDIAN).apply {
-            put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'W'.code.toByte(), 'I'.code.toByte()))
+    private fun bundle(value: JSONObject): ByteArray =
+        rawBundle(value.toString().toByteArray(Charsets.UTF_8))
+
+    private fun rawBundle(json: ByteArray): ByteArray =
+        ByteBuffer.allocate(HEADER_BYTES + json.size).order(ByteOrder.BIG_ENDIAN).apply {
+            put(byteArrayOf(
+                'H'.code.toByte(),
+                'N'.code.toByte(),
+                'W'.code.toByte(),
+                'I'.code.toByte(),
+            ))
             put(1)
-            put(status.toByte())
+            put(0)
             putShort(0)
             putInt(json.size)
             put(json)
         }.array()
-    }
 
-    private fun readSnapshot(name: NativeWalletName?): NativeWalletReadSnapshot =
+    private fun readSnapshot(names: List<NativeWalletName>): NativeWalletReadSnapshot =
         NativeWalletReadSnapshot(
             balanceBaseUnits = "0",
             paymentReceiveTarget = NativeWalletPaymentReceiveTarget(
@@ -150,13 +173,11 @@ class NativeWalletNameImportResultTest {
             ),
             height = 42,
             transactions = emptyList(),
-            trackedNames = listOfNotNull(name),
+            trackedNames = names,
         )
 
     private companion object {
-        const val STATUS_SUCCESS = 1
-        const val STATUS_INVALID = 2
-        const val STATUS_UNAVAILABLE = 3
-        const val STATUS_FAILED = 4
+        const val HEADER_BYTES = 12
+        const val MAX_IMPORT_JSON_BYTES = 4 * 1024
     }
 }

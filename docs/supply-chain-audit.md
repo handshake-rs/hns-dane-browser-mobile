@@ -5,7 +5,7 @@ Last audited: 2026-08-14
 Current candidate source coordinates Android `0.5.10` / code `51`, the embedded
 non-publishable Rust workspace `0.5.9`, and iOS `0.5.10` / build `60`. It pins
 `hns-wallet-mobile 0.1.0` to exact wallet source
-`bc5901f794450d29fa9f5630bab4fbf91e37bedf`, whose HNS primitives resolve from
+`2061a27e0358c7f00fcc70497ef97f9b89d569da`, whose HNS primitives resolve from
 `hns-rs 0.3.0` source
 `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
 
@@ -23,7 +23,7 @@ Earlier HNWR-v2/ECH-and-sync-telemetry code-bearing source
 `31807520618`, including repository policy, Rust/supply-chain, Android
 build/unit, API 37 native instrumentation, the complete Apple
 ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs `31807519998`
-and `31807520229` also passed. That evidence predates the `bc5901f` exact-name
+and `31807520229` also passed. That evidence predates the `2061a27` exact-name
 import tranche, whose exact-source CI remains pending. Debug artifact
 `9222123624` has
 artifact-archive SHA-256

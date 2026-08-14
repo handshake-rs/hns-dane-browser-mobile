@@ -13,7 +13,7 @@ into the app.
 | Android app | `0.5.10` / code `51` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `0.5.9` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `0.5.10` / build `60` | `ios/project.yml` |
-| Native wallet controller | `hns-wallet-mobile 0.1.0` at `bc5901f794450d29fa9f5630bab4fbf91e37bedf` | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| Native wallet controller | `hns-wallet-mobile 0.1.0` at `2061a27e0358c7f00fcc70497ef97f9b89d569da` | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | `hns-rs 0.3.0` at `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
@@ -116,11 +116,11 @@ Notes:
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
 - `hns-wallet-mobile` is pinned to wallet `0.1.0` source
-  `bc5901f794450d29fa9f5630bab4fbf91e37bedf`. Its lock closure uses
+  `2061a27e0358c7f00fcc70497ef97f9b89d569da`. Its lock closure uses
   `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
   The dependency sequence is complete. Run `31807520618` qualified only earlier
   HNWR-v2 source `986accb7d86d220af63187031e629a9ce69d71e5` and predates
-  the `bc5901f` pin/import tranche; current exact-source CI remains pending.
+  the `2061a27` pin/import tranche; current exact-source CI remains pending.
   Signed store artifacts, exact screenshots, store
   declaration/readback, and intentional upload remain separate gates.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on

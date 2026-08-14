@@ -4,7 +4,7 @@ This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the pinned
   `hns-wallet-mobile` controller at
-  wallet source `bc5901f794450d29fa9f5630bab4fbf91e37bedf`; and
+  wallet source `2061a27e0358c7f00fcc70497ef97f9b89d569da`; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
@@ -174,14 +174,15 @@ spell checking, suggestions, and smart punctuation. Canonical validation is the
 pinned `hns-covenants` grammar: 1 through 63 lowercase ASCII letters or digits,
 with `-` and `_` only internally and the five reserved names rejected.
 
-The private result is `HNWI` version 1: a 12-byte closed envelope with a bounded
-payload and exactly one of success, invalid-input, unavailable, or failed.
-Success contains only the strict minimized HNS name summary already used by
-HNWR-v2; every other status has an empty payload. Both native decoders reject
-unknown fields, wrong shapes, noncanonical values, size/version/reserved-byte
-mismatches, and a returned name whose bytes differ from the submitted text.
-HNWI is absent from provider, JavaScript, approval, value, HNSA, and HNSR
-surfaces.
+The private success result is `HNWI` version 1: a closed envelope with a 12-byte
+header, zero flags and reserved bytes, a big-endian JSON length, and a
+1-through-4096 byte strict minimized HNS name summary already used by HNWR-v2.
+Non-success is returned outside HNWI as a null JNI result or typed C result with
+empty output.
+Both native decoders reject unknown fields, wrong shapes, noncanonical values,
+size/version/flag/reserved-byte mismatches, non-object framing, and a returned
+name whose bytes differ from the submitted text. HNWI is absent from provider,
+JavaScript, approval, value, HNSA, and HNSR surfaces.
 
 Import and the mandatory post-success HNWR-v2 synchronization run away from the
 UI thread. Publication requires the exact live storage lease, read generation,

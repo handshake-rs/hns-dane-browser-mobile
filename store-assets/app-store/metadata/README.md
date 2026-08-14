@@ -11,7 +11,7 @@ still require explicit reconciliation and attestation.
 The native wallet lifecycle tranche passed its dated complete Apple gate in
 Required CI run `31393998309` at
 `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The current package pins wallet
-`0.1.0` source `bc5901f` and `hns-rs 0.3.0` source `88ed7c6`;
+`0.1.0` source `2061a27` and `hns-rs 0.3.0` source `88ed7c6`;
 source policy, lockfile, and notices are aligned. Historical `0.5.8` application
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 `31402758394`; documentation-only parent
@@ -30,7 +30,7 @@ this Android UI result is not iOS evidence. Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
 `31807520618`, including the complete Apple ABI/XCFramework/app/simulator gate
 and Required CI; CodeQL runs `31807519998` and `31807520229` also passed. Those
-results predate the `bc5901f` exact-name import tranche, whose complete
+results predate the `2061a27` exact-name import tranche, whose complete
 Apple and aggregate exact-source CI remains pending. Debug artifact `9222123624`
 is source-bound but debug-only and not store signed; its
 artifact-archive SHA-256 is

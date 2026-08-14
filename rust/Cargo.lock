@@ -1073,7 +1073,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-chain-api"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "hns-wallet-types",
  "serde",
@@ -1084,7 +1084,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-ffi"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "hns-covenants",
  "hns-wallet-types",
@@ -1097,7 +1097,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-hns"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "bech32",
  "bip39",
@@ -1126,7 +1126,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-host"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "getrandom 0.3.4",
  "hns-wallet-ffi",
@@ -1138,7 +1138,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-mobile"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "hns-wallet-ffi",
  "hns-wallet-hns",
@@ -1154,7 +1154,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-provider"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "hns-wallet-store",
  "hns-wallet-types",
@@ -1168,7 +1168,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-service"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "getrandom 0.3.4",
  "hns-wallet-ffi",
@@ -1185,7 +1185,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-store"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "argon2",
  "chacha20poly1305",
@@ -1204,7 +1204,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-types"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bc5901f794450d29fa9f5630bab4fbf91e37bedf#bc5901f794450d29fa9f5630bab4fbf91e37bedf"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=2061a27e0358c7f00fcc70497ef97f9b89d569da#2061a27e0358c7f00fcc70497ef97f9b89d569da"
 dependencies = [
  "hex",
  "serde",

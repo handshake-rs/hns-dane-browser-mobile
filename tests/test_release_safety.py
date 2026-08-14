@@ -37,13 +37,13 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(wallet["version"], "=0.1.0")
         self.assertEqual(
             wallet["rev"],
-            "bc5901f794450d29fa9f5630bab4fbf91e37bedf",
+            "2061a27e0358c7f00fcc70497ef97f9b89d569da",
         )
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
             "hns-wallet-rs.git?rev="
-            "bc5901f794450d29fa9f5630bab4fbf91e37bedf",
+            "2061a27e0358c7f00fcc70497ef97f9b89d569da",
             lockfile,
         )
         self.assertIn(

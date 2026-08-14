@@ -143,9 +143,11 @@ android_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/Ma
 android_wallet_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/WalletActivity.kt"
 android_wallet_storage="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/WalletStorageOwnership.kt"
 android_wallet_bootstrap="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/WalletReadBootstrap.kt"
+android_wallet_name_import="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/NativeWalletNameImportResult.kt"
 android_hrm_hnsa_consumer="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/HrmHnsaWalletConsumer.kt"
 android_wallet_bridge="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/NativeWalletBridge.kt"
 android_wallet_protocol="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/MobileWalletProviderProtocol.kt"
+android_wallet_ffi="$ROOT_DIR/rust/crates/android-ffi/src/lib.rs"
 android_classifier="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserUrlClassifier.kt"
 android_host_policy="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/HnsHostPolicy.kt"
 ios_runtime="$ROOT_DIR/ios/HnsDaneBrowser/Core/RustBrowserRuntime.swift"
@@ -206,6 +208,39 @@ require_source_contains "$android_wallet_bootstrap" \
 require_source_contains "$android_wallet_bridge" \
   'configuration.consumeFor(currentAuthority)' \
   "Android native wallet-read composition must consume an authority-bound one-shot credential."
+require_source_contains "$android_wallet_name_import" \
+  'val characters = CharArray(value.length) { index -> value[index] }' \
+  "Android trusted-native name import must preserve exact entered characters in a mutable buffer."
+require_source_contains "$android_wallet_name_import" \
+  'expected.hasCurrentStorageLease()' \
+  "Android trusted-native name import must retain the exact issuing storage lease."
+require_source_contains "$android_wallet_activity" \
+  'filters = emptyArray()' \
+  "Android trusted-native name entry must reject overlong exact text instead of truncating it."
+require_source_contains "$android_wallet_activity" \
+  'walletNameImportMayBegin(expected, walletNameImportState(lease))' \
+  "Android trusted-native name import must recheck its exact authority before starting."
+require_source_contains "$android_wallet_activity" \
+  'hnsReadsConfigured = NativeWalletBridge.hasHnsReads(handle)' \
+  "Android trusted-native name import must require the synchronized HNS read controller."
+require_source_contains "$android_wallet_bridge" \
+  'nativeImportHnsNameExactText(handle, exactUtf8)' \
+  "Android trusted-native name import must use the dedicated mutable-byte JNI boundary."
+require_source_contains "$android_wallet_bridge" \
+  'exactUtf8.fill(0)' \
+  "Android trusted-native name import must wipe its caller-owned mutable UTF-8 bytes."
+require_source_contains "$android_wallet_ffi" \
+  'let Self::Reads(controller) = self else' \
+  "Android native name import must be unavailable outside the synchronized HNS read controller."
+require_source_contains "$android_wallet_ffi" \
+  'const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;' \
+  "Android HNWI-v1 output must retain the coordinated zero-flags contract."
+require_source_absent "$android_activity" \
+  'importHnsNameExactText' \
+  "Android website/browser activity must not receive trusted-native wallet import authority."
+require_source_absent "$android_wallet_protocol" \
+  'importHnsNameExactText' \
+  "Android website-provider protocol must not expose trusted-native name import."
 require_source_contains "$android_hrm_hnsa_consumer" \
   'internal const val HRM_HNSA_NAMED_SERVICE_PROFILE = "hns.named-service/v1"' \
   "Android HRM/HNSA consumption must accept only the exact named-service profile."
@@ -274,6 +309,30 @@ require_source_contains "$ios_wallet_controller" \
 require_source_contains "$ios_wallet_controller" \
   'currentAuthority == expectedAuthority' \
   "iOS wallet-read admission must reject authority rotation during credential acquisition."
+require_source_contains "$ios_native_wallet" \
+  'for byte in exactText.utf8.prefix(64)' \
+  "iOS trusted-native name import must bound exact UTF-8 before materializing input bytes."
+require_source_contains "$ios_native_wallet" \
+  'hns_browser_wallet_import_hns_name_exact_text(' \
+  "iOS trusted-native name import must use the dedicated C ABI boundary."
+require_source_contains "$ios_wallet_controller" \
+  'walletNameImportMayStart(expected: authority, current: current)' \
+  "iOS trusted-native name import must recheck its exact wallet authority before starting."
+require_source_contains "$ios_wallet_controller" \
+  'clearWalletNameImportPrompt(dismiss: true)' \
+  "iOS lifecycle protection must clear and dismiss the trusted-native name prompt."
+require_source_contains "$ios_ffi_dir/src/lib.rs" \
+  'NativeWalletController::HnsReads(controller) =>' \
+  "iOS native name import must be unavailable outside the synchronized HNS read controller."
+require_source_contains "$ios_ffi_dir/src/lib.rs" \
+  'const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;' \
+  "iOS HNWI-v1 output must retain the coordinated zero-flags contract."
+require_source_absent "$ios_runtime" \
+  'hns_browser_wallet_import_hns_name_exact_text' \
+  "iOS browser runtime must not receive trusted-native wallet import authority."
+require_source_absent "$ios_wallet_protocol" \
+  'importHnsNameExactText' \
+  "iOS website-provider protocol must not expose trusted-native name import."
 require_source_contains "$ios_hrm_hnsa_consumer" \
   'let hrmHnsaNamedServiceProfile = "hns.named-service/v1"' \
   "iOS HRM/HNSA consumption must accept only the exact named-service profile."

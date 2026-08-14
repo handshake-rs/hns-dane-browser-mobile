@@ -262,18 +262,19 @@ HnsBrowserResult hns_browser_wallet_synchronize_hns_reads(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_snapshot_bundle);
 /*
- * Imports exact UTF-8 name text through the trusted native controller without
- * trimming, lowercasing, IDNA, Unicode normalization, or trailing-dot edits.
- * Invalid UTF-8 and excessive input produce the non-poisoning invalid outcome.
- * With an installed HNS-read controller, noncanonical text does too; otherwise
- * unavailable takes precedence. Returns a private HNWI-v1 result bundle with
- * one minimized summary or a closed invalid/unavailable/failed outcome. Never
+ * Imports exact UTF-8 name text only through the synchronized HNS-read
+ * controller, without trimming, lowercasing, IDNA, Unicode normalization, or
+ * trailing-dot edits. The input must contain 1..63 UTF-8 bytes. On success,
+ * returns a private HNWI-v1 bundle: "HNWI", version 1, zero flags, two zero
+ * reserved bytes, a big-endian u32 JSON length, and one exact minimized
+ * MobileHnsNameSummary payload of at most 4096 bytes. Every non-success is a C
+ * result with empty output. Free successful output promptly; never log it or
  * expose it to WebKit.
  */
 HnsBrowserResult hns_browser_wallet_import_hns_name_exact_text(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice exact_name,
-    HnsBrowserBuffer *out_result_bundle);
+    HnsBrowserBuffer *out_summary_bundle);
 HnsBrowserResult hns_browser_wallet_unlock(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice database_key);

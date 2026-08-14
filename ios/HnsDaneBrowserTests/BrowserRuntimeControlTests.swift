@@ -78,17 +78,17 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     private func hnsNameImportBundle(
-        status: UInt8,
-        json: String? = nil,
+        json: String,
         version: UInt8 = 1,
+        flags: UInt8 = 0,
         reservedHigh: UInt8 = 0,
         reservedLow: UInt8 = 0
     ) -> [UInt8] {
-        let payload = json.map { Array($0.utf8) } ?? []
+        let payload = Array(json.utf8)
         let length = UInt32(payload.count)
         return Array("HNWI".utf8) + [
             version,
-            status,
+            flags,
             reservedHigh,
             reservedLow,
             UInt8((length >> 24) & 0xff),
@@ -271,14 +271,33 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
     }
 
-    func testNativeHNSNameImportBundleIsStrictVersionedAndMinimized() throws {
-        let json = hnsNameSummaryJSON()
-        let result = try NativeHnsNameImportResult.decode(
-            bundle: hnsNameImportBundle(status: 1, json: json)
-        )
-        guard case .success(let summary) = result else {
-            return XCTFail("expected one minimized HNWI success summary")
+    func testNativeHNSNameImportInputBundleAndRefreshIdentityAreStrict() throws {
+        let exactText = "Alpha."
+        let input = try XCTUnwrap(WalletExactHnsNameInput(exactText: exactText))
+        try input.consume { bytes in
+            XCTAssertEqual(bytes, Array(exactText.utf8))
         }
+        XCTAssertThrowsError(try input.consume { _ in () }) { error in
+            XCTAssertEqual(error as? WalletExactHnsNameInputError, .consumed)
+        }
+        XCTAssertNil(WalletExactHnsNameInput(exactText: nil))
+        XCTAssertNil(WalletExactHnsNameInput(exactText: ""))
+        XCTAssertNil(WalletExactHnsNameInput(
+            exactText: String(repeating: "a", count: 64)
+        ))
+        let utf8Boundary = String(repeating: "é", count: 31) + "a"
+        let utf8Input = try XCTUnwrap(
+            WalletExactHnsNameInput(exactText: utf8Boundary)
+        )
+        try utf8Input.consume { bytes in
+            XCTAssertEqual(bytes, Array(utf8Boundary.utf8))
+            XCTAssertEqual(bytes.count, 63)
+        }
+
+        let json = hnsNameSummaryJSON()
+        let summary = try NativeHnsNameImportBundle.decode(
+            bundle: hnsNameImportBundle(json: json)
+        )
         XCTAssertEqual(summary.name, "alpha")
         XCTAssertEqual(summary.proofHeight, 42)
         XCTAssertEqual(summary.resourceStatus, "canonicalDecoded")
@@ -304,6 +323,12 @@ final class BrowserRuntimeControlTests: XCTestCase {
             imported: summary,
             refreshed: try snapshot(nameJSON: hnsNameSummaryJSON())
         ))
+        XCTAssertTrue(walletNameImportRefreshMatches(
+            imported: summary,
+            refreshed: try snapshot(nameJSON: hnsNameSummaryJSON()
+                .replacingOccurrences(of: "\"proofHeight\":42", with: "\"proofHeight\":43")
+                .replacingOccurrences(of: "canonicalDecoded", with: "canonicalOpaque"))
+        ))
         XCTAssertFalse(walletNameImportRefreshMatches(
             imported: summary,
             refreshed: try snapshot(nameJSON: hnsNameSummaryJSON(name: "beta"))
@@ -320,57 +345,88 @@ final class BrowserRuntimeControlTests: XCTestCase {
             refreshed: try snapshot(nameJSON: nil)
         ))
 
-        XCTAssertEqual(
-            try NativeHnsNameImportResult.decode(bundle: hnsNameImportBundle(status: 2)),
-            .invalidInput
-        )
-        XCTAssertEqual(
-            try NativeHnsNameImportResult.decode(bundle: hnsNameImportBundle(status: 3)),
-            .unavailable
-        )
-        XCTAssertEqual(
-            try NativeHnsNameImportResult.decode(bundle: hnsNameImportBundle(status: 4)),
-            .failed
-        )
-
-        var wrongMagic = hnsNameImportBundle(status: 1, json: json)
+        var wrongMagic = hnsNameImportBundle(json: json)
         wrongMagic[0] = 0
-        var wrongLength = hnsNameImportBundle(status: 1, json: json)
+        var wrongLength = hnsNameImportBundle(json: json)
         wrongLength[11] &+= 1
+        let emptyPayload = Array("HNWI".utf8) + [
+            UInt8(1), 0, 0, 0, 0, 0, 0, 0,
+        ]
         for invalid in [
             wrongMagic,
-            hnsNameImportBundle(status: 1, json: json, version: 2),
-            hnsNameImportBundle(status: 1, json: json, reservedHigh: 1),
-            hnsNameImportBundle(status: 1, json: json, reservedLow: 1),
+            hnsNameImportBundle(json: json, version: 2),
+            hnsNameImportBundle(json: json, flags: 1),
+            hnsNameImportBundle(json: json, reservedHigh: 1),
+            hnsNameImportBundle(json: json, reservedLow: 1),
             wrongLength,
-            hnsNameImportBundle(status: 1),
-            hnsNameImportBundle(status: 0),
-            hnsNameImportBundle(status: 5),
-            hnsNameImportBundle(status: 2, json: json),
-            hnsNameImportBundle(status: 1, json: "[]"),
+            emptyPayload,
+            hnsNameImportBundle(json: "[]"),
+            hnsNameImportBundle(json: " \(json)"),
+            hnsNameImportBundle(json: "\(json) "),
             hnsNameImportBundle(
-                status: 1,
                 json: json.replacingOccurrences(of: "{\"name\"", with: "{\"ownerOutpoint\":\"private\",\"name\"")
             ),
             hnsNameImportBundle(
-                status: 1,
                 json: json.replacingOccurrences(of: "\"nameHash\":", with: "\"missingNameHash\":")
             ),
+            hnsNameImportBundle(json: String(repeating: " ", count: 4_097)),
         ] {
-            XCTAssertThrowsError(try NativeHnsNameImportResult.decode(bundle: invalid))
+            XCTAssertThrowsError(try NativeHnsNameImportBundle.decode(bundle: invalid))
         }
 
         for invalidName in [
             " Alpha", "Alpha", "alpha.", "álpha", "-alpha", "alpha_",
             "example", String(repeating: "a", count: 64),
         ] {
-            XCTAssertThrowsError(try NativeHnsNameImportResult.decode(
+            XCTAssertThrowsError(try NativeHnsNameImportBundle.decode(
                 bundle: hnsNameImportBundle(
-                    status: 1,
                     json: hnsNameSummaryJSON(name: invalidName)
                 )
             ))
         }
+    }
+
+    @MainActor
+    func testExactHNSNamePromptDisablesMutationAndHasNoInlineInput() throws {
+        let field = UITextField()
+        configureWalletNameImportTextField(field)
+        XCTAssertEqual(field.keyboardType, .asciiCapable)
+        XCTAssertEqual(field.autocapitalizationType, .none)
+        XCTAssertEqual(field.autocorrectionType, .no)
+        XCTAssertEqual(field.spellCheckingType, .no)
+        XCTAssertEqual(field.smartDashesType, .no)
+        XCTAssertEqual(field.smartQuotesType, .no)
+        XCTAssertEqual(field.smartInsertDeleteType, .no)
+        XCTAssertNil(field.textContentType)
+        XCTAssertEqual(
+            field.accessibilityIdentifier,
+            "wallet.import-hns-name.text"
+        )
+        field.text = "Alpha."
+        clearWalletNameImportManagedText(field)
+        XCTAssertNil(field.text)
+
+        let controller = WalletViewController(network: .regtest)
+        controller.loadViewIfNeeded()
+        func descendant(identified identifier: String, in view: UIView) -> UIView? {
+            if view.accessibilityIdentifier == identifier { return view }
+            for child in view.subviews {
+                if let match = descendant(identified: identifier, in: child) {
+                    return match
+                }
+            }
+            return nil
+        }
+        let button = descendant(
+            identified: "wallet.import-hns-name",
+            in: controller.view
+        ) as? UIButton
+        XCTAssertNotNil(button)
+        XCTAssertFalse(try XCTUnwrap(button).isEnabled)
+        XCTAssertNil(descendant(
+            identified: "wallet.name-import-input",
+            in: controller.view
+        ))
     }
 
     func testNativeHNSReadTargetsRequireExactDistinctHandshakeBindings() throws {
@@ -1895,6 +1951,167 @@ final class BrowserRuntimeControlTests: XCTestCase {
             expectedAuthorityGeneration: 3,
             currentAuthorityGeneration: 4,
             viewIsVisible: true
+        ))
+    }
+
+    func testExactHNSNameImportRequiresLiveAuthorityAndSuppressesStaleCompletion() throws {
+        let path = "/private/test-name-import-\(UUID().uuidString)/NativeWallet/mainnet/wallet.sqlite3"
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        defer { WalletStorageLeaseRegistry.release(lease) }
+        let wallet = NSObject()
+        let replacement = NSObject()
+        let authority = WalletNameImportAuthority(
+            network: .mainnet,
+            databasePath: path,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(wallet),
+            ownerGeneration: 9
+        )
+        let ready = WalletNameImportState(
+            authority: authority,
+            reopenedDurableConfirmedWallet: true,
+            protectedStorageIsAvailable: true,
+            lifecycleAllowsImport: true,
+            viewIsCurrent: true,
+            retirementInFlight: false,
+            operationInFlight: false,
+            unlockedExactReadProfile: true,
+            synchronizedHnsReadsConfigured: true
+        )
+        XCTAssertTrue(walletNameImportMayStart(expected: authority, current: ready))
+
+        func state(
+            authority currentAuthority: WalletNameImportAuthority?,
+            reopened: Bool = true,
+            protected: Bool = true,
+            lifecycle: Bool = true,
+            visible: Bool = true,
+            retirement: Bool = false,
+            operating: Bool = false,
+            unlocked: Bool = true,
+            reads: Bool = true
+        ) -> WalletNameImportState {
+            WalletNameImportState(
+                authority: currentAuthority,
+                reopenedDurableConfirmedWallet: reopened,
+                protectedStorageIsAvailable: protected,
+                lifecycleAllowsImport: lifecycle,
+                viewIsCurrent: visible,
+                retirementInFlight: retirement,
+                operationInFlight: operating,
+                unlockedExactReadProfile: unlocked,
+                synchronizedHnsReadsConfigured: reads
+            )
+        }
+
+        let staleAuthority = WalletNameImportAuthority(
+            network: authority.network,
+            databasePath: authority.databasePath,
+            lease: authority.lease,
+            walletIdentity: ObjectIdentifier(replacement),
+            ownerGeneration: authority.ownerGeneration + 1
+        )
+        for rejected in [
+            state(authority: staleAuthority),
+            state(authority: authority, reopened: false),
+            state(authority: authority, protected: false),
+            state(authority: authority, lifecycle: false),
+            state(authority: authority, visible: false),
+            state(authority: authority, retirement: true),
+            state(authority: authority, operating: true),
+            state(authority: authority, unlocked: false),
+            state(authority: authority, reads: false),
+        ] {
+            XCTAssertFalse(walletNameImportMayStart(
+                expected: authority,
+                current: rejected
+            ))
+        }
+
+        XCTAssertTrue(walletNameImportCompletionMayApply(
+            expected: authority,
+            current: authority,
+            expectedGeneration: 11,
+            currentGeneration: 11,
+            expectedLease: lease,
+            currentLease: lease,
+            lifecycleAllowsImport: true,
+            viewIsCurrent: true,
+            operationInFlight: true
+        ))
+        for rejected in [
+            walletNameImportCompletionMayApply(
+                expected: authority,
+                current: staleAuthority,
+                expectedGeneration: 11,
+                currentGeneration: 11,
+                expectedLease: lease,
+                currentLease: lease,
+                lifecycleAllowsImport: true,
+                viewIsCurrent: true,
+                operationInFlight: true
+            ),
+            walletNameImportCompletionMayApply(
+                expected: authority,
+                current: authority,
+                expectedGeneration: 11,
+                currentGeneration: 12,
+                expectedLease: lease,
+                currentLease: lease,
+                lifecycleAllowsImport: true,
+                viewIsCurrent: true,
+                operationInFlight: true
+            ),
+            walletNameImportCompletionMayApply(
+                expected: authority,
+                current: authority,
+                expectedGeneration: 11,
+                currentGeneration: 11,
+                expectedLease: lease,
+                currentLease: lease,
+                lifecycleAllowsImport: false,
+                viewIsCurrent: true,
+                operationInFlight: true
+            ),
+            walletNameImportCompletionMayApply(
+                expected: authority,
+                current: authority,
+                expectedGeneration: 11,
+                currentGeneration: 11,
+                expectedLease: lease,
+                currentLease: lease,
+                lifecycleAllowsImport: true,
+                viewIsCurrent: false,
+                operationInFlight: true
+            ),
+            walletNameImportCompletionMayApply(
+                expected: authority,
+                current: authority,
+                expectedGeneration: 11,
+                currentGeneration: 11,
+                expectedLease: lease,
+                currentLease: lease,
+                lifecycleAllowsImport: true,
+                viewIsCurrent: true,
+                operationInFlight: false
+            ),
+        ] {
+            XCTAssertFalse(rejected)
+        }
+
+        XCTAssertTrue(walletNameImportFailureIsNonPoisoningInvalid(
+            NativeWalletBridgeError.callFailed(
+                operation: "test",
+                code: HNS_BROWSER_RESULT_INVALID_ARGUMENT,
+                detail: "invalid"
+            )
+        ))
+        XCTAssertFalse(walletNameImportFailureIsNonPoisoningInvalid(
+            NativeWalletBridgeError.callFailed(
+                operation: "test",
+                code: HNS_BROWSER_RESULT_RUNTIME_ERROR,
+                detail: "failed"
+            )
         ))
     }
 

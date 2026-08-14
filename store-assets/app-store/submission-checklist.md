@@ -26,14 +26,14 @@ boundary.
 - [x] Pass the complete Apple gate for the underlying wallet tranche in exact
   Required CI run `31393998309` at
   `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
-- [x] Pin wallet `0.1.0` source `bc5901f` and `hns-rs 0.3.0` source
+- [x] Pin wallet `0.1.0` source `2061a27` and `hns-rs 0.3.0` source
   `88ed7c6`; regenerate the lockfile, source policy, and notices.
 - [x] Pass HNWR-v2 exact-source Android and complete Apple gates. Code-bearing
   source `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
   `31807520618`, including Required CI; CodeQL runs `31807519998` and
   `31807520229` also passed.
 - [ ] Pass the complete Rust, Android, Apple, and aggregate exact-source gates
-  for the `bc5901f` HNWI-v1 consumer. Run `31807520618` predates this import
+  for the `2061a27` HNWI-v1 consumer. Run `31807520618` predates this import
   tranche and does not qualify it.
 - [x] Retain historical `0.5.8` Required CI for source `f21bee1` in run
   `31402758394`; docs commit `ce9c09a` passed the full manual matrix in run
