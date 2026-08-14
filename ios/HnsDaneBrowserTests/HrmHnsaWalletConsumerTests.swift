@@ -602,8 +602,8 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
 
     private func selection(
         network: BrowserHandshakeNetwork = .mainnet,
-        networkMagic: UInt32 = Self.mainnetMagic,
-        nameHash: String = Self.nameHash,
+        networkMagic: UInt32 = HrmHnsaWalletConsumerTests.mainnetMagic,
+        nameHash: String = HrmHnsaWalletConsumerTests.nameHash,
         serviceName: String = "wallet-sync",
         applicationProfileID: UInt16 = 7
     ) throws -> HrmHnsaNamedServiceSelection {
@@ -618,8 +618,8 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
 
     private func selectionOrNil(
         network: BrowserHandshakeNetwork = .mainnet,
-        networkMagic: UInt32 = Self.mainnetMagic,
-        nameHash: String = Self.nameHash,
+        networkMagic: UInt32 = HrmHnsaWalletConsumerTests.mainnetMagic,
+        nameHash: String = HrmHnsaWalletConsumerTests.nameHash,
         serviceName: String = "wallet-sync",
         applicationProfileID: UInt16 = 7
     ) -> HrmHnsaNamedServiceSelection? {
@@ -637,10 +637,10 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
         walletAuthority: WalletReadBootstrapAuthority,
         guardFixture: HrmHnsaGuardFixture,
         hrmSequence: UInt64 = 9,
-        envelopeHash: String = Self.envelopeHash,
+        envelopeHash: String = HrmHnsaWalletConsumerTests.envelopeHash,
         authorityRevision: UInt64 = 11,
         operationLeaseGeneration: UInt64 = 13,
-        resourceID: String = Self.resourceID,
+        resourceID: String = HrmHnsaWalletConsumerTests.resourceID,
         serviceGeneration: UInt64 = 17,
         hrmIssuedAt: UInt64 = 1_000,
         hrmExpiresAt: UInt64 = 2_000,
@@ -649,7 +649,7 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
         delegationNotBefore: UInt64 = 1_300,
         delegationExpiresAt: UInt64 = 1_800,
         trustedOperationTime: UInt64 = 1_500,
-        controllerKey: String = Self.controllerKey,
+        controllerKey: String = HrmHnsaWalletConsumerTests.controllerKey,
         maxEndpointLifetimeSeconds: UInt32 = 3_600
     ) -> BrokerVerifiedHrmHnsaNamedService? {
         let selected = selection ?? selectionOrNil()!
