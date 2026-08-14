@@ -161,7 +161,17 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
         XCTAssertNil(service(
             walletAuthority: wallet.authority,
             guardFixture: guardFixture,
+            serviceExpiresAt: 2_001
+        ))
+        XCTAssertNil(service(
+            walletAuthority: wallet.authority,
+            guardFixture: guardFixture,
             delegationNotBefore: 1_199
+        ))
+        XCTAssertNil(service(
+            walletAuthority: wallet.authority,
+            guardFixture: guardFixture,
+            delegationExpiresAt: 1_901
         ))
         XCTAssertNil(service(
             walletAuthority: wallet.authority,
@@ -182,6 +192,46 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
             walletAuthority: wallet.authority,
             guardFixture: guardFixture,
             maxEndpointLifetimeSeconds: 604_801
+        ))
+        XCTAssertNotNil(service(
+            walletAuthority: wallet.authority,
+            guardFixture: guardFixture,
+            serviceNotBefore: 1_000,
+            serviceExpiresAt: 2_000,
+            delegationNotBefore: 1_000,
+            delegationExpiresAt: 2_000,
+            trustedOperationTime: 1_000
+        ))
+    }
+
+    func testZeroHrmCommitmentSequenceIsPreservedThroughCurrentGuard() throws {
+        let selected = try selection()
+        let wallet = try HrmHnsaWalletAuthorityFixture()
+        let guardFixture = HrmHnsaGuardFixture()
+        let adopted = try XCTUnwrap(service(
+            selection: selected,
+            walletAuthority: wallet.authority,
+            guardFixture: guardFixture,
+            hrmSequence: 0
+        ))
+        XCTAssertEqual(adopted.claim.hrmSequence, 0)
+        XCTAssertEqual(adopted.claim.serviceGeneration, 17)
+
+        let lease = HrmHnsaWalletConsumerLease(taking: adopted)
+        XCTAssertTrue(lease.consumeFor(
+            selection: selected,
+            walletAuthority: wallet.authority
+        ) { offered in
+            offered.claim.hrmSequence == 0
+        })
+        let guardedClaim = try XCTUnwrap(guardFixture.claim)
+        XCTAssertEqual(guardedClaim.hrmSequence, 0)
+        XCTAssertNil(service(
+            selection: selected,
+            walletAuthority: wallet.authority,
+            guardFixture: HrmHnsaGuardFixture(),
+            hrmSequence: 0,
+            serviceGeneration: 0
         ))
     }
 
@@ -586,14 +636,18 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
         selection: HrmHnsaNamedServiceSelection? = nil,
         walletAuthority: WalletReadBootstrapAuthority,
         guardFixture: HrmHnsaGuardFixture,
+        hrmSequence: UInt64 = 9,
         envelopeHash: String = Self.envelopeHash,
         authorityRevision: UInt64 = 11,
         operationLeaseGeneration: UInt64 = 13,
         resourceID: String = Self.resourceID,
         serviceGeneration: UInt64 = 17,
         hrmIssuedAt: UInt64 = 1_000,
+        hrmExpiresAt: UInt64 = 2_000,
         serviceNotBefore: UInt64 = 1_200,
+        serviceExpiresAt: UInt64 = 1_900,
         delegationNotBefore: UInt64 = 1_300,
+        delegationExpiresAt: UInt64 = 1_800,
         trustedOperationTime: UInt64 = 1_500,
         controllerKey: String = Self.controllerKey,
         maxEndpointLifetimeSeconds: UInt32 = 3_600
@@ -602,7 +656,7 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
         return BrokerVerifiedHrmHnsaNamedService.adoptBrokerVerified(
             selection: selected,
             walletAuthority: walletAuthority,
-            hrmSequence: 9,
+            hrmSequence: hrmSequence,
             hrmEnvelopeHash: envelopeHash,
             authorityRevision: authorityRevision,
             trustedOperationTime: trustedOperationTime,
@@ -611,11 +665,11 @@ final class HrmHnsaWalletConsumerTests: XCTestCase {
             serviceDelegationID: Self.delegationID,
             serviceGeneration: serviceGeneration,
             hrmIssuedAt: hrmIssuedAt,
-            hrmExpiresAt: 2_000,
+            hrmExpiresAt: hrmExpiresAt,
             serviceNotBefore: serviceNotBefore,
-            serviceExpiresAt: 1_900,
+            serviceExpiresAt: serviceExpiresAt,
             delegationNotBefore: delegationNotBefore,
-            delegationExpiresAt: 1_800,
+            delegationExpiresAt: delegationExpiresAt,
             serviceControllerKey: controllerKey,
             profileFlags: 0,
             profileConstraintsHash: Self.zeroHash,

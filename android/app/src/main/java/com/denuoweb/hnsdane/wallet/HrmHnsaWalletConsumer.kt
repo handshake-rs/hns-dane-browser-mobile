@@ -65,6 +65,9 @@ internal class HrmHnsaNamedServiceSelection private constructor(
 /**
  * Exact durable HRM/HNSA observation asserted by a trusted native broker.
  *
+ * HRM commitment sequence zero is valid. The nonzero rule applies to the
+ * HNSA service generation and to endpoint sequences outside this seam.
+ *
  * Kotlin never constructs this claim from CBOR, DNS, URLs, provider messages,
  * or legacy authority records. The broker guard must compare every field with
  * its sole current subject aggregate while holding its fenced lease through

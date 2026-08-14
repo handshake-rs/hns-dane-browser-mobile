@@ -167,6 +167,11 @@ dependent callback. A revision/time change, lease loss, selection change,
 wallet rotation, denied guard, duplicate callback, or missing callback fails
 closed and consumes the offered lease.
 
+HRM commitment sequence is an unsigned `u64`, and sequence zero is valid. HNSA
+service generation remains nonzero. Endpoint delegations, including their
+nonzero endpoint sequence, are not accepted by this seam because endpoint
+parsing and validation remain future broker work.
+
 This is a consumer contract, not an HRM/HNSA implementation or authority
 projection. Kotlin and Swift accept no raw commitment, envelope, delegation,
 endpoint, URL, provider, or legacy-record input and perform no CBOR, hashing,

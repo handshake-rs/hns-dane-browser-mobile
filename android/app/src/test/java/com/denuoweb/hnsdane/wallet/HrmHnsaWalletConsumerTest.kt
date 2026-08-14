@@ -62,13 +62,52 @@ class HrmHnsaWalletConsumerTest {
         assertNull(adoptedService(walletAuthority, guard, serviceGeneration = 0UL))
         assertNull(adoptedService(walletAuthority, guard, hrmIssuedAt = 2_000UL))
         assertNull(adoptedService(walletAuthority, guard, serviceNotBefore = 999UL))
+        assertNull(adoptedService(walletAuthority, guard, serviceExpiresAt = 2_001UL))
         assertNull(adoptedService(walletAuthority, guard, delegationNotBefore = 1_199UL))
+        assertNull(adoptedService(walletAuthority, guard, delegationExpiresAt = 1_901UL))
         assertNull(adoptedService(walletAuthority, guard, trustedTime = 1_800UL))
         assertNull(adoptedService(walletAuthority, guard, controllerKey = "04" + "44".repeat(32)))
         assertNull(adoptedService(walletAuthority, guard, profileFlags = 65_536))
         assertNull(adoptedService(walletAuthority, guard, maxEndpointLifetime = 299L))
         assertNull(adoptedService(walletAuthority, guard, maxEndpointLifetime = 604_801L))
         assertNull(adoptedService(walletAuthority, guard, allowedCapabilities = 4_294_967_296L))
+        assertNotNull(adoptedService(
+            walletAuthority,
+            guard,
+            serviceNotBefore = 1_000UL,
+            serviceExpiresAt = 2_000UL,
+            delegationNotBefore = 1_000UL,
+            delegationExpiresAt = 2_000UL,
+            trustedTime = 1_000UL,
+        ))
+    }
+
+    @Test
+    fun zeroHrmCommitmentSequenceIsPreservedThroughCurrentGuard() {
+        val selection = selection()
+        val walletAuthority = walletAuthority()
+        val guard = RecordingGuard()
+        val service = checkNotNull(adoptedService(
+            selection,
+            walletAuthority,
+            guard,
+            hrmSequence = 0UL,
+        ))
+        assertEquals(0UL, service.claim.hrmSequence)
+        assertEquals(17UL, service.claim.serviceGeneration)
+
+        val lease = HrmHnsaWalletConsumerLease.takeOwnership(service)
+        assertTrue(lease.consumeFor(selection, walletAuthority) { offered ->
+            offered.claim.hrmSequence == 0UL
+        })
+        assertEquals(0UL, checkNotNull(guard.claim).hrmSequence)
+        assertNull(adoptedService(
+            selection,
+            walletAuthority,
+            RecordingGuard(),
+            hrmSequence = 0UL,
+            serviceGeneration = 0UL,
+        ))
     }
 
     @Test
@@ -451,14 +490,18 @@ class HrmHnsaWalletConsumerTest {
     private fun adoptedService(
         walletAuthority: WalletReadBootstrapAuthority,
         guard: HrmHnsaCurrentAuthorityGuard,
+        hrmSequence: ULong = 9UL,
         envelopeHash: String = ENVELOPE_HASH,
         authorityRevision: ULong = 11UL,
         operationLeaseGeneration: ULong = 13UL,
         resourceId: String = RESOURCE_ID,
         serviceGeneration: ULong = 17UL,
         hrmIssuedAt: ULong = 1_000UL,
+        hrmExpiresAt: ULong = 2_000UL,
         serviceNotBefore: ULong = 1_200UL,
+        serviceExpiresAt: ULong = 1_900UL,
         delegationNotBefore: ULong = 1_300UL,
+        delegationExpiresAt: ULong = 1_800UL,
         trustedTime: ULong = 1_500UL,
         controllerKey: String = CONTROLLER_KEY,
         profileFlags: Int = 0,
@@ -469,14 +512,18 @@ class HrmHnsaWalletConsumerTest {
         serviceSelection,
         walletAuthority,
         guard,
+        hrmSequence,
         envelopeHash,
         authorityRevision,
         operationLeaseGeneration,
         resourceId,
         serviceGeneration,
         hrmIssuedAt,
+        hrmExpiresAt,
         serviceNotBefore,
+        serviceExpiresAt,
         delegationNotBefore,
+        delegationExpiresAt,
         trustedTime,
         controllerKey,
         profileFlags,
@@ -489,14 +536,18 @@ class HrmHnsaWalletConsumerTest {
         selection: HrmHnsaNamedServiceSelection,
         walletAuthority: WalletReadBootstrapAuthority,
         guard: HrmHnsaCurrentAuthorityGuard,
+        hrmSequence: ULong = 9UL,
         envelopeHash: String = ENVELOPE_HASH,
         authorityRevision: ULong = 11UL,
         operationLeaseGeneration: ULong = 13UL,
         resourceId: String = RESOURCE_ID,
         serviceGeneration: ULong = 17UL,
         hrmIssuedAt: ULong = 1_000UL,
+        hrmExpiresAt: ULong = 2_000UL,
         serviceNotBefore: ULong = 1_200UL,
+        serviceExpiresAt: ULong = 1_900UL,
         delegationNotBefore: ULong = 1_300UL,
+        delegationExpiresAt: ULong = 1_800UL,
         trustedTime: ULong = 1_500UL,
         controllerKey: String = CONTROLLER_KEY,
         profileFlags: Int = 0,
@@ -506,7 +557,7 @@ class HrmHnsaWalletConsumerTest {
         BrokerVerifiedHrmHnsaNamedService.adoptBrokerVerified(
             selection = selection,
             walletAuthority = walletAuthority,
-            hrmSequence = 9UL,
+            hrmSequence = hrmSequence,
             hrmEnvelopeHash = envelopeHash,
             authorityRevision = authorityRevision,
             trustedOperationTime = trustedTime,
@@ -515,11 +566,11 @@ class HrmHnsaWalletConsumerTest {
             serviceDelegationId = DELEGATION_ID,
             serviceGeneration = serviceGeneration,
             hrmIssuedAt = hrmIssuedAt,
-            hrmExpiresAt = 2_000UL,
+            hrmExpiresAt = hrmExpiresAt,
             serviceNotBefore = serviceNotBefore,
-            serviceExpiresAt = 1_900UL,
+            serviceExpiresAt = serviceExpiresAt,
             delegationNotBefore = delegationNotBefore,
-            delegationExpiresAt = 1_800UL,
+            delegationExpiresAt = delegationExpiresAt,
             serviceControllerKey = controllerKey,
             profileFlags = profileFlags,
             profileConstraintsHash = ZERO_HASH,

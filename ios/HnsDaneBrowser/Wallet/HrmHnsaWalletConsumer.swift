@@ -39,6 +39,8 @@ struct HrmHnsaNamedServiceSelection:
 }
 
 /// Exact durable HRM/HNSA observation asserted by a trusted native broker.
+/// HRM commitment sequence zero is valid. The nonzero rule applies to the
+/// HNSA service generation and to endpoint sequences outside this seam.
 /// Swift never constructs this claim from CBOR, DNS, URLs, provider messages,
 /// or legacy authority records.
 struct HrmHnsaCurrentAuthorityClaim:
