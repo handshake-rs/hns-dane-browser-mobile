@@ -57,15 +57,24 @@ All notable changes to this project will be documented in this file.
   `31807520618`, including repository policy, Rust/supply-chain, Android
   build/unit, API 37 native instrumentation, the complete Apple
   ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs
-  `31807519998` and `31807520229` also passed. Debug artifact `9222123624` has
-  artifact-archive SHA-256
+  `31807519998` and `31807520229` also passed. Historical debug artifact
+  `9222123624` has artifact-archive SHA-256
   `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and
   expires 2026-08-17; it is debug-only, not store signed. Signed artifacts,
   screenshots, store declaration/upload, credentialed wallet workflows, and
   physical-device qualification remain open. That run qualifies only
   `986accb7d86d220af63187031e629a9ce69d71e5` and predates the `2061a27`
-  pin/HNWI-v1 tranche; current exact-source Apple and aggregate CI remain
-  pending.
+  pin/HNWI-v1 tranche.
+- Exact current application source
+  `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+  dispatched CI matrix in run `31835813994`: repository policy,
+  Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
+  the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
+  CI all succeeded. CodeQL runs `31833858421` and `31833858650` also passed.
+  This is exact-source build, test, and static-analysis evidence only; every
+  signed-artifact, credentialed-wallet, installed-device, screenshot,
+  store-declaration/readback, upload/submission, and physical-iPhone gate above
+  remains open.
 
 ## 0.5.10 - 2026-08-11
 

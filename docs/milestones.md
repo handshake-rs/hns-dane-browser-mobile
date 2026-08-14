@@ -164,9 +164,16 @@
   build `60` retain embedded Rust `0.5.9` and exact engine `0.2.1` source
   `65c397e8347f37085ea67d2c9c745ce896328e64`. Exact HNWR-v2 code-bearing source
   `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI `31807520618`,
-  both CodeQL runs, and the Rust, Android, and complete Apple gates. Signed
-  artifacts, installed-product evidence, screenshots, and store readback remain
-  pending.
+  both associated CodeQL runs, and the Rust, Android, and complete Apple gates.
+- Completed current exact-name-import source qualification: exact application
+  source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+  dispatched policy, Rust/supply-chain, Android build/unit, API 37
+  native-runtime instrumentation, Apple ABI/XCFramework/app/simulator, and
+  aggregate Required CI matrix in run `31835813994`; CodeQL runs `31833858421`
+  and `31833858650` also passed. This is source qualification only. Signed
+  artifacts, installed-product evidence, credentialed read/import execution,
+  screenshots, store readback, upload/submission, and the physical-iPhone matrix
+  remain pending.
 - Updated release dependency sequence: mobile pins wallet `0.1.0` source
   `2061a27e0358c7f00fcc70497ef97f9b89d569da`, which consumes
   `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`;

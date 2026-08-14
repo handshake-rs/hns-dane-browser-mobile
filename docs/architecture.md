@@ -86,15 +86,17 @@ iOS UI / Browser Shell                             [public; device qualification
   Apple C-ABI surfaces expose create, restore, open, status, unlock, lock,
   one-shot recovery retrieval, destruction, one HNS account identity, and a
   strict HNWR-v2 projection/UI for balance, distinct ordinary-payment and
-  name-transfer receive targets, history, tracked names, and module status.
+  name-transfer receive targets, history, tracked names, and module status,
+  plus a separate closed HNWI-v1 trusted-native exact-text name import.
   Legacy HNWR-v1 and current HNWR-v2 are decoded through separate exact
-  five- and six-field schemas. Platform-owned screens and device-bound 32-byte
-  database keys manage this controller. The product provisions no scoped
-  loopback credential or indexed backend, so reads remain unavailable. The live
-  app provisions no indexed/authenticated node; a pruned indexed node can serve
-  existing-wallet retained evidence, while fresh restore needs a durable
-  archive-capable raw-tx source. Name
-  import is absent. Sending/value, settlement,
+  five- and six-field schemas; HNWI-v1 preserves the exact UTF-8 name bytes and
+  returns only a minimized one-name summary. Platform-owned screens and
+  device-bound 32-byte database keys manage this controller. The product
+  provisions no scoped loopback credential or indexed backend, so reads and
+  import remain fail-closed unavailable. The live app provisions no
+  indexed/authenticated node; a pruned indexed node can serve existing-wallet
+  retained evidence, while fresh restore needs a durable archive-capable
+  raw-tx source. Sending/value, settlement,
   HNSA/HNSR, exchange, and marketplace gates remain false. Both shells perform
   read/retirement work off the UI thread. Historical HNWR-v1 code-bearing source
   `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI

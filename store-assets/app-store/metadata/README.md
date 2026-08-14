@@ -30,9 +30,12 @@ this Android UI result is not iOS evidence. Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
 `31807520618`, including the complete Apple ABI/XCFramework/app/simulator gate
 and Required CI; CodeQL runs `31807519998` and `31807520229` also passed. Those
-results predate the `2061a27` exact-name import tranche, whose complete
-Apple and aggregate exact-source CI remains pending. Debug artifact `9222123624`
-is source-bound but debug-only and not store signed; its
+results predate the `2061a27` exact-name import tranche. Exact current
+application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the
+complete manually dispatched CI matrix in run `31835813994`, including the
+complete Apple ABI/XCFramework/app/simulator gate and aggregate Required CI;
+CodeQL runs `31833858421` and `31833858650` also passed. Historical debug
+artifact `9222123624` is source-bound but debug-only and not store signed; its
 artifact-archive SHA-256 is
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
 expires 2026-08-17. Fresh

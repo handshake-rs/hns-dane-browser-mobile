@@ -81,9 +81,14 @@ Earlier HNWR-v2 code-bearing source
 tests, API 37 native-runtime instrumentation, the complete Apple
 ABI/XCFramework/app/simulator gate, and aggregate Required CI all succeeded.
 CodeQL runs `31807519998` and `31807520229` also succeeded. That evidence
-predates the `2061a27` exact-name import tranche, whose complete exact-source
-CI remains pending. Debug artifact
-`9222123624` is bound to that source; its artifact-archive SHA-256 is
+predates the `2061a27` exact-name import tranche. Exact current application
+source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+dispatched CI matrix in run `31835813994`: repository policy,
+Rust/supply-chain, Android build and unit tests, API 37 native-runtime
+instrumentation, the complete Apple ABI/XCFramework/app/simulator gate, and
+aggregate Required CI all succeeded. CodeQL runs `31833858421` and
+`31833858650` also succeeded. Historical debug artifact `9222123624` is bound
+to the earlier source; its artifact-archive SHA-256 is
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
 expires on 2026-08-17. It is debug-only, not a store-signed artifact, and does
 not close the credentialed wallet, signed product, screenshot, upload, or

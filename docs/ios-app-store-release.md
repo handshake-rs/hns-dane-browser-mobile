@@ -33,7 +33,12 @@ and aggregate Required CI. Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed that complete Apple gate and
 aggregate Required CI in full run `31807520618`; CodeQL runs `31807519998` and
 `31807520229` also passed. That evidence predates the `2061a27` exact-name
-import tranche, whose complete Apple and aggregate exact-source CI is pending.
+import tranche. Exact current application source
+`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+dispatched CI matrix in run `31835813994`, including repository policy,
+Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
+the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
+CI. CodeQL runs `31833858421` and `31833858650` also passed.
 Build `57` does not contain the controller. The
 current candidate pins wallet `2061a27`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
@@ -238,8 +243,13 @@ Build `60` is the configured candidate. Historical HNWR application-source CI,
 CodeQL, lockfile/notices, and the complete Apple app/simulator gate remain
 retained historical evidence. The earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its own complete platform
-matrix in run `31807520618`; current import-source CI remains pending. Build
-`60` must not be uploaded until a fresh
+matrix in run `31807520618`. Exact current application source
+`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+dispatched Rust, Android, Apple, and Required CI matrix in run `31835813994`;
+CodeQL runs `31833858421` and `31833858650` also passed. This is exact-source
+build, test, and static-analysis evidence only, not a signed product, screenshot
+set, store declaration/readback, upload/submission, or physical-iPhone result.
+Build `60` must not be uploaded until a fresh
 screenshot manifest names the exact release checkout selected for signing and
 carries provenance schema 3 with `settings.wallet.native-controls` visible;
 the protected workflow must then rerun its complete exact-checkout gate before

@@ -29,8 +29,13 @@ Earlier HNWR-v2 code-bearing source
 `31807520618`, including repository policy, Rust/supply-chain, Android
 build/unit, API 37 native instrumentation, the complete Apple
 ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs `31807519998`
-and `31807520229` also passed. Debug artifact `9222123624` has
-artifact-archive SHA-256
+and `31807520229` also passed. Exact current application source
+`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+dispatched CI matrix in run `31835813994`: repository policy,
+Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
+the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
+CI all succeeded. CodeQL runs `31833858421` and `31833858650` also passed.
+Historical debug artifact `9222123624` has artifact-archive SHA-256
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
 2026-08-17, and is debug-only rather than store signed.
 Exact debug APK artifact `9080493058` has SHA-256
@@ -156,11 +161,14 @@ released only after native lock/destruction and any incomplete-wallet file
 deletion finish. Foreground reentry waits for that handoff and stale read
 completion cannot publish. Earlier source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its exact Apple
-app/simulator CI in `31807520618`. XCTest
-covers the retirement queue/lease behavior and
+app/simulator CI in `31807520618`. Exact current application source
+`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+dispatched CI matrix, including the full Apple gate and aggregate Required CI,
+in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed.
+XCTest covers the retirement queue/lease behavior and
 stale-completion publication-authority predicates, not an end-to-end
-credentialed native read in flight. That CI evidence predates the exact-name
-import tranche. iOS product wiring still may not supply a
+credentialed native read or import in flight. Hosted CI is not physical-iPhone
+evidence. iOS product wiring still may not supply a
 credential until the scoped credential/indexed backend/data boundary exists,
 and physical-iPhone qualification remains open.
 
@@ -330,8 +338,10 @@ The historical `0.5.8` application source at
 `31402758394`; its CodeQL and quality workflows are also green. This evidence
 predates the `0.5.9` synchronized-read tranche. The pre-ECH `0.5.9` source passed
 full CI `31433931682`; the earlier HNWR-v2/ECH-and-sync-telemetry code-bearing
-source passed full platform CI `31807520618` and both CodeQL runs. Those results
-predate this wallet pin and exact-name import tranche. Before
+source passed full platform CI `31807520618` and both CodeQL runs. Exact current
+application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the
+complete manually dispatched Rust, Android, Apple, and Required CI matrix in run
+`31835813994`; CodeQL runs `31833858421` and `31833858650` also passed. Before
 release, fresh App Store screenshots must be bound to the
 exact release checkout selected for signing, signed artifacts must pass their
 archive gates, and both stores' privacy/category answers must be reconciled
@@ -360,9 +370,11 @@ passed a fresh Android reinstall with create/confirm/unlock/lock/process-reopen
 and mainnet/testnet storage isolation. The exact historical `0.5.8`
 repin/version/metadata commit passed remote CI. The HNWR-v2 projection has
 focused Rust, Kotlin, and Swift coverage and its earlier source passed exact full
-CI `31807520618`; the HNWI-v1 consumer has focused local Rust and Kotlin
-coverage but still requires the complete Apple and aggregate exact-source
-gates. Historical HNWR-v1 exact debug APK evidence still covers only
+CI `31807520618`. The HNWI-v1 consumer has focused Rust and Kotlin coverage, and
+exact current application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed`
+passed the complete manually dispatched Rust, Android, Apple, and Required CI
+matrix in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also
+passed. Historical HNWR-v1 exact debug APK evidence still covers only
 the installed shell and fail-closed UI projection described above. The current
 product still needs backend/data,
 credentialed read, and create/restore lifecycle qualification. Signed-product

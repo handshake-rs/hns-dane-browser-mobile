@@ -38,8 +38,13 @@ not qualification for the current candidate. Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
 `31807520618`, including Android API 37 native instrumentation and the complete
 Apple gate; CodeQL runs `31807519998` and `31807520229` also passed. Those
-results predate the `2061a27` exact-name import tranche, whose
-exact-source CI remains pending. Debug artifact `9222123624` has artifact-archive SHA-256
+results predate the `2061a27` exact-name import tranche. Exact current
+application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the
+complete manually dispatched CI matrix in run `31835813994`: repository policy,
+Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
+the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
+CI all succeeded. CodeQL runs `31833858421` and `31833858650` also passed.
+Historical debug artifact `9222123624` has artifact-archive SHA-256
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
 2026-08-17, and is not Play/store signed. APK-level artifact and signer
 inspection, installed-device qualification, refreshed screenshots, live Play

@@ -99,7 +99,9 @@ Notes:
   return indexed confirmation/history, and an existing wallet may reuse its
   authenticated retained raw bytes. Fresh restore additionally needs
   archive-capable raw bytes or another durable wallet-relevant raw-transaction
-  source. Name-import/tracking ingestion is absent.
+  source. Trusted-native exact-text name import is implemented through a
+  separate closed HNWI-v1 result, but remains fail-closed unavailable without
+  that same credential and indexed backend.
 - Transfers, sending, website-provider access, settlement, exchange features,
   HNSA/HNSR controls, and P2P marketplaces remain independently unavailable.
   The exact Apple CI gate covers retirement queue/lease behavior and
@@ -118,9 +120,14 @@ Notes:
 - `hns-wallet-mobile` is pinned to wallet `0.1.0` source
   `2061a27e0358c7f00fcc70497ef97f9b89d569da`. Its lock closure uses
   `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
-  The dependency sequence is complete. Run `31807520618` qualified only earlier
+  The dependency sequence is complete. Earlier run `31807520618` qualified only
   HNWR-v2 source `986accb7d86d220af63187031e629a9ce69d71e5` and predates
-  the `2061a27` pin/import tranche; current exact-source CI remains pending.
+  the `2061a27` pin/import tranche. Exact current application source
+  `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+  dispatched CI matrix in run `31835813994`: repository policy,
+  Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
+  the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
+  CI all succeeded. CodeQL runs `31833858421` and `31833858650` also passed.
   Signed store artifacts, exact screenshots, store
   declaration/readback, and intentional upload remain separate gates.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on

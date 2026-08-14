@@ -32,9 +32,14 @@ boundary.
   source `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
   `31807520618`, including Required CI; CodeQL runs `31807519998` and
   `31807520229` also passed.
-- [ ] Pass the complete Rust, Android, Apple, and aggregate exact-source gates
-  for the `2061a27` HNWI-v1 consumer. Run `31807520618` predates this import
-  tranche and does not qualify it.
+- [x] Pass the complete Rust, Android, Apple, and aggregate exact-source gates
+  for the `2061a27` HNWI-v1 consumer. Exact current application source
+  `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed manually dispatched run
+  `31835813994`, including policy, Rust/supply-chain, Android build/unit, API 37
+  native-runtime instrumentation, the complete Apple gate, and Required CI;
+  CodeQL runs `31833858421` and `31833858650` also passed. This does not qualify
+  a signed product, credentialed backend/read/import, installed device,
+  screenshot set, upload/submission, or physical iPhone.
 - [x] Retain historical `0.5.8` Required CI for source `f21bee1` in run
   `31402758394`; docs commit `ce9c09a` passed the full manual matrix in run
   `31411048376`. These do not qualify this candidate.

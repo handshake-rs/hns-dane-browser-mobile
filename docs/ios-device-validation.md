@@ -87,9 +87,12 @@ Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed the complete Apple gate and
 Required CI in full run `31807520618`; CodeQL runs `31807519998` and
 `31807520229` also passed. That historical evidence predates wallet pin
-`2061a27` and HNWI-v1. The current import source awaits the complete Apple and
-aggregate exact-source CI gates; neither source is signed physical-device
-evidence.
+`2061a27` and HNWI-v1. Exact current application source
+`adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
+dispatched CI matrix in run `31835813994`, including the complete Apple
+ABI/XCFramework/app/simulator gate and aggregate Required CI; CodeQL runs
+`31833858421` and `31833858650` also passed. Neither the historical nor current
+hosted CI is signed physical-device evidence.
 The following matrix remains an optional installed-iPhone qualification
 activity for the exact `0.5.10` release checkout:
 
