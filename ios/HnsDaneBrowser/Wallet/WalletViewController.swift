@@ -7,7 +7,10 @@ import UIKit
 final class WalletViewController: UIViewController {
     private let network: BrowserHandshakeNetwork
     private let keychain: WalletKeychainStore
+    private let readBootstrapSource: any WalletReadBootstrapSource =
+        UnavailableWalletReadBootstrapSource.shared
     private var wallet: RustNativeWallet?
+    private var walletWasReopenedFromDurableStorage = false
     private var recoverySecret: WalletRecoverySecret?
     /// Non-nil means creation is intentionally incomplete: this key has not
     /// entered Keychain and every lifecycle exit must destroy its database.
@@ -127,6 +130,7 @@ final class WalletViewController: UIViewController {
             WalletSecretBytes.wipe(&key)
         }
         wallet = nil
+        walletWasReopenedFromDurableStorage = false
         storageLease = nil
         let deletionPath = hasIncompleteWallet && currentLease != nil
             ? resolvedDatabasePath
@@ -284,6 +288,7 @@ final class WalletViewController: UIViewController {
                     let display = try secret.displayText()
                     self.wallet = controller
                     self.walletAuthorityGeneration &+= 1
+                    self.walletWasReopenedFromDurableStorage = false
                     self.unconfirmedDatabaseKey = key
                     keyAdopted = true
                     self.recoverySecret = secret
@@ -359,6 +364,7 @@ final class WalletViewController: UIViewController {
                     }
                     self.wallet = controller
                     self.walletAuthorityGeneration &+= 1
+                    self.walletWasReopenedFromDurableStorage = false
                     self.persistentWalletExists = true
                 } catch {
                     controller.close()
@@ -374,13 +380,20 @@ final class WalletViewController: UIViewController {
         performWalletOperation {
             try reconcileIncompleteStorage()
             let path = try walletDatabasePath()
+            var reopenedFromDurableStorage = false
             let opened = try keychain.withDatabaseKey(
                 prompt: "Authenticate to open your Handshake wallet"
             ) { key -> RustNativeWallet in
-                let controller = try wallet ?? RustNativeWallet.open(
-                    databasePath: path,
-                    databaseKey: key
-                )
+                let controller: RustNativeWallet
+                if let wallet {
+                    controller = wallet
+                } else {
+                    controller = try RustNativeWallet.open(
+                        databasePath: path,
+                        databaseKey: key
+                    )
+                    reopenedFromDurableStorage = true
+                }
                 try controller.unlock(databaseKey: key)
                 return controller
             }
@@ -390,8 +403,12 @@ final class WalletViewController: UIViewController {
                     message: "No device-bound wallet key exists. Create or restore a wallet first."
                 )
             }
-            replaceWallet(with: opened)
+            replaceWallet(
+                with: opened,
+                reopenedFromDurableStorage: reopenedFromDurableStorage
+            )
             persistentWalletExists = true
+            try installWalletReadBootstrapIfAvailable()
         }
     }
 
@@ -672,6 +689,7 @@ final class WalletViewController: UIViewController {
 
         clearRecoveryDisplay()
         wallet = nil
+        walletWasReopenedFromDurableStorage = false
         storageLease = nil
         confirmedDeletionAccountID = nil
         protectedStorageIsAvailable = false
@@ -762,12 +780,64 @@ final class WalletViewController: UIViewController {
         namesLabel.text = "Tracked names: unavailable."
     }
 
-    private func replaceWallet(with controller: RustNativeWallet) {
+    private func replaceWallet(
+        with controller: RustNativeWallet,
+        reopenedFromDurableStorage: Bool
+    ) {
         guard wallet !== controller else { return }
         try? wallet?.lock()
         wallet?.close()
         wallet = controller
         walletAuthorityGeneration &+= 1
+        walletWasReopenedFromDurableStorage = reopenedFromDurableStorage
+    }
+
+    private func installWalletReadBootstrapIfAvailable() throws {
+        guard let authority = currentWalletReadBootstrapAuthority(),
+              let wallet,
+              (try wallet.hasHnsReads()) == false else {
+            return
+        }
+        _ = try attemptWalletReadBootstrap(
+            expectedAuthority: authority,
+            source: readBootstrapSource,
+            currentState: { [self] in currentWalletReadBootstrapState() },
+            install: { currentAuthority, configuration in
+                try wallet.configureHnsReads(
+                    configuration,
+                    currentAuthority: currentAuthority
+                )
+            }
+        )
+    }
+
+    private func currentWalletReadBootstrapAuthority() -> WalletReadBootstrapAuthority? {
+        guard persistentWalletExists,
+              unconfirmedDatabaseKey == nil,
+              let wallet,
+              let databasePath = resolvedDatabasePath,
+              let lease = storageLease else {
+            return nil
+        }
+        return WalletReadBootstrapAuthority(
+            network: network,
+            databasePath: databasePath,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(wallet),
+            ownerGeneration: walletAuthorityGeneration
+        )
+    }
+
+    private func currentWalletReadBootstrapState() -> WalletReadBootstrapState {
+        WalletReadBootstrapState(
+            authority: currentWalletReadBootstrapAuthority(),
+            reopenedDurableConfirmedWallet:
+                walletWasReopenedFromDurableStorage,
+            protectedStorageIsAvailable: protectedStorageIsAvailable,
+            lifecycleAllowsBootstrap: walletLifecycleMayAcquireStorage,
+            viewIsCurrent: viewIfLoaded?.window != nil,
+            retirementInFlight: retirementInFlight
+        )
     }
 
     private func performWalletOperation(_ operation: () throws -> Void) {
@@ -1086,6 +1156,7 @@ final class WalletViewController: UIViewController {
             ? resolvedDatabasePath
             : nil
         wallet = nil
+        walletWasReopenedFromDurableStorage = false
         storageLease = nil
         confirmedDeletionAccountID = nil
         protectedStorageIsAvailable = false
@@ -1399,6 +1470,65 @@ func walletReadMayPublish(
         expectedLease == currentLease &&
         expectedWalletIdentity == currentWalletIdentity &&
         viewIsVisible
+}
+
+struct WalletReadBootstrapState: Equatable, Sendable {
+    let authority: WalletReadBootstrapAuthority?
+    let reopenedDurableConfirmedWallet: Bool
+    let protectedStorageIsAvailable: Bool
+    let lifecycleAllowsBootstrap: Bool
+    let viewIsCurrent: Bool
+    let retirementInFlight: Bool
+}
+
+func walletReadBootstrapMayInstall(
+    expected: WalletReadBootstrapAuthority,
+    current: WalletReadBootstrapState
+) -> Bool {
+    expected == current.authority &&
+        walletReadBootstrapAuthorityIsWellFormed(expected) &&
+        WalletStorageLeaseRegistry.isCurrent(expected.lease) &&
+        current.reopenedDurableConfirmedWallet &&
+        current.protectedStorageIsAvailable &&
+        current.lifecycleAllowsBootstrap &&
+        current.viewIsCurrent &&
+        !current.retirementInFlight
+}
+
+/// Gate before credential acquisition and again after a potentially
+/// re-entrant source callback. `expectedAuthority` is intentionally retained:
+/// a source cannot rotate authority and return a credential for the rotated
+/// controller in response to a request for the original controller.
+func attemptWalletReadBootstrap(
+    expectedAuthority: WalletReadBootstrapAuthority,
+    source: any WalletReadBootstrapSource,
+    currentState: () -> WalletReadBootstrapState,
+    install: (
+        WalletReadBootstrapAuthority,
+        NativeHnsReadConfiguration
+    ) throws -> Void
+) throws -> Bool {
+    guard walletReadBootstrapMayInstall(
+        expected: expectedAuthority,
+        current: currentState()
+    ),
+    let configuration = source.takeConfiguration(for: expectedAuthority) else {
+        return false
+    }
+    defer { configuration.discard() }
+
+    let current = currentState()
+    guard configuration.authority == expectedAuthority,
+          let currentAuthority = current.authority,
+          currentAuthority == expectedAuthority,
+          walletReadBootstrapMayInstall(
+              expected: expectedAuthority,
+              current: current
+          ) else {
+        return false
+    }
+    try install(currentAuthority, configuration)
+    return true
 }
 
 struct WalletConfirmedDeletionAuthority: Equatable, Sendable {

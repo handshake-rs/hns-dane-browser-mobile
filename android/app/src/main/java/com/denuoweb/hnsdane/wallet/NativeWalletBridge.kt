@@ -80,25 +80,20 @@ internal object NativeWalletBridge {
             null
         }
 
-    /**
-     * Installs an app-owned read-only sidecar binding. The caller must source a
-     * scoped credential from trusted native configuration; this is deliberately
-     * not reachable from preferences, intents, links, or ordinary wallet UI.
-     */
+    /** Installs one exact, authority-bound app-owned read-only sidecar binding. */
     fun configureHnsReads(
-        handle: Long,
-        loopbackPort: Int,
-        authorization: CharArray,
-    ): Boolean = try {
-        isValidHandle(handle) &&
+        currentAuthority: WalletReadBootstrapAuthority,
+        configuration: NativeHnsReadConfiguration,
+    ): Boolean = configuration.consumeFor(currentAuthority) { loopbackPort, authorization ->
+        isValidHandle(currentAuthority.walletHandle) &&
             isAvailable &&
-            loopbackPort in 1..USHORT_MAX &&
-            authorization.size in 1..MAX_AUTHORIZATION_CHARACTERS &&
             runCatching {
-                nativeConfigureHnsReads(handle, loopbackPort, authorization)
+                nativeConfigureHnsReads(
+                    currentAuthority.walletHandle,
+                    loopbackPort,
+                    authorization,
+                )
             }.getOrDefault(false)
-    } finally {
-        authorization.fill('\u0000')
     }
 
     fun hasHnsReads(handle: Long): Boolean =
@@ -271,8 +266,6 @@ internal object NativeWalletBridge {
     private const val WALLET_ID_BYTES = 16
     private const val ACCOUNT_ID_BYTES = 16
     private const val MAX_RECOVERY_CHARACTERS = 256
-    private const val MAX_AUTHORIZATION_CHARACTERS = 4_096
-    private const val USHORT_MAX = 65_535
     private const val MAX_ACCOUNT_LABEL_BYTES = 128
     private const val STATUS_BUNDLE_BYTES = 24
     private const val ACCOUNT_FIXED_BYTES = 28

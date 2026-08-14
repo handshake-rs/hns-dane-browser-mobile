@@ -1,6 +1,7 @@
 package com.denuoweb.hnsdane.ui
 
 import android.app.AlertDialog
+import android.app.KeyguardManager
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -30,8 +31,13 @@ import com.denuoweb.hnsdane.wallet.WALLET_DATABASE_FILE_NAME
 import com.denuoweb.hnsdane.wallet.WALLET_DELETE_CONFIRMATION
 import com.denuoweb.hnsdane.wallet.WalletDeletionScope
 import com.denuoweb.hnsdane.wallet.WalletLeaseReleaseHandoff
+import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
+import com.denuoweb.hnsdane.wallet.WalletReadBootstrapSource
+import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
 import com.denuoweb.hnsdane.wallet.WalletStorageDeletionResult
 import com.denuoweb.hnsdane.wallet.WalletStorageOwnershipGate
+import com.denuoweb.hnsdane.wallet.UnavailableWalletReadBootstrapSource
+import com.denuoweb.hnsdane.wallet.attemptWalletReadBootstrap
 import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
 import com.denuoweb.hnsdane.wallet.deleteWalletDatabaseArtifacts
@@ -67,6 +73,8 @@ class WalletActivity : ComponentActivity() {
     private lateinit var recoveryView: RecoveryPhraseView
 
     private var walletHandle = INVALID_HANDLE
+    private var walletAuthorityGeneration = 0L
+    private var walletControllerIsReopenedDurable = false
     private var busy = false
     private var lifecycleEpoch = 0L
     private var foreground = false
@@ -75,6 +83,8 @@ class WalletActivity : ComponentActivity() {
     private var storageLease: WalletStorageOwnershipGate.Lease? = null
     private var walletDeletionDialog: AlertDialog? = null
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
+    private val walletReadBootstrapSource: WalletReadBootstrapSource =
+        UnavailableWalletReadBootstrapSource
 
     override fun onCreate(savedInstanceState: Bundle?) {
         savedInstanceState?.clear()
@@ -269,7 +279,8 @@ class WalletActivity : ComponentActivity() {
                     statusView.text = getString(R.string.wallet_status_open_failed)
                     accountView.text = getString(R.string.wallet_account_unavailable)
                 } else {
-                    walletHandle = opened
+                    publishWalletController(opened, reopenedDurable = true)
+                    attemptReadBootstrap(lease)
                     refreshControllerState()
                 }
             }
@@ -317,7 +328,7 @@ class WalletActivity : ComponentActivity() {
                     }
                     return@runOnUiThread
                 }
-                walletHandle = created
+                publishWalletController(created, reopenedDurable = false)
                 unconfirmedDatabaseKey = databaseKey
                 recoveryView.showSecret(recovery)
                 statusView.text = getString(R.string.wallet_status_recovery_required)
@@ -405,7 +416,7 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
-                walletHandle = restored
+                publishWalletController(restored, reopenedDurable = false)
                 refreshControllerState()
             }
         }
@@ -610,7 +621,7 @@ class WalletActivity : ComponentActivity() {
         // Withdraw every Activity-owned read and display capability before native or storage
         // destruction starts. The captured handle remains worker-local only.
         busy = true
-        walletHandle = INVALID_HANDLE
+        detachWalletController()
         clearRestoreInput()
         recoveryView.clearSecret()
         statusView.text = getString(R.string.wallet_status_deleting)
@@ -826,6 +837,58 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * The shipping source is unavailable, so this currently performs no native
+     * composition. Keeping admission in the real reopen lifecycle makes a
+     * future brokered credential unable to bypass storage/controller authority.
+     */
+    private fun attemptReadBootstrap(lease: WalletStorageOwnershipGate.Lease) {
+        val expectedAuthority = walletReadBootstrapState(lease).authority ?: return
+        attemptWalletReadBootstrap(
+            expectedAuthority = expectedAuthority,
+            source = walletReadBootstrapSource,
+            currentState = { walletReadBootstrapState(lease) },
+            install = NativeWalletBridge::configureHnsReads,
+        )
+    }
+
+    private fun walletReadBootstrapState(
+        lease: WalletStorageOwnershipGate.Lease,
+    ): WalletReadBootstrapState {
+        val ownsExactLease = currentStorageLease() === lease
+        val canonicalPath = runCatching { walletDatabaseFile.canonicalPath }.getOrNull()
+        val authority = if (
+            ownsExactLease && canonicalPath != null && walletHandle != INVALID_HANDLE
+        ) {
+            WalletReadBootstrapAuthority.create(
+                networkId = walletNetwork.id,
+                databasePath = canonicalPath,
+                storageLease = lease,
+                walletHandle = walletHandle,
+                authorityGeneration = walletAuthorityGeneration,
+            )
+        } else {
+            null
+        }
+        val confirmedPersistentWallet = runCatching {
+            keyStore.hasDatabaseKey() &&
+                !keyStore.walletDeletionPending() &&
+                walletDatabaseFile.exists()
+        }.getOrDefault(false)
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        return WalletReadBootstrapState(
+            authority = authority,
+            foreground = foreground && !isFinishing && !isDestroyed,
+            protectedStorageAvailable = keyguard?.isDeviceLocked == false,
+            reopenedDurableWallet = walletControllerIsReopenedDurable,
+            confirmedPersistentWallet = confirmedPersistentWallet,
+            hasUnconfirmedRecovery = unconfirmedDatabaseKey != null || recoveryView.hasSecret(),
+            operationInFlight = busy,
+            retirementBlocked =
+                ProcessWalletControllerRetirementFailures.blocks(walletStoragePath),
+        )
+    }
+
     private fun requestStorageLease(owner: WalletStorageOwnershipGate.Owner) {
         statusView.text = getString(R.string.wallet_status_starting)
         accountView.text = getString(R.string.wallet_account_unavailable)
@@ -908,6 +971,29 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
+    private fun publishWalletController(handle: Long, reopenedDurable: Boolean) {
+        check(handle != INVALID_HANDLE) { "Cannot publish an invalid wallet controller" }
+        check(walletHandle == INVALID_HANDLE) { "Wallet controller authority is already present" }
+        advanceWalletAuthorityGeneration()
+        walletHandle = handle
+        walletControllerIsReopenedDurable = reopenedDurable
+    }
+
+    private fun detachWalletController(): Long {
+        val handle = walletHandle
+        walletHandle = INVALID_HANDLE
+        walletControllerIsReopenedDurable = false
+        if (handle != INVALID_HANDLE) advanceWalletAuthorityGeneration()
+        return handle
+    }
+
+    private fun advanceWalletAuthorityGeneration() {
+        check(walletAuthorityGeneration < Long.MAX_VALUE) {
+            "Wallet controller authority generation exhausted"
+        }
+        walletAuthorityGeneration += 1L
+    }
+
     private fun operationIsCurrent(
         epoch: Long,
         lease: WalletStorageOwnershipGate.Lease,
@@ -943,7 +1029,7 @@ class WalletActivity : ComponentActivity() {
         check(leaseReleaseHandoff.handOffToRetirement(lease)) {
             "Wallet storage lease already handed to controller retirement"
         }
-        walletHandle = INVALID_HANDLE
+        detachWalletController()
         thread(name = "hns-wallet-controller-retire") {
             destroyWalletController(handle)
             ProcessWalletStorageOwnership.release(lease)
@@ -1136,8 +1222,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun destroyController(): Boolean {
-        val handle = walletHandle
-        walletHandle = INVALID_HANDLE
+        val handle = detachWalletController()
         if (handle == INVALID_HANDLE) return true
         NativeWalletBridge.lock(handle)
         return destroyWalletController(handle)

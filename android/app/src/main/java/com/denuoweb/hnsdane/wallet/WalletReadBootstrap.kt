@@ -1,0 +1,219 @@
+package com.denuoweb.hnsdane.wallet
+
+import java.io.File
+
+/**
+ * Exact, opaque authority for one attempt to compose synchronized HNS reads.
+ *
+ * The database path is canonicalized before it enters the authority. Owner,
+ * lease, controller, and Activity authority generations prevent a credential
+ * captured for an earlier lifecycle from being replayed into its replacement.
+ */
+internal class WalletReadBootstrapAuthority private constructor(
+    val networkId: String,
+    val databasePath: String,
+    val ownerGeneration: Long,
+    val leaseGeneration: Long,
+    val walletHandle: Long,
+    val authorityGeneration: Long,
+    private val storageLease: WalletStorageOwnershipGate.Lease,
+) {
+    override fun equals(other: Any?): Boolean =
+        other is WalletReadBootstrapAuthority &&
+            networkId == other.networkId &&
+            databasePath == other.databasePath &&
+            ownerGeneration == other.ownerGeneration &&
+            leaseGeneration == other.leaseGeneration &&
+            walletHandle == other.walletHandle &&
+            authorityGeneration == other.authorityGeneration &&
+            storageLease === other.storageLease
+
+    override fun hashCode(): Int {
+        var result = networkId.hashCode()
+        result = 31 * result + databasePath.hashCode()
+        result = 31 * result + ownerGeneration.hashCode()
+        result = 31 * result + leaseGeneration.hashCode()
+        result = 31 * result + walletHandle.hashCode()
+        result = 31 * result + authorityGeneration.hashCode()
+        result = 31 * result + System.identityHashCode(storageLease)
+        return result
+    }
+
+    override fun toString(): String =
+        "WalletReadBootstrapAuthority(networkId=$networkId, databasePath=<redacted>, " +
+            "ownerGeneration=<redacted>, leaseGeneration=<redacted>, " +
+            "walletHandle=<redacted>, authorityGeneration=<redacted>)"
+
+    companion object {
+        fun create(
+            networkId: String,
+            databasePath: String,
+            storageLease: WalletStorageOwnershipGate.Lease,
+            walletHandle: Long,
+            authorityGeneration: Long,
+        ): WalletReadBootstrapAuthority? {
+            if (
+                storageLease.owner.generation <= 0L || storageLease.generation <= 0L ||
+                walletHandle <= 0L || authorityGeneration <= 0L
+            ) return null
+            val namespace = runCatching { walletStorageNamespace(networkId) }.getOrNull()
+                ?: return null
+            val requested = File(databasePath)
+            if (!requested.isAbsolute) return null
+            val canonical = runCatching { requested.canonicalFile }.getOrNull() ?: return null
+            val canonicalLeasePath = runCatching { File(storageLease.path).canonicalPath }
+                .getOrNull() ?: return null
+            if (
+                canonicalLeasePath != canonical.path ||
+                canonical.name != WALLET_DATABASE_FILE_NAME ||
+                canonical.parentFile?.name != namespace.directoryName
+            ) return null
+            return WalletReadBootstrapAuthority(
+                networkId = networkId,
+                databasePath = canonical.path,
+                ownerGeneration = storageLease.owner.generation,
+                leaseGeneration = storageLease.generation,
+                walletHandle = walletHandle,
+                authorityGeneration = authorityGeneration,
+                storageLease = storageLease,
+            )
+        }
+    }
+}
+
+/** Current lifecycle facts re-read immediately before native composition. */
+internal data class WalletReadBootstrapState(
+    val authority: WalletReadBootstrapAuthority?,
+    val foreground: Boolean,
+    val protectedStorageAvailable: Boolean,
+    val reopenedDurableWallet: Boolean,
+    val confirmedPersistentWallet: Boolean,
+    val hasUnconfirmedRecovery: Boolean,
+    val operationInFlight: Boolean,
+    val retirementBlocked: Boolean,
+)
+
+internal fun walletReadBootstrapMayInstall(
+    expected: WalletReadBootstrapAuthority,
+    current: WalletReadBootstrapState,
+): Boolean =
+    current.authority == expected &&
+        current.foreground &&
+        current.protectedStorageAvailable &&
+        current.reopenedDurableWallet &&
+        current.confirmedPersistentWallet &&
+        !current.hasUnconfirmedRecovery &&
+        !current.operationInFlight &&
+        !current.retirementBlocked
+
+/**
+ * A single-use, authority-bound RPC credential.
+ *
+ * Construction consumes a caller-owned mutable copy. Any use attempt, even an
+ * authority mismatch, atomically takes and wipes the retained copy. `close`
+ * covers callers that abandon the configuration before attempting use.
+ */
+internal class NativeHnsReadConfiguration private constructor(
+    val authority: WalletReadBootstrapAuthority,
+    val loopbackPort: Int,
+    private var retainedAuthorization: CharArray?,
+) : AutoCloseable {
+    private val lock = Any()
+
+    fun consumeFor(
+        currentAuthority: WalletReadBootstrapAuthority,
+        install: (Int, CharArray) -> Boolean,
+    ): Boolean {
+        val authorization = synchronized(lock) {
+            retainedAuthorization?.also { retainedAuthorization = null }
+        } ?: return false
+        return try {
+            authority == currentAuthority && install(loopbackPort, authorization)
+        } finally {
+            authorization.fill('\u0000')
+        }
+    }
+
+    override fun close() {
+        val authorization = synchronized(lock) {
+            retainedAuthorization?.also { retainedAuthorization = null }
+        }
+        authorization?.fill('\u0000')
+    }
+
+    override fun toString(): String =
+        "NativeHnsReadConfiguration(authority=<redacted>, loopbackPort=<redacted>, " +
+            "authorization=<redacted>)"
+
+    companion object {
+        fun takeOwnership(
+            authority: WalletReadBootstrapAuthority,
+            loopbackPort: Int,
+            authorization: CharArray,
+        ): NativeHnsReadConfiguration? {
+            var retained: CharArray? = null
+            return try {
+                if (
+                    loopbackPort !in 1..USHORT_MAX ||
+                    authorization.isEmpty() ||
+                    authorization.size > MAX_AUTHORIZATION_CHARACTERS ||
+                    authorization.first() == ' ' ||
+                    authorization.last() == ' ' ||
+                    authorization.any { it.code !in PRINTABLE_ASCII }
+                ) {
+                    null
+                } else {
+                    val owned = authorization.copyOf()
+                    retained = owned
+                    NativeHnsReadConfiguration(authority, loopbackPort, owned).also {
+                        retained = null
+                    }
+                }
+            } finally {
+                authorization.fill('\u0000')
+                retained?.fill('\u0000')
+            }
+        }
+
+        private const val USHORT_MAX = 65_535
+        private const val MAX_AUTHORIZATION_CHARACTERS = 4_096
+        private val PRINTABLE_ASCII = 0x20..0x7e
+    }
+}
+
+/**
+ * Supplies an already-scoped credential without performing network or storage
+ * work. Implementations must never read preferences, intents, links, or WebView
+ * messages. A returned configuration is consumed before this call stack exits.
+ */
+internal fun interface WalletReadBootstrapSource {
+    fun take(authority: WalletReadBootstrapAuthority): NativeHnsReadConfiguration?
+}
+
+/** Shipping builds intentionally provision no indexed backend or credential. */
+internal object UnavailableWalletReadBootstrapSource : WalletReadBootstrapSource {
+    override fun take(authority: WalletReadBootstrapAuthority): NativeHnsReadConfiguration? = null
+}
+
+/**
+ * Performs gate-before-take and gate-after-take admission. The second state
+ * read closes races with lifecycle revocation caused by a source callback.
+ */
+internal fun attemptWalletReadBootstrap(
+    expectedAuthority: WalletReadBootstrapAuthority,
+    source: WalletReadBootstrapSource,
+    currentState: () -> WalletReadBootstrapState,
+    install: (WalletReadBootstrapAuthority, NativeHnsReadConfiguration) -> Boolean,
+): Boolean {
+    if (!walletReadBootstrapMayInstall(expectedAuthority, currentState())) return false
+    val configuration = runCatching { source.take(expectedAuthority) }.getOrNull() ?: return false
+    configuration.use {
+        val current = currentState()
+        val currentAuthority = current.authority
+        if (
+            currentAuthority == null ||
+            !walletReadBootstrapMayInstall(expectedAuthority, current)
+        ) return false
+        return runCatching { install(currentAuthority, configuration) }.getOrDefault(false)
+    }
+}

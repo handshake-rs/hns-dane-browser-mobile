@@ -28,15 +28,86 @@ struct NativeWalletAccount: Decodable, Equatable {
     let receiveDisplay: String?
 }
 
-final class NativeHnsReadConfiguration {
+struct WalletReadBootstrapAuthority:
+    Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible
+{
+    let network: BrowserHandshakeNetwork
+    let databasePath: String
+    let lease: WalletStorageLeaseToken
+    let walletIdentity: ObjectIdentifier
+    let ownerGeneration: UInt64
+
+    var description: String {
+        "WalletReadBootstrapAuthority(<redacted>)"
+    }
+
+    var debugDescription: String { description }
+}
+
+func walletReadBootstrapAuthorityIsWellFormed(
+    _ authority: WalletReadBootstrapAuthority
+) -> Bool {
+    let database = URL(fileURLWithPath: authority.databasePath).standardizedFileURL
+    let networkDirectory = database.deletingLastPathComponent()
+    let walletRoot = networkDirectory.deletingLastPathComponent()
+    return authority.ownerGeneration > 0 &&
+        database.path == authority.databasePath &&
+        database.lastPathComponent == "wallet.sqlite3" &&
+        networkDirectory.lastPathComponent == authority.network.rawValue &&
+        walletRoot.lastPathComponent == "NativeWallet" &&
+        authority.lease.path == authority.databasePath
+}
+
+protocol WalletReadBootstrapSource: AnyObject {
+    /// Moves at most one scoped credential for the exact live wallet
+    /// authority. Sources must not synthesize credentials from preferences,
+    /// links, pasteboard contents, or other renderer-controlled input.
+    func takeConfiguration(
+        for authority: WalletReadBootstrapAuthority
+    ) -> NativeHnsReadConfiguration?
+}
+
+/// Production remains fail-closed until a trusted native companion broker is
+/// qualified. Keeping the unavailable source explicit prevents UI or stored
+/// settings from becoming an accidental credential channel.
+final class UnavailableWalletReadBootstrapSource: WalletReadBootstrapSource {
+    static let shared = UnavailableWalletReadBootstrapSource()
+
+    private init() {}
+
+    func takeConfiguration(
+        for authority: WalletReadBootstrapAuthority
+    ) -> NativeHnsReadConfiguration? {
+        nil
+    }
+}
+
+enum NativeHnsReadConfigurationError: Error, Equatable {
+    case consumed
+    case authorityMismatch
+}
+
+final class NativeHnsReadConfiguration: @unchecked Sendable, CustomStringConvertible {
+    let authority: WalletReadBootstrapAuthority
     let loopbackPort: UInt16
-    fileprivate var authorization: [UInt8]
+    private let stateLock = NSLock()
+    private var authorization: [UInt8]
+    private var consumed = false
+
+    var description: String {
+        "NativeHnsReadConfiguration(authority: scoped, authorization: <redacted>)"
+    }
 
     /// Takes ownership of a caller-controlled copy and wipes the caller's
     /// buffer on every exit. The configuration wipes its retained copy after
     /// its single native composition attempt.
-    init?(loopbackPort: UInt16, authorization: inout [UInt8]) {
-        guard loopbackPort != 0,
+    init?(
+        authority: WalletReadBootstrapAuthority,
+        loopbackPort: UInt16,
+        authorization: inout [UInt8]
+    ) {
+        guard walletReadBootstrapAuthorityIsWellFormed(authority),
+              loopbackPort != 0,
               !authorization.isEmpty,
               authorization.count <= 4_096,
               authorization.first != UInt8(ascii: " "),
@@ -45,22 +116,49 @@ final class NativeHnsReadConfiguration {
             WalletSecretBytes.wipe(&authorization)
             return nil
         }
+        self.authority = authority
         self.loopbackPort = loopbackPort
         self.authorization = authorization
         WalletSecretBytes.wipe(&authorization)
     }
 
-    fileprivate func consume<T>(
+    func consume<T>(
         _ body: (UInt16, UnsafeRawBufferPointer) throws -> T
-    ) rethrows -> T {
-        defer { WalletSecretBytes.wipe(&authorization) }
-        return try authorization.withUnsafeBytes { bytes in
+    ) throws -> T {
+        try consume(for: authority, body)
+    }
+
+    func consume<T>(
+        for currentAuthority: WalletReadBootstrapAuthority,
+        _ body: (UInt16, UnsafeRawBufferPointer) throws -> T
+    ) throws -> T {
+        stateLock.lock()
+        guard !consumed else {
+            stateLock.unlock()
+            throw NativeHnsReadConfigurationError.consumed
+        }
+        consumed = true
+        var retainedAuthorization = authorization
+        WalletSecretBytes.wipe(&authorization)
+        stateLock.unlock()
+
+        defer { WalletSecretBytes.wipe(&retainedAuthorization) }
+        guard authority == currentAuthority else {
+            throw NativeHnsReadConfigurationError.authorityMismatch
+        }
+        return try retainedAuthorization.withUnsafeBytes { bytes in
             try body(loopbackPort, bytes)
         }
     }
 
+    func discard() {
+        _ = try? consume { _, _ in () }
+    }
+
     deinit {
+        stateLock.lock()
         WalletSecretBytes.wipe(&authorization)
+        stateLock.unlock()
     }
 }
 
@@ -459,8 +557,11 @@ final class RustNativeWallet: @unchecked Sendable {
         try decodeOutput(operation: "wallet accounts", invoke: hns_browser_wallet_accounts)
     }
 
-    func configureHnsReads(_ configuration: NativeHnsReadConfiguration) throws {
-        try configuration.consume { port, authorization in
+    func configureHnsReads(
+        _ configuration: NativeHnsReadConfiguration,
+        currentAuthority: WalletReadBootstrapAuthority
+    ) throws {
+        try configuration.consume(for: currentAuthority) { port, authorization in
             try NativeWalletBridge.check(
                 hns_browser_wallet_configure_hns_reads(
                     try liveHandle(),

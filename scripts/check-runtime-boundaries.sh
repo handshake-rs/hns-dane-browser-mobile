@@ -140,11 +140,17 @@ android_security="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/
 android_download="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/net/HnsNativeDownloadFetcher.kt"
 android_interceptor="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/net/HnsWebViewGatewayInterceptor.kt"
 android_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/MainActivity.kt"
+android_wallet_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/WalletActivity.kt"
+android_wallet_bootstrap="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/WalletReadBootstrap.kt"
+android_wallet_bridge="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/NativeWalletBridge.kt"
+android_wallet_protocol="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/MobileWalletProviderProtocol.kt"
 android_classifier="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserUrlClassifier.kt"
 android_host_policy="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/HnsHostPolicy.kt"
 ios_runtime="$ROOT_DIR/ios/HnsDaneBrowser/Core/RustBrowserRuntime.swift"
 ios_bridging_header="$ROOT_DIR/ios/HnsDaneBrowser/Support/HnsDaneBrowser-Bridging-Header.h"
 ios_native_wallet="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/RustNativeWallet.swift"
+ios_wallet_controller="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletViewController.swift"
+ios_wallet_protocol="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletProviderProtocol.swift"
 
 require_source_contains "$android_trace" \
   'optJSONObject("namespaceResolution")' \
@@ -176,6 +182,30 @@ require_source_contains "$android_classifier" \
 require_source_contains "$android_host_policy" \
   'if (isAndroidWebViewAssetHost(host))' \
   "Synthetic Android asset fallbacks must be blocked before DNS routing."
+require_source_contains "$android_wallet_activity" \
+  'private val walletReadBootstrapSource: WalletReadBootstrapSource =' \
+  "Android wallet-read bootstrap must use an immutable production source."
+require_source_contains "$android_wallet_activity" \
+  'UnavailableWalletReadBootstrapSource' \
+  "Android production wallet-read bootstrap must remain unavailable."
+require_source_absent "$android_wallet_activity" \
+  'var walletReadBootstrapSource' \
+  "Android wallet-read bootstrap source must not be mutable."
+require_source_contains "$android_wallet_bootstrap" \
+  'storageLease === other.storageLease' \
+  "Android wallet-read credentials must bind the exact storage lease identity."
+require_source_contains "$android_wallet_bridge" \
+  'configuration.consumeFor(currentAuthority)' \
+  "Android native wallet-read composition must consume an authority-bound one-shot credential."
+for gate in \
+  PROVIDER_BRIDGE_RELEASE_QUALIFIED \
+  WALLET_RUNTIME_RELEASE_QUALIFIED \
+  APPROVAL_RUNTIME_RELEASE_QUALIFIED \
+  VALUE_RUNTIME_RELEASE_QUALIFIED; do
+  require_source_contains "$android_wallet_protocol" \
+    "const val $gate = false" \
+    "Android wallet release gate $gate must remain false."
+done
 
 require_source_contains "$ios_runtime" \
   'return object["namespaceResolution"] as? [String: Any]' \
@@ -195,6 +225,30 @@ require_source_contains "$ios_bridging_header" \
 require_source_contains "$ios_native_wallet" \
   'hns_wallet_secure_zero(baseAddress, buffer.count)' \
   "iOS wallet secrets must use the SDK-compatible secure-zero primitive."
+require_source_contains "$ios_wallet_controller" \
+  'private let readBootstrapSource: any WalletReadBootstrapSource =' \
+  "iOS wallet-read bootstrap must use an immutable production source."
+require_source_contains "$ios_wallet_controller" \
+  'UnavailableWalletReadBootstrapSource.shared' \
+  "iOS production wallet-read bootstrap must remain unavailable."
+require_source_absent "$ios_wallet_controller" \
+  'var readBootstrapSource' \
+  "iOS wallet-read bootstrap source must not be mutable."
+require_source_contains "$ios_wallet_controller" \
+  'configuration.authority == expectedAuthority' \
+  "iOS wallet-read admission must retain the authority requested before credential acquisition."
+require_source_contains "$ios_wallet_controller" \
+  'currentAuthority == expectedAuthority' \
+  "iOS wallet-read admission must reject authority rotation during credential acquisition."
+for gate in \
+  providerBridgeReleaseQualified \
+  walletRuntimeReleaseQualified \
+  approvalRuntimeReleaseQualified \
+  valueRuntimeReleaseQualified; do
+  require_source_contains "$ios_wallet_protocol" \
+    "static let $gate = false" \
+    "iOS wallet release gate $gate must remain false."
+done
 if matches="$(grep -RInE \
   --include='*.swift' \
   'explicit_bzero[[:space:]]*\(' \

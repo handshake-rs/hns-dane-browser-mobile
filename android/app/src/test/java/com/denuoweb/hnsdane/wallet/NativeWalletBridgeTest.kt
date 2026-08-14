@@ -39,16 +39,30 @@ class NativeWalletBridgeTest {
     }
 
     @Test
-    fun unavailableReadConfigurationStillConsumesAuthorizationInput() {
+    fun unavailableReadConfigurationStillConsumesAuthorityBoundInput() {
+        val storage = WalletStorageOwnershipGate()
+        val owner = storage.newOwner("/wallet/wallet-v1-mainnet/wallet.sqlite3") {}
+        var acquiredLease: WalletStorageOwnershipGate.Lease? = null
+        assertTrue(storage.acquire(owner) { acquiredLease = it })
+        val authority = checkNotNull(WalletReadBootstrapAuthority.create(
+            networkId = "mainnet",
+            databasePath = "/wallet/wallet-v1-mainnet/wallet.sqlite3",
+            storageLease = checkNotNull(acquiredLease),
+            walletHandle = 1,
+            authorityGeneration = 1,
+        ))
         val authorization = "Bearer scoped-read-secret".toCharArray()
-        assertFalse(
-            NativeWalletBridge.configureHnsReads(
-                handle = 0,
-                loopbackPort = 12_039,
-                authorization = authorization,
-            ),
+        val configuration = checkNotNull(
+            NativeHnsReadConfiguration.takeOwnership(authority, 12_039, authorization),
         )
         assertTrue(authorization.all { it == '\u0000' })
+        assertFalse(
+            NativeWalletBridge.configureHnsReads(
+                currentAuthority = authority,
+                configuration = configuration,
+            ),
+        )
+        assertFalse(configuration.consumeFor(authority) { _, _ -> true })
         assertFalse(NativeWalletBridge.hasHnsReads(0))
         assertNull(NativeWalletBridge.synchronizeHnsReads(0))
 
