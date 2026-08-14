@@ -37,13 +37,13 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(wallet["version"], "=0.1.0")
         self.assertEqual(
             wallet["rev"],
-            "49afe81abce3d3f1a9309e26962731e181e43051",
+            "bc5901f794450d29fa9f5630bab4fbf91e37bedf",
         )
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
             "hns-wallet-rs.git?rev="
-            "49afe81abce3d3f1a9309e26962731e181e43051",
+            "bc5901f794450d29fa9f5630bab4fbf91e37bedf",
             lockfile,
         )
         self.assertIn(
@@ -110,6 +110,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             with self.subTest(provider_boundary=relative):
                 source = (ROOT / relative).read_text(encoding="utf-8")
                 self.assertNotIn("nameReceiveTarget", source)
+                self.assertNotIn("importHnsNameExactText", source)
+                self.assertNotIn("HNWI", source)
 
     def test_store_and_privacy_copy_describes_fail_closed_native_reads(self) -> None:
         paths = (

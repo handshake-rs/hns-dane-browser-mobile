@@ -12,6 +12,13 @@ All notable changes to this project will be documented in this file.
   HNWR-v2 through separate exact five- and six-field schemas, then render the
   two v2 purposes in distinct native-only rows. No website-provider method,
   value capability, or release gate was added.
+- Added native-only exact-text Handshake name import through closed HNWI-v1
+  JNI/C bundles and Android/iOS wallet controls. Input UTF-8 is passed without
+  trimming, lowercasing, IDNA, normalization, or trailing-dot edits; invalid
+  input is non-poisoning, while runtime/projection faults lock and fail closed.
+  Success is published only after a fresh HNWR-v2 snapshot corroborates the
+  exact name and name hash. HNWI remains absent from provider, JavaScript,
+  value, HNSA, and HNSR surfaces and is unavailable without the scoped backend.
 - Android and iOS now let the current protected foreground wallet owner delete
   a confirmed local wallet after two destructive confirmations that identify
   the exact network and account and require typing `DELETE`. Deletion revokes
@@ -22,7 +29,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Repinned `hns-wallet-mobile 0.1.0` to exact source
-  `49afe81abce3d3f1a9309e26962731e181e43051` and its `hns-rs 0.3.0`
+  `bc5901f794450d29fa9f5630bab4fbf91e37bedf` and its `hns-rs 0.3.0`
   closure to `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`; Cargo policy,
   the lockfile, and generated notices bind that reviewed chain.
 - iOS now renders the same bounded read-only wallet detail as Android,
@@ -45,7 +52,7 @@ All notable changes to this project will be documented in this file.
 
 ### Qualification
 
-- Exact HNWR-v2 code-bearing source
+- Earlier HNWR-v2 code-bearing source
   `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
   `31807520618`, including repository policy, Rust/supply-chain, Android
   build/unit, API 37 native instrumentation, the complete Apple
@@ -55,7 +62,10 @@ All notable changes to this project will be documented in this file.
   `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and
   expires 2026-08-17; it is debug-only, not store signed. Signed artifacts,
   screenshots, store declaration/upload, credentialed wallet workflows, and
-  physical-device qualification remain open.
+  physical-device qualification remain open. That run qualifies only
+  `986accb7d86d220af63187031e629a9ce69d71e5` and predates the `bc5901f`
+  pin/HNWI-v1 tranche; current exact-source Apple and aggregate CI remain
+  pending.
 
 ## 0.5.10 - 2026-08-11
 

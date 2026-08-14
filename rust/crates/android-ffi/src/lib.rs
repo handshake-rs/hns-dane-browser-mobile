@@ -6,10 +6,12 @@
 )]
 
 use hns_mobile_platform_runtime::*;
+use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
     HnsBootstrapPolicy, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MobileDatabaseKey, MobileHnsReadController, MobilePlatform,
-    MobileRecoveryPhrase, MobileWalletController,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MobileDatabaseKey, MobileHnsNameSummary,
+    MobileHnsReadController, MobilePlatform, MobileRecoveryPhrase, MobileWalletController,
+    MobileWalletError,
 };
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JCharArray, JClass, JString};
@@ -59,6 +61,15 @@ const WALLET_READ_BUNDLE_VERSION: u8 = 2;
 const WALLET_READ_BUNDLE_FLAGS: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
+const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
+const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
+const WALLET_NAME_IMPORT_STATUS_SUCCESS: u8 = 1;
+const WALLET_NAME_IMPORT_STATUS_INVALID: u8 = 2;
+const WALLET_NAME_IMPORT_STATUS_UNAVAILABLE: u8 = 3;
+const WALLET_NAME_IMPORT_STATUS_FAILED: u8 = 4;
+const WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_NAME_INPUT_BYTES: usize = 4 * 1024;
+const MAX_WALLET_NAME_IMPORT_JSON_BYTES: usize = 16 * 1024;
 static WALLET_HANDLES: OnceLock<BoundedMonotonicRegistry<AndroidWalletRecord>> = OnceLock::new();
 const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
 static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
@@ -263,6 +274,58 @@ impl AndroidWalletController {
         let bundle = wallet_read_bundle(json.as_slice());
         json.fill(0);
         bundle
+    }
+
+    fn import_hns_name_exact_text(&mut self, name: &str) -> Option<Vec<u8>> {
+        let Self::Reads(controller) = self else {
+            let status = if matches!(self, Self::Lifecycle(_)) {
+                WALLET_NAME_IMPORT_STATUS_UNAVAILABLE
+            } else {
+                WALLET_NAME_IMPORT_STATUS_FAILED
+            };
+            return wallet_name_import_bundle(status, &[]);
+        };
+        match controller.import_name_exact_text(name) {
+            Ok(summary) if summary.name.as_bytes() == name.as_bytes() => {
+                wallet_name_import_summary_bundle(&summary).or_else(|| {
+                    let _ = controller.lock();
+                    wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_FAILED, &[])
+                })
+            }
+            Ok(_) => {
+                android_log_error("wallet HNS name import returned a non-exact name summary");
+                let _ = controller.lock();
+                wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_FAILED, &[])
+            }
+            Err(error)
+                if wallet_name_import_error_status(&error) == WALLET_NAME_IMPORT_STATUS_INVALID =>
+            {
+                wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_INVALID, &[])
+            }
+            Err(error) => {
+                android_log_error(&format!("wallet HNS name import failed closed: {error}"));
+                // Do not depend on Kotlin to complete fail-closed handling. In
+                // particular, projection/evidence failures can occur after the
+                // service call itself and therefore are not guaranteed to have
+                // locked the controller upstream.
+                let _ = controller.lock();
+                wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_FAILED, &[])
+            }
+        }
+    }
+}
+
+fn wallet_name_import_error_status(error: &MobileWalletError) -> u8 {
+    if matches!(
+        error,
+        MobileWalletError::ServiceFailure {
+            code: ServiceErrorCode::InvalidRequest,
+            ..
+        }
+    ) {
+        WALLET_NAME_IMPORT_STATUS_INVALID
+    } else {
+        WALLET_NAME_IMPORT_STATUS_FAILED
     }
 }
 
@@ -476,6 +539,22 @@ fn android_wallet_database_key(
     key
 }
 
+fn android_wallet_name_input(env: &mut JNIEnv<'_>, input: &JByteArray<'_>) -> Option<String> {
+    let length = usize::try_from(env.get_array_length(input).ok()?).ok()?;
+    if length > MAX_WALLET_NAME_INPUT_BYTES {
+        return None;
+    }
+    let bytes = env.convert_byte_array(input).ok()?;
+    match String::from_utf8(bytes) {
+        Ok(name) => Some(name),
+        Err(error) => {
+            let mut bytes = error.into_bytes();
+            bytes.fill(0);
+            None
+        }
+    }
+}
+
 fn android_wallet_recovery_phrase(
     env: &mut JNIEnv<'_>,
     input: &JCharArray<'_>,
@@ -589,6 +668,41 @@ fn wallet_read_bundle(json: &[u8]) -> Option<Vec<u8>> {
     bundle.extend_from_slice(&json_length.to_be_bytes());
     bundle.extend_from_slice(json);
     (bundle.len() == WALLET_READ_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
+}
+
+fn wallet_name_import_summary_bundle(summary: &MobileHnsNameSummary) -> Option<Vec<u8>> {
+    let mut json = serde_json::to_vec(summary).ok()?;
+    let bundle = wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_SUCCESS, json.as_slice());
+    json.fill(0);
+    bundle
+}
+
+fn wallet_name_import_bundle(status: u8, json: &[u8]) -> Option<Vec<u8>> {
+    let success = status == WALLET_NAME_IMPORT_STATUS_SUCCESS;
+    if !matches!(
+        status,
+        WALLET_NAME_IMPORT_STATUS_SUCCESS
+            | WALLET_NAME_IMPORT_STATUS_INVALID
+            | WALLET_NAME_IMPORT_STATUS_UNAVAILABLE
+            | WALLET_NAME_IMPORT_STATUS_FAILED
+    ) || (success
+        && (json.is_empty()
+            || json.len() > MAX_WALLET_NAME_IMPORT_JSON_BYTES
+            || json.first() != Some(&b'{')
+            || json.last() != Some(&b'}')))
+        || (!success && !json.is_empty())
+    {
+        return None;
+    }
+    let json_length = u32::try_from(json.len()).ok()?;
+    let mut bundle = Vec::with_capacity(WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES + json.len());
+    bundle.extend_from_slice(WALLET_NAME_IMPORT_BUNDLE_MAGIC);
+    bundle.push(WALLET_NAME_IMPORT_BUNDLE_VERSION);
+    bundle.push(status);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&json_length.to_be_bytes());
+    bundle.extend_from_slice(json);
+    (bundle.len() == WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
 }
 
 struct AndroidRequestMetricsObserver;
@@ -2209,6 +2323,51 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeImportHnsNameExactText(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    exact_utf8: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut name = match android_wallet_name_input(&mut env, &exact_utf8) {
+            Some(name) => name,
+            None => {
+                let Some(mut bundle) =
+                    wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_INVALID, &[])
+                else {
+                    let _ = controller.lock();
+                    return None;
+                };
+                let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+                bundle.fill(0);
+                if array.is_none() {
+                    let _ = controller.lock();
+                }
+                return array.map(JByteArray::into_raw);
+            }
+        };
+        let bundle = controller.import_hns_name_exact_text(name.as_str());
+        wipe_string(&mut name);
+        let Some(mut bundle) = bundle else {
+            let _ = controller.lock();
+            return None;
+        };
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        if array.is_none() {
+            let _ = controller.lock();
+        }
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeSynchronizeHnsReads(
     env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -2418,6 +2577,65 @@ mod tests {
         assert!(wallet_read_bundle(b"[]").is_none());
         assert!(wallet_read_bundle(b"{broken").is_none());
         assert!(wallet_read_bundle(&vec![b' '; MAX_WALLET_READ_JSON_BYTES + 1]).is_none());
+    }
+
+    #[test]
+    fn wallet_name_import_bundle_is_versioned_closed_and_bounded() {
+        let json = br#"{"name":"alpha","nameHash":"0000000000000000000000000000000000000000000000000000000000000000","proofHeight":7,"resourceStatus":"empty","ownershipStatus":"notWalletOwned","registered":true,"expired":false}"#;
+        let bundle = wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_SUCCESS, json)
+            .expect("bounded name import bundle");
+        assert_eq!(&bundle[..4], WALLET_NAME_IMPORT_BUNDLE_MAGIC);
+        assert_eq!(bundle[4], WALLET_NAME_IMPORT_BUNDLE_VERSION);
+        assert_eq!(bundle[5], WALLET_NAME_IMPORT_STATUS_SUCCESS);
+        assert_eq!(&bundle[6..8], &[0, 0]);
+        assert_eq!(
+            u32::from_be_bytes(bundle[8..12].try_into().expect("length field")),
+            json.len() as u32
+        );
+        assert_eq!(&bundle[WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES..], json);
+
+        for status in [
+            WALLET_NAME_IMPORT_STATUS_INVALID,
+            WALLET_NAME_IMPORT_STATUS_UNAVAILABLE,
+            WALLET_NAME_IMPORT_STATUS_FAILED,
+        ] {
+            let bundle = wallet_name_import_bundle(status, &[]).expect("empty outcome bundle");
+            assert_eq!(bundle.len(), WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES);
+            assert_eq!(bundle[5], status);
+        }
+        assert!(wallet_name_import_bundle(0, &[]).is_none());
+        assert!(wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_SUCCESS, &[]).is_none());
+        assert!(wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_SUCCESS, b"[]").is_none());
+        assert!(wallet_name_import_bundle(WALLET_NAME_IMPORT_STATUS_INVALID, b"{}").is_none());
+        assert!(
+            wallet_name_import_bundle(
+                WALLET_NAME_IMPORT_STATUS_SUCCESS,
+                &vec![b' '; MAX_WALLET_NAME_IMPORT_JSON_BYTES + 1],
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn wallet_name_import_error_classification_preserves_invalid_non_poisoning() {
+        assert_eq!(
+            wallet_name_import_error_status(&MobileWalletError::ServiceFailure {
+                code: ServiceErrorCode::InvalidRequest,
+                message: "invalid".to_owned(),
+            }),
+            WALLET_NAME_IMPORT_STATUS_INVALID
+        );
+        assert_eq!(
+            wallet_name_import_error_status(&MobileWalletError::ServiceFailure {
+                code: ServiceErrorCode::RuntimeFailure,
+                message: "failed".to_owned(),
+            }),
+            WALLET_NAME_IMPORT_STATUS_FAILED
+        );
+        assert_eq!(
+            wallet_name_import_error_status(&MobileWalletError::ControllerFailed),
+            WALLET_NAME_IMPORT_STATUS_FAILED
+        );
     }
 
     #[test]

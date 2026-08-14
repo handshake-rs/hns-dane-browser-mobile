@@ -77,6 +77,33 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ] + payload
     }
 
+    private func hnsNameImportBundle(
+        status: UInt8,
+        json: String? = nil,
+        version: UInt8 = 1,
+        reservedHigh: UInt8 = 0,
+        reservedLow: UInt8 = 0
+    ) -> [UInt8] {
+        let payload = json.map { Array($0.utf8) } ?? []
+        let length = UInt32(payload.count)
+        return Array("HNWI".utf8) + [
+            version,
+            status,
+            reservedHigh,
+            reservedLow,
+            UInt8((length >> 24) & 0xff),
+            UInt8((length >> 16) & 0xff),
+            UInt8((length >> 8) & 0xff),
+            UInt8(length & 0xff),
+        ] + payload
+    }
+
+    private func hnsNameSummaryJSON(name: String = "alpha") -> String {
+        """
+        {"name":"\(name)","nameHash":"\(String(repeating: "a", count: 64))","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false}
+        """
+    }
+
     private func hnsAccountJSON(_ account: [UInt8]) -> String {
         account.map { String($0) }.joined(separator: ",")
     }
@@ -169,14 +196,14 @@ final class BrowserRuntimeControlTests: XCTestCase {
             )
             .replacingOccurrences(
                 of: "\"knownNames\":[]",
-                with: "\"knownNames\":[{\"name\":\"example\",\"nameHash\":\"\(nameHash)\",\"proofHeight\":42,\"resourceStatus\":\"canonicalDecoded\",\"ownershipStatus\":\"walletOwned\",\"registered\":true,\"expired\":false}]"
+                with: "\"knownNames\":[{\"name\":\"alpha\",\"nameHash\":\"\(nameHash)\",\"proofHeight\":42,\"resourceStatus\":\"canonicalDecoded\",\"ownershipStatus\":\"walletOwned\",\"registered\":true,\"expired\":false}]"
             )
         let populated = try NativeHnsReadSnapshot.decode(
             bundle: hnsReadBundle(json: populatedJSON)
         )
         XCTAssertEqual(populated.transactionHistory.first?.status, "confirmed")
         XCTAssertEqual(populated.transactionHistory.first?.fee, "10")
-        XCTAssertEqual(populated.knownNames.first?.name, "example")
+        XCTAssertEqual(populated.knownNames.first?.name, "alpha")
         XCTAssertEqual(populated.knownNames.first?.ownershipStatus, "walletOwned")
 
         XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
@@ -242,6 +269,108 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 ))
             )
         )
+    }
+
+    func testNativeHNSNameImportBundleIsStrictVersionedAndMinimized() throws {
+        let json = hnsNameSummaryJSON()
+        let result = try NativeHnsNameImportResult.decode(
+            bundle: hnsNameImportBundle(status: 1, json: json)
+        )
+        guard case .success(let summary) = result else {
+            return XCTFail("expected one minimized HNWI success summary")
+        }
+        XCTAssertEqual(summary.name, "alpha")
+        XCTAssertEqual(summary.proofHeight, 42)
+        XCTAssertEqual(summary.resourceStatus, "canonicalDecoded")
+        XCTAssertEqual(summary.ownershipStatus, "walletOwned")
+        XCTAssertEqual(WalletReadPresenter.presentName(summary), [
+            "alpha · proof height 42",
+            "wallet owned · canonical decoded · registered · current",
+            String(repeating: "a", count: 64),
+        ].joined(separator: "\n"))
+
+        let account = [UInt8(1)] + Array(repeating: UInt8(0), count: 15)
+        let emptyReadJSON = minimalHnsReadJSON(paymentAccount: account)
+        func snapshot(nameJSON: String?) throws -> NativeHnsReadSnapshot {
+            let value = nameJSON.map {
+                emptyReadJSON.replacingOccurrences(
+                    of: "\"knownNames\":[]",
+                    with: "\"knownNames\":[\($0)]"
+                )
+            } ?? emptyReadJSON
+            return try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: value))
+        }
+        XCTAssertTrue(walletNameImportRefreshMatches(
+            imported: summary,
+            refreshed: try snapshot(nameJSON: hnsNameSummaryJSON())
+        ))
+        XCTAssertFalse(walletNameImportRefreshMatches(
+            imported: summary,
+            refreshed: try snapshot(nameJSON: hnsNameSummaryJSON(name: "beta"))
+        ))
+        XCTAssertFalse(walletNameImportRefreshMatches(
+            imported: summary,
+            refreshed: try snapshot(nameJSON: hnsNameSummaryJSON().replacingOccurrences(
+                of: String(repeating: "a", count: 64),
+                with: String(repeating: "b", count: 64)
+            ))
+        ))
+        XCTAssertFalse(walletNameImportRefreshMatches(
+            imported: summary,
+            refreshed: try snapshot(nameJSON: nil)
+        ))
+
+        XCTAssertEqual(
+            try NativeHnsNameImportResult.decode(bundle: hnsNameImportBundle(status: 2)),
+            .invalidInput
+        )
+        XCTAssertEqual(
+            try NativeHnsNameImportResult.decode(bundle: hnsNameImportBundle(status: 3)),
+            .unavailable
+        )
+        XCTAssertEqual(
+            try NativeHnsNameImportResult.decode(bundle: hnsNameImportBundle(status: 4)),
+            .failed
+        )
+
+        var wrongMagic = hnsNameImportBundle(status: 1, json: json)
+        wrongMagic[0] = 0
+        var wrongLength = hnsNameImportBundle(status: 1, json: json)
+        wrongLength[11] &+= 1
+        for invalid in [
+            wrongMagic,
+            hnsNameImportBundle(status: 1, json: json, version: 2),
+            hnsNameImportBundle(status: 1, json: json, reservedHigh: 1),
+            hnsNameImportBundle(status: 1, json: json, reservedLow: 1),
+            wrongLength,
+            hnsNameImportBundle(status: 1),
+            hnsNameImportBundle(status: 0),
+            hnsNameImportBundle(status: 5),
+            hnsNameImportBundle(status: 2, json: json),
+            hnsNameImportBundle(status: 1, json: "[]"),
+            hnsNameImportBundle(
+                status: 1,
+                json: json.replacingOccurrences(of: "{\"name\"", with: "{\"ownerOutpoint\":\"private\",\"name\"")
+            ),
+            hnsNameImportBundle(
+                status: 1,
+                json: json.replacingOccurrences(of: "\"nameHash\":", with: "\"missingNameHash\":")
+            ),
+        ] {
+            XCTAssertThrowsError(try NativeHnsNameImportResult.decode(bundle: invalid))
+        }
+
+        for invalidName in [
+            " Alpha", "Alpha", "alpha.", "álpha", "-alpha", "alpha_",
+            "example", String(repeating: "a", count: 64),
+        ] {
+            XCTAssertThrowsError(try NativeHnsNameImportResult.decode(
+                bundle: hnsNameImportBundle(
+                    status: 1,
+                    json: hnsNameSummaryJSON(name: invalidName)
+                )
+            ))
+        }
     }
 
     func testNativeHNSReadTargetsRequireExactDistinctHandshakeBindings() throws {
@@ -379,7 +508,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             {"module":"handshake","txid":[\(secondTransaction)],"status":"mempool","net_amount":{"negative":false,"magnitude":"1000000"},"fee":null,"block_height":null,"first_seen_unix":2,"confirmation_count":0}
           ],
           "knownNames":[
-            {"name":"example","nameHash":"\(firstHash)","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false},
+            {"name":"alpha","nameHash":"\(firstHash)","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false},
             {"name":"second","nameHash":"\(secondHash)","proofHeight":41,"resourceStatus":"empty","ownershipStatus":"notWalletOwned","registered":false,"expired":null}
           ],
           "moduleStatus":{"phase":"ready","validated_height":42,"scanned_height":42,"target_height":42,"last_error":null}
@@ -414,7 +543,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
         XCTAssertEqual(
             presentation.names,
-            "example · proof height 42\nwallet owned · canonical decoded · registered · current\n\(firstHash)\n\n1 more items are present in this synchronized snapshot."
+            "alpha · proof height 42\nwallet owned · canonical decoded · registered · current\n\(firstHash)\n\n1 more items are present in this synchronized snapshot."
         )
 
         let fullPresentation = WalletReadPresenter.present(snapshot, maximumVisibleItems: 2)
@@ -1708,6 +1837,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
             currentLease: lease,
             expectedWalletIdentity: expectedIdentity,
             currentWalletIdentity: expectedIdentity,
+            expectedAuthorityGeneration: 3,
+            currentAuthorityGeneration: 3,
             viewIsVisible: true
         ))
         XCTAssertFalse(walletReadMayPublish(
@@ -1717,6 +1848,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
             currentLease: WalletStorageLeaseToken(path: lease.path, owner: UUID()),
             expectedWalletIdentity: expectedIdentity,
             currentWalletIdentity: expectedIdentity,
+            expectedAuthorityGeneration: 3,
+            currentAuthorityGeneration: 3,
             viewIsVisible: true
         ))
         XCTAssertFalse(walletReadMayPublish(
@@ -1726,6 +1859,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
             currentLease: nil,
             expectedWalletIdentity: expectedIdentity,
             currentWalletIdentity: nil,
+            expectedAuthorityGeneration: 3,
+            currentAuthorityGeneration: 3,
             viewIsVisible: true
         ))
         XCTAssertFalse(walletReadMayPublish(
@@ -1735,6 +1870,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
             currentLease: lease,
             expectedWalletIdentity: expectedIdentity,
             currentWalletIdentity: ObjectIdentifier(replacementWallet),
+            expectedAuthorityGeneration: 3,
+            currentAuthorityGeneration: 3,
             viewIsVisible: true
         ))
         XCTAssertFalse(walletReadMayPublish(
@@ -1744,7 +1881,20 @@ final class BrowserRuntimeControlTests: XCTestCase {
             currentLease: lease,
             expectedWalletIdentity: expectedIdentity,
             currentWalletIdentity: expectedIdentity,
+            expectedAuthorityGeneration: 3,
+            currentAuthorityGeneration: 3,
             viewIsVisible: false
+        ))
+        XCTAssertFalse(walletReadMayPublish(
+            expectedGeneration: 7,
+            currentGeneration: 7,
+            expectedLease: lease,
+            currentLease: lease,
+            expectedWalletIdentity: expectedIdentity,
+            currentWalletIdentity: expectedIdentity,
+            expectedAuthorityGeneration: 3,
+            currentAuthorityGeneration: 4,
+            viewIsVisible: true
         ))
     }
 

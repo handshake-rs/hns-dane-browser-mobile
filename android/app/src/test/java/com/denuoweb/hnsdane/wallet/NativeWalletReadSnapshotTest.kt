@@ -31,7 +31,7 @@ class NativeWalletReadSnapshotTest {
             "1111111111111111111111111111111111111111111111111111111111111111",
             parsed?.transactions?.single()?.txid,
         )
-        assertEquals("example", parsed?.trackedNames?.single()?.name)
+        assertEquals("alpha", parsed?.trackedNames?.single()?.name)
         assertTrue(parsed?.trackedNames?.single()?.registered == true)
     }
 
@@ -210,7 +210,7 @@ class NativeWalletReadSnapshotTest {
                 "knownNames",
                 JSONArray().put(
                     JSONObject()
-                        .put("name", "example")
+                        .put("name", "alpha")
                         .put("nameHash", "ab".repeat(32))
                         .put("proofHeight", 7)
                         .put("resourceStatus", "canonicalDecoded")

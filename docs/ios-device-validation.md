@@ -83,11 +83,13 @@ manual run `31411048376`. Those runs predate the HNWR projection. Historical
 code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed the complete Apple
 ABI/XCFramework/app/simulator gate and Required CI in run `31433931682`.
-Current HNWR-v2 code-bearing source
+Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed the complete Apple gate and
 Required CI in full run `31807520618`; CodeQL runs `31807519998` and
-`31807520229` also passed. This qualifies the current source simulator/build
-boundary, not a signed physical device.
+`31807520229` also passed. That historical evidence predates wallet pin
+`bc5901f` and HNWI-v1. The current import source awaits the complete Apple and
+aggregate exact-source CI gates; neither source is signed physical-device
+evidence.
 The following matrix remains an optional installed-iPhone qualification
 activity for the exact `0.5.10` release checkout:
 
@@ -105,8 +107,9 @@ activity for the exact `0.5.10` release checkout:
 - Confirm strict balance, payment-receive, name-transfer-receive, history,
   tracked-name, and module rows remain visibly unavailable because no scoped
   credential/backend is installed. There
-  is no name import, send/value, website-provider, settlement, exchange,
-  HNSA/HNSR, or P2P-marketplace control.
+  Confirm the exact-text name-import control is visibly unavailable for the same
+  missing backend and cannot be invoked. There is no send/value,
+  website-provider, settlement, exchange, HNSA/HNSR, or P2P-marketplace control.
 - Exercise background/close while a deliberately delayed native read holds the
   controller and prove lifecycle teardown never blocks the main actor before any
   read configuration is enabled in the product.

@@ -11,7 +11,7 @@ The runtime uses engine `0.2.1` at exact revision
 
 The underlying wallet lifecycle tranche passed its installed Pixel 9
 qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The candidate
-    pins wallet source `49afe81`, whose lock closure uses protocol source
+    pins wallet source `bc5901f`, whose lock closure uses protocol source
     `88ed7c6`; source policy, lockfile, and notices are aligned. Historical
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 `31402758394` and a fresh Pixel 9 install, while documentation-only parent
@@ -34,11 +34,12 @@ installed digest matched, cold launch succeeded, and the native wallet screen
 displayed the no-wallet controls and fail-closed HNWR rows with disabled
 value/marketplace copy. No wallet was created/restored and no secret, account,
 credentialed sync, or value action ran. This is historical code `50` evidence,
-not qualification for the current candidate. Exact HNWR-v2 code-bearing source
+not qualification for the current candidate. Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
 `31807520618`, including Android API 37 native instrumentation and the complete
-Apple gate; CodeQL runs `31807519998` and `31807520229` also passed. Debug
-artifact `9222123624` has artifact-archive SHA-256
+Apple gate; CodeQL runs `31807519998` and `31807520229` also passed. Those
+results predate the `bc5901f` exact-name import tranche, whose
+exact-source CI remains pending. Debug artifact `9222123624` has artifact-archive SHA-256
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
 2026-08-17, and is not Play/store signed. APK-level artifact and signer
 inspection, installed-device qualification, refreshed screenshots, live Play
@@ -51,7 +52,8 @@ backend, so balance, payment and name-transfer receive targets, transaction
 history, tracked names, and module status remain fail-closed and unavailable. A
 pruned indexed/authenticated
 node can serve current-wallet evidence; fresh restore additionally needs a durable
-wallet-relevant raw-tx source. Name import, transfers/value movement,
+wallet-relevant raw-tx source. Exact-text native name import is implemented but
+unavailable without that backend and credential. Transfers/value movement,
 website-provider access, settlement, exchange features, HNSA/HNSR, and P2P
 marketplaces remain absent or gated off.
 

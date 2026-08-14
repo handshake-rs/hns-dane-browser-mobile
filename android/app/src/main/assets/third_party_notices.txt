@@ -23,15 +23,15 @@ does not imply endorsement by the component authors.
 Generator schema: 3
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 08583e4b8d5c724600edda04a298d99571ab5e57bce459ba4ec31054f87782f2
-  scripts/verify_cargo_git_policy.py = b6240d98b80c9c245c6cd4c767242eaca00336c339815a4f45c78485063975b0
-  rust/Cargo.toml = 8190ddbbd5d19b50646e57d7a91cfddaf2a90ec5a85126b0fd8d48cd1acc8f3e
-  rust/Cargo.lock = 70ce993a5fdfea7a9124c80e83ec2d89721d92dcc6ac70a9fd36b87617406a38
+  scripts/verify_cargo_git_policy.py = 8fcd71ed879dc2a0c8923f5c0e1ca2e92d3a8fb4051a92241e88b8c69eba9e33
+  rust/Cargo.toml = 2fcb756e03c1963a6a54f479f3cb0cdbd1c8e561facb72e74de2cd11fa95c048
+  rust/Cargo.lock = 981aa2a0dc7d6111d42bf1c80f6999186684fa490976010160ec530637bab9bd
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
-  rust/crates/android-ffi/Cargo.toml = 5554d71f3c59afec41d27c3f581a638279fd14937f1ca96ae919fa716ce0e5c9
+  rust/crates/android-ffi/Cargo.toml = fd0b9512e75dca8ddc4876e20f99c52d4b6c99114b1e36b9f00033a3cd901efb
   rust/crates/hns-mobile-platform-runtime/Cargo.toml = d1277558e397275c16506465a68f8680f87ab85cf6d0938962fbfa8e10342309
-  rust/crates/ios-ffi/Cargo.toml = 1c4fae9e62bb17b7ed4c2028bc756e768f9b64c03e2b9fd1ef6266cc6ce1e3bc
+  rust/crates/ios-ffi/Cargo.toml = de3b633928a2ee9b5e1a872caffb2df589ad45849175b1f01f3acb715565f8c7
 
 ANDROID RUNTIME COMPONENTS (40)
   androidx.activity:activity-ktx:1.13.0 | Apache-2.0

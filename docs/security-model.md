@@ -140,8 +140,9 @@ The app provisions no scoped indexed backend. A pruned indexed/authenticated
 node can return indexed confirmation/history, and an existing wallet may reuse its authenticated
 retained raw bytes. Fresh restore additionally needs archive-capable raw
 transaction bytes or another durable wallet-relevant raw-transaction source
-behind the dedicated scoped loopback gateway. Name import is absent. Provider,
-sending/value, HNSA/HNSR, settlement, exchange, and
+behind the dedicated scoped loopback gateway. The trusted-native exact-text name
+import uses only that gateway, stays unavailable without it, and never enters
+provider or renderer data. Provider, sending/value, HNSA/HNSR, settlement, exchange, and
 marketplace gates remain independently false.
 
 The dormant cross-platform HRM/HNSA wallet consumer does not weaken those

@@ -109,8 +109,45 @@ internal object NativeWalletBridge {
             null
         }
 
+    /** Passes the field's exact UTF-8 bytes to the trusted native controller. */
+    fun importHnsNameExactText(
+        handle: Long,
+        exactText: String,
+    ): NativeWalletNameImportResult {
+        if (!isAvailable) return NativeWalletNameImportResult.Unavailable
+        if (!isValidHandle(handle)) return NativeWalletNameImportResult.Failed
+        val exactUtf8 = walletNameExactUtf8(exactText)
+            ?: return NativeWalletNameImportResult.InvalidInput
+        return try {
+            val bundle = runCatching { nativeImportHnsNameExactText(handle, exactUtf8) }
+                .getOrNull()
+            val result = bundle?.let(::parseAndWipeHnsNameImportBundle)
+                ?: NativeWalletNameImportResult.Failed
+            if (
+                result is NativeWalletNameImportResult.Success &&
+                !result.summary.name.toByteArray(Charsets.UTF_8).contentEquals(exactUtf8)
+            ) {
+                lock(handle)
+                NativeWalletNameImportResult.Failed
+            } else {
+                if (result === NativeWalletNameImportResult.Failed) lock(handle)
+                result
+            }
+        } finally {
+            exactUtf8.fill(0)
+        }
+    }
+
     internal fun parseAndWipeHnsReadBundle(bundle: ByteArray): NativeWalletReadSnapshot? = try {
         NativeWalletReadSnapshot.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeHnsNameImportBundle(
+        bundle: ByteArray,
+    ): NativeWalletNameImportResult? = try {
+        NativeWalletNameImportResult.parse(bundle)
     } finally {
         bundle.fill(0)
     }
@@ -250,6 +287,12 @@ internal object NativeWalletBridge {
     private external fun nativeSynchronizeHnsReads(handle: Long): ByteArray?
 
     @JvmStatic
+    private external fun nativeImportHnsNameExactText(
+        handle: Long,
+        exactUtf8: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
     private external fun nativeUnlock(handle: Long, databaseKey: ByteArray): Boolean
 
     @JvmStatic
@@ -289,3 +332,16 @@ internal data class NativeWalletAccount(
     val module: String,
     val label: String,
 )
+
+/** Encodes without normalization and rejects malformed UTF-16 or oversized input. */
+internal fun walletNameExactUtf8(value: String): ByteArray? {
+    val encoded = value.toByteArray(Charsets.UTF_8)
+    return encoded.takeIf {
+        it.size <= MAX_WALLET_NAME_INPUT_BYTES && it.toString(Charsets.UTF_8) == value
+    } ?: run {
+        encoded.fill(0)
+        null
+    }
+}
+
+private const val MAX_WALLET_NAME_INPUT_BYTES = 4 * 1024

@@ -5,7 +5,7 @@ Last audited: 2026-08-14
 Current candidate source coordinates Android `0.5.10` / code `51`, the embedded
 non-publishable Rust workspace `0.5.9`, and iOS `0.5.10` / build `60`. It pins
 `hns-wallet-mobile 0.1.0` to exact wallet source
-`49afe81abce3d3f1a9309e26962731e181e43051`, whose HNS primitives resolve from
+`bc5901f794450d29fa9f5630bab4fbf91e37bedf`, whose HNS primitives resolve from
 `hns-rs 0.3.0` source
 `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
 
@@ -18,12 +18,14 @@ projection and remains historical. The pre-ECH code-bearing source
 `31433931682`, CodeQL `31433931259`, and Code Quality `31433931278`.
 Its exact debug artifact subsequently installed and cold-launched on a Pixel 9;
 the installed APK digest and fail-closed native wallet UI matched expectations.
-Current HNWR-v2/ECH-and-sync-telemetry code-bearing source
+Earlier HNWR-v2/ECH-and-sync-telemetry code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
 `31807520618`, including repository policy, Rust/supply-chain, Android
 build/unit, API 37 native instrumentation, the complete Apple
 ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs `31807519998`
-and `31807520229` also passed. Debug artifact `9222123624` has
+and `31807520229` also passed. That evidence predates the `bc5901f` exact-name
+import tranche, whose exact-source CI remains pending. Debug artifact
+`9222123624` has
 artifact-archive SHA-256
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
 2026-08-17, and is debug-only rather than store signed.
@@ -56,7 +58,7 @@ been built or submitted.
   `ce9c09a40117142d3a26ff1196c2dec3f5e06139` also passed push CI and CodeQL,
   then the full manual matrix in run `31411048376`. Historical HNWR-v1/version
   source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed its own full matrix in
-  `31433931682`; current HNWR-v2 source passed its full matrix in
+  `31433931682`; the earlier HNWR-v2 source passed its full matrix in
   `31807520618`.
 - The protected iOS upload path performs its live Release screenshot capture
   and full exact-commit/digest/runtime/wallet-row verification before it reads

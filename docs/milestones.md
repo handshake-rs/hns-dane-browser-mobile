@@ -137,7 +137,8 @@
   backend, so those rows remain fail-closed and unavailable. A pruned
   indexed/authenticated node can serve current-wallet retained evidence; the
   durable archive-capable raw-tx source needed for fresh restore remains
-  distinct. Name import is absent.
+  distinct. Trusted-native exact-text name import now uses the same unavailable-
+  without-backend boundary and a separate closed HNWI-v1 result.
 - Completed first-slice feature qualification: the exact CI artifact passed a
   fresh Pixel 9 reinstall with create/confirm/unlock/lock/process-reopen,
   owner-private storage, and network isolation. Historical `0.5.8` source
@@ -167,7 +168,7 @@
   artifacts, installed-product evidence, screenshots, and store readback remain
   pending.
 - Updated release dependency sequence: mobile pins wallet `0.1.0` source
-  `49afe81abce3d3f1a9309e26962731e181e43051`, which consumes
+  `bc5901f794450d29fa9f5630bab4fbf91e37bedf`, which consumes
   `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`;
   lockfile, source policy, and notices are aligned.
 - Mobile engine source unification remains complete: every adapter and
@@ -196,7 +197,8 @@
   rollback-resistant subject-wide persistence, register an application profile,
   and add endpoint/profile, transport, and lifecycle adapters. The Kotlin/Swift
   shape checks are not HRM verification and may not substitute for that broker.
-- Read-backend provisioning, name import, website provider installation,
-  approvals, sending/value movement, settlement, Shakedex/Denuo, and P2P
+- Read-backend provisioning, credentialed exact-name import qualification,
+  website provider installation, approvals, sending/value movement,
+  settlement, Shakedex/Denuo, and P2P
   marketplace controls remain separate later milestones and stay disabled until
   their runtime and installed-product gates pass.

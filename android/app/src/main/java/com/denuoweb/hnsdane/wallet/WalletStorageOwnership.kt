@@ -38,12 +38,16 @@ internal fun walletReadMayPublish(
     ownsCurrentLease: Boolean,
     expectedHandle: Long,
     currentHandle: Long,
+    expectedAuthorityGeneration: Long,
+    currentAuthorityGeneration: Long,
 ): Boolean =
     expectedEpoch == currentEpoch &&
         foreground &&
         ownsCurrentLease &&
         expectedHandle > 0L &&
-        expectedHandle == currentHandle
+        expectedHandle == currentHandle &&
+        expectedAuthorityGeneration > 0L &&
+        expectedAuthorityGeneration == currentAuthorityGeneration
 
 /**
  * Records leases whose release is owned by native-controller retirement rather

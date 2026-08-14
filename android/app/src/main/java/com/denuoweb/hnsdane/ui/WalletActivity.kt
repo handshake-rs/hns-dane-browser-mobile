@@ -24,6 +24,8 @@ import androidx.activity.ComponentActivity
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
+import com.denuoweb.hnsdane.wallet.NativeWalletName
+import com.denuoweb.hnsdane.wallet.NativeWalletNameImportResult
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
 import com.denuoweb.hnsdane.wallet.ProcessWalletControllerRetirementFailures
 import com.denuoweb.hnsdane.wallet.ProcessWalletStorageOwnership
@@ -41,6 +43,7 @@ import com.denuoweb.hnsdane.wallet.attemptWalletReadBootstrap
 import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
 import com.denuoweb.hnsdane.wallet.deleteWalletDatabaseArtifacts
+import com.denuoweb.hnsdane.wallet.walletNameImportRefreshMatches
 import com.denuoweb.hnsdane.wallet.displayAmount
 import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
 import com.denuoweb.hnsdane.wallet.walletDeleteConfirmationMatches
@@ -70,6 +73,8 @@ class WalletActivity : ComponentActivity() {
     private lateinit var nameReceiveView: TextView
     private lateinit var historyView: TextView
     private lateinit var trackedNamesView: TextView
+    private lateinit var nameImportInput: EditText
+    private lateinit var nameImportStatusView: TextView
     private lateinit var restoreInput: EditText
     private lateinit var recoveryView: RecoveryPhraseView
 
@@ -116,6 +121,8 @@ class WalletActivity : ComponentActivity() {
         nameReceiveView = walletReadSummary(R.string.wallet_reads_name_receive_unavailable)
         historyView = walletReadSummary(R.string.wallet_reads_history_unavailable)
         trackedNamesView = walletReadSummary(R.string.wallet_reads_names_unavailable)
+        nameImportInput = exactNameImportInput()
+        nameImportStatusView = walletReadSummary(R.string.wallet_name_import_unavailable)
         restoreInput = sensitiveRestoreInput()
         recoveryView = RecoveryPhraseView(this)
 
@@ -212,6 +219,17 @@ class WalletActivity : ComponentActivity() {
                     title = getString(R.string.row_wallet_read_names),
                     summaryView = trackedNamesView,
                 ))
+                addView(nameImportInput, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_name_import),
+                    summaryView = nameImportStatusView,
+                    actionLabel = getString(R.string.action_import_wallet_name),
+                ) {
+                    importWalletName()
+                })
                 addScreenRow(preferenceRow(
                     title = getString(R.string.row_wallet_read_sync),
                     summary = getString(R.string.row_wallet_read_sync_summary),
@@ -243,6 +261,7 @@ class WalletActivity : ComponentActivity() {
         storageOwner = null
         dismissWalletDeletionDialog()
         clearRestoreInput()
+        clearNameImportInput()
         recoveryView.clearSecret()
         val hadUnconfirmedWallet = unconfirmedDatabaseKey != null
         unconfirmedDatabaseKey?.fill(0)
@@ -629,6 +648,7 @@ class WalletActivity : ComponentActivity() {
         busy = true
         detachWalletController()
         clearRestoreInput()
+        clearNameImportInput()
         recoveryView.clearSecret()
         statusView.text = getString(R.string.wallet_status_deleting)
         accountView.text = getString(R.string.wallet_account_unavailable)
@@ -780,10 +800,10 @@ class WalletActivity : ComponentActivity() {
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
         readStatusView.text = getString(R.string.wallet_reads_syncing)
         val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
         thread(name = "hns-wallet-read-sync") {
             val snapshot = NativeWalletBridge.synchronizeHnsReads(handle)
             runOnUiThread {
-                busy = false
                 val ownsLease = currentStorageLease() === lease
                 val mayPublish = walletReadMayPublish(
                     expectedEpoch = epoch,
@@ -792,11 +812,14 @@ class WalletActivity : ComponentActivity() {
                     ownsCurrentLease = ownsLease,
                     expectedHandle = handle,
                     currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
                 ) && operationIsCurrent(epoch, lease)
                 if (!mayPublish) {
                     releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
+                busy = false
                 refreshControllerState()
                 if (snapshot == null) {
                     resetReadProjection(R.string.wallet_reads_sync_failed)
@@ -807,7 +830,97 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun refreshControllerState() {
+    private fun importWalletName() {
+        val lease = currentStorageLease() ?: return
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE || unconfirmedDatabaseKey != null) {
+            nameImportStatusView.text = getString(R.string.wallet_name_import_waiting_for_wallet)
+            return
+        }
+        val status = NativeWalletBridge.status(handle)
+        if (status == null || status.locked) {
+            nameImportStatusView.text = getString(R.string.wallet_name_import_locked)
+            return
+        }
+        if (!NativeWalletBridge.hasHnsReads(handle)) {
+            nameImportStatusView.text = getString(R.string.wallet_name_import_unavailable)
+            return
+        }
+        val exactText = nameImportInput.text?.toString() ?: ""
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_importing_name),
+                resetReads = false,
+            )
+        ) return
+        nameImportStatusView.text = getString(R.string.wallet_name_import_importing)
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        thread(name = "hns-wallet-name-import") {
+            val result = NativeWalletBridge.importHnsNameExactText(handle, exactText)
+            val snapshot = if (result is NativeWalletNameImportResult.Success) {
+                NativeWalletBridge.synchronizeHnsReads(handle)?.takeIf { refreshed ->
+                    walletNameImportRefreshMatches(result.summary, refreshed)
+                }
+            } else {
+                null
+            }
+            if (
+                result === NativeWalletNameImportResult.Failed ||
+                (result is NativeWalletNameImportResult.Success && snapshot == null)
+            ) {
+                NativeWalletBridge.lock(handle)
+            }
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                when (result) {
+                    is NativeWalletNameImportResult.Success -> {
+                        if (snapshot == null) {
+                            refreshControllerState()
+                            resetReadProjection(R.string.wallet_reads_sync_failed)
+                            nameImportStatusView.text =
+                                getString(R.string.wallet_name_import_success_refresh_failed)
+                        } else {
+                            refreshControllerState(resetReads = false)
+                            renderReadSnapshot(snapshot)
+                            renderImportedName(result.summary)
+                        }
+                    }
+                    NativeWalletNameImportResult.InvalidInput -> {
+                        refreshControllerState(resetReads = false)
+                        nameImportStatusView.text =
+                            getString(R.string.wallet_name_import_invalid)
+                    }
+                    NativeWalletNameImportResult.Unavailable -> {
+                        refreshControllerState()
+                        nameImportStatusView.text =
+                            getString(R.string.wallet_name_import_unavailable)
+                    }
+                    NativeWalletNameImportResult.Failed -> {
+                        refreshControllerState()
+                        nameImportStatusView.text =
+                            getString(R.string.wallet_name_import_failed)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun refreshControllerState(resetReads: Boolean = true) {
         val status = NativeWalletBridge.status(walletHandle)
         if (status == null) {
             statusView.text = getString(R.string.wallet_status_unavailable)
@@ -836,10 +949,12 @@ class WalletActivity : ComponentActivity() {
                 account.accountId,
             )
         }
-        if (NativeWalletBridge.hasHnsReads(walletHandle)) {
-            resetReadProjection(R.string.wallet_reads_ready_to_sync)
-        } else {
-            resetReadProjection(R.string.wallet_reads_unavailable)
+        if (resetReads) {
+            if (NativeWalletBridge.hasHnsReads(walletHandle)) {
+                resetReadProjection(R.string.wallet_reads_ready_to_sync)
+            } else {
+                resetReadProjection(R.string.wallet_reads_unavailable)
+            }
         }
     }
 
@@ -953,6 +1068,7 @@ class WalletActivity : ComponentActivity() {
         storageOwner = null
         dismissWalletDeletionDialog()
         clearRestoreInput()
+        clearNameImportInput()
         recoveryView.clearSecret()
         val hadUnconfirmedWallet = unconfirmedDatabaseKey != null
         unconfirmedDatabaseKey?.fill(0)
@@ -1081,6 +1197,7 @@ class WalletActivity : ComponentActivity() {
     private fun beginOperation(
         lease: WalletStorageOwnershipGate.Lease,
         status: String,
+        resetReads: Boolean = true,
     ): Boolean {
         val retirementFailed =
             ProcessWalletControllerRetirementFailures.blocks(walletStoragePath)
@@ -1096,7 +1213,7 @@ class WalletActivity : ComponentActivity() {
         }
         busy = true
         statusView.text = status
-        resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
+        if (resetReads) resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
         return true
     }
 
@@ -1128,6 +1245,15 @@ class WalletActivity : ComponentActivity() {
         nameReceiveView.text = getString(R.string.wallet_reads_name_receive_unavailable)
         historyView.text = getString(R.string.wallet_reads_history_unavailable)
         trackedNamesView.text = getString(R.string.wallet_reads_names_unavailable)
+        nameImportStatusView.text = when (status) {
+            R.string.wallet_reads_locked -> getString(R.string.wallet_name_import_locked)
+            R.string.wallet_reads_ready_to_sync -> getString(R.string.wallet_name_import_ready)
+            R.string.wallet_reads_recovery_unconfirmed ->
+                getString(R.string.wallet_name_import_recovery_unconfirmed)
+            R.string.wallet_reads_waiting_for_wallet ->
+                getString(R.string.wallet_name_import_waiting_for_wallet)
+            else -> getString(R.string.wallet_name_import_unavailable)
+        }
     }
 
     private fun renderReadSnapshot(snapshot: NativeWalletReadSnapshot) {
@@ -1176,33 +1302,42 @@ class WalletActivity : ComponentActivity() {
         trackedNamesView.text = if (visibleNames.isEmpty()) {
             getString(R.string.wallet_reads_names_empty)
         } else {
-            val entries = visibleNames.joinToString("\n\n") { name ->
-                val state = listOfNotNull(
-                    walletReadCodeLabel(name.ownershipStatus),
-                    walletReadCodeLabel(name.resourceStatus),
-                    name.registered?.let { registered ->
-                        getString(
-                            if (registered) R.string.wallet_reads_name_registered
-                            else R.string.wallet_reads_name_not_registered,
-                        )
-                    },
-                    name.expired?.let { expired ->
-                        getString(
-                            if (expired) R.string.wallet_reads_name_expired
-                            else R.string.wallet_reads_name_current,
-                        )
-                    },
-                ).joinToString(" · ")
-                getString(
-                    R.string.wallet_reads_name,
-                    name.name,
-                    name.proofHeight,
-                    state,
-                    name.nameHash,
-                )
-            }
+            val entries = visibleNames.joinToString("\n\n", transform = ::walletNameSummary)
             appendRemainingCount(entries, snapshot.trackedNames.size - visibleNames.size)
         }
+    }
+
+    private fun renderImportedName(name: NativeWalletName) {
+        nameImportStatusView.text = getString(
+            R.string.wallet_name_import_success,
+            walletNameSummary(name),
+        )
+    }
+
+    private fun walletNameSummary(name: NativeWalletName): String {
+        val state = listOfNotNull(
+            walletReadCodeLabel(name.ownershipStatus),
+            walletReadCodeLabel(name.resourceStatus),
+            name.registered?.let { registered ->
+                getString(
+                    if (registered) R.string.wallet_reads_name_registered
+                    else R.string.wallet_reads_name_not_registered,
+                )
+            },
+            name.expired?.let { expired ->
+                getString(
+                    if (expired) R.string.wallet_reads_name_expired
+                    else R.string.wallet_reads_name_current,
+                )
+            },
+        ).joinToString(" · ")
+        return getString(
+            R.string.wallet_reads_name,
+            name.name,
+            name.proofHeight,
+            state,
+            name.nameHash,
+        )
     }
 
     private fun appendRemainingCount(entries: String, remaining: Int): String =
@@ -1311,6 +1446,22 @@ class WalletActivity : ComponentActivity() {
         customInsertionActionModeCallback = DisabledActionMode
     }
 
+    private fun exactNameImportInput(): EditText = EditText(this).apply {
+        hint = getString(R.string.wallet_name_import_hint)
+        inputType = InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        imeOptions = EditorInfo.IME_ACTION_DONE or
+            EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+            EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        filters = arrayOf(InputFilter.LengthFilter(MAX_NAME_INPUT_CHARACTERS))
+        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        setAutofillHints(null)
+        setSingleLine(true)
+        isSaveEnabled = false
+        freezesText = false
+    }
+
     private fun takeRestoreInput(): CharArray? {
         val editable = restoreInput.text ?: return null
         if (editable.isEmpty() || editable.length > MAX_RECOVERY_CHARACTERS) {
@@ -1325,6 +1476,11 @@ class WalletActivity : ComponentActivity() {
     private fun clearRestoreInput() {
         restoreInput.text?.let(::wipeEditable)
         restoreInput.clearFocus()
+    }
+
+    private fun clearNameImportInput() {
+        nameImportInput.text?.clear()
+        nameImportInput.clearFocus()
     }
 
     private fun wipeEditable(editable: Editable) {
@@ -1345,6 +1501,7 @@ class WalletActivity : ComponentActivity() {
         const val INVALID_HANDLE = 0L
         const val DATABASE_KEY_BYTES = 32
         const val MAX_RECOVERY_CHARACTERS = 256
+        const val MAX_NAME_INPUT_CHARACTERS = 4 * 1024
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
         const val NUL_CHARACTER = "\u0000"

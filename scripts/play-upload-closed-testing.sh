@@ -15,7 +15,7 @@ track_name="${PLAY_TRACK:-}"
 release_status="${PLAY_RELEASE_STATUS:-draft}"
 aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.10-play-upload-signed.aab}"
 release_name="${PLAY_RELEASE_NAME:-HNS DANE Browser 0.5.10}"
-release_notes="${PLAY_RELEASE_NOTES:-0.5.10 adds device-local native wallet lifecycle controls and read-only balance, receive, history, names, and status fields, which remain unavailable without a scoped indexed backend. It also adds ECH for supported HNS origins, clearer sync/reset recovery, and code-split asset-burst handling. Android corrects WebView headers and safe-area padding and prevents service-worker cache misses from using a blocking whole-body fallback.}"
+release_notes="${PLAY_RELEASE_NOTES:-0.5.10 adds native wallet lifecycle controls, protected local deletion, read-only balance, separate payment and name-transfer targets, history, names and status, plus exact-text name import. Read and import controls remain unavailable without a scoped indexed backend. It also adds ECH for supported HNS origins, clearer sync/reset recovery, and code-split asset handling. Android corrects WebView headers and safe-area padding and keeps service-worker cache misses on native streaming.}"
 update_listing="${PLAY_UPDATE_LISTING:-false}"
 listing_language="${PLAY_LISTING_LANGUAGE:-en-US}"
 

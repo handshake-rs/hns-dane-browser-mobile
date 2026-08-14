@@ -23,6 +23,7 @@
     <string name="action_lock_wallet" translatable="false">Lock</string>
     <string name="action_saved_wallet_recovery" translatable="false">I saved it</string>
     <string name="action_sync_wallet_reads" translatable="false">Synchronize</string>
+    <string name="action_import_wallet_name" translatable="false">Import name</string>
     <string name="action_continue_wallet_deletion" translatable="false">Continue</string>
 
     <string name="common_copied">Copied</string>
@@ -243,6 +244,7 @@
     <string name="row_wallet_read_name_receive" translatable="false">Name transfer receive address</string>
     <string name="row_wallet_read_history" translatable="false">Transaction history</string>
     <string name="row_wallet_read_names" translatable="false">Tracked names</string>
+    <string name="row_wallet_name_import" translatable="false">Import exact Handshake name</string>
     <string name="row_wallet_read_sync" translatable="false">Refresh wallet reads</string>
     <string name="row_wallet_read_sync_summary" translatable="false">Run one bounded, tip-consistent synchronization off the UI thread. This cannot send HNS or operate a marketplace.</string>
 
@@ -304,6 +306,18 @@
     <string name="wallet_reads_name_expired" translatable="false">expired</string>
     <string name="wallet_reads_name_current" translatable="false">current</string>
     <string name="wallet_reads_more" translatable="false">%1$d more items are present in this synchronized snapshot.</string>
+    <string name="wallet_name_import_hint" translatable="false">Exact canonical Handshake name</string>
+    <string name="wallet_name_import_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet before importing a name.</string>
+    <string name="wallet_name_import_recovery_unconfirmed" translatable="false">Confirm the recovery backup before a trusted name backend can be installed.</string>
+    <string name="wallet_name_import_locked" translatable="false">Unlock the wallet before importing a name.</string>
+    <string name="wallet_name_import_ready" translatable="false">Enter exact canonical name text. The app does not trim, lowercase, normalize, apply IDNA, or edit a trailing dot.</string>
+    <string name="wallet_name_import_unavailable" translatable="false">Trusted name import is unavailable because no scoped indexed loopback wallet backend is provisioned.</string>
+    <string name="wallet_name_import_importing" translatable="false">Importing exact name text and refreshing the tip-bound wallet rows…</string>
+    <string name="wallet_name_import_invalid" translatable="false">The exact text is not one canonical Handshake name. Nothing was imported and the wallet remains usable.</string>
+    <string name="wallet_name_import_failed" translatable="false">Name import failed closed. Reopen and unlock the wallet before retrying.</string>
+    <string name="wallet_name_import_success" translatable="false">Imported and refreshed:\n%1$s</string>
+    <string name="wallet_name_import_success_refresh_failed" translatable="false">The import result could not be confirmed in the required fresh wallet rows. The wallet was locked and no imported row was published.</string>
+    <string name="wallet_status_importing_name" translatable="false">Importing exact Handshake name…</string>
     <string name="wallet_account_identity" translatable="false">%1$s\nModule: %2$s\nAccount: %3$s</string>
     <string name="wallet_recovery_confirm_title" translatable="false">Recovery phrase saved?</string>
     <string name="wallet_recovery_confirm_message" translatable="false">Confirm only after storing all 24 words offline. The phrase cannot be shown again.</string>

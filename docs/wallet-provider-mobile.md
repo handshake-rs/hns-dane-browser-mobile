@@ -4,7 +4,7 @@ This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the pinned
   `hns-wallet-mobile` controller at
-  wallet source `49afe81abce3d3f1a9309e26962731e181e43051`; and
+  wallet source `bc5901f794450d29fa9f5630bab4fbf91e37bedf`; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
@@ -24,7 +24,7 @@ manual CI run `31411048376`. That evidence predates the HNWR read projection and
 remains historical. Historical HNWR-v1 code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including its HNWR-v1 Android and complete Apple gates.
-Current HNWR-v2 code-bearing source
+Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
 `31807520618`, including repository policy, Rust/supply-chain, Android
 build/unit, API 37 native instrumentation, the complete Apple
@@ -64,10 +64,14 @@ Both platform shells now link a narrow native controller for:
   distinct payment and name-transfer receive targets, transaction history,
   tracked names, and module status.
 
-The read projection is present in source but unavailable in the installed
-candidate because neither product shell provisions its required scoped loopback
-credential or indexed wallet backend. There is no name-import/tracking ingestion.
-This slice cannot send or move value, perform name operations, act as HNSA or
+The read projection and trusted-native exact-text name import are present in
+source but unavailable in the installed candidate because neither product shell
+provisions their required scoped loopback credential or indexed wallet backend.
+The import is native-only, preserves the caller's UTF-8 bytes exactly, returns
+only one minimized name summary, and requires a successful HNWR-v2 refresh
+before new rows are published. Invalid text is non-poisoning; runtime,
+projection, allocation, or refresh faults lock and fail closed. This slice
+cannot send or move value, perform other name operations, act as HNSA or
 HNSR, settle, exchange, use Shakedex/Denuo, or operate a P2P marketplace. It is
 not connected to page JavaScript. No website provider is installed or announced,
 and no page can invoke these native controls.
@@ -140,8 +144,8 @@ scoped RPC authentication can serve indexed confirmation/history and
 authenticated raw bytes retained by an existing wallet. Fresh restore
 additionally needs archive-capable raw transaction bytes or another durable
 wallet-relevant raw-transaction source behind the dedicated scoped loopback
-gateway. Known names remain empty until a reviewed name-import/tracking path
-exists.
+gateway. Known names remain unchanged until a successful trusted-native import
+or another separately reviewed tracking path commits canonical evidence.
 
 Both platforms run read synchronization away from the UI thread and require the
 exact generation, lease, and controller identity before publishing. Contended
@@ -150,13 +154,48 @@ lifecycle callbacks immediately detach UI authority and transfer the controller
 with its exact storage lease to one serial retirement queue; that lease is
 released only after native lock/destruction and any incomplete-wallet file
 deletion finish. Foreground reentry waits for that handoff and stale read
-completion cannot publish. Current HNWR-v2 source passed its exact Apple
+completion cannot publish. Earlier source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed its exact Apple
 app/simulator CI in `31807520618`. XCTest
 covers the retirement queue/lease behavior and
 stale-completion publication-authority predicates, not an end-to-end
-credentialed native read in flight. iOS product wiring still may not supply a
+credentialed native read in flight. That CI evidence predates the exact-name
+import tranche. iOS product wiring still may not supply a
 credential until the scoped credential/indexed backend/data boundary exists,
 and physical-iPhone qualification remains open.
+
+## Trusted-native exact-text name import
+
+The Android JNI and Apple C ABI now expose one native-only name import through
+the same `MobileHnsReadController`. Kotlin and Swift pass the exact UTF-8 text
+without trimming, lowercasing, IDNA, Unicode normalization, or trailing-dot
+editing. Their text controls explicitly disable capitalization, correction,
+spell checking, suggestions, and smart punctuation. Canonical validation is the
+pinned `hns-covenants` grammar: 1 through 63 lowercase ASCII letters or digits,
+with `-` and `_` only internally and the five reserved names rejected.
+
+The private result is `HNWI` version 1: a 12-byte closed envelope with a bounded
+payload and exactly one of success, invalid-input, unavailable, or failed.
+Success contains only the strict minimized HNS name summary already used by
+HNWR-v2; every other status has an empty payload. Both native decoders reject
+unknown fields, wrong shapes, noncanonical values, size/version/reserved-byte
+mismatches, and a returned name whose bytes differ from the submitted text.
+HNWI is absent from provider, JavaScript, approval, value, HNSA, and HNSR
+surfaces.
+
+Import and the mandatory post-success HNWR-v2 synchronization run away from the
+UI thread. Publication requires the exact live storage lease, read generation,
+controller identity, authority generation, and visible owner. A lifecycle or
+replacement completion is discarded. Invalid canonical text performs no node
+work and leaves the unlocked controller usable. Backend, evidence, projection,
+serialization, allocation, or refresh faults lock and fail closed at the Rust
+boundary as well as in platform defense-in-depth. A successful import publishes
+the minimized summary only after fresh HNWR-v2 rows contain the same exact name
+bytes and name hash.
+
+Neither product shell provisions the required backend or credential. The
+control is therefore clearly disabled/unavailable in the candidate until that
+separate product boundary and credentialed-device qualification exist.
 
 ## Dormant HRM/HNSA wallet-consumer boundary
 
@@ -289,8 +328,9 @@ The historical `0.5.8` application source at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394`; its CodeQL and quality workflows are also green. This evidence
 predates the `0.5.9` synchronized-read tranche. The pre-ECH `0.5.9` source passed
-full CI `31433931682`; current HNWR-v2/ECH-and-sync-telemetry code-bearing
-source passed full platform CI `31807520618` and both CodeQL runs. Before
+full CI `31433931682`; the earlier HNWR-v2/ECH-and-sync-telemetry code-bearing
+source passed full platform CI `31807520618` and both CodeQL runs. Those results
+predate this wallet pin and exact-name import tranche. Before
 release, fresh App Store screenshots must be bound to the
 exact release checkout selected for signing, signed artifacts must pass their
 archive gates, and both stores' privacy/category answers must be reconciled
@@ -318,8 +358,10 @@ coverage, passed the complete macOS ABI/XCFramework/app/simulator workflow, and
 passed a fresh Android reinstall with create/confirm/unlock/lock/process-reopen
 and mainnet/testnet storage isolation. The exact historical `0.5.8`
 repin/version/metadata commit passed remote CI. The HNWR-v2 projection has
-focused Rust, Kotlin, and Swift coverage and passed exact full CI
-`31807520618`; historical HNWR-v1 exact debug APK evidence still covers only
+focused Rust, Kotlin, and Swift coverage and its earlier source passed exact full
+CI `31807520618`; the HNWI-v1 consumer has focused local Rust and Kotlin
+coverage but still requires the complete Apple and aggregate exact-source
+gates. Historical HNWR-v1 exact debug APK evidence still covers only
 the installed shell and fail-closed UI projection described above. The current
 product still needs backend/data,
 credentialed read, and create/restore lifecycle qualification. Signed-product

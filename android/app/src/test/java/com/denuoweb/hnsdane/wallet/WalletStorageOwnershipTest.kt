@@ -115,13 +115,16 @@ class WalletStorageOwnershipTest {
                 ownsCurrentLease = true,
                 expectedHandle = 11,
                 currentHandle = 11,
+                expectedAuthorityGeneration = 3,
+                currentAuthorityGeneration = 3,
             ),
         )
-        assertFalse(walletReadMayPublish(7, 8, true, true, 11, 11))
-        assertFalse(walletReadMayPublish(7, 7, false, true, 11, 11))
-        assertFalse(walletReadMayPublish(7, 7, true, false, 11, 11))
-        assertFalse(walletReadMayPublish(7, 7, true, true, 11, 12))
-        assertFalse(walletReadMayPublish(7, 7, true, true, 0, 0))
+        assertFalse(walletReadMayPublish(7, 8, true, true, 11, 11, 3, 3))
+        assertFalse(walletReadMayPublish(7, 7, false, true, 11, 11, 3, 3))
+        assertFalse(walletReadMayPublish(7, 7, true, false, 11, 11, 3, 3))
+        assertFalse(walletReadMayPublish(7, 7, true, true, 11, 12, 3, 3))
+        assertFalse(walletReadMayPublish(7, 7, true, true, 11, 11, 3, 4))
+        assertFalse(walletReadMayPublish(7, 7, true, true, 0, 0, 0, 0))
     }
 
     @Test

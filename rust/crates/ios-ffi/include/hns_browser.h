@@ -9,6 +9,7 @@ extern "C" {
 
 #define HNS_BROWSER_ABI_VERSION 1u
 #define HNS_BROWSER_WALLET_READ_BUNDLE_VERSION 2u
+#define HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION 1u
 
 typedef uint32_t HnsBrowserResult;
 #define HNS_BROWSER_RESULT_OK 0u
@@ -260,6 +261,19 @@ HnsBrowserResult hns_browser_wallet_has_hns_reads(
 HnsBrowserResult hns_browser_wallet_synchronize_hns_reads(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_snapshot_bundle);
+/*
+ * Imports exact UTF-8 name text through the trusted native controller without
+ * trimming, lowercasing, IDNA, Unicode normalization, or trailing-dot edits.
+ * Invalid UTF-8 and excessive input produce the non-poisoning invalid outcome.
+ * With an installed HNS-read controller, noncanonical text does too; otherwise
+ * unavailable takes precedence. Returns a private HNWI-v1 result bundle with
+ * one minimized summary or a closed invalid/unavailable/failed outcome. Never
+ * expose it to WebKit.
+ */
+HnsBrowserResult hns_browser_wallet_import_hns_name_exact_text(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice exact_name,
+    HnsBrowserBuffer *out_result_bundle);
 HnsBrowserResult hns_browser_wallet_unlock(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice database_key);

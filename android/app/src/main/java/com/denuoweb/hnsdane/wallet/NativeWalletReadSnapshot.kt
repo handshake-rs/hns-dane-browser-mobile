@@ -56,28 +56,9 @@ internal data class NativeWalletName(
     val expired: Boolean?,
 )
 
-private object NativeWalletReadSnapshotParser {
-    private val magic = byteArrayOf(
-        'H'.code.toByte(),
-        'N'.code.toByte(),
-        'W'.code.toByte(),
-        'R'.code.toByte(),
-    )
-    private val maxBaseUnits = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE)
+/** One shared closed-schema decoder for HNWR rows and HNWI import results. */
+internal object NativeWalletNameParser {
     private val lowercaseHex = Regex("[0-9a-f]+")
-    private val decimal = Regex("0|[1-9][0-9]{0,38}")
-    private val transactionStatuses = setOf(
-        "prepared",
-        "authorized",
-        "broadcast",
-        "mempool",
-        "confirmed",
-        "replaced",
-        "conflicted",
-        "reorged",
-        "dropped",
-        "failed",
-    )
     private val resourceStatuses = setOf(
         "unavailableCanonicalBinding",
         "noCurrentState",
@@ -93,6 +74,93 @@ private object NativeWalletReadSnapshotParser {
         "walletOwned",
         "incomingTransfer",
         "outgoingTransfer",
+    )
+
+    fun parse(value: JSONObject): NativeWalletName {
+        value.requireExactKeys(
+            "name",
+            "nameHash",
+            "proofHeight",
+            "resourceStatus",
+            "ownershipStatus",
+            "registered",
+            "expired",
+        )
+        val name = value.get("name") as? String
+            ?: throw IllegalArgumentException("tracked name is not text")
+        require(isCanonicalHandshakeName(name))
+        val nameHash = value.get("nameHash") as? String
+            ?: throw IllegalArgumentException("name hash is not text")
+        require(nameHash.length == NAME_HASH_HEX_CHARACTERS && lowercaseHex.matches(nameHash))
+        val resourceStatus = value.get("resourceStatus") as? String
+            ?: throw IllegalArgumentException("resource status is not text")
+        require(resourceStatus in resourceStatuses)
+        val ownershipStatus = value.get("ownershipStatus") as? String
+            ?: throw IllegalArgumentException("ownership status is not text")
+        require(ownershipStatus in ownershipStatuses)
+        return NativeWalletName(
+            name = name,
+            nameHash = nameHash,
+            proofHeight = exactUnsignedLong(value.get("proofHeight")),
+            resourceStatus = resourceStatus,
+            ownershipStatus = ownershipStatus,
+            registered = value.optionalBoolean("registered"),
+            expired = value.optionalBoolean("expired"),
+        )
+    }
+
+    private fun JSONObject.requireExactKeys(vararg expected: String) {
+        require(keys().asSequence().toSet() == expected.toSet())
+    }
+
+    private fun JSONObject.optionalBoolean(field: String): Boolean? = when (val value = get(field)) {
+        JSONObject.NULL -> null
+        is Boolean -> value
+        else -> throw IllegalArgumentException("$field is not optional boolean")
+    }
+
+    private fun exactUnsignedLong(value: Any): Long {
+        require(value is Byte || value is Short || value is Int || value is Long)
+        return (value as Number).toLong().also { require(it >= 0L) }
+    }
+
+    private fun isCanonicalHandshakeName(value: String): Boolean {
+        val bytes = value.toByteArray(Charsets.UTF_8)
+        if (bytes.size !in 1..MAX_NAME_BYTES || value in RESERVED_NAMES) return false
+        return bytes.indices.all { index ->
+            val byte = bytes[index]
+            byte in '0'.code.toByte()..'9'.code.toByte() ||
+                byte in 'a'.code.toByte()..'z'.code.toByte() ||
+                (byte == '-'.code.toByte() || byte == '_'.code.toByte()) &&
+                index != 0 && index + 1 != bytes.size
+        }
+    }
+
+    private const val MAX_NAME_BYTES = 63
+    private const val NAME_HASH_HEX_CHARACTERS = 64
+    private val RESERVED_NAMES = setOf("example", "invalid", "local", "localhost", "test")
+}
+
+private object NativeWalletReadSnapshotParser {
+    private val magic = byteArrayOf(
+        'H'.code.toByte(),
+        'N'.code.toByte(),
+        'W'.code.toByte(),
+        'R'.code.toByte(),
+    )
+    private val maxBaseUnits = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE)
+    private val decimal = Regex("0|[1-9][0-9]{0,38}")
+    private val transactionStatuses = setOf(
+        "prepared",
+        "authorized",
+        "broadcast",
+        "mempool",
+        "confirmed",
+        "replaced",
+        "conflicted",
+        "reorged",
+        "dropped",
+        "failed",
     )
 
     fun parse(bundle: ByteArray): NativeWalletReadSnapshot? = runCatching {
@@ -177,7 +245,9 @@ private object NativeWalletReadSnapshotParser {
         }
         val names = value.getJSONArray("knownNames").let { array ->
             require(array.length() <= MAX_READ_ITEMS)
-            List(array.length()) { index -> parseName(array.getJSONObject(index)) }
+            List(array.length()) { index ->
+                NativeWalletNameParser.parse(array.getJSONObject(index))
+            }
         }
         require(transactions.map(NativeWalletTransaction::txid).toSet().size == transactions.size)
         require(names.map(NativeWalletName::name).toSet().size == names.size)
@@ -270,49 +340,9 @@ private object NativeWalletReadSnapshotParser {
         )
     }
 
-    private fun parseName(value: JSONObject): NativeWalletName {
-        value.requireExactKeys(
-            "name",
-            "nameHash",
-            "proofHeight",
-            "resourceStatus",
-            "ownershipStatus",
-            "registered",
-            "expired",
-        )
-        val name = value.get("name") as? String
-            ?: throw IllegalArgumentException("tracked name is not text")
-        require(name.toByteArray(Charsets.UTF_8).size in 1..MAX_NAME_BYTES)
-        require(name.all { character -> character.code in 0x21..0x7e })
-        val nameHash = value.get("nameHash") as? String
-            ?: throw IllegalArgumentException("name hash is not text")
-        require(nameHash.length == NAME_HASH_HEX_CHARACTERS && lowercaseHex.matches(nameHash))
-        val resourceStatus = value.get("resourceStatus") as? String
-            ?: throw IllegalArgumentException("resource status is not text")
-        require(resourceStatus in resourceStatuses)
-        val ownershipStatus = value.get("ownershipStatus") as? String
-            ?: throw IllegalArgumentException("ownership status is not text")
-        require(ownershipStatus in ownershipStatuses)
-        return NativeWalletName(
-            name = name,
-            nameHash = nameHash,
-            proofHeight = exactUnsignedLong(value.get("proofHeight")),
-            resourceStatus = resourceStatus,
-            ownershipStatus = ownershipStatus,
-            registered = value.optionalBoolean("registered"),
-            expired = value.optionalBoolean("expired"),
-        )
-    }
-
     private fun JSONObject.requireExactKeys(vararg expected: String) {
         val actual = keys().asSequence().toSet()
         require(actual == expected.toSet())
-    }
-
-    private fun JSONObject.optionalBoolean(field: String): Boolean? = when (val value = get(field)) {
-        JSONObject.NULL -> null
-        is Boolean -> value
-        else -> throw IllegalArgumentException("$field is not optional boolean")
     }
 
     private fun JSONObject.optionalUnsignedLong(field: String): Long? = when (val value = get(field)) {
@@ -360,10 +390,8 @@ private object NativeWalletReadSnapshotParser {
     private const val MAX_JSON_BYTES = 4 * 1024 * 1024
     private const val MAX_READ_ITEMS = 10_000
     private const val MAX_RECEIVE_CHARACTERS = 512
-    private const val MAX_NAME_BYTES = 63
     private const val ACCOUNT_ID_BYTES = 16
     private const val TRANSACTION_ID_BYTES = 32
-    private const val NAME_HASH_HEX_CHARACTERS = 64
     private const val UINT32_MAX = 0xffff_ffffL
     private const val UBYTE_MAX = 0xffL
     private const val HEX = "0123456789abcdef"

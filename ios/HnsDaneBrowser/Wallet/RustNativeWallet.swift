@@ -346,14 +346,26 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
                 "noCurrentOwner", "notWalletOwned", "walletOwned", "incomingTransfer",
                 "outgoingTransfer",
             ]
-            guard !name.isEmpty,
-                  name.utf8.count <= 63,
-                  name.utf8.allSatisfy({ (0x21...0x7e).contains($0) }),
+            guard Self.isCanonicalHandshakeName(name),
                   nameHash.count == 64,
                   nameHash.utf8.allSatisfy({ (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) || (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0) }),
                   resourceStatuses.contains(resourceStatus),
                   ownershipStatuses.contains(ownershipStatus) else {
                 throw NativeWalletBridgeError.invalidOutput("invalid known HNS name")
+            }
+        }
+
+        private static func isCanonicalHandshakeName(_ value: String) -> Bool {
+            let bytes = Array(value.utf8)
+            let reserved: Set<String> = ["example", "invalid", "local", "localhost", "test"]
+            guard (1...63).contains(bytes.count), !reserved.contains(value) else {
+                return false
+            }
+            return bytes.enumerated().allSatisfy { index, byte in
+                (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) ||
+                    (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte) ||
+                    (byte == UInt8(ascii: "-") || byte == UInt8(ascii: "_")) &&
+                    index != 0 && index + 1 != bytes.count
             }
         }
     }
@@ -526,6 +538,66 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
                 "unsupported HNS read bundle version"
             )
         }
+    }
+}
+
+/** Closed HNWI-v1 result from trusted-native exact-text name import. */
+enum NativeHnsNameImportResult: Equatable, Sendable {
+    case success(NativeHnsReadSnapshot.KnownName)
+    case invalidInput
+    case unavailable
+    case failed
+
+    static func decode(bundle: [UInt8]) throws -> NativeHnsNameImportResult {
+        let headerLength = 12
+        let maximumJSONBytes = 16 * 1_024
+        guard bundle.count >= headerLength,
+              bundle.count <= headerLength + maximumJSONBytes,
+              Array(bundle[0..<4]) == Array("HNWI".utf8),
+              bundle[4] == 1,
+              bundle[6] == 0,
+              bundle[7] == 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS name import bundle header")
+        }
+        let payloadLength = bundle[8..<12].reduce(UInt32(0)) { partial, byte in
+            (partial << 8) | UInt32(byte)
+        }
+        guard Int(payloadLength) == bundle.count - headerLength else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS name import bundle length")
+        }
+        switch bundle[5] {
+        case 1:
+            guard payloadLength >= 2,
+                  bundle[headerLength] == UInt8(ascii: "{"),
+                  bundle.last == UInt8(ascii: "}") else {
+                throw NativeWalletBridgeError.invalidOutput(
+                    "invalid HNS name import success payload"
+                )
+            }
+            return .success(try JSONDecoder().decode(
+                NativeHnsReadSnapshot.KnownName.self,
+                from: Data(bundle[headerLength...])
+            ))
+        case 2 where payloadLength == 0:
+            return .invalidInput
+        case 3 where payloadLength == 0:
+            return .unavailable
+        case 4 where payloadLength == 0:
+            return .failed
+        default:
+            throw NativeWalletBridgeError.invalidOutput("unsupported HNS name import outcome")
+        }
+    }
+}
+
+/** A successful import may publish only after HNWR-v2 confirms its exact identity. */
+func walletNameImportRefreshMatches(
+    imported: NativeHnsReadSnapshot.KnownName,
+    refreshed: NativeHnsReadSnapshot
+) -> Bool {
+    refreshed.knownNames.contains { current in
+        Array(current.name.utf8) == Array(imported.name.utf8) &&
+            current.nameHash == imported.nameHash
     }
 }
 
@@ -715,6 +787,46 @@ final class RustNativeWallet: @unchecked Sendable {
         var bundle = try NativeWalletBridge.bytes(copying: output)
         defer { WalletSecretBytes.wipe(&bundle) }
         return try NativeHnsReadSnapshot.decode(bundle: bundle)
+    }
+
+    /// Passes the exact Swift UTF-8 view without trimming, case conversion,
+    /// IDNA, Unicode normalization, or trailing-dot editing.
+    func importHnsNameExactText(_ exactText: String) throws -> NativeHnsNameImportResult {
+        guard exactText.utf8.count <= 4 * 1_024 else { return .invalidInput }
+        var output = HnsBrowserBuffer()
+        let exactBytes = Array(exactText.utf8)
+        let currentHandle = try liveHandle()
+        let result = exactBytes.withUnsafeBufferPointer { buffer in
+            hns_browser_wallet_import_hns_name_exact_text(
+                currentHandle,
+                HnsBrowserSlice(ptr: buffer.baseAddress, len: UInt64(buffer.count)),
+                &output
+            )
+        }
+        defer { NativeWalletBridge.free(output) }
+        do {
+            try NativeWalletBridge.check(result, operation: "wallet HNS name import")
+            var bundle = try NativeWalletBridge.bytes(copying: output)
+            defer { WalletSecretBytes.wipe(&bundle) }
+            let decoded = try NativeHnsNameImportResult.decode(bundle: bundle)
+            switch decoded {
+            case .success(let summary):
+                guard Array(summary.name.utf8) == exactBytes else {
+                    try? lock()
+                    throw NativeWalletBridgeError.invalidOutput(
+                        "HNS name import summary changed the exact input text"
+                    )
+                }
+            case .failed:
+                try? lock()
+            case .invalidInput, .unavailable:
+                break
+            }
+            return decoded
+        } catch {
+            try? lock()
+            throw error
+        }
     }
 
     func unlock(databaseKey: UnsafeRawBufferPointer) throws {

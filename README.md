@@ -44,7 +44,7 @@ reconciliation before submission.
 Current source is the `0.5.10` release candidate: Android code `51`, embedded
 non-publishable Rust workspace `0.5.9`, and iOS build `60`. It pins exact reviewed
 `hns-wallet-rs 0.1.0` source
-`49afe81abce3d3f1a9309e26962731e181e43051`, whose protocol closure uses
+`bc5901f794450d29fa9f5630bab4fbf91e37bedf`, whose protocol closure uses
 `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Both native
 shells expose local create, restore, open, status, unlock, lock, and one-account
 identity controls plus strict, bounded HNWR-v2 emission and native UI for
@@ -60,7 +60,10 @@ No scoped indexed backend is provisioned to the app. A pruned node with wallet
 indexing and scoped authentication can serve current-wallet indexed history and
 authenticated raw bytes already retained by an existing wallet; a fresh restore
 additionally needs archive-capable raw transaction bytes or another durable
-wallet-relevant raw-transaction source. Name import/tracking ingestion is absent.
+wallet-relevant raw-transaction source. The native screens and JNI/C ABIs expose
+one trusted exact-text name import through that same backend. It preserves the
+input UTF-8 bytes, returns only a minimized HNWI-v1 summary, refreshes HNWR-v2
+rows after success, and remains visibly unavailable without the backend.
 Send/value, website-provider, settlement, active HNSA/HNSR, exchange,
 and P2P-marketplace paths remain independently gated off. Source contains a
 dormant HRM/HNSA wallet-consumer admission seam, but shipping builds provision
@@ -72,12 +75,14 @@ native read in flight. Supplying read authority still requires the missing
 credential/backend/data boundary, and the signed physical-iPhone matrix remains
 open.
 
-Exact HNWR-v2 code-bearing source
+Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI run
 `31807520618`: repository policy, Rust/supply-chain, Android build and unit
 tests, API 37 native-runtime instrumentation, the complete Apple
 ABI/XCFramework/app/simulator gate, and aggregate Required CI all succeeded.
-CodeQL runs `31807519998` and `31807520229` also succeeded. Debug artifact
+CodeQL runs `31807519998` and `31807520229` also succeeded. That evidence
+predates the `bc5901f` exact-name import tranche, whose complete exact-source
+CI remains pending. Debug artifact
 `9222123624` is bound to that source; its artifact-archive SHA-256 is
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
 expires on 2026-08-17. It is debug-only, not a store-signed artifact, and does

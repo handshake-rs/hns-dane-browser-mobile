@@ -29,11 +29,13 @@ descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
 `31411048376`; those runs remain historical. Code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including the complete Apple ABI/XCFramework/app/simulator gate
-and aggregate Required CI. Current HNWR-v2 code-bearing source
+and aggregate Required CI. Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed that complete Apple gate and
 aggregate Required CI in full run `31807520618`; CodeQL runs `31807519998` and
-`31807520229` also passed. Build `57` does not contain the controller. The
-current candidate pins wallet `49afe81`. Wallet-aware hosted
+`31807520229` also passed. That evidence predates the `bc5901f` exact-name
+import tranche, whose complete Apple and aggregate exact-source CI is pending.
+Build `57` does not contain the controller. The
+current candidate pins wallet `bc5901f`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
 back for the historical lifecycle boundary. Version-neutral HNWR-aware source
 `a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed and read back in
@@ -53,7 +55,9 @@ the visible read fields remain fail-closed and unavailable. A pruned indexed and
 authenticated node can return indexed confirmation/history, and an existing
 wallet may reuse authenticated retained raw bytes. Fresh restore additionally
 needs archive-capable raw bytes or another durable wallet-relevant raw-tx source.
-Name import is absent.
+The native exact-text name-import control is implemented but remains unavailable
+because this product provisions neither backend nor credential. It does not
+enter WKWebView or provider JSON.
 Website-provider, send/value, settlement, exchange, HNSA/HNSR, and P2P-market
 gates remain false. iOS now implements nonblocking lifecycle teardown with an
 exact lease handoff. Exact-source Apple XCTest covers the retirement
@@ -232,9 +236,10 @@ beside the verified code 46 APK.
 
 Build `60` is the configured candidate. Historical HNWR application-source CI,
 CodeQL, lockfile/notices, and the complete Apple app/simulator gate remain
-retained evidence. The current HNWR-v2 code-bearing source
+retained historical evidence. The earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its own complete platform
-matrix in run `31807520618`. Build `60` must not be uploaded until a fresh
+matrix in run `31807520618`; current import-source CI remains pending. Build
+`60` must not be uploaded until a fresh
 screenshot manifest names the exact release checkout selected for signing and
 carries provenance schema 3 with `settings.wallet.native-controls` visible;
 the protected workflow must then rerun its complete exact-checkout gate before
