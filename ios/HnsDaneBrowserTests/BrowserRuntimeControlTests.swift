@@ -403,8 +403,10 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "wallet.import-hns-name.text"
         )
         field.text = "Alpha."
+        XCTAssertTrue(field.hasText)
         clearWalletNameImportManagedText(field)
-        XCTAssertNil(field.text)
+        XCTAssertFalse(field.hasText)
+        XCTAssertEqual(field.text ?? "", "")
 
         let controller = WalletViewController(network: .regtest)
         controller.loadViewIfNeeded()
