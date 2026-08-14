@@ -63,7 +63,17 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
 
       - name: Run the complete unsigned iOS gate
+        id: ios_gate
         run: ./scripts/run-ios-gate.sh
+
+      - name: Upload failed unsigned iOS gate diagnostics
+        if: failure() && steps.ios_gate.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-gate-diagnostics-${{ inputs.expected_commit }}-attempt-${{ github.run_attempt }}
+          path: build/ios-gate-diagnostics
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Capture mandatory live Release App Store screenshots
         id: live_capture

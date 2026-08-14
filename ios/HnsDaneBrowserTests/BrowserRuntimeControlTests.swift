@@ -3409,9 +3409,15 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     @MainActor
     func testClosingProcessDropsQueuedSyncMaintenanceSafePoint() async throws {
+        let hostedTimeout = 10.0
         let runtime = NetworkSwitchRuntimeStub(network: .testnet, rejectsPolicy: false)
-        let syncStarted = expectation(description: "sync entered runtime")
-        let runtimeClosed = expectation(description: "runtime closed")
+        let syncStarted = expectation(description: "phase 2: sync entered runtime")
+        let syncCompleted = expectation(
+            description: "phase 3: close completed pending sync"
+        )
+        let runtimeClosed = expectation(
+            description: "phase 4: runtime closed after sync release"
+        )
         let allowSyncToFinish = DispatchSemaphore(value: 0)
         runtime.onSyncStart = { syncStarted.fulfill() }
         runtime.syncGate = allowSyncToFinish
@@ -3421,36 +3427,113 @@ final class BrowserRuntimeControlTests: XCTestCase {
             initialNetwork: .testnet,
             persistNetwork: { _ in }
         )
+        var processClosed = false
+        var syncGateReleased = false
+        defer {
+            if !processClosed {
+                process.close()
+                processClosed = true
+            }
+            if !syncGateReleased {
+                allowSyncToFinish.signal()
+                syncGateReleased = true
+            }
+        }
 
-        let preparationCompleted = expectation(description: "runtime prepared")
+        let preparationCompleted = expectation(
+            description: "phase 1: runtime prepared"
+        )
         var preparationResult: Result<BrowserProcess.Environment, Error>?
         process.prepare {
             preparationResult = $0
             preparationCompleted.fulfill()
         }
-        await fulfillment(of: [preparationCompleted], timeout: 2)
-        _ = try XCTUnwrap(preparationResult).get()
+        await fulfillment(of: [preparationCompleted], timeout: hostedTimeout)
+        _ = try XCTUnwrap(
+            preparationResult,
+            "phase 1: preparation did not provide its exact result"
+        ).get()
 
-        process.syncNow { _ in }
-        await fulfillment(of: [syncStarted], timeout: 2)
+        var syncResult: Result<BrowserSyncSummary, Error>?
+        var syncCompletionCount = 0
+        process.syncNow {
+            syncResult = $0
+            syncCompletionCount += 1
+            syncCompleted.fulfill()
+        }
+        await fulfillment(of: [syncStarted], timeout: hostedTimeout)
         var callbackCount = 0
         XCTAssertTrue(
             process.performAtSyncMaintenanceSafePoint {
                 callbackCount += 1
-            }
+            },
+            "phase 2: the maintenance callback must queue while sync is gated"
+        )
+        XCTAssertEqual(
+            callbackCount,
+            0,
+            "phase 2: the queued maintenance callback ran before process closure"
         )
 
         process.close()
+        processClosed = true
+        await fulfillment(of: [syncCompleted], timeout: hostedTimeout)
+        let completedSyncResult = try XCTUnwrap(
+            syncResult,
+            "phase 3: sync completion did not provide its exact result"
+        )
+        guard case .failure(let syncError) = completedSyncResult else {
+            XCTFail("phase 3: closing must fail the pending sync completion")
+            return
+        }
+        XCTAssertEqual(
+            syncError as? BrowserCoreError,
+            .runtimeUnavailable("process is closed"),
+            "phase 3: pending sync completed with the wrong closure error"
+        )
+        XCTAssertEqual(
+            syncCompletionCount,
+            1,
+            "phase 3: pending sync completion must run exactly once"
+        )
+        XCTAssertFalse(
+            runtime.isClosed,
+            "phase 3: the gated runtime closed before sync was released"
+        )
+        XCTAssertEqual(
+            callbackCount,
+            0,
+            "phase 3: discarded maintenance work ran during process close"
+        )
+
         allowSyncToFinish.signal()
-        await fulfillment(of: [runtimeClosed], timeout: 2)
-        await Task.yield()
-        XCTAssertEqual(callbackCount, 0)
+        syncGateReleased = true
+        await fulfillment(of: [runtimeClosed], timeout: hostedTimeout)
+        XCTAssertTrue(
+            runtime.isClosed,
+            "phase 4: close completion fired without closing the runtime"
+        )
+        XCTAssertEqual(
+            callbackCount,
+            0,
+            "phase 4: a discarded maintenance callback ran after sync returned"
+        )
+        XCTAssertEqual(
+            syncCompletionCount,
+            1,
+            "phase 4: the completed sync callback ran more than once"
+        )
         XCTAssertFalse(
             process.performAtSyncMaintenanceSafePoint {
                 callbackCount += 1
-            }
+            },
+            "phase 4: a closed process accepted maintenance work"
         )
-        XCTAssertEqual(callbackCount, 0)
+        XCTAssertEqual(
+            callbackCount,
+            0,
+            "phase 4: rejected maintenance work executed its callback"
+        )
     }
 }
 

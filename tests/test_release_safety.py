@@ -14,8 +14,14 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 PLAY_UPLOAD = ROOT / "scripts" / "play-upload-closed-testing.sh"
 IOS_UPLOAD = ROOT / "scripts" / "upload-ios-app-store.sh"
+BUILD_IOS = ROOT / "scripts" / "build-ios.sh"
+RUN_IOS_GATE = ROOT / "scripts" / "run-ios-gate.sh"
+CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 UPLOAD_WORKFLOW = ROOT / ".github" / "workflows" / "ios-app-store-upload.yml"
 SCREENSHOT_WORKFLOW = ROOT / ".github" / "workflows" / "ios-screenshots.yml"
+BROWSER_RUNTIME_CONTROL_TESTS = (
+    ROOT / "ios" / "HnsDaneBrowserTests" / "BrowserRuntimeControlTests.swift"
+)
 SCREENSHOT_UI_TEST = (
     ROOT / "ios" / "HnsDaneBrowserScreenshotTests" / "AppStoreScreenshotTests.swift"
 )
@@ -170,6 +176,133 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
 
 class IosReleaseWorkflowSafetyTests(unittest.TestCase):
+    def test_ios_gate_result_bundle_is_bounded_and_never_overwritten(self) -> None:
+        build_script = BUILD_IOS.read_text(encoding="utf-8")
+        for contract in (
+            'RESULT_BUNDLE_INPUT="${HNS_IOS_RESULT_BUNDLE_PATH:-}"',
+            'root = Path(sys.argv[1]).resolve(strict=False)',
+            'build_root = (root / "build").resolve(strict=False)',
+            'candidate = requested.resolve(strict=False)',
+            "candidate.relative_to(build_root)",
+            'candidate.suffix != ".xcresult"',
+            '[[ -e "$result_bundle_requested" || -L "$result_bundle_requested" ]]',
+            '[[ -e "$result_bundle_path" || -L "$result_bundle_path" ]]',
+            'xcodebuild_args+=( -resultBundlePath "$result_bundle_path" )',
+            'xcodebuild "${xcodebuild_args[@]}"',
+        ):
+            with self.subTest(contract=contract):
+                self.assertIn(contract, build_script)
+        self.assertLess(
+            build_script.index('if [[ -n "$RESULT_BUNDLE_INPUT" ]]'),
+            build_script.index('if [[ "$REUSE_XCFRAMEWORK" == "1" ]]'),
+        )
+
+        gate = RUN_IOS_GATE.read_text(encoding="utf-8")
+        for contract in (
+            'IOS_GATE_DIAGNOSTICS_DIR="$ROOT_DIR/build/ios-gate-diagnostics"',
+            'IOS_GATE_RESULT_BUNDLE="$IOS_GATE_DIAGNOSTICS_DIR/'
+            'HnsDaneBrowserTests.xcresult"',
+            'IOS_GATE_PHASE_FILE="$IOS_GATE_DIAGNOSTICS_DIR/phase.txt"',
+            '[[ "$IOS_GATE_DIAGNOSTICS_DIR" == "$expected_dir" ]]',
+            '[[ ! -L "$build_dir" ]]',
+            'rm -rf -- "$IOS_GATE_DIAGNOSTICS_DIR"',
+            "unset HNS_IOS_RESULT_BUNDLE_PATH",
+            'HNS_IOS_RESULT_BUNDLE_PATH="$IOS_GATE_RESULT_BUNDLE"',
+        ):
+            with self.subTest(contract=contract):
+                self.assertIn(contract, gate)
+        self.assertEqual(gate.count("HNS_IOS_RESULT_BUNDLE_PATH="), 1)
+        simulator_phase = gate.index("record_ios_gate_phase simulator-test")
+        result_handoff = gate.index(
+            'HNS_IOS_RESULT_BUNDLE_PATH="$IOS_GATE_RESULT_BUNDLE"'
+        )
+        device_phase = gate.index("record_ios_gate_phase unsigned-device-link")
+        self.assertLess(simulator_phase, result_handoff)
+        self.assertLess(result_handoff, device_phase)
+        for phase in (
+            "preflight",
+            "rust-abi",
+            "simulator-selection",
+            "simulator-test",
+            "unsigned-device-link",
+            "complete",
+        ):
+            with self.subTest(phase=phase):
+                self.assertIn(f"record_ios_gate_phase {phase}", gate)
+
+    def test_ios_gate_failures_retain_attempt_scoped_diagnostics(self) -> None:
+        ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+        upload_workflow = UPLOAD_WORKFLOW.read_text(encoding="utf-8")
+        for workflow, artifact_name in (
+            (
+                ci_workflow,
+                "ios-gate-diagnostics-${{ github.sha }}-attempt-"
+                "${{ github.run_attempt }}",
+            ),
+            (
+                upload_workflow,
+                "ios-gate-diagnostics-${{ inputs.expected_commit }}-attempt-"
+                "${{ github.run_attempt }}",
+            ),
+        ):
+            with self.subTest(artifact=artifact_name):
+                gate_run = workflow.index("run: ./scripts/run-ios-gate.sh")
+                gate_step_start = workflow.rfind("\n      - name:", 0, gate_run)
+                gate_step_end = workflow.find("\n      - name:", gate_run)
+                gate_step = workflow[gate_step_start:gate_step_end]
+                self.assertIn("id: ios_gate", gate_step)
+
+                artifact_marker = f"name: {artifact_name}"
+                artifact_index = workflow.index(artifact_marker)
+                artifact_step_start = workflow.rfind(
+                    "\n      - name:", 0, artifact_index
+                )
+                artifact_step_end = workflow.find("\n      - name:", artifact_index)
+                if artifact_step_end == -1:
+                    artifact_step_end = len(workflow)
+                artifact_step = workflow[artifact_step_start:artifact_step_end]
+                for contract in (
+                    "if: failure() && steps.ios_gate.outcome == 'failure'",
+                    "uses: actions/upload-artifact@"
+                    "ea165f8d65b6e75b540449e92b4886f43607fa02",
+                    artifact_marker,
+                    "path: build/ios-gate-diagnostics",
+                    "if-no-files-found: warn",
+                    "retention-days: 7",
+                ):
+                    with self.subTest(step_contract=contract):
+                        self.assertIn(contract, artifact_step)
+
+    def test_process_close_regression_has_deterministic_phases(self) -> None:
+        source = BROWSER_RUNTIME_CONTROL_TESTS.read_text(encoding="utf-8")
+        start = source.index(
+            "func testClosingProcessDropsQueuedSyncMaintenanceSafePoint()"
+        )
+        end = source.index("\n    }\n}", start)
+        regression = source[start:end]
+
+        self.assertIn("let hostedTimeout = 10.0", regression)
+        self.assertEqual(regression.count("timeout: hostedTimeout"), 4)
+        self.assertNotIn("Task.yield", regression)
+        for phase in ("phase 1:", "phase 2:", "phase 3:", "phase 4:"):
+            with self.subTest(phase=phase):
+                self.assertIn(phase, regression)
+        for contract in (
+            "var processClosed = false",
+            "var syncGateReleased = false",
+            "var syncResult: Result<BrowserSyncSummary, Error>?",
+            ".runtimeUnavailable(\"process is closed\")",
+            "XCTAssertFalse(\n            runtime.isClosed",
+            "XCTAssertTrue(\n            runtime.isClosed",
+        ):
+            with self.subTest(contract=contract):
+                self.assertIn(contract, regression)
+
+        defer_start = regression.index("defer {")
+        defer_end = regression.index("\n        }\n\n        let preparationCompleted")
+        cleanup = regression[defer_start:defer_end]
+        self.assertLess(cleanup.index("process.close()"), cleanup.index("signal()"))
+
     def test_both_workflows_pin_and_read_back_a_lowercase_commit(self) -> None:
         for workflow_path in (UPLOAD_WORKFLOW, SCREENSHOT_WORKFLOW):
             with self.subTest(workflow=workflow_path.name):
