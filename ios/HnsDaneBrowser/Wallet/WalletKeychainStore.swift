@@ -92,6 +92,16 @@ final class WalletKeychainStore {
         }
     }
 
+    /// A Keychain error does not prove that `SecItemDelete` left the item in
+    /// place. Confirm absence before classifying confirmed-wallet deletion as
+    /// failed; an absent key means encrypted database cleanup may proceed.
+    func deleteDatabaseKeyForConfirmedWalletDeletion() throws {
+        try deleteWalletDatabaseKeyWithAbsenceVerification(
+            delete: { try self.deleteDatabaseKey() },
+            keyExists: { try self.hasDatabaseKey() }
+        )
+    }
+
     private func copyDatabaseKey(prompt: String) throws -> [UInt8]? {
         var result: CFTypeRef?
         let status = SecItemCopyMatching([
@@ -115,5 +125,26 @@ final class WalletKeychainStore {
             code: "keychain:\(status)",
             message: "Wallet Keychain operation failed"
         )
+    }
+}
+
+func deleteWalletDatabaseKeyWithAbsenceVerification(
+    delete: () throws -> Void,
+    keyExists: () throws -> Bool
+) throws {
+    do {
+        try delete()
+    } catch {
+        let deletionError = error
+        let stillExists: Bool
+        do {
+            stillExists = try keyExists()
+        } catch {
+            // An unavailable verification is not proof of key destruction.
+            throw error
+        }
+        if stillExists {
+            throw deletionError
+        }
     }
 }

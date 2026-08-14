@@ -22,7 +22,10 @@ final class WalletViewController: UIViewController {
     private var walletAuthorityRequested = false
     private var walletLifecycleSuspended = false
     private var retirementGeneration: UInt64 = 0
+    private var walletAuthorityGeneration: UInt64 = 0
     private var retirementInFlight = false
+    private var encryptedOrphanCleanupPending = false
+    private var confirmedDeletionAccountID: String?
     private weak var restorePhraseField: UITextField?
 
     private let statusLabel = UILabel()
@@ -41,6 +44,7 @@ final class WalletViewController: UIViewController {
     private let confirmRecoveryButton = UIButton(type: .system)
     private let refreshButton = UIButton(type: .system)
     private let synchronizeButton = UIButton(type: .system)
+    private let deleteButton = UIButton(type: .system)
 
     init(network: BrowserHandshakeNetwork) {
         self.network = network
@@ -183,6 +187,13 @@ final class WalletViewController: UIViewController {
             title: "Synchronize read-only wallet",
             action: #selector(synchronizeWalletReads)
         )
+        configureButton(
+            deleteButton,
+            title: "Delete confirmed wallet",
+            action: #selector(requestConfirmedWalletDeletion)
+        )
+        deleteButton.configuration?.baseBackgroundColor = .systemRed
+        deleteButton.accessibilityIdentifier = "wallet.delete-confirmed"
 
         let actions = UIStackView(arrangedSubviews: [
             createButton,
@@ -192,6 +203,7 @@ final class WalletViewController: UIViewController {
             confirmRecoveryButton,
             refreshButton,
             synchronizeButton,
+            deleteButton,
         ])
         actions.axis = .vertical
         actions.spacing = 10
@@ -271,6 +283,7 @@ final class WalletViewController: UIViewController {
                     let secret = try controller.takeRecoveryPhrase()
                     let display = try secret.displayText()
                     self.wallet = controller
+                    self.walletAuthorityGeneration &+= 1
                     self.unconfirmedDatabaseKey = key
                     keyAdopted = true
                     self.recoverySecret = secret
@@ -345,6 +358,7 @@ final class WalletViewController: UIViewController {
                         try self.keychain.storeDatabaseKey(databaseKey)
                     }
                     self.wallet = controller
+                    self.walletAuthorityGeneration &+= 1
                     self.persistentWalletExists = true
                 } catch {
                     controller.close()
@@ -358,6 +372,7 @@ final class WalletViewController: UIViewController {
 
     @objc private func openOrUnlockWallet() {
         performWalletOperation {
+            try reconcileIncompleteStorage()
             let path = try walletDatabasePath()
             let opened = try keychain.withDatabaseKey(
                 prompt: "Authenticate to open your Handshake wallet"
@@ -422,6 +437,10 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func refreshWallet() {
+        if storageLease != nil,
+           (encryptedOrphanCleanupPending || wallet == nil) {
+            refreshProtectedStorageState()
+        }
         refreshState()
     }
 
@@ -473,6 +492,260 @@ final class WalletViewController: UIViewController {
         }
     }
 
+    @objc private func requestConfirmedWalletDeletion() {
+        guard presentedViewController == nil else { return }
+        do {
+            let authority = try currentConfirmedDeletionAuthority()
+            let alert = UIAlertController(
+                title: "Delete \(network.title) wallet?",
+                message: """
+                \(walletDeletionIdentitySummary(authority))
+
+                This permanently deletes this device's confirmed wallet. The recovery phrase cannot be shown again by this app. Without a saved recovery phrase, the wallet cannot be recovered. This action is irreversible.
+                """,
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+            alert.addAction(UIAlertAction(title: "Continue", style: .destructive) { [weak self] _ in
+                self?.presentTypedDeletionConfirmation(expected: authority)
+            })
+            present(alert, animated: true)
+        } catch {
+            showError(error)
+        }
+    }
+
+    private func presentTypedDeletionConfirmation(
+        expected authority: WalletConfirmedDeletionAuthority
+    ) {
+        do {
+            _ = try currentConfirmedDeletionAuthority(matching: authority)
+        } catch {
+            showError(error)
+            return
+        }
+
+        let alert = UIAlertController(
+            title: "Type DELETE to confirm",
+            message: """
+            \(walletDeletionIdentitySummary(authority))
+
+            Deletion is irreversible, and the recovery phrase cannot be shown again. Type DELETE exactly to continue.
+            """,
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "DELETE"
+            field.autocapitalizationType = .allCharacters
+            field.autocorrectionType = .no
+            field.spellCheckingType = .no
+            field.textContentType = nil
+            field.accessibilityIdentifier = "wallet.delete-confirmation"
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak alert] _ in
+            alert?.textFields?.first?.text = nil
+        })
+        alert.addAction(UIAlertAction(
+            title: "Delete forever",
+            style: .destructive
+        ) { [weak self, weak alert] _ in
+            let typedValue = alert?.textFields?.first?.text
+            alert?.textFields?.first?.text = nil
+            guard walletDeletionConfirmationMatches(typedValue) else {
+                self?.showErrorMessage("Type DELETE exactly. The wallet was not deleted.")
+                return
+            }
+            guard let self else { return }
+            do {
+                let current = try self.currentConfirmedDeletionAuthority(
+                    matching: authority
+                )
+                self.beginConfirmedWalletDeletion(authority: current)
+            } catch {
+                self.showError(error)
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func currentConfirmedDeletionAuthority(
+        matching expected: WalletConfirmedDeletionAuthority? = nil
+    ) throws -> WalletConfirmedDeletionAuthority {
+        guard walletLifecycleMayAcquireStorage,
+              protectedStorageIsAvailable,
+              viewIfLoaded?.window != nil,
+              !isOperating,
+              !retirementInFlight,
+              unconfirmedDatabaseKey == nil,
+              recoverySecret == nil,
+              persistentWalletExists,
+              let path = resolvedDatabasePath,
+              let lease = storageLease,
+              lease.path == path,
+              walletDatabasePathMatchesNetworkNamespace(path, network: network),
+              WalletStorageLeaseRegistry.isCurrent(lease),
+              let wallet else {
+            throw WalletProviderError(
+                code: "walletDeletionUnavailable",
+                message: "Only the current protected foreground owner can delete a confirmed wallet."
+            )
+        }
+        guard FileManager.default.fileExists(atPath: path),
+              try keychain.hasDatabaseKey() else {
+            throw WalletProviderError(
+                code: "walletDeletionStorageMismatch",
+                message: "Confirmed wallet storage is incomplete. Reopen the wallet screen to reconcile it before retrying."
+            )
+        }
+
+        let hasHnsReads = try wallet.hasHnsReads()
+        let status = try wallet.status()
+        let enabledModulesAreAllowed = hasHnsReads
+            ? status.enabledModules == ["handshake"]
+            : status.enabledModules.isEmpty
+        guard !status.locked,
+              enabledModulesAreAllowed,
+              !status.mainnetSettlementEnabled,
+              status.activeWallet?.isEmpty == false else {
+            throw WalletProviderError(
+                code: "walletDeletionLocked",
+                message: "Unlock the non-value Handshake wallet before deleting it."
+            )
+        }
+        let accounts = try wallet.accounts()
+        guard accounts.count == 1,
+              let account = accounts.first,
+              account.module == "handshake",
+              account.receiveDisplay == nil,
+              walletAccountIDIsCanonical(account.accountId) else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "confirmed deletion requires one exact non-value HNS account"
+            )
+        }
+
+        let current = WalletConfirmedDeletionAuthority(
+            network: network,
+            accountID: account.accountId,
+            databasePath: path,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(wallet),
+            ownerGeneration: walletAuthorityGeneration
+        )
+        if let expected,
+           !walletConfirmedDeletionMayProceed(
+               expected: expected,
+               current: current,
+               lifecycleAllowsDeletion: walletLifecycleMayAcquireStorage,
+               viewIsCurrent: viewIfLoaded?.window != nil,
+               operationInFlight: isOperating || retirementInFlight,
+               screenIsCaptured: UIScreen.main.isCaptured
+           ) {
+            throw WalletProviderError(
+                code: "walletDeletionAuthorityChanged",
+                message: "Wallet ownership changed during confirmation. The wallet was not deleted."
+            )
+        }
+        return current
+    }
+
+    private func beginConfirmedWalletDeletion(
+        authority: WalletConfirmedDeletionAuthority
+    ) {
+        // Revoke every read callback before moving the controller and lease to
+        // the serialized retirement worker. No UI-owned wallet authority
+        // survives this point.
+        invalidateReadOperation()
+        guard let currentWallet = wallet,
+              ObjectIdentifier(currentWallet) == authority.walletIdentity,
+              storageLease == authority.lease,
+              walletAuthorityGeneration == authority.ownerGeneration,
+              walletLifecycleMayAcquireStorage,
+              protectedStorageIsAvailable,
+              viewIfLoaded?.window != nil,
+              !isOperating,
+              !retirementInFlight,
+              !UIScreen.main.isCaptured,
+              WalletStorageLeaseRegistry.isCurrent(authority.lease) else {
+            showErrorMessage("Wallet ownership changed. The wallet was not deleted.")
+            return
+        }
+
+        clearRecoveryDisplay()
+        wallet = nil
+        storageLease = nil
+        confirmedDeletionAccountID = nil
+        protectedStorageIsAvailable = false
+        persistentWalletExists = false
+        walletAuthorityGeneration &+= 1
+        let detachedAuthorityGeneration = walletAuthorityGeneration
+        retirementGeneration &+= 1
+        let generation = retirementGeneration
+        retirementInFlight = true
+
+        let plan = WalletConfirmedDeletionPlan(
+            authority: authority,
+            wallet: currentWallet,
+            keychain: keychain,
+            deleteWalletFiles: {
+                try Self.deleteWalletFiles(databasePath: authority.databasePath)
+            }
+        )
+        refreshState()
+        WalletRetirementQueue.shared.enqueue(plan) { [weak self] outcome in
+            guard let self,
+                  walletDeletionCompletionMayApply(
+                      expectedRetirementGeneration: generation,
+                      currentRetirementGeneration: self.retirementGeneration,
+                      expectedDetachedAuthorityGeneration: detachedAuthorityGeneration,
+                      currentAuthorityGeneration: self.walletAuthorityGeneration,
+                      walletIsDetached: self.wallet == nil,
+                      leaseIsDetached: self.storageLease == nil
+                  ) else {
+                return
+            }
+            self.retirementInFlight = false
+            switch outcome {
+            case .deleted:
+                self.encryptedOrphanCleanupPending = false
+                self.persistentWalletExists = false
+            case .controllerCloseFailed:
+                self.encryptedOrphanCleanupPending = false
+                // The key and files remain, but native controller retirement
+                // is ambiguous. Never advertise this namespace as ready.
+                self.persistentWalletExists = false
+            case .keyDeletionFailed, .authorityRevoked:
+                self.encryptedOrphanCleanupPending = false
+                self.persistentWalletExists = true
+            case .encryptedOrphanCleanupPending:
+                self.encryptedOrphanCleanupPending = true
+                self.persistentWalletExists = false
+            }
+            self.resumeWalletLifecycle()
+            let encryptedOrphanRemains = self.encryptedOrphanCleanupPending
+            guard self.walletAuthorityRequested,
+                  self.viewIfLoaded?.window != nil,
+                  let resumedLease = self.storageLease,
+                  resumedLease.path == authority.databasePath,
+                  WalletStorageLeaseRegistry.isCurrent(resumedLease) else {
+                return
+            }
+            switch outcome {
+            case .deleted:
+                break
+            case .controllerCloseFailed:
+                self.showErrorMessage("The native wallet could not be retired, so its key and files were not deleted. Reopen the wallet screen before retrying.")
+            case .keyDeletionFailed:
+                self.showErrorMessage("The wallet key could not be deleted, so no wallet files were removed. Unlock and retry deletion.")
+            case .authorityRevoked:
+                self.showErrorMessage("Wallet ownership changed before deletion. No wallet key or files were removed.")
+            case .encryptedOrphanCleanupPending where encryptedOrphanRemains:
+                self.showErrorMessage("The wallet key was deleted, but encrypted wallet files still need cleanup. Use Refresh status or return to this screen to retry.")
+            case .encryptedOrphanCleanupPending:
+                break
+            }
+        }
+    }
+
     private func publish(_ snapshot: NativeHnsReadSnapshot) {
         let presentation = WalletReadPresenter.present(snapshot)
         readStatusLabel.text = presentation.status
@@ -494,6 +767,7 @@ final class WalletViewController: UIViewController {
         try? wallet?.lock()
         wallet?.close()
         wallet = controller
+        walletAuthorityGeneration &+= 1
     }
 
     private func performWalletOperation(_ operation: () throws -> Void) {
@@ -518,8 +792,14 @@ final class WalletViewController: UIViewController {
     }
 
     private func refreshState() {
+        confirmedDeletionAccountID = nil
         guard storageLease != nil else {
-            if retirementInFlight {
+            if let path = resolvedDatabasePath,
+               WalletStorageLeaseRegistry.isBlockedAfterRetirementFailure(path: path) {
+                statusLabel.text = "Native wallet retirement could not be verified. Restart the app before using this network's wallet again."
+                accountLabel.text = "Account unavailable until the app restarts."
+                setReadAvailability(false, message: "Read-only synchronization is blocked until restart after an ambiguous native wallet close.")
+            } else if retirementInFlight {
                 statusLabel.text = "Wallet protection is finishing off the main thread."
                 accountLabel.text = "Account unavailable until native teardown completes."
                 setReadAvailability(false, message: "Read-only synchronization unavailable during wallet teardown.")
@@ -536,9 +816,13 @@ final class WalletViewController: UIViewController {
             return
         }
         guard protectedStorageIsAvailable else {
-            statusLabel.text = "Wallet protected storage is unavailable."
+            statusLabel.text = encryptedOrphanCleanupPending
+                ? "Wallet key deleted. Encrypted wallet-file cleanup is pending and will be retried."
+                : "Wallet protected storage is unavailable."
             accountLabel.text = "Account unavailable."
-            setReadAvailability(false, message: "Read-only synchronization unavailable without protected storage.")
+            setReadAvailability(false, message: encryptedOrphanCleanupPending
+                ? "Read-only synchronization is unavailable while encrypted orphan cleanup is pending."
+                : "Read-only synchronization unavailable without protected storage.")
             refreshButtonStates()
             return
         }
@@ -589,6 +873,10 @@ final class WalletViewController: UIViewController {
                     )
                 }
                 accountLabel.text = "Account: \(account.label) · \(account.module) · \(account.accountId)"
+                if persistentWalletExists,
+                   walletAccountIDIsCanonical(account.accountId) {
+                    confirmedDeletionAccountID = account.accountId
+                }
                 setReadAvailability(hasHnsReads, message: hasHnsReads
                     ? "Read-only HNS synchronization is ready."
                     : "Read-only synchronization requires a scoped companion credential that this build does not install.")
@@ -616,8 +904,21 @@ final class WalletViewController: UIViewController {
         openButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasIncompleteWallet && (hasWallet || persistentWalletExists) && !isOperating
         lockButton.isEnabled = ownsStorage && protectedStorageIsAvailable && hasWallet && !hasIncompleteWallet && !isOperating
         confirmRecoveryButton.isEnabled = ownsStorage && hasIncompleteWallet && recoverySecret != nil && !isOperating
-        refreshButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && !isOperating
+        refreshButton.isEnabled = ownsStorage &&
+            (hasWallet || encryptedOrphanCleanupPending) &&
+            !hasIncompleteWallet &&
+            !isOperating
         synchronizeButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && synchronizedReadsAvailable && !isOperating
+        deleteButton.isEnabled = ownsStorage &&
+            protectedStorageIsAvailable &&
+            hasWallet &&
+            !hasIncompleteWallet &&
+            persistentWalletExists &&
+            confirmedDeletionAccountID != nil &&
+            walletLifecycleMayAcquireStorage &&
+            viewIfLoaded?.window != nil &&
+            !retirementInFlight &&
+            !isOperating
     }
 
     private func canStartNewWallet() throws -> Bool {
@@ -663,17 +964,48 @@ final class WalletViewController: UIViewController {
 
     private func reconcileIncompleteStorage() throws {
         let path = try walletDatabasePath()
+        guard let lease = storageLease,
+              lease.path == path,
+              WalletStorageLeaseRegistry.isCurrent(lease) else {
+            throw WalletProviderError(
+                code: "walletStorageBusy",
+                message: "The current wallet screen no longer owns this network's storage."
+            )
+        }
         let hasDatabase = FileManager.default.fileExists(atPath: path)
         let hasArtifacts = Self.walletFilesExist(databasePath: path)
         let hasKey = try keychain.hasDatabaseKey()
-        if hasKey && hasDatabase {
+        // Key absence plus any encrypted SQLite artifact is itself the durable
+        // crash marker. It survives process death without introducing a second
+        // mutable source of truth and must be cleaned before open/create.
+        let reconciliation = walletStorageReconciliationAction(
+            hasDatabaseKey: hasKey,
+            hasDatabase: hasDatabase,
+            hasArtifacts: hasArtifacts
+        )
+        if reconciliation != .confirmedWallet {
+            persistentWalletExists = false
+        }
+        switch reconciliation {
+        case .confirmedWallet:
+            encryptedOrphanCleanupPending = false
             persistentWalletExists = true
             return
-        }
-        if hasKey || hasArtifacts {
+        case .empty:
+            encryptedOrphanCleanupPending = false
+        case .deleteStrayKey:
+            encryptedOrphanCleanupPending = false
             try keychain.deleteDatabaseKey()
+        case .deleteKeyThenEncryptedArtifacts:
+            encryptedOrphanCleanupPending = false
+            try keychain.deleteDatabaseKey()
+            encryptedOrphanCleanupPending = true
+            try Self.deleteWalletFiles(databasePath: path)
+        case .deleteEncryptedOrphanArtifacts:
+            encryptedOrphanCleanupPending = true
             try Self.deleteWalletFiles(databasePath: path)
         }
+        encryptedOrphanCleanupPending = false
         persistentWalletExists = false
     }
 
@@ -740,14 +1072,22 @@ final class WalletViewController: UIViewController {
     }
 
     private func beginWalletRetirement(deleteIncompleteWallet: Bool) {
+        if retirementInFlight {
+            invalidateReadOperation()
+            return
+        }
         invalidateReadOperation()
         let currentWallet = wallet
         let currentLease = storageLease
+        if currentWallet != nil {
+            walletAuthorityGeneration &+= 1
+        }
         let deletionPath = deleteIncompleteWallet && currentLease != nil
             ? resolvedDatabasePath
             : nil
         wallet = nil
         storageLease = nil
+        confirmedDeletionAccountID = nil
         protectedStorageIsAvailable = false
         if deleteIncompleteWallet {
             persistentWalletExists = false
@@ -1061,6 +1401,105 @@ func walletReadMayPublish(
         viewIsVisible
 }
 
+struct WalletConfirmedDeletionAuthority: Equatable, Sendable {
+    let network: BrowserHandshakeNetwork
+    let accountID: String
+    let databasePath: String
+    let lease: WalletStorageLeaseToken
+    let walletIdentity: ObjectIdentifier
+    let ownerGeneration: UInt64
+}
+
+enum WalletStorageReconciliationAction: Equatable, Sendable {
+    case confirmedWallet
+    case empty
+    case deleteStrayKey
+    case deleteKeyThenEncryptedArtifacts
+    case deleteEncryptedOrphanArtifacts
+}
+
+func walletDeletionIdentitySummary(
+    _ authority: WalletConfirmedDeletionAuthority
+) -> String {
+    "Network: \(authority.network.title) (\(authority.network.rawValue))\n" +
+        "Account: \(authority.accountID)"
+}
+
+func walletStorageReconciliationAction(
+    hasDatabaseKey: Bool,
+    hasDatabase: Bool,
+    hasArtifacts: Bool
+) -> WalletStorageReconciliationAction {
+    if hasDatabaseKey && hasDatabase {
+        return .confirmedWallet
+    }
+    if hasDatabaseKey {
+        return hasArtifacts ? .deleteKeyThenEncryptedArtifacts : .deleteStrayKey
+    }
+    return hasArtifacts ? .deleteEncryptedOrphanArtifacts : .empty
+}
+
+func walletAccountIDIsCanonical(_ value: String) -> Bool {
+    value.utf8.count == 32 &&
+        value.utf8.contains(where: { $0 != UInt8(ascii: "0") }) &&
+        value.utf8.allSatisfy {
+            (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+        }
+}
+
+func walletDeletionConfirmationMatches(_ value: String?) -> Bool {
+    value == "DELETE"
+}
+
+func walletDatabasePathMatchesNetworkNamespace(
+    _ databasePath: String,
+    network: BrowserHandshakeNetwork
+) -> Bool {
+    let database = URL(fileURLWithPath: databasePath).standardizedFileURL
+    let networkDirectory = database.deletingLastPathComponent()
+    let walletRoot = networkDirectory.deletingLastPathComponent()
+    return database.lastPathComponent == "wallet.sqlite3" &&
+        networkDirectory.lastPathComponent == network.rawValue &&
+        walletRoot.lastPathComponent == "NativeWallet"
+}
+
+func walletConfirmedDeletionMayProceed(
+    expected: WalletConfirmedDeletionAuthority,
+    current: WalletConfirmedDeletionAuthority,
+    lifecycleAllowsDeletion: Bool,
+    viewIsCurrent: Bool,
+    operationInFlight: Bool,
+    screenIsCaptured: Bool
+) -> Bool {
+    expected == current &&
+        walletAccountIDIsCanonical(expected.accountID) &&
+        expected.lease.path == expected.databasePath &&
+        walletDatabasePathMatchesNetworkNamespace(
+            expected.databasePath,
+            network: expected.network
+        ) &&
+        WalletStorageLeaseRegistry.isCurrent(expected.lease) &&
+        lifecycleAllowsDeletion &&
+        viewIsCurrent &&
+        !operationInFlight &&
+        !screenIsCaptured
+}
+
+func walletDeletionCompletionMayApply(
+    expectedRetirementGeneration: UInt64,
+    currentRetirementGeneration: UInt64,
+    expectedDetachedAuthorityGeneration: UInt64,
+    currentAuthorityGeneration: UInt64,
+    walletIsDetached: Bool,
+    leaseIsDetached: Bool
+) -> Bool {
+    expectedRetirementGeneration == currentRetirementGeneration &&
+        expectedDetachedAuthorityGeneration == currentAuthorityGeneration &&
+        walletIsDetached &&
+        leaseIsDetached
+}
+
 struct WalletStorageLeaseToken: Equatable, Sendable {
     let path: String
     let owner: UUID
@@ -1069,6 +1508,7 @@ struct WalletStorageLeaseToken: Equatable, Sendable {
 private final class WalletStorageLeaseRegistryState: @unchecked Sendable {
     let lock = NSLock()
     var owners: [String: UUID] = [:]
+    var retirementFailedPaths: Set<String> = []
 }
 
 enum WalletStorageLeaseRegistry {
@@ -1077,7 +1517,10 @@ enum WalletStorageLeaseRegistry {
     static func acquire(path: String) -> WalletStorageLeaseToken? {
         state.lock.lock()
         defer { state.lock.unlock() }
-        guard state.owners[path] == nil else { return nil }
+        guard state.owners[path] == nil,
+              !state.retirementFailedPaths.contains(path) else {
+            return nil
+        }
         let owner = UUID()
         state.owners[path] = owner
         return WalletStorageLeaseToken(path: path, owner: owner)
@@ -1088,6 +1531,129 @@ enum WalletStorageLeaseRegistry {
         defer { state.lock.unlock() }
         guard state.owners[token.path] == token.owner else { return }
         state.owners.removeValue(forKey: token.path)
+    }
+
+    static func isCurrent(_ token: WalletStorageLeaseToken) -> Bool {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        return state.owners[token.path] == token.owner
+    }
+
+    /// A checked native close can fail after an unknown amount of teardown.
+    /// Fence that exact namespace for the remainder of this process so no new
+    /// controller can open the same database under ambiguous native authority.
+    static func blockAfterRetirementFailure(_ token: WalletStorageLeaseToken) {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        guard state.owners[token.path] == token.owner else { return }
+        state.retirementFailedPaths.insert(token.path)
+    }
+
+    static func isBlockedAfterRetirementFailure(path: String) -> Bool {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        return state.retirementFailedPaths.contains(path)
+    }
+}
+
+enum WalletConfirmedDeletionOutcome: Equatable, Sendable {
+    case deleted
+    case controllerCloseFailed
+    case keyDeletionFailed
+    case encryptedOrphanCleanupPending
+    case authorityRevoked
+}
+
+/// Confirmed-wallet deletion has a stricter ordering than ordinary lifecycle
+/// retirement. The database key must be durably removed before any encrypted
+/// SQLite artifact, and the exact storage lease remains held until every
+/// attempted stage has completed.
+struct WalletConfirmedDeletionPlan: @unchecked Sendable {
+    private let authority: WalletConfirmedDeletionAuthority
+    private let controllerIdentity: ObjectIdentifier
+    private let lockController: () -> Void
+    private let destroyController: () throws -> Void
+    private let deleteDatabaseKey: () throws -> Void
+    private let deleteWalletFiles: () throws -> Void
+    private let releaseStorageLease: () -> Void
+
+    init(
+        authority: WalletConfirmedDeletionAuthority,
+        wallet: RustNativeWallet,
+        keychain: WalletKeychainStore,
+        deleteWalletFiles: @escaping () throws -> Void
+    ) {
+        self.authority = authority
+        controllerIdentity = ObjectIdentifier(wallet)
+        lockController = { try? wallet.lock() }
+        destroyController = { try wallet.closeForConfirmedDeletion() }
+        deleteDatabaseKey = {
+            try keychain.deleteDatabaseKeyForConfirmedWalletDeletion()
+        }
+        self.deleteWalletFiles = deleteWalletFiles
+        releaseStorageLease = {
+            WalletStorageLeaseRegistry.release(authority.lease)
+        }
+    }
+
+    init(
+        authority: WalletConfirmedDeletionAuthority,
+        controllerIdentity: ObjectIdentifier? = nil,
+        lockController: @escaping () -> Void,
+        destroyController: @escaping () throws -> Void,
+        deleteDatabaseKey: @escaping () throws -> Void,
+        deleteWalletFiles: @escaping () throws -> Void,
+        releaseStorageLease: @escaping () -> Void
+    ) {
+        self.authority = authority
+        self.controllerIdentity = controllerIdentity ?? authority.walletIdentity
+        self.lockController = lockController
+        self.destroyController = destroyController
+        self.deleteDatabaseKey = deleteDatabaseKey
+        self.deleteWalletFiles = deleteWalletFiles
+        self.releaseStorageLease = releaseStorageLease
+    }
+
+    func execute() -> WalletConfirmedDeletionOutcome {
+        defer { releaseStorageLease() }
+        guard controllerIdentity == authority.walletIdentity,
+              walletAccountIDIsCanonical(authority.accountID),
+              authority.lease.path == authority.databasePath,
+              walletDatabasePathMatchesNetworkNamespace(
+                  authority.databasePath,
+                  network: authority.network
+              ),
+              WalletStorageLeaseRegistry.isCurrent(authority.lease) else {
+            return .authorityRevoked
+        }
+
+        lockController()
+        do {
+            try destroyController()
+        } catch {
+            WalletStorageLeaseRegistry.blockAfterRetirementFailure(
+                authority.lease
+            )
+            return .controllerCloseFailed
+        }
+        // The registry cannot legitimately change while this exact token is
+        // held; the key-first transaction owns the namespace until `defer`.
+        do {
+            try deleteDatabaseKey()
+        } catch {
+            return .keyDeletionFailed
+        }
+        // Losing authority after deleting the key leaves only an encrypted
+        // orphan. Never risk deleting files now owned by a newer lease.
+        guard WalletStorageLeaseRegistry.isCurrent(authority.lease) else {
+            return .encryptedOrphanCleanupPending
+        }
+        do {
+            try deleteWalletFiles()
+        } catch {
+            return .encryptedOrphanCleanupPending
+        }
+        return .deleted
     }
 }
 
@@ -1166,6 +1732,20 @@ final class WalletRetirementQueue: @unchecked Sendable {
             guard let completion else { return }
             Task { @MainActor in
                 completion()
+            }
+        }
+    }
+
+    func enqueue(
+        _ plan: WalletConfirmedDeletionPlan,
+        completion: @escaping @MainActor @Sendable (
+            WalletConfirmedDeletionOutcome
+        ) -> Void
+    ) {
+        queue.async {
+            let outcome = plan.execute()
+            Task { @MainActor in
+                completion(outcome)
             }
         }
     }

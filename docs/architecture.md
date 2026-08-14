@@ -190,12 +190,16 @@ iOS UI / Browser Shell                             [public; device qualification
 - `NativeBridge`: JNI load boundary for the Rust shared library. It owns process-lifetime opaque runtime handles, executes ordinary and file-backed gateway requests on those handles, atomically configures and starts Rust proxy generations, owns versioned authenticated endpoint/status bundles, performs live generation-bound certificate-DER matching, and exposes stop/destroy operations.
 - `WalletActivity`, `NativeWalletBridge`, and `AndroidWalletKeyStore`: the
   non-exported native-only non-value wallet screen, narrow JNI controller, and
-  create-only Android KeyStore-backed database-key wrapper. Wallet paths and
+  Android KeyStore-backed database-key wrapper. Wallet paths and
   wrapping identities are network-scoped, while process-local ownership
   prevents stale Activity callbacks from deleting a concurrently live wallet.
   Recovery stays in mutable character storage rendered by a non-copyable
   custom view, and an unconfirmed create is wiped and deleted when its activity
-  leaves the foreground.
+  leaves the foreground. Confirmed deletion requires the exact foreground
+  owner/lease/generation and two explicit confirmations, detaches publication
+  authority before native close, removes the wrapping key before database
+  artifacts, and persists cleanup-pending state so partial storage cannot
+  reopen or cross a network namespace.
 
 Android builds are compiled through APK Workbench on this ARM64 host so Gradle receives the managed SDK/NDK, page-size profile, and ARM64 `aapt2` override. Gradle also invokes `scripts/build-rust-android.sh` to cross-compile and package `libhns_dane_browser_ffi.so` for `arm64-v8a` and `x86_64`.
 

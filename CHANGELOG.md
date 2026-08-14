@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Android and iOS now let the current protected foreground wallet owner delete
+  a confirmed local wallet after two destructive confirmations that identify
+  the exact network and account and require typing `DELETE`. Deletion revokes
+  UI/read authority, closes the native controller, removes the device-bound
+  database key before encrypted database files, and fail-closes into durable
+  cleanup recovery instead of reopening partial storage.
+
 ### Changed
 
 - iOS now renders the same bounded read-only wallet detail as Android,

@@ -207,7 +207,7 @@ resubmission:
 - Files/docs: user-initiated downloads are saved to public Downloads. Normal WebPKI downloads use Android DownloadManager; HNS downloads are fetched through the native gateway and saved through Android MediaStore.
 - Device or other IDs: `No` unless a future SDK adds one. Current app code does not read advertising ID, IMEI, contacts, installed apps, or account identifiers.
 - Encryption in transit: not applicable when the form correctly remains `No collected / No shared`. If WebView-provider guidance causes a data type to be declared, answer this question for the declared flow rather than for excluded open-web traffic.
-- Data deletion: no developer-held data or app account exists to delete. Users can clear cookies and WebView origin storage, history, download records, gateway diagnostics, and resolver cache through app controls. This version has no in-app delete action for a confirmed wallet; Android system settings can clear all app data, including the wallet, after the user has safely recorded the one-time recovery phrase.
+- Data deletion: no developer-held data or app account exists to delete. Users can clear cookies and WebView origin storage, history, download records, gateway diagnostics, and resolver cache through app controls. The protected wallet screen can delete an unlocked confirmed wallet after two destructive confirmations showing the exact network/account and requiring `DELETE`; the device-bound key is deleted before encrypted database artifacts, and partial cleanup fails closed for retry. Android system settings can still clear all app data. Neither path deletes a recovery phrase or backup saved elsewhere, so users must record the one-time phrase before deletion.
 
 ### Privacy Policy URL
 

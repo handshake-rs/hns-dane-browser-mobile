@@ -529,6 +529,22 @@ final class RustNativeWallet: @unchecked Sendable {
         }
     }
 
+    /// Confirmed deletion must observe native retirement before destroying the
+    /// database key. The handle is detached even on error: the C ABI may have
+    /// removed it before reporting a later teardown failure, so retrying it as
+    /// though it were certainly live would invent authority.
+    func closeForConfirmedDeletion() throws {
+        handleLock.lock()
+        let current = handle
+        handle = 0
+        handleLock.unlock()
+        guard current != 0 else { throw NativeWalletBridgeError.closed }
+        try NativeWalletBridge.check(
+            hns_browser_wallet_destroy(current),
+            operation: "wallet confirmed-deletion close"
+        )
+    }
+
     deinit {
         close()
     }

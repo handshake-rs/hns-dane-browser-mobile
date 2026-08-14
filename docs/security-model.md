@@ -159,6 +159,17 @@ contended controller retirement execute off the UI thread; generation, storage
 lease, and handle identity are rechecked before projection publication or lease
 handoff.
 
+Confirmed-wallet deletion is an independently authorized destructive path.
+Both platforms require an unlocked persistent wallet, the current protected
+foreground screen, an exact network/account/path/controller-generation lease,
+and two confirmations ending in a case-sensitive `DELETE`. The screen first
+invalidates read/publication generations and detaches controller ownership,
+then holds the storage lease through native lock/close, device-bound key
+deletion, and database/sidecar removal. A key-deletion failure blocks file
+removal. Once the key is absent, any file failure is retained as an unusable
+encrypted-orphan cleanup state and reconciled before the namespace may reopen.
+Stale completion callbacks can neither publish into nor delete a newer owner.
+
 On iOS, the create-only database key is a
 `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` Keychain item requiring user
 presence; the application declares the corresponding Face ID unlock purpose in

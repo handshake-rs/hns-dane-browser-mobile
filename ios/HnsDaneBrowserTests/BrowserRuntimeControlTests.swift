@@ -574,6 +574,500 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
+    func testConfirmedWalletDeletionRetainsExactLeaseAndOrdersKeyBeforeFiles() throws {
+        let path = "/private/test/NativeWallet/mainnet/wallet.sqlite3"
+        let otherPath = "/private/test/NativeWallet/testnet/wallet.sqlite3"
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        let otherLease = try XCTUnwrap(
+            WalletStorageLeaseRegistry.acquire(path: otherPath)
+        )
+        defer { WalletStorageLeaseRegistry.release(otherLease) }
+        let controller = NSObject()
+        let authority = WalletConfirmedDeletionAuthority(
+            network: .mainnet,
+            accountID: String(repeating: "1", count: 32),
+            databasePath: path,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(controller),
+            ownerGeneration: 9
+        )
+        var steps: [String] = []
+        let assertExactLeasesRemainCurrent = {
+            XCTAssertTrue(WalletStorageLeaseRegistry.isCurrent(lease))
+            XCTAssertTrue(WalletStorageLeaseRegistry.isCurrent(otherLease))
+        }
+        let plan = WalletConfirmedDeletionPlan(
+            authority: authority,
+            lockController: {
+                steps.append("lock")
+                assertExactLeasesRemainCurrent()
+            },
+            destroyController: {
+                steps.append("close")
+                assertExactLeasesRemainCurrent()
+            },
+            deleteDatabaseKey: {
+                steps.append("key")
+                assertExactLeasesRemainCurrent()
+            },
+            deleteWalletFiles: {
+                steps.append("files")
+                assertExactLeasesRemainCurrent()
+            },
+            releaseStorageLease: {
+                steps.append("release")
+                WalletStorageLeaseRegistry.release(lease)
+            }
+        )
+
+        XCTAssertEqual(plan.execute(), .deleted)
+        XCTAssertEqual(steps, ["lock", "close", "key", "files", "release"])
+        XCTAssertFalse(WalletStorageLeaseRegistry.isCurrent(lease))
+        XCTAssertTrue(WalletStorageLeaseRegistry.isCurrent(otherLease))
+        let replacement = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        WalletStorageLeaseRegistry.release(replacement)
+    }
+
+    @MainActor
+    func testConfirmedWalletDeletionKeyFailureBlocksFileDeletion() throws {
+        let path = "/private/test-key-failure/NativeWallet/mainnet/wallet.sqlite3"
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        let controller = NSObject()
+        let authority = WalletConfirmedDeletionAuthority(
+            network: .mainnet,
+            accountID: String(repeating: "2", count: 32),
+            databasePath: path,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(controller),
+            ownerGeneration: 1
+        )
+        var steps: [String] = []
+        let plan = WalletConfirmedDeletionPlan(
+            authority: authority,
+            lockController: { steps.append("lock") },
+            destroyController: { steps.append("close") },
+            deleteDatabaseKey: {
+                steps.append("key")
+                throw NSError(domain: "test", code: 1)
+            },
+            deleteWalletFiles: { steps.append("files") },
+            releaseStorageLease: {
+                steps.append("release")
+                WalletStorageLeaseRegistry.release(lease)
+            }
+        )
+
+        XCTAssertEqual(plan.execute(), .keyDeletionFailed)
+        XCTAssertEqual(steps, ["lock", "close", "key", "release"])
+        XCTAssertFalse(WalletStorageLeaseRegistry.isCurrent(lease))
+    }
+
+    @MainActor
+    func testConfirmedWalletDeletionCloseFailureBlocksKeyAndFiles() throws {
+        let path = "/private/test-close-failure/NativeWallet/mainnet/wallet.sqlite3"
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        let controller = NSObject()
+        let authority = WalletConfirmedDeletionAuthority(
+            network: .mainnet,
+            accountID: String(repeating: "7", count: 32),
+            databasePath: path,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(controller),
+            ownerGeneration: 5
+        )
+        var steps: [String] = []
+        let plan = WalletConfirmedDeletionPlan(
+            authority: authority,
+            lockController: { steps.append("lock") },
+            destroyController: {
+                steps.append("close")
+                throw NSError(domain: "test", code: 3)
+            },
+            deleteDatabaseKey: { steps.append("key") },
+            deleteWalletFiles: { steps.append("files") },
+            releaseStorageLease: {
+                steps.append("release")
+                WalletStorageLeaseRegistry.release(lease)
+            }
+        )
+
+        XCTAssertEqual(plan.execute(), .controllerCloseFailed)
+        XCTAssertEqual(steps, ["lock", "close", "release"])
+        XCTAssertFalse(WalletStorageLeaseRegistry.isCurrent(lease))
+        XCTAssertTrue(
+            WalletStorageLeaseRegistry.isBlockedAfterRetirementFailure(path: path)
+        )
+        XCTAssertNil(WalletStorageLeaseRegistry.acquire(path: path))
+
+        let otherPath = "/private/test-close-failure/NativeWallet/testnet/wallet.sqlite3"
+        let otherNetwork = try XCTUnwrap(
+            WalletStorageLeaseRegistry.acquire(path: otherPath)
+        )
+        WalletStorageLeaseRegistry.release(otherNetwork)
+    }
+
+    func testConfirmedWalletDeletionVerifiesAmbiguousKeychainFailure() throws {
+        enum VerificationFailure: Error {
+            case delete
+            case query
+        }
+
+        var events: [String] = []
+        XCTAssertNoThrow(try deleteWalletDatabaseKeyWithAbsenceVerification(
+            delete: {
+                events.append("delete-error")
+                throw VerificationFailure.delete
+            },
+            keyExists: {
+                events.append("verify-absent")
+                return false
+            }
+        ))
+        XCTAssertEqual(events, ["delete-error", "verify-absent"])
+
+        events.removeAll()
+        XCTAssertThrowsError(try deleteWalletDatabaseKeyWithAbsenceVerification(
+            delete: {
+                events.append("delete-error")
+                throw VerificationFailure.delete
+            },
+            keyExists: {
+                events.append("verify-present")
+                return true
+            }
+        ))
+        XCTAssertEqual(events, ["delete-error", "verify-present"])
+
+        events.removeAll()
+        XCTAssertThrowsError(try deleteWalletDatabaseKeyWithAbsenceVerification(
+            delete: {
+                events.append("delete-error")
+                throw VerificationFailure.delete
+            },
+            keyExists: {
+                events.append("verify-error")
+                throw VerificationFailure.query
+            }
+        ))
+        XCTAssertEqual(events, ["delete-error", "verify-error"])
+    }
+
+    @MainActor
+    func testConfirmedWalletDeletionContinuesAfterVerifiedKeyAbsence() throws {
+        let path = "/private/test-key-absent/NativeWallet/testnet/wallet.sqlite3"
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        let controller = NSObject()
+        let authority = WalletConfirmedDeletionAuthority(
+            network: .testnet,
+            accountID: String(repeating: "8", count: 32),
+            databasePath: path,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(controller),
+            ownerGeneration: 6
+        )
+        var steps: [String] = []
+        let plan = WalletConfirmedDeletionPlan(
+            authority: authority,
+            lockController: { steps.append("lock") },
+            destroyController: { steps.append("close") },
+            deleteDatabaseKey: {
+                try deleteWalletDatabaseKeyWithAbsenceVerification(
+                    delete: {
+                        steps.append("key-error")
+                        throw NSError(domain: "test", code: 4)
+                    },
+                    keyExists: {
+                        steps.append("key-verified-absent")
+                        return false
+                    }
+                )
+            },
+            deleteWalletFiles: { steps.append("files") },
+            releaseStorageLease: {
+                steps.append("release")
+                WalletStorageLeaseRegistry.release(lease)
+            }
+        )
+
+        XCTAssertEqual(plan.execute(), .deleted)
+        XCTAssertEqual(steps, [
+            "lock", "close", "key-error", "key-verified-absent", "files", "release",
+        ])
+    }
+
+    @MainActor
+    func testConfirmedWalletDeletionFileFailureBecomesCleanupPending() throws {
+        let path = "/private/test-file-failure/NativeWallet/regtest/wallet.sqlite3"
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        let controller = NSObject()
+        let authority = WalletConfirmedDeletionAuthority(
+            network: .regtest,
+            accountID: String(repeating: "3", count: 32),
+            databasePath: path,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(controller),
+            ownerGeneration: 4
+        )
+        var steps: [String] = []
+        let plan = WalletConfirmedDeletionPlan(
+            authority: authority,
+            lockController: { steps.append("lock") },
+            destroyController: { steps.append("close") },
+            deleteDatabaseKey: { steps.append("key") },
+            deleteWalletFiles: {
+                steps.append("files")
+                throw NSError(domain: "test", code: 2)
+            },
+            releaseStorageLease: {
+                steps.append("release")
+                WalletStorageLeaseRegistry.release(lease)
+            }
+        )
+
+        XCTAssertEqual(plan.execute(), .encryptedOrphanCleanupPending)
+        XCTAssertEqual(steps, ["lock", "close", "key", "files", "release"])
+        XCTAssertFalse(WalletStorageLeaseRegistry.isCurrent(lease))
+    }
+
+    @MainActor
+    func testConfirmedWalletDeletionRejectsStaleLeaseWithoutTouchingNewOwner() throws {
+        let path = "/private/test-stale/NativeWallet/testnet/wallet.sqlite3"
+        let staleLease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        WalletStorageLeaseRegistry.release(staleLease)
+        let currentLease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        defer { WalletStorageLeaseRegistry.release(currentLease) }
+        let controller = NSObject()
+        let authority = WalletConfirmedDeletionAuthority(
+            network: .testnet,
+            accountID: String(repeating: "4", count: 32),
+            databasePath: path,
+            lease: staleLease,
+            walletIdentity: ObjectIdentifier(controller),
+            ownerGeneration: 2
+        )
+        var destructiveSteps = 0
+        let plan = WalletConfirmedDeletionPlan(
+            authority: authority,
+            lockController: { destructiveSteps += 1 },
+            destroyController: { destructiveSteps += 1 },
+            deleteDatabaseKey: { destructiveSteps += 1 },
+            deleteWalletFiles: { destructiveSteps += 1 },
+            releaseStorageLease: {
+                WalletStorageLeaseRegistry.release(staleLease)
+            }
+        )
+
+        XCTAssertEqual(plan.execute(), .authorityRevoked)
+        XCTAssertEqual(destructiveSteps, 0)
+        XCTAssertTrue(WalletStorageLeaseRegistry.isCurrent(currentLease))
+    }
+
+    @MainActor
+    func testConfirmedWalletDeletionRequiresExactTypedAndLiveAuthority() throws {
+        XCTAssertEqual(
+            walletStorageReconciliationAction(
+                hasDatabaseKey: true,
+                hasDatabase: true,
+                hasArtifacts: true
+            ),
+            .confirmedWallet
+        )
+        XCTAssertEqual(
+            walletStorageReconciliationAction(
+                hasDatabaseKey: false,
+                hasDatabase: true,
+                hasArtifacts: true
+            ),
+            .deleteEncryptedOrphanArtifacts
+        )
+        XCTAssertEqual(
+            walletStorageReconciliationAction(
+                hasDatabaseKey: false,
+                hasDatabase: false,
+                hasArtifacts: true
+            ),
+            .deleteEncryptedOrphanArtifacts
+        )
+        XCTAssertEqual(
+            walletStorageReconciliationAction(
+                hasDatabaseKey: true,
+                hasDatabase: false,
+                hasArtifacts: true
+            ),
+            .deleteKeyThenEncryptedArtifacts
+        )
+        XCTAssertEqual(
+            walletStorageReconciliationAction(
+                hasDatabaseKey: true,
+                hasDatabase: false,
+                hasArtifacts: false
+            ),
+            .deleteStrayKey
+        )
+        XCTAssertEqual(
+            walletStorageReconciliationAction(
+                hasDatabaseKey: false,
+                hasDatabase: false,
+                hasArtifacts: false
+            ),
+            .empty
+        )
+        XCTAssertTrue(walletDeletionConfirmationMatches("DELETE"))
+        let rejectedConfirmations: [String?] = [
+            nil, "delete", "Delete", " DELETE", "DELETE ",
+        ]
+        for rejected in rejectedConfirmations {
+            XCTAssertFalse(walletDeletionConfirmationMatches(rejected))
+        }
+        XCTAssertTrue(walletAccountIDIsCanonical(String(repeating: "a", count: 32)))
+        XCTAssertFalse(walletAccountIDIsCanonical(String(repeating: "0", count: 32)))
+        XCTAssertFalse(walletAccountIDIsCanonical(String(repeating: "A", count: 32)))
+        XCTAssertFalse(walletAccountIDIsCanonical(String(repeating: "a", count: 31)))
+
+        let path = "/private/test-authority/NativeWallet/mainnet/wallet.sqlite3"
+        XCTAssertTrue(walletDatabasePathMatchesNetworkNamespace(path, network: .mainnet))
+        XCTAssertFalse(walletDatabasePathMatchesNetworkNamespace(path, network: .testnet))
+        let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        defer { WalletStorageLeaseRegistry.release(lease) }
+        let wallet = NSObject()
+        let replacementWallet = NSObject()
+        let expected = WalletConfirmedDeletionAuthority(
+            network: .mainnet,
+            accountID: String(repeating: "5", count: 32),
+            databasePath: path,
+            lease: lease,
+            walletIdentity: ObjectIdentifier(wallet),
+            ownerGeneration: 7
+        )
+        XCTAssertEqual(
+            walletDeletionIdentitySummary(expected),
+            "Network: Mainnet (mainnet)\nAccount: \(expected.accountID)"
+        )
+        XCTAssertTrue(walletConfirmedDeletionMayProceed(
+            expected: expected,
+            current: expected,
+            lifecycleAllowsDeletion: true,
+            viewIsCurrent: true,
+            operationInFlight: false,
+            screenIsCaptured: false
+        ))
+
+        let staleGeneration = WalletConfirmedDeletionAuthority(
+            network: expected.network,
+            accountID: expected.accountID,
+            databasePath: expected.databasePath,
+            lease: expected.lease,
+            walletIdentity: expected.walletIdentity,
+            ownerGeneration: expected.ownerGeneration + 1
+        )
+        XCTAssertFalse(walletConfirmedDeletionMayProceed(
+            expected: expected,
+            current: staleGeneration,
+            lifecycleAllowsDeletion: true,
+            viewIsCurrent: true,
+            operationInFlight: false,
+            screenIsCaptured: false
+        ))
+        let changedAccount = WalletConfirmedDeletionAuthority(
+            network: expected.network,
+            accountID: String(repeating: "6", count: 32),
+            databasePath: expected.databasePath,
+            lease: expected.lease,
+            walletIdentity: expected.walletIdentity,
+            ownerGeneration: expected.ownerGeneration
+        )
+        XCTAssertFalse(walletConfirmedDeletionMayProceed(
+            expected: expected,
+            current: changedAccount,
+            lifecycleAllowsDeletion: true,
+            viewIsCurrent: true,
+            operationInFlight: false,
+            screenIsCaptured: false
+        ))
+        let replacement = WalletConfirmedDeletionAuthority(
+            network: expected.network,
+            accountID: expected.accountID,
+            databasePath: expected.databasePath,
+            lease: expected.lease,
+            walletIdentity: ObjectIdentifier(replacementWallet),
+            ownerGeneration: expected.ownerGeneration
+        )
+        XCTAssertFalse(walletConfirmedDeletionMayProceed(
+            expected: expected,
+            current: replacement,
+            lifecycleAllowsDeletion: true,
+            viewIsCurrent: true,
+            operationInFlight: false,
+            screenIsCaptured: false
+        ))
+        XCTAssertFalse(walletConfirmedDeletionMayProceed(
+            expected: expected,
+            current: expected,
+            lifecycleAllowsDeletion: false,
+            viewIsCurrent: true,
+            operationInFlight: false,
+            screenIsCaptured: false
+        ))
+        XCTAssertFalse(walletConfirmedDeletionMayProceed(
+            expected: expected,
+            current: expected,
+            lifecycleAllowsDeletion: true,
+            viewIsCurrent: false,
+            operationInFlight: false,
+            screenIsCaptured: false
+        ))
+        XCTAssertFalse(walletConfirmedDeletionMayProceed(
+            expected: expected,
+            current: expected,
+            lifecycleAllowsDeletion: true,
+            viewIsCurrent: true,
+            operationInFlight: true,
+            screenIsCaptured: false
+        ))
+        XCTAssertFalse(walletConfirmedDeletionMayProceed(
+            expected: expected,
+            current: expected,
+            lifecycleAllowsDeletion: true,
+            viewIsCurrent: true,
+            operationInFlight: false,
+            screenIsCaptured: true
+        ))
+
+        XCTAssertTrue(walletDeletionCompletionMayApply(
+            expectedRetirementGeneration: 8,
+            currentRetirementGeneration: 8,
+            expectedDetachedAuthorityGeneration: 10,
+            currentAuthorityGeneration: 10,
+            walletIsDetached: true,
+            leaseIsDetached: true
+        ))
+        XCTAssertFalse(walletDeletionCompletionMayApply(
+            expectedRetirementGeneration: 8,
+            currentRetirementGeneration: 9,
+            expectedDetachedAuthorityGeneration: 10,
+            currentAuthorityGeneration: 10,
+            walletIsDetached: true,
+            leaseIsDetached: true
+        ))
+        XCTAssertFalse(walletDeletionCompletionMayApply(
+            expectedRetirementGeneration: 8,
+            currentRetirementGeneration: 8,
+            expectedDetachedAuthorityGeneration: 10,
+            currentAuthorityGeneration: 11,
+            walletIsDetached: true,
+            leaseIsDetached: true
+        ))
+        XCTAssertFalse(walletDeletionCompletionMayApply(
+            expectedRetirementGeneration: 8,
+            currentRetirementGeneration: 8,
+            expectedDetachedAuthorityGeneration: 10,
+            currentAuthorityGeneration: 10,
+            walletIsDetached: false,
+            leaseIsDetached: true
+        ))
+    }
+
+    @MainActor
     func testWalletRetirementQueueReturnsAndCompletesOnMainAfterOffMainWork() async throws {
         let path = "/private/test-wallet-retirement-queue-\(UUID().uuidString)/wallet.sqlite3"
         let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))

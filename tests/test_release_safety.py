@@ -123,7 +123,11 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "no wallet-specific network request is made",
             "hnsa/hnsr service roles",
             "deletes the incomplete wallet database",
-            "no in-app delete control for a confirmed native wallet",
+            "two destructive confirmations",
+            "type `delete` exactly",
+            "deletes the device-bound database key before deleting the encrypted database",
+            "remaining encrypted orphan cannot be reopened",
+            "does not remove a recovery phrase or wallet backup saved elsewhere",
         ):
             self.assertIn(marker, privacy)
 
@@ -137,6 +141,13 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "settlement",
             "exchange",
             "p2p marketplaces",
+        ):
+            self.assertIn(marker, play)
+            self.assertIn(marker, app_store)
+        for marker in (
+            "confirmed wallet can be deleted locally",
+            "two destructive confirmations",
+            "requiring delete",
         ):
             self.assertIn(marker, play)
             self.assertIn(marker, app_store)
