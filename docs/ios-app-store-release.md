@@ -17,8 +17,9 @@ The committed application identity is:
 
 Candidate build `60` includes a native-only wallet screen for
 create/restore/open/status/unlock/lock, one HNS account identity, and strict
-HNWR-v1 read-only fields for balance, receive target, history, tracked names,
-and module status.
+HNWR-v2 read-only fields for balance, distinct HNS payment and name-transfer
+receive targets, history, tracked names, and module status. The decoder retains
+the exact historical HNWR-v1 shape separately.
 The underlying wallet tranche passed its dated complete Apple gate in Required
 CI run `31393998309` at
 `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Historical `0.5.8` source
@@ -29,7 +30,7 @@ descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including the complete Apple ABI/XCFramework/app/simulator gate
 and aggregate Required CI. Build `57` does not contain the controller. The
-current candidate pins wallet `2229be8`. Wallet-aware hosted
+current candidate pins wallet `49afe81`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
 back for the historical lifecycle boundary. Version-neutral HNWR-aware source
 `a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed and read back in
@@ -45,9 +46,8 @@ signed rather than store signed, and this Android result is not iOS evidence.
 No wallet was created/restored and no credentialed read or value action ran.
 
 The product installs no scoped loopback credential or indexed wallet backend, so
-the visible read fields remain fail-closed and unavailable. The live pruned
-`hsrd` is unsuitable because it lacks wallet indexing/authentication. A pruned
-indexed node can still return indexed confirmation/history, and an existing
+the visible read fields remain fail-closed and unavailable. A pruned indexed and
+authenticated node can return indexed confirmation/history, and an existing
 wallet may reuse authenticated retained raw bytes. Fresh restore additionally
 needs archive-capable raw bytes or another durable wallet-relevant raw-tx source.
 Name import is absent.

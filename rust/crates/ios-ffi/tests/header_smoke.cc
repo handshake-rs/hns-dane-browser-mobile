@@ -5,6 +5,7 @@
 #include <type_traits>
 
 static_assert(HNS_BROWSER_ABI_VERSION == 1u);
+static_assert(HNS_BROWSER_WALLET_READ_BUNDLE_VERSION == 2u);
 static_assert(std::is_standard_layout_v<HnsBrowserSlice>);
 static_assert(std::is_standard_layout_v<HnsBrowserBuffer>);
 static_assert(sizeof(HnsBrowserRuntimeHandle) == sizeof(std::uint64_t));

@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-08-11.
+Audit date: 2026-08-13.
 
 This table records the versions configured for the `0.5.10` release candidate.
 It is not evidence that signed artifacts were built or published. Android
@@ -13,8 +13,8 @@ into the app.
 | Android app | `0.5.10` / code `51` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `0.5.9` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `0.5.10` / build `60` | `ios/project.yml` |
-| Native wallet controller | `hns-wallet-mobile 0.1.0` at `2229be849557d58a8eb723bcc03349f0f2df9796` | `rust/Cargo.toml`, `rust/Cargo.lock` |
-| Wallet protocol closure | `hns-rs 0.2.0` at `b24b66c382de53330ec21dd3137e056a2bea3e2d` | `rust/Cargo.lock` |
+| Native wallet controller | `hns-wallet-mobile 0.1.0` at `49afe81abce3d3f1a9309e26962731e181e43051` | `rust/Cargo.toml`, `rust/Cargo.lock` |
+| Wallet protocol closure | `hns-rs 0.3.0` at `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
 | Mobile engine adapters and canonical contracts | Git `0.2.1` at `65c397e8347f37085ea67d2c9c745ce896328e64` (fresh platform qualification pending) | Cargo manifests and all three locks |
@@ -80,13 +80,12 @@ Notes:
   artifact.
 - The native controller exposes create, restore, open, status, unlock, lock,
   one-time recovery display, and one local non-value HNS account identity. Both
-  platform shells now also implement strict bounded HNWR-v1 decoding and UI for
-  synchronized balance, receive target, transaction history, tracked names, and
-  module status.
+  platform shells now also implement separate strict bounded HNWR-v1/v2
+  decoding and UI for synchronized balance, ordinary-payment and name-transfer
+  receive targets, transaction history, tracked names, and module status.
 - The product installs no scoped loopback read credential or indexed wallet
   backend, so those fields remain fail-closed and unavailable in the actual
-  candidate. The available live pruned `hsrd` is unsuitable because it lacks
-  wallet indexing and scoped authentication. A pruned indexed node can still
+  candidate. A pruned indexed/authenticated node can
   return indexed confirmation/history, and an existing wallet may reuse its
   authenticated retained raw bytes. Fresh restore additionally needs
   archive-capable raw bytes or another durable wallet-relevant raw-transaction
@@ -106,10 +105,10 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- `hns-wallet-mobile` is pinned to final wallet `0.1.0` source
-  `2229be849557d58a8eb723bcc03349f0f2df9796`. Its lock closure uses final
-  `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`.
-  The dependency sequence and candidate CI are complete. Signed store artifacts,
+- `hns-wallet-mobile` is pinned to wallet `0.1.0` source
+  `49afe81abce3d3f1a9309e26962731e181e43051`. Its lock closure uses
+  `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
+  The dependency sequence is complete and fresh candidate CI remains required. Signed store artifacts,
   exact screenshots, store declaration/readback, and intentional upload remain
   separate gates.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on

@@ -24,7 +24,7 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_0510_platform_identity_and_final_wallet_pin(self) -> None:
+    def test_0510_platform_identity_and_reviewed_wallet_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"0\.5\.10\"$")
         self.assertRegex(gradle, r"(?m)^\s*versionCode = 51$")
@@ -37,21 +37,23 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(wallet["version"], "=0.1.0")
         self.assertEqual(
             wallet["rev"],
-            "2229be849557d58a8eb723bcc03349f0f2df9796",
+            "49afe81abce3d3f1a9309e26962731e181e43051",
         )
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
             "hns-wallet-rs.git?rev="
-            "2229be849557d58a8eb723bcc03349f0f2df9796",
+            "49afe81abce3d3f1a9309e26962731e181e43051",
             lockfile,
         )
         self.assertIn(
-            "hns-rs.git?rev=b24b66c382de53330ec21dd3137e056a2bea3e2d",
+            "hns-rs.git?rev=88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e",
             lockfile,
         )
         self.assertNotIn("f83d42363305de04bfa955f864cb1e9136c4d648", lockfile)
         self.assertNotIn("abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2", lockfile)
+        self.assertNotIn("2229be849557d58a8eb723bcc03349f0f2df9796", lockfile)
+        self.assertNotIn("b24b66c382de53330ec21dd3137e056a2bea3e2d", lockfile)
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
         self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 0\.5\.10$")
@@ -96,6 +98,18 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "valueRuntimeReleaseQualified",
         ):
             self.assertIn(f"static let {gate} = false", ios_protocol)
+
+        for relative in (
+            "android/app/src/main/java/com/denuoweb/hnsdane/wallet/"
+            "MobileWalletProviderProtocol.kt",
+            "android/app/src/main/java/com/denuoweb/hnsdane/wallet/"
+            "AndroidWalletProviderBridge.kt",
+            "ios/HnsDaneBrowser/Wallet/WalletProviderProtocol.swift",
+            "ios/HnsDaneBrowser/Wallet/WalletWebKitBridge.swift",
+        ):
+            with self.subTest(provider_boundary=relative):
+                source = (ROOT / relative).read_text(encoding="utf-8")
+                self.assertNotIn("nameReceiveTarget", source)
 
     def test_store_and_privacy_copy_describes_fail_closed_native_reads(self) -> None:
         paths = (

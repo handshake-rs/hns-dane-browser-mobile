@@ -56,19 +56,62 @@ final class BrowserRuntimeControlTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
 
-    private func hnsReadBundle(json: String, version: UInt8 = 1, flags: UInt8 = 1) -> [UInt8] {
+    private func hnsReadBundle(
+        json: String,
+        version: UInt8 = 1,
+        flags: UInt8 = 1,
+        reservedHigh: UInt8 = 0,
+        reservedLow: UInt8 = 0
+    ) -> [UInt8] {
         let payload = Array(json.utf8)
         let length = UInt32(payload.count)
         return Array("HNWR".utf8) + [
             version,
             flags,
-            0,
-            0,
+            reservedHigh,
+            reservedLow,
             UInt8((length >> 24) & 0xff),
             UInt8((length >> 16) & 0xff),
             UInt8((length >> 8) & 0xff),
             UInt8(length & 0xff),
         ] + payload
+    }
+
+    private func hnsAccountJSON(_ account: [UInt8]) -> String {
+        account.map { String($0) }.joined(separator: ",")
+    }
+
+    private func hnsNameReceiveTargetJSON(
+        account: [UInt8],
+        module: String = "handshake",
+        display: String = "rs1qnameowner0000000000000000000000000000000",
+        derivationIndexJSON: String = "1"
+    ) -> String {
+        """
+        {"module":"\(module)","account":[\(hnsAccountJSON(account))],"display":"\(display)","derivation_index":\(derivationIndexJSON)}
+        """
+    }
+
+    private func minimalHnsReadJSON(
+        paymentAccount: [UInt8],
+        paymentModule: String = "handshake",
+        paymentDisplay: String = "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz",
+        paymentIndexJSON: String = "0",
+        nameReceiveTargetJSON: String? = nil
+    ) -> String {
+        let nameReceiveField = nameReceiveTargetJSON.map {
+            "\"nameReceiveTarget\":\($0),"
+        } ?? ""
+        return """
+        {
+          "balance":{"asset":"HNS","base_units":"0"},
+          "receiveTarget":{"module":"\(paymentModule)","account":[\(hnsAccountJSON(paymentAccount))],"display":"\(paymentDisplay)","derivation_index":\(paymentIndexJSON)},
+          \(nameReceiveField)
+          "transactionHistory":[],
+          "knownNames":[],
+          "moduleStatus":{"phase":"ready","validated_height":42,"scanned_height":42,"target_height":42,"last_error":null}
+        }
+        """
     }
 
     override func setUp() {
@@ -85,26 +128,39 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     func testNativeHNSReadBundleIsStrictBoundedAndReadOnly() throws {
-        let account = ([1] + Array(repeating: 0, count: 15)).map { String($0) }.joined(separator: ",")
+        let accountBytes = [UInt8(1)] + Array(repeating: UInt8(0), count: 15)
         let txid = ([2] + Array(repeating: 0, count: 31)).map { String($0) }.joined(separator: ",")
         let nameHash = String(repeating: "a", count: 64)
-        let json = """
-        {
-          "balance":{"asset":"HNS","base_units":"0"},
-          "receiveTarget":{"module":"handshake","account":[\(account)],"display":"rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz","derivation_index":0},
-          "transactionHistory":[],
-          "knownNames":[],
-          "moduleStatus":{"phase":"ready","validated_height":42,"scanned_height":42,"target_height":42,"last_error":null}
-        }
-        """
+        let json = minimalHnsReadJSON(paymentAccount: accountBytes)
         let decoded = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))
         XCTAssertEqual(decoded.balance.asset, "HNS")
         XCTAssertEqual(decoded.balance.baseUnits, "0")
         XCTAssertEqual(decoded.receiveTarget.module, "handshake")
         XCTAssertEqual(decoded.receiveTarget.account.count, 16)
+        XCTAssertNil(decoded.nameReceiveTarget)
         XCTAssertEqual(decoded.moduleStatus.validatedHeight, 42)
         XCTAssertTrue(decoded.transactionHistory.isEmpty)
         XCTAssertTrue(decoded.knownNames.isEmpty)
+
+        let nameTarget = hnsNameReceiveTargetJSON(
+            account: accountBytes,
+            derivationIndexJSON: "11"
+        )
+        let versionTwoJSON = minimalHnsReadJSON(
+            paymentAccount: accountBytes,
+            paymentIndexJSON: "7",
+            nameReceiveTargetJSON: nameTarget
+        )
+        let versionTwo = try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: versionTwoJSON, version: 2)
+        )
+        XCTAssertEqual(versionTwo.receiveTarget.account, versionTwo.nameReceiveTarget?.account)
+        XCTAssertEqual(versionTwo.nameReceiveTarget?.module, "handshake")
+        XCTAssertEqual(versionTwo.nameReceiveTarget?.derivationIndex, 11)
+        XCTAssertNotEqual(
+            versionTwo.receiveTarget.display,
+            versionTwo.nameReceiveTarget?.display
+        )
 
         let populatedJSON = json
             .replacingOccurrences(
@@ -123,12 +179,45 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(populated.knownNames.first?.name, "example")
         XCTAssertEqual(populated.knownNames.first?.ownershipStatus, "walletOwned")
 
-        XCTAssertThrowsError(
-            try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json, version: 2))
-        )
-        XCTAssertThrowsError(
-            try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json, flags: 3))
-        )
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: json, version: 2)
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: versionTwoJSON)
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: versionTwoJSON, version: 3)
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: json, version: 0)
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: json, flags: 0)
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: json, flags: 3)
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: json, reservedHigh: 1)
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: json, reservedLow: 1)
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: json) + [0]
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: Array(hnsReadBundle(json: json).dropLast())
+        ))
+        XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(
+                json: versionTwoJSON.replacingOccurrences(
+                    of: "\"balance\":",
+                    with: "\"unexpected\":true,\"balance\":"
+                ),
+                version: 2
+            )
+        ))
         XCTAssertThrowsError(
             try NativeHnsReadSnapshot.decode(
                 bundle: hnsReadBundle(json: json.replacingOccurrences(
@@ -153,6 +242,108 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 ))
             )
         )
+    }
+
+    func testNativeHNSReadTargetsRequireExactDistinctHandshakeBindings() throws {
+        let account = [UInt8(1)] + Array(repeating: UInt8(0), count: 15)
+        let otherAccount = [UInt8(2)] + Array(repeating: UInt8(0), count: 15)
+        let zeroAccount = Array(repeating: UInt8(0), count: 16)
+        let paymentDisplay = "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz"
+        let nameDisplay = "rs1qnameowner0000000000000000000000000000000"
+        let maximumDisplay = String(repeating: "x", count: 512)
+
+        XCTAssertNoThrow(try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(
+            json: minimalHnsReadJSON(
+                paymentAccount: account,
+                paymentDisplay: "x",
+                nameReceiveTargetJSON: hnsNameReceiveTargetJSON(
+                    account: account,
+                    display: "y"
+                )
+            ),
+            version: 2
+        )))
+        XCTAssertNoThrow(try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(
+            json: minimalHnsReadJSON(
+                paymentAccount: account,
+                paymentDisplay: maximumDisplay,
+                paymentIndexJSON: String(UInt32.max)
+            )
+        )))
+        XCTAssertNoThrow(try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(
+            json: minimalHnsReadJSON(
+                paymentAccount: account,
+                nameReceiveTargetJSON: hnsNameReceiveTargetJSON(
+                    account: account,
+                    display: maximumDisplay,
+                    derivationIndexJSON: String(UInt32.max)
+                )
+            ),
+            version: 2
+        )))
+
+        for invalidJSON in [
+            minimalHnsReadJSON(paymentAccount: account, paymentModule: "bitcoin"),
+            minimalHnsReadJSON(paymentAccount: Array(account.dropLast())),
+            minimalHnsReadJSON(paymentAccount: zeroAccount),
+            minimalHnsReadJSON(paymentAccount: account, paymentDisplay: ""),
+            minimalHnsReadJSON(paymentAccount: account, paymentDisplay: "line\\nbreak"),
+            minimalHnsReadJSON(paymentAccount: account, paymentDisplay: "café"),
+            minimalHnsReadJSON(
+                paymentAccount: account,
+                paymentDisplay: String(repeating: "x", count: 513)
+            ),
+            minimalHnsReadJSON(paymentAccount: account, paymentIndexJSON: "-1"),
+            minimalHnsReadJSON(paymentAccount: account, paymentIndexJSON: "4294967296"),
+        ] {
+            XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+                bundle: hnsReadBundle(json: invalidJSON)
+            ))
+        }
+
+        let invalidNameTargets = [
+            hnsNameReceiveTargetJSON(account: account, module: "bitcoin"),
+            hnsNameReceiveTargetJSON(account: Array(account.dropLast())),
+            hnsNameReceiveTargetJSON(account: zeroAccount),
+            hnsNameReceiveTargetJSON(account: otherAccount),
+            hnsNameReceiveTargetJSON(account: account, display: ""),
+            hnsNameReceiveTargetJSON(account: account, display: "line\\nbreak"),
+            hnsNameReceiveTargetJSON(account: account, display: "café"),
+            hnsNameReceiveTargetJSON(
+                account: account,
+                display: String(repeating: "x", count: 513)
+            ),
+            hnsNameReceiveTargetJSON(account: account, derivationIndexJSON: "-1"),
+            hnsNameReceiveTargetJSON(
+                account: account,
+                derivationIndexJSON: "4294967296"
+            ),
+            hnsNameReceiveTargetJSON(account: account, display: paymentDisplay),
+        ]
+        for invalidNameTarget in invalidNameTargets {
+            let invalidJSON = minimalHnsReadJSON(
+                paymentAccount: account,
+                paymentDisplay: paymentDisplay,
+                nameReceiveTargetJSON: invalidNameTarget
+            )
+            XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
+                bundle: hnsReadBundle(json: invalidJSON, version: 2)
+            ))
+        }
+
+        let validJSON = minimalHnsReadJSON(
+            paymentAccount: account,
+            paymentDisplay: paymentDisplay,
+            nameReceiveTargetJSON: hnsNameReceiveTargetJSON(
+                account: account,
+                display: nameDisplay
+            )
+        )
+        let decoded = try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: validJSON, version: 2)
+        )
+        XCTAssertEqual(decoded.receiveTarget.account, decoded.nameReceiveTarget?.account)
+        XCTAssertNotEqual(decoded.receiveTarget.display, decoded.nameReceiveTarget?.display)
     }
 
     func testNativeHNSReadPresentationMatchesBoundedAndroidDetail() throws {
@@ -194,7 +385,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
           "moduleStatus":{"phase":"ready","validated_height":42,"scanned_height":42,"target_height":42,"last_error":null}
         }
         """
-        let snapshot = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))
+        let versionTwoJSON = json.replacingOccurrences(
+            of: "\"transactionHistory\":[",
+            with: "\"nameReceiveTarget\":{\"module\":\"handshake\",\"account\":[\(account)],\"display\":\"rs1qnameowner0000000000000000000000000000000\",\"derivation_index\":11},\n          \"transactionHistory\":["
+        )
+        let snapshot = try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: versionTwoJSON, version: 2)
+        )
         let presentation = WalletReadPresenter.present(snapshot, maximumVisibleItems: 1)
 
         XCTAssertEqual(
@@ -203,9 +400,14 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
         XCTAssertEqual(presentation.balance, "12.345678 HNS confirmed spendable")
         XCTAssertEqual(
-            presentation.receive,
-            "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz\nDerivation index 7"
+            presentation.paymentReceive,
+            "Payment receive\nrs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz\nDerivation index 7"
         )
+        XCTAssertEqual(
+            presentation.nameReceive,
+            "Name transfer receive\nrs1qnameowner0000000000000000000000000000000\nName derivation index 11"
+        )
+        XCTAssertNotEqual(presentation.paymentReceive, presentation.nameReceive)
         XCTAssertEqual(
             presentation.history,
             "confirmed · -0.25 HNS\n\(firstTransactionHex)\nBlock 40 · 3 confirmations\n\n1 more items are present in this synchronized snapshot."
@@ -224,6 +426,16 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ))
         XCTAssertFalse(fullPresentation.history.contains("more items"))
         XCTAssertFalse(fullPresentation.names.contains("more items"))
+
+        let versionOne = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))
+        let versionOnePresentation = WalletReadPresenter.present(versionOne)
+        XCTAssertEqual(
+            versionOnePresentation.nameReceive,
+            "Name transfer receive: unavailable for HNWR-v1."
+        )
+        XCTAssertTrue(versionOnePresentation.paymentReceive.contains(
+            "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz"
+        ))
     }
 
     func testNativeHNSReadConfigurationIsAuthorityBoundOneShotAndRedacted() throws {

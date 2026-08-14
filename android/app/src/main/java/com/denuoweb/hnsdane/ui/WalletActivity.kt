@@ -66,7 +66,8 @@ class WalletActivity : ComponentActivity() {
     private lateinit var accountView: TextView
     private lateinit var readStatusView: TextView
     private lateinit var balanceView: TextView
-    private lateinit var receiveView: TextView
+    private lateinit var paymentReceiveView: TextView
+    private lateinit var nameReceiveView: TextView
     private lateinit var historyView: TextView
     private lateinit var trackedNamesView: TextView
     private lateinit var restoreInput: EditText
@@ -111,7 +112,8 @@ class WalletActivity : ComponentActivity() {
         )
         readStatusView = walletReadSummary(R.string.wallet_reads_unavailable)
         balanceView = walletReadSummary(R.string.wallet_reads_balance_unavailable)
-        receiveView = walletReadSummary(R.string.wallet_reads_receive_unavailable)
+        paymentReceiveView = walletReadSummary(R.string.wallet_reads_receive_unavailable)
+        nameReceiveView = walletReadSummary(R.string.wallet_reads_name_receive_unavailable)
         historyView = walletReadSummary(R.string.wallet_reads_history_unavailable)
         trackedNamesView = walletReadSummary(R.string.wallet_reads_names_unavailable)
         restoreInput = sensitiveRestoreInput()
@@ -196,7 +198,11 @@ class WalletActivity : ComponentActivity() {
                 ))
                 addScreenRow(preferenceRow(
                     title = getString(R.string.row_wallet_read_receive),
-                    summaryView = receiveView,
+                    summaryView = paymentReceiveView,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_read_name_receive),
+                    summaryView = nameReceiveView,
                 ))
                 addScreenRow(preferenceRow(
                     title = getString(R.string.row_wallet_read_history),
@@ -1118,7 +1124,8 @@ class WalletActivity : ComponentActivity() {
     private fun resetReadProjection(status: Int) {
         readStatusView.text = getString(status)
         balanceView.text = getString(R.string.wallet_reads_balance_unavailable)
-        receiveView.text = getString(R.string.wallet_reads_receive_unavailable)
+        paymentReceiveView.text = getString(R.string.wallet_reads_receive_unavailable)
+        nameReceiveView.text = getString(R.string.wallet_reads_name_receive_unavailable)
         historyView.text = getString(R.string.wallet_reads_history_unavailable)
         trackedNamesView.text = getString(R.string.wallet_reads_names_unavailable)
     }
@@ -1129,11 +1136,18 @@ class WalletActivity : ComponentActivity() {
             R.string.wallet_reads_balance,
             formatHnsBaseUnits(snapshot.balanceBaseUnits),
         )
-        receiveView.text = getString(
+        paymentReceiveView.text = getString(
             R.string.wallet_reads_receive,
-            snapshot.receiveAddress,
-            snapshot.derivationIndex,
+            snapshot.paymentReceiveTarget.display,
+            snapshot.paymentReceiveTarget.derivationIndex,
         )
+        nameReceiveView.text = snapshot.nameReceiveTarget?.let { target ->
+            getString(
+                R.string.wallet_reads_name_receive,
+                target.display,
+                target.derivationIndex,
+            )
+        } ?: getString(R.string.wallet_reads_name_receive_legacy_unavailable)
         val visibleTransactions = snapshot.transactions.take(MAX_VISIBLE_READ_ITEMS)
         historyView.text = if (visibleTransactions.isEmpty()) {
             getString(R.string.wallet_reads_history_empty)

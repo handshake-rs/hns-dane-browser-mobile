@@ -85,15 +85,18 @@ iOS UI / Browser Shell                             [public; device qualification
   backed by the exact pinned `hns-wallet-mobile` controller. Narrow JNI and
   Apple C-ABI surfaces expose create, restore, open, status, unlock, lock,
   one-shot recovery retrieval, destruction, one HNS account identity, and a
-  strict HNWR-v1 projection/UI for balance, receive target, history, tracked
-  names, and module status. Platform-owned screens and device-bound 32-byte
+  strict HNWR-v2 projection/UI for balance, distinct ordinary-payment and
+  name-transfer receive targets, history, tracked names, and module status.
+  Legacy HNWR-v1 and current HNWR-v2 are decoded through separate exact
+  five- and six-field schemas. Platform-owned screens and device-bound 32-byte
   database keys manage this controller. The product provisions no scoped
   loopback credential or indexed backend, so reads remain unavailable. The live
-  pruned node lacks wallet index/auth; pruning does not invalidate existing-wallet
-  retained evidence, while fresh restore needs a durable raw-tx source. Name
+  app provisions no indexed/authenticated node; a pruned indexed node can serve
+  existing-wallet retained evidence, while fresh restore needs a durable
+  archive-capable raw-tx source. Name
   import is absent. Sending/value, settlement,
   HNSA/HNSR, exchange, and marketplace gates remain false. Both shells perform
-  read/retirement work off the UI thread. Code-bearing source
+  read/retirement work off the UI thread. Historical HNWR-v1 code-bearing source
   `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
   `31433931682`, including Android instrumentation and the complete Apple
   ABI/XCFramework/app/simulator gate. Its XCTest coverage exercises retirement

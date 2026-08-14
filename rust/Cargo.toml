@@ -30,7 +30,7 @@ hns-browser-observability = { version = "=0.2.1", git = "https://github.com/hand
 hns-browser-runtime = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
 hns-icann-dane = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64", default-features = false, features = ["mobile"] }
-hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "2229be849557d58a8eb723bcc03349f0f2df9796" }
+hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "49afe81abce3d3f1a9309e26962731e181e43051" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
 hns-resolution-policy = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }

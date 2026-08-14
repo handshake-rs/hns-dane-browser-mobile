@@ -92,7 +92,7 @@ const MAX_HOST_BYTES: usize = 253;
 const MAX_AUTH_FIELD_BYTES: usize = 4 * 1024;
 const MAX_CERTIFICATE_DER_BYTES: usize = 1024 * 1024;
 const WALLET_READ_BUNDLE_MAGIC: &[u8; 4] = b"HNWR";
-const WALLET_READ_BUNDLE_VERSION: u8 = 1;
+const WALLET_READ_BUNDLE_VERSION: u8 = 2;
 const WALLET_READ_BUNDLE_HNS_READ_ONLY: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -2052,7 +2052,7 @@ pub unsafe extern "C" fn hns_browser_wallet_has_hns_reads(
 
 #[unsafe(no_mangle)]
 /// Performs one bounded synchronized read. The returned private bundle is
-/// `HNWR`, version 1, read-only-HNS flags, zero reserved bytes, a big-endian
+/// `HNWR`, version 2, read-only-HNS flags, zero reserved bytes, a big-endian
 /// JSON length, and the exact serialized `MobileHnsReadSnapshot`. Callers must
 /// free it promptly and must never expose it to website content or logs.
 ///

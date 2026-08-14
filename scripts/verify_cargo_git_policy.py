@@ -23,9 +23,9 @@ ENGINE_VERSIONS = {
 ENGINE_GIT_URL = "https://github.com/handshake-rs/hns-dane-engine.git"
 ENGINE_GIT_REVISION = "65c397e8347f37085ea67d2c9c745ce896328e64"
 WALLET_GIT_URL = "https://github.com/handshake-rs/hns-wallet-rs.git"
-WALLET_GIT_REVISION = "2229be849557d58a8eb723bcc03349f0f2df9796"
+WALLET_GIT_REVISION = "49afe81abce3d3f1a9309e26962731e181e43051"
 PROTOCOL_GIT_URL = "https://github.com/handshake-rs/hns-rs.git"
-PROTOCOL_GIT_REVISION = "b24b66c382de53330ec21dd3137e056a2bea3e2d"
+PROTOCOL_GIT_REVISION = "88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e"
 APPROVED_ENGINE_GIT = {
     package: ("0.2.1", ENGINE_GIT_REVISION)
     for package in {
@@ -80,7 +80,7 @@ APPROVED_WALLET_GIT = {
     }
 }
 APPROVED_PROTOCOL_GIT = {
-    package: ("0.2.0", PROTOCOL_GIT_REVISION)
+    package: ("0.3.0", PROTOCOL_GIT_REVISION)
     for package in {
         "hns-chat-protocol",
         "hns-covenants",

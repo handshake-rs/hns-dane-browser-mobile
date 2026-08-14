@@ -4,14 +4,15 @@ This directory contains the reviewed source text and field guidance for the
 Android `0.5.10` / code `51` release candidate for package
 `com.denuoweb.hnsdane`. Its independently versioned embedded Rust workspace
 remains at `0.5.9`; the app includes native lifecycle controls plus strict
-HNWR-v1 read-only fields for one device-local HNS account identity.
+HNWR-v2 read-only fields with separate HNS payment and name-transfer receive
+targets for one device-local HNS account identity.
 The runtime uses engine `0.2.1` at exact revision
 `65c397e8347f37085ea67d2c9c745ce896328e64`.
 
 The underlying wallet lifecycle tranche passed its installed Pixel 9
 qualification at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The candidate
-pins final wallet source `2229be8`, whose lock closure uses final protocol
-source `b24b66c`; source policy, lockfile, and notices are aligned. Historical
+    pins wallet source `49afe81`, whose lock closure uses protocol source
+    `88ed7c6`; source policy, lockfile, and notices are aligned. Historical
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 `31402758394` and a fresh Pixel 9 install, while documentation-only parent
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI
@@ -40,9 +41,10 @@ No code `51` AAB has been built, uploaded, or submitted.
 
 The listing deliberately describes the limited native controller and its visible
 read rows. The product installs no scoped loopback credential or indexed wallet
-backend, so balance, receive target, transaction history, tracked names, and
-module status remain fail-closed and unavailable. The live pruned node lacks
-wallet indexing/authentication; fresh restore additionally needs a durable
+backend, so balance, payment and name-transfer receive targets, transaction
+history, tracked names, and module status remain fail-closed and unavailable. A
+pruned indexed/authenticated
+node can serve current-wallet evidence; fresh restore additionally needs a durable
 wallet-relevant raw-tx source. Name import, transfers/value movement,
 website-provider access, settlement, exchange features, HNSA/HNSR, and P2P
 marketplaces remain absent or gated off.

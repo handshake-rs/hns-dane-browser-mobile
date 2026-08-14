@@ -4,13 +4,13 @@ This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the pinned
   `hns-wallet-mobile` controller at
-  final wallet source `2229be849557d58a8eb723bcc03349f0f2df9796`; and
+  wallet source `49afe81abce3d3f1a9309e26962731e181e43051`; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
-That wallet revision consumes final `hns-rs 0.2.0` source
-`b24b66c382de53330ec21dd3137e056a2bea3e2d`. Mobile source policy, its lockfile,
-and generated notices bind the complete final protocol → wallet chain.
+That wallet revision consumes `hns-rs 0.3.0` source
+`88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Mobile source policy, its lockfile,
+and generated notices bind the complete reviewed protocol → wallet chain.
 
 The configured `0.5.10` candidate is Android code `51`, embedded Rust `0.5.9`,
 and iOS build `60`. Historical `0.5.8` application source
@@ -21,9 +21,9 @@ ABI/XCFramework/app/simulator gate, after the underlying native-wallet tranche
 passed a fresh-install Pixel 9 lifecycle exercise. Documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` then passed the same full matrix in
 manual CI run `31411048376`. That evidence predates the HNWR read projection and
-remains historical. Code-bearing `0.5.9` source
+remains historical. Historical HNWR-v1 code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
-`31433931682`, including the current HNWR Android and complete Apple gates.
+`31433931682`, including its HNWR-v1 Android and complete Apple gates.
 Exact debug APK artifact `9080493058` has SHA-256
 `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`;
 inspection confirms `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`,
@@ -52,7 +52,8 @@ Both platform shells now link a narrow native controller for:
 - open, status, unlock, lock, and controller destruction;
 - exactly one local non-value Handshake account identity; and
 - a strict read-only projection and native UI for synchronized HNS balance,
-  receive target, transaction history, tracked names, and module status.
+  distinct payment and name-transfer receive targets, transaction history,
+  tracked names, and module status.
 
 The read projection is present in source but unavailable in the installed
 candidate because neither product shell provisions its required scoped loopback
@@ -114,19 +115,20 @@ The Rust JNI and Apple C ABI compose
 is reopened. Configuration accepts one nonzero IPv4 loopback port plus a bounded
 mutable authorization value; remote host, URL, and proxy inputs do not exist.
 The authorization buffer is consumed and wiped. A successful synchronization
-returns one bounded HNWR-v1 envelope carrying strict JSON for balance, receive
-target, transaction history, known names, and coherent tip-bound module status.
-Android and iOS reject malformed headers, unknown fields, duplicate identities,
-noncanonical values, inconsistent heights, and oversized output before UI
-publication.
+returns one bounded HNWR-v2 envelope carrying strict JSON for balance, distinct
+ordinary-payment and name-transfer receive targets, transaction history, known
+names, and coherent tip-bound module status. Android and iOS preserve HNWR-v1
+as its exact historical five-field shape and require exactly six fields for v2;
+they reject cross-version shapes, malformed headers, unknown fields, unequal or
+zero target accounts, conflated targets, duplicate identities, noncanonical
+values, inconsistent heights, and oversized output before UI publication.
 
 Neither application controller currently creates or passes that configuration.
 The wallet screen therefore shows the read rows and a fail-closed unavailable
 message, but cannot populate them. The browser's ordinary authenticated proxy is
-not silently reused as wallet authority. The available live pruned `hsrd` is not
-a valid backend because it lacks a wallet index and scoped RPC authentication.
-Pruning alone does not erase indexed confirmation/history results or
-authenticated raw bytes already retained by an existing wallet. Fresh restore
+not silently reused as wallet authority. A pruned node with wallet indexing and
+scoped RPC authentication can serve indexed confirmation/history and
+authenticated raw bytes retained by an existing wallet. Fresh restore
 additionally needs archive-capable raw transaction bytes or another durable
 wallet-relevant raw-transaction source behind the dedicated scoped loopback
 gateway. Known names remain empty until a reviewed name-import/tracking path
@@ -139,8 +141,9 @@ lifecycle callbacks immediately detach UI authority and transfer the controller
 with its exact storage lease to one serial retirement queue; that lease is
 released only after native lock/destruction and any incomplete-wallet file
 deletion finish. Foreground reentry waits for that handoff and stale read
-completion cannot publish. Exact candidate Apple app/simulator CI passed in
-`31433931682`; XCTest covers the retirement queue/lease behavior and
+completion cannot publish. Historical HNWR-v1 source passed its exact Apple
+app/simulator CI in `31433931682`; that run does not qualify HNWR-v2. XCTest
+covers the retirement queue/lease behavior and
 stale-completion publication-authority predicates, not an end-to-end
 credentialed native read in flight. iOS product wiring still may not supply a
 credential until the scoped credential/indexed backend/data boundary exists,
@@ -277,8 +280,8 @@ The historical `0.5.8` application source at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394`; its CodeQL and quality workflows are also green. This evidence
 predates the `0.5.9` synchronized-read tranche. The pre-ECH `0.5.9` source passed
-full CI `31433931682`; the current ECH-and-sync-telemetry source requires fresh platform
-qualification. Before release, fresh App Store screenshots must be bound to the
+full CI `31433931682`; the current HNWR-v2/ECH-and-sync-telemetry source requires
+fresh platform qualification. Before release, fresh App Store screenshots must be bound to the
 exact release checkout selected for signing, signed artifacts must pass their
 archive gates, and both stores' privacy/category answers must be reconciled
 with the native local data and visible unavailable read rows. Those release
@@ -304,7 +307,7 @@ The underlying lifecycle tranche has portable Rust, bridge, and platform
 coverage, passed the complete macOS ABI/XCFramework/app/simulator workflow, and
 passed a fresh Android reinstall with create/confirm/unlock/lock/process-reopen
 and mainnet/testnet storage isolation. The exact historical `0.5.8`
-repin/version/metadata commit passed remote CI. The newer HNWR projection has
+repin/version/metadata commit passed remote CI. The historical HNWR-v1 projection has
 focused Rust, Kotlin, and Swift coverage and passed exact full CI
 `31433931682`; its exact debug APK then passed the installed shell and
 fail-closed UI projection described above. It still needs backend/data,

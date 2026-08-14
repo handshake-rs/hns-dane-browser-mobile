@@ -35,7 +35,8 @@ final class WalletViewController: UIViewController {
     private let accountLabel = UILabel()
     private let readStatusLabel = UILabel()
     private let balanceLabel = UILabel()
-    private let receiveLabel = UILabel()
+    private let paymentReceiveLabel = UILabel()
+    private let nameReceiveLabel = UILabel()
     private let historyLabel = UILabel()
     private let namesLabel = UILabel()
     private let recoveryTitle = UILabel()
@@ -150,13 +151,14 @@ final class WalletViewController: UIViewController {
         introduction.font = .preferredFont(forTextStyle: .body)
         introduction.adjustsFontForContentSizeCategory = true
         introduction.numberOfLines = 0
-        introduction.text = "One local Handshake account on \(network.title). Lifecycle controls are always local. A scoped companion may additionally enable read-only balance, receive, history, and tracked-name synchronization. Sending, HNSA/HNSR, providers, swaps, and marketplaces remain unavailable."
+        introduction.text = "One local Handshake account on \(network.title). Lifecycle controls are always local. A scoped companion may additionally enable read-only balance, payment receive, name-transfer receive, history, and tracked-name synchronization. Sending, HNSA/HNSR, providers, swaps, and marketplaces remain unavailable."
 
         configureSummaryLabel(statusLabel, identifier: "wallet.status")
         configureSummaryLabel(accountLabel, identifier: "wallet.account")
         configureSummaryLabel(readStatusLabel, identifier: "wallet.read-status")
         configureSummaryLabel(balanceLabel, identifier: "wallet.balance")
-        configureSummaryLabel(receiveLabel, identifier: "wallet.receive")
+        configureSummaryLabel(paymentReceiveLabel, identifier: "wallet.receive")
+        configureSummaryLabel(nameReceiveLabel, identifier: "wallet.name-receive")
         configureSummaryLabel(historyLabel, identifier: "wallet.history")
         configureSummaryLabel(namesLabel, identifier: "wallet.names")
 
@@ -218,7 +220,8 @@ final class WalletViewController: UIViewController {
             accountLabel,
             readStatusLabel,
             balanceLabel,
-            receiveLabel,
+            paymentReceiveLabel,
+            nameReceiveLabel,
             historyLabel,
             namesLabel,
             actions,
@@ -768,14 +771,16 @@ final class WalletViewController: UIViewController {
         let presentation = WalletReadPresenter.present(snapshot)
         readStatusLabel.text = presentation.status
         balanceLabel.text = presentation.balance
-        receiveLabel.text = presentation.receive
+        paymentReceiveLabel.text = presentation.paymentReceive
+        nameReceiveLabel.text = presentation.nameReceive
         historyLabel.text = presentation.history
         namesLabel.text = presentation.names
     }
 
     private func clearReadProjection() {
         balanceLabel.text = "Confirmed spendable balance: unavailable."
-        receiveLabel.text = "Receive address: unavailable."
+        paymentReceiveLabel.text = "Payment receive address: unavailable."
+        nameReceiveLabel.text = "Name transfer receive address: unavailable."
         historyLabel.text = "Transaction history: unavailable."
         namesLabel.text = "Tracked names: unavailable."
     }
@@ -1332,7 +1337,8 @@ final class WalletViewController: UIViewController {
 struct WalletReadPresentation: Equatable, Sendable {
     let status: String
     let balance: String
-    let receive: String
+    let paymentReceive: String
+    let nameReceive: String
     let history: String
     let names: String
 }
@@ -1399,7 +1405,10 @@ enum WalletReadPresenter {
         return WalletReadPresentation(
             status: "Handshake reads are ready at height \(snapshot.moduleStatus.validatedHeight). Value movement and marketplace controls are unavailable.",
             balance: "\(formatHnsBaseUnits(snapshot.balance.baseUnits)) HNS confirmed spendable",
-            receive: "\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)",
+            paymentReceive: "Payment receive\n\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)",
+            nameReceive: snapshot.nameReceiveTarget.map {
+                "Name transfer receive\n\($0.display)\nName derivation index \($0.derivationIndex)"
+            } ?? "Name transfer receive: unavailable for HNWR-v1.",
             history: history,
             names: trackedNames
         )

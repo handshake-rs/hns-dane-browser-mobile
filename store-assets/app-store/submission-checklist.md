@@ -6,11 +6,12 @@ baseline remains `0.5.5` / build `57`; do not copy its wallet-free answers,
 screenshots, or submission state into this candidate.
 
 The candidate includes native lifecycle controls for one device-local HNS
-account identity plus strict HNWR-v1 read-only fields for balance, receive
-target, history, tracked names, and module status. The product installs no scoped
+account identity plus strict HNWR-v2 read-only fields for balance, distinct HNS
+payment and name-transfer receive targets, history, tracked names, and module
+status. The product installs no scoped
 loopback credential or indexed backend, so those fields remain unavailable. The
-available live pruned node lacks wallet index/auth; fresh restore needs a durable
-raw-tx source. Name import is absent. Transfer/value, website-provider,
+app provisions no indexed/authenticated backend; fresh restore needs a durable
+archive-capable raw-tx source. Name import is absent. Transfer/value, website-provider,
 settlement, exchange, HNSA/HNSR, and P2P-market paths remain absent or gated.
 Retirement queue/lease behavior and stale-completion publication-authority
 predicates passed exact Apple app/simulator CI; no end-to-end credentialed
@@ -24,8 +25,10 @@ boundary.
 - [x] Pass the complete Apple gate for the underlying wallet tranche in exact
   Required CI run `31393998309` at
   `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
-- [x] Pin final wallet `0.1.0` source `2229be8` and final `hns-rs 0.2.0`
-  source `b24b66c`; regenerate the lockfile, source policy, and notices.
+- [x] Pin wallet `0.1.0` source `49afe81` and `hns-rs 0.3.0` source
+  `88ed7c6`; regenerate the lockfile, source policy, and notices.
+- [ ] Pass fresh HNWR-v2 exact-source Android and complete Apple gates; prior
+  HNWR-v1 evidence does not qualify this decoder or UI change.
 - [x] Retain historical `0.5.8` Required CI for source `f21bee1` in run
   `31402758394`; docs commit `ce9c09a` passed the full manual matrix in run
   `31411048376`. These do not qualify this candidate.

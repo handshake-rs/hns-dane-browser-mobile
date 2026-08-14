@@ -42,20 +42,22 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 reconciliation before submission.
 
 Current source is the `0.5.10` release candidate: Android code `51`, embedded
-non-publishable Rust workspace `0.5.9`, and iOS build `60`. It pins final
+non-publishable Rust workspace `0.5.9`, and iOS build `60`. It pins exact reviewed
 `hns-wallet-rs 0.1.0` source
-`2229be849557d58a8eb723bcc03349f0f2df9796`, whose protocol closure uses final
-`hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`. Both native
+`49afe81abce3d3f1a9309e26962731e181e43051`, whose protocol closure uses
+`hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Both native
 shells expose local create, restore, open, status, unlock, lock, and one-account
-identity controls plus a strict, bounded HNWR-v1 projection and UI for
-synchronized HNS balance, receive target, transaction history, tracked names,
-and module status.
+identity controls plus strict, bounded HNWR-v2 emission and native UI for
+synchronized HNS balance, distinct ordinary-payment and name-transfer receive
+targets, transaction history, tracked names, and module status. The decoders
+retain the historical HNWR-v1 five-field contract separately and require the
+exact six-field shape for v2; neither shape enters website-provider JSON.
 
 The actual product does not provision the scoped loopback authorization or
 indexed wallet backend required by that read boundary, so candidate source
 keeps every synchronized field in its fail-closed unavailable state.
-The available live pruned `hsrd` is unsuitable because it lacks wallet indexing
-and scoped authentication. Pruning alone does not erase indexed history or
+No scoped indexed backend is provisioned to the app. A pruned node with wallet
+indexing and scoped authentication can serve current-wallet indexed history and
 authenticated raw bytes already retained by an existing wallet; a fresh restore
 additionally needs archive-capable raw transaction bytes or another durable
 wallet-relevant raw-transaction source. Name import/tracking ingestion is absent.
@@ -70,7 +72,7 @@ native read in flight. Supplying read authority still requires the missing
 credential/backend/data boundary, and the signed physical-iPhone matrix remains
 open.
 
-Code-bearing `0.5.9` source
+Historical HNWR-v1 code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
 `31433931682`: repository policy, Rust/supply-chain, Android build and unit
 tests, API 37 native-runtime instrumentation, the Apple
@@ -96,7 +98,8 @@ A cold launch traversed `LauncherActivity` to `MainActivity` in 469 ms, left a
 live process, and produced no fatal signature in 300 process log lines. Browser
 menu → Settings → HNS wallet opened `WalletActivity`. The fresh-install
 screen showed no wallet/account, create and restore controls, and the
-fail-closed module, balance, receive, history, tracked-name, and sync rows. Its
+fail-closed historical HNWR-v1 module, balance, payment-receive, history,
+tracked-name, and sync rows. Its
 copy states that value and marketplace controls remain disabled. No wallet was
 created or restored, and no recovery secret, account, synchronization, or value
 action was exercised. This is installed shell/UI-projection evidence, not a

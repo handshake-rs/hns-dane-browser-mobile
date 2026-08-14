@@ -239,7 +239,8 @@
     <string name="row_wallet_delete_summary" translatable="false">Unlock the confirmed wallet, verify its exact network and account, then complete two destructive confirmations. Only this network namespace is removed.</string>
     <string name="row_wallet_read_module" translatable="false">Module status</string>
     <string name="row_wallet_read_balance" translatable="false">Confirmed spendable balance</string>
-    <string name="row_wallet_read_receive" translatable="false">Receive address</string>
+    <string name="row_wallet_read_receive" translatable="false">Payment receive address</string>
+    <string name="row_wallet_read_name_receive" translatable="false">Name transfer receive address</string>
     <string name="row_wallet_read_history" translatable="false">Transaction history</string>
     <string name="row_wallet_read_names" translatable="false">Tracked names</string>
     <string name="row_wallet_read_sync" translatable="false">Refresh wallet reads</string>
@@ -285,8 +286,11 @@
     <string name="wallet_reads_ready" translatable="false">Handshake reads are ready at height %1$d. Value movement and marketplace controls are unavailable.</string>
     <string name="wallet_reads_balance_unavailable" translatable="false">No synchronized balance is exposed.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS confirmed spendable</string>
-    <string name="wallet_reads_receive_unavailable" translatable="false">No receive address is exposed.</string>
+    <string name="wallet_reads_receive_unavailable" translatable="false">No payment receive address is exposed.</string>
     <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d</string>
+    <string name="wallet_reads_name_receive_unavailable" translatable="false">No name transfer receive address is exposed.</string>
+    <string name="wallet_reads_name_receive_legacy_unavailable" translatable="false">Unavailable in this legacy HNWR-v1 wallet snapshot.</string>
+    <string name="wallet_reads_name_receive" translatable="false">%1$s\nName derivation index %2$d</string>
     <string name="wallet_reads_history_unavailable" translatable="false">No synchronized transaction history is exposed.</string>
     <string name="wallet_reads_history_empty" translatable="false">No wallet transactions were found in the synchronized snapshot.</string>
     <string name="wallet_reads_transaction" translatable="false">%1$s · %2$s\n%3$s\n%4$s</string>

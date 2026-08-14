@@ -10,8 +10,8 @@ still require explicit reconciliation and attestation.
 
 The native wallet lifecycle tranche passed its dated complete Apple gate in
 Required CI run `31393998309` at
-`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The current package retains final
-wallet `0.1.0` source `2229be8` and final `hns-rs 0.2.0` source `b24b66c`;
+`571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. The current package pins wallet
+`0.1.0` source `49afe81` and `hns-rs 0.3.0` source `88ed7c6`;
 source policy, lockfile, and notices are aligned. Historical `0.5.8` application
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
 `31402758394`; documentation-only parent
@@ -39,10 +39,12 @@ submission and artifact evidence is release history, not evidence for `0.5.10`.
 No TestFlight distribution is planned by this repository workflow.
 
 The checked-in description and review notes accurately describe the native
-controller and visible strict HNWR-v1 read-only fields. The product installs no
+controller and visible strict HNWR-v2 read-only fields, including separate HNS
+payment and name-transfer receive targets. Legacy HNWR-v1 remains a separately
+decoded exact shape. The product installs no
 scoped loopback credential or indexed wallet backend, so those fields remain
-unavailable. The live pruned node lacks wallet index/auth; a pruned indexed node
-can return indexed history, and an existing wallet may reuse retained raw bytes.
+unavailable. A pruned indexed/authenticated node can return indexed history, and
+an existing wallet may reuse retained raw bytes.
 Fresh restore needs a durable wallet-relevant raw-tx source. Name import,
 send/value, website-provider,
 settlement, exchange, HNSA/HNSR, and P2P-marketplace paths remain absent or

@@ -1,15 +1,15 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-08-11
+Last audited: 2026-08-13
 
 Current candidate source coordinates Android `0.5.10` / code `51`, the embedded
 non-publishable Rust workspace `0.5.9`, and iOS `0.5.10` / build `60`. It pins
-`hns-wallet-mobile 0.1.0` to exact final wallet source
-`2229be849557d58a8eb723bcc03349f0f2df9796`, whose HNS primitives resolve from
-final `hns-rs 0.2.0` source
-`b24b66c382de53330ec21dd3137e056a2bea3e2d`.
+`hns-wallet-mobile 0.1.0` to exact wallet source
+`49afe81abce3d3f1a9309e26962731e181e43051`, whose HNS primitives resolve from
+`hns-rs 0.3.0` source
+`88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
 
-The final protocol → wallet → mobile source sequence is complete. Source policy,
+The reviewed protocol → wallet → mobile source sequence is complete. Source policy,
 the lockfile, and notices bind that exact chain. Historical `0.5.8` application
 source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394` and a fresh Pixel 9 install. That evidence predates the HNWR
@@ -47,9 +47,9 @@ been built or submitted.
   historical `0.5.8` application evidence is Required CI run `31402758394` at
   `f21bee1c3afccd06604dc99fccb51528e2441055`. Documentation-only parent
   `ce9c09a40117142d3a26ff1196c2dec3f5e06139` also passed push CI and CodeQL,
-  then the full manual matrix in run `31411048376`. Current HNWR/version source
-  `893ba8271787f1ab7247fa78ed8787462b5542fc` passed its own full matrix in
-  `31433931682`.
+  then the full manual matrix in run `31411048376`. Historical HNWR-v1/version
+  source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed its own full matrix in
+  `31433931682`; the current HNWR-v2 source requires fresh qualification.
 - The protected iOS upload path performs its live Release screenshot capture
   and full exact-commit/digest/runtime/wallet-row verification before it reads
   Apple credentials or uploads an IPA. Capture or verification failure is

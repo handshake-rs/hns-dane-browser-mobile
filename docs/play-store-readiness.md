@@ -1,6 +1,6 @@
 # Google Play Readiness Checklist
 
-Last audited: 2026-08-11
+Last audited: 2026-08-13
 
 Current Android candidate source is `0.5.10` (`versionCode 51`) and supports
 Android 11 / API 30 or later. Google Play production remains on `0.5.6` / code
@@ -22,8 +22,9 @@ historical evidence.
 
 Candidate Android source includes a native-only wallet controller for
 create/restore/open/status/unlock/lock and one non-value HNS account identity,
-plus strict HNWR-v1 native UI for synchronized balance, receive target,
-transaction history, tracked names, and module status. It is not in code `47`
+plus strict HNWR-v2 native UI for synchronized balance, distinct HNS payment and
+name-transfer receive targets, transaction history, tracked names, and module
+status. The exact historical HNWR-v1 shape remains separately decoded. It is not in code `47`
 or the GitHub code `48` APK. The exact underlying lifecycle tranche passed
 fresh-install Pixel 9 qualification plus Required CI run `31393998309` at
 `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Historical `0.5.8` source
@@ -49,11 +50,11 @@ showed no wallet/account, its create/restore controls, the fail-closed read rows
 and sync action, and disabled value/marketplace copy. No wallet, secret,
 account, credentialed sync, or value action ran. That is historical code `50`
 evidence; the exact code `51` source and product require fresh qualification.
-The current product
-installs no scoped loopback read credential or indexed wallet backend, so every
-read field remains fail-closed and unavailable. The live pruned `hsrd` is
-unsuitable because it lacks wallet indexing/authentication. Existing-wallet
-retained evidence remains distinct; fresh restore additionally needs
+The current product installs no scoped loopback read credential or indexed
+wallet backend, so every
+read field remains fail-closed and unavailable. A pruned node with wallet
+indexing and scoped authentication can serve retained/indexed current-wallet
+evidence, but fresh restore additionally needs
 archive-capable raw bytes or another durable wallet-relevant raw-tx source.
 Name import is absent. Provider, send/value, settlement, exchange, HNSA/HNSR,
 and marketplace controls remain gated off. Reconcile category, financial-feature
@@ -68,7 +69,7 @@ behavior against the exact signed candidate before upload.
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 production complete | The signed 60,276,192-byte AAB has SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`. Edit `07330408575596336357` assigned code `47` to production with status `completed`, and `generatedApks/47` returned HTTP `200`. |
 | Android runtime hotfix | Shipped and exact-artifact validated | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the locked `libc 0.2.186` Android `flock` path with the same lock semantics; upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. The exact signed APK upgraded a Pixel 9 from code `46` with data preserved, cold-launched, and reached `up_to_date` at height `340348`, lag `0`, freshness `current`, and `error: null` after manual sync. |
-| Native wallet candidate | Prior HNWR projection and installed-UI evidence retained; current product gates pending | Source links final wallet `0.1.0` commit `2229be849557d58a8eb723bcc03349f0f2df9796`, with final `hns-rs 0.2.0` closure `b24b66c382de53330ec21dd3137e056a2bea3e2d`, through a non-exported native activity, create-only Android KeyStore-wrapped database key, and strict read-only HNWR UI. Exact code `50` debug source passed full CI, then its artifact installed/cold-launched on a Pixel 9 and exposed the expected no-wallet controls and fail-closed rows. No wallet was created/restored and no credentialed sync ran. No scoped credential/indexed backend is provisioned, so reads are visibly unavailable; name import and every provider/send/value/HNSA/HNSR/market path remain absent or gated. Code `51` CI, Play signing, fresh screenshots, and Console review/upload remain open. |
+| Native wallet candidate | Prior HNWR-v1 evidence retained; current HNWR-v2 and product gates pending | Source links wallet `0.1.0` commit `49afe81abce3d3f1a9309e26962731e181e43051`, with `hns-rs 0.3.0` closure `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`, through a non-exported native activity, create-only Android KeyStore-wrapped database key, and strict read-only HNWR-v2 UI with separate payment/name-transfer targets. Exact code `50` HNWR-v1 debug source passed full CI, then its artifact installed/cold-launched on a Pixel 9 and exposed the expected no-wallet controls and fail-closed rows; that historical evidence does not qualify v2. No wallet was created/restored and no credentialed sync ran. No scoped credential/indexed backend is provisioned, so reads are visibly unavailable; name import and every provider/send/value/HNSA/HNSR/market path remain absent or gated. Code `51` CI, Play signing, fresh screenshots, and Console review/upload remain open. |
 | Proof Details namespace | Fixed and release-device confirmed | Every canonical DNS host uses the native dual-root gateway, so that route cannot identify HNS versus ICANN. Before the fix, Pixel 9 API 37 instrumentation reproduced an HNS-selected trace being shown as DNSSEC with synthetic ICANN details, and paired instrumentation passed after the correction. HNS browsing and corrected proof presentation then passed manually with the exact signed release APK. |
 | 64-bit / 16 KiB native code | Code 47 signed gates passed | The code `47` APK/AAB passed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, archive/APK signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
@@ -299,7 +300,7 @@ Full description draft:
 > - Ordinary ICANN browsing continues through bounded ICANN DoH and WebPKI
 > - Resolver trace, HNS proof viewer, and TLSA inspector
 > - Native create, restore, open, unlock, and lock controls for one device-local HNS account identity
-> - Fail-closed read-only wallet rows for balance, receive target, history, tracked names, and module status; this build does not provision the companion backend needed to populate them
+> - Fail-closed read-only wallet rows for balance, distinct payment and name-transfer receive targets, history, tracked names, and module status; this build does not provision the companion backend needed to populate them
 > - Local controls for cookies, history, downloads, and resolver cache
 >
 > The native wallet screen manages one local HNS account identity and includes synchronized read-only fields, but this build installs no scoped credential or indexed backend, so those fields remain unavailable. Name import, sending/value movement, website-provider access, HNSA/HNSR, settlement, exchange features, and P2P marketplaces are unavailable. Donations are optional and do not unlock features.

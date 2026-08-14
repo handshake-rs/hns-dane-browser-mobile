@@ -99,8 +99,9 @@ activity for the exact `0.5.10` release checkout:
 - Restore on a separate empty network scope and confirm the input and visible
   recovery text clear when the screen backgrounds or protected data becomes
   unavailable.
-- Confirm strict balance, receive, history, tracked-name, and module rows remain
-  visibly unavailable because no scoped credential/backend is installed. There
+- Confirm strict balance, payment-receive, name-transfer-receive, history,
+  tracked-name, and module rows remain visibly unavailable because no scoped
+  credential/backend is installed. There
   is no name import, send/value, website-provider, settlement, exchange,
   HNSA/HNSR, or P2P-marketplace control.
 - Exercise background/close while a deliberately delayed native read holds the

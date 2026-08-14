@@ -3,6 +3,8 @@
 #include <stddef.h>
 
 _Static_assert(HNS_BROWSER_ABI_VERSION == 1u, "unexpected ABI version");
+_Static_assert(HNS_BROWSER_WALLET_READ_BUNDLE_VERSION == 2u,
+               "unexpected wallet read bundle version");
 _Static_assert(sizeof(HnsBrowserRuntimeHandle) == sizeof(uint64_t), "runtime handle width");
 _Static_assert(sizeof(HnsBrowserProxyHandle) == sizeof(uint64_t), "proxy handle width");
 _Static_assert(sizeof(HnsBrowserWalletHandle) == sizeof(uint64_t), "wallet handle width");

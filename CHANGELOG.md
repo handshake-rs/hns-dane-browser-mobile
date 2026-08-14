@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Added HNWR-v2 native wallet snapshots with a dedicated Handshake name-transfer
+  receive target that is structurally and visibly separate from the ordinary
+  HNS payment receive target. Android and iOS decode legacy HNWR-v1 and current
+  HNWR-v2 through separate exact five- and six-field schemas, then render the
+  two v2 purposes in distinct native-only rows. No website-provider method,
+  value capability, or release gate was added.
 - Android and iOS now let the current protected foreground wallet owner delete
   a confirmed local wallet after two destructive confirmations that identify
   the exact network and account and require typing `DELETE`. Deletion revokes
@@ -15,6 +21,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Repinned `hns-wallet-mobile 0.1.0` to exact source
+  `49afe81abce3d3f1a9309e26962731e181e43051` and its `hns-rs 0.3.0`
+  closure to `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`; Cargo policy,
+  the lockfile, and generated notices bind that reviewed chain.
 - iOS now renders the same bounded read-only wallet detail as Android,
   including full transaction and name evidence, chain position, receive
   derivation index, and explicit overflow counts; both platforms use

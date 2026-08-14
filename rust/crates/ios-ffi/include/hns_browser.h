@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 #define HNS_BROWSER_ABI_VERSION 1u
+#define HNS_BROWSER_WALLET_READ_BUNDLE_VERSION 2u
 
 typedef uint32_t HnsBrowserResult;
 #define HNS_BROWSER_RESULT_OK 0u
@@ -252,8 +253,9 @@ HnsBrowserResult hns_browser_wallet_has_hns_reads(
     HnsBrowserWalletHandle wallet,
     uint8_t *out_enabled);
 /*
- * Returns a private Rust-owned HNWR-v1 bundle containing one exact serialized
- * MobileHnsReadSnapshot. Free it promptly; never log it or expose it to WebKit.
+ * Returns a private Rust-owned HNWR-v2 bundle containing one exact serialized
+ * MobileHnsReadSnapshot with distinct ordinary-payment and name-transfer
+ * receive targets. Free it promptly; never log it or expose it to WebKit.
  */
 HnsBrowserResult hns_browser_wallet_synchronize_hns_reads(
     HnsBrowserWalletHandle wallet,

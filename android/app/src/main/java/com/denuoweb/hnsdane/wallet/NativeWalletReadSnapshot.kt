@@ -9,8 +9,8 @@ import org.json.JSONObject
 /** Strict public projection of one native, tip-bound HNS wallet reconciliation. */
 internal data class NativeWalletReadSnapshot(
     val balanceBaseUnits: String,
-    val receiveAddress: String,
-    val derivationIndex: Long,
+    val paymentReceiveTarget: NativeWalletPaymentReceiveTarget,
+    val nameReceiveTarget: NativeWalletNameReceiveTarget?,
     val height: Long,
     val transactions: List<NativeWalletTransaction>,
     val trackedNames: List<NativeWalletName>,
@@ -20,6 +20,20 @@ internal data class NativeWalletReadSnapshot(
             NativeWalletReadSnapshotParser.parse(bundle)
     }
 }
+
+/** Ordinary HNS coin receive target; never a Handshake name-owner target. */
+internal data class NativeWalletPaymentReceiveTarget(
+    val accountId: String,
+    val display: String,
+    val derivationIndex: Long,
+)
+
+/** Dedicated Handshake name-owner receive target; never a payment address. */
+internal data class NativeWalletNameReceiveTarget(
+    val accountId: String,
+    val display: String,
+    val derivationIndex: Long,
+)
 
 internal data class NativeWalletTransaction(
     val txid: String,
@@ -85,7 +99,8 @@ private object NativeWalletReadSnapshotParser {
         require(bundle.size in HEADER_BYTES..(HEADER_BYTES + MAX_JSON_BYTES))
         require(magic.indices.all { index -> bundle[index] == magic[index] })
         val header = ByteBuffer.wrap(bundle, 4, HEADER_BYTES - 4).order(ByteOrder.BIG_ENDIAN)
-        require(header.get().toInt() and 0xff == VERSION)
+        val version = header.get().toInt() and 0xff
+        require(version == LEGACY_VERSION || version == NAME_RECEIVE_VERSION)
         require(header.get().toInt() and 0xff == READ_ONLY_HNS_FLAG)
         require(header.short.toInt() == 0)
         val jsonLength = header.int
@@ -95,36 +110,50 @@ private object NativeWalletReadSnapshotParser {
         try {
             val json = jsonBytes.toString(Charsets.UTF_8)
             require(json.toByteArray(Charsets.UTF_8).contentEquals(jsonBytes))
-            parseSnapshot(JSONObject(json))
+            parseSnapshot(JSONObject(json), version)
         } finally {
             jsonBytes.fill(0)
         }
     }.getOrNull()
 
-    private fun parseSnapshot(value: JSONObject): NativeWalletReadSnapshot {
-        value.requireExactKeys(
-            "balance",
-            "receiveTarget",
-            "transactionHistory",
-            "knownNames",
-            "moduleStatus",
-        )
+    private fun parseSnapshot(value: JSONObject, version: Int): NativeWalletReadSnapshot {
+        when (version) {
+            LEGACY_VERSION -> value.requireExactKeys(
+                "balance",
+                "receiveTarget",
+                "transactionHistory",
+                "knownNames",
+                "moduleStatus",
+            )
+
+            NAME_RECEIVE_VERSION -> value.requireExactKeys(
+                "balance",
+                "receiveTarget",
+                "nameReceiveTarget",
+                "transactionHistory",
+                "knownNames",
+                "moduleStatus",
+            )
+
+            else -> throw IllegalArgumentException("unsupported HNWR version")
+        }
         val balance = value.getJSONObject("balance").apply {
             requireExactKeys("asset", "base_units")
             require(get("asset") == "HNS")
         }
         val balanceBaseUnits = canonicalBaseUnits(balance.get("base_units"))
 
-        val receive = value.getJSONObject("receiveTarget").apply {
-            requireExactKeys("module", "account", "display", "derivation_index")
-            require(get("module") == "handshake")
+        val (paymentReceiveTarget, paymentAccount) =
+            parsePaymentReceiveTarget(value.getJSONObject("receiveTarget"))
+        val nameReceiveTarget = if (version == NAME_RECEIVE_VERSION) {
+            val (target, account) =
+                parseNameReceiveTarget(value.getJSONObject("nameReceiveTarget"))
+            require(account.contentEquals(paymentAccount))
+            require(target.display != paymentReceiveTarget.display)
+            target
+        } else {
+            null
         }
-        requireByteArray(receive.getJSONArray("account"), ACCOUNT_ID_BYTES)
-        val receiveAddress = receive.get("display") as? String
-            ?: throw IllegalArgumentException("receive target is not text")
-        require(receiveAddress.length in 1..MAX_RECEIVE_CHARACTERS)
-        require(receiveAddress.all { character -> character.code in 0x21..0x7e })
-        val derivationIndex = exactUnsignedLong(receive.get("derivation_index"), UINT32_MAX)
 
         val moduleStatus = value.getJSONObject("moduleStatus").apply {
             requireExactKeys(
@@ -156,12 +185,50 @@ private object NativeWalletReadSnapshotParser {
 
         return NativeWalletReadSnapshot(
             balanceBaseUnits = balanceBaseUnits,
-            receiveAddress = receiveAddress,
-            derivationIndex = derivationIndex,
+            paymentReceiveTarget = paymentReceiveTarget,
+            nameReceiveTarget = nameReceiveTarget,
             height = targetHeight,
             transactions = transactions,
             trackedNames = names,
         )
+    }
+
+    private fun parsePaymentReceiveTarget(
+        value: JSONObject,
+    ): Pair<NativeWalletPaymentReceiveTarget, ByteArray> {
+        val account = parseReceiveTargetAccount(value)
+        return NativeWalletPaymentReceiveTarget(
+            accountId = account.toLowerHex(),
+            display = visibleReceiveDisplay(value.get("display"), "payment receive target"),
+            derivationIndex = exactUnsignedLong(value.get("derivation_index"), UINT32_MAX),
+        ) to account
+    }
+
+    private fun parseNameReceiveTarget(
+        value: JSONObject,
+    ): Pair<NativeWalletNameReceiveTarget, ByteArray> {
+        val account = parseReceiveTargetAccount(value)
+        return NativeWalletNameReceiveTarget(
+            accountId = account.toLowerHex(),
+            display = visibleReceiveDisplay(value.get("display"), "name receive target"),
+            derivationIndex = exactUnsignedLong(value.get("derivation_index"), UINT32_MAX),
+        ) to account
+    }
+
+    private fun parseReceiveTargetAccount(value: JSONObject): ByteArray {
+        value.requireExactKeys("module", "account", "display", "derivation_index")
+        require(value.get("module") == "handshake")
+        return requireByteArray(value.getJSONArray("account"), ACCOUNT_ID_BYTES).also { account ->
+            require(account.any { byte -> byte != 0.toByte() })
+        }
+    }
+
+    private fun visibleReceiveDisplay(value: Any, field: String): String {
+        val display = value as? String
+            ?: throw IllegalArgumentException("$field is not text")
+        require(display.length in 1..MAX_RECEIVE_CHARACTERS)
+        require(display.all { character -> character.code in 0x21..0x7e })
+        return display
     }
 
     private fun parseTransaction(value: JSONObject): NativeWalletTransaction {
@@ -286,7 +353,8 @@ private object NativeWalletReadSnapshotParser {
         }
     }
 
-    private const val VERSION = 1
+    private const val LEGACY_VERSION = 1
+    private const val NAME_RECEIVE_VERSION = 2
     private const val READ_ONLY_HNS_FLAG = 1
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 4 * 1024 * 1024

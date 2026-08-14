@@ -130,12 +130,14 @@
   an in-process typed binding to the exact pinned `hns-wallet-mobile`
   controller, and native create, restore, open, unlock, lock, status,
   one-time-recovery, and single HNS account-identity controls.
-- Source-complete read projection: both shells strictly decode bounded HNWR-v1
-  snapshots and expose balance, receive target, history, tracked-name, and module
-  rows. The actual product provisions no scoped credential/indexed backend, so
-  those rows remain fail-closed and unavailable. The live pruned node lacks
-  wallet index/auth; existing-wallet retained evidence remains distinct from the
-  durable raw-tx source needed for fresh restore. Name import is absent.
+- Source-complete read projection: both shells strictly decode legacy HNWR-v1
+  and current HNWR-v2 through separate exact schemas and expose balance,
+  ordinary-payment receive, name-transfer receive, history, tracked-name, and
+  module rows. The actual product provisions no scoped credential/indexed
+  backend, so those rows remain fail-closed and unavailable. A pruned
+  indexed/authenticated node can serve current-wallet retained evidence; the
+  durable archive-capable raw-tx source needed for fresh restore remains
+  distinct. Name import is absent.
 - Completed first-slice feature qualification: the exact CI artifact passed a
   fresh Pixel 9 reinstall with create/confirm/unlock/lock/process-reopen,
   owner-private storage, and network isolation. Historical `0.5.8` source
@@ -143,9 +145,9 @@
   exact Required CI run
   `31402758394`, including Android build/unit/native instrumentation,
   Rust/supply-chain, and the complete Apple ABI/XCFramework/app/simulator gate.
-- Completed `0.5.9` source qualification: code-bearing commit
+- Completed historical HNWR-v1 `0.5.9` source qualification: code-bearing commit
   `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
-  `31433931682`, including the HNWR Android and complete Apple gates. Exact
+  `31433931682`, including the HNWR-v1 Android and complete Apple gates. Exact
   debug artifact `9080493058` is package `com.denuoweb.hnsdane.debug`, version
   `0.5.9-debug` / code `50`, with `arm64-v8a` and `x86_64`, default Android
   Debug APK-v2 signing, and APK SHA-256
@@ -162,9 +164,9 @@
   `65c397e8347f37085ea67d2c9c745ce896328e64`. Exact release-source CI, signed
   artifacts, installed-product evidence, screenshots, and store readback remain
   pending.
-- Completed release dependency sequence: mobile pins final wallet `0.1.0`
-  source `2229be849557d58a8eb723bcc03349f0f2df9796`, which consumes final
-  `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`;
+- Updated release dependency sequence: mobile pins wallet `0.1.0` source
+  `49afe81abce3d3f1a9309e26962731e181e43051`, which consumes
+  `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`;
   lockfile, source policy, and notices are aligned.
 - Mobile engine source unification remains complete: every adapter and
   canonical contract resolves as `0.2.1` from pinned source

@@ -23,9 +23,9 @@ does not imply endorsement by the component authors.
 Generator schema: 3
 Generated input SHA-256:
   scripts/generate-third-party-notices.py = 08583e4b8d5c724600edda04a298d99571ab5e57bce459ba4ec31054f87782f2
-  scripts/verify_cargo_git_policy.py = 00900fa74de553a8e2bc4f240c8f50241fb5753b3e1769cbcf7e66b22b73bf2f
-  rust/Cargo.toml = 4fb2baae70531fcbfa956536e050e2a49869ef9c84ab5b1fca563584ad7adcb1
-  rust/Cargo.lock = 32dd5a086f68b2418647f9db6c9cb20d8072d4172eb467723b8e208eb3203eb4
+  scripts/verify_cargo_git_policy.py = b6240d98b80c9c245c6cd4c767242eaca00336c339815a4f45c78485063975b0
+  rust/Cargo.toml = 8190ddbbd5d19b50646e57d7a91cfddaf2a90ec5a85126b0fd8d48cd1acc8f3e
+  rust/Cargo.lock = 70ce993a5fdfea7a9124c80e83ec2d89721d92dcc6ac70a9fd36b87617406a38
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
@@ -167,17 +167,17 @@ RUST COMPONENTS (243)
   hns-browser-transport 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-urkel 0.2.1 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-cache 0.2.1 | MIT OR Apache-2.0
-  hns-covenants 0.2.0 | MIT OR Apache-2.0
+  hns-covenants 0.3.0 | MIT OR Apache-2.0
   hns-dns-wire 0.2.1 | MIT OR Apache-2.0
-  hns-encoding 0.2.0 | MIT OR Apache-2.0
+  hns-encoding 0.3.0 | MIT OR Apache-2.0
   hns-icann-dane 0.2.1 | MIT OR Apache-2.0
   hns-namespace-resolution 0.2.1 | MIT OR Apache-2.0
-  hns-primitives 0.2.0 | MIT OR Apache-2.0
+  hns-primitives 0.3.0 | MIT OR Apache-2.0
   hns-resolution-policy 0.2.1 | MIT OR Apache-2.0
-  hns-script 0.2.0 | MIT OR Apache-2.0
-  hns-swap 0.2.0 | MIT OR Apache-2.0
-  hns-transaction 0.2.0 | MIT OR Apache-2.0
-  hns-urkel-proof 0.2.0 | MIT OR Apache-2.0
+  hns-script 0.3.0 | MIT OR Apache-2.0
+  hns-swap 0.3.0 | MIT OR Apache-2.0
+  hns-transaction 0.3.0 | MIT OR Apache-2.0
+  hns-urkel-proof 0.3.0 | MIT OR Apache-2.0
   hns-wallet-chain-api 0.1.0 | MIT OR Apache-2.0
   hns-wallet-ffi 0.1.0 | MIT OR Apache-2.0
   hns-wallet-hns 0.1.0 | MIT OR Apache-2.0
@@ -1525,13 +1525,13 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 283ea6cc2997a1a70da0049e09adf9317bb60ca1b51279b65196b83a69e1996b
 Applies to:
-  - Rust crate hns-covenants 0.2.0
-  - Rust crate hns-encoding 0.2.0
-  - Rust crate hns-primitives 0.2.0
-  - Rust crate hns-script 0.2.0
-  - Rust crate hns-swap 0.2.0
-  - Rust crate hns-transaction 0.2.0
-  - Rust crate hns-urkel-proof 0.2.0
+  - Rust crate hns-covenants 0.3.0
+  - Rust crate hns-encoding 0.3.0
+  - Rust crate hns-primitives 0.3.0
+  - Rust crate hns-script 0.3.0
+  - Rust crate hns-swap 0.3.0
+  - Rust crate hns-transaction 0.3.0
+  - Rust crate hns-urkel-proof 0.3.0
   - Rust crate lru-slab 0.1.2
   - Rust crate quinn 0.11.11
   - Rust crate quinn-proto 0.11.15
@@ -7079,13 +7079,13 @@ their own copyright notices and license terms:
 ================================================================================
 Notice SHA-256: 984637c53b31c216912aaa876374d5bcf69c1cb0cb589a5adcd68bbe7b5bb2da
 Applies to:
-  - Rust crate hns-covenants 0.2.0
-  - Rust crate hns-encoding 0.2.0
-  - Rust crate hns-primitives 0.2.0
-  - Rust crate hns-script 0.2.0
-  - Rust crate hns-swap 0.2.0
-  - Rust crate hns-transaction 0.2.0
-  - Rust crate hns-urkel-proof 0.2.0
+  - Rust crate hns-covenants 0.3.0
+  - Rust crate hns-encoding 0.3.0
+  - Rust crate hns-primitives 0.3.0
+  - Rust crate hns-script 0.3.0
+  - Rust crate hns-swap 0.3.0
+  - Rust crate hns-transaction 0.3.0
+  - Rust crate hns-urkel-proof 0.3.0
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------

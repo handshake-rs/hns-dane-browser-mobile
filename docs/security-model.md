@@ -100,9 +100,11 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 The Android/iOS `0.5.10` release candidate links the exact pinned
 `hns-wallet-mobile` controller to app-native create, restore, open, status,
 unlock, lock, one-time recovery, destroy, and single non-value HNS account
-identity controls. Both shells also implement a strict HNWR-v1 native projection
-and UI for synchronized balance, receive target, history, tracked names, and
-module status. The controller is not a browser provider and no wallet secret or
+identity controls. Both shells emit strict HNWR-v2 and implement native UI for
+synchronized balance, structurally distinct ordinary-payment and name-transfer
+receive targets, history, tracked names, and module status. Historical HNWR-v1
+and current HNWR-v2 use separate exact five- and six-field decoders, so a field
+cannot be smuggled across versions. The controller is not a browser provider and no wallet secret or
 method enters WebView/WKWebView. These controls are not in the current public
 Play, GitHub, or App Store binaries; the underlying lifecycle tranche passed its
 fresh-install Android exercise at
@@ -110,8 +112,8 @@ fresh-install Android exercise at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394` and a fresh Pixel 9 install, and documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
-`31411048376`; those are historical `0.5.8` results. The pre-ECH code-bearing source
-`893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
+`31411048376`; those are historical `0.5.8` results. Historical pre-ECH HNWR-v1
+code-bearing source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including Android instrumentation and the complete Apple gate.
 Its exact debug APK is artifact `9080493058`, SHA-256
 `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`,
@@ -128,13 +130,14 @@ wallet qualification, and the physical-iPhone matrix remain release gates.
 
 HNWR configuration is loopback-only and accepts a bounded mutable scoped
 authorization value that is consumed and wiped. Output is bounded and its
-closed JSON shape, canonical values, unique identities, coherent heights, and
-envelope length are validated before UI publication. The product currently
+version-specific closed JSON shape, canonical values, exact equal nonzero
+account identities, distinct target purposes, unique transaction/name
+identities, coherent heights, and envelope length are validated before UI
+publication. The product currently
 creates no such configuration, so the visible read fields remain fail-closed
 and unavailable. The browser proxy credential is not reused as wallet authority.
-The available live pruned `hsrd` is unsuitable because it lacks wallet indexing
-and scoped authentication. A pruned indexed node can still return indexed
-confirmation/history, and an existing wallet may reuse its authenticated
+The app provisions no scoped indexed backend. A pruned indexed/authenticated
+node can return indexed confirmation/history, and an existing wallet may reuse its authenticated
 retained raw bytes. Fresh restore additionally needs archive-capable raw
 transaction bytes or another durable wallet-relevant raw-transaction source
 behind the dedicated scoped loopback gateway. Name import is absent. Provider,
@@ -196,8 +199,9 @@ synchronization runs off the main actor and stale completion is suppressed.
 Lifecycle callbacks also detach controller and lease authority immediately,
 then serialize native lock/destruction and any incomplete-wallet deletion on a
 background queue. The exact lease remains held until that work finishes, and
-foreground reentry cannot reacquire it early. Exact candidate Apple app/simulator
-CI passed in `31433931682`; XCTest covers retirement queue/lease behavior and
+foreground reentry cannot reacquire it early. Historical HNWR-v1 source passed
+its exact Apple app/simulator CI in `31433931682`; that run does not qualify
+HNWR-v2. XCTest covers retirement queue/lease behavior and
 stale-completion publication-authority predicates, not an end-to-end
 credentialed native read in flight. Enabling read configuration still requires
 the missing scoped credential/backend/data boundary, and physical-iPhone

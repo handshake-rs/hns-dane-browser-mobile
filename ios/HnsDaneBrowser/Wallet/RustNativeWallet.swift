@@ -162,7 +162,7 @@ final class NativeHnsReadConfiguration: @unchecked Sendable, CustomStringConvert
     }
 }
 
-struct NativeHnsReadSnapshot: Decodable, Equatable, Sendable {
+struct NativeHnsReadSnapshot: Equatable, Sendable {
     struct Amount: Decodable, Equatable, Sendable {
         let asset: String
         let baseUnits: String
@@ -236,6 +236,39 @@ struct NativeHnsReadSnapshot: Decodable, Equatable, Sendable {
                   display.utf8.count <= 512,
                   display.utf8.allSatisfy({ (0x21...0x7e).contains($0) }) else {
                 throw NativeWalletBridgeError.invalidOutput("invalid HNS receive target")
+            }
+        }
+    }
+
+    /// A Handshake name-owner target is deliberately not interchangeable with
+    /// an ordinary HNS payment target, even though both use the same bounded
+    /// wire primitives.
+    struct NameReceiveTarget: Decodable, Equatable, Sendable {
+        let module: String
+        let account: [UInt8]
+        let display: String
+        let derivationIndex: UInt32
+
+        private enum CodingKeys: String, CodingKey, CaseIterable {
+            case module, account, display
+            case derivationIndex = "derivation_index"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+            module = try container.decode(String.self, forKey: .module)
+            account = try container.decode([UInt8].self, forKey: .account)
+            display = try container.decode(String.self, forKey: .display)
+            derivationIndex = try container.decode(UInt32.self, forKey: .derivationIndex)
+            guard module == "handshake",
+                  account.count == 16,
+                  account.contains(where: { $0 != 0 }),
+                  !display.isEmpty,
+                  display.utf8.count <= 512,
+                  display.utf8.allSatisfy({ (0x21...0x7e).contains($0) }) else {
+                throw NativeWalletBridgeError.invalidOutput(
+                    "invalid HNS name receive target"
+                )
             }
         }
     }
@@ -358,27 +391,93 @@ struct NativeHnsReadSnapshot: Decodable, Equatable, Sendable {
 
     let balance: Amount
     let receiveTarget: ReceiveTarget
+    let nameReceiveTarget: NameReceiveTarget?
     let transactionHistory: [Transaction]
     let knownNames: [KnownName]
     let moduleStatus: ModuleStatus
 
-    private enum CodingKeys: String, CodingKey, CaseIterable {
-        case balance, receiveTarget, transactionHistory, knownNames, moduleStatus
+    private struct VersionOnePayload: Decodable {
+        let balance: Amount
+        let receiveTarget: ReceiveTarget
+        let transactionHistory: [Transaction]
+        let knownNames: [KnownName]
+        let moduleStatus: ModuleStatus
+
+        private enum CodingKeys: String, CodingKey, CaseIterable {
+            case balance, receiveTarget, transactionHistory, knownNames, moduleStatus
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+            balance = try container.decode(Amount.self, forKey: .balance)
+            receiveTarget = try container.decode(ReceiveTarget.self, forKey: .receiveTarget)
+            transactionHistory = try container.decode(
+                [Transaction].self,
+                forKey: .transactionHistory
+            )
+            knownNames = try container.decode([KnownName].self, forKey: .knownNames)
+            moduleStatus = try container.decode(ModuleStatus.self, forKey: .moduleStatus)
+        }
     }
 
-    init(from decoder: Decoder) throws {
-        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
-        balance = try container.decode(Amount.self, forKey: .balance)
-        receiveTarget = try container.decode(ReceiveTarget.self, forKey: .receiveTarget)
-        transactionHistory = try container.decode([Transaction].self, forKey: .transactionHistory)
-        knownNames = try container.decode([KnownName].self, forKey: .knownNames)
-        moduleStatus = try container.decode(ModuleStatus.self, forKey: .moduleStatus)
+    private struct VersionTwoPayload: Decodable {
+        let balance: Amount
+        let receiveTarget: ReceiveTarget
+        let nameReceiveTarget: NameReceiveTarget
+        let transactionHistory: [Transaction]
+        let knownNames: [KnownName]
+        let moduleStatus: ModuleStatus
+
+        private enum CodingKeys: String, CodingKey, CaseIterable {
+            case balance, receiveTarget, nameReceiveTarget, transactionHistory, knownNames
+            case moduleStatus
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+            balance = try container.decode(Amount.self, forKey: .balance)
+            receiveTarget = try container.decode(ReceiveTarget.self, forKey: .receiveTarget)
+            nameReceiveTarget = try container.decode(
+                NameReceiveTarget.self,
+                forKey: .nameReceiveTarget
+            )
+            transactionHistory = try container.decode(
+                [Transaction].self,
+                forKey: .transactionHistory
+            )
+            knownNames = try container.decode([KnownName].self, forKey: .knownNames)
+            moduleStatus = try container.decode(ModuleStatus.self, forKey: .moduleStatus)
+        }
+    }
+
+    private init(
+        balance: Amount,
+        receiveTarget: ReceiveTarget,
+        nameReceiveTarget: NameReceiveTarget?,
+        transactionHistory: [Transaction],
+        knownNames: [KnownName],
+        moduleStatus: ModuleStatus
+    ) throws {
+        self.balance = balance
+        self.receiveTarget = receiveTarget
+        self.nameReceiveTarget = nameReceiveTarget
+        self.transactionHistory = transactionHistory
+        self.knownNames = knownNames
+        self.moduleStatus = moduleStatus
         guard transactionHistory.count <= 10_000,
               knownNames.count <= 10_000,
               Set(transactionHistory.map(\.txid)).count == transactionHistory.count,
               Set(knownNames.map(\.name)).count == knownNames.count,
               Set(knownNames.map(\.nameHash)).count == knownNames.count else {
             throw NativeWalletBridgeError.invalidOutput("HNS read snapshot exceeds native bounds")
+        }
+        if let nameReceiveTarget {
+            guard receiveTarget.account == nameReceiveTarget.account,
+                  receiveTarget.display != nameReceiveTarget.display else {
+                throw NativeWalletBridgeError.invalidOutput(
+                    "HNS payment and name receive targets are not distinct"
+                )
+            }
         }
     }
 
@@ -387,7 +486,6 @@ struct NativeHnsReadSnapshot: Decodable, Equatable, Sendable {
         guard bundle.count > headerLength,
               bundle.count <= 4 * 1_024 * 1_024,
               Array(bundle[0..<4]) == Array("HNWR".utf8),
-              bundle[4] == 1,
               bundle[5] == 1,
               bundle[6] == 0,
               bundle[7] == 0 else {
@@ -400,10 +498,34 @@ struct NativeHnsReadSnapshot: Decodable, Equatable, Sendable {
               Int(payloadLength) == bundle.count - headerLength else {
             throw NativeWalletBridgeError.invalidOutput("invalid HNS read bundle length")
         }
-        return try JSONDecoder().decode(
-            NativeHnsReadSnapshot.self,
-            from: Data(bundle[headerLength...])
-        )
+        let payload = Data(bundle[headerLength...])
+        let decoder = JSONDecoder()
+        switch bundle[4] {
+        case 1:
+            let decoded = try decoder.decode(VersionOnePayload.self, from: payload)
+            return try NativeHnsReadSnapshot(
+                balance: decoded.balance,
+                receiveTarget: decoded.receiveTarget,
+                nameReceiveTarget: nil,
+                transactionHistory: decoded.transactionHistory,
+                knownNames: decoded.knownNames,
+                moduleStatus: decoded.moduleStatus
+            )
+        case 2:
+            let decoded = try decoder.decode(VersionTwoPayload.self, from: payload)
+            return try NativeHnsReadSnapshot(
+                balance: decoded.balance,
+                receiveTarget: decoded.receiveTarget,
+                nameReceiveTarget: decoded.nameReceiveTarget,
+                transactionHistory: decoded.transactionHistory,
+                knownNames: decoded.knownNames,
+                moduleStatus: decoded.moduleStatus
+            )
+        default:
+            throw NativeWalletBridgeError.invalidOutput(
+                "unsupported HNS read bundle version"
+            )
+        }
     }
 }
 
