@@ -24,8 +24,9 @@ struct BrowserAddressPresentation {
         }
     }
 
-    private struct ExplicitPort {
-        let value: Int?
+    private struct ParsedAuthority {
+        let host: String
+        let explicitPort: Int?
     }
 
     static func editingText(for canonicalAddress: String?) -> String {
@@ -88,20 +89,21 @@ struct BrowserAddressPresentation {
         let authority = remainder[..<authorityEnd]
         guard !authority.isEmpty,
               !authority.contains("@"),
-              let explicitPort = parseExplicitPort(from: authority),
+              let parsedAuthority = parseAuthority(authority),
               let components = URLComponents(string: value),
               components.user == nil,
               components.password == nil,
               let componentScheme = components.scheme?.lowercased(),
               componentScheme == scheme,
-              let extractedHost = components.host else {
+              let componentHost = components.host,
+              !componentHost.isEmpty else {
             return nil
         }
 
         let componentPort = components.port
-        guard componentPort == explicitPort.value else { return nil }
+        guard componentPort == parsedAuthority.explicitPort else { return nil }
 
-        var host = extractedHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        var host = parsedAuthority.host.trimmingCharacters(in: .whitespacesAndNewlines)
         if host.hasPrefix("[") && host.hasSuffix("]") {
             host.removeFirst()
             host.removeLast()
@@ -115,22 +117,25 @@ struct BrowserAddressPresentation {
         return WebAddress(
             scheme: scheme,
             host: host,
-            explicitPort: explicitPort.value,
+            explicitPort: parsedAuthority.explicitPort,
             percentEncodedPath: components.percentEncodedPath,
             percentEncodedQuery: components.percentEncodedQuery,
             percentEncodedFragment: components.percentEncodedFragment
         )
     }
 
-    /// The wrapper distinguishes an absent port from malformed syntax before
-    /// Foundation is asked to expose `URLComponents.port`.
-    private static func parseExplicitPort(from authority: Substring) -> ExplicitPort? {
+    /// Keeps the displayed host independent of Foundation's IDNA-decoded
+    /// `URLComponents.host`, while distinguishing an absent port from malformed
+    /// syntax before Foundation is asked to expose `URLComponents.port`.
+    private static func parseAuthority(_ authority: Substring) -> ParsedAuthority? {
+        let host: Substring
         let portText: Substring?
         if authority.hasPrefix("[") {
             guard let closingBracket = authority.firstIndex(of: "]"),
                   closingBracket != authority.index(after: authority.startIndex) else {
                 return nil
             }
+            host = authority[...closingBracket]
             let suffix = authority[authority.index(after: closingBracket)...]
             if suffix.isEmpty {
                 portText = nil
@@ -143,21 +148,28 @@ struct BrowserAddressPresentation {
             let separators = authority.indices.filter { authority[$0] == ":" }
             guard separators.count <= 1 else { return nil }
             if let separator = separators.first {
-                guard separator != authority.startIndex else { return nil }
+                host = authority[..<separator]
                 portText = authority[authority.index(after: separator)...]
             } else {
+                host = authority
                 portText = nil
             }
         }
 
-        guard let portText else { return ExplicitPort(value: nil) }
-        guard !portText.isEmpty,
-              portText.allSatisfy({ $0.isNumber }),
-              let port = Int(portText),
-              (1...65_535).contains(port) else {
-            return nil
+        guard !host.isEmpty else { return nil }
+        let explicitPort: Int?
+        if let portText {
+            guard !portText.isEmpty,
+                  portText.allSatisfy({ $0.isNumber }),
+                  let port = Int(portText),
+                  (1...65_535).contains(port) else {
+                return nil
+            }
+            explicitPort = port
+        } else {
+            explicitPort = nil
         }
-        return ExplicitPort(value: port)
+        return ParsedAuthority(host: String(host), explicitPort: explicitPort)
     }
 }
 

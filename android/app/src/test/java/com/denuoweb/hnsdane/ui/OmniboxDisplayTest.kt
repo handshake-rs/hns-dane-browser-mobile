@@ -29,8 +29,8 @@ class OmniboxDisplayTest {
     @Test
     fun keepsPunycodeHostsAndEncodedRoutesIntact() {
         assertEquals(
-            "app.xn--pokmon--dva/p/%F0%9F%8E%AE",
-            OmniboxDisplay.displayText("https://app.xn--pokmon--dva/p/%F0%9F%8E%AE"),
+            "app.xn--pokmon-dva/p/%F0%9F%8E%AE",
+            OmniboxDisplay.displayText("https://app.xn--pokmon-dva/p/%F0%9F%8E%AE"),
         )
     }
 

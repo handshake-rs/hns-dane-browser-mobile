@@ -117,9 +117,9 @@ final class BrowserAddressPresentationTests: XCTestCase {
         )
         XCTAssertEqual(
             BrowserAddressPresentation.displayText(
-                for: "https://app.xn--pokmon--dva/p/%F0%9F%8E%AE"
+                for: "https://app.xn--pokmon-dva/p/%F0%9F%8E%AE"
             ),
-            "app.xn--pokmon--dva/p/%F0%9F%8E%AE"
+            "app.xn--pokmon-dva/p/%F0%9F%8E%AE"
         )
     }
 
