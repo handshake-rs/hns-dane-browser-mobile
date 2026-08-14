@@ -27,8 +27,10 @@ boundary.
   `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
 - [x] Pin wallet `0.1.0` source `49afe81` and `hns-rs 0.3.0` source
   `88ed7c6`; regenerate the lockfile, source policy, and notices.
-- [ ] Pass fresh HNWR-v2 exact-source Android and complete Apple gates; prior
-  HNWR-v1 evidence does not qualify this decoder or UI change.
+- [x] Pass HNWR-v2 exact-source Android and complete Apple gates. Code-bearing
+  source `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
+  `31807520618`, including Required CI; CodeQL runs `31807519998` and
+  `31807520229` also passed.
 - [x] Retain historical `0.5.8` Required CI for source `f21bee1` in run
   `31402758394`; docs commit `ce9c09a` passed the full manual matrix in run
   `31411048376`. These do not qualify this candidate.
@@ -52,10 +54,15 @@ boundary.
   launch succeeded, and the native wallet activity showed the no-wallet and
   fail-closed UI. No wallet was created/restored and no credentialed read or
   value action ran. The separate physical-iPhone matrix remains open.
-- [ ] Pass Required CI and the complete Apple gate at the exact final `0.5.10`
-  source SHA.
-- [ ] Inspect the exact `0.5.10-debug` / code `51` artifact and record its size,
-  SHA-256, package, SDK levels, ABIs, and signer.
+- [x] Pass Required CI and the complete Apple gate at exact HNWR-v2
+  code-bearing source `986accb7d86d220af63187031e629a9ce69d71e5`.
+- [x] Retain exact-source debug artifact `9222123624`; its artifact-archive
+  SHA-256 is
+  `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
+  expires 2026-08-17. This is debug-only archive provenance, not an APK digest
+  or store-signing result.
+- [ ] Inspect the extracted exact `0.5.10-debug` / code `51` APK and record its
+  size, SHA-256, package, SDK levels, ABIs, and signer.
 - [ ] Complete code `51` installed-device qualification before claiming unified
   installed-product qualification.
 - [x] Require the protected upload workflow to capture and fully verify fresh

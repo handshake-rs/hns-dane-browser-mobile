@@ -161,7 +161,9 @@
   value action ran.
 - Prepared the `0.5.10` platform release identity: Android code `51` and iOS
   build `60` retain embedded Rust `0.5.9` and exact engine `0.2.1` source
-  `65c397e8347f37085ea67d2c9c745ce896328e64`. Exact release-source CI, signed
+  `65c397e8347f37085ea67d2c9c745ce896328e64`. Exact HNWR-v2 code-bearing source
+  `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI `31807520618`,
+  both CodeQL runs, and the Rust, Android, and complete Apple gates. Signed
   artifacts, installed-product evidence, screenshots, and store readback remain
   pending.
 - Updated release dependency sequence: mobile pins wallet `0.1.0` source
@@ -171,8 +173,9 @@
 - Mobile engine source unification remains complete: every adapter and
   canonical contract resolves as `0.2.1` from pinned source
   `65c397e8347f37085ea67d2c9c745ce896328e64`; the temporary crates.io patch
-  bridge is removed, and the ECH-and-sync-telemetry pin requires fresh platform
-  qualification. The standalone HNSA/HNSR-capable facade remains excluded
+  bridge is removed, and the ECH-and-sync-telemetry pin passed exact-source
+  platform qualification in run `31807520618`. The standalone
+  HNSA/HNSR-capable facade remains excluded
   until upstream provides a mobile-safe dependency boundary that does not pull
   its OpenSSL-backed public DANE/DNSSEC stack into Android and Apple closures.
 - Pending release qualification: scoped credential/indexed backend/data

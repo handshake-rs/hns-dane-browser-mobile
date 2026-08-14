@@ -26,12 +26,19 @@ package `com.denuoweb.hnsdane.debug`, version `0.5.9-debug` / code `50`,
 an iOS nor store-signed artifact. The exact APK installed and cold-launched on
 a Pixel 9 and displayed the expected no-wallet/fail-closed native wallet UI.
 No wallet was created/restored and no credentialed read or value action ran;
-this Android UI result is not iOS evidence. Fresh
+this Android UI result is not iOS evidence. Current HNWR-v2 code-bearing source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
+`31807520618`, including the complete Apple ABI/XCFramework/app/simulator gate
+and Required CI; CodeQL runs `31807519998` and `31807520229` also passed. Debug
+artifact `9222123624` is source-bound but debug-only and not store signed; its
+artifact-archive SHA-256 is
+`0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
+expires 2026-08-17. Fresh
 exact-release-checkout screenshots, signing, processing, metadata readback,
 intentional submission, and the physical-iPhone matrix remain open. Nothing in
 this package proves that build `60` has been uploaded or published. Build `59`
-was superseded without upload; build `60` requires fresh exact-source Apple CI,
-screenshots, signing, upload, processing, and API readback.
+was superseded without upload; build `60` still requires screenshots, signing,
+upload, processing, and API readback.
 
 The current public Apple baseline remains `0.5.5` / build `57`, published on
 2026-07-31 from `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Its retained

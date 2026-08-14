@@ -34,9 +34,15 @@ installed digest matched, cold launch succeeded, and the native wallet screen
 displayed the no-wallet controls and fail-closed HNWR rows with disabled
 value/marketplace copy. No wallet was created/restored and no secret, account,
 credentialed sync, or value action ran. This is historical code `50` evidence,
-not qualification for the current candidate. Exact code `51` CI, artifact and
-signer inspection, installed-device qualification, refreshed screenshots, live
-Play Console declaration reconciliation, and intentional upload remain open.
+not qualification for the current candidate. Exact HNWR-v2 code-bearing source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
+`31807520618`, including Android API 37 native instrumentation and the complete
+Apple gate; CodeQL runs `31807519998` and `31807520229` also passed. Debug
+artifact `9222123624` has artifact-archive SHA-256
+`0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
+2026-08-17, and is not Play/store signed. APK-level artifact and signer
+inspection, installed-device qualification, refreshed screenshots, live Play
+Console declaration reconciliation, and intentional upload remain open.
 No code `51` AAB has been built, uploaded, or submitted.
 
 The listing deliberately describes the limited native controller and its visible

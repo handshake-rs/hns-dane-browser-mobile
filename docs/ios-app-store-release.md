@@ -29,7 +29,10 @@ descendant `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
 `31411048376`; those runs remain historical. Code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including the complete Apple ABI/XCFramework/app/simulator gate
-and aggregate Required CI. Build `57` does not contain the controller. The
+and aggregate Required CI. Current HNWR-v2 code-bearing source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed that complete Apple gate and
+aggregate Required CI in full run `31807520618`; CodeQL runs `31807519998` and
+`31807520229` also passed. Build `57` does not contain the controller. The
 current candidate pins wallet `49afe81`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
 back for the historical lifecycle boundary. Version-neutral HNWR-aware source
@@ -228,10 +231,10 @@ Public GitHub Release `v0.5.5` publishes that exact IPA as asset `494101433`
 beside the verified code 46 APK.
 
 Build `60` is the configured candidate. Historical HNWR application-source CI,
-CodeQL, lockfile/notices, and the complete Apple app/simulator gate are
-satisfied at exact source `893ba8271787f1ab7247fa78ed8787462b5542fc`; the
-current release commit still requires its own gates. Build `60` must not be
-uploaded until a fresh
+CodeQL, lockfile/notices, and the complete Apple app/simulator gate remain
+retained evidence. The current HNWR-v2 code-bearing source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed its own complete platform
+matrix in run `31807520618`. Build `60` must not be uploaded until a fresh
 screenshot manifest names the exact release checkout selected for signing and
 carries provenance schema 3 with `settings.wallet.native-controls` visible;
 the protected workflow must then rerun its complete exact-checkout gate before

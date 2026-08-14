@@ -43,6 +43,20 @@ All notable changes to this project will be documented in this file.
   as present only when the canonical header at the snapshot height matches the
   snapshot tip hash, failing closed on a missing or divergent chain anchor.
 
+### Qualification
+
+- Exact HNWR-v2 code-bearing source
+  `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
+  `31807520618`, including repository policy, Rust/supply-chain, Android
+  build/unit, API 37 native instrumentation, the complete Apple
+  ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs
+  `31807519998` and `31807520229` also passed. Debug artifact `9222123624` has
+  artifact-archive SHA-256
+  `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and
+  expires 2026-08-17; it is debug-only, not store signed. Signed artifacts,
+  screenshots, store declaration/upload, credentialed wallet workflows, and
+  physical-device qualification remain open.
+
 ## 0.5.10 - 2026-08-11
 
 ### Added

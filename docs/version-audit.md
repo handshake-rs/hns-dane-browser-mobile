@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-08-13.
+Audit date: 2026-08-14.
 
 This table records the versions configured for the `0.5.10` release candidate.
 It is not evidence that signed artifacts were built or published. Android
@@ -17,7 +17,7 @@ into the app.
 | Wallet protocol closure | `hns-rs 0.3.0` at `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
-| Mobile engine adapters and canonical contracts | Git `0.2.1` at `65c397e8347f37085ea67d2c9c745ce896328e64` (fresh platform qualification pending) | Cargo manifests and all three locks |
+| Mobile engine adapters and canonical contracts | Git `0.2.1` at `65c397e8347f37085ea67d2c9c745ce896328e64` (exact-source platform qualification passed) | Cargo manifests and all three locks; full CI `31807520618` |
 | Standalone engine facade | Not in the mobile graph; upstream mobile-safe dependency boundary required | Cargo manifests and target-filtered metadata |
 | Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
 | Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |
@@ -39,15 +39,25 @@ into the app.
 
 Notes:
 
+- Current HNWR-v2 code-bearing source
+  `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI run
+  `31807520618`, including repository policy, Rust/supply-chain, Android
+  build/unit, API 37 native-runtime instrumentation, the complete Apple
+  ABI/XCFramework/app/simulator gate, and aggregate Required CI. CodeQL runs
+  `31807519998` and `31807520229` also passed.
+- Debug artifact `9222123624` is bound to that source. Its artifact-archive
+  SHA-256 is
+  `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
+  expires 2026-08-17. It is debug-only, not a store/upload-signed artifact.
 - Prior HNWR code-bearing source
   `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
   `31433931682`, including repository policy, Rust/supply-chain, Android
   build/unit, API 37 native-runtime instrumentation, the complete Apple
   ABI/XCFramework/app/simulator gate, and aggregate Required CI. CodeQL run
   `31433931259` and Code Quality run `31433931278` also passed.
-- Documentation-only reconciliation successors record but do not inherit or
-  relabel that exact code-bearing evidence. The current release commit requires
-  fresh exact-source qualification.
+- Documentation-only reconciliation successors record but do not relabel the
+  exact code-bearing evidence above. Any later code-bearing release change
+  requires its own qualification.
 - CI artifact `9080493058` is the exact debug APK for that commit. The extracted
   APK is 65,680,703 bytes with SHA-256
   `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`.
@@ -108,9 +118,9 @@ Notes:
 - `hns-wallet-mobile` is pinned to wallet `0.1.0` source
   `49afe81abce3d3f1a9309e26962731e181e43051`. Its lock closure uses
   `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
-  The dependency sequence is complete and fresh candidate CI remains required. Signed store artifacts,
-  exact screenshots, store declaration/readback, and intentional upload remain
-  separate gates.
+  The dependency sequence is complete and exact-source candidate CI passed in
+  run `31807520618`. Signed store artifacts, exact screenshots, store
+  declaration/readback, and intentional upload remain separate gates.
 - Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on
   2026-08-09 still reports `0.5.5` as current; older review-state notes in
   this repository describe the submission chronology, not the current status.

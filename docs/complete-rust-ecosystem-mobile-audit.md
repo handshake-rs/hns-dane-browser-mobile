@@ -1,6 +1,6 @@
 # Complete Rust Handshake Ecosystem: Mobile Delta Audit
 
-Last audited: 2026-08-13
+Last audited: 2026-08-14
 
 This audit maps this checkout only to `Complete Rust Handshake Ecosystem.pdf`
 (57 pages, SHA-256
@@ -34,6 +34,15 @@ source
 `31402758394` and a fresh Pixel 9 install. Documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed full manual CI run
 `31411048376`; those runs remain historical installed-device evidence only.
+Current HNWR-v2 code-bearing source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
+`31807520618`, including repository policy, Rust/supply-chain, Android
+build/unit, API 37 native instrumentation, the complete Apple
+ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs `31807519998`
+and `31807520229` also passed. Debug artifact `9222123624` has
+artifact-archive SHA-256
+`0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
+2026-08-17, and is debug-only rather than store signed.
 Scoped credential/indexed backend/data provisioning, signed store artifacts,
 fresh screenshots, store declaration/readback and upload, and the physical-iPhone
 matrix remain open. This checkpoint is not evidence that a public store build
@@ -53,11 +62,11 @@ ships wallet controls.
 | Explicit migration without turning old HNSDoH consent into new consent | Implemented | Android and iOS permanently tombstone the historical resolver key and never copy it into the distinct recursive-recovery key. Former resolver compatibility consent never enables relay consumption or recursive recovery; both controls start independently off until an explicit choice. |
 | P2P ODoH: Preferred/Required/Direct Allowed/Off | Not implemented in this checkout | No HIP #77 requester, HPKE/ODoH runtime, status model, or native control exists here. Do not represent the current direct relay as ODoH or query-confidential. |
 | HNSR: Off/Client/Endpoint | Not implemented; upstream mobile-safe facade required | Qualified upstream engine source contains reviewed HNSA admission and HNSR requester APIs, but the umbrella facade is not a mobile dependency because it currently pulls public OpenSSL-backed DANE/DNSSEC crates into Android and Apple closures. Android and iOS now share only a dormant one-shot wallet consumer for opaque broker-issued `hns.named-service/v1` authority; it has no shipping source, parser, endpoint/profile validation, requester, transport, UI, or product permission. A mobile-safe upstream dependency boundary, proof authority, rollback-resistant persistence, authenticated transport, lifecycle, network-change, renewal, withdrawal, and stale-generation work remain required. Endpoint, opaque-relay, rendezvous, provider, and plaintext roles remain unavailable. |
-| Native wallet lifecycle and reads | Historical HNWR-v1 projection qualified; HNWR-v2, product backend, and release gates pending | Android JNI and the Apple C ABI link `hns-wallet-mobile` from wallet `0.1.0` source `49afe81abce3d3f1a9309e26962731e181e43051`, with `hns-rs 0.3.0` closure `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`, to native lifecycle controls, one HNS account identity, and strict HNWR-v2 UI for synchronized balance, distinct payment/name-transfer targets, history, tracked names, and module status. Legacy HNWR-v1 and v2 use separate exact decoder shapes. The historical code `50` debug artifact installed and cold-launched on a Pixel 9 and exposed no-wallet/fail-closed HNWR-v1 rows; it does not qualify v2. No wallet was created or restored. The product provisions no scoped loopback credential/indexed backend, so reads remain fail-closed. A pruned indexed/authenticated node can support current-wallet indexed evidence, while fresh restore needs a durable archive-capable raw-tx source. Name import is absent. Provider, send/value, settlement, exchange, HNSA/HNSR, Shakedex/Denuo, and P2P-market gates remain false. Fresh Android/Apple CI, signed artifacts, current screenshots, store declaration/upload, credentialed Android read/create qualification, and the physical-iPhone matrix remain open. |
-| Consume the standalone `hns-dane-engine` | Adapter/contracts unified; dormant platform consumer added; facade deferred | Every direct mobile engine adapter and all five canonical contracts resolve from exact `0.2.1` source `65c397e8347f37085ea67d2c9c745ce896328e64`; the temporary crates.io patch bridge is removed, so current Cargo type identity is supplied by one source graph. The umbrella facade, `hns-light-chain`, and `hns-p2p-transport` are not in the mobile graph because the facade currently brings public OpenSSL-backed DANE/DNSSEC crates into shipping target closures. The platform-only HRM/HNSA seam defensively checks and one-shot consumes an opaque exact-current broker result but cannot populate or verify one. Upstream must provide a mobile-safe HRM/HNSA/HNSR API boundary before activation. The stable mobile DNS-relay boolean still maps only to the separate shared HIP-76 requester policy (`false` → `Disabled`, `true` → `Auto`), while the normalized recovery URL maps to generation-bound `user_configured_recursive_hns_doh`. Live resolution remains direct authority UDP/TCP → owner-published authenticated authoritative DoH → independently admitted DNS relay → configured recursive recovery; unsupported ODoH, HNSA/HNSR runtime, provider, and legacy roles remain disabled. The prior engine source passed Rust/supply-chain, Android, and Apple gates in `31433931682`; the ECH-and-sync-telemetry pin requires fresh evidence. |
+| Native wallet lifecycle and reads | HNWR-v2 source/platform qualified; product backend and release gates pending | Android JNI and the Apple C ABI link `hns-wallet-mobile` from wallet `0.1.0` source `49afe81abce3d3f1a9309e26962731e181e43051`, with `hns-rs 0.3.0` closure `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`, to native lifecycle controls, one HNS account identity, and strict HNWR-v2 UI for synchronized balance, distinct payment/name-transfer targets, history, tracked names, and module status. Legacy HNWR-v1 and v2 use separate exact decoder shapes. Exact HNWR-v2 source passed full platform CI `31807520618`; no wallet was created or restored. The product provisions no scoped loopback credential/indexed backend, so reads remain fail-closed. A pruned indexed/authenticated node can support current-wallet indexed evidence, while fresh restore needs a durable archive-capable raw-tx source. Name import is absent. Provider, send/value, settlement, exchange, HNSA/HNSR, Shakedex/Denuo, and P2P-market gates remain false. Signed artifacts, current screenshots, store declaration/upload, credentialed Android read/create qualification, and the physical-iPhone matrix remain open. |
+| Consume the standalone `hns-dane-engine` | Adapter/contracts unified; dormant platform consumer added; facade deferred | Every direct mobile engine adapter and all five canonical contracts resolve from exact `0.2.1` source `65c397e8347f37085ea67d2c9c745ce896328e64`; the temporary crates.io patch bridge is removed, so current Cargo type identity is supplied by one source graph. The umbrella facade, `hns-light-chain`, and `hns-p2p-transport` are not in the mobile graph because the facade currently brings public OpenSSL-backed DANE/DNSSEC crates into shipping target closures. The platform-only HRM/HNSA seam defensively checks and one-shot consumes an opaque exact-current broker result but cannot populate or verify one. Upstream must provide a mobile-safe HRM/HNSA/HNSR API boundary before activation. The stable mobile DNS-relay boolean still maps only to the separate shared HIP-76 requester policy (`false` → `Disabled`, `true` → `Auto`), while the normalized recovery URL maps to generation-bound `user_configured_recursive_hns_doh`. Live resolution remains direct authority UDP/TCP → owner-published authenticated authoritative DoH → independently admitted DNS relay → configured recursive recovery; unsupported ODoH, HNSA/HNSR runtime, provider, and legacy roles remain disabled. Current engine/HNWR-v2 source passed Rust/supply-chain, Android, and Apple gates in `31807520618`. |
 | Browser authority state machine and exact-stamped results | Implemented at the shared Rust boundary | One checked random session supplies the unchanged proxy token and canonical runtime identity. Mobile policy revisions map exactly to canonical generations without no-op churn. A current non-genesis header on every network, proof/transport readiness, listener publication, exact-generation replacement/revocation, one whole-request stamp minted before DNS/classification, sticky binding plus exact-result response-head publication, staged-file commit, and tunnel I/O revocation all use the canonical state machine. Android JNI suppresses post-admission errors instead of generating unstamped output. Typed success and root-failure schema-v2 status uses the same entry stamp and request-local exact plan; bogus DNSSEC remains distinct from absence and untyped WebPKI/transport failures remain unavailable. The stable JNI and Apple C ABI layouts intentionally remain unchanged. |
 | Relay/ODoH observability | Partial | Existing relay traces distinguish the relay from authoritative transports and report local DNSSEC/TLSA/DANE decisions. The schema-v2 adapter refuses to invent a relay registry fingerprint or protocol version when the legacy client did not retain negotiated identity, and reports explicit unavailability instead. ODoH privacy policy, proxy/target separation, and HIP #77 runtime evidence remain unavailable because ODoH is not implemented. |
-| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Targeted exact-signed code 47 checks passed on a Pixel 9 for upgrade with preserved data, cold launch, manual sync, HNS browsing, and corrected HNS/ICANN Proof Details presentation. The wallet lifecycle tranche then passed fresh reinstall, create/confirm, unlock/lock, process reopen, private file-mode, and mainnet/testnet isolation checks; its dated Apple evidence remains Required CI `31393998309`. Historical `0.5.8` source `f21bee1` and docs parent `ce9c09a` passed their recorded CI. The `0.5.9` HNWR tranche and iOS retirement queue/lease plus stale-completion predicate tests passed exact CI `31433931682`. The exact code `50` debug APK then installed and cold-launched on a Pixel 9, and its fail-closed wallet UI projection was inspected without creating/restoring a wallet or running a credentialed read. The broader mobile-network, requester/recovery, Service Worker, download, WebSocket, cross-origin, Android restore/background, credentialed wallet, and real-iPhone matrix remains open. The iOS physical-device matrix is not an App Store submission prerequisite but remains an installed-device ecosystem limitation. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
+| Foreground/background and browser restart qualification | Partial | Existing lifecycle and proxy-revocation tests remain. Targeted exact-signed code 47 checks passed on a Pixel 9 for upgrade with preserved data, cold launch, manual sync, HNS browsing, and corrected HNS/ICANN Proof Details presentation. The wallet lifecycle tranche then passed fresh reinstall, create/confirm, unlock/lock, process reopen, private file-mode, and mainnet/testnet isolation checks; its dated Apple evidence remains Required CI `31393998309`. Historical `0.5.8` source `f21bee1` and docs parent `ce9c09a` passed their recorded CI. The `0.5.9` HNWR tranche and iOS retirement queue/lease plus stale-completion predicate tests passed exact CI `31433931682`; current HNWR-v2 source passed the corresponding platform matrix in `31807520618`. The exact code `50` debug APK then installed and cold-launched on a Pixel 9, and its fail-closed wallet UI projection was inspected without creating/restoring a wallet or running a credentialed read. The broader mobile-network, requester/recovery, Service Worker, download, WebSocket, cross-origin, Android restore/background, credentialed wallet, and real-iPhone matrix remains open. The iOS physical-device matrix is not an App Store submission prerequisite but remains an installed-device ecosystem limitation. The PDF's unimplemented ODoH/HNSR lifecycle cases remain future work. |
 
 ## Security Invariants for the Current Feature Set
 
@@ -157,8 +166,9 @@ The consolidated mobile engine adapters and canonical contracts resolve from
 pinned `hns-dane-engine 0.2.1` source
 `65c397e8347f37085ea67d2c9c745ce896328e64`; the former compatibility patch
 bridge is gone and a standalone checkout no longer depends on the coordination
-workspace layout. This ECH-and-sync-telemetry pin requires fresh exact-source platform
-qualification. The umbrella facade and its HNSA/HNSR protocol types remain an
+workspace layout. This ECH-and-sync-telemetry pin passed exact-source platform
+qualification in run `31807520618`. The umbrella facade and its HNSA/HNSR
+protocol types remain an
 upstream mobile-portability prerequisite and are not in this graph. The
 Kotlin/Swift wallet-consumer seam accepts only opaque broker-issued current
 authority and is not a substitute for those protocol types or their durable
@@ -177,6 +187,19 @@ require the physical-device matrices—portable tests do not prove WebView or
 WebKit network-process behavior.
 
 ## Checkpoint Verification
+
+### Current HNWR-v2 Source Evidence
+
+- Code-bearing commit `986accb7d86d220af63187031e629a9ce69d71e5`
+  passed full CI `31807520618`: repository policy, Rust/supply-chain, Android
+  build/unit, API 37 native-runtime instrumentation, Apple ABI/XCFramework/
+  application/simulator, and Required CI all succeeded. CodeQL runs
+  `31807519998` and `31807520229` also succeeded.
+- Debug artifact `9222123624` is exact-source bound. Its artifact-archive
+  SHA-256 is
+  `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
+  expires 2026-08-17. This is archive provenance for a debug-only artifact, not
+  an APK digest, store signature, upload, or installed-device result.
 
 ### Prior `0.5.9` Source and Debug-Artifact Evidence
 
@@ -226,8 +249,8 @@ Android `0.5.6` / code `47` and shared Rust `0.5.6` shipped from source
 `0.5.5` / build `57`. Current source now consumes the consolidated private
 engine adapters and canonical contracts from one exact pinned engine `0.2.1`
 Git revision `65c397e8347f37085ea67d2c9c745ce896328e64`; the
-ECH-and-sync-telemetry pin requires fresh qualification, and standalone
-facade adoption remains pending.
+ECH-and-sync-telemetry pin passed exact-source qualification in full CI
+`31807520618`, and standalone facade adoption remains pending.
 
 - Rust 1.92 omitted Android from the standard `File::lock`,
   `lock_shared`, `try_lock_shared`, and `unlock` implementation, causing the

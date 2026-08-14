@@ -24,6 +24,15 @@ manual CI run `31411048376`. That evidence predates the HNWR read projection and
 remains historical. Historical HNWR-v1 code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including its HNWR-v1 Android and complete Apple gates.
+Current HNWR-v2 code-bearing source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed full CI
+`31807520618`, including repository policy, Rust/supply-chain, Android
+build/unit, API 37 native instrumentation, the complete Apple
+ABI/XCFramework/app/simulator gate, and Required CI. CodeQL runs `31807519998`
+and `31807520229` also passed. Debug artifact `9222123624` has
+artifact-archive SHA-256
+`0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
+2026-08-17, and is debug-only rather than store signed.
 Exact debug APK artifact `9080493058` has SHA-256
 `7ea4c5b7cb4e2713287bf90794a6bb706311d0bb8fbb7348f94875ce615cc8fb`;
 inspection confirms `com.denuoweb.hnsdane.debug`, `0.5.9-debug` / code `50`,
@@ -141,8 +150,8 @@ lifecycle callbacks immediately detach UI authority and transfer the controller
 with its exact storage lease to one serial retirement queue; that lease is
 released only after native lock/destruction and any incomplete-wallet file
 deletion finish. Foreground reentry waits for that handoff and stale read
-completion cannot publish. Historical HNWR-v1 source passed its exact Apple
-app/simulator CI in `31433931682`; that run does not qualify HNWR-v2. XCTest
+completion cannot publish. Current HNWR-v2 source passed its exact Apple
+app/simulator CI in `31807520618`. XCTest
 covers the retirement queue/lease behavior and
 stale-completion publication-authority predicates, not an end-to-end
 credentialed native read in flight. iOS product wiring still may not supply a
@@ -280,8 +289,9 @@ The historical `0.5.8` application source at
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI run
 `31402758394`; its CodeQL and quality workflows are also green. This evidence
 predates the `0.5.9` synchronized-read tranche. The pre-ECH `0.5.9` source passed
-full CI `31433931682`; the current HNWR-v2/ECH-and-sync-telemetry source requires
-fresh platform qualification. Before release, fresh App Store screenshots must be bound to the
+full CI `31433931682`; current HNWR-v2/ECH-and-sync-telemetry code-bearing
+source passed full platform CI `31807520618` and both CodeQL runs. Before
+release, fresh App Store screenshots must be bound to the
 exact release checkout selected for signing, signed artifacts must pass their
 archive gates, and both stores' privacy/category answers must be reconciled
 with the native local data and visible unavailable read rows. Those release
@@ -307,10 +317,11 @@ The underlying lifecycle tranche has portable Rust, bridge, and platform
 coverage, passed the complete macOS ABI/XCFramework/app/simulator workflow, and
 passed a fresh Android reinstall with create/confirm/unlock/lock/process-reopen
 and mainnet/testnet storage isolation. The exact historical `0.5.8`
-repin/version/metadata commit passed remote CI. The historical HNWR-v1 projection has
+repin/version/metadata commit passed remote CI. The HNWR-v2 projection has
 focused Rust, Kotlin, and Swift coverage and passed exact full CI
-`31433931682`; its exact debug APK then passed the installed shell and
-fail-closed UI projection described above. It still needs backend/data,
+`31807520618`; historical HNWR-v1 exact debug APK evidence still covers only
+the installed shell and fail-closed UI projection described above. The current
+product still needs backend/data,
 credentialed read, and create/restore lifecycle qualification. Signed-product
 gates, current screenshots, store declaration readback/upload, and the
 physical-iPhone matrix remain. Those facts are not evidence that the published

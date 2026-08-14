@@ -72,6 +72,18 @@ native read in flight. Supplying read authority still requires the missing
 credential/backend/data boundary, and the signed physical-iPhone matrix remains
 open.
 
+Exact HNWR-v2 code-bearing source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed full CI run
+`31807520618`: repository policy, Rust/supply-chain, Android build and unit
+tests, API 37 native-runtime instrumentation, the complete Apple
+ABI/XCFramework/app/simulator gate, and aggregate Required CI all succeeded.
+CodeQL runs `31807519998` and `31807520229` also succeeded. Debug artifact
+`9222123624` is bound to that source; its artifact-archive SHA-256 is
+`0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
+expires on 2026-08-17. It is debug-only, not a store-signed artifact, and does
+not close the credentialed wallet, signed product, screenshot, upload, or
+physical-device gates above.
+
 Historical HNWR-v1 code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
 `31433931682`: repository policy, Rust/supply-chain, Android build and unit
@@ -217,8 +229,9 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
 
 Cargo and platform builds fetch the mobile browser adapters and five canonical
 contracts at `0.2.1` only from pinned source
-`65c397e8347f37085ea67d2c9c745ce896328e64`. This ECH-and-sync-telemetry revision requires
-fresh exact-commit platform qualification. The umbrella
+`65c397e8347f37085ea67d2c9c745ce896328e64`. This ECH-and-sync-telemetry
+revision passed exact-source platform qualification in full CI `31807520618`.
+The umbrella
 `hns-dane-engine` facade is intentionally not in the mobile dependency graph:
 that source currently brings its public OpenSSL-backed DANE/DNSSEC stack into
 Android and Apple target closures. A mobile-safe upstream facade split or

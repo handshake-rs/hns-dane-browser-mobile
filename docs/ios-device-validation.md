@@ -82,9 +82,12 @@ and documentation-only commit
 manual run `31411048376`. Those runs predate the HNWR projection. Historical
 code-bearing `0.5.9` source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed the complete Apple
-ABI/XCFramework/app/simulator gate and Required CI in run `31433931682`. This
-qualifies that simulator/build boundary, not the current release candidate or a
-signed physical device. The final `0.5.10` source requires a fresh Apple gate.
+ABI/XCFramework/app/simulator gate and Required CI in run `31433931682`.
+Current HNWR-v2 code-bearing source
+`986accb7d86d220af63187031e629a9ce69d71e5` passed the complete Apple gate and
+Required CI in full run `31807520618`; CodeQL runs `31807519998` and
+`31807520229` also passed. This qualifies the current source simulator/build
+boundary, not a signed physical device.
 The following matrix remains an optional installed-iPhone qualification
 activity for the exact `0.5.10` release checkout:
 
