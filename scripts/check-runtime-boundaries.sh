@@ -141,6 +141,7 @@ android_download="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/net/H
 android_interceptor="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/net/HnsWebViewGatewayInterceptor.kt"
 android_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/MainActivity.kt"
 android_wallet_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/WalletActivity.kt"
+android_wallet_storage="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/WalletStorageOwnership.kt"
 android_wallet_bootstrap="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/WalletReadBootstrap.kt"
 android_hrm_hnsa_consumer="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/HrmHnsaWalletConsumer.kt"
 android_wallet_bridge="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/NativeWalletBridge.kt"
@@ -196,6 +197,12 @@ require_source_absent "$android_wallet_activity" \
 require_source_contains "$android_wallet_bootstrap" \
   'storageLease === other.storageLease' \
   "Android wallet-read credentials must bind the exact storage lease identity."
+require_source_contains "$android_wallet_storage" \
+  'fun isCurrent(): Boolean = issuingGate.isCurrent(owner, this)' \
+  "Android wallet leases must check currentness against their issuing gate."
+require_source_contains "$android_wallet_bootstrap" \
+  'expected.hasCurrentStorageLease()' \
+  "Android wallet-read admission must retain the exact current storage lease."
 require_source_contains "$android_wallet_bridge" \
   'configuration.consumeFor(currentAuthority)' \
   "Android native wallet-read composition must consume an authority-bound one-shot credential."
@@ -214,6 +221,9 @@ require_source_contains "$android_hrm_hnsa_consumer" \
 require_source_contains "$android_hrm_hnsa_consumer" \
   'source.take(expectedSelection, expectedWalletAuthority)' \
   "Android HRM/HNSA acquisition must bind the trusted selection and live wallet authority."
+require_source_contains "$android_hrm_hnsa_consumer" \
+  'expectedWalletAuthority.hasCurrentStorageLease()' \
+  "Android HRM/HNSA admission must retain the exact current wallet storage lease."
 require_source_absent "$android_hrm_hnsa_consumer" \
   'hsa1' \
   "Android HRM/HNSA consumption must not admit legacy hsa1 records."

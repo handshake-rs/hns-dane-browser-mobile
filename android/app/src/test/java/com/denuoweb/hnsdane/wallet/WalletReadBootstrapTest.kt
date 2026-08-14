@@ -83,6 +83,44 @@ class WalletReadBootstrapTest {
     }
 
     @Test
+    fun admissionRequiresCurrentLeaseFromItsIssuingGate() {
+        val currentFixture = leaseFixture(mainnetPath)
+        val currentAuthority = authority(storageLease = currentFixture.lease)
+        assertTrue(currentAuthority.hasCurrentStorageLease())
+        assertTrue(walletReadBootstrapMayInstall(currentAuthority, state(currentAuthority)))
+
+        val releasedFixture = leaseFixture(mainnetPath)
+        val releasedAuthority = authority(storageLease = releasedFixture.lease)
+        assertTrue(releasedFixture.gate.release(releasedFixture.lease))
+        assertFalse(releasedAuthority.hasCurrentStorageLease())
+        assertFalse(walletReadBootstrapMayInstall(releasedAuthority, state(releasedAuthority)))
+
+        val revokedFixture = leaseFixture(mainnetPath)
+        val revokedAuthority = authority(storageLease = revokedFixture.lease)
+        revokedFixture.gate.newOwner(mainnetPath) {}
+        assertFalse(revokedAuthority.hasCurrentStorageLease())
+        assertFalse(walletReadBootstrapMayInstall(revokedAuthority, state(revokedAuthority)))
+
+        val staleFixture = leaseFixture(mainnetPath)
+        val staleAuthority = authority(storageLease = staleFixture.lease)
+        assertTrue(staleFixture.gate.release(staleFixture.lease))
+        val replacementOwner = staleFixture.gate.newOwner(mainnetPath) {}
+        var replacementLease: WalletStorageOwnershipGate.Lease? = null
+        assertTrue(staleFixture.gate.acquire(replacementOwner) { replacementLease = it })
+        val replacementAuthority = authority(
+            storageLease = checkNotNull(replacementLease),
+            authorityGeneration = 2,
+        )
+        assertFalse(staleAuthority.hasCurrentStorageLease())
+        assertFalse(walletReadBootstrapMayInstall(staleAuthority, state(staleAuthority)))
+        assertTrue(replacementAuthority.hasCurrentStorageLease())
+        assertTrue(walletReadBootstrapMayInstall(
+            replacementAuthority,
+            state(replacementAuthority),
+        ))
+    }
+
+    @Test
     fun configurationConsumesCallerAndRetainedAuthorizationExactlyOnce() {
         val authority = authority()
         val caller = "Bearer scoped-read-fixture".toCharArray()
@@ -249,6 +287,37 @@ class WalletReadBootstrapTest {
     }
 
     @Test
+    fun attemptRejectsLeaseRevokedByReentrantSourceAcquisition() {
+        val fixture = leaseFixture(mainnetPath)
+        val authority = authority(storageLease = fixture.lease)
+        val valid = state(authority)
+        lateinit var offered: NativeHnsReadConfiguration
+        var installCalls = 0
+        val revokingSource = WalletReadBootstrapSource { requested ->
+            val caller = "Bearer storage-revoked".toCharArray()
+            checkNotNull(
+                NativeHnsReadConfiguration.takeOwnership(requested, 12_039, caller),
+            ).also {
+                offered = it
+                fixture.gate.newOwner(mainnetPath) {}
+            }
+        }
+
+        assertFalse(attemptWalletReadBootstrap(
+            expectedAuthority = authority,
+            source = revokingSource,
+            currentState = { valid },
+            install = { _, _ ->
+                installCalls += 1
+                true
+            },
+        ))
+        assertFalse(authority.hasCurrentStorageLease())
+        assertEquals(0, installCalls)
+        assertFalse(offered.consumeFor(authority) { _, _ -> true })
+    }
+
+    @Test
     fun attemptConsumesWrongAuthorityAndInstallFailureWithoutReplay() {
         val lease = newLease(mainnetPath)
         val expected = authority(storageLease = lease)
@@ -312,13 +381,16 @@ class WalletReadBootstrapTest {
         ),
     )
 
-    private fun newLease(path: String): WalletStorageOwnershipGate.Lease {
+    private fun leaseFixture(path: String): LeaseFixture {
         val storage = WalletStorageOwnershipGate()
         val owner = storage.newOwner(path) {}
         var lease: WalletStorageOwnershipGate.Lease? = null
         assertTrue(storage.acquire(owner) { lease = it })
-        return checkNotNull(lease)
+        return LeaseFixture(storage, checkNotNull(lease))
     }
+
+    private fun newLease(path: String): WalletStorageOwnershipGate.Lease =
+        leaseFixture(path).lease
 
     private fun laterGenerationLease(path: String): WalletStorageOwnershipGate.Lease {
         val storage = WalletStorageOwnershipGate()
@@ -336,4 +408,9 @@ class WalletReadBootstrapTest {
         const val mainnetPath = "/wallet/wallet-v1-mainnet/wallet.sqlite3"
         const val testnetPath = "/wallet/wallet-v1-testnet/wallet.sqlite3"
     }
+
+    private data class LeaseFixture(
+        val gate: WalletStorageOwnershipGate,
+        val lease: WalletStorageOwnershipGate.Lease,
+    )
 }

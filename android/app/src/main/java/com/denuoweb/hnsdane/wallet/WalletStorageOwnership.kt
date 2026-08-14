@@ -77,7 +77,11 @@ internal class WalletStorageOwnershipGate {
         val path: String,
         internal val owner: Owner,
         internal val generation: Long,
-    )
+        private val issuingGate: WalletStorageOwnershipGate,
+    ) {
+        /** Checks this exact lease against the gate that issued it. */
+        fun isCurrent(): Boolean = issuingGate.isCurrent(owner, this)
+    }
 
     private data class PendingAcquire(
         val owner: Owner,
@@ -185,7 +189,7 @@ internal class WalletStorageOwnershipGate {
 
     private fun newLease(state: PathState, owner: Owner): Lease {
         check(state.nextLeaseGeneration > 0L) { "Wallet lease generation exhausted" }
-        val lease = Lease(owner.path, owner, state.nextLeaseGeneration)
+        val lease = Lease(owner.path, owner, state.nextLeaseGeneration, this)
         state.nextLeaseGeneration = state.nextLeaseGeneration
             .takeIf { it < Long.MAX_VALUE }
             ?.plus(1L)

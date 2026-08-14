@@ -296,6 +296,102 @@ class HrmHnsaWalletConsumerTest {
         ))
     }
 
+    @Test
+    fun stateRequiresCurrentWalletLeaseFromItsIssuingGate() {
+        val selection = selection()
+        val currentFixture = walletFixture()
+        assertTrue(hrmHnsaWalletConsumerMayUse(
+            selection,
+            currentFixture.authority,
+            state(selection, currentFixture.authority),
+        ))
+
+        val releasedFixture = walletFixture()
+        assertTrue(releasedFixture.gate.release(releasedFixture.lease))
+        assertFalse(hrmHnsaWalletConsumerMayUse(
+            selection,
+            releasedFixture.authority,
+            state(selection, releasedFixture.authority),
+        ))
+
+        val revokedFixture = walletFixture()
+        revokedFixture.gate.newOwner(revokedFixture.path) {}
+        assertFalse(hrmHnsaWalletConsumerMayUse(
+            selection,
+            revokedFixture.authority,
+            state(selection, revokedFixture.authority),
+        ))
+
+        val staleFixture = walletFixture()
+        assertTrue(staleFixture.gate.release(staleFixture.lease))
+        val replacementOwner = staleFixture.gate.newOwner(staleFixture.path) {}
+        var replacementLease: WalletStorageOwnershipGate.Lease? = null
+        assertTrue(staleFixture.gate.acquire(replacementOwner) { replacementLease = it })
+        val replacementAuthority = checkNotNull(WalletReadBootstrapAuthority.create(
+            "mainnet",
+            staleFixture.path,
+            checkNotNull(replacementLease),
+            1L,
+            2L,
+        ))
+        assertFalse(hrmHnsaWalletConsumerMayUse(
+            selection,
+            staleFixture.authority,
+            state(selection, staleFixture.authority),
+        ))
+        assertTrue(hrmHnsaWalletConsumerMayUse(
+            selection,
+            replacementAuthority,
+            state(selection, replacementAuthority),
+        ))
+    }
+
+    @Test
+    fun attemptRejectsWalletLeaseLossAfterSourceAndUnderBrokerGuard() {
+        val selection = selection()
+        val afterSourceFixture = walletFixture()
+        var operationCalls = 0
+        val revokingSource = HrmHnsaWalletConsumerSource { requested, walletAuthority ->
+            HrmHnsaWalletConsumerLease.takeOwnership(
+                checkNotNull(adoptedService(requested, walletAuthority, RecordingGuard())),
+            ).also {
+                afterSourceFixture.gate.newOwner(afterSourceFixture.path) {}
+            }
+        }
+        assertFalse(attemptHrmHnsaWalletConsumerUse(
+            selection,
+            afterSourceFixture.authority,
+            revokingSource,
+            { state(selection, afterSourceFixture.authority) },
+        ) {
+            operationCalls += 1
+            true
+        })
+        assertEquals(0, operationCalls)
+
+        val guardedFixture = walletFixture()
+        var replacementLease: WalletStorageOwnershipGate.Lease? = null
+        val staleGuard = RecordingGuard(beforeCallback = {
+            assertTrue(guardedFixture.gate.release(guardedFixture.lease))
+            val replacementOwner = guardedFixture.gate.newOwner(guardedFixture.path) {}
+            assertTrue(guardedFixture.gate.acquire(replacementOwner) {
+                replacementLease = it
+            })
+        })
+        assertFalse(attemptHrmHnsaWalletConsumerUse(
+            selection,
+            guardedFixture.authority,
+            source(selection, guardedFixture.authority, staleGuard),
+            { state(selection, guardedFixture.authority) },
+        ) {
+            operationCalls += 1
+            true
+        })
+        assertEquals(0, operationCalls)
+        assertFalse(guardedFixture.authority.hasCurrentStorageLease())
+        assertTrue(checkNotNull(replacementLease).isCurrent())
+    }
+
     private fun source(
         selection: HrmHnsaNamedServiceSelection,
         walletAuthority: WalletReadBootstrapAuthority,
@@ -436,20 +532,37 @@ class HrmHnsaWalletConsumerTest {
     private fun walletAuthority(
         networkId: String = "mainnet",
         authorityGeneration: Long = 1L,
-    ): WalletReadBootstrapAuthority {
+    ): WalletReadBootstrapAuthority = walletFixture(
+        networkId,
+        authorityGeneration,
+    ).authority
+
+    private fun walletFixture(
+        networkId: String = "mainnet",
+        authorityGeneration: Long = 1L,
+    ): WalletFixture {
         val path = "/wallet/wallet-v1-$networkId/wallet.sqlite3"
         val storage = WalletStorageOwnershipGate()
         val owner = storage.newOwner(path) {}
         var lease: WalletStorageOwnershipGate.Lease? = null
         assertTrue(storage.acquire(owner) { lease = it })
-        return checkNotNull(WalletReadBootstrapAuthority.create(
+        val retainedLease = checkNotNull(lease)
+        val authority = checkNotNull(WalletReadBootstrapAuthority.create(
             networkId,
             path,
-            checkNotNull(lease),
+            retainedLease,
             1L,
             authorityGeneration,
         ))
+        return WalletFixture(path, storage, retainedLease, authority)
     }
+
+    private data class WalletFixture(
+        val path: String,
+        val gate: WalletStorageOwnershipGate,
+        val lease: WalletStorageOwnershipGate.Lease,
+        val authority: WalletReadBootstrapAuthority,
+    )
 
     private class RecordingGuard(
         private val admit: Boolean = true,

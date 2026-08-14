@@ -19,10 +19,12 @@ class WalletStorageOwnershipTest {
         var firstLease: WalletStorageOwnershipGate.Lease? = null
         assertTrue(gate.acquire(first) { firstLease = it })
         assertNotNull(firstLease)
+        assertTrue(checkNotNull(firstLease).isCurrent())
 
         val second = gate.newOwner("/wallet/mainnet/wallet.sqlite3") {}
         assertEquals(1, firstRevocations)
         assertFalse(gate.isCurrent(first, checkNotNull(firstLease)))
+        assertFalse(checkNotNull(firstLease).isCurrent())
         var stalePublication = false
         assertFalse(
             gate.commitIfCurrent(first, checkNotNull(firstLease)) {
@@ -36,8 +38,10 @@ class WalletStorageOwnershipTest {
         assertNull(secondLease)
 
         assertTrue(gate.release(checkNotNull(firstLease)))
+        assertFalse(checkNotNull(firstLease).isCurrent())
         assertNotNull(secondLease)
         assertTrue(gate.isCurrent(second, checkNotNull(secondLease)))
+        assertTrue(checkNotNull(secondLease).isCurrent())
         assertFalse(gate.acquire(first) {})
     }
 

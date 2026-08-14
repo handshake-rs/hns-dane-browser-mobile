@@ -325,6 +325,7 @@ internal fun hrmHnsaWalletConsumerMayUse(
     current.selection == expectedSelection &&
         current.walletAuthority == expectedWalletAuthority &&
         expectedSelection.networkId == expectedWalletAuthority.networkId &&
+        expectedWalletAuthority.hasCurrentStorageLease() &&
         current.foreground &&
         current.protectedStorageAvailable &&
         current.reopenedDurableWallet &&

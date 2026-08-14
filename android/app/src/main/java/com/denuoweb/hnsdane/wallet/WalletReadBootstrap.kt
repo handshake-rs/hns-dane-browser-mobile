@@ -44,6 +44,9 @@ internal class WalletReadBootstrapAuthority private constructor(
             "ownerGeneration=<redacted>, leaseGeneration=<redacted>, " +
             "walletHandle=<redacted>, authorityGeneration=<redacted>)"
 
+    /** Checks the retained lease without exposing its gate, owner, or identity. */
+    fun hasCurrentStorageLease(): Boolean = storageLease.isCurrent()
+
     companion object {
         fun create(
             networkId: String,
@@ -98,6 +101,7 @@ internal fun walletReadBootstrapMayInstall(
     current: WalletReadBootstrapState,
 ): Boolean =
     current.authority == expected &&
+        expected.hasCurrentStorageLease() &&
         current.foreground &&
         current.protectedStorageAvailable &&
         current.reopenedDurableWallet &&
