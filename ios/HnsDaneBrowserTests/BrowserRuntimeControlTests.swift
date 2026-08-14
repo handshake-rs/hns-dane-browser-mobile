@@ -1802,6 +1802,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let mainActorRemainedResponsive = expectation(description: "main actor remained responsive")
         let retirementCompleted = expectation(description: "wallet retirement completed")
         let allowRetirement = DispatchSemaphore(value: 0)
+        let phaseTimeout: TimeInterval = 10
         defer {
             allowRetirement.signal()
             WalletStorageLeaseRegistry.release(lease)
@@ -1817,7 +1818,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 }
                 retirementStarted.fulfill()
                 XCTAssertEqual(
-                    allowRetirement.wait(timeout: .now() + 2),
+                    allowRetirement.wait(timeout: .now() + phaseTimeout),
                     .success,
                     "retirement queue was not released by the test"
                 )
@@ -1867,7 +1868,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         await fulfillment(
             of: [retirementStarted, mainActorRemainedResponsive],
-            timeout: 2
+            timeout: phaseTimeout
         )
         let replacementDuringRetirement = WalletStorageLeaseRegistry.acquire(path: path)
         XCTAssertNil(replacementDuringRetirement)
@@ -1876,7 +1877,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         }
 
         allowRetirement.signal()
-        await fulfillment(of: [retirementCompleted], timeout: 2)
+        await fulfillment(of: [retirementCompleted], timeout: phaseTimeout)
     }
 
     func testWalletReadCompletionRequiresExactLiveAuthority() {

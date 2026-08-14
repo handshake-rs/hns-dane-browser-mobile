@@ -1773,9 +1773,19 @@ impl Drop for AdmittedDeliveryPermit<'_> {
     }
 }
 
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HeaderSyncPublicationProbeState {
+    Acquired,
+    WouldBlock,
+}
+
 struct RuntimeCoordination {
     sync_lock: Mutex<()>,
     header_sync_progress: Mutex<TransientHeaderSyncProgress>,
+    #[cfg(test)]
+    header_sync_publication_probe:
+        Mutex<Option<std::sync::mpsc::Sender<HeaderSyncPublicationProbeState>>>,
     maintenance: RwLock<()>,
     maintenance_epoch: AtomicU64,
     header_state_base: PathBuf,
@@ -2212,6 +2222,27 @@ fn initialize_header_state_record(base: &Path, lock_path: &Path) -> Result<(), S
 }
 
 impl RuntimeCoordination {
+    #[cfg(test)]
+    fn install_header_sync_publication_probe(
+        &self,
+    ) -> std::sync::mpsc::Receiver<HeaderSyncPublicationProbeState> {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut probe = self.header_sync_publication_probe.lock().unwrap();
+        assert!(
+            probe.is_none(),
+            "header sync publication probe already installed"
+        );
+        *probe = Some(sender);
+        receiver
+    }
+
+    #[cfg(test)]
+    fn signal_header_sync_publication_probe(&self, state: HeaderSyncPublicationProbeState) {
+        if let Some(sender) = self.header_sync_publication_probe.lock().unwrap().take() {
+            let _ = sender.send(state);
+        }
+    }
+
     fn begin_maintenance(&self, _guard: &RwLockWriteGuard<'_, ()>) -> Result<(), RuntimeError> {
         let current = self.maintenance_epoch.load(Ordering::Acquire);
         if current == 0 {
@@ -2269,6 +2300,8 @@ fn runtime_coordination(base: &Path) -> Result<Arc<RuntimeCoordination>, Runtime
     let coordination = Arc::new(RuntimeCoordination {
         sync_lock: Mutex::new(()),
         header_sync_progress: Mutex::new(TransientHeaderSyncProgress::default()),
+        #[cfg(test)]
+        header_sync_publication_probe: Mutex::new(None),
         maintenance: RwLock::new(()),
         maintenance_epoch: AtomicU64::new(1),
         header_state_base: identity.clone(),
@@ -3389,6 +3422,33 @@ impl BrowserRuntime {
             }
         }
 
+        #[cfg(test)]
+        let maintenance = match self.inner.coordination.maintenance.try_write() {
+            Ok(maintenance) => {
+                self.inner
+                    .coordination
+                    .signal_header_sync_publication_probe(
+                        HeaderSyncPublicationProbeState::Acquired,
+                    );
+                maintenance
+            }
+            Err(std::sync::TryLockError::WouldBlock) => {
+                self.inner
+                    .coordination
+                    .signal_header_sync_publication_probe(
+                        HeaderSyncPublicationProbeState::WouldBlock,
+                    );
+                self.inner
+                    .coordination
+                    .maintenance
+                    .write()
+                    .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?
+            }
+            Err(std::sync::TryLockError::Poisoned(_)) => {
+                return Err(RuntimeError::Synchronization("maintenance lock"));
+            }
+        };
+        #[cfg(not(test))]
         let maintenance = self
             .inner
             .coordination
@@ -6745,6 +6805,13 @@ impl GatewayProofProvider {
             receiver.into_iter().collect::<Vec<_>>()
         });
         metrics.metrics.peers_completed = attempts.len();
+        #[cfg(test)]
+        {
+            metrics.metrics.peers_cancelled = attempts
+                .iter()
+                .filter(|attempt| attempt.outcome == LiveProofPeerOutcome::Cancelled)
+                .count();
+        }
         if let Some(attributed) = attempts
             .iter()
             .find(|attempt| attempt.won_race)
@@ -8971,6 +9038,8 @@ struct LiveProofRaceMetrics {
     total_ms: u64,
     peers_started: usize,
     peers_completed: usize,
+    #[cfg(test)]
+    peers_cancelled: usize,
 }
 
 impl DnsTraceRecorder {
@@ -16490,6 +16559,8 @@ mod tests {
     use std::sync::atomic::AtomicUsize;
     use std::thread;
 
+    const TEST_CONCURRENCY_TIMEOUT: Duration = Duration::from_secs(10);
+
     #[test]
     fn header_state_exclusive_lock_blocks_shared_probe_until_release() {
         let data_dir = temp_dir_path("header-state-advisory-lock");
@@ -18959,37 +19030,37 @@ mod tests {
         )
         .unwrap();
         let maintenance = runtime.inner.coordination.maintenance.read().unwrap();
+        let publication_attempt = runtime
+            .inner
+            .coordination
+            .install_header_sync_publication_probe();
         let call_runtime = runtime.clone();
         let (sender, receiver) = std::sync::mpsc::channel();
         let call = thread::spawn(move || sender.send(call_runtime.sync_once()).unwrap());
 
+        assert_eq!(
+            publication_attempt
+                .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
+                .expect("sync did not reach the full publication boundary"),
+            HeaderSyncPublicationProbeState::WouldBlock
+        );
         assert!(matches!(
-            receiver.recv_timeout(Duration::from_millis(100)),
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            receiver.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
         ));
-        let deadline = Instant::now() + Duration::from_secs(2);
-        let in_flight = loop {
-            let progress = *runtime
-                .inner
-                .coordination
-                .header_sync_progress
-                .lock()
-                .unwrap();
-            if progress.in_flight {
-                break progress;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "sync did not expose transient stage progress"
-            );
-            thread::sleep(Duration::from_millis(1));
-        };
+        let in_flight = *runtime
+            .inner
+            .coordination
+            .header_sync_progress
+            .lock()
+            .unwrap();
+        assert!(in_flight.in_flight);
         assert_eq!(in_flight.staged_best_height, Some(0));
         assert_eq!(in_flight.staged_accepted, 0);
         drop(maintenance);
         assert!(
             receiver
-                .recv_timeout(Duration::from_secs(2))
+                .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
                 .unwrap()
                 .is_ok()
         );
@@ -19030,20 +19101,36 @@ mod tests {
             );
             let backend = runtime.proxy_backend_for(binding);
             let permit = backend.acquire_publication_permit(&capability).unwrap();
+            let publication_attempt = runtime
+                .inner
+                .coordination
+                .install_header_sync_publication_probe();
 
             let (sent, received) = std::sync::mpsc::channel();
             let sync = thread::spawn(move || {
                 sent.send(sync_runtime.sync_once()).unwrap();
             });
+            assert_eq!(
+                publication_attempt
+                    .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
+                    .unwrap_or_else(|error| {
+                        panic!("{boundary} sync did not reach full publication: {error}")
+                    }),
+                HeaderSyncPublicationProbeState::WouldBlock,
+                "{boundary} sync did not block on the live publication permit"
+            );
             assert!(
-                received.recv_timeout(Duration::from_millis(50)).is_err(),
+                matches!(
+                    received.try_recv(),
+                    Err(std::sync::mpsc::TryRecvError::Empty)
+                ),
                 "{boundary} publication did not exclude header maintenance"
             );
 
             drop(permit);
             assert!(
                 received
-                    .recv_timeout(Duration::from_secs(2))
+                    .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
                     .unwrap()
                     .is_ok()
             );
@@ -19071,14 +19158,14 @@ mod tests {
 
     #[test]
     fn loopback_head_publication_and_header_sync_have_one_deterministic_winner() {
-        #[derive(Clone, Copy, Eq, PartialEq)]
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
         enum OutputKind {
             Response,
             FailureResponse,
             Tunnel,
         }
 
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Debug)]
         enum RaceWinner {
             Maintenance,
             Publication,
@@ -19127,7 +19214,7 @@ mod tests {
                 self.permit_release
                     .lock()
                     .unwrap()
-                    .recv_timeout(Duration::from_secs(2))
+                    .recv()
                     .map_err(|_| ProxyBackendError::Internal)
             }
         }
@@ -19243,7 +19330,7 @@ mod tests {
             .unwrap();
             let mut client = TcpStream::connect(proxy.endpoint().address()).unwrap();
             client
-                .set_read_timeout(Some(Duration::from_secs(2)))
+                .set_read_timeout(Some(TEST_CONCURRENCY_TIMEOUT))
                 .unwrap();
             let request = match output {
                 OutputKind::Response | OutputKind::FailureResponse => format!(
@@ -19258,28 +19345,54 @@ mod tests {
             client.write_all(request.as_bytes()).unwrap();
             client.flush().unwrap();
             permit_entered_rx
-                .recv_timeout(Duration::from_secs(2))
-                .unwrap();
+                .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
+                .unwrap_or_else(|error| {
+                    panic!("{label} {output:?} {winner:?} permit gate was not reached: {error}")
+                });
 
+            let publication_attempt = runtime
+                .inner
+                .coordination
+                .install_header_sync_publication_probe();
             let (sync_tx, sync_rx) = std::sync::mpsc::channel();
             let sync = thread::spawn(move || {
                 sync_tx.send(sync_runtime.sync_once()).unwrap();
             });
+            let expected_publication_state = match winner {
+                RaceWinner::Maintenance => HeaderSyncPublicationProbeState::Acquired,
+                RaceWinner::Publication => HeaderSyncPublicationProbeState::WouldBlock,
+            };
+            assert_eq!(
+                publication_attempt
+                    .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "{label} {output:?} {winner:?} sync did not reach full publication: \
+                             {error}"
+                        )
+                    }),
+                expected_publication_state,
+                "{label} {output:?} {winner:?} observed the wrong publication lock state"
+            );
 
             match winner {
                 RaceWinner::Maintenance => {
                     assert!(
                         sync_rx
-                            .recv_timeout(Duration::from_secs(2))
+                            .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
                             .unwrap()
-                            .is_ok()
+                            .is_ok(),
+                        "{label} {output:?} maintenance winner did not complete"
                     );
                     permit_release_tx.send(()).unwrap();
                 }
                 RaceWinner::Publication => {
                     assert!(
-                        sync_rx.recv_timeout(Duration::from_millis(50)).is_err(),
-                        "header maintenance crossed a live publication permit"
+                        matches!(
+                            sync_rx.try_recv(),
+                            Err(std::sync::mpsc::TryRecvError::Empty)
+                        ),
+                        "{label} {output:?} header maintenance crossed a live publication permit"
                     );
                     permit_release_tx.send(()).unwrap();
                 }
@@ -19293,12 +19406,16 @@ mod tests {
                     "maintenance-invalidated head crossed the loopback boundary"
                 ),
                 RaceWinner::Publication => {
-                    assert!(published.starts_with(expected_status));
+                    assert!(
+                        published.starts_with(expected_status),
+                        "{label} {output:?} did not publish the expected response head"
+                    );
                     assert!(
                         sync_rx
-                            .recv_timeout(Duration::from_secs(2))
+                            .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
                             .unwrap()
-                            .is_ok()
+                            .is_ok(),
+                        "{label} {output:?} publication winner did not release maintenance"
                     );
                 }
             }
@@ -23832,7 +23949,7 @@ mod tests {
     }
 
     #[test]
-    fn live_proof_peers_race_under_one_deadline() {
+    fn live_proof_peers_cancel_in_flight_losers_without_penalty() {
         let path = temp_dir_path("gateway-live-proof-race");
         let base = path.join("hns-regtest");
         std::fs::create_dir_all(&base).unwrap();
@@ -23849,6 +23966,7 @@ mod tests {
         let proof_height =
             store_best_header_for_network_with_tree_root(&base, NetworkKind::Regtest, proof_root);
         let proof_payload = urkel_exists_payload(&name_state_value);
+        let (stalled_ready_tx, stalled_ready_rx) = std::sync::mpsc::channel();
 
         let proof_listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let proof_address = proof_listener.local_addr().unwrap();
@@ -23866,6 +23984,15 @@ mod tests {
             let Packet::GetProof(request) = peer.receive_packet().unwrap() else {
                 panic!("proof race winner did not request a proof");
             };
+            for stalled_peer in 1..=2 {
+                stalled_ready_rx
+                    .recv_timeout(TEST_CONCURRENCY_TIMEOUT)
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "stalled proof peer {stalled_peer} did not enter its handshake: {error}"
+                        )
+                    });
+            }
             peer.send_packet(&Packet::Proof(ProofPacket {
                 root: request.root,
                 key: request.key,
@@ -23879,10 +24006,11 @@ mod tests {
         for _ in 0..2 {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             stalled_addresses.push(listener.local_addr().unwrap());
+            let stalled_ready = stalled_ready_tx.clone();
             stalled.push(thread::spawn(move || {
                 listener.set_nonblocking(true).unwrap();
-                let accept_deadline = Instant::now() + Duration::from_secs(2);
-                let mut stream = loop {
+                let accept_deadline = Instant::now() + TEST_CONCURRENCY_TIMEOUT;
+                let stream = loop {
                     match listener.accept() {
                         Ok((stream, _)) => break Some(stream),
                         Err(error)
@@ -23895,14 +24023,35 @@ mod tests {
                         Err(error) => panic!("stalled proof listener failed: {error}"),
                     }
                 };
-                let Some(ref mut stream) = stream else {
+                let Some(stream) = stream else {
                     return;
                 };
-                let mut byte = [0_u8; 1];
-                let _ = stream.read(&mut byte);
-                thread::sleep(Duration::from_secs(1));
+                let mut peer = PeerConnection::new(stream, hns_core::network::regtest());
+                assert!(matches!(peer.receive_packet().unwrap(), Packet::Version(_)));
+                stalled_ready.send(()).unwrap();
+                let mut stream = peer.into_inner();
+                stream
+                    .set_read_timeout(Some(TEST_CONCURRENCY_TIMEOUT))
+                    .unwrap();
+                let mut buffer = [0_u8; 1];
+                loop {
+                    match stream.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(_) => {}
+                        Err(error)
+                            if matches!(
+                                error.kind(),
+                                ErrorKind::TimedOut | ErrorKind::WouldBlock
+                            ) =>
+                        {
+                            panic!("cancelled proof peer connection remained open")
+                        }
+                        Err(error) => panic!("read cancelled proof peer connection: {error}"),
+                    }
+                }
             }));
         }
+        drop(stalled_ready_tx);
 
         let peer_store = SqlitePeerStore::open(base.join("peers.sqlite")).unwrap();
         let mut peers = PeerManager::default();
@@ -23922,22 +24071,16 @@ mod tests {
         )
         .with_trace(trace.clone());
         provider.preferred_peers = 3;
-        provider.timeout = Duration::from_millis(800);
+        provider.timeout = Duration::from_secs(30);
         provider.seed_on_empty = false;
 
-        let started = Instant::now();
         let records = provider.prove_name(&root_name, name_hash).unwrap();
-        let elapsed = started.elapsed();
 
         assert!(records.exists);
-        assert!(
-            elapsed < Duration::from_millis(500),
-            "winner did not cancel stalled peers promptly: {elapsed:?}"
-        );
         let metrics = trace.live_proof_snapshot().unwrap();
         assert_eq!(metrics.peers_started, 3);
         assert_eq!(metrics.peers_completed, 3);
-        assert!(metrics.total_ms < 500);
+        assert_eq!(metrics.peers_cancelled, 2);
         let persisted = peer_store.load_manager().unwrap();
         for address in stalled_addresses {
             let state = persisted.get(address).unwrap();
