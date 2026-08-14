@@ -146,6 +146,38 @@ credentialed native read in flight. iOS product wiring still may not supply a
 credential until the scoped credential/indexed backend/data boundary exists,
 and physical-iPhone qualification remains open.
 
+## Dormant HRM/HNSA wallet-consumer boundary
+
+Android and iOS contain the same fail-closed consumer shape for an exact
+`hns.named-service/v1` result issued by a future trusted native broker. The
+requested identity is the exact Handshake network magic, HNS name hash,
+canonical service name, and nonzero application profile ID. A broker-issued
+result additionally binds the live wallet authority, HRM sequence and envelope
+hash, subject-wide aggregate revision, one trusted operation time, fenced
+operation-lease generation, service resource/delegation/generation/controller,
+validity intervals, endpoint lifetime/capability bounds, and detached-constraint
+hashes.
+
+The transfer is one-shot. Admission checks exact foreground, protected-storage,
+durable-wallet, recovery, operation, and retirement state before acquisition,
+after the source callback, and again inside a synchronous current-authority
+guard. The broker must reconfirm the latest authenticated aggregate and retain
+its sole broker serialization or namespace-wide fenced lease through the
+dependent callback. A revision/time change, lease loss, selection change,
+wallet rotation, denied guard, duplicate callback, or missing callback fails
+closed and consumes the offered lease.
+
+This is a consumer contract, not an HRM/HNSA implementation or authority
+projection. Kotlin and Swift accept no raw commitment, envelope, delegation,
+endpoint, URL, provider, or legacy-record input and perform no CBOR, hashing,
+signature, rollback-store, or application-profile validation. The published
+legacy authority crate is not a dependency, and no sibling or unpublished
+`hns-rs`/`hns-node-rs` checkout is consumed. Shipping uses an immutable
+unavailable source because there is no qualified mobile broker or assigned
+wallet application profile. The HRM/HNSA consumer, provider, approval, wallet
+runtime, and value release gates remain false; there is no UI, endpoint use,
+page exposure, or value authorization in this tranche.
+
 ## Dormant website provider projection
 
 Three provider versions have distinct meanings and must not be conflated:

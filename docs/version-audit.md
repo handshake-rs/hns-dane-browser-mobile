@@ -100,8 +100,12 @@ Notes:
   backend, and durable data source, and the physical-iPhone matrix remains open.
 - The upstream engine facade's HNSA admission and HNSR requester APIs are not in
   the pinned mobile graph because its current public DANE/DNSSEC dependencies
-  add OpenSSL to Android and Apple closures. No requester, transport adapter,
-  provider role, FFI, or native control is instantiated by this candidate.
+  add OpenSSL to Android and Apple closures. Android and iOS have a dormant
+  one-shot consumer contract for an opaque, exact-current broker-issued
+  `hns.named-service/v1` authority, but no shipping broker source or recognized
+  application profile. No requester, transport adapter, endpoint/profile
+  validator, provider role, FFI, UI, or native control is instantiated by this
+  candidate, and its dedicated release gate remains false.
 - `hns-wallet-mobile` is pinned to final wallet `0.1.0` source
   `2229be849557d58a8eb723bcc03349f0f2df9796`. Its lock closure uses final
   `hns-rs 0.2.0` source `b24b66c382de53330ec21dd3137e056a2bea3e2d`.

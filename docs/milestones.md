@@ -179,12 +179,18 @@
   credentialed read/create lifecycle qualification, and the physical-iPhone
   matrix remain for `0.5.10`. No currently published Play, GitHub, or App Store
   binary contains the native controls.
-- Pending named-service adoption: first consume a qualified upstream mobile-safe
-  HNSA/HNSR API boundary, then instantiate its admission/requester lifecycle
-  through exact engine-issued authority and add the required proof,
-  rollback-resistant persistence, authenticated transport, and lifecycle
-  adapters. No Kotlin or Swift authority projection may substitute for that
-  context.
+- Added cross-platform dormant named-service consumption: Android and iOS now
+  accept only a one-shot broker-issued `hns.named-service/v1` result bound to
+  exact application selection, live wallet authority, HRM root/revision/time,
+  fenced lease, service delegation/controller, intervals, capabilities, and
+  constraints. Admission gates before and after acquisition and again while the
+  broker holds exact current authority through use. Shipping sources and the
+  dedicated release gates remain immutable false.
+- Pending named-service activation: consume a qualified upstream mobile-safe
+  HRM/HNSA broker and HNSR API boundary, implement authenticated proof plus
+  rollback-resistant subject-wide persistence, register an application profile,
+  and add endpoint/profile, transport, and lifecycle adapters. The Kotlin/Swift
+  shape checks are not HRM verification and may not substitute for that broker.
 - Read-backend provisioning, name import, website provider installation,
   approvals, sending/value movement, settlement, Shakedex/Denuo, and P2P
   marketplace controls remain separate later milestones and stay disabled until

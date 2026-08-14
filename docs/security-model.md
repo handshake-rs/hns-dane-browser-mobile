@@ -141,6 +141,16 @@ behind the dedicated scoped loopback gateway. Name import is absent. Provider,
 sending/value, HNSA/HNSR, settlement, exchange, and
 marketplace gates remain independently false.
 
+The dormant cross-platform HRM/HNSA wallet consumer does not weaken those
+gates. It accepts no raw or legacy authority object and cannot derive service
+identity from network or renderer input. A future broker must issue an exact
+`hns.named-service/v1` observation and hold its current subject-aggregate or
+fenced lease through the one-shot callback. Platform admission binds that
+observation to the exact live wallet and rechecks lifecycle state before
+acquisition, after acquisition, and under the broker guard. There is currently
+no production broker source, application profile, endpoint validator, UI, or
+provider/value connection.
+
 On Android, a create-only Android KeyStore AES-GCM key wraps the 32-byte wallet
 database key and requires an unlocked device. Borrowed plaintext key arrays are
 wiped, and both the Android no-backup root and the network-scoped wallet

@@ -93,6 +93,7 @@ internal object MobileWalletProviderProtocol {
     const val WALLET_RUNTIME_RELEASE_QUALIFIED = false
     const val APPROVAL_RUNTIME_RELEASE_QUALIFIED = false
     const val VALUE_RUNTIME_RELEASE_QUALIFIED = false
+    const val HRM_HNSA_WALLET_CONSUMER_RELEASE_QUALIFIED = false
 
     const val MAX_MESSAGE_BYTES = 64 * 1024
     const val MAX_RESULT_BYTES = 256 * 1024

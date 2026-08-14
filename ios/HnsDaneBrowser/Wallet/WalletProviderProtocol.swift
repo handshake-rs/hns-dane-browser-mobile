@@ -96,6 +96,7 @@ enum WalletNativeReleaseGates {
     static let walletRuntimeReleaseQualified = false
     static let approvalRuntimeReleaseQualified = false
     static let valueRuntimeReleaseQualified = false
+    static let hrmHnsaWalletConsumerReleaseQualified = false
 
     static var installationAvailable: Bool {
         providerBridgeReleaseQualified

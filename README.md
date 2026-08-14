@@ -59,8 +59,11 @@ and scoped authentication. Pruning alone does not erase indexed history or
 authenticated raw bytes already retained by an existing wallet; a fresh restore
 additionally needs archive-capable raw transaction bytes or another durable
 wallet-relevant raw-transaction source. Name import/tracking ingestion is absent.
-Send/value, website-provider, settlement, HNSA/HNSR, exchange,
-and P2P-marketplace paths remain independently gated off. The exact Apple CI
+Send/value, website-provider, settlement, active HNSA/HNSR, exchange,
+and P2P-marketplace paths remain independently gated off. Source contains a
+dormant HRM/HNSA wallet-consumer admission seam, but shipping builds provision
+no broker authority or recognized application profile and cannot invoke it.
+The exact Apple CI
 gate exercises retirement queue/lease behavior and stale-completion
 publication-authority predicates; it does not execute an end-to-end credentialed
 native read in flight. Supplying read authority still requires the missing
@@ -216,10 +219,25 @@ fresh exact-commit platform qualification. The umbrella
 `hns-dane-engine` facade is intentionally not in the mobile dependency graph:
 that source currently brings its public OpenSSL-backed DANE/DNSSEC stack into
 Android and Apple target closures. A mobile-safe upstream facade split or
-feature boundary is therefore a prerequisite for adopting its HNSA admission
-and HNSR requester APIs. No HNSA selector, HNSR requester, socket adapter,
-provider role, or native control exists here; every HNSA/HNSR product gate
-remains false. No sibling coordination checkout is required.
+feature boundary is therefore a prerequisite for populating the mobile seam
+with verified HNSA authority or adopting HNSR requester APIs.
+
+Android and iOS now share a dormant, one-shot wallet-consumer boundary for the
+exact HRM profile `hns.named-service/v1`. It binds the trusted application
+selection `(network magic, HNS name hash, canonical service name, nonzero
+application profile ID)` to the exact live wallet, HRM sequence and envelope
+hash, subject-wide aggregate revision, one trusted operation time, fenced lease
+generation, service resource, delegation, controller, intervals, capabilities,
+and constraints. Admission rechecks wallet/application state before source
+acquisition, after its potentially re-entrant callback, and while an opaque
+broker guard holds exact current authority through dependent use. Kotlin and
+Swift perform defensive shape checks only; they do not parse HRM/HNSA objects,
+verify signatures, persist rollback state, or infer identity from a URL,
+endpoint, provider message, or legacy record. Shipping sources are immutable
+unavailable implementations, and the dedicated release gate remains false.
+No HNSA selector, endpoint/profile validator, HNSR requester, socket adapter,
+provider role, or native control exists here. No sibling coordination checkout
+is required.
 
 The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 

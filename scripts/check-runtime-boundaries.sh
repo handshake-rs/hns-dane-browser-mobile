@@ -142,6 +142,7 @@ android_interceptor="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ne
 android_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/MainActivity.kt"
 android_wallet_activity="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/ui/WalletActivity.kt"
 android_wallet_bootstrap="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/WalletReadBootstrap.kt"
+android_hrm_hnsa_consumer="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/HrmHnsaWalletConsumer.kt"
 android_wallet_bridge="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/NativeWalletBridge.kt"
 android_wallet_protocol="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/MobileWalletProviderProtocol.kt"
 android_classifier="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserUrlClassifier.kt"
@@ -149,6 +150,7 @@ android_host_policy="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/co
 ios_runtime="$ROOT_DIR/ios/HnsDaneBrowser/Core/RustBrowserRuntime.swift"
 ios_bridging_header="$ROOT_DIR/ios/HnsDaneBrowser/Support/HnsDaneBrowser-Bridging-Header.h"
 ios_native_wallet="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/RustNativeWallet.swift"
+ios_hrm_hnsa_consumer="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/HrmHnsaWalletConsumer.swift"
 ios_wallet_controller="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletViewController.swift"
 ios_wallet_protocol="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletProviderProtocol.swift"
 
@@ -197,11 +199,33 @@ require_source_contains "$android_wallet_bootstrap" \
 require_source_contains "$android_wallet_bridge" \
   'configuration.consumeFor(currentAuthority)' \
   "Android native wallet-read composition must consume an authority-bound one-shot credential."
+require_source_contains "$android_hrm_hnsa_consumer" \
+  'internal const val HRM_HNSA_NAMED_SERVICE_PROFILE = "hns.named-service/v1"' \
+  "Android HRM/HNSA consumption must accept only the exact named-service profile."
+require_source_contains "$android_hrm_hnsa_consumer" \
+  'currentAuthorityGuard.useIfCurrent(claim)' \
+  "Android HRM/HNSA dependent use must remain inside the exact-current broker guard."
+require_source_contains "$android_hrm_hnsa_consumer" \
+  'useAvailable.also { useAvailable = false }' \
+  "Android broker-issued HRM/HNSA authority must remain one-shot even if aliased."
+require_source_contains "$android_hrm_hnsa_consumer" \
+  'UnavailableHrmHnsaWalletConsumerSource' \
+  "Android production HRM/HNSA wallet authority must remain unavailable."
+require_source_contains "$android_hrm_hnsa_consumer" \
+  'source.take(expectedSelection, expectedWalletAuthority)' \
+  "Android HRM/HNSA acquisition must bind the trusted selection and live wallet authority."
+require_source_absent "$android_hrm_hnsa_consumer" \
+  'hsa1' \
+  "Android HRM/HNSA consumption must not admit legacy hsa1 records."
+require_source_absent "$android_hrm_hnsa_consumer" \
+  'ServiceAuthorizationV1' \
+  "Android HRM/HNSA consumption must not expose the retired fixed authorization model."
 for gate in \
   PROVIDER_BRIDGE_RELEASE_QUALIFIED \
   WALLET_RUNTIME_RELEASE_QUALIFIED \
   APPROVAL_RUNTIME_RELEASE_QUALIFIED \
-  VALUE_RUNTIME_RELEASE_QUALIFIED; do
+  VALUE_RUNTIME_RELEASE_QUALIFIED \
+  HRM_HNSA_WALLET_CONSUMER_RELEASE_QUALIFIED; do
   require_source_contains "$android_wallet_protocol" \
     "const val $gate = false" \
     "Android wallet release gate $gate must remain false."
@@ -240,11 +264,36 @@ require_source_contains "$ios_wallet_controller" \
 require_source_contains "$ios_wallet_controller" \
   'currentAuthority == expectedAuthority' \
   "iOS wallet-read admission must reject authority rotation during credential acquisition."
+require_source_contains "$ios_hrm_hnsa_consumer" \
+  'let hrmHnsaNamedServiceProfile = "hns.named-service/v1"' \
+  "iOS HRM/HNSA consumption must accept only the exact named-service profile."
+require_source_contains "$ios_hrm_hnsa_consumer" \
+  'currentAuthorityGuard.useIfCurrent(claim: claim)' \
+  "iOS HRM/HNSA dependent use must remain inside the exact-current broker guard."
+require_source_contains "$ios_hrm_hnsa_consumer" \
+  'let mayAttempt = useAvailable' \
+  "iOS broker-issued HRM/HNSA authority must remain one-shot even if aliased."
+require_source_contains "$ios_hrm_hnsa_consumer" \
+  'WalletStorageLeaseRegistry.isCurrent(expectedWalletAuthority.lease)' \
+  "iOS HRM/HNSA admission must retain the exact current wallet storage lease."
+require_source_contains "$ios_hrm_hnsa_consumer" \
+  'UnavailableHrmHnsaWalletConsumerSource' \
+  "iOS production HRM/HNSA wallet authority must remain unavailable."
+require_source_contains "$ios_hrm_hnsa_consumer" \
+  'source.takeAuthority(' \
+  "iOS HRM/HNSA acquisition must use the immutable wallet-consumer source."
+require_source_absent "$ios_hrm_hnsa_consumer" \
+  'hsa1' \
+  "iOS HRM/HNSA consumption must not admit legacy hsa1 records."
+require_source_absent "$ios_hrm_hnsa_consumer" \
+  'ServiceAuthorizationV1' \
+  "iOS HRM/HNSA consumption must not expose the retired fixed authorization model."
 for gate in \
   providerBridgeReleaseQualified \
   walletRuntimeReleaseQualified \
   approvalRuntimeReleaseQualified \
-  valueRuntimeReleaseQualified; do
+  valueRuntimeReleaseQualified \
+  hrmHnsaWalletConsumerReleaseQualified; do
   require_source_contains "$ios_wallet_protocol" \
     "static let $gate = false" \
     "iOS wallet release gate $gate must remain false."

@@ -278,6 +278,7 @@ class MobileWalletProviderProtocolTest {
         assertFalse(MobileWalletProviderProtocol.WALLET_RUNTIME_RELEASE_QUALIFIED)
         assertFalse(MobileWalletProviderProtocol.APPROVAL_RUNTIME_RELEASE_QUALIFIED)
         assertFalse(MobileWalletProviderProtocol.VALUE_RUNTIME_RELEASE_QUALIFIED)
+        assertFalse(MobileWalletProviderProtocol.HRM_HNSA_WALLET_CONSUMER_RELEASE_QUALIFIED)
         assertFalse(WalletUiState().allowsValueAction())
         assertFalse(WalletUiState().allowsApprovalAction())
         val optimistic = WalletUiState(walletAvailable = true, locked = false)

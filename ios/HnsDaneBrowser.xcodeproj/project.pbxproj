@@ -50,6 +50,8 @@
 		B20000000000000000000007 /* WalletEventProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000007 /* WalletEventProjection.swift */; };
 		B20000000000000000000008 /* RustNativeWallet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000008 /* RustNativeWallet.swift */; };
 		B20000000000000000000009 /* WalletViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000009 /* WalletViewController.swift */; };
+		B2000000000000000000000A /* HrmHnsaWalletConsumer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000000000000000000000A /* HrmHnsaWalletConsumer.swift */; };
+		B2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +119,8 @@
 		F20000000000000000000007 /* WalletEventProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletEventProjection.swift; sourceTree = "<group>"; };
 		F20000000000000000000008 /* RustNativeWallet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustNativeWallet.swift; sourceTree = "<group>"; };
 		F20000000000000000000009 /* WalletViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletViewController.swift; sourceTree = "<group>"; };
+		F2000000000000000000000A /* HrmHnsaWalletConsumer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HrmHnsaWalletConsumer.swift; sourceTree = "<group>"; };
+		F2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HrmHnsaWalletConsumerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -226,6 +230,7 @@
 		G20000000000000000000001 /* Wallet */ = {
 			isa = PBXGroup;
 			children = (
+				F2000000000000000000000A /* HrmHnsaWalletConsumer.swift */,
 				F20000000000000000000008 /* RustNativeWallet.swift */,
 				F20000000000000000000006 /* WalletApprovalProjection.swift */,
 				F20000000000000000000007 /* WalletEventProjection.swift */,
@@ -247,6 +252,7 @@
 				F10000000000000000000023 /* MainFrameAdmissionPolicyTests.swift */,
 				F10000000000000000000026 /* BrowserNavigationParserTests.swift */,
 				F10000000000000000000028 /* BrowserRuntimeControlTests.swift */,
+				F2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift */,
 				F20000000000000000000005 /* WalletProviderProtocolTests.swift */,
 			);
 			path = HnsDaneBrowserTests;
@@ -446,6 +452,7 @@
 				B20000000000000000000002 /* WalletProviderProtocol.swift in Sources */,
 				B20000000000000000000003 /* WalletUIState.swift in Sources */,
 				B20000000000000000000004 /* WalletWebKitBridge.swift in Sources */,
+				B2000000000000000000000A /* HrmHnsaWalletConsumer.swift in Sources */,
 				B20000000000000000000008 /* RustNativeWallet.swift in Sources */,
 				B20000000000000000000009 /* WalletViewController.swift in Sources */,
 			);
@@ -461,6 +468,7 @@
 				B10000000000000000000023 /* MainFrameAdmissionPolicyTests.swift in Sources */,
 				B10000000000000000000025 /* BrowserNavigationParserTests.swift in Sources */,
 				B10000000000000000000026 /* BrowserRuntimeControlTests.swift in Sources */,
+				B2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift in Sources */,
 				B20000000000000000000005 /* WalletProviderProtocolTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

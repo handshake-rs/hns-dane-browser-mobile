@@ -829,6 +829,7 @@ final class WalletProviderProtocolTests: XCTestCase {
         XCTAssertFalse(WalletNativeReleaseGates.walletRuntimeReleaseQualified)
         XCTAssertFalse(WalletNativeReleaseGates.approvalRuntimeReleaseQualified)
         XCTAssertFalse(WalletNativeReleaseGates.valueRuntimeReleaseQualified)
+        XCTAssertFalse(WalletNativeReleaseGates.hrmHnsaWalletConsumerReleaseQualified)
         XCTAssertFalse(WalletNativeReleaseGates.installationAvailable)
         XCTAssertFalse(WalletNativeReleaseGates.approvalDispatchAvailable)
         XCTAssertFalse(WalletNativeReleaseGates.valueActionsAvailable)
