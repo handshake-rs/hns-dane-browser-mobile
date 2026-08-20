@@ -13,9 +13,9 @@ fi
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
 track_name="${PLAY_TRACK:-}"
 release_status="${PLAY_RELEASE_STATUS:-draft}"
-aab_path="${1:-dist/play-store/hns-dane-browser-v0.5.10-play-upload-signed.aab}"
-release_name="${PLAY_RELEASE_NAME:-Shakescape 0.5.10}"
-release_notes="${PLAY_RELEASE_NOTES:-0.5.10 adds native wallet lifecycle controls, protected local deletion, read-only balance, separate payment and name-transfer targets, history, names and status, plus exact-text name import. Read and import controls remain unavailable without a scoped indexed backend. It also adds ECH for supported HNS origins, clearer sync/reset recovery, and code-split asset handling. Android corrects WebView headers and safe-area padding and keeps service-worker cache misses on native streaming.}"
+aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.0-play-upload-signed.aab}"
+release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.0}"
+release_notes="${PLAY_RELEASE_NOTES:-1.0.0 introduces the Shakescape name and visual identity while preserving the existing app identity and data. It adds native wallet lifecycle controls, protected local deletion, read-only balance, history and name views, plus exact-text name import; read and import remain unavailable without a scoped indexed backend. It also adds ECH for supported HNS origins and improves sync recovery, WebView headers, safe-area layout, and service-worker streaming.}"
 update_listing="${PLAY_UPDATE_LISTING:-false}"
 listing_language="${PLAY_LISTING_LANGUAGE:-en-US}"
 

@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.0 - 2026-08-20
+
 ### Added
 
 - Added HNWR-v2 native wallet snapshots with a dedicated Handshake name-transfer
@@ -28,6 +30,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Renamed the public Android and iOS product to Shakescape and applied the new
+  icon, launch, start-page, store, and screenshot visual system while retaining
+  the existing application IDs, bundle IDs, source package names, and data.
 - Repinned `hns-wallet-mobile 0.1.0` to exact source
   `2061a27e0358c7f00fcc70497ef97f9b89d569da` and its `hns-rs 0.3.0`
   closure to `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`; Cargo policy,

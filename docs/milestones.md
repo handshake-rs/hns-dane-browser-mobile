@@ -160,8 +160,8 @@
   debug package/data; the production package remained installed and untouched.
   No wallet was created/restored and no credentialed read, secret, account, or
   value action ran.
-- Prepared the `0.5.10` platform release identity: Android code `51` and iOS
-  build `60` retain embedded Rust `0.5.9` and exact engine `0.2.1` source
+- Prepared the `1.0.0` platform release identity: Android code `52` and iOS
+  build `61` align embedded Rust at `1.0.0` and retain exact engine `0.2.1` source
   `65c397e8347f37085ea67d2c9c745ce896328e64`. Exact HNWR-v2 code-bearing source
   `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI `31807520618`,
   both associated CodeQL runs, and the Rust, Android, and complete Apple gates.
@@ -190,7 +190,7 @@
   provisioning, signed store artifacts, fresh commit-bound screenshots,
   privacy/category declaration readback, intentional store upload, Android
   credentialed read/create lifecycle qualification, and the physical-iPhone
-  matrix remain for `0.5.10`. No currently published Play, GitHub, or App Store
+  matrix remain for `1.0.0`. No currently published Play, GitHub, or App Store
   binary contains the native controls.
 - Added cross-platform dormant named-service consumption: Android and iOS now
   accept only a one-shot broker-issued `hns.named-service/v1` result bound to

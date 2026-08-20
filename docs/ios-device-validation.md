@@ -94,7 +94,7 @@ ABI/XCFramework/app/simulator gate and aggregate Required CI; CodeQL runs
 `31833858421` and `31833858650` also passed. Neither the historical nor current
 hosted CI is signed physical-device evidence.
 The following matrix remains an optional installed-iPhone qualification
-activity for the exact `0.5.10` release checkout:
+activity for the exact `1.0.0` release checkout:
 
 - On a fresh install, open Settings → Handshake wallet and confirm the screen
   reports no local wallet without announcing a website provider.

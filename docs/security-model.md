@@ -97,7 +97,7 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 
 ## Native wallet and dormant website-provider boundary
 
-The Android/iOS `0.5.10` release candidate links the exact pinned
+The Android/iOS `1.0.0` release candidate links the exact pinned
 `hns-wallet-mobile` controller to app-native create, restore, open, status,
 unlock, lock, one-time recovery, destroy, and single non-value HNS account
 identity controls. Both shells emit strict HNWR-v2 and implement native UI for

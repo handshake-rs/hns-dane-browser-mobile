@@ -2,8 +2,8 @@
 
 Last audited: 2026-08-14
 
-Current source is the `0.5.10` release candidate: Android code `51`, embedded
-non-publishable Rust `0.5.9`, and iOS `0.5.10` build `60`. Earlier
+Current source is the `1.0.0` release candidate: Android code `52`, embedded
+non-publishable Rust `1.0.0`, and iOS `1.0.0` build `61`. Earlier
 HNWR-v2/ECH-and-sync-telemetry code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed exact-source CI and the
 complete Android and Apple platform matrix in run `31807520618`; that evidence
@@ -80,7 +80,7 @@ credential/backend/data boundary.
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| `0.5.10` source identity | Current exact-source CI and CodeQL passed; signed candidate open | Android `0.5.10` / code `51` and iOS `0.5.10` / build `60` retain embedded Rust `0.5.9`. `hns-wallet-mobile` is pinned to wallet `0.1.0` source `2061a27e0358c7f00fcc70497ef97f9b89d569da`, which uses `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Source policy, lockfile, and notices bind that chain. Exact current source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed policy, Rust/supply-chain, Android build/unit, API 37 native instrumentation, the complete Apple gate, and Required CI in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed. Historical debug artifact `9222123624` is bound to earlier source, not upload/store signed, and no signed current candidate has been built or uploaded. |
+| `1.0.0` source identity | Current exact-source CI and CodeQL passed; signed candidate open | Android `1.0.0` / code `52`, iOS `1.0.0` / build `61`, and embedded Rust `1.0.0` are aligned for the major release. `hns-wallet-mobile` is pinned to wallet `0.1.0` source `2061a27e0358c7f00fcc70497ef97f9b89d569da`, which uses `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Source policy, lockfile, and notices bind that chain. Exact pre-rebrand source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed policy, Rust/supply-chain, Android build/unit, API 37 native instrumentation, the complete Apple gate, and Required CI in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed. Historical debug artifact `9222123624` is bound to earlier source, not upload/store signed, and no signed current candidate has been built or uploaded. |
 | Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 47 production complete | Android Publisher edit `07330408575596336357` committed code `47` directly to production with status `completed`; `generatedApks/47` returned HTTP `200`. |
@@ -160,7 +160,7 @@ credential/backend/data boundary.
    ads, listing-copy, and stale-screenshot fields. Code `47` production
    deployment is complete; this reconciliation remains a policy and listing
    maintenance item.
-3. Complete the remaining `0.5.10` product gates: provision and qualify a scoped
+3. Complete the remaining `1.0.0` product gates: provision and qualify a scoped
    indexed source, plus archive-capable/durable raw-tx data for fresh restore,
    or retain the explicit unavailable state; then generate commit-bound iOS and
    current Android screenshots without secrets, build and verify signed

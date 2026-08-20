@@ -1,6 +1,6 @@
 # App Store submission checklist
 
-Candidate values: iOS version `0.5.10`, build `60`, bundle ID
+Candidate values: iOS version `1.0.0`, build `61`, bundle ID
 `com.denuoweb.hnsdane.ios`, iPhone only, Free, manual release. The public
 baseline remains `0.5.5` / build `57`; do not copy its wallet-free answers,
 screenshots, or submission state into this candidate.
@@ -22,7 +22,7 @@ boundary.
 
 ## Source and build
 
-- [x] Configure source as iOS `0.5.10` / build `60` and embedded Rust `0.5.9`.
+- [x] Configure source as iOS `1.0.0` / build `61` and embedded Rust `1.0.0`.
 - [x] Pass the complete Apple gate for the underlying wallet tranche in exact
   Required CI run `31393998309` at
   `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
@@ -70,9 +70,9 @@ boundary.
   `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c` and it
   expires 2026-08-17. This is debug-only archive provenance, not an APK digest
   or store-signing result.
-- [ ] Inspect the extracted exact `0.5.10-debug` / code `51` APK and record its
+- [ ] Inspect the extracted exact `1.0.0-debug` / code `52` APK and record its
   size, SHA-256, package, SDK levels, ABIs, and signer.
-- [ ] Complete code `51` installed-device qualification before claiming unified
+- [ ] Complete code `52` installed-device qualification before claiming unified
   installed-product qualification.
 - [x] Require the protected upload workflow to capture and fully verify fresh
   exact-commit screenshots before reading Apple credentials or uploading an
@@ -84,7 +84,7 @@ boundary.
 - [ ] Run the protected exact-commit signed upload workflow and retain the IPA
   SHA-256, size, source commit, bundle identity, signing, and processing
   evidence.
-- [ ] Confirm build `60` is `VALID`, unexpired, and reports the intended
+- [ ] Confirm build `61` is `VALID`, unexpired, and reports the intended
   encryption declaration before selecting it.
 
 ## Public listing and privacy
@@ -106,7 +106,7 @@ boundary.
 ## Screenshots
 
 - [ ] Replace the retained `0.5.5` screenshot set with fresh, exact-commit
-  `0.5.10` iPhone screenshots showing the visible unavailable read rows.
+  `1.0.0` iPhone screenshots showing the visible unavailable read rows.
 - [ ] Confirm provenance schema 3 records
   `settings.wallet.native-controls`, and visually verify that native wallet
   entry without displaying a recovery phrase, account identifier, database
@@ -137,7 +137,7 @@ boundary.
 - [ ] Enter a real review contact name, phone number, and email address.
 - [ ] Paste `metadata/en-US/review-notes.txt`; leave sign-in fields disabled.
 - [ ] Confirm metadata, questionnaires, fresh screenshots, review details, and
-  processed build `60` are attached to the same `0.5.10` submission.
+  processed build `61` are attached to the same `1.0.0` submission.
 - [ ] Archive exact readback of the app/account-level fields the guarded client
   does not manage.
 - [ ] Choose **Manually release this version**, then intentionally add the

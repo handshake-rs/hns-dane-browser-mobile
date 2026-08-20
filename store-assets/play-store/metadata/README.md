@@ -1,9 +1,9 @@
 # Google Play Metadata Package
 
 This directory contains the reviewed source text and field guidance for the
-Android `0.5.10` / code `51` release candidate for package
-`com.denuoweb.hnsdane`. Its independently versioned embedded Rust workspace
-remains at `0.5.9`; the app includes native lifecycle controls plus strict
+Android `1.0.0` / code `52` release candidate for package
+`com.denuoweb.hnsdane`. Its embedded Rust workspace is aligned at `1.0.0`;
+the app includes native lifecycle controls plus strict
 HNWR-v2 read-only fields with separate HNS payment and name-transfer receive
 targets for one device-local HNS account identity.
 The runtime uses engine `0.2.1` at exact revision
@@ -49,7 +49,7 @@ Historical debug artifact `9222123624` has artifact-archive SHA-256
 2026-08-17, and is not Play/store signed. APK-level artifact and signer
 inspection, installed-device qualification, refreshed screenshots, live Play
 Console declaration reconciliation, and intentional upload remain open.
-No code `51` AAB has been built, uploaded, or submitted.
+No code `52` AAB has been built, uploaded, or submitted.
 
 The listing deliberately describes the limited native controller and its visible
 read rows. The product installs no scoped loopback credential or indexed wallet
@@ -67,7 +67,7 @@ marketplaces remain absent or gated off.
 - App name: `en-US/title.txt`
 - Short description: `en-US/short-description.txt`
 - Full description: `en-US/full-description.txt`
-- 0.5.10 release notes: `en-US/release-notes.txt`
+- 1.0.0 release notes: `en-US/release-notes.txt`
 
 ## Store Assets
 
@@ -82,7 +82,7 @@ marketplaces remain absent or gated off.
 - Ads declaration: No ads
 - Privacy policy URL: `https://denuoweb.com/work/hns-dane-browser/privacy`
 - Candidate upload artifact (signed, verified, and intentionally untracked):
-  `dist/play-store/hns-dane-browser-v0.5.10-play-upload-signed.aab`
+  `dist/play-store/hns-dane-browser-v1.0.0-play-upload-signed.aab`
 - Foreground service type: none; remove any stale `dataSync` declaration
   because sync is application-foreground scoped and the manifest declares no
   service.

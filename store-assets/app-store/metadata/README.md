@@ -1,6 +1,6 @@
 # App Store metadata
 
-This directory is the reviewed source package for the iOS `0.5.10` / build
+This directory is the reviewed source package for the iOS `1.0.0` / build
 `60` release candidate. The binary upload workflow does not upload
 listing metadata. The separate protected metadata/submission workflow applies
 and reads back the reviewed fields, exact screenshots, build relationship, and
@@ -41,13 +41,13 @@ artifact-archive SHA-256 is
 expires 2026-08-17. Fresh
 exact-release-checkout screenshots, signing, processing, metadata readback,
 intentional submission, and the physical-iPhone matrix remain open. Nothing in
-this package proves that build `60` has been uploaded or published. Build `59`
-was superseded without upload; build `60` still requires screenshots, signing,
+this package proves that build `61` has been uploaded or published. Build `59`
+was superseded without upload; build `61` still requires screenshots, signing,
 upload, processing, and API readback.
 
 The current public Apple baseline remains `0.5.5` / build `57`, published on
 2026-07-31 from `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Its retained
-submission and artifact evidence is release history, not evidence for `0.5.10`.
+submission and artifact evidence is release history, not evidence for `1.0.0`.
 No TestFlight distribution is planned by this repository workflow.
 
 The checked-in description and review notes accurately describe the native
@@ -75,7 +75,7 @@ needs the scoped credential/backend/data boundary before reads can be enabled.
 - SKU: `hns-dane-browser-ios`
 - Apple Team ID: `45NQQK3G3S`
 - User access: Full Access
-- Version: `0.5.10`
+- Version: `1.0.0`
 - Build: `60`
 - Primary category: Utilities, pending candidate-specific review
 - Price: Free
@@ -86,7 +86,7 @@ coverage exist.
 
 ## Canonical update fields
 
-Use these files for the `0.5.10` record:
+Use these files for the `1.0.0` record:
 
 - `name.txt`
 - `subtitle.txt`
@@ -108,7 +108,7 @@ its mutation scope; read those back separately.
 
 The retained screenshots under `../screenshots/en-US/` come from public
 `0.5.5` source and do not show the native wallet controls. They are historical
-assets only. Generate a fresh exact-commit set for `0.5.10`; the protected
+assets only. Generate a fresh exact-commit set for `1.0.0`; the protected
 upload workflow rejects a screenshot set whose commit does not match the
 candidate or whose provenance does not prove the visible native wallet row.
 The retained historical set deliberately fails the current full validator.
@@ -137,7 +137,7 @@ python3 store-assets/app-store/validate.py \
    compliance, DSA, price, availability, and routing against the exact build.
 4. Generate and review current iPhone screenshots from the exact source.
 5. Supply App Review with `en-US/review-notes.txt`; no login is required.
-6. Select processed build `60`, choose manual release, and complete
+6. Select processed build `61`, choose manual release, and complete
    `../submission-checklist.md` before adding the version for review.
 
 The API private key used by CI must exist only in the protected GitHub

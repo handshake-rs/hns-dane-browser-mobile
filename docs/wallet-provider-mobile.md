@@ -12,8 +12,8 @@ That wallet revision consumes `hns-rs 0.3.0` source
 `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Mobile source policy, its lockfile,
 and generated notices bind the complete reviewed protocol → wallet chain.
 
-The configured `0.5.10` candidate is Android code `51`, embedded Rust `0.5.9`,
-and iOS build `60`. Historical `0.5.8` application source
+The configured `1.0.0` candidate is Android code `52`, embedded Rust `1.0.0`,
+and iOS build `61`. Historical `0.5.8` application source
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
 `31402758394`, including Android build/unit/native instrumentation,
 Rust/supply-chain, and the complete Apple
@@ -57,7 +57,7 @@ The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
 and App Store `0.5.5` / build `57` binaries predate the native controller and
 remain historical wallet-free releases.
 
-## Native app controls in the 0.5.10 release candidate
+## Native app controls in the 1.0.0 release candidate
 
 Both platform shells now link a narrow native controller for:
 

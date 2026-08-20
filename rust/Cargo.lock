@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "android-ffi"
-version = "0.5.9"
+version = "1.0.0"
 dependencies = [
  "hns-mobile-platform-runtime",
  "hns-wallet-ffi",
@@ -986,7 +986,7 @@ dependencies = [
 
 [[package]]
 name = "hns-mobile-platform-runtime"
-version = "0.5.9"
+version = "1.0.0"
 dependencies = [
  "hns-browser-chain",
  "hns-browser-dane",
@@ -1414,7 +1414,7 @@ dependencies = [
 
 [[package]]
 name = "ios-ffi"
-version = "0.5.9"
+version = "1.0.0"
 dependencies = [
  "hns-mobile-platform-runtime",
  "hns-wallet-ffi",

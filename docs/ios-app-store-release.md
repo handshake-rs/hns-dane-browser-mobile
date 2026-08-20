@@ -12,10 +12,10 @@ The committed application identity is:
   rechecked through the public record on 2026-08-09
 - Published iOS build: `0.5.5` (`57`) at source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`
-- Configured release candidate: `0.5.10` (`60`), not uploaded
+- Configured release candidate: `1.0.0` (`60`), not uploaded
 - Device family: iPhone
 
-Candidate build `60` includes a native-only wallet screen for
+Candidate build `61` includes a native-only wallet screen for
 create/restore/open/status/unlock/lock, one HNS account identity, and strict
 HNWR-v2 read-only fields for balance, distinct HNS payment and name-transfer
 receive targets, history, tracked names, and module status. The decoder retains
@@ -44,7 +44,7 @@ current candidate pins wallet `2061a27`. Wallet-aware hosted
 privacy source `909dbd1a713f322f0a8d4cff88e765c612e184f3` was deployed and read
 back for the historical lifecycle boundary. Version-neutral HNWR-aware source
 `a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed and read back in
-Firebase run `31485234945`. The `0.5.10` description, What's New, and review
+Firebase run `31485234945`. The `1.0.0` description, What's New, and review
 notes are updated, while
 fresh exact-release-checkout screenshots, App Privacy/category answers,
 signing, processing, submission, and the physical-iPhone matrix remain release
@@ -156,7 +156,7 @@ The workflow then:
 
 ## Apply metadata and submit through the API
 
-After the upload run succeeds and build `60` finishes processing, use the
+After the upload run succeeds and build `61` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
@@ -199,8 +199,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version=0.5.5 \
-  -f confirm_metadata=APPLY_METADATA_0.5.10_60 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_0.5.10_60 \
+  -f confirm_metadata=APPLY_METADATA_1.0.0_61 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.0_61 \
   -f confirm_account_readiness=true
 ```
 
@@ -208,7 +208,7 @@ Apple may carry the prior public version's screenshots into a new editable
 version. A byte mismatch still fails closed. After visually reviewing the
 retained exact-artifact images, a metadata-only run may replace only that
 version's mismatching `APP_IPHONE_65` set by adding the exact confirmation
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_0.5.10_60`. Without
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.0_61`. Without
 that input the client issues no screenshot deletion requests.
 
 If the exact build is not yet `VALID`, the workflow fails closed before
@@ -270,9 +270,9 @@ Apple approves it, add the supplied export-compliance code to the next build.
 
 ## Release gate after upload
 
-For `0.5.10`, every item in
+For `1.0.0`, every item in
 `store-assets/app-store/submission-checklist.md` remains a pre-submission gate.
-In particular, build `60` has not been signed, uploaded, processed, selected,
+In particular, build `61` has not been signed, uploaded, processed, selected,
 or submitted. The paragraphs below preserve the public `0.5.5` chronology.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review

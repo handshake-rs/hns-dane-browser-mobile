@@ -2,8 +2,8 @@
 
 Last audited: 2026-08-14
 
-Current candidate source coordinates Android `0.5.10` / code `51`, the embedded
-non-publishable Rust workspace `0.5.9`, and iOS `0.5.10` / build `60`. It pins
+Current candidate source coordinates Android `1.0.0` / code `52`, the embedded
+non-publishable Rust workspace `1.0.0`, and iOS `1.0.0` / build `61`. It pins
 `hns-wallet-mobile 0.1.0` to exact wallet source
 `2061a27e0358c7f00fcc70497ef97f9b89d569da`, whose HNS primitives resolve from
 `hns-rs 0.3.0` source
@@ -45,7 +45,7 @@ exercise. Documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed the complete matrix again in
 manual CI run `31411048376`, including aggregate Required CI. These are retained
 as historical `0.5.8` results. Historical CI debug artifact `9080493058` is not
-a signed store artifact; no upload-signed `0.5.10` APK/AAB or App Store IPA has
+a signed store artifact; no upload-signed `1.0.0` APK/AAB or App Store IPA has
 been built or submitted.
 
 ## Configured and Local Gates

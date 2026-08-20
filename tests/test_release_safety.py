@@ -30,14 +30,14 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_0510_platform_identity_and_reviewed_wallet_pin(self) -> None:
+    def test_100_platform_identity_and_reviewed_wallet_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"0\.5\.10\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 51$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.0\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 52$")
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
-        self.assertEqual(manifest["workspace"]["package"]["version"], "0.5.9")
+        self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.0")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
         self.assertEqual(wallet["version"], "=0.1.0")
@@ -62,8 +62,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertNotIn("b24b66c382de53330ec21dd3137e056a2bea3e2d", lockfile)
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 0\.5\.10$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 60$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.0$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 61$")
 
     def test_unshipped_named_service_market_and_value_closures_stay_absent(self) -> None:
         with (ROOT / "rust/Cargo.lock").open("rb") as source:

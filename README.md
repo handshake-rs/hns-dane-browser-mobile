@@ -41,8 +41,8 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 `31485234945`. Store privacy/category answers still require exact-candidate
 reconciliation before submission.
 
-Current source is the `0.5.10` release candidate: Android code `51`, embedded
-non-publishable Rust workspace `0.5.9`, and iOS build `60`. It pins exact reviewed
+Current source is the `1.0.0` release candidate: Android code `52`, embedded
+non-publishable Rust workspace `1.0.0`, and iOS build `61`. It pins exact reviewed
 `hns-wallet-rs 0.1.0` source
 `2061a27e0358c7f00fcc70497ef97f9b89d569da`, whose protocol closure uses
 `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Both native

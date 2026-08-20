@@ -18,8 +18,8 @@ to `WAITING_FOR_REVIEW` are retained submission evidence, not current status.
 The public iOS `0.5.5`, Play Android `0.5.6`, and GitHub Android `0.5.7`
 descriptions accurately advertise browser releases with no wallet or exchange;
 those artifacts predate the native controller source described below. Current
-source is the `0.5.10` release candidate (Android code `51`, embedded Rust
-`0.5.9`, iOS build `60`). The preceding HNWR code-bearing source
+source is the `1.0.0` release candidate (Android code `52`, embedded Rust
+`1.0.0`, iOS build `61`). The preceding HNWR code-bearing source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
 `31433931682`, including the complete Android and Apple gates and aggregate
 Required CI. Exact debug APK artifact `9080493058` has SHA-256
@@ -314,7 +314,7 @@ ECH-and-sync-telemetry pin passed exact-source qualification in full CI
   headers, DANE-verified HNS, same-navigation Proof Details, and authenticated
   ICANN WebPKI. That historical set passed its submission validator; the
   current candidate validator intentionally rejects it because it predates the
-  exact `0.5.10` commit and required native wallet/read-row provenance.
+  exact `1.0.0` commit and required native wallet/read-row provenance.
 - Protected upload run `30456522039` passed the unsigned gate, signed and
   uploaded build `57`, and retained the 47,930,601-byte IPA with SHA-256
   `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.

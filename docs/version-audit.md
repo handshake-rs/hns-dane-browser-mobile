@@ -1,8 +1,8 @@
 # Version Audit
 
-Audit date: 2026-08-14.
+Audit date: 2026-08-20.
 
-This table records the versions configured for the `0.5.10` release candidate.
+This table records the versions configured for the `1.0.0` release candidate.
 It is not evidence that signed artifacts were built or published. Android
 runtime dependencies use stable releases; separate build-tool transitive
 dependencies may carry preview labels selected by AGP and are not packaged
@@ -10,9 +10,9 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `0.5.10` / code `51` | `android/app/build.gradle.kts` |
-| Embedded Rust workspace | `0.5.9` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `0.5.10` / build `60` | `ios/project.yml` |
+| Android app | `1.0.0` / code `52` | `android/app/build.gradle.kts` |
+| Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
+| iOS app | `1.0.0` / build `61` | `ios/project.yml` |
 | Native wallet controller | `hns-wallet-mobile 0.1.0` at `2061a27e0358c7f00fcc70497ef97f9b89d569da` | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | `hns-rs 0.3.0` at `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
