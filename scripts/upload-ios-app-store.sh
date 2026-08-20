@@ -408,4 +408,4 @@ xcodebuild \
   -allowProvisioningUpdates \
   "${authentication_args[@]}"
 
-echo "Uploaded HNS DANE Browser $version ($build) to App Store Connect."
+echo "Uploaded Shakescape $version ($build) to App Store Connect."

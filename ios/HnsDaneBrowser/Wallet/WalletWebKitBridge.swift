@@ -267,7 +267,7 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
       let sequence = 0;
       let provider = null;
       let retryIndex = 0;
-      const announce = () => window.dispatchEvent(new CustomEvent('hns:announceProvider', { detail: { info: { id: 'org.handshake-rs.wallet.mobile', name: 'HNS DANE Browser Wallet', providerApiVersion: '1' }, provider } }));
+      const announce = () => window.dispatchEvent(new CustomEvent('hns:announceProvider', { detail: { info: { id: 'org.handshake-rs.wallet.mobile', name: 'Shakescape Wallet', providerApiVersion: '1' }, provider } }));
       globalThis.__hnsWalletMobileDispatchV1 = (message) => {
         if (!message || message.schemaVersion !== 1 || message.kind !== 'event' || !eventNames.has(message.event)) return;
         if (message.event === 'disconnect') { for (const reject of pending.values()) reject(Object.assign(new Error('Wallet context disconnected'), { code: 'staleContext' })); pending.clear(); }

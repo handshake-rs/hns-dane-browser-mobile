@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/shakescape_navy" />
+    <item
+        android:width="176dp"
+        android:height="176dp"
+        android:drawable="@drawable/hns_dane_mark"
+        android:gravity="center" />
+</layer-list>

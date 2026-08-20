@@ -1,6 +1,6 @@
-HNS DANE Browser is a Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only HNS P2P DNS relay, optional user-configured recursive HNS DoH recovery, DNSSEC, and DANE diagnostics. It syncs Handshake headers, verifies HNS proofs, resolves delegated names, and keeps HNS HTTPS fail-closed to locally validated DNSSEC, TLSA, and DANE.
+Shakescape is a Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only HNS P2P DNS relay, optional user-configured recursive HNS DoH recovery, DNSSEC, and DANE diagnostics. It syncs Handshake headers, verifies HNS proofs, resolves delegated names, and keeps HNS HTTPS fail-closed to locally validated DNSSEC, TLSA, and DANE.
 
-HNS DANE Browser opens a bundled start page by default and is built for users who want to test HNS sites with a local verification path instead of relying on a normal system resolver.
+Shakescape opens a bundled start page by default and is built for users who want to test HNS sites with a local verification path instead of relying on a normal system resolver.
 
 Features:
 - HNS-aware omnibar for names such as `example/` and `name.tld/`

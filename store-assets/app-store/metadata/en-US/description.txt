@@ -1,4 +1,4 @@
-HNS DANE Browser is a Handshake-first WebKit browser that verifies HNS proofs locally and shows how each name and connection was resolved.
+Shakescape is a Handshake-first WebKit browser that verifies HNS proofs locally and shows how each name and connection was resolved.
 
 Features:
 

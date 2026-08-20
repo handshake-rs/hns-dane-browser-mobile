@@ -6,7 +6,7 @@ Current Android candidate source is `0.5.10` (`versionCode 51`) and supports
 Android 11 / API 30 or later. Google Play production remains on `0.5.6` / code
 `47`; no code `51` AAB has been built, uploaded, or submitted.
 
-This checklist maps HNS DANE Browser to current Google Play update requirements
+This checklist maps Shakescape to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
 repository. Google Play production contains Android `0.5.6` (`versionCode 47`)
 with shared Rust engine `0.5.6`, shipped from source
@@ -303,7 +303,7 @@ Short description, 80 characters max:
 
 Full description draft:
 
-> HNS DANE Browser is a Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only HNS P2P DNS relay, optional user-configured recursive HNS DoH recovery, proof-anchored authoritative DoH, and DNSSEC/DANE diagnostics. It syncs Handshake headers, verifies HNS proofs, resolves delegated names, and keeps HNS HTTPS strict to DNSSEC/DANE.
+> Shakescape is a Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only HNS P2P DNS relay, optional user-configured recursive HNS DoH recovery, proof-anchored authoritative DoH, and DNSSEC/DANE diagnostics. It syncs Handshake headers, verifies HNS proofs, resolves delegated names, and keeps HNS HTTPS strict to DNSSEC/DANE.
 >
 > Features:
 > - HNS-aware omnibar for names such as `example/` and `name.tld/`

@@ -1,4 +1,4 @@
-# HNS DANE Browser
+# Shakescape
 
 Cross-platform Handshake-first browser core with local HNS proofs,
 authoritative DNS, an experimental requester-only HNS P2P DNS relay, optional

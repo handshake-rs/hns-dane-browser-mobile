@@ -1,3 +1,9 @@
 <resources>
-    <color name="ic_launcher_background">#054249</color>
+    <color name="ic_launcher_background">#0A0E17</color>
+    <color name="shakescape_navy">#0A0E17</color>
+    <color name="shakescape_cyan">#00FFE0</color>
+    <color name="shakescape_violet">#785CFF</color>
+    <color name="shakescape_magenta">#FF2E9E</color>
+    <color name="shakescape_yellow">#FFD35C</color>
+    <color name="shakescape_ice">#E6F3FF</color>
 </resources>

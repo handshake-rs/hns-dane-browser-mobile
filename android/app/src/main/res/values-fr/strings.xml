@@ -273,10 +273,10 @@
     <string name="handshake_network_testnet_summary">Testnet public pour le développement.</string>
     <string name="handshake_network_regtest">Regtest</string>
     <string name="handshake_network_regtest_summary">Nœud de test de registre local sur 127.0.0.1:14038.</string>
-    <string name="diagnostics_clip_label">Ensemble de diagnostic du navigateur HNS DANE</string>
+    <string name="diagnostics_clip_label">Ensemble de diagnostic du Shakescape</string>
     <string name="diagnostics_copied">Ensemble de diagnostic copié</string>
     <string name="diagnostics_share_chooser">Partager le package de diagnostic</string>
-    <string name="diagnostics_report_title"># Offre groupée de diagnostic du navigateur HNS DANE</string>
+    <string name="diagnostics_report_title"># Offre groupée de diagnostic du Shakescape</string>
     <string name="diagnostics_report_generated">Généré : %1$s</string>
     <string name="diagnostics_report_build">Modèle : %1$s</string>
     <string name="diagnostics_report_rust_core">Noyau de rouille : %1$s</string>
@@ -289,9 +289,9 @@
     <string name="gateway_event_host">Hôte : %1$s</string>
     <string name="gateway_event_status">Statut : %1$s</string>
     <string name="gateway_event_reason">Raison : %1$s</string>
-    <string name="gateway_clip_label">Événements de la passerelle du navigateur HNS DANE</string>
+    <string name="gateway_clip_label">Événements de la passerelle du Shakescape</string>
     <string name="gateway_copied">Événements de passerelle copiés</string>
-    <string name="legal_license_summary">Le navigateur HNS DANE est disponible sous la licence non commerciale PolyForm 1.0.0. L\'utilisation, l\'étude, la modification et la redistribution non commerciales sont autorisées en vertu de la licence. L\'utilisation commerciale nécessite une autorisation écrite distincte de Denuo Web, LLC.</string>
+    <string name="legal_license_summary">Le Shakescape est disponible sous la licence non commerciale PolyForm 1.0.0. L\'utilisation, l\'étude, la modification et la redistribution non commerciales sont autorisées en vertu de la licence. L\'utilisation commerciale nécessite une autorisation écrite distincte de Denuo Web, LLC.</string>
     <string name="legal_copy_privacy_policy_url">URL de la politique de confidentialité</string>
     <string name="legal_copy_source_code_url">URL du code source</string>
     <string name="legal_copy_hns_donation_address">Adresse du don HNS</string>

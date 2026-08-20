@@ -1,4 +1,4 @@
-# Android HNS DANE Browser Reference Index
+# Android Shakescape Reference Index
 
 Paste-ready research and implementation checklist for an Android WebView-based Handshake-first browser with HNS resolution, DNSSEC, DANE/TLSA, RFC 8484 DoH transport, and optional local proxy/VPN modes.
 

@@ -4,49 +4,130 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-  <title>HNS DANE Browser</title>
+        content="default-src 'none'; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Shakescape</title>
   <style>
-    :root {
-      color-scheme: light dark;
-      font-family: system-ui, sans-serif;
-      background: #f4f6fa;
-      color: #18202b;
+    @font-face {
+      font-family: "Orbitron";
+      src: url("fonts/Orbitron-VariableFont_wght.ttf") format("truetype");
+      font-display: swap;
     }
+    :root {
+      color-scheme: dark;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0a0e17;
+      color: #e6f3ff;
+    }
+    * { box-sizing: border-box; }
     body {
       min-height: 100vh;
       margin: 0;
       display: grid;
       place-items: center;
+      overflow-x: hidden;
+      background:
+        linear-gradient(rgba(0, 255, 224, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120, 92, 255, 0.04) 1px, transparent 1px),
+        radial-gradient(circle at 50% 100%, rgba(0, 255, 224, 0.2), transparent 34rem),
+        radial-gradient(circle at 90% 0%, rgba(120, 92, 255, 0.22), transparent 28rem),
+        #0a0e17;
+      background-size: 40px 40px, 40px 40px, auto, auto, auto;
     }
     main {
-      width: min(34rem, calc(100% - 2rem));
-      padding: 2rem;
-      border: 1px solid #ccd3dd;
-      border-radius: 1rem;
-      background: #ffffff;
-      box-shadow: 0 0.5rem 2rem #18202b1a;
+      position: relative;
+      width: min(42rem, calc(100% - 2rem));
+      padding: clamp(1.5rem, 6vw, 3rem);
+      border: 1px solid rgba(0, 255, 224, 0.28);
+      border-radius: 1.25rem;
+      background: linear-gradient(145deg, rgba(16, 23, 39, 0.96), rgba(8, 12, 22, 0.92));
+      box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.45), 0 0 4rem rgba(120, 92, 255, 0.12);
     }
-    h1 { margin-top: 0; }
+    main::after {
+      position: absolute;
+      inset: auto 8% -1px;
+      height: 1px;
+      content: "";
+      background: linear-gradient(90deg, transparent, #00ffe0, #785cff, transparent);
+      box-shadow: 0 0 1.25rem #00ffe0;
+    }
+    .brand {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 1.75rem;
+    }
+    .brand img {
+      width: 4.75rem;
+      height: 4.75rem;
+      object-fit: contain;
+      filter: drop-shadow(0 0 1.2rem rgba(120, 92, 255, 0.38));
+    }
+    .eyebrow {
+      margin: 0 0 0.35rem;
+      color: #00ffe0;
+      font: 600 0.72rem/1.2 Orbitron, system-ui, sans-serif;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      color: #e6f3ff;
+      font: 650 clamp(1.8rem, 8vw, 2.75rem)/1 Orbitron, system-ui, sans-serif;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
     p, li { line-height: 1.55; }
-    .local {
-      margin-top: 1.5rem;
-      padding-top: 1rem;
-      border-top: 1px solid #ccd3dd;
-      color: #526071;
-      font-size: 0.9rem;
+    .intro {
+      color: #c5d7e5;
+      font-size: 1.05rem;
     }
-    @media (prefers-color-scheme: dark) {
-      :root { background: #11161e; color: #edf2f7; }
-      main { background: #1b2430; border-color: #3a4656; box-shadow: none; }
-      .local { color: #bdc7d4; border-color: #3a4656; }
+    ul {
+      display: grid;
+      gap: 0.65rem;
+      margin: 1.5rem 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    li {
+      position: relative;
+      padding-left: 1.3rem;
+      color: #e6f3ff;
+    }
+    li::before {
+      position: absolute;
+      top: 0.62rem;
+      left: 0;
+      width: 0.42rem;
+      height: 0.42rem;
+      border-radius: 50%;
+      content: "";
+      background: #00ffe0;
+      box-shadow: 0 0 0.8rem #00ffe0;
+    }
+    .local {
+      margin: 1.75rem 0 0;
+      padding-top: 1.2rem;
+      border-top: 1px solid rgba(230, 243, 255, 0.13);
+      color: #8fa7ba;
+      font-size: 0.82rem;
+    }
+    @media (max-width: 32rem) {
+      .brand { align-items: flex-start; }
+      .brand img { width: 3.8rem; height: 3.8rem; }
+      h1 { letter-spacing: 0.08em; }
     }
   </style>
 </head>
 <body>
   <main>
-    <h1>HNS DANE Browser</h1>
-    <p>Enter a web address or Handshake name in the address bar to begin.</p>
+    <header class="brand">
+      <img src="shakescape-mark.png" alt="">
+      <div>
+        <p class="eyebrow">Explore. Verify. Own the web.</p>
+        <h1>Shakescape</h1>
+      </div>
+    </header>
+    <p class="intro">Enter a web address or Handshake name in the address bar to begin.</p>
     <ul>
       <li>Open resolver trace to inspect HNS proofs and DNSSEC decisions.</li>
       <li>Use the TLSA / DANE inspector to review certificate policy.</li>

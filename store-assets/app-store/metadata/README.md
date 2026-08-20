@@ -69,7 +69,7 @@ needs the scoped credential/backend/data boundary before reads can be enabled.
 ## App record
 
 - Platform: iOS
-- Name: `HNS DANE Browser`
+- Name: `Shakescape`
 - Primary language: English (U.S.)
 - Bundle ID: `com.denuoweb.hnsdane.ios`
 - SKU: `hns-dane-browser-ios`

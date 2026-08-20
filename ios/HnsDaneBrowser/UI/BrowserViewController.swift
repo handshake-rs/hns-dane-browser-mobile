@@ -419,20 +419,20 @@ final class BrowserViewController: UIViewController {
           <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
           <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
           <style>
-            :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+            :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
             * { box-sizing: border-box; }
-            body { margin: 0; color: #172039; background: #f5f7fb; }
-            main { min-height: 100vh; padding: 36px 24px 42px; background: radial-gradient(circle at top right, #dceeff 0, transparent 38%); }
-            .eyebrow { color: #2563a9; font-size: 12px; font-weight: 800; letter-spacing: 1.8px; }
+            body { margin: 0; color: #e6f3ff; background: #0a0e17; }
+            main { min-height: 100vh; padding: 36px 24px 42px; background: linear-gradient(rgba(0,255,224,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(120,92,255,.04) 1px, transparent 1px), radial-gradient(circle at top right, rgba(120,92,255,.28) 0, transparent 42%), radial-gradient(circle at bottom, rgba(0,255,224,.14) 0, transparent 38%); background-size: 36px 36px, 36px 36px, auto, auto; }
+            .eyebrow { color: #00ffe0; font-size: 12px; font-weight: 800; letter-spacing: 2.2px; }
             h1 { max-width: 360px; margin: 12px 0 14px; font-size: 36px; line-height: 1.06; letter-spacing: -1.2px; }
-            .summary { margin: 0; max-width: 355px; color: #536078; font-size: 17px; line-height: 1.45; }
-            .badge { display: inline-flex; align-items: center; gap: 9px; margin: 24px 0 28px; padding: 10px 14px; color: #12633a; background: #dff5e8; border: 1px solid #b8e8cb; border-radius: 999px; font-size: 14px; font-weight: 700; }
-            .badge span { display: inline-grid; width: 22px; height: 22px; place-items: center; color: white; background: #1c8a50; border-radius: 50%; }
+            .summary { margin: 0; max-width: 355px; color: #b4c8d9; font-size: 17px; line-height: 1.45; }
+            .badge { display: inline-flex; align-items: center; gap: 9px; margin: 24px 0 28px; padding: 10px 14px; color: #e6f3ff; background: rgba(0,255,224,.09); border: 1px solid rgba(0,255,224,.45); border-radius: 999px; font-size: 14px; font-weight: 700; box-shadow: 0 0 24px rgba(0,255,224,.08); }
+            .badge span { display: inline-grid; width: 22px; height: 22px; place-items: center; color: #0a0e17; background: #00ffe0; border-radius: 50%; }
             .cards { display: grid; gap: 12px; }
-            article { padding: 19px 18px; background: rgba(255,255,255,.94); border: 1px solid #e1e7f0; border-radius: 18px; box-shadow: 0 8px 22px rgba(37,55,89,.06); }
+            article { padding: 19px 18px; background: rgba(14,21,36,.92); border: 1px solid rgba(120,92,255,.28); border-radius: 18px; box-shadow: 0 12px 30px rgba(0,0,0,.2); }
             article h2 { margin: 0 0 7px; font-size: 18px; letter-spacing: -.25px; }
-            article p { margin: 0; color: #5e6a7d; font-size: 14px; line-height: 1.42; }
-            footer { margin-top: 28px; color: #708098; font-size: 13px; font-weight: 600; }
+            article p { margin: 0; color: #9fb4c6; font-size: 14px; line-height: 1.42; }
+            footer { margin-top: 28px; color: #00ffe0; font-size: 13px; font-weight: 700; letter-spacing: .5px; }
           </style>
         </head>
         <body>
@@ -446,7 +446,7 @@ final class BrowserViewController: UIViewController {
               <article><h2>\(secondTitle)</h2><p>\(secondBody)</p></article>
               <article><h2>\(thirdTitle)</h2><p>\(thirdBody)</p></article>
             </section>
-            <footer>HNS DANE Browser · Denuo Web</footer>
+            <footer>Shakescape · Denuo Web</footer>
           </main>
         </body>
         </html>
@@ -884,7 +884,7 @@ final class BrowserViewController: UIViewController {
         \(BrowserSettingsViewController.privacyPolicyURL)
 
         LICENSE
-        HNS DANE Browser is source-available under the repository's PolyForm Noncommercial 1.0.0 license.
+        Shakescape is source-available under the repository's PolyForm Noncommercial 1.0.0 license.
         \(BrowserSettingsViewController.sourceCodeURL)
 
         USER AGREEMENT

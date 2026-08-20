@@ -53,7 +53,7 @@ android_exact_checks=(
   "${android_gradle}:versionName = \"${android_version}\""
   "CHANGELOG.md:## ${android_version} -"
   "scripts/play-upload-closed-testing.sh:${android_artifact}"
-  "scripts/play-upload-closed-testing.sh:HNS DANE Browser ${android_version}"
+  "scripts/play-upload-closed-testing.sh:Shakescape ${android_version}"
   "store-assets/play-store/metadata/README.md:${android_version} release notes"
   "store-assets/play-store/metadata/README.md:${android_artifact}"
   "store-assets/play-store/metadata/en-US/release-notes.txt:${android_version} "

@@ -279,10 +279,10 @@
     <string name="handshake_network_testnet_summary">רשת בדיקות ציבורית לפיתוח.</string>
     <string name="handshake_network_regtest">Regtest</string>
     <string name="handshake_network_regtest_summary">הצומת המקומי הכי נכון ב-127.0.0.1:14038.</string>
-    <string name="diagnostics_clip_label">חבילת אבחון דפדפן HNS DANE</string>
+    <string name="diagnostics_clip_label">חבילת אבחון דפדפן Shakescape</string>
     <string name="diagnostics_copied">חבילת האבחון הועתקה</string>
     <string name="diagnostics_share_chooser">שתף חבילת אבחון</string>
-    <string name="diagnostics_report_title"># חבילת אבחון דפדפן HNS DANE</string>
+    <string name="diagnostics_report_title"># חבילת אבחון דפדפן Shakescape</string>
     <string name="diagnostics_report_generated">נוצר: %1$s</string>
     <string name="diagnostics_report_build">מבנה: %1$s</string>
     <string name="diagnostics_report_rust_core">ליבת חלודה: %1$s</string>
@@ -295,9 +295,9 @@
     <string name="gateway_event_host">מארח: %1$s</string>
     <string name="gateway_event_status">סטטוס: %1$s</string>
     <string name="gateway_event_reason">סיבה: %1$s</string>
-    <string name="gateway_clip_label">HNS DANE אירועי שער דפדפן</string>
+    <string name="gateway_clip_label">Shakescape אירועי שער דפדפן</string>
     <string name="gateway_copied">הועתקו אירועי שער</string>
-    <string name="legal_license_summary">דפדפן HNS DANE זמין במקור תחת PolyForm Noncommercial License 1.0.0. שימוש לא מסחרי, מחקר, שינוי והפצה מחדש מותרים במסגרת הרישיון. שימוש מסחרי מחייב אישור נפרד בכתב מ-Denuo Web, LLC.</string>
+    <string name="legal_license_summary">דפדפן Shakescape זמין במקור תחת PolyForm Noncommercial License 1.0.0. שימוש לא מסחרי, מחקר, שינוי והפצה מחדש מותרים במסגרת הרישיון. שימוש מסחרי מחייב אישור נפרד בכתב מ-Denuo Web, LLC.</string>
     <string name="legal_copy_privacy_policy_url">כתובת האתר של מדיניות הפרטיות</string>
     <string name="legal_copy_source_code_url">כתובת האתר של קוד המקור</string>
     <string name="legal_copy_hns_donation_address">כתובת לתרומת HNS</string>

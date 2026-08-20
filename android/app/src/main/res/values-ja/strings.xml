@@ -273,10 +273,10 @@
     <string name="handshake_network_testnet_summary">開発用の公開テスト ネットワーク。</string>
     <string name="handshake_network_regtest">Regtest</string>
     <string name="handshake_network_regtest_summary">127.0.0.1:14038 のローカルRegtest ノード。</string>
-    <string name="diagnostics_clip_label">HNS DANE ブラウザ診断バンドル</string>
+    <string name="diagnostics_clip_label">Shakescape ブラウザ診断バンドル</string>
     <string name="diagnostics_copied">診断バンドルがコピーされました</string>
     <string name="diagnostics_share_chooser">診断バンドルを共有する</string>
-    <string name="diagnostics_report_title"># HNS DANE ブラウザ診断バンドル</string>
+    <string name="diagnostics_report_title"># Shakescape ブラウザ診断バンドル</string>
     <string name="diagnostics_report_generated">生成: %1$s</string>
     <string name="diagnostics_report_build">ビルド: %1$s</string>
     <string name="diagnostics_report_rust_core">ラストコア：%1$s</string>
@@ -289,9 +289,9 @@
     <string name="gateway_event_host">ホスト: %1$s</string>
     <string name="gateway_event_status">ステータス: %1$s</string>
     <string name="gateway_event_reason">理由: %1$s</string>
-    <string name="gateway_clip_label">HNS DANE ブラウザ ゲートウェイ イベント</string>
+    <string name="gateway_clip_label">Shakescape ブラウザ ゲートウェイ イベント</string>
     <string name="gateway_copied">ゲートウェイ イベントがコピーされました</string>
-    <string name="legal_license_summary">HNS DANE ブラウザは、PolyForm Noncommercial License 1.0.0 に基づいてソースから入手できます。非営利的な使用、研究、改変、再配布はライセンスに基づいて許可されています。商用利用には、Denuo Web, LLC からの書面による許可が別途必要です。</string>
+    <string name="legal_license_summary">Shakescape ブラウザは、PolyForm Noncommercial License 1.0.0 に基づいてソースから入手できます。非営利的な使用、研究、改変、再配布はライセンスに基づいて許可されています。商用利用には、Denuo Web, LLC からの書面による許可が別途必要です。</string>
     <string name="legal_copy_privacy_policy_url">プライバシーポリシーのURL</string>
     <string name="legal_copy_source_code_url">ソースコードのURL</string>
     <string name="legal_copy_hns_donation_address">HNS寄付先住所</string>

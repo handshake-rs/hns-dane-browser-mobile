@@ -285,10 +285,10 @@
 <string name="handshake_network_testnet_summary">Publiczna sieć testowa do programowania.</string>
 <string name="handshake_network_regtest">Regtest</string>
 <string name="handshake_network_regtest_summary">Lokalny węzeł rejestracyjny na 127.0.0.1:14038.</string>
-<string name="diagnostics_clip_label">Pakiet diagnostyczny HNS DANE Browser</string>
+<string name="diagnostics_clip_label">Pakiet diagnostyczny Shakescape</string>
 <string name="diagnostics_copied">Skopiowano pakiet diagnostyczny</string>
 <string name="diagnostics_share_chooser">Udostępnij pakiet diagnostyczny</string>
-<string name="diagnostics_report_title"># Pakiet diagnostyczny HNS DANE Browser</string>
+<string name="diagnostics_report_title"># Pakiet diagnostyczny Shakescape</string>
 <string name="diagnostics_report_generated">Wygenerowano: %1$s</string>
 <string name="diagnostics_report_build">Wersja: %1$s</string>
 <string name="diagnostics_report_rust_core">Rdzeń rdzy: %1$s</string>
@@ -301,9 +301,9 @@
 <string name="gateway_event_host">Gospodarz: %1$s</string>
 <string name="gateway_event_status">Stan: %1$s</string>
 <string name="gateway_event_reason">Powód: %1$s</string>
-<string name="gateway_clip_label">Zdarzenia bramy HNS DANE Browser</string>
+<string name="gateway_clip_label">Zdarzenia bramy Shakescape</string>
 <string name="gateway_copied">Skopiowano zdarzenia bramy</string>
-<string name="legal_license_summary">Wersja HNS DANE Browser jest dostępna w ramach licencji niekomercyjnej PolyForm 1.0.0. Licencja zezwala na niekomercyjne wykorzystanie, badanie, modyfikację i redystrybucję. Komercyjne wykorzystanie wymaga osobnej pisemnej zgody firmy Denuo Web, LLC.</string>
+<string name="legal_license_summary">Wersja Shakescape jest dostępna w ramach licencji niekomercyjnej PolyForm 1.0.0. Licencja zezwala na niekomercyjne wykorzystanie, badanie, modyfikację i redystrybucję. Komercyjne wykorzystanie wymaga osobnej pisemnej zgody firmy Denuo Web, LLC.</string>
 <string name="legal_copy_privacy_policy_url">polityka prywatności URL</string>
 <string name="legal_copy_source_code_url">kod źródłowy URL</string>
 <string name="legal_copy_hns_donation_address">Adres darowizny HNS</string>

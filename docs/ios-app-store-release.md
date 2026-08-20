@@ -6,7 +6,7 @@ The committed application identity is:
 
 - Team ID: `45NQQK3G3S`
 - Bundle ID: `com.denuoweb.hnsdane.ios`
-- Display name: `HNS DANE Browser`
+- Display name: `Shakescape`
 - Deployment floor: iOS 17.0
 - Current public App Store version: `0.5.5`, published 2026-07-31 and
   rechecked through the public record on 2026-08-09

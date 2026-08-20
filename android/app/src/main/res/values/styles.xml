@@ -3,8 +3,10 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:windowBackground">#FFFFFF</item>
-        <item name="android:colorAccent">#285E61</item>
+        <item name="android:windowBackground">@drawable/launch_screen</item>
+        <item name="android:colorAccent">#785CFF</item>
+        <item name="android:navigationBarColor">#E6F3FF</item>
+        <item name="android:statusBarColor">#E6F3FF</item>
     </style>
 
     <style name="AppTheme.Light" parent="@style/AppTheme" />
@@ -13,9 +15,11 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:windowBackground">#111315</item>
-        <item name="android:colorAccent">#80CBC4</item>
-        <item name="android:textColorPrimary">#E8EAED</item>
-        <item name="android:textColorSecondary">#BDC1C6</item>
+        <item name="android:windowBackground">@drawable/launch_screen</item>
+        <item name="android:colorAccent">#00FFE0</item>
+        <item name="android:navigationBarColor">#0A0E17</item>
+        <item name="android:statusBarColor">#0A0E17</item>
+        <item name="android:textColorPrimary">#E6F3FF</item>
+        <item name="android:textColorSecondary">#A9BED0</item>
     </style>
 </resources>

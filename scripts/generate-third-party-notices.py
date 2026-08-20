@@ -37,6 +37,8 @@ SCHEMA = "3"
 LOCKED_INPUT_PATHS = (
     "scripts/generate-third-party-notices.py",
     "scripts/verify_cargo_git_policy.py",
+    "android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf",
+    "android/app/src/main/assets/fonts/OFL-Orbitron.txt",
     "rust/Cargo.toml",
     "rust/Cargo.lock",
     "android/gradle/libs.versions.toml",
@@ -124,7 +126,7 @@ def check_committed_asset() -> int:
             expected_output_digest = digest_fields[0]
     if expected_output_digest and sha256_bytes(OUTPUT.read_bytes()) != expected_output_digest:
         failures.append("the complete generated notices asset does not match its committed SHA-256")
-    if not text.startswith("HNS DANE BROWSER THIRD-PARTY SOFTWARE NOTICES\n"):
+    if not text.startswith("SHAKESCAPE THIRD-PARTY SOFTWARE NOTICES\n"):
         failures.append("the generated marker is missing")
     if f"Generator schema: {SCHEMA}\n" not in text:
         failures.append("the generator schema is stale")
@@ -628,15 +630,22 @@ def generate() -> str:
         source_name, content = sqlite_notice
         add_notice("Bundled SQLite used by libsqlite3-sys", source_name, content)
 
+    orbitron_license = ROOT / "android/app/src/main/assets/fonts/OFL-Orbitron.txt"
+    add_notice(
+        "Bundled Orbitron variable font",
+        "OFL-Orbitron.txt",
+        orbitron_license.read_text(encoding="utf-8"),
+    )
+
     lines = [
-        "HNS DANE BROWSER THIRD-PARTY SOFTWARE NOTICES",
+        "SHAKESCAPE THIRD-PARTY SOFTWARE NOTICES",
         "",
         "This app includes open-source and source-available components. The inventories below",
         "are generated from the locked Android release runtime classpath and non-development Cargo",
         "dependency closures reachable from the Android and iOS native libraries for each shipped",
         "Rust target. The Rust inventory is the union of the Android and Apple device/simulator",
         "closures. Cargo build-time",
-        "dependencies are retained conservatively. Workspace-owned HNS DANE Browser crates and",
+        "dependencies are retained conservatively. Workspace-owned application crates and",
         "test-only, lint, platform build-tool, fuzz, and snapshot-exporter dependencies are excluded.",
         "",
         "Shipped Rust target closure counts:",
@@ -664,6 +673,12 @@ def generate() -> str:
         lines.append(
             f"  {package['name']} {package['version']} | {rust_license_label(package)}"
         )
+
+    lines.extend([
+        "",
+        "BUNDLED FONT COMPONENTS (1)",
+        "  Orbitron variable font | SIL Open Font License 1.1",
+    ])
 
     lines.extend(["", "LICENSE AND NOTICE TEXTS"])
     for digest in sorted(notice_groups):

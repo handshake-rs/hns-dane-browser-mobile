@@ -1,12 +1,12 @@
-# HNS DANE Browser Privacy Policy
+# Shakescape Privacy Policy
 
 Last updated: 2026-08-13
 
-HNS DANE Browser is published by Denuo Web, LLC. For privacy questions or deletion requests, email <info@denuoweb.com> or use the developer contact listed in the app's store listing. Do not post personal information to the public project issue tracker.
+Shakescape is published by Denuo Web, LLC. For privacy questions or deletion requests, email <info@denuoweb.com> or use the developer contact listed in the app's store listing. Do not post personal information to the public project issue tracker.
 
 ## Summary
 
-HNS DANE Browser is a Handshake-first browser for local HNS proofs, authoritative DNS, optional requester-only HNS P2P DNS relay consumption, optional user-configured recursive HNS DoH recovery, DNSSEC, and DANE diagnostics. It also provides native controls to create or restore one device-local HNS account identity and to open, unlock, or lock that local wallet. The wallet screen contains read-only fields for balance, distinct payment and name-transfer receive targets, transaction history, tracked names, and module status plus exact-text Handshake name import, but this build installs no scoped companion credential or indexed wallet backend, so those fields and import remain unavailable and no wallet-specific network request is made. Sending or value movement, website-provider access, HNSA/HNSR service roles, settlement, exchange features, and P2P marketplaces are unavailable. The requester-only P2P DNS relay is separate from HNSR and does not make the device a relay endpoint or output node. The app has no advertising SDKs, analytics SDKs, developer-operated accounts, or paid feature unlocks. The Android edition may show an optional external donation link that does not unlock functionality; the iOS app has no donation or payment flow.
+Shakescape is a Handshake-first browser for local HNS proofs, authoritative DNS, optional requester-only HNS P2P DNS relay consumption, optional user-configured recursive HNS DoH recovery, DNSSEC, and DANE diagnostics. It also provides native controls to create or restore one device-local HNS account identity and to open, unlock, or lock that local wallet. The wallet screen contains read-only fields for balance, distinct payment and name-transfer receive targets, transaction history, tracked names, and module status plus exact-text Handshake name import, but this build installs no scoped companion credential or indexed wallet backend, so those fields and import remain unavailable and no wallet-specific network request is made. Sending or value movement, website-provider access, HNSA/HNSR service roles, settlement, exchange features, and P2P marketplaces are unavailable. The requester-only P2P DNS relay is separate from HNSR and does not make the device a relay endpoint or output node. The app has no advertising SDKs, analytics SDKs, developer-operated accounts, or paid feature unlocks. The Android edition may show an optional external donation link that does not unlock functionality; the iOS app has no donation or payment flow.
 
 The app stores browser and native wallet data locally on the device and sends
 network requests needed to load sites and keep HNS resolution data current.
@@ -28,7 +28,7 @@ Denuo Web analytics or advertising service.
 
 ## Network Requests
 
-To provide browser functionality, HNS DANE Browser may connect to:
+To provide browser functionality, Shakescape may connect to:
 
 - Websites and web services that you choose to open.
 - Handshake peers and DNS seed hosts for header sync, peer discovery, and proof retrieval.
@@ -36,7 +36,7 @@ To provide browser functionality, HNS DANE Browser may connect to:
 - Authoritative DNS nameservers for delegated HNS names.
 - Proof-bootstrapped or RFC 9461-discovered RFC 8484 authoritative DoH endpoints for delegated HNS names.
 - A recursive HNS DNS-over-HTTPS endpoint entered explicitly by the user, but only after direct authoritative DNS, owner-published proof-anchored authoritative DoH, and any independently enabled P2P requester path fail because port 53 is intercepted or DNS transport is unavailable. Leaving the setting blank makes no request to such a service. `https://hnsdoh.com/dns-query` is an example only; it is never prefilled, selected automatically, or contacted unless the user enters it.
-- Security or reputation services exposed by the platform web engine. In particular, an installed Android WebView provider may check URLs with its Safe Browsing service and apply its own privacy policy. Apple WebKit and the operating system may apply their own browser-security protections. HNS DANE Browser does not operate those platform services.
+- Security or reputation services exposed by the platform web engine. In particular, an installed Android WebView provider may check URLs with its Safe Browsing service and apply its own privacy policy. Apple WebKit and the operating system may apply their own browser-security protections. Shakescape does not operate those platform services.
 - The non-routable `192.0.2.1` TEST-NET DNS sentinel after delegated DNS failure; a matching reply confirms transparent outbound port 53 interception, while no reply is reported only as not detected.
 - Cloudflare's DNS-over-HTTPS service at `cloudflare-dns.com` (bootstrapped through the documented `1.1.1.1` addresses) for ordinary internet DNS resolution.
 - Platform download services and the destination you choose when you download or export a file.
@@ -57,7 +57,7 @@ Websites may set cookies or use platform web-engine storage. Android provides se
 
 ## Data Sharing
 
-Denuo Web does not sell personal or sensitive user data. HNS DANE Browser shares data only as necessary for user-requested browser functionality, such as loading a website, syncing HNS data, resolving a name, or downloading a file. Native wallet databases, recovery phrases, device-bound database keys, and account identities are not sent to Denuo Web, websites, analytics services, or a wallet provider by this version.
+Denuo Web does not sell personal or sensitive user data. Shakescape shares data only as necessary for user-requested browser functionality, such as loading a website, syncing HNS data, resolving a name, or downloading a file. Native wallet databases, recovery phrases, device-bound database keys, and account identities are not sent to Denuo Web, websites, analytics services, or a wallet provider by this version.
 
 ## Retention and Deletion
 
@@ -67,11 +67,11 @@ An unconfirmed newly created wallet is automatically removed when its protected 
 
 Confirmed-wallet deletion first revokes the screen's wallet/read authority and closes the native controller. It then deletes the device-bound database key before deleting the encrypted database and its sidecar files. If key deletion fails, file removal does not begin and deletion remains incomplete; Android keeps the confirmed request blocked for retry, while iOS may reopen the verified-intact wallet after protected lifecycle access resumes. An ambiguous native close blocks that network wallet until the app process restarts. If file cleanup fails after the key is gone, the remaining encrypted orphan cannot be reopened and cleanup is retried before another wallet can use that network namespace. Android records this pending state in app-private preferences; iOS reconciles the Keychain item and database artifacts. Clearing all app storage or uninstalling remains a platform-level deletion option, subject to normal iOS Keychain retention semantics and subsequent reconciliation. Save the recovery phrase before deletion, clearing storage, or uninstalling, because the app cannot show it again and cannot recover the wallet for you.
 
-HNS DANE Browser does not create developer-operated user accounts, so there is no app account deletion flow.
+Shakescape does not create developer-operated user accounts, so there is no app account deletion flow.
 
 ## Children
 
-HNS DANE Browser is not directed to children. Because it is a general-purpose browser, websites opened by users may contain third-party content outside Denuo Web's control.
+Shakescape is not directed to children. Because it is a general-purpose browser, websites opened by users may contain third-party content outside Denuo Web's control.
 
 ## Changes
 

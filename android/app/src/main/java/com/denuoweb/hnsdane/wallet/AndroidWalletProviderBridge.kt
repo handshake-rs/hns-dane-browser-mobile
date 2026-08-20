@@ -328,7 +328,7 @@ internal class AndroidWalletProviderBridge(
                     on(name, listener) { if (!eventNames.has(name)) throw new TypeError('unsupported event'); if (typeof listener !== 'function') throw new TypeError('listener required'); const values = listeners.get(name) ?? new Set(); values.add(listener); listeners.set(name, values); return provider; },
                     removeListener(name, listener) { listeners.get(name)?.delete(listener); return provider; }
                   });
-                  const announce = () => window.dispatchEvent(new CustomEvent('hns:announceProvider', { detail: { info: { id: 'org.handshake-rs.wallet.mobile', name: 'HNS DANE Browser Wallet', providerApiVersion: '1' }, provider } }));
+                  const announce = () => window.dispatchEvent(new CustomEvent('hns:announceProvider', { detail: { info: { id: 'org.handshake-rs.wallet.mobile', name: 'Shakescape Wallet', providerApiVersion: '1' }, provider } }));
                   window.addEventListener('hns:requestProvider', announce);
                   announce();
                 } else if (message.kind === 'response') {
