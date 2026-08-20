@@ -5,7 +5,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * Narrow Android binding for the native non-value wallet controller.
+ * Narrow Android binding for the lifecycle, synchronized-read, and guarded
+ * native HNS value controllers.
  *
  * Database keys and restore phrases are caller-owned mutable arrays. Every
  * wrapper consumes and wipes those arrays before returning. Recovery output is
@@ -96,9 +97,36 @@ internal object NativeWalletBridge {
             }.getOrDefault(false)
     }
 
+    /** Installs the full same-store HNS controller without exposing signing authority to Kotlin. */
+    fun configureHnsValue(
+        currentAuthority: WalletReadBootstrapAuthority,
+        configuration: NativeHnsReadConfiguration,
+        databaseKey: ByteArray,
+    ): Boolean = consumeDatabaseKey(databaseKey) { key ->
+        configuration.consumeForValue(
+            currentAuthority,
+        ) { loopbackPort, authorization, denuoPolicyJson ->
+            isValidHandle(currentAuthority.walletHandle) &&
+                isAvailable &&
+                runCatching {
+                    nativeConfigureHnsValue(
+                        currentAuthority.walletHandle,
+                        key,
+                        loopbackPort,
+                        authorization,
+                        denuoPolicyJson,
+                    )
+                }.getOrDefault(false)
+        }
+    }
+
     fun hasHnsReads(handle: Long): Boolean =
         isValidHandle(handle) && isAvailable &&
             runCatching { nativeHasHnsReads(handle) }.getOrDefault(false)
+
+    fun hasHnsValue(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeHasHnsValue(handle) }.getOrDefault(false)
 
     fun synchronizeHnsReads(handle: Long): NativeWalletReadSnapshot? =
         if (isValidHandle(handle) && isAvailable) {
@@ -155,6 +183,155 @@ internal object NativeWalletBridge {
         bundle.fill(0)
     }
 
+    /** Prepares but does not execute one exact HNS send. Every input is consumed. */
+    fun prepareHnsSend(
+        handle: Long,
+        recipientUtf8: ByteArray,
+        amountBaseUnitsAscii: ByteArray,
+        maximumFeeBaseUnitsAscii: ByteArray,
+    ): NativeHnsSendApproval? = try {
+        if (
+            !isAvailable || !isValidHandle(handle) ||
+            recipientUtf8.size !in 1..MAX_HNS_RECIPIENT_BYTES ||
+            amountBaseUnitsAscii.size !in 1..MAX_BASE_UNITS_ASCII_BYTES ||
+            maximumFeeBaseUnitsAscii.size !in 1..MAX_BASE_UNITS_ASCII_BYTES
+        ) {
+            null
+        } else {
+            val bundle = runCatching {
+                nativePrepareHnsSend(
+                    handle,
+                    recipientUtf8,
+                    amountBaseUnitsAscii,
+                    maximumFeeBaseUnitsAscii,
+                )
+            }.getOrNull() ?: return null
+            val approval = parseAndWipeHnsSendApprovalBundle(bundle)
+            if (approval == null) {
+                // Native preparation may already have registered an approval.
+                // A malformed display projection makes that session unusable.
+                lock(handle)
+            }
+            approval
+        }
+    } finally {
+        recipientUtf8.fill(0)
+        amountBaseUnitsAscii.fill(0)
+        maximumFeeBaseUnitsAscii.fill(0)
+    }
+
+    /** Prepares any closed native name/Shakedex action without accepting raw provider calls. */
+    fun prepareHnsValueAction(
+        handle: Long,
+        intent: NativeHnsValueIntent,
+    ): NativeHnsValueApproval? {
+        val intentJson = intent.encodeJson() ?: return null
+        return try {
+            if (!isAvailable || !isValidHandle(handle)) return null
+            val bundle = runCatching { nativePrepareHnsValueAction(handle, intentJson) }
+                .getOrNull() ?: return null
+            val approval = parseAndWipeHnsValueApprovalBundle(bundle)
+            if (approval == null) lock(handle)
+            approval
+        } finally {
+            intentJson.fill(0)
+        }
+    }
+
+    fun queryShakedex(
+        handle: Long,
+        query: NativeShakedexQuery,
+    ): NativeShakedexQueryResult? {
+        val queryJson = query.encodeJson() ?: return null
+        return try {
+            if (!isAvailable || !isValidHandle(handle)) return null
+            val bundle = runCatching { nativeQueryShakedex(handle, queryJson) }
+                .getOrNull() ?: return null
+            parseAndWipeShakedexQueryBundle(bundle)
+        } finally {
+            queryJson.fill(0)
+        }
+    }
+
+    /** Consumes the exact one-shot token and returns only a validated send receipt. */
+    fun approveHnsValueAction(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): NativeHnsSendReceipt? = actionToken.consume { tokenAscii ->
+        if (!isAvailable || !isValidHandle(handle)) return@consume null
+        val bundle = runCatching { nativeApproveHnsValueAction(handle, tokenAscii) }
+            .getOrNull() ?: return@consume null
+        val receipt = parseAndWipeHnsSendReceiptBundle(bundle)
+        if (receipt == null) {
+            // Broadcast may already have committed. Do not continue an
+            // ambiguous value session before a fresh unlock and sync.
+            lock(handle)
+        }
+        receipt
+    }
+
+    /** Consumes one non-send action token and returns the bounded native provider result. */
+    fun approveHnsValueActionResult(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): NativeHnsValueResult? = actionToken.consume { tokenAscii ->
+        if (!isAvailable || !isValidHandle(handle)) return@consume null
+        val bundle = runCatching { nativeApproveHnsValueActionResult(handle, tokenAscii) }
+            .getOrNull() ?: return@consume null
+        val result = parseAndWipeHnsValueResultBundle(bundle)
+        if (result == null) lock(handle)
+        result
+    }
+
+    /** Consumes the exact token while asking Rust to discard the pending approval. */
+    fun rejectHnsValueAction(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): Boolean = actionToken.consume { tokenAscii ->
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeRejectHnsValueAction(handle, tokenAscii) }.getOrDefault(false)
+    } ?: false
+
+    internal fun parseAndWipeHnsSendApprovalBundle(
+        bundle: ByteArray,
+    ): NativeHnsSendApproval? = try {
+        NativeHnsSendApproval.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeHnsSendReceiptBundle(
+        bundle: ByteArray,
+    ): NativeHnsSendReceipt? = try {
+        NativeHnsSendReceipt.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeHnsValueApprovalBundle(
+        bundle: ByteArray,
+    ): NativeHnsValueApproval? = try {
+        NativeHnsValueApproval.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeHnsValueResultBundle(
+        bundle: ByteArray,
+    ): NativeHnsValueResult? = try {
+        NativeHnsValueResult.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeShakedexQueryBundle(
+        bundle: ByteArray,
+    ): NativeShakedexQueryResult? = try {
+        NativeShakedexQueryResult.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
     fun unlock(handle: Long, databaseKey: ByteArray): Boolean =
         consumeDatabaseKey(databaseKey) { key ->
             isValidHandle(handle) && isAvailable &&
@@ -199,11 +376,24 @@ internal object NativeWalletBridge {
         buffer.get(walletId)
         val hasActiveWallet = flags and STATUS_ACTIVE_WALLET != 0
         val locked = flags and STATUS_LOCKED != 0
+        val hnsReadsEnabled = flags and STATUS_HNS_READS != 0
+        val hnsValueEnabled = flags and STATUS_HNS_VALUE != 0
+        val shakedexEnabled = flags and STATUS_SHAKEDEX != 0
+        val mainnetSettlementEnabled = flags and STATUS_MAINNET_SETTLEMENT != 0
         if (hasActiveWallet == walletId.all { it == 0.toByte() }) return null
         if (locked == hasActiveWallet) return null
+        if (
+            hnsValueEnabled && !hnsReadsEnabled ||
+            shakedexEnabled && !hnsValueEnabled ||
+            mainnetSettlementEnabled && !hnsValueEnabled
+        ) return null
         return NativeWalletStatus(
             locked = locked,
             activeWalletId = walletId.takeIf { hasActiveWallet }?.toLowerHex(),
+            hnsReadsEnabled = hnsReadsEnabled,
+            hnsValueEnabled = hnsValueEnabled,
+            shakedexEnabled = shakedexEnabled,
+            mainnetSettlementEnabled = mainnetSettlementEnabled,
         )
     }
 
@@ -284,7 +474,19 @@ internal object NativeWalletBridge {
     ): Boolean
 
     @JvmStatic
+    private external fun nativeConfigureHnsValue(
+        handle: Long,
+        databaseKey: ByteArray,
+        loopbackPort: Int,
+        authorization: CharArray,
+        denuoPolicyJson: ByteArray,
+    ): Boolean
+
+    @JvmStatic
     private external fun nativeHasHnsReads(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeHasHnsValue(handle: Long): Boolean
 
     @JvmStatic
     private external fun nativeSynchronizeHnsReads(handle: Long): ByteArray?
@@ -294,6 +496,44 @@ internal object NativeWalletBridge {
         handle: Long,
         exactUtf8: ByteArray,
     ): ByteArray?
+
+    @JvmStatic
+    private external fun nativePrepareHnsSend(
+        handle: Long,
+        recipientUtf8: ByteArray,
+        amountBaseUnitsAscii: ByteArray,
+        maximumFeeBaseUnitsAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativePrepareHnsValueAction(
+        handle: Long,
+        intentJson: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeQueryShakedex(
+        handle: Long,
+        queryJson: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveHnsValueAction(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveHnsValueActionResult(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRejectHnsValueAction(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): Boolean
 
     @JvmStatic
     private external fun nativeUnlock(handle: Long, databaseKey: ByteArray): Boolean
@@ -314,12 +554,19 @@ internal object NativeWalletBridge {
     private const val MAX_RECOVERY_CHARACTERS = 256
     private const val MAX_ACCOUNT_LABEL_BYTES = 128
     private const val MAX_HNS_NAME_BYTES = 63
+    private const val MAX_HNS_RECIPIENT_BYTES = 512
+    private const val MAX_BASE_UNITS_ASCII_BYTES = 39
     private const val STATUS_BUNDLE_BYTES = 24
     private const val ACCOUNT_FIXED_BYTES = 28
     private const val BUNDLE_VERSION = 1
     private const val STATUS_LOCKED = 1
     private const val STATUS_ACTIVE_WALLET = 1 shl 1
-    private const val STATUS_ALLOWED_FLAGS = STATUS_LOCKED or STATUS_ACTIVE_WALLET
+    private const val STATUS_HNS_READS = 1 shl 2
+    private const val STATUS_HNS_VALUE = 1 shl 3
+    private const val STATUS_SHAKEDEX = 1 shl 4
+    private const val STATUS_MAINNET_SETTLEMENT = 1 shl 5
+    private const val STATUS_ALLOWED_FLAGS = STATUS_LOCKED or STATUS_ACTIVE_WALLET or
+        STATUS_HNS_READS or STATUS_HNS_VALUE or STATUS_SHAKEDEX or STATUS_MAINNET_SETTLEMENT
     private const val MODULE_HANDSHAKE = 1
     private const val HEX = "0123456789abcdef"
     private val STATUS_MAGIC = byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'W'.code.toByte(), 'S'.code.toByte())
@@ -329,6 +576,10 @@ internal object NativeWalletBridge {
 internal data class NativeWalletStatus(
     val locked: Boolean,
     val activeWalletId: String?,
+    val hnsReadsEnabled: Boolean,
+    val hnsValueEnabled: Boolean,
+    val shakedexEnabled: Boolean,
+    val mainnetSettlementEnabled: Boolean,
 )
 
 internal data class NativeWalletAccount(

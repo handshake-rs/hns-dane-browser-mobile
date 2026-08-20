@@ -9,12 +9,15 @@ use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
     HnsBootstrapPolicy, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MobileDatabaseKey, MobileHnsReadController, MobilePlatform,
-    MobileRecoveryPhrase, MobileWalletController, MobileWalletError,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileDatabaseKey,
+    MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
+    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
 };
+use hns_wallet_types::BaseUnits;
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JCharArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jcharArray, jint, jlong, jstring};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::os::fd::{FromRawFd, RawFd};
@@ -61,11 +64,31 @@ const WALLET_READ_BUNDLE_FLAGS: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ANDROID_WALLET_NAME_BYTES: usize = 63;
+const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
+const MAX_ANDROID_WALLET_BASE_UNITS_BYTES: usize = 39;
+const MAX_ANDROID_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
+const MAX_ANDROID_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
+const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
 const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;
 const WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_NAME_IMPORT_JSON_BYTES: usize = 4 * 1024;
+const WALLET_VALUE_APPROVAL_BUNDLE_MAGIC: &[u8; 4] = b"HNVP";
+const WALLET_VALUE_APPROVAL_BUNDLE_VERSION: u8 = 1;
+const WALLET_VALUE_APPROVAL_BUNDLE_FLAGS: u8 = 0;
+const WALLET_VALUE_APPROVAL_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_VALUE_APPROVAL_JSON_BYTES: usize = 16 * 1024;
+const WALLET_VALUE_RESULT_BUNDLE_MAGIC: &[u8; 4] = b"HNVX";
+const WALLET_VALUE_RESULT_BUNDLE_VERSION: u8 = 1;
+const WALLET_VALUE_RESULT_BUNDLE_FLAGS: u8 = 0;
+const WALLET_VALUE_RESULT_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_VALUE_RESULT_JSON_BYTES: usize = 256 * 1024;
+const WALLET_SHAKEDEX_QUERY_BUNDLE_MAGIC: &[u8; 4] = b"HNVQ";
+const WALLET_SHAKEDEX_QUERY_BUNDLE_VERSION: u8 = 1;
+const WALLET_SHAKEDEX_QUERY_BUNDLE_FLAGS: u8 = 0;
+const WALLET_SHAKEDEX_QUERY_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_SHAKEDEX_QUERY_RESULT_JSON_BYTES: usize = 256 * 1024;
 static WALLET_HANDLES: OnceLock<BoundedMonotonicRegistry<AndroidWalletRecord>> = OnceLock::new();
 const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
 static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
@@ -162,21 +185,23 @@ fn lock_if_active<'a, T>(active: &AtomicBool, value: &'a Mutex<T>) -> Option<Mut
 enum AndroidWalletController {
     Lifecycle(MobileWalletController),
     Reads(MobileHnsReadController<HnsNodeRpcBackend>),
+    Value(MobileHnsValueController<HnsNodeRpcBackend>),
     Failed,
 }
 
 impl AndroidWalletController {
     fn status_bundle(&mut self) -> Option<Vec<u8>> {
-        let (status, read_mode) = match self {
-            Self::Lifecycle(controller) => (controller.status().ok()?, false),
-            Self::Reads(controller) => (controller.status().ok()?, true),
+        let (status, hns_reads_enabled, hns_value_enabled, shakedex_enabled) = match self {
+            Self::Lifecycle(controller) => (controller.status().ok()?, false, false, false),
+            Self::Reads(controller) => (controller.status().ok()?, true, false, false),
+            Self::Value(controller) => (controller.status().ok()?, true, true, true),
             Self::Failed => return None,
         };
         let active_wallet = status
             .active_wallet
             .as_ref()
             .map(|wallet| wallet.as_bytes());
-        let enabled_modules_valid = if read_mode {
+        let enabled_modules_valid = if hns_reads_enabled {
             status.enabled_modules.len() == 1
                 && status
                     .enabled_modules
@@ -190,6 +215,9 @@ impl AndroidWalletController {
             status.locked,
             active_wallet,
             enabled_modules_valid,
+            hns_reads_enabled,
+            hns_value_enabled,
+            shakedex_enabled,
             status.mainnet_settlement_enabled,
         )
     }
@@ -198,6 +226,7 @@ impl AndroidWalletController {
         let mut accounts = match self {
             Self::Lifecycle(controller) => controller.accounts().ok()?,
             Self::Reads(controller) => controller.accounts().ok()?,
+            Self::Value(controller) => controller.accounts().ok()?,
             Self::Failed => return None,
         };
         if accounts.len() != 1 {
@@ -217,6 +246,7 @@ impl AndroidWalletController {
         match self {
             Self::Lifecycle(controller) => controller.unlock(key).is_ok(),
             Self::Reads(controller) => controller.unlock(key).is_ok(),
+            Self::Value(controller) => controller.unlock(key).is_ok(),
             Self::Failed => false,
         }
     }
@@ -225,6 +255,7 @@ impl AndroidWalletController {
         match self {
             Self::Lifecycle(controller) => controller.lock().is_ok(),
             Self::Reads(controller) => controller.lock().is_ok(),
+            Self::Value(controller) => controller.lock().is_ok(),
             Self::Failed => false,
         }
     }
@@ -251,15 +282,52 @@ impl AndroidWalletController {
         }
     }
 
+    fn install_hns_value(
+        &mut self,
+        database_key: &MobileDatabaseKey,
+        backend: HnsNodeRpcBackend,
+        shakedex_policy_json: &[u8],
+    ) -> bool {
+        if !matches!(self, Self::Lifecycle(_)) {
+            return false;
+        }
+        let lifecycle = match std::mem::replace(self, Self::Failed) {
+            Self::Lifecycle(controller) => controller,
+            _ => return false,
+        };
+        match lifecycle.into_hns_value_with_shakedex_policy(
+            database_key,
+            backend,
+            shakedex_policy_json,
+        ) {
+            Ok(controller) => {
+                *self = Self::Value(controller);
+                true
+            }
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet HNS value controller installation failed closed: {error}"
+                ));
+                false
+            }
+        }
+    }
+
     const fn has_hns_reads(&self) -> bool {
-        matches!(self, Self::Reads(_))
+        matches!(self, Self::Reads(_) | Self::Value(_))
+    }
+
+    const fn has_hns_value(&self) -> bool {
+        matches!(self, Self::Value(_))
     }
 
     fn synchronize_hns_reads(&mut self) -> Option<Vec<u8>> {
-        let Self::Reads(controller) = self else {
-            return None;
+        let snapshot = match self {
+            Self::Reads(controller) => controller.synchronize(),
+            Self::Value(controller) => controller.synchronize(),
+            Self::Lifecycle(_) | Self::Failed => return None,
         };
-        let snapshot = match controller.synchronize() {
+        let snapshot = match snapshot {
             Ok(snapshot) => snapshot,
             Err(error) => {
                 android_log_error(&format!("wallet HNS read synchronization failed: {error}"));
@@ -273,14 +341,16 @@ impl AndroidWalletController {
     }
 
     fn import_hns_name_exact_text(&mut self, name: &str) -> Option<Vec<u8>> {
-        let Self::Reads(controller) = self else {
-            return None;
+        let summary = match self {
+            Self::Reads(controller) => controller.import_name_exact_text(name),
+            Self::Value(controller) => controller.import_name_exact_text(name),
+            Self::Lifecycle(_) | Self::Failed => return None,
         };
-        let summary = match controller.import_name_exact_text(name) {
+        let summary = match summary {
             Ok(summary) if summary.name.as_bytes() == name.as_bytes() => summary,
             Ok(_) => {
                 android_log_error("wallet HNS name import returned a non-exact name summary");
-                let _ = controller.lock();
+                let _ = self.lock();
                 return None;
             }
             Err(error) if wallet_name_import_is_invalid(&error) => {
@@ -293,7 +363,7 @@ impl AndroidWalletController {
                 // particular, projection/evidence failures can occur after the
                 // service call itself and therefore are not guaranteed to have
                 // locked the controller upstream.
-                let _ = controller.lock();
+                let _ = self.lock();
                 return None;
             }
         };
@@ -303,17 +373,209 @@ impl AndroidWalletController {
                 android_log_error(&format!(
                     "wallet HNS name import projection failed closed: {error}"
                 ));
-                let _ = controller.lock();
+                let _ = self.lock();
                 return None;
             }
         };
         let bundle = wallet_name_import_bundle(json.as_slice());
         json.fill(0);
         if bundle.is_none() {
+            let _ = self.lock();
+        }
+        bundle
+    }
+
+    fn prepare_hns_send(
+        &mut self,
+        recipient: String,
+        amount: BaseUnits,
+        maximum_fee: BaseUnits,
+    ) -> Option<Vec<u8>> {
+        self.prepare_hns_value_action(MobileHnsValueIntent::Send {
+            recipient,
+            amount,
+            maximum_fee,
+        })
+    }
+
+    fn prepare_hns_value_action(&mut self, intent: MobileHnsValueIntent) -> Option<Vec<u8>> {
+        let Self::Value(controller) = self else {
+            return None;
+        };
+        let approval = match controller.prepare_value_action(intent) {
+            Ok(approval) => approval,
+            Err(error) => {
+                android_log_error(&format!("wallet HNS value preparation failed: {error}"));
+                return None;
+            }
+        };
+        if approval.summary.validate().is_err() {
+            android_log_error("wallet HNS value approval failed its native summary validation");
+            let _ = controller.lock();
+            return None;
+        }
+        let mut json = match serde_json::to_vec(&approval) {
+            Ok(json) => json,
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet HNS send approval projection failed closed: {error}"
+                ));
+                let _ = controller.lock();
+                return None;
+            }
+        };
+        let bundle = wallet_value_approval_bundle(json.as_slice());
+        json.fill(0);
+        if bundle.is_none() {
             let _ = controller.lock();
         }
         bundle
     }
+
+    fn query_shakedex(&mut self, query: MobileShakedexQuery) -> Option<Vec<u8>> {
+        let Self::Value(controller) = self else {
+            return None;
+        };
+        let result = match controller.query_shakedex(query) {
+            Ok(result) if result.is_object() => result,
+            Ok(_) => {
+                android_log_error("wallet Shakedex query returned a non-object result");
+                let _ = controller.lock();
+                return None;
+            }
+            Err(error) => {
+                android_log_error(&format!("wallet Shakedex query failed closed: {error}"));
+                return None;
+            }
+        };
+        let mut json = serde_json::to_vec(&result).ok()?;
+        let bundle = wallet_shakedex_query_bundle(json.as_slice());
+        json.fill(0);
+        if bundle.is_none() {
+            let _ = controller.lock();
+        }
+        bundle
+    }
+
+    fn approve_hns_value_action(&mut self, action_token: &str) -> Option<Vec<u8>> {
+        let Self::Value(controller) = self else {
+            return None;
+        };
+        let result = match controller.approve_value_action(action_token) {
+            Ok(result) => result,
+            Err(error) => {
+                android_log_error(&format!("wallet HNS value approval failed closed: {error}"));
+                return None;
+            }
+        };
+        let Some(result) = android_hns_send_receipt(result) else {
+            android_log_error("wallet HNS send result failed its closed native projection");
+            let _ = controller.lock();
+            return None;
+        };
+        let mut json = match serde_json::to_vec(&result) {
+            Ok(json) => json,
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet HNS value result projection failed closed: {error}"
+                ));
+                let _ = controller.lock();
+                return None;
+            }
+        };
+        let bundle = wallet_value_result_bundle(json.as_slice());
+        json.fill(0);
+        if bundle.is_none() {
+            let _ = controller.lock();
+        }
+        bundle
+    }
+
+    fn approve_hns_value_action_result(&mut self, action_token: &str) -> Option<Vec<u8>> {
+        let Self::Value(controller) = self else {
+            return None;
+        };
+        let result = match controller.approve_value_action(action_token) {
+            Ok(result) if result.is_object() => result,
+            Ok(_) => {
+                android_log_error("wallet HNS value result was not an object");
+                let _ = controller.lock();
+                return None;
+            }
+            Err(error) => {
+                android_log_error(&format!("wallet HNS value approval failed closed: {error}"));
+                return None;
+            }
+        };
+        let mut json = match serde_json::to_vec(&result) {
+            Ok(json) => json,
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet HNS value result encoding failed closed: {error}"
+                ));
+                let _ = controller.lock();
+                return None;
+            }
+        };
+        let bundle = wallet_value_result_bundle(json.as_slice());
+        json.fill(0);
+        if bundle.is_none() {
+            let _ = controller.lock();
+        }
+        bundle
+    }
+
+    fn reject_hns_value_action(&mut self, action_token: &str) -> bool {
+        let Self::Value(controller) = self else {
+            return false;
+        };
+        match controller.reject_value_action(action_token) {
+            Ok(()) => true,
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet HNS value rejection failed closed: {error}"
+                ));
+                false
+            }
+        }
+    }
+}
+
+fn android_hns_send_receipt(result: Value) -> Option<Value> {
+    let object = result.as_object()?;
+    let expected = [
+        "module",
+        "workflowId",
+        "requestNonce",
+        "txid",
+        "acceptedAtUnix",
+    ];
+    if object.len() != expected.len() || expected.iter().any(|key| !object.contains_key(*key)) {
+        return None;
+    }
+    if object.get("module")?.as_str()? != "handshake"
+        || !object.get("workflowId")?.is_null()
+        || object.get("requestNonce")?.as_u64()? == 0
+    {
+        return None;
+    }
+    let txid = object.get("txid")?.as_str()?;
+    if txid.len() != 64
+        || txid
+            .bytes()
+            .any(|byte| !byte.is_ascii_digit() && !(b'a'..=b'f').contains(&byte))
+    {
+        return None;
+    }
+    let accepted_at_unix = object.get("acceptedAtUnix")?.as_u64()?;
+    if accepted_at_unix > i64::MAX as u64 {
+        return None;
+    }
+    Some(json!({
+        "module": "handshake",
+        "txid": txid,
+        "acceptedAtUnix": accepted_at_unix,
+    }))
 }
 
 fn wallet_name_import_is_invalid(error: &MobileWalletError) -> bool {
@@ -536,6 +798,111 @@ fn android_wallet_database_key(
     key
 }
 
+fn wipe_android_byte_array(env: &mut JNIEnv<'_>, input: &JByteArray<'_>, length: usize) -> bool {
+    const ZERO_CHUNK: [i8; 256] = [0; 256];
+    let mut offset = 0_usize;
+    while offset < length {
+        let chunk = (length - offset).min(ZERO_CHUNK.len());
+        let Ok(jni_offset) = i32::try_from(offset) else {
+            return false;
+        };
+        if env
+            .set_byte_array_region(input, jni_offset, &ZERO_CHUNK[..chunk])
+            .is_err()
+        {
+            return false;
+        }
+        offset += chunk;
+    }
+    true
+}
+
+fn android_wallet_consumed_bytes(
+    env: &mut JNIEnv<'_>,
+    input: &JByteArray<'_>,
+    maximum: usize,
+) -> Option<Vec<u8>> {
+    let length = usize::try_from(env.get_array_length(input).ok()?).ok()?;
+    if length == 0 || length > maximum {
+        let _ = wipe_android_byte_array(env, input, length);
+        return None;
+    }
+    let converted = env.convert_byte_array(input);
+    let wiped = wipe_android_byte_array(env, input, length);
+    let mut bytes = converted.ok()?;
+    if !wiped {
+        bytes.fill(0);
+        return None;
+    }
+    Some(bytes)
+}
+
+fn android_wallet_consumed_database_key(
+    env: &mut JNIEnv<'_>,
+    input: &JByteArray<'_>,
+) -> Option<MobileDatabaseKey> {
+    let mut bytes = android_wallet_consumed_bytes(env, input, 32)?;
+    let key = MobileDatabaseKey::from_slice(bytes.as_slice()).ok();
+    bytes.fill(0);
+    key
+}
+
+fn bounded_visible_ascii(mut bytes: Vec<u8>, maximum: usize) -> Option<SensitiveString> {
+    if bytes.is_empty()
+        || bytes.len() > maximum
+        || bytes.iter().any(|byte| !(0x21..=0x7e).contains(byte))
+    {
+        bytes.fill(0);
+        return None;
+    }
+    match String::from_utf8(bytes) {
+        Ok(text) => Some(SensitiveString(text)),
+        Err(error) => {
+            let mut bytes = error.into_bytes();
+            bytes.fill(0);
+            None
+        }
+    }
+}
+
+fn canonical_nonzero_base_units(mut bytes: Vec<u8>) -> Option<BaseUnits> {
+    let valid = !bytes.is_empty()
+        && bytes.len() <= MAX_ANDROID_WALLET_BASE_UNITS_BYTES
+        && bytes.iter().all(u8::is_ascii_digit)
+        && (bytes.len() == 1 || bytes.first() != Some(&b'0'));
+    if !valid {
+        bytes.fill(0);
+        return None;
+    }
+    let value = std::str::from_utf8(bytes.as_slice())
+        .ok()
+        .and_then(|text| text.parse::<u128>().ok())
+        .filter(|value| *value != 0)
+        .map(BaseUnits::new);
+    bytes.fill(0);
+    value
+}
+
+fn canonical_action_token(bytes: Vec<u8>) -> Option<SensitiveString> {
+    if bytes.len() != ANDROID_WALLET_ACTION_TOKEN_BYTES
+        || bytes
+            .iter()
+            .any(|byte| !byte.is_ascii_digit() && !(b'a'..=b'f').contains(byte))
+    {
+        let mut bytes = bytes;
+        bytes.fill(0);
+        return None;
+    }
+    match String::from_utf8(bytes) {
+        Ok(token) => Some(SensitiveString(token)),
+        Err(error) => {
+            let mut bytes = error.into_bytes();
+            bytes.fill(0);
+            None
+        }
+    }
+}
+
 fn bounded_exact_wallet_name(mut bytes: Vec<u8>) -> Option<SensitiveString> {
     if bytes.is_empty() || bytes.len() > MAX_ANDROID_WALLET_NAME_BYTES {
         bytes.fill(0);
@@ -618,13 +985,48 @@ fn android_wallet_rpc_authorization(
     authorization.map(SensitiveString)
 }
 
+fn android_wallet_rpc_backend(
+    loopback_port: jint,
+    mut authorization: SensitiveString,
+) -> Option<HnsNodeRpcBackend> {
+    let loopback_port = u16::try_from(loopback_port)
+        .ok()
+        .filter(|port| *port != 0)?;
+    let endpoint = SocketAddr::from((Ipv4Addr::LOCALHOST, loopback_port));
+    let config = HnsNodeRpcConfig::new(endpoint, authorization.take())
+        .and_then(|config| {
+            config.with_timeouts(
+                ANDROID_WALLET_RPC_CONNECT_TIMEOUT,
+                ANDROID_WALLET_RPC_READ_TIMEOUT,
+                ANDROID_WALLET_RPC_WRITE_TIMEOUT,
+            )
+        })
+        .map_err(|error| {
+            android_log_error(&format!("wallet HNS node configuration rejected: {error}"));
+        })
+        .ok()?;
+    HnsNodeRpcBackend::new(config)
+        .map_err(|error| {
+            android_log_error(&format!("wallet HNS node backend rejected: {error}"));
+        })
+        .ok()
+}
+
 fn wallet_status_bundle(
     locked: bool,
     active_wallet: Option<&[u8; 16]>,
     enabled_modules_valid: bool,
+    hns_reads_enabled: bool,
+    hns_value_enabled: bool,
+    shakedex_enabled: bool,
     mainnet_settlement_enabled: bool,
 ) -> Option<Vec<u8>> {
-    if !enabled_modules_valid || mainnet_settlement_enabled || locked == active_wallet.is_some() {
+    if !enabled_modules_valid
+        || (hns_value_enabled && !hns_reads_enabled)
+        || (shakedex_enabled && !hns_value_enabled)
+        || (mainnet_settlement_enabled && !hns_value_enabled)
+        || locked == active_wallet.is_some()
+    {
         return None;
     }
     let mut bundle = Vec::with_capacity(WALLET_STATUS_BUNDLE_BYTES);
@@ -633,6 +1035,18 @@ fn wallet_status_bundle(
     let mut flags = u8::from(locked);
     if active_wallet.is_some() {
         flags |= 1 << 1;
+    }
+    if hns_reads_enabled {
+        flags |= 1 << 2;
+    }
+    if hns_value_enabled {
+        flags |= 1 << 3;
+    }
+    if shakedex_enabled {
+        flags |= 1 << 4;
+    }
+    if mainnet_settlement_enabled {
+        flags |= 1 << 5;
     }
     bundle.push(flags);
     bundle.extend_from_slice(&[0, 0]);
@@ -703,6 +1117,66 @@ fn wallet_name_import_bundle(json: &[u8]) -> Option<Vec<u8>> {
     bundle.extend_from_slice(&json_length.to_be_bytes());
     bundle.extend_from_slice(json);
     (bundle.len() == WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
+}
+
+fn wallet_value_approval_bundle(json: &[u8]) -> Option<Vec<u8>> {
+    wallet_json_bundle(
+        json,
+        WALLET_VALUE_APPROVAL_BUNDLE_MAGIC,
+        WALLET_VALUE_APPROVAL_BUNDLE_VERSION,
+        WALLET_VALUE_APPROVAL_BUNDLE_FLAGS,
+        WALLET_VALUE_APPROVAL_BUNDLE_HEADER_BYTES,
+        MAX_WALLET_VALUE_APPROVAL_JSON_BYTES,
+    )
+}
+
+fn wallet_value_result_bundle(json: &[u8]) -> Option<Vec<u8>> {
+    wallet_json_bundle(
+        json,
+        WALLET_VALUE_RESULT_BUNDLE_MAGIC,
+        WALLET_VALUE_RESULT_BUNDLE_VERSION,
+        WALLET_VALUE_RESULT_BUNDLE_FLAGS,
+        WALLET_VALUE_RESULT_BUNDLE_HEADER_BYTES,
+        MAX_WALLET_VALUE_RESULT_JSON_BYTES,
+    )
+}
+
+fn wallet_shakedex_query_bundle(json: &[u8]) -> Option<Vec<u8>> {
+    wallet_json_bundle(
+        json,
+        WALLET_SHAKEDEX_QUERY_BUNDLE_MAGIC,
+        WALLET_SHAKEDEX_QUERY_BUNDLE_VERSION,
+        WALLET_SHAKEDEX_QUERY_BUNDLE_FLAGS,
+        WALLET_SHAKEDEX_QUERY_BUNDLE_HEADER_BYTES,
+        MAX_WALLET_SHAKEDEX_QUERY_RESULT_JSON_BYTES,
+    )
+}
+
+fn wallet_json_bundle(
+    json: &[u8],
+    magic: &[u8; 4],
+    version: u8,
+    flags: u8,
+    header_bytes: usize,
+    maximum_json_bytes: usize,
+) -> Option<Vec<u8>> {
+    if header_bytes != 12
+        || json.is_empty()
+        || json.len() > maximum_json_bytes
+        || json.first() != Some(&b'{')
+        || json.last() != Some(&b'}')
+    {
+        return None;
+    }
+    let json_length = u32::try_from(json.len()).ok()?;
+    let mut bundle = Vec::with_capacity(header_bytes + json.len());
+    bundle.extend_from_slice(magic);
+    bundle.push(version);
+    bundle.push(flags);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&json_length.to_be_bytes());
+    bundle.extend_from_slice(json);
+    (bundle.len() == header_bytes + json.len()).then_some(bundle)
 }
 
 struct AndroidRequestMetricsObserver;
@@ -2249,16 +2723,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     authorization: JCharArray<'_>,
 ) -> jboolean {
     catch_unwind(AssertUnwindSafe(|| {
-        let Some(mut authorization) = android_wallet_rpc_authorization(&mut env, &authorization)
-        else {
+        let Some(authorization) = android_wallet_rpc_authorization(&mut env, &authorization) else {
             return false;
         };
-        let Ok(loopback_port) = u16::try_from(loopback_port) else {
-            return false;
-        };
-        if loopback_port == 0 {
-            return false;
-        }
         let Some(record) = wallet_from_handle(handle) else {
             return false;
         };
@@ -2272,32 +2739,66 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return false;
         }
         drop(pending_recovery);
-        let endpoint = SocketAddr::from((Ipv4Addr::LOCALHOST, loopback_port));
-        let config =
-            match HnsNodeRpcConfig::new(endpoint, authorization.take()).and_then(|config| {
-                config.with_timeouts(
-                    ANDROID_WALLET_RPC_CONNECT_TIMEOUT,
-                    ANDROID_WALLET_RPC_READ_TIMEOUT,
-                    ANDROID_WALLET_RPC_WRITE_TIMEOUT,
-                )
-            }) {
-                Ok(config) => config,
-                Err(error) => {
-                    android_log_error(&format!("wallet HNS read configuration rejected: {error}"));
-                    return false;
-                }
-            };
-        let backend = match HnsNodeRpcBackend::new(config) {
-            Ok(backend) => backend,
-            Err(error) => {
-                android_log_error(&format!("wallet HNS read backend rejected: {error}"));
-                return false;
-            }
+        let Some(backend) = android_wallet_rpc_backend(loopback_port, authorization) else {
+            return false;
         };
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
         controller.install_hns_reads(backend)
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeConfigureHnsValue(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    database_key: JByteArray<'_>,
+    loopback_port: jint,
+    authorization: JCharArray<'_>,
+    shakedex_policy_json: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        // Consume both caller-owned capabilities before any admission result or
+        // potentially blocking native operation can be observed.
+        let database_key = android_wallet_consumed_database_key(&mut env, &database_key);
+        let authorization = android_wallet_rpc_authorization(&mut env, &authorization);
+        let shakedex_policy_json = android_wallet_consumed_bytes(
+            &mut env,
+            &shakedex_policy_json,
+            MAX_MOBILE_SHAKEDEX_POLICY_BYTES,
+        );
+        let (Some(database_key), Some(authorization), Some(mut shakedex_policy_json)) =
+            (database_key, authorization, shakedex_policy_json)
+        else {
+            return false;
+        };
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        if !record.active.load(Ordering::Acquire) || !record.hns_reads_installable {
+            return false;
+        }
+        let Some(pending_recovery) = record.pending_recovery_if_active() else {
+            return false;
+        };
+        if pending_recovery.is_some() {
+            return false;
+        }
+        drop(pending_recovery);
+        let Some(backend) = android_wallet_rpc_backend(loopback_port, authorization) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        let installed =
+            controller.install_hns_value(&database_key, backend, shakedex_policy_json.as_slice());
+        shakedex_policy_json.fill(0);
+        installed
     }))
     .unwrap_or(false)
     .into()
@@ -2317,6 +2818,25 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return false;
         };
         controller.has_hns_reads()
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeHasHnsValue(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.has_hns_value()
     }))
     .unwrap_or(false)
     .into()
@@ -2367,6 +2887,214 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .ok()
     .flatten()
     .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareHnsSend(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    recipient_utf8: JByteArray<'_>,
+    amount_base_units_ascii: JByteArray<'_>,
+    maximum_fee_base_units_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        // Consume every mutable Java input before validating any sibling, so
+        // malformed calls cannot retain a transaction field for later reuse.
+        let recipient = android_wallet_consumed_bytes(
+            &mut env,
+            &recipient_utf8,
+            MAX_ANDROID_WALLET_RECIPIENT_BYTES,
+        );
+        let amount = android_wallet_consumed_bytes(
+            &mut env,
+            &amount_base_units_ascii,
+            MAX_ANDROID_WALLET_BASE_UNITS_BYTES,
+        );
+        let maximum_fee = android_wallet_consumed_bytes(
+            &mut env,
+            &maximum_fee_base_units_ascii,
+            MAX_ANDROID_WALLET_BASE_UNITS_BYTES,
+        );
+        let (Some(recipient), Some(amount), Some(maximum_fee)) = (recipient, amount, maximum_fee)
+        else {
+            return None;
+        };
+        let mut recipient = bounded_visible_ascii(recipient, MAX_ANDROID_WALLET_RECIPIENT_BYTES)?;
+        let amount = canonical_nonzero_base_units(amount)?;
+        let maximum_fee = canonical_nonzero_base_units(maximum_fee)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.prepare_hns_send(recipient.take(), amount, maximum_fee)?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        if array.is_none() {
+            // Preparation installed a pending native approval; never leave it
+            // executable when its exact display projection was not delivered.
+            let _ = controller.lock();
+        }
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareHnsValueAction(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    intent_json: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let mut json = android_wallet_consumed_bytes(
+            &mut env,
+            &intent_json,
+            MAX_ANDROID_WALLET_VALUE_INTENT_JSON_BYTES,
+        )?;
+        let intent = if json.first() == Some(&b'{') && json.last() == Some(&b'}') {
+            serde_json::from_slice::<MobileHnsValueIntent>(json.as_slice()).ok()
+        } else {
+            None
+        };
+        json.fill(0);
+        let intent = intent?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.prepare_hns_value_action(intent)?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        if array.is_none() {
+            let _ = controller.lock();
+        }
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeQueryShakedex(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    query_json: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let mut json = android_wallet_consumed_bytes(
+            &mut env,
+            &query_json,
+            MAX_ANDROID_WALLET_SHAKEDEX_QUERY_JSON_BYTES,
+        )?;
+        let query = if json.first() == Some(&b'{') && json.last() == Some(&b'}') {
+            serde_json::from_slice::<MobileShakedexQuery>(json.as_slice()).ok()
+        } else {
+            None
+        };
+        json.fill(0);
+        let query = query?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.query_shakedex(query)?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveHnsValueAction(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?;
+        let token = canonical_action_token(token)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.approve_hns_value_action(token.0.as_str())?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        if array.is_none() {
+            // The broadcast may already be durable. Locking prevents a caller
+            // from continuing with an ambiguous value session.
+            let _ = controller.lock();
+        }
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveHnsValueActionResult(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?;
+        let token = canonical_action_token(token)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.approve_hns_value_action_result(token.0.as_str())?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        if array.is_none() {
+            let _ = controller.lock();
+        }
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectHnsValueAction(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(token) = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        ) else {
+            return false;
+        };
+        let Some(token) = canonical_action_token(token) else {
+            return false;
+        };
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.reject_hns_value_action(token.0.as_str())
+    }))
+    .unwrap_or(false)
+    .into()
 }
 
 #[unsafe(no_mangle)]
@@ -2516,20 +3244,29 @@ mod tests {
     }
 
     #[test]
-    fn wallet_control_bundles_reject_value_or_non_hns_state() {
+    fn wallet_control_bundles_project_full_hns_value_state() {
         let wallet_id = [7_u8; 16];
-        let status = wallet_status_bundle(false, Some(&wallet_id), true, false)
-            .expect("unlocked non-value status");
+        let status = wallet_status_bundle(false, Some(&wallet_id), true, true, true, true, true)
+            .expect("unlocked HNS value status");
         assert_eq!(status.len(), WALLET_STATUS_BUNDLE_BYTES);
         assert_eq!(&status[..4], WALLET_STATUS_BUNDLE_MAGIC);
         assert_eq!(status[4], WALLET_STATUS_BUNDLE_VERSION);
-        assert_eq!(status[5], 0b10);
+        assert_eq!(status[5], 0b11_1110);
         assert_eq!(&status[8..], &wallet_id);
-        assert!(wallet_status_bundle(true, None, true, false).is_some());
-        assert!(wallet_status_bundle(true, Some(&wallet_id), true, false).is_none());
-        assert!(wallet_status_bundle(false, None, false, false).is_none());
-        assert!(wallet_status_bundle(false, None, true, false).is_none());
-        assert!(wallet_status_bundle(false, None, true, true).is_none());
+        assert!(wallet_status_bundle(true, None, true, false, false, false, false).is_some());
+        assert!(
+            wallet_status_bundle(true, Some(&wallet_id), true, false, false, false, false)
+                .is_none()
+        );
+        assert!(wallet_status_bundle(false, None, false, false, false, false, false).is_none());
+        assert!(wallet_status_bundle(false, None, true, false, false, false, false).is_none());
+        assert!(
+            wallet_status_bundle(false, Some(&wallet_id), true, false, true, false, false)
+                .is_none()
+        );
+        assert!(
+            wallet_status_bundle(false, Some(&wallet_id), true, true, false, true, false).is_none()
+        );
 
         let account_id = [9_u8; 16];
         let account = wallet_account_bundle(&account_id, "Handshake", "Handshake", false)
@@ -2585,6 +3322,95 @@ mod tests {
     }
 
     #[test]
+    fn wallet_value_bundles_are_distinct_versioned_and_bounded() {
+        let approval_json = br#"{"actionToken":"00","expiresAtUnix":7,"summary":{}}"#;
+        let approval = wallet_value_approval_bundle(approval_json).expect("value approval bundle");
+        assert_eq!(&approval[..4], WALLET_VALUE_APPROVAL_BUNDLE_MAGIC);
+        assert_eq!(approval[4], WALLET_VALUE_APPROVAL_BUNDLE_VERSION);
+        assert_eq!(approval[5], WALLET_VALUE_APPROVAL_BUNDLE_FLAGS);
+        assert_eq!(&approval[6..8], &[0, 0]);
+        assert_eq!(
+            u32::from_be_bytes(approval[8..12].try_into().expect("approval length")),
+            approval_json.len() as u32
+        );
+        assert_eq!(
+            &approval[WALLET_VALUE_APPROVAL_BUNDLE_HEADER_BYTES..],
+            approval_json
+        );
+
+        let result_json = br#"{"module":"handshake","txid":"00"}"#;
+        let result = wallet_value_result_bundle(result_json).expect("value result bundle");
+        assert_eq!(&result[..4], WALLET_VALUE_RESULT_BUNDLE_MAGIC);
+        assert_eq!(result[4], WALLET_VALUE_RESULT_BUNDLE_VERSION);
+        assert_eq!(result[5], WALLET_VALUE_RESULT_BUNDLE_FLAGS);
+        assert_eq!(
+            &result[WALLET_VALUE_RESULT_BUNDLE_HEADER_BYTES..],
+            result_json
+        );
+        assert_ne!(&approval[..4], &result[..4]);
+
+        for invalid in [b"".as_slice(), b"[]", b"{broken"] {
+            assert!(wallet_value_approval_bundle(invalid).is_none());
+            assert!(wallet_value_result_bundle(invalid).is_none());
+        }
+        assert!(
+            wallet_value_approval_bundle(&vec![b' '; MAX_WALLET_VALUE_APPROVAL_JSON_BYTES + 1])
+                .is_none()
+        );
+        assert!(
+            wallet_value_result_bundle(&vec![b' '; MAX_WALLET_VALUE_RESULT_JSON_BYTES + 1])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn wallet_send_inputs_are_canonical_and_closed() {
+        assert_eq!(
+            bounded_visible_ascii(b"hs1qqqqqq".to_vec(), MAX_ANDROID_WALLET_RECIPIENT_BYTES)
+                .expect("visible recipient")
+                .0,
+            "hs1qqqqqq"
+        );
+        for invalid in [Vec::new(), b" address".to_vec(), b"address\n".to_vec()] {
+            assert!(bounded_visible_ascii(invalid, MAX_ANDROID_WALLET_RECIPIENT_BYTES).is_none());
+        }
+
+        assert_eq!(
+            canonical_nonzero_base_units(b"1".to_vec())
+                .expect("one base unit")
+                .get(),
+            1
+        );
+        assert_eq!(
+            canonical_nonzero_base_units(u128::MAX.to_string().into_bytes())
+                .expect("maximum u128")
+                .get(),
+            u128::MAX
+        );
+        for invalid in [
+            "",
+            "0",
+            "01",
+            "+1",
+            "340282366920938463463374607431768211456",
+        ] {
+            assert!(canonical_nonzero_base_units(invalid.as_bytes().to_vec()).is_none());
+        }
+
+        let token = "ab".repeat(ANDROID_WALLET_ACTION_TOKEN_BYTES / 2);
+        assert_eq!(
+            canonical_action_token(token.as_bytes().to_vec())
+                .expect("lowercase token")
+                .0,
+            token
+        );
+        let uppercase_token = "AB".repeat(ANDROID_WALLET_ACTION_TOKEN_BYTES / 2);
+        for invalid in ["ab", uppercase_token.as_str()] {
+            assert!(canonical_action_token(invalid.as_bytes().to_vec()).is_none());
+        }
+    }
+
+    #[test]
     fn wallet_name_import_error_classification_preserves_invalid_non_poisoning() {
         assert!(wallet_name_import_is_invalid(
             &MobileWalletError::ServiceFailure {
@@ -2619,7 +3445,13 @@ mod tests {
     fn wallet_name_import_is_unavailable_without_the_read_controller_variant() {
         let mut controller = AndroidWalletController::Failed;
         assert!(!controller.has_hns_reads());
+        assert!(!controller.has_hns_value());
         assert!(controller.import_hns_name_exact_text("alpha").is_none());
+        assert!(
+            controller
+                .prepare_hns_send("recipient".to_owned(), BaseUnits::new(1), BaseUnits::new(1))
+                .is_none()
+        );
     }
 
     #[test]

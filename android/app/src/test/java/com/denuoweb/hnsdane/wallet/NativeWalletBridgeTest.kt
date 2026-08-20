@@ -10,18 +10,25 @@ import org.junit.Test
 
 class NativeWalletBridgeTest {
     @Test
-    fun statusBundleAcceptsOnlyLockedOrActiveNonValueState() {
+    fun statusBundleAcceptsLifecycleAndCompleteHnsValueState() {
         val locked = statusBundle(flags = 1, walletId = ByteArray(16))
         val parsedLocked = NativeWalletBridge.parseStatusBundle(locked)
         assertTrue(parsedLocked?.locked == true)
         assertNull(parsedLocked?.activeWalletId)
+        assertFalse(parsedLocked?.hnsReadsEnabled ?: true)
 
         val walletId = ByteArray(16) { (it + 1).toByte() }
-        val unlocked = NativeWalletBridge.parseStatusBundle(statusBundle(2, walletId))
+        val unlocked = NativeWalletBridge.parseStatusBundle(statusBundle(0b11_1110, walletId))
         assertFalse(unlocked?.locked ?: true)
         assertEquals("0102030405060708090a0b0c0d0e0f10", unlocked?.activeWalletId)
+        assertTrue(unlocked?.hnsReadsEnabled == true)
+        assertTrue(unlocked?.hnsValueEnabled == true)
+        assertTrue(unlocked?.shakedexEnabled == true)
+        assertTrue(unlocked?.mainnetSettlementEnabled == true)
 
-        assertNull(NativeWalletBridge.parseStatusBundle(statusBundle(4, walletId)))
+        assertNull(NativeWalletBridge.parseStatusBundle(statusBundle(1 shl 6, walletId)))
+        assertNull(NativeWalletBridge.parseStatusBundle(statusBundle(0b1010, walletId)))
+        assertNull(NativeWalletBridge.parseStatusBundle(statusBundle(0b1_0110, walletId)))
         assertNull(NativeWalletBridge.parseStatusBundle(statusBundle(0, walletId)))
         assertNull(NativeWalletBridge.parseStatusBundle(statusBundle(2, ByteArray(16))))
         assertNull(NativeWalletBridge.parseStatusBundle(statusBundle(3, walletId)))

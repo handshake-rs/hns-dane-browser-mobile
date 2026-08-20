@@ -23,6 +23,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
+import com.denuoweb.hnsdane.wallet.AndroidWalletNodeCredentialSource
+import com.denuoweb.hnsdane.wallet.NativeHnsSendApproval
+import com.denuoweb.hnsdane.wallet.NativeHnsValueApproval
+import com.denuoweb.hnsdane.wallet.NativeHnsValueApprovalKind
+import com.denuoweb.hnsdane.wallet.NativeHnsValueIntent
+import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
 import com.denuoweb.hnsdane.wallet.NativeWalletName
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
@@ -34,11 +40,9 @@ import com.denuoweb.hnsdane.wallet.WalletDeletionScope
 import com.denuoweb.hnsdane.wallet.WalletLeaseReleaseHandoff
 import com.denuoweb.hnsdane.wallet.WalletNameImportState
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
-import com.denuoweb.hnsdane.wallet.WalletReadBootstrapSource
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
 import com.denuoweb.hnsdane.wallet.WalletStorageDeletionResult
 import com.denuoweb.hnsdane.wallet.WalletStorageOwnershipGate
-import com.denuoweb.hnsdane.wallet.UnavailableWalletReadBootstrapSource
 import com.denuoweb.hnsdane.wallet.attemptWalletReadBootstrap
 import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
@@ -47,6 +51,7 @@ import com.denuoweb.hnsdane.wallet.exactWalletNameUtf8
 import com.denuoweb.hnsdane.wallet.walletNameImportRefreshMatches
 import com.denuoweb.hnsdane.wallet.displayAmount
 import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
+import com.denuoweb.hnsdane.wallet.parsePositiveHnsToBaseUnits
 import com.denuoweb.hnsdane.wallet.walletDeleteConfirmationMatches
 import com.denuoweb.hnsdane.wallet.walletDatabaseArtifacts
 import com.denuoweb.hnsdane.wallet.walletControllerOperationMayBegin
@@ -59,10 +64,12 @@ import com.denuoweb.hnsdane.wallet.walletSetupMayInspectStorage
 import com.denuoweb.hnsdane.wallet.walletStorageNamespace
 import java.io.File
 import java.security.SecureRandom
+import java.text.DateFormat
+import java.util.Date
 import kotlin.concurrent.thread
 import kotlin.math.ceil
 
-/** Dedicated native-only controller for one non-value Handshake wallet account. */
+/** Dedicated native controller for one complete Handshake wallet and Shakedex account. */
 class WalletActivity : ComponentActivity() {
     private lateinit var keyStore: AndroidWalletKeyStore
     private lateinit var walletNetwork: HandshakeNetwork
@@ -78,8 +85,15 @@ class WalletActivity : ComponentActivity() {
     private lateinit var trackedNamesView: TextView
     private lateinit var nameImportInput: EditText
     private lateinit var nameImportStatusView: TextView
+    private lateinit var sendRecipientInput: EditText
+    private lateinit var sendAmountInput: EditText
+    private lateinit var sendMaximumFeeInput: EditText
+    private lateinit var sendStatusView: TextView
+    private lateinit var valueActionStatusView: TextView
+    private lateinit var shakedexQueryStatusView: TextView
     private lateinit var restoreInput: EditText
     private lateinit var recoveryView: RecoveryPhraseView
+    private lateinit var walletNodeCredentialSource: AndroidWalletNodeCredentialSource
 
     private var walletHandle = INVALID_HANDLE
     private var walletAuthorityGeneration = 0L
@@ -91,9 +105,15 @@ class WalletActivity : ComponentActivity() {
     private var storageOwner: WalletStorageOwnershipGate.Owner? = null
     private var storageLease: WalletStorageOwnershipGate.Lease? = null
     private var walletDeletionDialog: AlertDialog? = null
+    private var sendApprovalDialog: AlertDialog? = null
+    private var pendingSendApproval: NativeHnsSendApproval? = null
+    private var valueApprovalDialog: AlertDialog? = null
+    private var pendingValueApproval: NativeHnsValueApproval? = null
+    private var latestReadSnapshot: NativeWalletReadSnapshot? = null
+    private var latestReadSnapshotHandle = INVALID_HANDLE
+    private var latestReadSnapshotAuthorityGeneration = 0L
+    private var latestReadSnapshotEpoch = 0L
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
-    private val walletReadBootstrapSource: WalletReadBootstrapSource =
-        UnavailableWalletReadBootstrapSource
 
     override fun onCreate(savedInstanceState: Bundle?) {
         savedInstanceState?.clear()
@@ -108,6 +128,8 @@ class WalletActivity : ComponentActivity() {
         ).absoluteFile
         walletStoragePath = walletDatabaseFile.path
         keyStore = AndroidWalletKeyStore(applicationContext, walletNetwork.id)
+        walletNodeCredentialSource =
+            AndroidWalletNodeCredentialSource(applicationContext, walletNetwork.id)
 
         statusView = preferenceSummary(
             text = getString(R.string.wallet_status_starting),
@@ -120,12 +142,20 @@ class WalletActivity : ComponentActivity() {
         )
         readStatusView = walletReadSummary(R.string.wallet_reads_unavailable)
         balanceView = walletReadSummary(R.string.wallet_reads_balance_unavailable)
-        paymentReceiveView = walletReadSummary(R.string.wallet_reads_receive_unavailable)
+        paymentReceiveView = walletReadSummary(R.string.wallet_reads_receive_unavailable).apply {
+            setTextIsSelectable(true)
+        }
         nameReceiveView = walletReadSummary(R.string.wallet_reads_name_receive_unavailable)
         historyView = walletReadSummary(R.string.wallet_reads_history_unavailable)
         trackedNamesView = walletReadSummary(R.string.wallet_reads_names_unavailable)
         nameImportInput = exactNameImportInput()
         nameImportStatusView = walletReadSummary(R.string.wallet_name_import_unavailable)
+        sendRecipientInput = hnsSendRecipientInput()
+        sendAmountInput = hnsSendAmountInput(R.string.wallet_send_amount_hint)
+        sendMaximumFeeInput = hnsSendAmountInput(R.string.wallet_send_maximum_fee_hint)
+        sendStatusView = walletReadSummary(R.string.wallet_send_unavailable)
+        valueActionStatusView = walletReadSummary(R.string.wallet_value_actions_unavailable)
+        shakedexQueryStatusView = walletReadSummary(R.string.wallet_shakedex_queries_unavailable)
         restoreInput = sensitiveRestoreInput()
         recoveryView = RecoveryPhraseView(this)
 
@@ -241,6 +271,84 @@ class WalletActivity : ComponentActivity() {
                     synchronizeWalletReads()
                 })
             })
+            addView(screenSection(getString(R.string.section_wallet_send)) {
+                addView(sendRecipientInput, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ))
+                addView(sendAmountInput, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ))
+                addView(sendMaximumFeeInput, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_send),
+                    summaryView = sendStatusView,
+                    actionLabel = getString(R.string.action_prepare_wallet_send),
+                ) {
+                    prepareWalletSend()
+                })
+            })
+            addView(screenSection(getString(R.string.section_wallet_name_actions)) {
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_value_action_status),
+                    summaryView = valueActionStatusView,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_transfer_name,
+                    R.string.row_wallet_transfer_name_summary,
+                    ::showTransferNameForm,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_finalize_name,
+                    R.string.row_wallet_finalize_name_summary,
+                    ::showFinalizeNameForm,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_create_offer,
+                    R.string.row_wallet_create_offer_summary,
+                    ::showCreateOfferForm,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_cancel_offer,
+                    R.string.row_wallet_cancel_offer_summary,
+                    ::showCancelOfferForm,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_accept_offer,
+                    R.string.row_wallet_accept_offer_summary,
+                    ::showAcceptOfferForm,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_finalize_purchase,
+                    R.string.row_wallet_finalize_purchase_summary,
+                    ::showFinalizePurchaseForm,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_recover_name,
+                    R.string.row_wallet_recover_name_summary,
+                    ::showRecoverNameForm,
+                ))
+            })
+            addView(screenSection(getString(R.string.section_wallet_shakedex)) {
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_shakedex_status),
+                    summaryView = shakedexQueryStatusView,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_list_offers,
+                    R.string.row_wallet_list_offers_summary,
+                    ::showListOffersForm,
+                ))
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_get_session,
+                    R.string.row_wallet_get_session_summary,
+                    ::showGetSessionForm,
+                ))
+            })
         }
     }
 
@@ -263,8 +371,11 @@ class WalletActivity : ComponentActivity() {
         storageOwner?.let(ProcessWalletStorageOwnership::retire)
         storageOwner = null
         dismissWalletDeletionDialog()
+        dismissSendApproval(rejectNative = false)
+        dismissValueApproval(rejectNative = false)
         clearRestoreInput()
         clearNameImportInput()
+        clearSendInputs()
         recoveryView.clearSecret()
         val hadUnconfirmedWallet = unconfirmedDatabaseKey != null
         unconfirmedDatabaseKey?.fill(0)
@@ -833,6 +944,715 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
+    private data class WalletActionInput(
+        val hint: Int,
+        val numeric: Boolean = false,
+        val initial: String = "",
+    )
+
+    private fun walletActionRow(title: Int, summary: Int, action: () -> Unit): View =
+        preferenceRow(
+            title = getString(title),
+            summary = getString(summary),
+            actionLabel = getString(R.string.action_open),
+            action = action,
+        )
+
+    private fun showWalletActionForm(
+        title: Int,
+        fields: List<WalletActionInput>,
+        submit: (List<String>) -> Unit,
+    ) {
+        if (busy) return
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val inset = (16 * resources.displayMetrics.density).toInt()
+            setPadding(inset, inset / 2, inset, 0)
+        }
+        val inputs = fields.map { field ->
+            EditText(this).apply {
+                hint = getString(field.hint)
+                inputType = if (field.numeric) {
+                    InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                } else {
+                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                }
+                filters = arrayOf(InputFilter.LengthFilter(MAX_VALUE_ACTION_INPUT_CHARACTERS))
+                setSingleLine(true)
+                if (field.initial.isNotEmpty()) setText(field.initial)
+                layout.addView(
+                    this,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ),
+                )
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(layout)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_prepare) { _, _ ->
+                submit(inputs.map { it.text?.toString().orEmpty() })
+                inputs.forEach { wipeEditable(it.text) }
+            }
+            .show()
+    }
+
+    private fun showTransferNameForm() = showWalletActionForm(
+        R.string.row_wallet_transfer_name,
+        listOf(
+            WalletActionInput(R.string.wallet_action_name_hint),
+            WalletActionInput(R.string.wallet_action_recipient_hint),
+            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+        ),
+    ) { values ->
+        val fee = parsePositiveHnsToBaseUnits(values[2])
+        if (fee == null) return@showWalletActionForm invalidValueActionInput()
+        prepareWalletValueAction(
+            NativeHnsValueIntent.TransferName(values[0], values[1], fee),
+        )
+    }
+
+    private fun showFinalizeNameForm() = showWalletActionForm(
+        R.string.row_wallet_finalize_name,
+        listOf(
+            WalletActionInput(R.string.wallet_action_name_hint),
+            WalletActionInput(R.string.wallet_action_expected_recipient_hint),
+            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+        ),
+    ) { values ->
+        val fee = parsePositiveHnsToBaseUnits(values[2])
+        if (fee == null) return@showWalletActionForm invalidValueActionInput()
+        prepareWalletValueAction(
+            NativeHnsValueIntent.FinalizeName(
+                values[0],
+                values[1].ifBlank { null },
+                fee,
+            ),
+        )
+    }
+
+    private fun showCreateOfferForm() = showWalletActionForm(
+        R.string.row_wallet_create_offer,
+        listOf(
+            WalletActionInput(R.string.wallet_action_name_hint),
+            WalletActionInput(R.string.wallet_action_price_hint, numeric = true),
+            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+            WalletActionInput(
+                R.string.wallet_action_lifetime_hint,
+                numeric = true,
+                initial = DEFAULT_LISTING_LIFETIME_SECONDS.toString(),
+            ),
+        ),
+    ) { values ->
+        val price = parsePositiveHnsToBaseUnits(values[1])
+        val fee = parsePositiveHnsToBaseUnits(values[2])
+        val lifetime = values[3].toLongOrNull()
+        if (price == null || fee == null || lifetime == null) {
+            return@showWalletActionForm invalidValueActionInput()
+        }
+        prepareWalletValueAction(
+            NativeHnsValueIntent.CreateFixedPriceOffer(
+                values[0],
+                price,
+                fee,
+                lifetime,
+            ),
+        )
+    }
+
+    private fun showCancelOfferForm() = showWalletActionForm(
+        R.string.row_wallet_cancel_offer,
+        listOf(WalletActionInput(R.string.wallet_action_seller_session_hint)),
+    ) { values ->
+        prepareWalletValueAction(NativeHnsValueIntent.CancelOffer(values[0]))
+    }
+
+    private fun showAcceptOfferForm() = showWalletActionForm(
+        R.string.row_wallet_accept_offer,
+        listOf(
+            WalletActionInput(R.string.wallet_action_listing_hint),
+            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+        ),
+    ) { values ->
+        val fee = parsePositiveHnsToBaseUnits(values[1])
+        if (fee == null) return@showWalletActionForm invalidValueActionInput()
+        prepareWalletValueAction(NativeHnsValueIntent.AcceptOffer(values[0], fee))
+    }
+
+    private fun showFinalizePurchaseForm() = showWalletActionForm(
+        R.string.row_wallet_finalize_purchase,
+        listOf(
+            WalletActionInput(R.string.wallet_action_session_hint),
+            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+        ),
+    ) { values ->
+        val fee = parsePositiveHnsToBaseUnits(values[1])
+        if (fee == null) return@showWalletActionForm invalidValueActionInput()
+        prepareWalletValueAction(NativeHnsValueIntent.FinalizePurchase(values[0], fee))
+    }
+
+    private fun showRecoverNameForm() = showWalletActionForm(
+        R.string.row_wallet_recover_name,
+        listOf(
+            WalletActionInput(R.string.wallet_action_seller_session_hint),
+            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+        ),
+    ) { values ->
+        val fee = parsePositiveHnsToBaseUnits(values[1])
+        if (fee == null) return@showWalletActionForm invalidValueActionInput()
+        prepareWalletValueAction(NativeHnsValueIntent.RecoverName(values[0], fee))
+    }
+
+    private fun showListOffersForm() = showWalletActionForm(
+        R.string.row_wallet_list_offers,
+        listOf(
+            WalletActionInput(R.string.wallet_action_cursor_hint),
+            WalletActionInput(
+                R.string.wallet_action_limit_hint,
+                numeric = true,
+                initial = DEFAULT_OFFER_PAGE_SIZE.toString(),
+            ),
+        ),
+    ) { values ->
+        val limit = values[1].toIntOrNull()
+        if (limit == null) return@showWalletActionForm invalidShakedexQueryInput()
+        queryWalletShakedex(
+            NativeShakedexQuery.ListOffers(values[0].ifBlank { null }, limit),
+        )
+    }
+
+    private fun showGetSessionForm() = showWalletActionForm(
+        R.string.row_wallet_get_session,
+        listOf(WalletActionInput(R.string.wallet_action_session_hint)),
+    ) { values ->
+        queryWalletShakedex(NativeShakedexQuery.GetSession(values[0]))
+    }
+
+    private fun invalidValueActionInput() {
+        valueActionStatusView.text = getString(R.string.wallet_value_actions_invalid)
+    }
+
+    private fun invalidShakedexQueryInput() {
+        shakedexQueryStatusView.text = getString(R.string.wallet_shakedex_queries_invalid)
+    }
+
+    private fun valueActionContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
+        val lease = currentStorageLease() ?: return null
+        val handle = walletHandle
+        val snapshot = latestReadSnapshot
+        val status = NativeWalletBridge.status(handle)
+        return (lease to handle).takeIf {
+            handle != INVALID_HANDLE && snapshot != null && status != null && !status.locked &&
+                status.hnsValueEnabled && status.shakedexEnabled &&
+                NativeWalletBridge.hasHnsValue(handle) &&
+                latestReadSnapshotHandle == handle &&
+                latestReadSnapshotAuthorityGeneration == walletAuthorityGeneration &&
+                latestReadSnapshotEpoch == lifecycleEpoch &&
+                unconfirmedDatabaseKey == null
+        }
+    }
+
+    private fun prepareWalletValueAction(intent: NativeHnsValueIntent) {
+        val (lease, handle) = valueActionContext() ?: run {
+            valueActionStatusView.text = getString(R.string.wallet_value_actions_requires_sync)
+            return
+        }
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_preparing_value_action),
+                resetReads = false,
+            )
+        ) return
+        valueActionStatusView.text = getString(R.string.wallet_value_actions_preparing)
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        val expectedKind = when (intent) {
+            is NativeHnsValueIntent.TransferName -> NativeHnsValueApprovalKind.NAME_TRANSFER
+            is NativeHnsValueIntent.FinalizeName -> NativeHnsValueApprovalKind.NAME_FINALIZE
+            is NativeHnsValueIntent.CreateFixedPriceOffer,
+            is NativeHnsValueIntent.CancelOffer,
+            is NativeHnsValueIntent.RecoverName -> NativeHnsValueApprovalKind.NAME_MARKET_OFFER
+            is NativeHnsValueIntent.AcceptOffer,
+            is NativeHnsValueIntent.FinalizePurchase ->
+                NativeHnsValueApprovalKind.NAME_MARKET_PURCHASE
+        }
+        thread(name = "hns-wallet-value-prepare") {
+            val approval = NativeWalletBridge.prepareHnsValueAction(handle, intent)
+            val exact = approval?.takeIf { it.kind == expectedKind }
+            if (approval != null && exact == null) {
+                NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
+                approval.close()
+                NativeWalletBridge.lock(handle)
+            }
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    exact?.let {
+                        NativeWalletBridge.rejectHnsValueAction(handle, it.actionToken)
+                        it.close()
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                if (exact == null) {
+                    busy = false
+                    refreshControllerState(resetReads = false)
+                    valueActionStatusView.text =
+                        getString(R.string.wallet_value_actions_prepare_failed)
+                } else {
+                    showValueApproval(exact, lease, epoch, authorityGeneration)
+                }
+            }
+        }
+    }
+
+    private fun showValueApproval(
+        approval: NativeHnsValueApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+        authorityGeneration: Long,
+    ) {
+        dismissValueApproval(rejectNative = true)
+        pendingValueApproval = approval
+        val expires = runCatching {
+            DateFormat.getDateTimeInstance().format(
+                Date(Math.multiplyExact(approval.expiresAtUnix, 1_000L)),
+            )
+        }.getOrElse { approval.expiresAtUnix.toString() }
+        val message = (approval.detailLines + getString(
+            R.string.wallet_value_actions_expires,
+            expires,
+        )).joinToString("\n\n")
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(approval.title)
+            .setMessage(message)
+            .setNegativeButton(R.string.action_reject) { _, _ ->
+                rejectPreparedValueAction(approval, lease, epoch, authorityGeneration)
+            }
+            .setPositiveButton(R.string.action_approve_hns_value) { _, _ ->
+                approvePreparedValueAction(approval, lease, epoch, authorityGeneration)
+            }
+            .create()
+        valueApprovalDialog = dialog
+        dialog.setOnCancelListener {
+            rejectPreparedValueAction(approval, lease, epoch, authorityGeneration)
+        }
+        dialog.setOnDismissListener {
+            if (valueApprovalDialog === dialog) valueApprovalDialog = null
+            if (pendingValueApproval === approval) {
+                rejectPreparedValueAction(approval, lease, epoch, authorityGeneration)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun approvePreparedValueAction(
+        approval: NativeHnsValueApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+        authorityGeneration: Long,
+    ) {
+        if (pendingValueApproval !== approval) return
+        pendingValueApproval = null
+        valueActionStatusView.text = getString(R.string.wallet_value_actions_executing)
+        val handle = walletHandle
+        thread(name = "hns-wallet-value-execute") {
+            val result = NativeWalletBridge.approveHnsValueActionResult(
+                handle,
+                approval.actionToken,
+            )
+            approval.close()
+            val snapshot = result?.let { NativeWalletBridge.synchronizeHnsReads(handle) }
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                refreshControllerState(resetReads = result == null || snapshot == null)
+                if (snapshot != null) renderReadSnapshot(snapshot)
+                valueActionStatusView.text = if (result == null) {
+                    getString(R.string.wallet_value_actions_result_ambiguous)
+                } else {
+                    getString(R.string.wallet_value_actions_result, result.displayJson)
+                }
+            }
+        }
+    }
+
+    private fun rejectPreparedValueAction(
+        approval: NativeHnsValueApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+        authorityGeneration: Long,
+    ) {
+        if (pendingValueApproval !== approval) return
+        pendingValueApproval = null
+        val handle = walletHandle
+        thread(name = "hns-wallet-value-reject") {
+            val rejected = NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
+            approval.close()
+            if (!rejected) NativeWalletBridge.lock(handle)
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                refreshControllerState(resetReads = !rejected)
+                valueActionStatusView.text = getString(
+                    if (rejected) R.string.wallet_value_actions_rejected
+                    else R.string.wallet_value_actions_reject_failed,
+                )
+            }
+        }
+    }
+
+    private fun dismissValueApproval(rejectNative: Boolean) {
+        val approval = pendingValueApproval
+        pendingValueApproval = null
+        val dialog = valueApprovalDialog
+        valueApprovalDialog = null
+        dialog?.setOnCancelListener(null)
+        dialog?.setOnDismissListener(null)
+        dialog?.dismiss()
+        if (approval != null) {
+            if (rejectNative && walletHandle != INVALID_HANDLE) {
+                val handle = walletHandle
+                thread(name = "hns-wallet-value-dismiss") {
+                    NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
+                    approval.close()
+                }
+            } else {
+                approval.close()
+            }
+            busy = false
+        }
+    }
+
+    private fun queryWalletShakedex(query: NativeShakedexQuery) {
+        val (lease, handle) = valueActionContext() ?: run {
+            shakedexQueryStatusView.text =
+                getString(R.string.wallet_shakedex_queries_requires_sync)
+            return
+        }
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_querying_shakedex),
+                resetReads = false,
+            )
+        ) return
+        shakedexQueryStatusView.text = getString(R.string.wallet_shakedex_queries_loading)
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        thread(name = "hns-wallet-shakedex-query") {
+            val result = NativeWalletBridge.queryShakedex(handle, query)
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                refreshControllerState(resetReads = false)
+                shakedexQueryStatusView.text = if (result == null) {
+                    getString(R.string.wallet_shakedex_queries_failed)
+                } else {
+                    getString(R.string.wallet_shakedex_queries_result, result.displayJson)
+                }
+            }
+        }
+    }
+
+    private fun prepareWalletSend() {
+        val lease = currentStorageLease() ?: return
+        val handle = walletHandle
+        val snapshot = latestReadSnapshot
+        val status = NativeWalletBridge.status(handle)
+        if (
+            handle == INVALID_HANDLE || snapshot == null || status == null || status.locked ||
+            !NativeWalletBridge.hasHnsValue(handle) ||
+            latestReadSnapshotHandle != handle ||
+            latestReadSnapshotAuthorityGeneration != walletAuthorityGeneration ||
+            latestReadSnapshotEpoch != lifecycleEpoch ||
+            unconfirmedDatabaseKey != null
+        ) {
+            sendStatusView.text = getString(R.string.wallet_send_requires_sync)
+            return
+        }
+        val recipient = sendRecipientInput.text?.toString().orEmpty()
+        val amountBaseUnits = sendAmountInput.text?.let(::parsePositiveHnsToBaseUnits)
+        val maximumFeeBaseUnits =
+            sendMaximumFeeInput.text?.let(::parsePositiveHnsToBaseUnits)
+        if (
+            recipient.toByteArray(Charsets.UTF_8).size !in 1..MAX_SEND_RECIPIENT_BYTES ||
+            recipient.any { it.code !in 0x21..0x7e } ||
+            amountBaseUnits == null || maximumFeeBaseUnits == null
+        ) {
+            sendStatusView.text = getString(R.string.wallet_send_invalid)
+            return
+        }
+        if (
+            !beginOperation(
+                lease,
+                getString(R.string.wallet_status_preparing_send),
+                resetReads = false,
+            )
+        ) return
+        sendStatusView.text = getString(R.string.wallet_send_preparing)
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        thread(name = "hns-wallet-send-prepare") {
+            val approval = NativeWalletBridge.prepareHnsSend(
+                handle = handle,
+                recipientUtf8 = recipient.toByteArray(Charsets.UTF_8),
+                amountBaseUnitsAscii = amountBaseUnits.toByteArray(Charsets.US_ASCII),
+                maximumFeeBaseUnitsAscii = maximumFeeBaseUnits.toByteArray(Charsets.US_ASCII),
+            )
+            val exact = approval?.takeIf {
+                it.recipient == recipient &&
+                    it.amountBaseUnits == amountBaseUnits &&
+                    it.maximumFeeBaseUnits == maximumFeeBaseUnits
+            }
+            if (approval != null && exact == null) {
+                NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
+                approval.close()
+                NativeWalletBridge.lock(handle)
+            }
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    exact?.let {
+                        NativeWalletBridge.rejectHnsValueAction(handle, it.actionToken)
+                        it.close()
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                if (exact == null) {
+                    busy = false
+                    refreshControllerState(resetReads = false)
+                    sendStatusView.text = getString(R.string.wallet_send_prepare_failed)
+                } else {
+                    clearSendInputs()
+                    showSendApproval(exact, lease, epoch, authorityGeneration)
+                }
+            }
+        }
+    }
+
+    private fun showSendApproval(
+        approval: NativeHnsSendApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+        authorityGeneration: Long,
+    ) {
+        dismissSendApproval(rejectNative = true)
+        pendingSendApproval = approval
+        val expires = runCatching {
+            DateFormat.getDateTimeInstance().format(
+                Date(Math.multiplyExact(approval.expiresAtUnix, 1_000L)),
+            )
+        }.getOrElse { approval.expiresAtUnix.toString() }
+        val message = getString(
+            R.string.wallet_send_approval_message,
+            approval.recipient,
+            formatHnsBaseUnits(approval.amountBaseUnits),
+            formatHnsBaseUnits(approval.maximumFeeBaseUnits),
+            getString(R.string.wallet_send_finality_pow),
+            getString(R.string.wallet_send_warning_fee_change),
+            expires,
+        )
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_send_approval_title)
+            .setMessage(message)
+            .setNegativeButton(R.string.action_reject) { _, _ ->
+                rejectPreparedSend(approval, lease, epoch, authorityGeneration)
+            }
+            .setPositiveButton(R.string.action_broadcast_hns) { _, _ ->
+                approvePreparedSend(approval, lease, epoch, authorityGeneration)
+            }
+            .create()
+        sendApprovalDialog = dialog
+        dialog.setOnCancelListener {
+            rejectPreparedSend(approval, lease, epoch, authorityGeneration)
+        }
+        dialog.setOnDismissListener {
+            if (sendApprovalDialog === dialog) sendApprovalDialog = null
+            if (pendingSendApproval === approval) {
+                rejectPreparedSend(approval, lease, epoch, authorityGeneration)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun approvePreparedSend(
+        approval: NativeHnsSendApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+        authorityGeneration: Long,
+    ) {
+        if (pendingSendApproval !== approval) return
+        pendingSendApproval = null
+        sendStatusView.text = getString(R.string.wallet_send_broadcasting)
+        statusView.text = getString(R.string.wallet_status_broadcasting_send)
+        val handle = walletHandle
+        thread(name = "hns-wallet-send-broadcast") {
+            val receipt = NativeWalletBridge.approveHnsValueAction(handle, approval.actionToken)
+            approval.close()
+            val snapshot = receipt?.let { NativeWalletBridge.synchronizeHnsReads(handle) }
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                refreshControllerState(resetReads = receipt == null || snapshot == null)
+                when {
+                    receipt == null -> {
+                        sendStatusView.text = getString(R.string.wallet_send_broadcast_ambiguous)
+                    }
+                    snapshot == null -> {
+                        sendStatusView.text = getString(
+                            R.string.wallet_send_accepted_sync_failed,
+                            receipt.txid,
+                        )
+                    }
+                    else -> {
+                        renderReadSnapshot(snapshot)
+                        sendStatusView.text = getString(
+                            R.string.wallet_send_accepted,
+                            receipt.txid,
+                            receipt.acceptedAtUnix,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun rejectPreparedSend(
+        approval: NativeHnsSendApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+        authorityGeneration: Long,
+    ) {
+        if (pendingSendApproval !== approval) return
+        pendingSendApproval = null
+        sendStatusView.text = getString(R.string.wallet_send_rejecting)
+        val handle = walletHandle
+        thread(name = "hns-wallet-send-reject") {
+            val rejected = NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
+            approval.close()
+            if (!rejected) NativeWalletBridge.lock(handle)
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                refreshControllerState(resetReads = !rejected)
+                sendStatusView.text = if (rejected) {
+                    getString(R.string.wallet_send_rejected)
+                } else {
+                    getString(R.string.wallet_send_reject_failed)
+                }
+            }
+        }
+    }
+
+    private fun dismissSendApproval(rejectNative: Boolean) {
+        val approval = pendingSendApproval
+        pendingSendApproval = null
+        val dialog = sendApprovalDialog
+        sendApprovalDialog = null
+        dialog?.setOnCancelListener(null)
+        dialog?.setOnDismissListener(null)
+        dialog?.dismiss()
+        if (approval != null) {
+            if (rejectNative && walletHandle != INVALID_HANDLE) {
+                val handle = walletHandle
+                thread(name = "hns-wallet-send-dismiss") {
+                    NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
+                    approval.close()
+                }
+            } else {
+                approval.close()
+            }
+            busy = false
+        }
+    }
+
     private fun importWalletName() {
         val lease = currentStorageLease() ?: return
         val initial = walletNameImportState(lease)
@@ -949,18 +1769,21 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * The shipping source is unavailable, so this currently performs no native
-     * composition. Keeping admission in the real reopen lifecycle makes a
-     * future brokered credential unable to bypass storage/controller authority.
-     */
     private fun attemptReadBootstrap(lease: WalletStorageOwnershipGate.Lease) {
         val expectedAuthority = walletReadBootstrapState(lease).authority ?: return
         attemptWalletReadBootstrap(
             expectedAuthority = expectedAuthority,
-            source = walletReadBootstrapSource,
+            source = walletNodeCredentialSource,
             currentState = { walletReadBootstrapState(lease) },
-            install = NativeWalletBridge::configureHnsReads,
+            install = { authority, configuration ->
+                keyStore.withDatabaseKey { databaseKey ->
+                    NativeWalletBridge.configureHnsValue(
+                        currentAuthority = authority,
+                        configuration = configuration,
+                        databaseKey = databaseKey,
+                    )
+                } == true
+            },
         )
     }
 
@@ -1071,6 +1894,8 @@ class WalletActivity : ComponentActivity() {
         lifecycleEpoch += 1
         storageOwner = null
         dismissWalletDeletionDialog()
+        dismissSendApproval(rejectNative = false)
+        dismissValueApproval(rejectNative = false)
         clearRestoreInput()
         clearNameImportInput()
         recoveryView.clearSecret()
@@ -1243,6 +2068,10 @@ class WalletActivity : ComponentActivity() {
     )
 
     private fun resetReadProjection(status: Int) {
+        latestReadSnapshot = null
+        latestReadSnapshotHandle = INVALID_HANDLE
+        latestReadSnapshotAuthorityGeneration = 0L
+        latestReadSnapshotEpoch = 0L
         readStatusView.text = getString(status)
         balanceView.text = getString(R.string.wallet_reads_balance_unavailable)
         paymentReceiveView.text = getString(R.string.wallet_reads_receive_unavailable)
@@ -1258,9 +2087,50 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_name_import_waiting_for_wallet)
             else -> getString(R.string.wallet_name_import_unavailable)
         }
+        sendStatusView.text = when (status) {
+            R.string.wallet_reads_locked -> getString(R.string.wallet_send_locked)
+            R.string.wallet_reads_ready_to_sync -> if (
+                NativeWalletBridge.hasHnsValue(walletHandle)
+            ) {
+                getString(R.string.wallet_send_requires_sync)
+            } else {
+                getString(R.string.wallet_send_unavailable)
+            }
+            R.string.wallet_reads_recovery_unconfirmed ->
+                getString(R.string.wallet_send_recovery_unconfirmed)
+            R.string.wallet_reads_waiting_for_wallet ->
+                getString(R.string.wallet_send_waiting_for_wallet)
+            else -> getString(R.string.wallet_send_unavailable)
+        }
+        valueActionStatusView.text = when (status) {
+            R.string.wallet_reads_locked -> getString(R.string.wallet_value_actions_locked)
+            R.string.wallet_reads_ready_to_sync -> if (
+                NativeWalletBridge.hasHnsValue(walletHandle)
+            ) {
+                getString(R.string.wallet_value_actions_requires_sync)
+            } else {
+                getString(R.string.wallet_value_actions_unavailable)
+            }
+            else -> getString(R.string.wallet_value_actions_unavailable)
+        }
+        shakedexQueryStatusView.text = when (status) {
+            R.string.wallet_reads_locked -> getString(R.string.wallet_shakedex_queries_locked)
+            R.string.wallet_reads_ready_to_sync -> if (
+                NativeWalletBridge.hasHnsValue(walletHandle)
+            ) {
+                getString(R.string.wallet_shakedex_queries_requires_sync)
+            } else {
+                getString(R.string.wallet_shakedex_queries_unavailable)
+            }
+            else -> getString(R.string.wallet_shakedex_queries_unavailable)
+        }
     }
 
     private fun renderReadSnapshot(snapshot: NativeWalletReadSnapshot) {
+        latestReadSnapshot = snapshot
+        latestReadSnapshotHandle = walletHandle
+        latestReadSnapshotAuthorityGeneration = walletAuthorityGeneration
+        latestReadSnapshotEpoch = lifecycleEpoch
         readStatusView.text = getString(R.string.wallet_reads_ready, snapshot.height)
         balanceView.text = getString(
             R.string.wallet_reads_balance,
@@ -1308,6 +2178,22 @@ class WalletActivity : ComponentActivity() {
         } else {
             val entries = visibleNames.joinToString("\n\n", transform = ::walletNameSummary)
             appendRemainingCount(entries, snapshot.trackedNames.size - visibleNames.size)
+        }
+        sendStatusView.text = if (NativeWalletBridge.hasHnsValue(walletHandle)) {
+            getString(R.string.wallet_send_ready, snapshot.height)
+        } else {
+            getString(R.string.wallet_send_unavailable)
+        }
+        val status = NativeWalletBridge.status(walletHandle)
+        valueActionStatusView.text = if (status?.hnsValueEnabled == true) {
+            getString(R.string.wallet_value_actions_ready, snapshot.height)
+        } else {
+            getString(R.string.wallet_value_actions_unavailable)
+        }
+        shakedexQueryStatusView.text = if (status?.shakedexEnabled == true) {
+            getString(R.string.wallet_shakedex_queries_ready, snapshot.height)
+        } else {
+            getString(R.string.wallet_shakedex_queries_unavailable)
         }
     }
 
@@ -1468,6 +2354,37 @@ class WalletActivity : ComponentActivity() {
         freezesText = false
     }
 
+    private fun hnsSendRecipientInput(): EditText = EditText(this).apply {
+        hint = getString(R.string.wallet_send_recipient_hint)
+        inputType = InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        imeOptions = EditorInfo.IME_ACTION_NEXT or
+            EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+            EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        // Never silently truncate a pasted address into a different recipient.
+        filters = emptyArray()
+        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        setAutofillHints(null)
+        setSingleLine(true)
+        isSaveEnabled = false
+        freezesText = false
+    }
+
+    private fun hnsSendAmountInput(hintResource: Int): EditText = EditText(this).apply {
+        hint = getString(hintResource)
+        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        imeOptions = EditorInfo.IME_ACTION_NEXT or
+            EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+            EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        filters = emptyArray()
+        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        setAutofillHints(null)
+        setSingleLine(true)
+        isSaveEnabled = false
+        freezesText = false
+    }
+
     private fun takeRestoreInput(): CharArray? {
         val editable = restoreInput.text ?: return null
         if (editable.isEmpty() || editable.length > MAX_RECOVERY_CHARACTERS) {
@@ -1487,6 +2404,15 @@ class WalletActivity : ComponentActivity() {
     private fun clearNameImportInput() {
         nameImportInput.text?.let(::wipeEditable)
         nameImportInput.clearFocus()
+    }
+
+    private fun clearSendInputs() {
+        sendRecipientInput.text?.let(::wipeEditable)
+        sendAmountInput.text?.let(::wipeEditable)
+        sendMaximumFeeInput.text?.let(::wipeEditable)
+        sendRecipientInput.clearFocus()
+        sendAmountInput.clearFocus()
+        sendMaximumFeeInput.clearFocus()
     }
 
     private fun wipeEditable(editable: Editable) {
@@ -1509,6 +2435,10 @@ class WalletActivity : ComponentActivity() {
         const val MAX_RECOVERY_CHARACTERS = 256
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
+        const val MAX_SEND_RECIPIENT_BYTES = 512
+        const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
+        const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
+        const val DEFAULT_OFFER_PAGE_SIZE = 32
         const val NUL_CHARACTER = "\u0000"
     }
 }

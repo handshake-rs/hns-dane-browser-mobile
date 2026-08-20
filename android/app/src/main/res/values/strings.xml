@@ -25,6 +25,11 @@
     <string name="action_sync_wallet_reads" translatable="false">Synchronize</string>
     <string name="action_import_wallet_name" translatable="false">Import name</string>
     <string name="action_continue_wallet_deletion" translatable="false">Continue</string>
+    <string name="action_prepare_wallet_send" translatable="false">Review send</string>
+    <string name="action_reject" translatable="false">Reject</string>
+    <string name="action_broadcast_hns" translatable="false">Approve and broadcast</string>
+    <string name="action_prepare" translatable="false">Review</string>
+    <string name="action_approve_hns_value" translatable="false">Approve action</string>
 
     <string name="common_copied">Copied</string>
     <string name="common_copied_label">Copied %1$s</string>
@@ -147,7 +152,10 @@
     <string name="section_wallet_setup" translatable="false">Create or restore</string>
     <string name="section_wallet_recovery" translatable="false">Recovery backup</string>
     <string name="section_wallet_access" translatable="false">Local access</string>
-    <string name="section_wallet_reads" translatable="false">Read-only HNS wallet</string>
+    <string name="section_wallet_reads" translatable="false">Synchronized HNS wallet</string>
+    <string name="section_wallet_send" translatable="false">Send HNS</string>
+    <string name="section_wallet_name_actions" translatable="false">Names and Shakedex actions</string>
+    <string name="section_wallet_shakedex" translatable="false">Shakedex board and sessions</string>
 
     <string name="row_agreement">Agreement</string>
     <string name="row_app_downloads">App downloads</string>
@@ -223,11 +231,11 @@
     <string name="row_tlsa_dane_inspector">TLSA / DANE inspector</string>
     <string name="row_tlsa_dane_inspector_summary">Check TLSA records and DANE policy.</string>
     <string name="row_wallet" translatable="false">HNS wallet</string>
-    <string name="row_wallet_summary" translatable="false">Create, restore, unlock, and inspect one native non-value HNS account.</string>
+    <string name="row_wallet_summary" translatable="false">Receive and send HNS, manage names, and complete atomic Shakedex trades from one local account.</string>
     <string name="row_wallet_status" translatable="false">Status</string>
     <string name="row_wallet_account" translatable="false">Account identity</string>
     <string name="row_wallet_create" translatable="false">Create wallet</string>
-    <string name="row_wallet_create_summary" translatable="false">Create one native HNS account. Value and marketplace controls remain disabled.</string>
+    <string name="row_wallet_create_summary" translatable="false">Create one native HNS account and save its one-time recovery phrase offline.</string>
     <string name="row_wallet_restore" translatable="false">Restore wallet</string>
     <string name="row_wallet_restore_summary" translatable="false">Restore exactly 24 English words with a safe full-history birthday.</string>
     <string name="row_wallet_recovery_confirm" translatable="false">Confirm offline backup</string>
@@ -246,7 +254,28 @@
     <string name="row_wallet_read_names" translatable="false">Tracked names</string>
     <string name="row_wallet_name_import" translatable="false">Import exact Handshake name</string>
     <string name="row_wallet_read_sync" translatable="false">Refresh wallet reads</string>
-    <string name="row_wallet_read_sync_summary" translatable="false">Run one bounded, tip-consistent synchronization off the UI thread. This cannot send HNS or operate a marketplace.</string>
+    <string name="row_wallet_read_sync_summary" translatable="false">Run one bounded, tip-consistent synchronization off the UI thread before receiving or sending.</string>
+    <string name="row_wallet_send" translatable="false">Prepare exact HNS send</string>
+    <string name="row_wallet_value_action_status" translatable="false">Value-action status</string>
+    <string name="row_wallet_transfer_name" translatable="false">Transfer name</string>
+    <string name="row_wallet_transfer_name_summary" translatable="false">Prepare a transfer of one tracked Handshake name to an exact recipient.</string>
+    <string name="row_wallet_finalize_name" translatable="false">Finalize name transfer</string>
+    <string name="row_wallet_finalize_name_summary" translatable="false">Finalize a transfer after the on-chain lockup has matured.</string>
+    <string name="row_wallet_create_offer" translatable="false">Create fixed-price offer</string>
+    <string name="row_wallet_create_offer_summary" translatable="false">Lock a tracked name and publish an authenticated Shakedex listing through Denuo.</string>
+    <string name="row_wallet_cancel_offer" translatable="false">Cancel offer</string>
+    <string name="row_wallet_cancel_offer_summary" translatable="false">Cancel a published seller session and publish its authenticated cancellation.</string>
+    <string name="row_wallet_accept_offer" translatable="false">Accept offer</string>
+    <string name="row_wallet_accept_offer_summary" translatable="false">Prepare the buyer transaction for an authenticated listing.</string>
+    <string name="row_wallet_finalize_purchase" translatable="false">Finalize purchase</string>
+    <string name="row_wallet_finalize_purchase_summary" translatable="false">Execute the next script-finalization step for a buyer session.</string>
+    <string name="row_wallet_recover_name" translatable="false">Recover name</string>
+    <string name="row_wallet_recover_name_summary" translatable="false">Execute the seller recovery path when its refund conditions are satisfied.</string>
+    <string name="row_wallet_shakedex_status" translatable="false">Shakedex query result</string>
+    <string name="row_wallet_list_offers" translatable="false">List current offers</string>
+    <string name="row_wallet_list_offers_summary" translatable="false">Read the current authenticated Denuo offer page and copy a listing ID.</string>
+    <string name="row_wallet_get_session" translatable="false">Inspect trade session</string>
+    <string name="row_wallet_get_session_summary" translatable="false">Refresh one local seller or buyer workflow by its session ID.</string>
 
     <string name="wallet_restore_phrase_hint" translatable="false">24-word recovery phrase</string>
     <string name="wallet_restore_phrase_required" translatable="false">Enter the complete 24-word recovery phrase.</string>
@@ -259,11 +288,15 @@
     <string name="wallet_status_locking" translatable="false">Locking native wallet…</string>
     <string name="wallet_status_deleting" translatable="false">Deleting the confirmed native wallet…</string>
     <string name="wallet_status_syncing_reads" translatable="false">Synchronizing read-only HNS wallet…</string>
+    <string name="wallet_status_preparing_send" translatable="false">Preparing exact HNS send…</string>
+    <string name="wallet_status_broadcasting_send" translatable="false">Broadcasting approved HNS transaction…</string>
+    <string name="wallet_status_preparing_value_action" translatable="false">Preparing native HNS value action…</string>
+    <string name="wallet_status_querying_shakedex" translatable="false">Querying the authenticated Shakedex board…</string>
     <string name="wallet_status_not_created" translatable="false">No native wallet exists on this device.</string>
     <string name="wallet_status_native_unavailable" translatable="false">Native wallet core is unavailable.</string>
     <string name="wallet_status_recovery_required" translatable="false">Save the recovery phrase offline, then confirm. Leaving this screen discards the unconfirmed wallet.</string>
-    <string name="wallet_status_locked" translatable="false">Locked. Value, provider, and marketplace capabilities are unavailable.</string>
-    <string name="wallet_status_unlocked" translatable="false">Unlocked non-value wallet %1$s</string>
+    <string name="wallet_status_locked" translatable="false">Locked. Signing authority is unavailable.</string>
+    <string name="wallet_status_unlocked" translatable="false">Unlocked native wallet %1$s</string>
     <string name="wallet_status_unavailable" translatable="false">Native wallet status is unavailable; the controller failed closed.</string>
     <string name="wallet_status_open_failed" translatable="false">The wallet could not be opened.</string>
     <string name="wallet_status_create_failed" translatable="false">The wallet could not be created; incomplete files were removed.</string>
@@ -278,14 +311,14 @@
     <string name="wallet_status_delete_cleanup_pending" translatable="false">The database key is gone or deletion is pending. Encrypted wallet-file cleanup will be retried before another wallet can use this network namespace.</string>
     <string name="wallet_account_locked" translatable="false">Unlock to inspect the single HNS account identity.</string>
     <string name="wallet_account_unavailable" translatable="false">No account identity is exposed.</string>
-    <string name="wallet_reads_unavailable" translatable="false">Read-only HNS synchronization is unavailable because no scoped trusted loopback gateway is provisioned. Value movement and marketplace controls remain disabled.</string>
+    <string name="wallet_reads_unavailable" translatable="false">HNS synchronization is unavailable because no scoped authenticated loopback node is provisioned.</string>
     <string name="wallet_reads_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet to inspect synchronized HNS reads.</string>
     <string name="wallet_reads_recovery_unconfirmed" translatable="false">Confirm the recovery backup before any wallet read backend can be installed.</string>
     <string name="wallet_reads_locked" translatable="false">Unlock the wallet before synchronizing read-only HNS data.</string>
-    <string name="wallet_reads_ready_to_sync" translatable="false">The read-only HNS module is configured. Synchronize to refresh its tip-bound projection.</string>
+    <string name="wallet_reads_ready_to_sync" translatable="false">The HNS module is configured. Synchronize to refresh its tip-bound projection before using funds.</string>
     <string name="wallet_reads_syncing" translatable="false">Synchronizing one bounded HNS read snapshot…</string>
     <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read failed closed. Reopen and unlock the wallet before retrying.</string>
-    <string name="wallet_reads_ready" translatable="false">Handshake reads are ready at height %1$d. Value movement and marketplace controls are unavailable.</string>
+    <string name="wallet_reads_ready" translatable="false">Handshake wallet state is ready at height %1$d.</string>
     <string name="wallet_reads_balance_unavailable" translatable="false">No synchronized balance is exposed.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS confirmed spendable</string>
     <string name="wallet_reads_receive_unavailable" translatable="false">No payment receive address is exposed.</string>
@@ -306,6 +339,61 @@
     <string name="wallet_reads_name_expired" translatable="false">expired</string>
     <string name="wallet_reads_name_current" translatable="false">current</string>
     <string name="wallet_reads_more" translatable="false">%1$d more items are present in this synchronized snapshot.</string>
+    <string name="wallet_send_recipient_hint" translatable="false">Exact mainnet HNS recipient address</string>
+    <string name="wallet_send_amount_hint" translatable="false">Amount in HNS (up to 6 decimals)</string>
+    <string name="wallet_send_maximum_fee_hint" translatable="false">Maximum fee in HNS</string>
+    <string name="wallet_send_waiting_for_wallet" translatable="false">Open and unlock a confirmed wallet before sending HNS.</string>
+    <string name="wallet_send_recovery_unconfirmed" translatable="false">Confirm the recovery backup before HNS value authority can be installed.</string>
+    <string name="wallet_send_locked" translatable="false">Unlock and synchronize the wallet before sending HNS.</string>
+    <string name="wallet_send_unavailable" translatable="false">Guarded HNS sends are unavailable until the authenticated node and qualified native value controller are installed.</string>
+    <string name="wallet_send_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before preparing a send.</string>
+    <string name="wallet_send_ready" translatable="false">Ready to prepare a guarded HNS send from the snapshot at height %1$d.</string>
+    <string name="wallet_send_invalid" translatable="false">Enter an exact visible HNS address, a positive amount, and a positive maximum fee. HNS amounts support at most 6 decimal places.</string>
+    <string name="wallet_send_preparing" translatable="false">Preparing and validating the exact transaction summary with the synchronized node…</string>
+    <string name="wallet_send_prepare_failed" translatable="false">The send could not be prepared. The wallet failed closed if node or evidence validation failed.</string>
+    <string name="wallet_send_approval_title" translatable="false">Approve this HNS transaction?</string>
+    <string name="wallet_send_approval_message" translatable="false">Recipient:&#10;%1$s&#10;&#10;Amount:&#10;%2$s HNS&#10;&#10;Maximum fee:&#10;%3$s HNS&#10;&#10;Finality:&#10;%4$s&#10;&#10;Warning:&#10;%5$s&#10;&#10;Approval expires:&#10;%6$s&#10;&#10;Only this exact one-time native action can be broadcast.</string>
+    <string name="wallet_send_finality_pow" translatable="false">Proof-of-work confirmations</string>
+    <string name="wallet_send_warning_fee_change" translatable="false">The final fee estimate may change but cannot exceed the approved maximum.</string>
+    <string name="wallet_send_broadcasting" translatable="false">Broadcasting the exact approved transaction and waiting for an authenticated node receipt…</string>
+    <string name="wallet_send_broadcast_ambiguous" translatable="false">No authenticated receipt could be returned. The wallet was locked. Synchronize history before deciding whether to retry; the transaction may already have broadcast.</string>
+    <string name="wallet_send_accepted_sync_failed" translatable="false">The node accepted transaction %1$s, but the required post-broadcast synchronization failed. Reopen, unlock, and synchronize before another send.</string>
+    <string name="wallet_send_accepted" translatable="false">Node accepted transaction %1$s at Unix time %2$d. The wallet snapshot was refreshed.</string>
+    <string name="wallet_send_rejecting" translatable="false">Discarding the pending native approval…</string>
+    <string name="wallet_send_rejected" translatable="false">Send rejected. No transaction was broadcast.</string>
+    <string name="wallet_send_reject_failed" translatable="false">The pending approval could not be discarded cleanly, so the wallet was locked.</string>
+    <string name="wallet_action_name_hint" translatable="false">Exact Handshake name</string>
+    <string name="wallet_action_recipient_hint" translatable="false">Exact HNS recipient address</string>
+    <string name="wallet_action_expected_recipient_hint" translatable="false">Expected recipient (optional)</string>
+    <string name="wallet_action_maximum_fee_hint" translatable="false">Maximum network fee in HNS</string>
+    <string name="wallet_action_price_hint" translatable="false">Offer price in HNS</string>
+    <string name="wallet_action_lifetime_hint" translatable="false">Listing lifetime in seconds</string>
+    <string name="wallet_action_seller_session_hint" translatable="false">64-character seller session ID</string>
+    <string name="wallet_action_listing_hint" translatable="false">64-character listing ID</string>
+    <string name="wallet_action_session_hint" translatable="false">64-character trade session ID</string>
+    <string name="wallet_action_cursor_hint" translatable="false">64-character page cursor (optional)</string>
+    <string name="wallet_action_limit_hint" translatable="false">Offer page size (1–64)</string>
+    <string name="wallet_value_actions_unavailable" translatable="false">Native name and Shakedex value actions require the installed authenticated mainnet node.</string>
+    <string name="wallet_value_actions_locked" translatable="false">Unlock and synchronize before preparing a name or Shakedex action.</string>
+    <string name="wallet_value_actions_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before preparing a name or Shakedex action.</string>
+    <string name="wallet_value_actions_ready" translatable="false">All native HNS name and Shakedex actions are ready at height %1$d.</string>
+    <string name="wallet_value_actions_invalid" translatable="false">The action fields are not canonical. HNS amounts support at most 6 decimal places.</string>
+    <string name="wallet_value_actions_preparing" translatable="false">Preparing the exact native action and approval summary…</string>
+    <string name="wallet_value_actions_prepare_failed" translatable="false">The action could not be prepared from the current synchronized state.</string>
+    <string name="wallet_value_actions_expires" translatable="false">Approval expires: %1$s</string>
+    <string name="wallet_value_actions_executing" translatable="false">Executing the exact approved native action…</string>
+    <string name="wallet_value_actions_result_ambiguous" translatable="false">No complete result could be returned. The wallet was locked; synchronize before deciding whether to retry.</string>
+    <string name="wallet_value_actions_result" translatable="false">Action accepted. Fresh native result:&#10;%1$s</string>
+    <string name="wallet_value_actions_rejected" translatable="false">Action rejected. No value action was executed.</string>
+    <string name="wallet_value_actions_reject_failed" translatable="false">The approval could not be discarded cleanly, so the wallet was locked.</string>
+    <string name="wallet_shakedex_queries_unavailable" translatable="false">The authenticated Denuo/Shakedex board is not configured.</string>
+    <string name="wallet_shakedex_queries_locked" translatable="false">Unlock and synchronize before querying Shakedex.</string>
+    <string name="wallet_shakedex_queries_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before querying Shakedex.</string>
+    <string name="wallet_shakedex_queries_ready" translatable="false">Authenticated Shakedex queries are ready at height %1$d.</string>
+    <string name="wallet_shakedex_queries_invalid" translatable="false">Enter a canonical session/listing cursor and a page size from 1 through 64.</string>
+    <string name="wallet_shakedex_queries_loading" translatable="false">Refreshing the authenticated Shakedex board or session…</string>
+    <string name="wallet_shakedex_queries_failed" translatable="false">The Shakedex query could not be completed from the current relay and wallet state.</string>
+    <string name="wallet_shakedex_queries_result" translatable="false">Authenticated Shakedex result:&#10;%1$s</string>
     <string name="wallet_name_import_hint" translatable="false">Exact canonical Handshake name</string>
     <string name="wallet_name_import_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet before importing a name.</string>
     <string name="wallet_name_import_recovery_unconfirmed" translatable="false">Confirm the recovery backup before a trusted name backend can be installed.</string>
@@ -481,8 +569,8 @@
     <string name="gateway_cleared" translatable="false">Gateway events cleared</string>
 
     <string name="legal_license_summary">HNS DANE Browser is source-available under the PolyForm Noncommercial License 1.0.0. Noncommercial use, study, modification, and redistribution are allowed under the license. Commercial use requires separate written permission from Denuo Web, LLC.</string>
-    <string name="legal_user_agreement" translatable="false">This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only P2P DNS relay, proof-anchored authoritative DoH, an optional user-configured recovery DoH endpoint, DNSSEC/DANE diagnostics, and native controls for one device-local non-value HNS account identity. HNS resolution, DNSSEC validation, DANE checks, relay, recovery, sync, and wallet storage may fail closed or be incomplete. HNS WebPKI fallback is prohibited; recovery DNS answers never bypass local DNSSEC, TLSA, or DANE validation. Wallet balances, transfers, names, website-provider access, HNSA/HNSR service roles, settlement, exchange features, and P2P marketplaces are unavailable. The requester-only P2P DNS relay is separate from HNSR and does not make this device an endpoint or output node. The app is provided without warranty, is not a financial service, and donations are optional and unlock no features.</string>
-    <string name="legal_privacy_summary" translatable="false">HNS DANE Browser does not include ads, analytics SDKs, or developer-operated accounts. It stores browsing history, cookies, website data, download records, settings, diagnostics, HNS sync/cache data, a user-configured recovery DoH URL, manually added relay-peer IP endpoints, and a network-scoped encrypted wallet database with an Android Keystore-wrapped database key locally on the device. A newly generated recovery phrase is shown once; save it offline before confirming because the app cannot show or recover it later. If the protected recovery screen closes before confirmation, the app wipes the unconfirmed database-key buffer and deletes the incomplete wallet database. An unlocked confirmed wallet can be deleted after two destructive confirmations showing its exact network and account and requiring DELETE. The app deletes the Keystore wrapping key before encrypted database files; partial cleanup stays blocked for retry. Deletion affects only this device-local wallet and does not delete a recovery phrase or backup saved elsewhere. The native wallet controller makes no wallet-specific network request and sends no wallet database, recovery phrase, key, or account identity to Denuo Web, websites, or a wallet provider. It sends network requests needed for browser functionality to websites you visit, HNS peers, DNS seeds, authoritative nameservers, proof-bootstrapped or RFC 9461-discovered authoritative DoH endpoints, the optional HNS P2P relay, validating ICANN DoH, WebView Safe Browsing services when supported by the installed WebView provider, and the non-routable 192.0.2.1 TEST-NET DNS sentinel after delegated DNS failure. Relay consumption is off by default and requires explicit opt-in; it is requester-only and does not make this device an output node. A selected relay peer can observe each relayed qname, qtype, timing, and the source network address of the P2P connection. User-configured recovery DoH is separately off by default; while its field is blank no recovery operator is contacted. If configured and reached after direct, owner-authenticated, and opted-in P2P paths are exhausted, its operator can observe HNS qnames, qtypes, timing, and the source IP of the HTTPS connection. Its hostname is bootstrapped only through validating ICANN DoH and its TLS uses WebPKI. Relay and recovery answers still undergo local DNSSEC, TLSA, and DANE validation; bogus DNSSEC and stale or missing HNS proofs fail closed. Historical compatibility settings never enable either path. Browser data can be cleared from Settings, and Android system settings can clear all app data.</string>
+    <string name="legal_user_agreement" translatable="false">This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, DNSSEC/DANE diagnostics, and a device-local HNS wallet that can receive and send HNS, manage names, and execute atomic Shakedex trade workflows through an authenticated Denuo relay. HNS resolution, validation, relay, sync, transaction broadcast, name operations, and multi-step marketplace settlement can fail, be delayed, require later manual actions, or remain incomplete. Review every native approval, recipient, amount, fee limit, name, listing, and session before approving it. HNS WebPKI fallback is prohibited; recovery DNS answers never bypass local DNSSEC, TLSA, or DANE validation. Website-provider wallet access and local HNSA/HNSR service roles are not enabled by these native controls. The requester-only P2P DNS relay is separate from HNSR and does not make this device an endpoint or output node. The app is provided without warranty, is not a financial service, and donations are optional and unlock no features.</string>
+    <string name="legal_privacy_summary" translatable="false">HNS DANE Browser does not include ads, analytics SDKs, or developer-operated accounts. It stores browsing history, cookies, website data, download records, settings, diagnostics, HNS sync/cache data, a user-configured recovery DoH URL, manually added relay-peer IP endpoints, and a network-scoped encrypted wallet database with an Android Keystore-wrapped database key locally on the device. A newly generated recovery phrase is shown once; save it offline before confirming because the app cannot show or recover it later. If the protected recovery screen closes before confirmation, the app wipes the unconfirmed database-key buffer and deletes the incomplete wallet database. An unlocked confirmed wallet can be deleted after two destructive confirmations showing its exact network and account and requiring DELETE. The app deletes the Keystore wrapping key before encrypted database files; partial cleanup stays blocked for retry. Deletion affects only this device-local wallet and does not delete a recovery phrase or backup saved elsewhere. The native wallet sends authenticated requests only to the installed loopback Handshake node. Public addresses, transactions, name operations, Shakedex listings, cancellations, and trade messages can then be broadcast to the Handshake network or authenticated Denuo relay as required by the action you approve. The wallet database, recovery phrase, private keys, database key, and Android Keystore material are not sent to Denuo Web, websites, or the relay. Browser functions separately send requests to websites you visit, HNS peers, DNS seeds, authoritative nameservers, proof-bootstrapped or RFC 9461-discovered authoritative DoH endpoints, the optional HNS P2P relay, validating ICANN DoH, WebView Safe Browsing services when supported by the installed WebView provider, and the non-routable 192.0.2.1 TEST-NET DNS sentinel after delegated DNS failure. A selected DNS relay or recovery operator can observe requested qnames, qtypes, timing, and the connection source address. Relay and recovery answers still undergo local DNSSEC, TLSA, and DANE validation; bogus DNSSEC and stale or missing HNS proofs fail closed. Browser data can be cleared from Settings, and Android system settings can clear all app data.</string>
     <string name="legal_license_name" translatable="false">PolyForm Noncommercial 1.0.0</string>
     <string name="legal_copy_privacy_policy_url">privacy policy URL</string>
     <string name="legal_copy_source_code_url">source code URL</string>

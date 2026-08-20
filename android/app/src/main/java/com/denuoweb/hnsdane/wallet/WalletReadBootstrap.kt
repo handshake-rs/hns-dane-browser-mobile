@@ -121,28 +121,61 @@ internal class NativeHnsReadConfiguration private constructor(
     val authority: WalletReadBootstrapAuthority,
     val loopbackPort: Int,
     private var retainedAuthorization: CharArray?,
+    private var retainedDenuoPolicyJson: ByteArray?,
 ) : AutoCloseable {
     private val lock = Any()
+
+    private data class RetainedMaterial(
+        val authorization: CharArray,
+        val denuoPolicyJson: ByteArray?,
+    )
+
+    private fun takeRetainedMaterial(): RetainedMaterial? = synchronized(lock) {
+        val authorization = retainedAuthorization ?: return@synchronized null
+        retainedAuthorization = null
+        val policy = retainedDenuoPolicyJson
+        retainedDenuoPolicyJson = null
+        RetainedMaterial(authorization, policy)
+    }
 
     fun consumeFor(
         currentAuthority: WalletReadBootstrapAuthority,
         install: (Int, CharArray) -> Boolean,
     ): Boolean {
-        val authorization = synchronized(lock) {
-            retainedAuthorization?.also { retainedAuthorization = null }
-        } ?: return false
+        val material = takeRetainedMaterial() ?: return false
         return try {
-            authority == currentAuthority && install(loopbackPort, authorization)
+            authority == currentAuthority && install(loopbackPort, material.authorization)
         } finally {
-            authorization.fill('\u0000')
+            material.authorization.fill('\u0000')
+            material.denuoPolicyJson?.fill(0)
+        }
+    }
+
+    fun consumeForValue(
+        currentAuthority: WalletReadBootstrapAuthority,
+        install: (Int, CharArray, ByteArray) -> Boolean,
+    ): Boolean {
+        val material = takeRetainedMaterial() ?: return false
+        return try {
+            val policy = material.denuoPolicyJson
+            authority == currentAuthority && policy != null &&
+                install(loopbackPort, material.authorization, policy)
+        } finally {
+            material.authorization.fill('\u0000')
+            material.denuoPolicyJson?.fill(0)
         }
     }
 
     override fun close() {
-        val authorization = synchronized(lock) {
-            retainedAuthorization?.also { retainedAuthorization = null }
+        val material = synchronized(lock) {
+            val authorization = retainedAuthorization
+            val policy = retainedDenuoPolicyJson
+            retainedAuthorization = null
+            retainedDenuoPolicyJson = null
+            authorization?.let { RetainedMaterial(it, policy) }
         }
-        authorization?.fill('\u0000')
+        material?.authorization?.fill('\u0000')
+        material?.denuoPolicyJson?.fill(0)
     }
 
     override fun toString(): String =
@@ -154,8 +187,10 @@ internal class NativeHnsReadConfiguration private constructor(
             authority: WalletReadBootstrapAuthority,
             loopbackPort: Int,
             authorization: CharArray,
+            denuoPolicyJson: ByteArray? = null,
         ): NativeHnsReadConfiguration? {
             var retained: CharArray? = null
+            var retainedPolicy: ByteArray? = null
             return try {
                 if (
                     loopbackPort !in 1..USHORT_MAX ||
@@ -163,24 +198,45 @@ internal class NativeHnsReadConfiguration private constructor(
                     authorization.size > MAX_AUTHORIZATION_CHARACTERS ||
                     authorization.first() == ' ' ||
                     authorization.last() == ' ' ||
-                    authorization.any { it.code !in PRINTABLE_ASCII }
+                    authorization.any { it.code !in PRINTABLE_ASCII } ||
+                    denuoPolicyJson?.let { !validDenuoPolicy(it) } == true
                 ) {
                     null
                 } else {
                     val owned = authorization.copyOf()
                     retained = owned
-                    NativeHnsReadConfiguration(authority, loopbackPort, owned).also {
+                    val ownedPolicy = denuoPolicyJson?.copyOf()
+                    retainedPolicy = ownedPolicy
+                    NativeHnsReadConfiguration(
+                        authority,
+                        loopbackPort,
+                        owned,
+                        ownedPolicy,
+                    ).also {
                         retained = null
+                        retainedPolicy = null
                     }
                 }
             } finally {
                 authorization.fill('\u0000')
+                denuoPolicyJson?.fill(0)
                 retained?.fill('\u0000')
+                retainedPolicy?.fill(0)
             }
         }
 
+        private fun validDenuoPolicy(policy: ByteArray): Boolean =
+            policy.size in 2..MAX_DENUO_POLICY_BYTES &&
+                policy.first() == '{'.code.toByte() &&
+                policy.last() == '}'.code.toByte() &&
+                policy.none { byte ->
+                    val value = byte.toInt() and 0xff
+                    value == 0 || value > 0x7f
+                }
+
         private const val USHORT_MAX = 65_535
         private const val MAX_AUTHORIZATION_CHARACTERS = 4_096
+        private const val MAX_DENUO_POLICY_BYTES = 16 * 1024
         private val PRINTABLE_ASCII = 0x20..0x7e
     }
 }

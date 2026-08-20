@@ -148,6 +148,38 @@ class WalletReadBootstrapTest {
     }
 
     @Test
+    fun valueConfigurationConsumesAuthorizationAndExactDenuoPolicyTogether() {
+        val authority = authority()
+        val callerAuthorization = "Bearer value-fixture".toCharArray()
+        val callerPolicy = "{\"network_magic\":1}".toByteArray(Charsets.US_ASCII)
+        val configuration = checkNotNull(
+            NativeHnsReadConfiguration.takeOwnership(
+                authority,
+                12_039,
+                callerAuthorization,
+                callerPolicy,
+            ),
+        )
+        assertTrue(callerAuthorization.all { it == '\u0000' })
+        assertTrue(callerPolicy.all { it == 0.toByte() })
+
+        var borrowedAuthorization: CharArray? = null
+        var borrowedPolicy: ByteArray? = null
+        assertTrue(
+            configuration.consumeForValue(authority) { port, authorization, policy ->
+                assertEquals(12_039, port)
+                assertEquals("{\"network_magic\":1}", policy.toString(Charsets.US_ASCII))
+                borrowedAuthorization = authorization
+                borrowedPolicy = policy
+                true
+            },
+        )
+        assertTrue(checkNotNull(borrowedAuthorization).all { it == '\u0000' })
+        assertTrue(checkNotNull(borrowedPolicy).all { it == 0.toByte() })
+        assertFalse(configuration.consumeForValue(authority) { _, _, _ -> true })
+    }
+
+    @Test
     fun invalidConfigurationInputIsRejectedAndWiped() {
         val authority = authority()
         for ((port, value) in listOf(
