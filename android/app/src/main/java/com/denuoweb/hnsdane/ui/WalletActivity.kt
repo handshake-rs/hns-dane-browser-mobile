@@ -28,6 +28,7 @@ import com.denuoweb.hnsdane.wallet.NativeHnsSendApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApprovalKind
 import com.denuoweb.hnsdane.wallet.NativeHnsValueIntent
+import com.denuoweb.hnsdane.wallet.NativeBitcoinSendApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
 import com.denuoweb.hnsdane.wallet.NativeWalletName
@@ -320,6 +321,11 @@ class WalletActivity : ComponentActivity() {
                 ) {
                     synchronizeBitcoin()
                 })
+                addScreenRow(walletActionRow(
+                    R.string.row_wallet_bitcoin_send,
+                    R.string.row_wallet_bitcoin_send_summary,
+                    ::showBitcoinSendForm,
+                ))
             })
             addView(screenSection(getString(R.string.section_wallet_name_actions)) {
                 addScreenRow(preferenceRow(
@@ -1150,6 +1156,121 @@ class WalletActivity : ComponentActivity() {
                 submit(inputs.map { it.text?.toString().orEmpty() })
                 inputs.forEach { wipeEditable(it.text) }
             }
+            .show()
+    }
+
+    private fun showBitcoinSendForm() = showWalletActionForm(
+        R.string.row_wallet_bitcoin_send,
+        listOf(
+            WalletActionInput(R.string.wallet_bitcoin_send_destination_hint),
+            WalletActionInput(R.string.wallet_bitcoin_send_amount_hint, numeric = true),
+            WalletActionInput(R.string.wallet_bitcoin_send_fee_hint, numeric = true),
+        ),
+    ) { values ->
+        val amountSats = values[1].toLongOrNull()?.takeIf { it > 0L }
+        val maximumFeeSats = values[2].toLongOrNull()?.takeIf { it > 0L }
+        if (amountSats == null || maximumFeeSats == null) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_prepare_failed)
+            return@showWalletActionForm
+        }
+        prepareBitcoinSend(values[0], amountSats, maximumFeeSats)
+    }
+
+    private fun prepareBitcoinSend(destination: String, amountSats: Long, maximumFeeSats: Long) {
+        val lease = currentStorageLease() ?: return
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(handle)) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_unavailable)
+            return
+        }
+        if (!beginOperation(lease, getString(R.string.wallet_status_preparing_send), resetReads = false)) return
+        bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_preparing)
+        val epoch = lifecycleEpoch
+        thread(name = "bitcoin-wallet-send-prepare") {
+            val approval = NativeWalletBridge.prepareBitcoinSend(
+                handle, destination, amountSats, maximumFeeSats,
+            )
+            val exact = approval?.takeIf {
+                it.destination == destination && it.amountSats == amountSats &&
+                    it.maximumFeeSats == maximumFeeSats && it.feeSats <= maximumFeeSats
+            }
+            if (approval != null && exact == null) {
+                NativeWalletBridge.rejectBitcoinSend(handle, approval.actionToken)
+                approval.close()
+                NativeWalletBridge.lock(handle)
+            }
+            runOnUiThread {
+                if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
+                    exact?.let {
+                        NativeWalletBridge.rejectBitcoinSend(handle, it.actionToken)
+                        it.close()
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                if (exact == null) {
+                    busy = false
+                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_prepare_failed)
+                } else {
+                    showBitcoinSendApproval(exact, lease, epoch)
+                }
+            }
+        }
+    }
+
+    private fun showBitcoinSendApproval(
+        approval: NativeBitcoinSendApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+    ) {
+        val expires = runCatching {
+            DateFormat.getDateTimeInstance().format(Date(Math.multiplyExact(approval.expiresAtUnix, 1_000L)))
+        }.getOrElse { approval.expiresAtUnix.toString() }
+        var settled = false
+        fun reject() {
+            if (settled) return
+            settled = true
+            thread(name = "bitcoin-wallet-send-reject") {
+                NativeWalletBridge.rejectBitcoinSend(walletHandle, approval.actionToken)
+                runOnUiThread {
+                    if (operationIsCurrent(epoch, lease)) {
+                        busy = false
+                        bitcoinStatusView.text = getString(R.string.wallet_bitcoin_ready)
+                    } else {
+                        releaseStorageLeaseAfterOperation(lease)
+                    }
+                }
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_bitcoin_send_approval_title)
+            .setMessage(getString(
+                R.string.wallet_bitcoin_send_approval_message,
+                approval.destination, approval.amountSats, approval.feeSats, approval.maximumFeeSats, expires,
+            ))
+            .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
+            .setPositiveButton(R.string.action_broadcast_hns) { _, _ ->
+                if (settled) return@setPositiveButton
+                settled = true
+                bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_broadcasting)
+                thread(name = "bitcoin-wallet-send-broadcast") {
+                    val receipt = NativeWalletBridge.approveBitcoinSend(walletHandle, approval.actionToken)
+                    runOnUiThread {
+                        if (!operationIsCurrent(epoch, lease)) {
+                            releaseStorageLeaseAfterOperation(lease)
+                            return@runOnUiThread
+                        }
+                        busy = false
+                        bitcoinStatusView.text = if (receipt == null) {
+                            NativeWalletBridge.lock(walletHandle)
+                            getString(R.string.wallet_bitcoin_send_ambiguous)
+                        } else {
+                            getString(R.string.wallet_bitcoin_send_accepted, receipt.txid)
+                        }
+                    }
+                }
+            }
+            .setOnCancelListener { reject() }
             .show()
     }
 

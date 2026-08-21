@@ -263,6 +263,8 @@
     <string name="row_wallet_bitcoin_receive" translatable="false">Bitcoin receive address</string>
     <string name="row_wallet_bitcoin_sync" translatable="false">Synchronize Bitcoin wallet</string>
     <string name="row_wallet_bitcoin_sync_summary" translatable="false">Synchronize directly from Bitcoin compact-filter peers; no RPC node, indexer, or relay is used.</string>
+    <string name="row_wallet_bitcoin_send" translatable="false">Prepare exact Bitcoin send</string>
+    <string name="row_wallet_bitcoin_send_summary" translatable="false">Review one exact Bitcoin transaction before its native one-time approval and direct peer broadcast.</string>
     <string name="row_wallet_value_action_status" translatable="false">Value-action status</string>
     <string name="row_wallet_transfer_name" translatable="false">Transfer name</string>
     <string name="row_wallet_transfer_name_summary" translatable="false">Prepare a transfer of one tracked Handshake name to an exact recipient.</string>
@@ -383,6 +385,17 @@
     <string name="wallet_bitcoin_receive_unavailable" translatable="false">Unlock the direct wallet to derive a local Bitcoin receive address.</string>
     <string name="wallet_bitcoin_receive" translatable="false">%1$s</string>
     <string name="wallet_bitcoin_receive_failed" translatable="false">A new Bitcoin receive address could not be derived and persisted locally.</string>
+    <string name="wallet_bitcoin_send_destination_hint" translatable="false">Exact Bitcoin recipient address</string>
+    <string name="wallet_bitcoin_send_amount_hint" translatable="false">Amount in satoshis</string>
+    <string name="wallet_bitcoin_send_fee_hint" translatable="false">Maximum fee in satoshis</string>
+    <string name="wallet_bitcoin_send_unavailable" translatable="false">Unlock and synchronize the direct Bitcoin wallet before preparing a send.</string>
+    <string name="wallet_bitcoin_send_preparing" translatable="false">Preparing the exact Bitcoin transaction through the direct peer fee policy…</string>
+    <string name="wallet_bitcoin_send_prepare_failed" translatable="false">The Bitcoin send could not be prepared from the direct wallet state.</string>
+    <string name="wallet_bitcoin_send_approval_title" translatable="false">Approve this Bitcoin transaction?</string>
+    <string name="wallet_bitcoin_send_approval_message" translatable="false">Recipient:&#10;%1$s&#10;&#10;Amount:&#10;%2$d sats&#10;&#10;Fee:&#10;%3$d sats&#10;&#10;Approved maximum:&#10;%4$d sats&#10;&#10;Approval expires:&#10;%5$s&#10;&#10;Only this exact one-time native transaction can be broadcast.</string>
+    <string name="wallet_bitcoin_send_broadcasting" translatable="false">Broadcasting the exact approved Bitcoin transaction through direct Kyoto peers…</string>
+    <string name="wallet_bitcoin_send_accepted" translatable="false">Direct peers accepted Bitcoin transaction %1$s.</string>
+    <string name="wallet_bitcoin_send_ambiguous" translatable="false">The Bitcoin broadcast result was not confirmed. Reopen and synchronize before preparing another transaction.</string>
     <string name="wallet_action_name_hint" translatable="false">Exact Handshake name</string>
     <string name="wallet_action_recipient_hint" translatable="false">Exact HNS recipient address</string>
     <string name="wallet_action_expected_recipient_hint" translatable="false">Expected recipient (optional)</string>
