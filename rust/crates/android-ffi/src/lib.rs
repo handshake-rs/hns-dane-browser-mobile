@@ -12,9 +12,10 @@ use hns_wallet_mobile::{
     EmbeddedHnsBackend, HnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectDenuoListener,
     HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator, HnsLightFloor, HnsNetwork,
     HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
-    MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileDatabaseKey, MobileHnsReadController,
-    MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
-    MobileShakedexQuery, MobileWalletController, MobileWalletError,
+    MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
+    MobileDatabaseKey, MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent,
+    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController,
+    MobileWalletError,
 };
 use hns_wallet_types::BaseUnits;
 use jni::JNIEnv;
@@ -222,6 +223,7 @@ enum AndroidWalletController {
     DirectValue {
         coordinator: HnsDirectPeerCoordinator,
         controller: MobileHnsValueController<EmbeddedHnsBackend>,
+        bitcoin: MobileBitcoinValueController,
         denuo_listener: Option<HnsDirectDenuoListener>,
         denuo_peer: Option<HnsDirectDenuoPeer>,
     },
@@ -288,7 +290,21 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => controller.unlock(key).is_ok(),
             Self::Reads(controller) => controller.unlock(key).is_ok(),
             Self::Value(controller) => controller.unlock(key).is_ok(),
-            Self::DirectValue { controller, .. } => controller.unlock(key).is_ok(),
+            Self::DirectValue {
+                controller,
+                bitcoin,
+                ..
+            } => match controller.unlock(key).and_then(|()| bitcoin.activate()) {
+                Ok(()) => true,
+                Err(error) => {
+                    android_log_error(&format!(
+                        "wallet-owned direct Bitcoin activation failed closed: {error}"
+                    ));
+                    let _ = bitcoin.deactivate();
+                    let _ = controller.lock();
+                    false
+                }
+            },
             Self::Failed => false,
         };
         if unlocked && !self.start_direct_denuo_listener() {
@@ -309,13 +325,18 @@ impl AndroidWalletController {
             denuo_peer.take();
             denuo_listener.take();
         }
-        match self {
+        let bitcoin_stopped = match self {
+            Self::DirectValue { bitcoin, .. } => bitcoin.deactivate().is_ok(),
+            _ => true,
+        };
+        let locked = match self {
             Self::Lifecycle(controller) => controller.lock().is_ok(),
             Self::Reads(controller) => controller.lock().is_ok(),
             Self::Value(controller) => controller.lock().is_ok(),
             Self::DirectValue { controller, .. } => controller.lock().is_ok(),
             Self::Failed => false,
-        }
+        };
+        bitcoin_stopped && locked
     }
 
     fn install_hns_reads(&mut self, backend: HnsNodeRpcBackend) -> bool {
@@ -379,6 +400,7 @@ impl AndroidWalletController {
         database_key: &MobileDatabaseKey,
         rollback_floor: HnsLightFloor,
         bootstrap_snapshot_path: Option<&Path>,
+        bitcoin_data_dir: PathBuf,
     ) -> bool {
         if !matches!(self, Self::Lifecycle(_)) {
             return false;
@@ -448,9 +470,23 @@ impl AndroidWalletController {
         let backend = coordinator.backend().clone();
         match lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend) {
             Ok(controller) => {
+                let bitcoin_config = MobileBitcoinDirectConfig::for_hns_wallet(
+                    controller.account_config().network,
+                    bitcoin_data_dir,
+                );
+                let bitcoin = match controller.direct_bitcoin_value_controller(bitcoin_config) {
+                    Ok(bitcoin) => bitcoin,
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "wallet-owned direct Bitcoin controller installation failed closed: {error}"
+                        ));
+                        return false;
+                    }
+                };
                 *self = Self::DirectValue {
                     coordinator,
                     controller,
+                    bitcoin,
                     denuo_listener: None,
                     denuo_peer: None,
                 };
@@ -531,6 +567,7 @@ impl AndroidWalletController {
             controller,
             denuo_listener,
             denuo_peer,
+            ..
         } = self
         else {
             return false;
@@ -1001,10 +1038,15 @@ struct AndroidWalletRecord {
     controller: Arc<Mutex<AndroidWalletController>>,
     pending_recovery: Mutex<Option<SensitiveUtf16>>,
     hns_reads_installable: bool,
+    bitcoin_data_dir: PathBuf,
 }
 
 impl AndroidWalletRecord {
-    fn new(controller: MobileWalletController, recovery: Option<SensitiveUtf16>) -> Self {
+    fn new(
+        controller: MobileWalletController,
+        recovery: Option<SensitiveUtf16>,
+        bitcoin_data_dir: PathBuf,
+    ) -> Self {
         // A newly generated wallet cannot acquire a network read backend until
         // its confirmed key has been reopened in a new native controller. This
         // keeps taking the one-shot recovery display distinct from durable
@@ -1015,6 +1057,7 @@ impl AndroidWalletRecord {
             controller: Arc::new(Mutex::new(AndroidWalletController::Lifecycle(controller))),
             pending_recovery: Mutex::new(recovery),
             hns_reads_installable,
+            bitcoin_data_dir,
         }
     }
 
@@ -1191,6 +1234,16 @@ fn android_wallet_path(env: &mut JNIEnv<'_>, path: &JString<'_>) -> Option<PathB
         return None;
     }
     Some(path)
+}
+
+/// Keep Kyoto's compact-filter files in the app-private sibling of the exact
+/// encrypted wallet database. This is local cache/recovery data, not a shared
+/// index or a network endpoint, and the derived name avoids collisions among
+/// the bounded in-process wallet handles.
+fn android_wallet_bitcoin_data_dir(database_path: &Path) -> PathBuf {
+    let mut data_dir = database_path.to_path_buf();
+    data_dir.set_extension("bitcoin-kyoto");
+    data_dir
 }
 
 fn android_wallet_optional_path(
@@ -3070,8 +3123,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             android_log_error("wallet create failed: invalid birthday height");
             return 0;
         };
+        let bitcoin_data_dir = android_wallet_bitcoin_data_dir(&path);
         let creation = match MobileWalletController::create(
-            path,
+            &path,
             &key,
             MobilePlatform::Android,
             HnsBootstrapPolicy::new(network, birthday_height),
@@ -3089,7 +3143,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return 0;
         };
         reservation
-            .finish(AndroidWalletRecord::new(controller, Some(recovery)))
+            .finish(AndroidWalletRecord::new(
+                controller,
+                Some(recovery),
+                bitcoin_data_dir,
+            ))
             .unwrap_or_else(|| {
                 android_log_error("wallet create failed: native wallet registration failed");
                 0
@@ -3139,8 +3197,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             android_log_error("wallet restore failed: invalid recovery phrase input");
             return 0;
         };
+        let bitcoin_data_dir = android_wallet_bitcoin_data_dir(&path);
         let controller = match MobileWalletController::restore(
-            path,
+            &path,
             &key,
             MobilePlatform::Android,
             HnsBootstrapPolicy::new(network, birthday_height),
@@ -3153,7 +3212,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             }
         };
         reservation
-            .finish(AndroidWalletRecord::new(controller, None))
+            .finish(AndroidWalletRecord::new(controller, None, bitcoin_data_dir))
             .unwrap_or_else(|| {
                 android_log_error("wallet restore failed: native wallet registration failed");
                 0
@@ -3187,7 +3246,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             android_log_error("wallet open failed: invalid database key");
             return 0;
         };
-        let controller = match MobileWalletController::open(path, &key, MobilePlatform::Android) {
+        let bitcoin_data_dir = android_wallet_bitcoin_data_dir(&path);
+        let controller = match MobileWalletController::open(&path, &key, MobilePlatform::Android) {
             Ok(controller) => controller,
             Err(error) => {
                 android_log_error(&format!("wallet open failed: {error}"));
@@ -3195,7 +3255,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             }
         };
         reservation
-            .finish(AndroidWalletRecord::new(controller, None))
+            .finish(AndroidWalletRecord::new(controller, None, bitcoin_data_dir))
             .unwrap_or_else(|| {
                 android_log_error("wallet open failed: native wallet registration failed");
                 0
@@ -3385,6 +3445,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             &database_key,
             rollback_floor,
             bootstrap_snapshot_path.as_deref(),
+            record.bitcoin_data_dir.clone(),
         )
     }))
     .unwrap_or(false)
