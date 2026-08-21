@@ -23,7 +23,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
-import com.denuoweb.hnsdane.wallet.AndroidWalletNodeCredentialSource
 import com.denuoweb.hnsdane.wallet.NativeHnsSendApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApprovalKind
@@ -43,7 +42,6 @@ import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
 import com.denuoweb.hnsdane.wallet.WalletStorageDeletionResult
 import com.denuoweb.hnsdane.wallet.WalletStorageOwnershipGate
-import com.denuoweb.hnsdane.wallet.attemptWalletReadBootstrap
 import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
 import com.denuoweb.hnsdane.wallet.deleteWalletDatabaseArtifacts
@@ -59,6 +57,7 @@ import com.denuoweb.hnsdane.wallet.walletDeletionMayProceed
 import com.denuoweb.hnsdane.wallet.walletNameImportMayBegin
 import com.denuoweb.hnsdane.wallet.walletNameImportMayPublish
 import com.denuoweb.hnsdane.wallet.walletReadMayPublish
+import com.denuoweb.hnsdane.wallet.walletReadBootstrapMayInstall
 import com.denuoweb.hnsdane.wallet.walletReadCodeLabel
 import com.denuoweb.hnsdane.wallet.walletSetupMayInspectStorage
 import com.denuoweb.hnsdane.wallet.walletStorageNamespace
@@ -93,8 +92,6 @@ class WalletActivity : ComponentActivity() {
     private lateinit var shakedexQueryStatusView: TextView
     private lateinit var restoreInput: EditText
     private lateinit var recoveryView: RecoveryPhraseView
-    private lateinit var walletNodeCredentialSource: AndroidWalletNodeCredentialSource
-
     private var walletHandle = INVALID_HANDLE
     private var walletAuthorityGeneration = 0L
     private var walletControllerIsReopenedDurable = false
@@ -128,9 +125,6 @@ class WalletActivity : ComponentActivity() {
         ).absoluteFile
         walletStoragePath = walletDatabaseFile.path
         keyStore = AndroidWalletKeyStore(applicationContext, walletNetwork.id)
-        walletNodeCredentialSource =
-            AndroidWalletNodeCredentialSource(applicationContext, walletNetwork.id)
-
         statusView = preferenceSummary(
             text = getString(R.string.wallet_status_starting),
             maxLines = Int.MAX_VALUE,
@@ -580,7 +574,8 @@ class WalletActivity : ComponentActivity() {
                 unconfirmedDatabaseKey = null
                 recoveryView.clearSecret()
                 if (stored) {
-                    if (currentStorageLease() === lease) {
+                    if (lease != null && currentStorageLease() === lease) {
+                        attemptReadBootstrap(lease)
                         refreshControllerState()
                     } else {
                         destroyController()
@@ -916,7 +911,7 @@ class WalletActivity : ComponentActivity() {
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
         thread(name = "hns-wallet-read-sync") {
-            val snapshot = NativeWalletBridge.synchronizeHnsReads(handle)
+            val snapshot = synchronizeHnsReadsWithRollbackFloor(handle)
             runOnUiThread {
                 val ownsLease = currentStorageLease() === lease
                 val mayPublish = walletReadMayPublish(
@@ -1274,7 +1269,7 @@ class WalletActivity : ComponentActivity() {
                 approval.actionToken,
             )
             approval.close()
-            val snapshot = result?.let { NativeWalletBridge.synchronizeHnsReads(handle) }
+            val snapshot = result?.let { synchronizeHnsReadsWithRollbackFloor(handle) }
             runOnUiThread {
                 val mayPublish = walletReadMayPublish(
                     expectedEpoch = epoch,
@@ -1550,7 +1545,7 @@ class WalletActivity : ComponentActivity() {
         thread(name = "hns-wallet-send-broadcast") {
             val receipt = NativeWalletBridge.approveHnsValueAction(handle, approval.actionToken)
             approval.close()
-            val snapshot = receipt?.let { NativeWalletBridge.synchronizeHnsReads(handle) }
+            val snapshot = receipt?.let { synchronizeHnsReadsWithRollbackFloor(handle) }
             runOnUiThread {
                 val mayPublish = walletReadMayPublish(
                     expectedEpoch = epoch,
@@ -1685,7 +1680,7 @@ class WalletActivity : ComponentActivity() {
         thread(name = "hns-wallet-name-import") {
             val imported = NativeWalletBridge.importHnsNameExactText(handle, exactUtf8)
             val snapshot = if (imported != null) {
-                NativeWalletBridge.synchronizeHnsReads(handle)?.takeIf { refreshed ->
+                synchronizeHnsReadsWithRollbackFloor(handle)?.takeIf { refreshed ->
                     walletNameImportRefreshMatches(imported, refreshed)
                 }
             } else {
@@ -1771,20 +1766,71 @@ class WalletActivity : ComponentActivity() {
 
     private fun attemptReadBootstrap(lease: WalletStorageOwnershipGate.Lease) {
         val expectedAuthority = walletReadBootstrapState(lease).authority ?: return
-        attemptWalletReadBootstrap(
-            expectedAuthority = expectedAuthority,
-            source = walletNodeCredentialSource,
-            currentState = { walletReadBootstrapState(lease) },
-            install = { authority, configuration ->
+        if (!walletReadBootstrapMayInstall(expectedAuthority, walletReadBootstrapState(lease))) return
+        if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
+        val epoch = lifecycleEpoch
+        thread(name = "hns-wallet-direct-install") {
+            val installed = runCatching {
+                val floor = keyStore.directHnsRollbackFloorForOpen()
                 keyStore.withDatabaseKey { databaseKey ->
-                    NativeWalletBridge.configureHnsValue(
-                        currentAuthority = authority,
-                        configuration = configuration,
+                    NativeWalletBridge.configureWalletOwnedDirectHnsValue(
+                        currentAuthority = expectedAuthority,
                         databaseKey = databaseKey,
+                        rollbackFloor = floor,
                     )
                 } == true
-            },
-        )
+            }.getOrDefault(false)
+            val floorStored = if (installed) {
+                NativeWalletBridge.directHnsRollbackFloor(expectedAuthority.walletHandle)?.let { floor ->
+                    runCatching {
+                        keyStore.storeInitialDirectHnsRollbackFloor(floor)
+                        true
+                    }.getOrDefault(false)
+                } == true
+            } else {
+                false
+            }
+            if (installed && !floorStored) {
+                NativeWalletBridge.lock(expectedAuthority.walletHandle)
+            }
+            runOnUiThread {
+                if (!operationIsCurrent(epoch, lease)) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                if (!installed || !floorStored) {
+                    resetReadProjection(R.string.wallet_reads_unavailable)
+                }
+                refreshControllerState()
+            }
+        }
+    }
+
+    /**
+     * Sync a wallet-owned direct HNS controller under its Keystore-held
+     * rollback journal. Legacy app-owned node controllers have no direct
+     * coordinator and retain their existing compatibility behavior.
+     */
+    private fun synchronizeHnsReadsWithRollbackFloor(handle: Long): NativeWalletReadSnapshot? {
+        val openingFloor = NativeWalletBridge.directHnsRollbackFloor(handle)
+            ?: return NativeWalletBridge.synchronizeHnsReads(handle)
+        openingFloor.fill(0)
+        if (runCatching { keyStore.beginDirectHnsSynchronization() }.isFailure) return null
+        val snapshot = NativeWalletBridge.synchronizeHnsReads(handle)
+        val updatedFloor = NativeWalletBridge.directHnsRollbackFloor(handle)
+        val committed = updatedFloor?.let { floor ->
+            runCatching {
+                keyStore.commitDirectHnsSynchronization(floor)
+                true
+            }.getOrDefault(false)
+        } == true
+        if (!committed) {
+            updatedFloor?.fill(0)
+            NativeWalletBridge.lock(handle)
+            return null
+        }
+        return snapshot
     }
 
     private fun walletReadBootstrapState(

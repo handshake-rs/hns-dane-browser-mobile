@@ -441,7 +441,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -760,7 +760,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-chain"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-browser-primitives",
  "rusqlite",
@@ -770,7 +770,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-dane"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-browser-dnssec",
  "hns-browser-primitives",
@@ -782,7 +782,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-dnssec"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-browser-primitives",
  "num-bigint",
@@ -797,7 +797,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-gateway"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-browser-dane",
  "hns-browser-primitives",
@@ -812,7 +812,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-loopback-proxy"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "base64",
  "hns-browser-dane",
@@ -832,7 +832,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-observability"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-browser-runtime",
  "hns-icann-dane",
@@ -844,7 +844,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-p2p"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "getrandom 0.3.4",
  "hns-browser-primitives",
@@ -856,7 +856,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-primitives"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "blake2",
  "hex",
@@ -870,7 +870,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-resolver"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-browser-dane",
  "hns-browser-dnssec",
@@ -884,12 +884,12 @@ dependencies = [
 [[package]]
 name = "hns-browser-runtime"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 
 [[package]]
 name = "hns-browser-sync"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-browser-chain",
  "hns-browser-p2p",
@@ -901,7 +901,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-transport"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "bytes",
  "h2",
@@ -922,7 +922,7 @@ dependencies = [
 [[package]]
 name = "hns-browser-urkel"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-browser-primitives",
  "thiserror 2.0.19",
@@ -931,7 +931,7 @@ dependencies = [
 [[package]]
 name = "hns-cache"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 dependencies = [
  "hns-dns-wire",
  "sha2",
@@ -941,7 +941,7 @@ dependencies = [
 [[package]]
 name = "hns-covenants"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -953,25 +953,90 @@ dependencies = [
 [[package]]
 name = "hns-dns-wire"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 
 [[package]]
 name = "hns-encoding"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-header-consensus"
+version = "0.3.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
+dependencies = [
+ "blake2",
+ "hns-encoding",
+ "hns-primitives",
+ "sha3",
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "hns-icann-dane"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
+
+[[package]]
+name = "hns-light-chain"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
+dependencies = [
+ "blake2",
+ "hns-covenants",
+ "hns-encoding",
+ "hns-header-consensus",
+ "hns-primitives",
+ "hns-urkel-proof",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-light-p2p"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
+dependencies = [
+ "hns-header-consensus",
+ "hns-p2p-wire",
+ "hns-primitives",
+ "hns-transaction",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-light-sync"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
+dependencies = [
+ "hns-header-consensus",
+ "hns-light-chain",
+ "hns-p2p-wire",
+ "hns-primitives",
+ "thiserror 2.0.19",
+]
+
+[[package]]
+name = "hns-light-wallet"
+version = "0.2.1"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
+dependencies = [
+ "blake2",
+ "hns-encoding",
+ "hns-header-consensus",
+ "hns-light-chain",
+ "hns-p2p-wire",
+ "hns-primitives",
+ "hns-transaction",
+ "thiserror 2.0.19",
+]
 
 [[package]]
 name = "hns-marketplace-protocol"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -982,6 +1047,20 @@ dependencies = [
  "sha2",
  "thiserror 2.0.19",
  "zeroize",
+]
+
+[[package]]
+name = "hns-mining"
+version = "0.3.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
+dependencies = [
+ "blake2",
+ "hns-covenants",
+ "hns-encoding",
+ "hns-header-consensus",
+ "hns-primitives",
+ "hns-transaction",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1015,12 +1094,12 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 
 [[package]]
 name = "hns-p2p-experimental"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
  "hex",
  "hns-encoding",
@@ -1032,9 +1111,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "hns-p2p-wire"
+version = "0.3.0"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
+dependencies = [
+ "blake2",
+ "hns-encoding",
+ "hns-header-consensus",
+ "hns-mining",
+ "hns-primitives",
+ "hns-transaction",
+ "hns-urkel-proof",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "hns-primitives"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
  "hex",
  "thiserror 2.0.19",
@@ -1043,12 +1137,12 @@ dependencies = [
 [[package]]
 name = "hns-resolution-policy"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4cdea838fcac4397ab9fad1b4dd1dbb901a7872d#4cdea838fcac4397ab9fad1b4dd1dbb901a7872d"
 
 [[package]]
 name = "hns-script"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -1065,7 +1159,7 @@ dependencies = [
 [[package]]
 name = "hns-swap"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
  "blake2",
  "hns-covenants",
@@ -1082,7 +1176,7 @@ dependencies = [
 [[package]]
 name = "hns-transaction"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
  "blake2",
  "hns-covenants",
@@ -1094,7 +1188,7 @@ dependencies = [
 [[package]]
 name = "hns-urkel-proof"
 version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=9c6d722b1b277ca58df750e7157cf44e48971d96#9c6d722b1b277ca58df750e7157cf44e48971d96"
+source = "git+https://github.com/handshake-rs/hns-rs.git?rev=126fee8feb6f9e3e55a753c481ca5c9758870b0c#126fee8feb6f9e3e55a753c481ca5c9758870b0c"
 dependencies = [
  "blake2",
  "hns-primitives",
@@ -1104,7 +1198,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-chain-api"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "hns-wallet-types",
  "serde",
@@ -1115,7 +1209,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-ffi"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "hns-covenants",
  "hns-wallet-types",
@@ -1128,7 +1222,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-hns"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "bech32",
  "bip39",
@@ -1137,7 +1231,13 @@ dependencies = [
  "hex",
  "hkdf",
  "hns-covenants",
+ "hns-header-consensus",
+ "hns-light-chain",
+ "hns-light-p2p",
+ "hns-light-sync",
+ "hns-light-wallet",
  "hns-marketplace-protocol",
+ "hns-p2p-wire",
  "hns-primitives",
  "hns-script",
  "hns-swap",
@@ -1158,7 +1258,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-host"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "getrandom 0.3.4",
  "hns-wallet-ffi",
@@ -1170,7 +1270,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-mobile"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "getrandom 0.3.4",
  "hns-primitives",
@@ -1192,7 +1292,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-provider"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "hns-wallet-store",
  "hns-wallet-types",
@@ -1206,7 +1306,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-service"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "getrandom 0.3.4",
  "hns-wallet-chain-api",
@@ -1226,7 +1326,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-shakedex"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "hex",
  "hns-covenants",
@@ -1248,7 +1348,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-store"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "argon2",
  "chacha20poly1305",
@@ -1267,7 +1367,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-types"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac#5d6bcbcc56d5175d1dd9ea569f3382ac69e5c3ac"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=09f3c38ca3490bf4761a1a1e9e749b9de2114f0f#09f3c38ca3490bf4761a1a1e9e749b9de2114f0f"
 dependencies = [
  "hex",
  "serde",
@@ -1987,7 +2087,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2600,7 +2700,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

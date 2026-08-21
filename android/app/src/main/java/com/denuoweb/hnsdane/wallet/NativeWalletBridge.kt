@@ -120,6 +120,33 @@ internal object NativeWalletBridge {
         }
     }
 
+    /**
+     * Installs the wallet-owned direct HNS runtime. Unlike the legacy sidecar
+     * adapter this has no RPC endpoint or credential: native code derives the
+     * account watch set locally, verifies HNS peers, and broadcasts directly.
+     */
+    fun configureWalletOwnedDirectHnsValue(
+        currentAuthority: WalletReadBootstrapAuthority,
+        databaseKey: ByteArray,
+        rollbackFloor: ByteArray,
+    ): Boolean = try {
+        consumeDatabaseKey(databaseKey) { key ->
+            consumeDirectHnsRollbackFloor(rollbackFloor) { floor ->
+                isValidHandle(currentAuthority.walletHandle) &&
+                    isAvailable &&
+                    runCatching {
+                        nativeConfigureWalletOwnedDirectHnsValue(
+                            currentAuthority.walletHandle,
+                            key,
+                            floor,
+                        )
+                    }.getOrDefault(false)
+            }
+        }
+    } finally {
+        rollbackFloor.fill(0)
+    }
+
     fun hasHnsReads(handle: Long): Boolean =
         isValidHandle(handle) && isAvailable &&
             runCatching { nativeHasHnsReads(handle) }.getOrDefault(false)
@@ -133,6 +160,16 @@ internal object NativeWalletBridge {
             val bundle = runCatching { nativeSynchronizeHnsReads(handle) }.getOrNull()
                 ?: return null
             parseAndWipeHnsReadBundle(bundle)
+        } else {
+            null
+        }
+
+    /** The active direct coordinator's authenticated floor, or null for legacy controllers. */
+    fun directHnsRollbackFloor(handle: Long): ByteArray? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeDirectHnsRollbackFloor(handle) }.getOrNull()
+                ?.takeIf { it.size == DIRECT_HNS_ROLLBACK_FLOOR_BYTES }
+                ?: null
         } else {
             null
         }
@@ -364,6 +401,16 @@ internal object NativeWalletBridge {
         databaseKey.fill(0)
     }
 
+    private inline fun <T> consumeDirectHnsRollbackFloor(
+        floor: ByteArray,
+        block: (ByteArray) -> T,
+    ): T {
+        require(floor.size == DIRECT_HNS_ROLLBACK_FLOOR_BYTES) {
+            "Direct HNS rollback floor must be 36 bytes"
+        }
+        return block(floor)
+    }
+
     internal fun parseStatusBundle(bundle: ByteArray): NativeWalletStatus? {
         if (bundle.size != STATUS_BUNDLE_BYTES || !bundle.hasMagic(STATUS_MAGIC)) return null
         val buffer = ByteBuffer.wrap(bundle).order(ByteOrder.BIG_ENDIAN)
@@ -483,6 +530,16 @@ internal object NativeWalletBridge {
     ): Boolean
 
     @JvmStatic
+    private external fun nativeConfigureWalletOwnedDirectHnsValue(
+        handle: Long,
+        databaseKey: ByteArray,
+        rollbackFloor: ByteArray,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativeDirectHnsRollbackFloor(handle: Long): ByteArray?
+
+    @JvmStatic
     private external fun nativeHasHnsReads(handle: Long): Boolean
 
     @JvmStatic
@@ -571,6 +628,7 @@ internal object NativeWalletBridge {
     private const val HEX = "0123456789abcdef"
     private val STATUS_MAGIC = byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'W'.code.toByte(), 'S'.code.toByte())
     private val ACCOUNT_MAGIC = byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'W'.code.toByte(), 'A'.code.toByte())
+    private const val DIRECT_HNS_ROLLBACK_FLOOR_BYTES = 36
 }
 
 internal data class NativeWalletStatus(

@@ -8,10 +8,12 @@
 use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
-    HnsBootstrapPolicy, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileDatabaseKey,
-    MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
-    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
+    EmbeddedHnsBackend, HnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
+    HnsDirectPeerCoordinator, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
+    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES,
+    MobileDatabaseKey, MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent,
+    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController,
+    MobileWalletError,
 };
 use hns_wallet_types::BaseUnits;
 use jni::JNIEnv;
@@ -68,6 +70,7 @@ const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
 const MAX_ANDROID_WALLET_BASE_UNITS_BYTES: usize = 39;
 const MAX_ANDROID_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
 const MAX_ANDROID_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
+const ANDROID_HNS_LIGHT_FLOOR_BYTES: usize = 36;
 const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
@@ -186,6 +189,13 @@ enum AndroidWalletController {
     Lifecycle(MobileWalletController),
     Reads(MobileHnsReadController<HnsNodeRpcBackend>),
     Value(MobileHnsValueController<HnsNodeRpcBackend>),
+    /// The installed wallet's self-contained HNS path. Header agreement,
+    /// filtered-block discovery, fee observations, and transaction broadcast
+    /// all use ordinary HNS peers through the same encrypted wallet store.
+    DirectValue {
+        coordinator: HnsDirectPeerCoordinator,
+        controller: MobileHnsValueController<EmbeddedHnsBackend>,
+    },
     Failed,
 }
 
@@ -195,6 +205,7 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => (controller.status().ok()?, false, false, false),
             Self::Reads(controller) => (controller.status().ok()?, true, false, false),
             Self::Value(controller) => (controller.status().ok()?, true, true, true),
+            Self::DirectValue { controller, .. } => (controller.status().ok()?, true, true, false),
             Self::Failed => return None,
         };
         let active_wallet = status
@@ -227,6 +238,7 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => controller.accounts().ok()?,
             Self::Reads(controller) => controller.accounts().ok()?,
             Self::Value(controller) => controller.accounts().ok()?,
+            Self::DirectValue { controller, .. } => controller.accounts().ok()?,
             Self::Failed => return None,
         };
         if accounts.len() != 1 {
@@ -247,6 +259,7 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => controller.unlock(key).is_ok(),
             Self::Reads(controller) => controller.unlock(key).is_ok(),
             Self::Value(controller) => controller.unlock(key).is_ok(),
+            Self::DirectValue { controller, .. } => controller.unlock(key).is_ok(),
             Self::Failed => false,
         }
     }
@@ -256,6 +269,7 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => controller.lock().is_ok(),
             Self::Reads(controller) => controller.lock().is_ok(),
             Self::Value(controller) => controller.lock().is_ok(),
+            Self::DirectValue { controller, .. } => controller.lock().is_ok(),
             Self::Failed => false,
         }
     }
@@ -313,18 +327,91 @@ impl AndroidWalletController {
         }
     }
 
+    /// Replace the lifecycle controller with the wallet-owned direct HNS
+    /// composition. No loopback endpoint, token, index service, relay, or
+    /// caller-supplied peer is accepted on this Android boundary.
+    fn install_direct_hns_value(
+        &mut self,
+        database_key: &MobileDatabaseKey,
+        rollback_floor: HnsLightFloor,
+    ) -> bool {
+        if !matches!(self, Self::Lifecycle(_)) {
+            return false;
+        }
+        let mut lifecycle = match std::mem::replace(self, Self::Failed) {
+            Self::Lifecycle(controller) => controller,
+            _ => return false,
+        };
+        let peer_config = HnsDirectPeerConfig::for_network(lifecycle.account_config().network);
+        let coordinator = match lifecycle.open_direct_hns_peer_coordinator_with_floor(
+            database_key,
+            peer_config,
+            rollback_floor,
+        ) {
+            Ok(coordinator) => coordinator,
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet-owned direct HNS coordinator installation failed closed: {error}"
+                ));
+                return false;
+            }
+        };
+        let backend = coordinator.backend().clone();
+        match lifecycle.into_hns_value(database_key, backend, None) {
+            Ok(controller) => {
+                *self = Self::DirectValue {
+                    coordinator,
+                    controller,
+                };
+                true
+            }
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet-owned direct HNS value controller installation failed closed: {error}"
+                ));
+                false
+            }
+        }
+    }
+
     const fn has_hns_reads(&self) -> bool {
-        matches!(self, Self::Reads(_) | Self::Value(_))
+        matches!(
+            self,
+            Self::Reads(_) | Self::Value(_) | Self::DirectValue { .. }
+        )
     }
 
     const fn has_hns_value(&self) -> bool {
-        matches!(self, Self::Value(_))
+        matches!(self, Self::Value(_) | Self::DirectValue { .. })
+    }
+
+    fn direct_hns_rollback_floor(&self) -> Option<HnsLightFloor> {
+        let Self::DirectValue { coordinator, .. } = self else {
+            return None;
+        };
+        coordinator.rollback_floor().ok()
     }
 
     fn synchronize_hns_reads(&mut self) -> Option<Vec<u8>> {
         let snapshot = match self {
             Self::Reads(controller) => controller.synchronize(),
             Self::Value(controller) => controller.synchronize(),
+            Self::DirectValue {
+                coordinator,
+                controller,
+            } => (|| -> Result<_, MobileWalletError> {
+                let now_unix = HnsReadSystemClock.now_unix()?;
+                coordinator.connect_available(now_unix)?;
+                // Keep each JNI call bounded. A restored wallet resumes these
+                // locally verified rounds and filtered-block ranges until its
+                // own index reaches the agreed header tip.
+                for _ in 0..4 {
+                    coordinator.synchronize_headers_once(now_unix)?;
+                }
+                coordinator.scan_wallet_blocks(2_000, now_unix)?;
+                let _ = coordinator.refresh_mempool(now_unix)?;
+                controller.synchronize()
+            })(),
             Self::Lifecycle(_) | Self::Failed => return None,
         };
         let snapshot = match snapshot {
@@ -344,6 +431,7 @@ impl AndroidWalletController {
         let summary = match self {
             Self::Reads(controller) => controller.import_name_exact_text(name),
             Self::Value(controller) => controller.import_name_exact_text(name),
+            Self::DirectValue { controller, .. } => controller.import_name_exact_text(name),
             Self::Lifecycle(_) | Self::Failed => return None,
         };
         let summary = match summary {
@@ -399,144 +487,190 @@ impl AndroidWalletController {
     }
 
     fn prepare_hns_value_action(&mut self, intent: MobileHnsValueIntent) -> Option<Vec<u8>> {
-        let Self::Value(controller) = self else {
-            return None;
-        };
-        let approval = match controller.prepare_value_action(intent) {
-            Ok(approval) => approval,
-            Err(error) => {
-                android_log_error(&format!("wallet HNS value preparation failed: {error}"));
-                return None;
-            }
-        };
-        if approval.summary.validate().is_err() {
-            android_log_error("wallet HNS value approval failed its native summary validation");
-            let _ = controller.lock();
-            return None;
+        match self {
+            Self::Value(controller) => prepare_hns_value_action(controller, intent),
+            Self::DirectValue { controller, .. } => prepare_hns_value_action(controller, intent),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
         }
-        let mut json = match serde_json::to_vec(&approval) {
-            Ok(json) => json,
-            Err(error) => {
-                android_log_error(&format!(
-                    "wallet HNS send approval projection failed closed: {error}"
-                ));
-                let _ = controller.lock();
-                return None;
-            }
-        };
-        let bundle = wallet_value_approval_bundle(json.as_slice());
-        json.fill(0);
-        if bundle.is_none() {
-            let _ = controller.lock();
-        }
-        bundle
     }
 
     fn query_shakedex(&mut self, query: MobileShakedexQuery) -> Option<Vec<u8>> {
-        let Self::Value(controller) = self else {
-            return None;
-        };
-        let result = match controller.query_shakedex(query) {
-            Ok(result) if result.is_object() => result,
-            Ok(_) => {
-                android_log_error("wallet Shakedex query returned a non-object result");
-                let _ = controller.lock();
-                return None;
-            }
-            Err(error) => {
-                android_log_error(&format!("wallet Shakedex query failed closed: {error}"));
-                return None;
-            }
-        };
-        let mut json = serde_json::to_vec(&result).ok()?;
-        let bundle = wallet_shakedex_query_bundle(json.as_slice());
-        json.fill(0);
-        if bundle.is_none() {
-            let _ = controller.lock();
+        match self {
+            Self::Value(controller) => query_shakedex(controller, query),
+            Self::DirectValue { controller, .. } => query_shakedex(controller, query),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
         }
-        bundle
     }
 
     fn approve_hns_value_action(&mut self, action_token: &str) -> Option<Vec<u8>> {
-        let Self::Value(controller) = self else {
-            return None;
-        };
-        let result = match controller.approve_value_action(action_token) {
-            Ok(result) => result,
-            Err(error) => {
-                android_log_error(&format!("wallet HNS value approval failed closed: {error}"));
-                return None;
+        match self {
+            Self::Value(controller) => approve_hns_value_action(controller, action_token),
+            Self::DirectValue { controller, .. } => {
+                approve_hns_value_action(controller, action_token)
             }
-        };
-        let Some(result) = android_hns_send_receipt(result) else {
-            android_log_error("wallet HNS send result failed its closed native projection");
-            let _ = controller.lock();
-            return None;
-        };
-        let mut json = match serde_json::to_vec(&result) {
-            Ok(json) => json,
-            Err(error) => {
-                android_log_error(&format!(
-                    "wallet HNS value result projection failed closed: {error}"
-                ));
-                let _ = controller.lock();
-                return None;
-            }
-        };
-        let bundle = wallet_value_result_bundle(json.as_slice());
-        json.fill(0);
-        if bundle.is_none() {
-            let _ = controller.lock();
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
         }
-        bundle
     }
 
     fn approve_hns_value_action_result(&mut self, action_token: &str) -> Option<Vec<u8>> {
-        let Self::Value(controller) = self else {
-            return None;
-        };
-        let result = match controller.approve_value_action(action_token) {
-            Ok(result) if result.is_object() => result,
-            Ok(_) => {
-                android_log_error("wallet HNS value result was not an object");
-                let _ = controller.lock();
-                return None;
+        match self {
+            Self::Value(controller) => approve_hns_value_action_result(controller, action_token),
+            Self::DirectValue { controller, .. } => {
+                approve_hns_value_action_result(controller, action_token)
             }
-            Err(error) => {
-                android_log_error(&format!("wallet HNS value approval failed closed: {error}"));
-                return None;
-            }
-        };
-        let mut json = match serde_json::to_vec(&result) {
-            Ok(json) => json,
-            Err(error) => {
-                android_log_error(&format!(
-                    "wallet HNS value result encoding failed closed: {error}"
-                ));
-                let _ = controller.lock();
-                return None;
-            }
-        };
-        let bundle = wallet_value_result_bundle(json.as_slice());
-        json.fill(0);
-        if bundle.is_none() {
-            let _ = controller.lock();
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
         }
-        bundle
     }
 
     fn reject_hns_value_action(&mut self, action_token: &str) -> bool {
-        let Self::Value(controller) = self else {
-            return false;
-        };
-        match controller.reject_value_action(action_token) {
-            Ok(()) => true,
-            Err(error) => {
-                android_log_error(&format!(
-                    "wallet HNS value rejection failed closed: {error}"
-                ));
-                false
+        match self {
+            Self::Value(controller) => reject_hns_value_action(controller, action_token),
+            Self::DirectValue { controller, .. } => {
+                reject_hns_value_action(controller, action_token)
             }
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => false,
+        }
+    }
+}
+
+fn prepare_hns_value_action<B: HnsBackend>(
+    controller: &mut MobileHnsValueController<B>,
+    intent: MobileHnsValueIntent,
+) -> Option<Vec<u8>> {
+    let approval = match controller.prepare_value_action(intent) {
+        Ok(approval) => approval,
+        Err(error) => {
+            android_log_error(&format!("wallet HNS value preparation failed: {error}"));
+            return None;
+        }
+    };
+    if approval.summary.validate().is_err() {
+        android_log_error("wallet HNS value approval failed its native summary validation");
+        let _ = controller.lock();
+        return None;
+    }
+    let mut json = match serde_json::to_vec(&approval) {
+        Ok(json) => json,
+        Err(error) => {
+            android_log_error(&format!(
+                "wallet HNS send approval projection failed closed: {error}"
+            ));
+            let _ = controller.lock();
+            return None;
+        }
+    };
+    let bundle = wallet_value_approval_bundle(json.as_slice());
+    json.fill(0);
+    if bundle.is_none() {
+        let _ = controller.lock();
+    }
+    bundle
+}
+
+fn query_shakedex<B: HnsBackend>(
+    controller: &mut MobileHnsValueController<B>,
+    query: MobileShakedexQuery,
+) -> Option<Vec<u8>> {
+    let result = match controller.query_shakedex(query) {
+        Ok(result) if result.is_object() => result,
+        Ok(_) => {
+            android_log_error("wallet Shakedex query returned a non-object result");
+            let _ = controller.lock();
+            return None;
+        }
+        Err(error) => {
+            android_log_error(&format!("wallet Shakedex query failed closed: {error}"));
+            return None;
+        }
+    };
+    let mut json = serde_json::to_vec(&result).ok()?;
+    let bundle = wallet_shakedex_query_bundle(json.as_slice());
+    json.fill(0);
+    if bundle.is_none() {
+        let _ = controller.lock();
+    }
+    bundle
+}
+
+fn approve_hns_value_action<B: HnsBackend>(
+    controller: &mut MobileHnsValueController<B>,
+    action_token: &str,
+) -> Option<Vec<u8>> {
+    let result = match controller.approve_value_action(action_token) {
+        Ok(result) => result,
+        Err(error) => {
+            android_log_error(&format!("wallet HNS value approval failed closed: {error}"));
+            return None;
+        }
+    };
+    let Some(result) = android_hns_send_receipt(result) else {
+        android_log_error("wallet HNS send result failed its closed native projection");
+        let _ = controller.lock();
+        return None;
+    };
+    let mut json = match serde_json::to_vec(&result) {
+        Ok(json) => json,
+        Err(error) => {
+            android_log_error(&format!(
+                "wallet HNS value result projection failed closed: {error}"
+            ));
+            let _ = controller.lock();
+            return None;
+        }
+    };
+    let bundle = wallet_value_result_bundle(json.as_slice());
+    json.fill(0);
+    if bundle.is_none() {
+        let _ = controller.lock();
+    }
+    bundle
+}
+
+fn approve_hns_value_action_result<B: HnsBackend>(
+    controller: &mut MobileHnsValueController<B>,
+    action_token: &str,
+) -> Option<Vec<u8>> {
+    let result = match controller.approve_value_action(action_token) {
+        Ok(result) if result.is_object() => result,
+        Ok(_) => {
+            android_log_error("wallet HNS value result was not an object");
+            let _ = controller.lock();
+            return None;
+        }
+        Err(error) => {
+            android_log_error(&format!("wallet HNS value approval failed closed: {error}"));
+            return None;
+        }
+    };
+    let mut json = match serde_json::to_vec(&result) {
+        Ok(json) => json,
+        Err(error) => {
+            android_log_error(&format!(
+                "wallet HNS value result encoding failed closed: {error}"
+            ));
+            let _ = controller.lock();
+            return None;
+        }
+    };
+    let bundle = wallet_value_result_bundle(json.as_slice());
+    json.fill(0);
+    if bundle.is_none() {
+        let _ = controller.lock();
+    }
+    bundle
+}
+
+fn reject_hns_value_action<B: HnsBackend>(
+    controller: &mut MobileHnsValueController<B>,
+    action_token: &str,
+) -> bool {
+    match controller.reject_value_action(action_token) {
+        Ok(()) => true,
+        Err(error) => {
+            android_log_error(&format!(
+                "wallet HNS value rejection failed closed: {error}"
+            ));
+            false
         }
     }
 }
@@ -845,6 +979,29 @@ fn android_wallet_consumed_database_key(
     let key = MobileDatabaseKey::from_slice(bytes.as_slice()).ok();
     bytes.fill(0);
     key
+}
+
+fn android_wallet_consumed_hns_light_floor(
+    env: &mut JNIEnv<'_>,
+    input: &JByteArray<'_>,
+) -> Option<HnsLightFloor> {
+    let mut bytes = android_wallet_consumed_bytes(env, input, ANDROID_HNS_LIGHT_FLOOR_BYTES)?;
+    if bytes.len() != ANDROID_HNS_LIGHT_FLOOR_BYTES {
+        bytes.fill(0);
+        return None;
+    }
+    let height = u32::from_be_bytes(bytes[..4].try_into().ok()?);
+    let mut chainwork = [0_u8; 32];
+    chainwork.copy_from_slice(&bytes[4..]);
+    bytes.fill(0);
+    Some(HnsLightFloor { height, chainwork })
+}
+
+fn android_hns_light_floor_bundle(floor: HnsLightFloor) -> [u8; ANDROID_HNS_LIGHT_FLOOR_BYTES] {
+    let mut encoded = [0_u8; ANDROID_HNS_LIGHT_FLOOR_BYTES];
+    encoded[..4].copy_from_slice(&floor.height.to_be_bytes());
+    encoded[4..].copy_from_slice(&floor.chainwork);
+    encoded
 }
 
 fn bounded_visible_ascii(mut bytes: Vec<u8>, maximum: usize) -> Option<SensitiveString> {
@@ -2802,6 +2959,72 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     }))
     .unwrap_or(false)
     .into()
+}
+
+/// Install the production wallet-owned direct HNS path. The JNI boundary
+/// accepts only the one-time database key; peers, header authority, filtering,
+/// and broadcast are all constructed from the selected encrypted account.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeConfigureWalletOwnedDirectHnsValue(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    database_key: JByteArray<'_>,
+    rollback_floor: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(database_key) = android_wallet_consumed_database_key(&mut env, &database_key)
+        else {
+            let _ = android_wallet_consumed_hns_light_floor(&mut env, &rollback_floor);
+            return false;
+        };
+        let Some(rollback_floor) =
+            android_wallet_consumed_hns_light_floor(&mut env, &rollback_floor)
+        else {
+            return false;
+        };
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        if !record.active.load(Ordering::Acquire) || !record.hns_reads_installable {
+            return false;
+        }
+        let Some(pending_recovery) = record.pending_recovery_if_active() else {
+            return false;
+        };
+        if pending_recovery.is_some() {
+            return false;
+        }
+        drop(pending_recovery);
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.install_direct_hns_value(&database_key, rollback_floor)
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+/// Return the direct coordinator's latest local rollback floor as a fixed
+/// network-order `(height, chainwork)` record. Only the Android platform
+/// holder persists it; no wallet private material crosses this boundary.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeDirectHnsRollbackFloor(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let controller = record.controller_if_active()?;
+        let mut floor = android_hns_light_floor_bundle(controller.direct_hns_rollback_floor()?);
+        let array = env.byte_array_from_slice(floor.as_slice()).ok();
+        floor.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
 }
 
 #[unsafe(no_mangle)]
