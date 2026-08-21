@@ -12,11 +12,12 @@ use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
     EmbeddedHnsBackend, HnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectDenuoListener,
     HnsDirectDenuoMessage, HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator,
-    HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock,
-    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileBitcoinDirectConfig,
-    MobileBitcoinValueController, MobileDatabaseKey, MobileDenuoSessionController,
-    MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
-    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
+    HnsDirectPeerError, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
+    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES,
+    MobileBitcoinDirectConfig, MobileBitcoinValueController, MobileDatabaseKey,
+    MobileDenuoSessionController, MobileHnsReadController, MobileHnsValueController,
+    MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
+    MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::BaseUnits;
 use jni::JNIEnv;
@@ -130,6 +131,11 @@ const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
 /// first-run catch-up self-contained without allowing an unbounded JNI call.
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
 const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
+/// Mainnet and testnet keep two independent block views, but invite more
+/// independently discovered peers than the library minimum. A stale DNS
+/// answer or an endpoint with another service on the Handshake port must not
+/// make the sole wallet sync attempt depend on the other two candidates.
+const ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS: usize = 6;
 /// The standard Handshake TCP port. A direct Denuo listener speaks only the
 /// normal version/verack plus negotiated experimental board profile; it is
 /// not a full HSD service.
@@ -524,7 +530,7 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => controller,
             _ => return false,
         };
-        let peer_config = HnsDirectPeerConfig::for_network(lifecycle.account_config().network);
+        let peer_config = android_direct_hns_peer_config(lifecycle.account_config().network);
         let coordinator_result = match bootstrap_headers {
             Some(headers) => lifecycle
                 .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
@@ -1001,13 +1007,24 @@ impl AndroidWalletController {
                 ..
             } => (|| -> Result<_, MobileWalletError> {
                 let now_unix = HnsReadSystemClock.now_unix()?;
-                coordinator.connect_available(now_unix)?;
+                if let Err(error) = coordinator.connect_available(now_unix) {
+                    return direct_hns_transport_catchup(coordinator, "connection", error);
+                }
                 // Converge through the direct peers until they agree that no
                 // extension remains. Both the round count and every peer
                 // response are bounded; a later sync resumes if a much older
                 // recovery wallet needs more work.
                 for _ in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
-                    let progress = coordinator.synchronize_headers_once(now_unix)?;
+                    let progress = match coordinator.synchronize_headers_once(now_unix) {
+                        Ok(progress) => progress,
+                        Err(error) => {
+                            return direct_hns_transport_catchup(
+                                coordinator,
+                                "header synchronization",
+                                error,
+                            );
+                        }
+                    };
                     match progress {
                         hns_wallet_mobile::HnsHeaderRoundProgress::Committed(round) => {
                             if round.accepted.is_empty() {
@@ -1036,8 +1053,18 @@ impl AndroidWalletController {
                 // set has reached the locally agreed header tip. The direct
                 // peer coordinator independently verifies every block view.
                 for _ in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
-                    let progress = coordinator
-                        .scan_wallet_blocks(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix)?;
+                    let progress = match coordinator
+                        .scan_wallet_blocks(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix)
+                    {
+                        Ok(progress) => progress,
+                        Err(error) => {
+                            return direct_hns_transport_catchup(
+                                coordinator,
+                                "wallet block scan",
+                                error,
+                            );
+                        }
+                    };
                     if progress.blocks_applied == 0 {
                         break;
                     }
@@ -1046,7 +1073,9 @@ impl AndroidWalletController {
                 if !direct_hns_progress_is_ready(coordinator, catchup)? {
                     return Ok(AndroidHnsSynchronization::CatchingUp(catchup));
                 }
-                let _ = coordinator.refresh_mempool(now_unix)?;
+                if let Err(error) = coordinator.refresh_mempool(now_unix) {
+                    return direct_hns_transport_catchup(coordinator, "mempool refresh", error);
+                }
                 controller
                     .synchronize()
                     .map(AndroidHnsSynchronization::Ready)
@@ -2073,6 +2102,52 @@ fn wallet_read_bundle(json: &[u8]) -> Option<Vec<u8>> {
     bundle.extend_from_slice(&json_length.to_be_bytes());
     bundle.extend_from_slice(json);
     (bundle.len() == WALLET_READ_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
+}
+
+fn android_direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
+    let mut config = HnsDirectPeerConfig::for_network(network);
+    if matches!(network, HnsNetwork::Mainnet | HnsNetwork::Testnet) {
+        config.target_peers = ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS;
+    }
+    config
+}
+
+/// These errors mean that the independently verified wallet state cannot
+/// advance *right now*. They do not invalidate the durable local header or
+/// scan state, so project them as degraded catch-up rather than dropping the
+/// entire read result. Local wallet, light-index, and configuration failures
+/// deliberately remain fail-closed.
+fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
+    matches!(
+        error,
+        HnsDirectPeerError::Peer(_)
+            | HnsDirectPeerError::Io(_)
+            | HnsDirectPeerError::NoReadyPeers
+            | HnsDirectPeerError::ResponseEventLimit
+            | HnsDirectPeerError::UnexpectedPeerEvent
+            | HnsDirectPeerError::PeerRejected(_)
+            | HnsDirectPeerError::FilteredBlockUnavailable
+            | HnsDirectPeerError::InsufficientBlockViews { .. }
+    )
+}
+
+fn direct_hns_transport_catchup(
+    coordinator: &HnsDirectPeerCoordinator,
+    stage: &str,
+    error: HnsDirectPeerError,
+) -> Result<AndroidHnsSynchronization, MobileWalletError> {
+    if !direct_hns_transport_error_is_retryable(&error) {
+        return Err(error.into());
+    }
+    android_log_error(&format!(
+        "wallet HNS direct-peer {stage} is temporarily unavailable; retaining verified catch-up state: {error}"
+    ));
+    let mut progress = direct_hns_catchup_progress(coordinator)?;
+    // A remote transport failure means that the currently persisted header
+    // view cannot be promoted to a live, peer-agreed wallet read. The Kotlin
+    // projection then explains the recovery path and withholds every value.
+    progress.header_state = WALLET_HNS_SYNC_HEADER_DEGRADED;
+    Ok(AndroidHnsSynchronization::CatchingUp(progress))
 }
 
 fn direct_hns_catchup_progress(
@@ -4928,6 +5003,43 @@ mod tests {
             })
             .is_none()
         );
+    }
+
+    #[test]
+    fn direct_hns_public_config_has_spare_peer_diversity() {
+        let mainnet = android_direct_hns_peer_config(HnsNetwork::Mainnet);
+        assert_eq!(mainnet.target_peers, ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS);
+        assert_eq!(mainnet.minimum_block_views, 2);
+
+        let testnet = android_direct_hns_peer_config(HnsNetwork::Testnet);
+        assert_eq!(testnet.target_peers, ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS);
+        assert_eq!(testnet.minimum_block_views, 2);
+
+        let regtest = android_direct_hns_peer_config(HnsNetwork::Regtest);
+        assert_eq!(regtest.target_peers, 1);
+        assert_eq!(regtest.minimum_block_views, 1);
+    }
+
+    #[test]
+    fn direct_hns_transient_peer_errors_stay_in_resumable_catchup() {
+        assert!(direct_hns_transport_error_is_retryable(
+            &HnsDirectPeerError::Peer("expected remote version packet".to_owned())
+        ));
+        assert!(direct_hns_transport_error_is_retryable(
+            &HnsDirectPeerError::Io(std::io::ErrorKind::ConnectionRefused)
+        ));
+        assert!(direct_hns_transport_error_is_retryable(
+            &HnsDirectPeerError::InsufficientBlockViews {
+                required: 2,
+                actual: 1,
+            }
+        ));
+        assert!(!direct_hns_transport_error_is_retryable(
+            &HnsDirectPeerError::InvalidConfiguration
+        ));
+        assert!(!direct_hns_transport_error_is_retryable(
+            &HnsDirectPeerError::WalletEvidence("invalid merkle proof".to_owned())
+        ));
     }
 
     #[test]
