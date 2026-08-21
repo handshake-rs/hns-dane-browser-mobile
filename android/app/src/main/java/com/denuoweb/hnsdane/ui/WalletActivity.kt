@@ -91,6 +91,9 @@ class WalletActivity : ComponentActivity() {
     private lateinit var sendAmountInput: EditText
     private lateinit var sendMaximumFeeInput: EditText
     private lateinit var sendStatusView: TextView
+    private lateinit var bitcoinStatusView: TextView
+    private lateinit var bitcoinBalanceView: TextView
+    private lateinit var bitcoinReceiveView: TextView
     private lateinit var valueActionStatusView: TextView
     private lateinit var shakedexQueryStatusView: TextView
     private lateinit var restoreInput: EditText
@@ -151,6 +154,11 @@ class WalletActivity : ComponentActivity() {
         sendAmountInput = hnsSendAmountInput(R.string.wallet_send_amount_hint)
         sendMaximumFeeInput = hnsSendAmountInput(R.string.wallet_send_maximum_fee_hint)
         sendStatusView = walletReadSummary(R.string.wallet_send_unavailable)
+        bitcoinStatusView = walletReadSummary(R.string.wallet_bitcoin_unavailable)
+        bitcoinBalanceView = walletReadSummary(R.string.wallet_bitcoin_balance_unavailable)
+        bitcoinReceiveView = walletReadSummary(R.string.wallet_bitcoin_receive_unavailable).apply {
+            setTextIsSelectable(true)
+        }
         valueActionStatusView = walletReadSummary(R.string.wallet_value_actions_unavailable)
         shakedexQueryStatusView = walletReadSummary(R.string.wallet_shakedex_queries_unavailable)
         restoreInput = sensitiveRestoreInput()
@@ -287,6 +295,30 @@ class WalletActivity : ComponentActivity() {
                     actionLabel = getString(R.string.action_prepare_wallet_send),
                 ) {
                     prepareWalletSend()
+                })
+            })
+            addView(screenSection(getString(R.string.section_wallet_bitcoin)) {
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_bitcoin_status),
+                    summaryView = bitcoinStatusView,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_bitcoin_balance),
+                    summaryView = bitcoinBalanceView,
+                ))
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_bitcoin_receive),
+                    summaryView = bitcoinReceiveView,
+                    actionLabel = getString(R.string.action_wallet_bitcoin_receive),
+                ) {
+                    revealBitcoinReceiveAddress()
+                })
+                addScreenRow(preferenceRow(
+                    title = getString(R.string.row_wallet_bitcoin_sync),
+                    summary = getString(R.string.row_wallet_bitcoin_sync_summary),
+                    actionLabel = getString(R.string.action_sync_wallet_reads),
+                ) {
+                    synchronizeBitcoin()
                 })
             })
             addView(screenSection(getString(R.string.section_wallet_name_actions)) {
@@ -980,6 +1012,89 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun revealBitcoinReceiveAddress() {
+        val lease = currentStorageLease() ?: return
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(handle)) {
+            resetBitcoinProjection()
+            return
+        }
+        if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads), resetReads = false)) return
+        bitcoinStatusView.text = getString(R.string.wallet_bitcoin_ready)
+        val epoch = lifecycleEpoch
+        thread(name = "bitcoin-wallet-receive-address") {
+            val address = NativeWalletBridge.nextBitcoinReceiveAddress(handle)
+            runOnUiThread {
+                if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                if (address == null) {
+                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_receive_failed)
+                } else {
+                    renderBitcoinSnapshot(address.snapshot)
+                }
+            }
+        }
+    }
+
+    private fun synchronizeBitcoin() {
+        val lease = currentStorageLease() ?: return
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(handle)) {
+            resetBitcoinProjection()
+            return
+        }
+        if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads), resetReads = false)) return
+        bitcoinStatusView.text = getString(R.string.wallet_bitcoin_syncing)
+        val epoch = lifecycleEpoch
+        thread(name = "bitcoin-wallet-direct-sync") {
+            val synchronization = NativeWalletBridge.synchronizeBitcoin(handle)
+            runOnUiThread {
+                if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                if (synchronization == null) {
+                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_failed)
+                } else {
+                    renderBitcoinSnapshot(synchronization.snapshot)
+                    bitcoinStatusView.text = getString(
+                        R.string.wallet_bitcoin_synchronized,
+                        synchronization.checkpointHeight,
+                        synchronization.connectedPeerCount,
+                        synchronization.requiredPeerCount,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun resetBitcoinProjection() {
+        bitcoinBalanceView.text = getString(R.string.wallet_bitcoin_balance_unavailable)
+        bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive_unavailable)
+        val status = NativeWalletBridge.status(walletHandle)
+        bitcoinStatusView.text = when {
+            status?.locked == true -> getString(R.string.wallet_bitcoin_locked)
+            NativeWalletBridge.hasBitcoinValue(walletHandle) -> getString(R.string.wallet_bitcoin_ready)
+            else -> getString(R.string.wallet_bitcoin_unavailable)
+        }
+    }
+
+    private fun renderBitcoinSnapshot(snapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot) {
+        bitcoinBalanceView.text = getString(
+            R.string.wallet_bitcoin_balance,
+            snapshot.confirmedSats,
+            snapshot.trustedPendingSats,
+            snapshot.untrustedPendingSats,
+            snapshot.immatureSats,
+            snapshot.totalSats,
+        )
+        bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive, snapshot.receiveAddress)
     }
 
     private data class WalletActionInput(
@@ -1824,12 +1939,14 @@ class WalletActivity : ComponentActivity() {
             statusView.text = getString(R.string.wallet_status_unavailable)
             accountView.text = getString(R.string.wallet_account_unavailable)
             resetReadProjection(R.string.wallet_reads_unavailable)
+            resetBitcoinProjection()
             return
         }
         if (status.locked) {
             statusView.text = getString(R.string.wallet_status_locked)
             accountView.text = getString(R.string.wallet_account_locked)
             resetReadProjection(R.string.wallet_reads_locked)
+            resetBitcoinProjection()
             return
         }
         statusView.text = getString(
@@ -1854,6 +1971,7 @@ class WalletActivity : ComponentActivity() {
                 resetReadProjection(R.string.wallet_reads_unavailable)
             }
         }
+        resetBitcoinProjection()
     }
 
     private fun attemptReadBootstrap(lease: WalletStorageOwnershipGate.Lease) {

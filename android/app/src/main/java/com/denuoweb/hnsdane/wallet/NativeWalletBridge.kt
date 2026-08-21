@@ -397,6 +397,52 @@ internal object NativeWalletBridge {
         isValidHandle(handle) && isAvailable &&
             runCatching { nativeLock(handle) }.getOrDefault(false)
 
+    /** True only while the direct Kyoto controller is active under this wallet's unlock. */
+    fun hasBitcoinValue(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeHasBitcoinValue(handle) }.getOrDefault(false)
+
+    fun bitcoinSnapshot(handle: Long): NativeBitcoinWalletSnapshot? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeBitcoinSnapshot(handle) }.getOrNull()?.let { bundle ->
+                try {
+                    NativeBitcoinWalletBundle.snapshot(bundle)
+                } finally {
+                    bundle.fill(0)
+                }
+            }
+        } else {
+            null
+        }
+
+    /** Reveal and persist one locally derived BIP84 receive address. */
+    fun nextBitcoinReceiveAddress(handle: Long): NativeBitcoinReceiveAddress? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeNextBitcoinReceiveAddress(handle) }.getOrNull()?.let { bundle ->
+                try {
+                    NativeBitcoinWalletBundle.receive(bundle)
+                } finally {
+                    bundle.fill(0)
+                }
+            }
+        } else {
+            null
+        }
+
+    /** Drive one user-scheduled, wallet-owned Kyoto compact-filter cycle. */
+    fun synchronizeBitcoin(handle: Long): NativeBitcoinSynchronization? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeSynchronizeBitcoin(handle) }.getOrNull()?.let { bundle ->
+                try {
+                    NativeBitcoinWalletBundle.synchronization(bundle)
+                } finally {
+                    bundle.fill(0)
+                }
+            }
+        } else {
+            null
+        }
+
     fun takeRecovery(handle: Long): CharArray? =
         if (isValidHandle(handle) && isAvailable) {
             runCatching { nativeTakeRecovery(handle) }.getOrNull()
@@ -569,6 +615,18 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeHasHnsValue(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeHasBitcoinValue(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeBitcoinSnapshot(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeNextBitcoinReceiveAddress(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeSynchronizeBitcoin(handle: Long): ByteArray?
 
     @JvmStatic
     private external fun nativeSynchronizeHnsReads(handle: Long): ByteArray?

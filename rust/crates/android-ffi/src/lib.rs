@@ -69,6 +69,11 @@ const WALLET_READ_BUNDLE_VERSION: u8 = 2;
 const WALLET_READ_BUNDLE_FLAGS: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
+const WALLET_BITCOIN_BUNDLE_MAGIC: &[u8; 4] = b"HNBW";
+const WALLET_BITCOIN_BUNDLE_VERSION: u8 = 1;
+const WALLET_BITCOIN_BUNDLE_FLAGS: u8 = 0;
+const WALLET_BITCOIN_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_BITCOIN_JSON_BYTES: usize = 16 * 1024;
 const MAX_ANDROID_WALLET_NAME_BYTES: usize = 63;
 const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
 const MAX_ANDROID_DENUO_ENDPOINT_BYTES: usize = 128;
@@ -510,6 +515,85 @@ impl AndroidWalletController {
 
     const fn has_hns_value(&self) -> bool {
         matches!(self, Self::Value(_) | Self::DirectValue { .. })
+    }
+
+    fn has_bitcoin_value(&self) -> bool {
+        match self {
+            Self::DirectValue { bitcoin, .. } => bitcoin.is_active(),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => false,
+        }
+    }
+
+    fn bitcoin_snapshot(&mut self) -> Option<Vec<u8>> {
+        let snapshot = match self {
+            Self::DirectValue { bitcoin, .. } => bitcoin.snapshot(),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
+        };
+        let snapshot = match snapshot {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                android_log_error(&format!("wallet Bitcoin snapshot failed: {error}"));
+                return None;
+            }
+        };
+        let mut json = serde_json::to_vec(&snapshot).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    fn next_bitcoin_receive_address(&mut self) -> Option<Vec<u8>> {
+        let result = match self {
+            Self::DirectValue { bitcoin, .. } => {
+                let address = bitcoin.next_receive_address();
+                let snapshot = bitcoin.snapshot();
+                match (address, snapshot) {
+                    (Ok(address), Ok(snapshot)) => Ok((address, snapshot)),
+                    (Err(error), _) | (_, Err(error)) => Err(error),
+                }
+            }
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
+        };
+        let (address, snapshot) = match result {
+            Ok(result) => result,
+            Err(error) => {
+                android_log_error(&format!("wallet Bitcoin receive address failed: {error}"));
+                return None;
+            }
+        };
+        let json = serde_json::to_vec(&json!({
+            "receiveAddress": address,
+            "snapshot": snapshot,
+        }))
+        .ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        let mut json = json;
+        json.fill(0);
+        bundle
+    }
+
+    fn synchronize_bitcoin(&mut self) -> Option<Vec<u8>> {
+        let (receipt, snapshot) = match self {
+            Self::DirectValue { bitcoin, .. } => bitcoin.synchronize_once(),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
+        }
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin synchronization failed: {error}"));
+            error
+        })
+        .ok()?;
+        let json = serde_json::to_vec(&json!({
+            "snapshot": snapshot,
+            "sequence": receipt.sequence,
+            "checkpointHeight": receipt.checkpoint.height,
+            "connectedPeerCount": receipt.connected_peer_count,
+            "requiredPeerCount": receipt.required_peer_count,
+        }))
+        .ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        let mut json = json;
+        json.fill(0);
+        bundle
     }
 
     fn direct_hns_rollback_floor(&self) -> Option<HnsLightFloor> {
@@ -1684,6 +1768,17 @@ fn wallet_read_bundle(json: &[u8]) -> Option<Vec<u8>> {
     bundle.extend_from_slice(&json_length.to_be_bytes());
     bundle.extend_from_slice(json);
     (bundle.len() == WALLET_READ_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
+}
+
+fn bitcoin_json_bundle(json: &[u8]) -> Option<Vec<u8>> {
+    wallet_json_bundle(
+        json,
+        WALLET_BITCOIN_BUNDLE_MAGIC,
+        WALLET_BITCOIN_BUNDLE_VERSION,
+        WALLET_BITCOIN_BUNDLE_FLAGS,
+        WALLET_BITCOIN_BUNDLE_HEADER_BYTES,
+        MAX_WALLET_BITCOIN_JSON_BYTES,
+    )
 }
 
 fn wallet_name_import_bundle(json: &[u8]) -> Option<Vec<u8>> {
@@ -3557,6 +3652,82 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     }))
     .unwrap_or(false)
     .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeHasBitcoinValue(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.has_bitcoin_value()
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeBitcoinSnapshot(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.bitcoin_snapshot()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeNextBitcoinReceiveAddress(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.next_bitcoin_receive_address()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeSynchronizeBitcoin(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.synchronize_bitcoin()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
 }
 
 #[unsafe(no_mangle)]
