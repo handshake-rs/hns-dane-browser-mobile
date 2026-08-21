@@ -300,17 +300,26 @@ impl AndroidWalletController {
                 controller,
                 bitcoin,
                 ..
-            } => match controller.unlock(key).and_then(|()| bitcoin.activate()) {
-                Ok(()) => true,
-                Err(error) => {
+            } => {
+                if let Err(error) = controller.unlock(key) {
                     android_log_error(&format!(
-                        "wallet-owned direct Bitcoin activation failed closed: {error}"
+                        "wallet-owned direct HNS unlock failed closed: {error}"
                     ));
-                    let _ = bitcoin.deactivate();
-                    let _ = controller.lock();
                     false
+                } else {
+                    // Bitcoin is an adjacent runtime, not an authority for
+                    // the HNS account or its receive address. Keep HNS
+                    // available if Kyoto cannot start; its own UI remains
+                    // unavailable until activation succeeds.
+                    if let Err(error) = bitcoin.activate() {
+                        android_log_error(&format!(
+                            "wallet-owned direct Bitcoin activation is unavailable; HNS remains unlocked: {error}"
+                        ));
+                        let _ = bitcoin.deactivate();
+                    }
+                    true
                 }
-            },
+            }
             Self::Failed => false,
         };
         if unlocked && !self.start_direct_denuo_listener() {

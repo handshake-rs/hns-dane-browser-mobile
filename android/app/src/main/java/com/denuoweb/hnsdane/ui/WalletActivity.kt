@@ -2813,8 +2813,11 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun wipeEditable(editable: Editable) {
-        for (index in 0 until editable.length) {
-            editable.replace(index, index + 1, NUL_CHARACTER)
+        // Android may reject a NUL replacement through an input filter and
+        // shrink the buffer immediately. Replace the complete range at once
+        // so a filter cannot invalidate a later per-character index.
+        if (editable.isNotEmpty()) {
+            editable.replace(0, editable.length, NUL_CHARACTER.repeat(editable.length))
         }
         editable.clear()
     }
