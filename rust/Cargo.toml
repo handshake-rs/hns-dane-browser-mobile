@@ -21,6 +21,7 @@ bytes = "1"
 hex = "0.4"
 getrandom = "0.3"
 hns-header-consensus = { version = "=0.3.0", git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8" }
+hns-light-sync = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "6572277cb629fe0eec508a4ab3aa2f18731fabbb" }
 hns-cache = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }
 hns-chain = { package = "hns-browser-chain", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }
 hns-core = { package = "hns-browser-primitives", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }

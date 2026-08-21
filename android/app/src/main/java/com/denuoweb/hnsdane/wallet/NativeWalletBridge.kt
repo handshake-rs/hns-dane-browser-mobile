@@ -157,11 +157,16 @@ internal object NativeWalletBridge {
         isValidHandle(handle) && isAvailable &&
             runCatching { nativeHasHnsValue(handle) }.getOrDefault(false)
 
-    fun synchronizeHnsReads(handle: Long): NativeWalletReadSnapshot? =
+    /**
+     * Performs one bounded synchronization. A catch-up result carries no
+     * spendable snapshot, but preserves enough verified progress for the UI
+     * to resume a restored wallet without forcing an unsafe controller error.
+     */
+    fun synchronizeHnsReads(handle: Long): NativeWalletHnsSynchronization? =
         if (isValidHandle(handle) && isAvailable) {
             val bundle = runCatching { nativeSynchronizeHnsReads(handle) }.getOrNull()
                 ?: return null
-            parseAndWipeHnsReadBundle(bundle)
+            parseAndWipeHnsSynchronizationBundle(bundle)
         } else {
             null
         }
@@ -202,9 +207,36 @@ internal object NativeWalletBridge {
      * Opens one exact user-paired direct board socket. The native boundary
      * accepts only IPv4:port or [IPv6]:port and never resolves a hostname.
      */
-    fun connectWalletOwnedDirectDenuo(handle: Long, endpoint: String): Boolean =
-        isValidHandle(handle) && isAvailable && endpoint.length in 1..128 &&
-            runCatching { nativeConnectWalletOwnedDirectDenuo(handle, endpoint) }.getOrDefault(false)
+    /** Current listener and active direct-peer transport state, if direct Denuo is installed. */
+    fun walletOwnedDirectDenuoStatus(handle: Long): NativeWalletDirectDenuoStatus? =
+        if (isValidHandle(handle) && isAvailable) {
+            val bundle = runCatching { nativeWalletOwnedDirectDenuoStatus(handle) }.getOrNull()
+                ?: return null
+            parseAndWipeWalletOwnedDirectDenuoStatusBundle(bundle)
+        } else {
+            null
+        }
+
+    /** Retry the local direct-Denuo listener without changing wallet authority. */
+    fun retryWalletOwnedDirectDenuoListener(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeRetryWalletOwnedDirectDenuoListener(handle) }.getOrDefault(false)
+
+    /** Disconnect only the active direct-Denuo peer transport. */
+    fun disconnectWalletOwnedDirectDenuo(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeDisconnectWalletOwnedDirectDenuo(handle) }.getOrDefault(false)
+
+    fun connectWalletOwnedDirectDenuo(
+        handle: Long,
+        endpoint: String,
+    ): NativeWalletDirectDenuoConnectResult? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeConnectWalletOwnedDirectDenuo(handle, endpoint) }.getOrNull()
+                ?.let(::parseAndWipeWalletOwnedDirectDenuoConnectBundle)
+        } else {
+            null
+        }
 
     /** Consumes one exact UTF-8 name for the trusted native read controller only. */
     fun importHnsNameExactText(handle: Long, exactUtf8: ByteArray): NativeWalletName? = try {
@@ -240,6 +272,30 @@ internal object NativeWalletBridge {
 
     internal fun parseAndWipeHnsReadBundle(bundle: ByteArray): NativeWalletReadSnapshot? = try {
         NativeWalletReadSnapshot.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeHnsSynchronizationBundle(
+        bundle: ByteArray,
+    ): NativeWalletHnsSynchronization? = try {
+        NativeWalletHnsSynchronization.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeWalletOwnedDirectDenuoStatusBundle(
+        bundle: ByteArray,
+    ): NativeWalletDirectDenuoStatus? = try {
+        NativeWalletDirectDenuoStatus.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeWalletOwnedDirectDenuoConnectBundle(
+        bundle: ByteArray,
+    ): NativeWalletDirectDenuoConnectResult? = try {
+        NativeWalletDirectDenuoConnectResult.parse(bundle)
     } finally {
         bundle.fill(0)
     }
@@ -685,7 +741,16 @@ internal object NativeWalletBridge {
     private external fun nativeServiceWalletOwnedDirectDenuo(handle: Long): Boolean
 
     @JvmStatic
-    private external fun nativeConnectWalletOwnedDirectDenuo(handle: Long, endpoint: String): Boolean
+    private external fun nativeWalletOwnedDirectDenuoStatus(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRetryWalletOwnedDirectDenuoListener(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeDisconnectWalletOwnedDirectDenuo(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeConnectWalletOwnedDirectDenuo(handle: Long, endpoint: String): ByteArray?
 
     @JvmStatic
     private external fun nativeHasHnsReads(handle: Long): Boolean

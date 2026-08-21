@@ -12,11 +12,13 @@
     <string name="action_manage">Manage</string>
     <string name="action_open">Open</string>
     <string name="action_reset">Reset</string>
+    <string name="action_retry">Retry</string>
     <string name="action_run">Run</string>
     <string name="action_save">Save</string>
     <string name="action_set">Set</string>
     <string name="action_share">Share</string>
     <string name="action_view">View</string>
+    <string name="action_disconnect" translatable="false">Disconnect</string>
     <string name="action_create_wallet" translatable="false">Create</string>
     <string name="action_restore_wallet" translatable="false">Restore</string>
     <string name="action_unlock_wallet" translatable="false">Unlock</string>
@@ -285,8 +287,13 @@
     <string name="row_wallet_list_offers_summary" translatable="false">Read the current authenticated Denuo offer page and copy a listing ID.</string>
     <string name="row_wallet_get_session" translatable="false">Inspect trade session</string>
     <string name="row_wallet_get_session_summary" translatable="false">Refresh one local seller or buyer workflow by its session ID.</string>
-    <string name="row_wallet_pair_direct_denuo" translatable="false">Pair a direct Denuo wallet</string>
-    <string name="row_wallet_pair_direct_denuo_summary" translatable="false">Connect to an exact peer-shared IPv4:port or [IPv6]:port endpoint. This uses no marketplace relay or hostname lookup.</string>
+    <string name="row_wallet_direct_denuo_host" translatable="false">Direct Denuo host and peer</string>
+    <string name="row_wallet_retry_direct_denuo_host" translatable="false">Retry direct Denuo hosting</string>
+    <string name="row_wallet_retry_direct_denuo_host_summary" translatable="false">Retry binding the wallet-owned listener on port 12038. This does not change wallet, chain, or board authority.</string>
+    <string name="row_wallet_disconnect_direct_denuo" translatable="false">Disconnect direct Denuo peer</string>
+    <string name="row_wallet_disconnect_direct_denuo_summary" translatable="false">Drop only the active direct board transport so a different wallet can be paired.</string>
+    <string name="row_wallet_pair_direct_denuo" translatable="false">Pair or replace direct Denuo wallet</string>
+    <string name="row_wallet_pair_direct_denuo_summary" translatable="false">Connect to an exact peer-shared IPv4:port or [IPv6]:port endpoint. A successful connection replaces the active direct peer; no marketplace relay or hostname lookup is used.</string>
 
     <string name="wallet_restore_phrase_hint" translatable="false">24-word recovery phrase</string>
     <string name="wallet_restore_phrase_required" translatable="false">Enter the complete 24-word recovery phrase.</string>
@@ -304,6 +311,8 @@
     <string name="wallet_status_preparing_value_action" translatable="false">Preparing native HNS value action…</string>
     <string name="wallet_status_querying_shakedex" translatable="false">Querying the authenticated Shakedex board…</string>
     <string name="wallet_status_connecting_direct_denuo" translatable="false">Connecting direct Denuo peer…</string>
+    <string name="wallet_status_retrying_direct_denuo" translatable="false">Retrying direct Denuo hosting…</string>
+    <string name="wallet_status_disconnecting_direct_denuo" translatable="false">Disconnecting direct Denuo peer…</string>
     <string name="wallet_status_not_created" translatable="false">No native wallet exists on this device.</string>
     <string name="wallet_status_native_unavailable" translatable="false">Native wallet core is unavailable.</string>
     <string name="wallet_status_recovery_required" translatable="false">Save the recovery phrase offline, then confirm. Leaving this screen discards the unconfirmed wallet.</string>
@@ -330,6 +339,10 @@
     <string name="wallet_reads_ready_to_sync" translatable="false">The HNS module is configured. Synchronize to refresh its tip-bound projection before using funds.</string>
     <string name="wallet_reads_syncing" translatable="false">Synchronizing one bounded HNS read snapshot…</string>
     <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read failed closed. Reopen and unlock the wallet before retrying.</string>
+    <string name="wallet_reads_catching_up" translatable="false">Verified HNS wallet catch-up is in progress. No balance or spend state is exposed until it reaches the exact current tip.</string>
+    <string name="wallet_reads_catching_up_headers" translatable="false">Verified header catch-up is still in progress at local height %1$d. Wallet history has scanned through %2$d of %3$d. Synchronize again to continue; no balance or spend state is exposed yet.</string>
+    <string name="wallet_reads_catching_up_scan" translatable="false">Verified chain headers are current. Wallet history has scanned through %1$d of %2$d. Synchronize again to continue; no balance or spend state is exposed yet.</string>
+    <string name="wallet_reads_catching_up_degraded" translatable="false">Verified header catch-up could not reach a current peer agreement at local height %1$d. No balance or spend state is exposed; synchronize again after direct peers recover.</string>
     <string name="wallet_reads_ready" translatable="false">Handshake wallet state is ready at height %1$d.</string>
     <string name="wallet_reads_balance_unavailable" translatable="false">No synchronized balance is exposed.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS confirmed spendable</string>
@@ -362,6 +375,7 @@
     <string name="wallet_send_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before preparing a send.</string>
     <string name="wallet_send_syncing_before_review" translatable="false">Synchronizing a fresh verified wallet snapshot before reviewing this send…</string>
     <string name="wallet_send_sync_failed" translatable="false">The wallet could not obtain a verified snapshot, so no send was prepared.</string>
+    <string name="wallet_send_catchup_before_review" translatable="false">The wallet is still scanning verified history through %1$d of %2$d. No send was prepared; synchronize again until the confirmed spendable balance is ready.</string>
     <string name="wallet_send_ready" translatable="false">Ready to prepare a guarded HNS send from the snapshot at height %1$d.</string>
     <string name="wallet_send_invalid" translatable="false">Enter an exact visible HNS address, a positive amount, and a positive maximum fee. HNS amounts support at most 6 decimal places.</string>
     <string name="wallet_send_preparing" translatable="false">Preparing and validating the exact transaction summary from the locally verified wallet state…</string>
@@ -432,9 +446,26 @@
     <string name="wallet_shakedex_queries_failed" translatable="false">The Shakedex query could not be completed from the current direct peer and wallet state.</string>
     <string name="wallet_shakedex_queries_result" translatable="false">Authenticated Shakedex result:&#10;%1$s</string>
     <string name="wallet_direct_denuo_endpoint_hint" translatable="false">IPv4:port or [IPv6]:port</string>
+    <string name="wallet_direct_denuo_unavailable" translatable="false">Direct Denuo is unavailable until this wallet-owned direct HNS controller is installed and unlocked.</string>
+    <string name="wallet_direct_denuo_locked" translatable="false">Unlock the wallet to host or pair a direct Denuo peer.</string>
+    <string name="wallet_direct_denuo_host_listening" translatable="false">Listening for direct Denuo peers on port %1$d.&#10;%2$s</string>
+    <string name="wallet_direct_denuo_host_unavailable" translatable="false">Direct Denuo hosting could not bind port %1$d. Retry while the wallet remains unlocked.&#10;%2$s</string>
+    <string name="wallet_direct_denuo_peer_none" translatable="false">No direct Denuo peer is paired.</string>
+    <string name="wallet_direct_denuo_peer_connected" translatable="false">Paired direct Denuo peer: %1$s</string>
+    <string name="wallet_direct_denuo_host_retrying" translatable="false">Retrying the wallet-owned direct Denuo listener…</string>
+    <string name="wallet_direct_denuo_host_retry_ready" translatable="false">Direct Denuo hosting is listening again.</string>
+    <string name="wallet_direct_denuo_host_retry_failed" translatable="false">Direct Denuo hosting is still unavailable. The wallet and verified HNS state are unchanged.</string>
     <string name="wallet_direct_denuo_connecting" translatable="false">Negotiating a direct wallet-to-wallet Denuo board session…</string>
-    <string name="wallet_direct_denuo_connected" translatable="false">Direct Denuo wallet peer connected. Board exchange is running locally without a relay.</string>
+    <string name="wallet_direct_denuo_connected" translatable="false">Direct Denuo peer %1$s connected. Board exchange is running locally without a relay.</string>
+    <string name="wallet_direct_denuo_replaced" translatable="false">Replaced the active direct Denuo peer with %1$s. Board exchange is running locally without a relay.</string>
+    <string name="wallet_direct_denuo_connect_unavailable" translatable="false">This wallet controller does not currently provide direct Denuo pairing.</string>
+    <string name="wallet_direct_denuo_connect_locked" translatable="false">The wallet locked before the direct Denuo peer could be paired.</string>
     <string name="wallet_direct_denuo_connect_failed" translatable="false">The exact direct endpoint was unavailable, incompatible, or rejected. The wallet remains unlocked and usable.</string>
+    <string name="wallet_direct_denuo_exchange_failed" translatable="false">The direct endpoint connected but the initial board exchange was rejected. The active direct peer was not replaced.</string>
+    <string name="wallet_direct_denuo_connect_bridge_failed" translatable="false">The direct Denuo connection result could not be verified. The wallet remains usable; inspect the host and peer state before retrying.</string>
+    <string name="wallet_direct_denuo_disconnected" translatable="false">The active direct Denuo peer was disconnected. The wallet-owned listener remains available.</string>
+    <string name="wallet_direct_denuo_no_peer" translatable="false">No active direct Denuo peer was connected.</string>
+    <string name="wallet_action_busy" translatable="false">The wallet is already working. Wait for the visible operation to finish before trying another action.</string>
     <string name="wallet_name_import_hint" translatable="false">Exact canonical Handshake name</string>
     <string name="wallet_name_import_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet before importing a name.</string>
     <string name="wallet_name_import_recovery_unconfirmed" translatable="false">Confirm the recovery backup before a trusted name backend can be installed.</string>

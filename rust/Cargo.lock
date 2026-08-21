@@ -29,6 +29,7 @@ name = "android-ffi"
 version = "1.0.0"
 dependencies = [
  "hns-header-consensus",
+ "hns-light-sync",
  "hns-mobile-platform-runtime",
  "hns-wallet-ffi",
  "hns-wallet-mobile",

@@ -6,6 +6,7 @@
 )]
 
 use hns_header_consensus::{HEADER_SIZE, Header, Network};
+use hns_light_sync::SyncState;
 use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
@@ -69,6 +70,18 @@ const WALLET_READ_BUNDLE_VERSION: u8 = 2;
 const WALLET_READ_BUNDLE_FLAGS: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
+/// Result envelope for one bounded HNS reconciliation. Unlike HNWR, this can
+/// carry authenticated catch-up progress without claiming that a partial scan
+/// is a fund-ready wallet snapshot.
+const WALLET_HNS_SYNC_BUNDLE_MAGIC: &[u8; 4] = b"HNSY";
+const WALLET_HNS_SYNC_BUNDLE_VERSION: u8 = 1;
+const WALLET_HNS_SYNC_READY: u8 = 1;
+const WALLET_HNS_SYNC_CATCHING_UP: u8 = 2;
+const WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES: usize = 12;
+const WALLET_HNS_SYNC_CATCHUP_BYTES: usize = 20;
+const WALLET_HNS_SYNC_HEADER_CURRENT: u8 = 1;
+const WALLET_HNS_SYNC_HEADER_SYNCING: u8 = 2;
+const WALLET_HNS_SYNC_HEADER_DEGRADED: u8 = 3;
 const WALLET_HNS_RECEIVE_BUNDLE_MAGIC: &[u8; 4] = b"HNRT";
 const WALLET_HNS_RECEIVE_BUNDLE_VERSION: u8 = 1;
 const WALLET_HNS_RECEIVE_BUNDLE_FLAGS: u8 = 0;
@@ -82,6 +95,21 @@ const MAX_WALLET_BITCOIN_JSON_BYTES: usize = 16 * 1024;
 const MAX_ANDROID_WALLET_NAME_BYTES: usize = 63;
 const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
 const MAX_ANDROID_DENUO_ENDPOINT_BYTES: usize = 128;
+const WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
+const WALLET_DIRECT_DENUO_STATUS_BUNDLE_VERSION: u8 = 1;
+const WALLET_DIRECT_DENUO_STATUS_BUNDLE_HEADER_BYTES: usize = 12;
+const WALLET_DIRECT_DENUO_STATUS_UNLOCKED: u8 = 1;
+const WALLET_DIRECT_DENUO_STATUS_LISTENING: u8 = 1 << 1;
+const WALLET_DIRECT_DENUO_STATUS_PAIRED: u8 = 1 << 2;
+const WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC: &[u8; 4] = b"HNDC";
+const WALLET_DIRECT_DENUO_CONNECT_BUNDLE_VERSION: u8 = 1;
+const WALLET_DIRECT_DENUO_CONNECT_BUNDLE_HEADER_BYTES: usize = 12;
+const WALLET_DIRECT_DENUO_CONNECT_CONNECTED: u8 = 1;
+const WALLET_DIRECT_DENUO_CONNECT_REPLACED: u8 = 2;
+const WALLET_DIRECT_DENUO_CONNECT_UNAVAILABLE: u8 = 3;
+const WALLET_DIRECT_DENUO_CONNECT_LOCKED: u8 = 4;
+const WALLET_DIRECT_DENUO_CONNECT_FAILED: u8 = 5;
+const WALLET_DIRECT_DENUO_CONNECT_EXCHANGE_FAILED: u8 = 6;
 const MAX_ANDROID_WALLET_BASE_UNITS_BYTES: usize = 39;
 const MAX_ANDROID_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
 const MAX_ANDROID_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
@@ -239,6 +267,41 @@ enum AndroidWalletController {
         denuo_peer: Option<HnsDirectDenuoPeer>,
     },
     Failed,
+}
+
+/// A verified direct-wallet scan has durable progress before it has a
+/// complete spendable snapshot. Keep that distinction explicit at the JNI
+/// boundary so Android never mistakes a bounded partial catch-up for a zero
+/// balance or a send-ready state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct AndroidHnsCatchupProgress {
+    header_state: u8,
+    header_tip_height: u32,
+    birthday_height: u32,
+    scanned_height: Option<u32>,
+    scan_target_height: u32,
+}
+
+#[derive(Debug)]
+enum AndroidHnsSynchronization {
+    Ready(hns_wallet_mobile::MobileHnsReadSnapshot),
+    CatchingUp(AndroidHnsCatchupProgress),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AndroidDirectDenuoConnectOutcome {
+    Connected,
+    Replaced,
+    Unavailable,
+    Locked,
+    ConnectionFailed,
+    ExchangeFailed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct AndroidDirectDenuoConnectResult {
+    outcome: AndroidDirectDenuoConnectOutcome,
+    peer_endpoint: Option<SocketAddr>,
 }
 
 impl AndroidWalletController {
@@ -716,6 +779,45 @@ impl AndroidWalletController {
         }
     }
 
+    /// Return only operational direct-Denuo transport state. The listener and
+    /// peer are deliberately not chain or wallet authority; this projection
+    /// lets the UI distinguish a local bind failure from an unpaired wallet.
+    fn direct_denuo_status_bundle(&mut self) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            controller,
+            denuo_listener,
+            denuo_peer,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let unlocked = !controller.status().ok()?.locked;
+        let listener_port = denuo_listener
+            .as_ref()
+            .and_then(|listener| listener.local_addr().ok())
+            .map(|address| address.port());
+        let peer_endpoint = denuo_peer.as_ref().map(HnsDirectDenuoPeer::address);
+        wallet_direct_denuo_status_bundle(unlocked, listener_port, peer_endpoint)
+    }
+
+    /// Retry the wallet-owned listener while retaining every other controller
+    /// state. A successful existing listener is left untouched; a failed bind
+    /// is never treated as a wallet, chain, or board-authority failure.
+    fn retry_direct_denuo_listener(&mut self) -> bool {
+        self.start_direct_denuo_listener()
+    }
+
+    /// Drop only the explicit direct board transport. This does not modify
+    /// account state, the encrypted wallet database, or any verified HNS
+    /// chain state.
+    fn disconnect_direct_denuo_peer(&mut self) -> bool {
+        let Self::DirectValue { denuo_peer, .. } = self else {
+            return false;
+        };
+        denuo_peer.take().is_some()
+    }
+
     /// Service exactly one accepted direct board peer event. This is called by
     /// an Android-owned scheduler, never a hidden wallet worker. A negotiated
     /// peer remains in the controller only while the unlocked wallet owns the
@@ -801,7 +903,10 @@ impl AndroidWalletController {
     /// a transport locator, never a wallet, chain, listing, or name authority.
     /// Hostnames are intentionally not accepted here: pairing uses an explicit
     /// `IPv4:port` or `[IPv6]:port` locator and does not invoke any resolver.
-    fn connect_direct_denuo_peer(&mut self, address: SocketAddr) -> bool {
+    fn connect_direct_denuo_peer(
+        &mut self,
+        address: SocketAddr,
+    ) -> AndroidDirectDenuoConnectResult {
         let Self::DirectValue {
             coordinator,
             controller,
@@ -810,23 +915,35 @@ impl AndroidWalletController {
             ..
         } = self
         else {
-            return false;
+            return AndroidDirectDenuoConnectResult {
+                outcome: AndroidDirectDenuoConnectOutcome::Unavailable,
+                peer_endpoint: None,
+            };
         };
-        if denuo_peer.is_some() || controller.status().map_or(true, |status| status.locked) {
-            return false;
+        if controller.status().map_or(true, |status| status.locked) {
+            return AndroidDirectDenuoConnectResult {
+                outcome: AndroidDirectDenuoConnectOutcome::Locked,
+                peer_endpoint: None,
+            };
         }
         let now_unix = match HnsReadSystemClock.now_unix() {
             Ok(now_unix) => now_unix,
             Err(error) => {
                 android_log_error(&format!("wallet-owned Denuo clock unavailable: {error}"));
-                return false;
+                return AndroidDirectDenuoConnectResult {
+                    outcome: AndroidDirectDenuoConnectOutcome::ConnectionFailed,
+                    peer_endpoint: None,
+                };
             }
         };
         let height = match coordinator.rollback_floor() {
             Ok(floor) => floor.height,
             Err(error) => {
                 android_log_error(&format!("wallet-owned Denuo height unavailable: {error}"));
-                return false;
+                return AndroidDirectDenuoConnectResult {
+                    outcome: AndroidDirectDenuoConnectOutcome::ConnectionFailed,
+                    peer_endpoint: None,
+                };
             }
         };
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
@@ -840,7 +957,10 @@ impl AndroidWalletController {
             Ok(peer) => peer,
             Err(error) => {
                 android_log_error(&format!("wallet-owned Denuo pair failed: {error}"));
-                return false;
+                return AndroidDirectDenuoConnectResult {
+                    outcome: AndroidDirectDenuoConnectOutcome::ConnectionFailed,
+                    peer_endpoint: None,
+                };
             }
         };
         if controller
@@ -849,16 +969,32 @@ impl AndroidWalletController {
             .and_then(|_| denuo_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
             .is_err()
         {
-            return false;
+            return AndroidDirectDenuoConnectResult {
+                outcome: AndroidDirectDenuoConnectOutcome::ExchangeFailed,
+                peer_endpoint: None,
+            };
         }
+        let outcome = if denuo_peer.is_some() {
+            AndroidDirectDenuoConnectOutcome::Replaced
+        } else {
+            AndroidDirectDenuoConnectOutcome::Connected
+        };
+        let peer_endpoint = peer.address();
         *denuo_peer = Some(peer);
-        true
+        AndroidDirectDenuoConnectResult {
+            outcome,
+            peer_endpoint: Some(peer_endpoint),
+        }
     }
 
     fn synchronize_hns_reads(&mut self) -> Option<Vec<u8>> {
-        let snapshot = match self {
-            Self::Reads(controller) => controller.synchronize(),
-            Self::Value(controller) => controller.synchronize(),
+        let synchronization = match self {
+            Self::Reads(controller) => controller
+                .synchronize()
+                .map(AndroidHnsSynchronization::Ready),
+            Self::Value(controller) => controller
+                .synchronize()
+                .map(AndroidHnsSynchronization::Ready),
             Self::DirectValue {
                 coordinator,
                 controller,
@@ -872,13 +1008,29 @@ impl AndroidWalletController {
                 // recovery wallet needs more work.
                 for _ in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
                     let progress = coordinator.synchronize_headers_once(now_unix)?;
-                    if matches!(
-                        progress,
-                        hns_wallet_mobile::HnsHeaderRoundProgress::Committed(ref round)
-                            if round.accepted.is_empty()
-                    ) {
-                        break;
+                    match progress {
+                        hns_wallet_mobile::HnsHeaderRoundProgress::Committed(round) => {
+                            if round.accepted.is_empty() {
+                                break;
+                            }
+                        }
+                        // The peers have a pending bounded agreement round.
+                        // Do not spin within this JNI call; retain the durable
+                        // header progress and let the next explicit sync
+                        // continue after the response deadline.
+                        hns_wallet_mobile::HnsHeaderRoundProgress::AwaitingResponses { .. } => {
+                            return direct_hns_catchup_progress(coordinator)
+                                .map(AndroidHnsSynchronization::CatchingUp);
+                        }
                     }
+                }
+                let header = coordinator
+                    .backend()
+                    .header_sync_status()
+                    .map_err(MobileWalletError::Hns)?;
+                if header.state != SyncState::HeaderCurrent {
+                    return direct_hns_catchup_progress(coordinator)
+                        .map(AndroidHnsSynchronization::CatchingUp);
                 }
                 // A wallet becomes fund-ready only after its exact local watch
                 // set has reached the locally agreed header tip. The direct
@@ -890,22 +1042,36 @@ impl AndroidWalletController {
                         break;
                     }
                 }
+                let catchup = direct_hns_catchup_progress(coordinator)?;
+                if !direct_hns_progress_is_ready(coordinator, catchup)? {
+                    return Ok(AndroidHnsSynchronization::CatchingUp(catchup));
+                }
                 let _ = coordinator.refresh_mempool(now_unix)?;
-                controller.synchronize()
+                controller
+                    .synchronize()
+                    .map(AndroidHnsSynchronization::Ready)
             })(),
             Self::Lifecycle(_) | Self::Failed => return None,
         };
-        let snapshot = match snapshot {
-            Ok(snapshot) => snapshot,
+        let synchronization = match synchronization {
+            Ok(synchronization) => synchronization,
             Err(error) => {
                 android_log_error(&format!("wallet HNS read synchronization failed: {error}"));
                 return None;
             }
         };
-        let mut json = serde_json::to_vec(&snapshot).ok()?;
-        let bundle = wallet_read_bundle(json.as_slice());
-        json.fill(0);
-        bundle
+        match synchronization {
+            AndroidHnsSynchronization::Ready(snapshot) => {
+                let mut json = serde_json::to_vec(&snapshot).ok()?;
+                let read_bundle = wallet_read_bundle(json.as_slice());
+                json.fill(0);
+                let read_bundle = read_bundle?;
+                wallet_hns_sync_ready_bundle(read_bundle.as_slice())
+            }
+            AndroidHnsSynchronization::CatchingUp(progress) => {
+                wallet_hns_sync_catchup_bundle(progress)
+            }
+        }
     }
 
     /// Return the ordinary HNS payment receive target derived solely from the
@@ -1907,6 +2073,193 @@ fn wallet_read_bundle(json: &[u8]) -> Option<Vec<u8>> {
     bundle.extend_from_slice(&json_length.to_be_bytes());
     bundle.extend_from_slice(json);
     (bundle.len() == WALLET_READ_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
+}
+
+fn direct_hns_catchup_progress(
+    coordinator: &HnsDirectPeerCoordinator,
+) -> Result<AndroidHnsCatchupProgress, MobileWalletError> {
+    let header = coordinator
+        .backend()
+        .header_sync_status()
+        .map_err(MobileWalletError::Hns)?;
+    let scan = coordinator
+        .backend()
+        .light_scan_status()
+        .map_err(MobileWalletError::Hns)?;
+    let header_state = match header.state {
+        SyncState::HeaderCurrent => WALLET_HNS_SYNC_HEADER_CURRENT,
+        SyncState::HeaderSyncing => WALLET_HNS_SYNC_HEADER_SYNCING,
+        SyncState::Degraded => WALLET_HNS_SYNC_HEADER_DEGRADED,
+    };
+    let header_tip_height = header.tip.height().get();
+    if scan.birthday_height > header_tip_height || scan.scanned_height > Some(header_tip_height) {
+        return Err(MobileWalletError::ControllerFailed);
+    }
+    Ok(AndroidHnsCatchupProgress {
+        header_state,
+        header_tip_height,
+        birthday_height: scan.birthday_height,
+        scanned_height: scan.scanned_height,
+        scan_target_height: header_tip_height,
+    })
+}
+
+fn direct_hns_progress_is_ready(
+    coordinator: &HnsDirectPeerCoordinator,
+    progress: AndroidHnsCatchupProgress,
+) -> Result<bool, MobileWalletError> {
+    if progress.header_state != WALLET_HNS_SYNC_HEADER_CURRENT
+        || progress.scanned_height != Some(progress.scan_target_height)
+    {
+        return Ok(false);
+    }
+    let header = coordinator
+        .backend()
+        .header_sync_status()
+        .map_err(MobileWalletError::Hns)?;
+    let scan = coordinator
+        .backend()
+        .light_scan_status()
+        .map_err(MobileWalletError::Hns)?;
+    Ok(header.state == SyncState::HeaderCurrent
+        && scan.scanned_height == Some(header.tip.height().get())
+        && scan.scanned_hash == Some(header.tip.hash().into_bytes()))
+}
+
+fn wallet_hns_sync_ready_bundle(read_bundle: &[u8]) -> Option<Vec<u8>> {
+    if read_bundle.len() < WALLET_READ_BUNDLE_HEADER_BYTES
+        || read_bundle.len() > WALLET_READ_BUNDLE_HEADER_BYTES + MAX_WALLET_READ_JSON_BYTES
+        || read_bundle.get(..4) != Some(WALLET_READ_BUNDLE_MAGIC.as_slice())
+    {
+        return None;
+    }
+    let payload_length = u32::try_from(read_bundle.len()).ok()?;
+    let mut bundle = Vec::with_capacity(WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES + read_bundle.len());
+    bundle.extend_from_slice(WALLET_HNS_SYNC_BUNDLE_MAGIC);
+    bundle.push(WALLET_HNS_SYNC_BUNDLE_VERSION);
+    bundle.push(WALLET_HNS_SYNC_READY);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&payload_length.to_be_bytes());
+    bundle.extend_from_slice(read_bundle);
+    (bundle.len() == WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES + read_bundle.len()).then_some(bundle)
+}
+
+fn wallet_hns_sync_catchup_bundle(progress: AndroidHnsCatchupProgress) -> Option<Vec<u8>> {
+    if !matches!(
+        progress.header_state,
+        WALLET_HNS_SYNC_HEADER_CURRENT
+            | WALLET_HNS_SYNC_HEADER_SYNCING
+            | WALLET_HNS_SYNC_HEADER_DEGRADED
+    ) || progress.birthday_height > progress.scan_target_height
+        || progress.scanned_height.is_some_and(|height| {
+            height < progress.birthday_height || height > progress.scan_target_height
+        })
+    {
+        return None;
+    }
+    let mut payload = Vec::with_capacity(WALLET_HNS_SYNC_CATCHUP_BYTES);
+    payload.push(progress.header_state);
+    payload.push(u8::from(progress.scanned_height.is_some()));
+    payload.extend_from_slice(&[0, 0]);
+    payload.extend_from_slice(&progress.header_tip_height.to_be_bytes());
+    payload.extend_from_slice(&progress.birthday_height.to_be_bytes());
+    payload.extend_from_slice(&progress.scanned_height.unwrap_or(0).to_be_bytes());
+    payload.extend_from_slice(&progress.scan_target_height.to_be_bytes());
+    if payload.len() != WALLET_HNS_SYNC_CATCHUP_BYTES {
+        return None;
+    }
+    let mut bundle = Vec::with_capacity(WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES + payload.len());
+    bundle.extend_from_slice(WALLET_HNS_SYNC_BUNDLE_MAGIC);
+    bundle.push(WALLET_HNS_SYNC_BUNDLE_VERSION);
+    bundle.push(WALLET_HNS_SYNC_CATCHING_UP);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    bundle.extend_from_slice(payload.as_slice());
+    (bundle.len() == WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES + payload.len()).then_some(bundle)
+}
+
+fn wallet_direct_denuo_status_bundle(
+    unlocked: bool,
+    listener_port: Option<u16>,
+    peer_endpoint: Option<SocketAddr>,
+) -> Option<Vec<u8>> {
+    if !unlocked && (listener_port.is_some() || peer_endpoint.is_some()) {
+        return None;
+    }
+    let peer_endpoint = peer_endpoint
+        .map(|endpoint| endpoint.to_string())
+        .unwrap_or_default();
+    if peer_endpoint.len() > MAX_ANDROID_DENUO_ENDPOINT_BYTES
+        || !peer_endpoint
+            .bytes()
+            .all(|byte| (0x21..=0x7e).contains(&byte))
+    {
+        return None;
+    }
+    let peer_length = u16::try_from(peer_endpoint.len()).ok()?;
+    let mut flags = if unlocked {
+        WALLET_DIRECT_DENUO_STATUS_UNLOCKED
+    } else {
+        0
+    };
+    if listener_port.is_some() {
+        flags |= WALLET_DIRECT_DENUO_STATUS_LISTENING;
+    }
+    if !peer_endpoint.is_empty() {
+        flags |= WALLET_DIRECT_DENUO_STATUS_PAIRED;
+    }
+    let mut bundle =
+        Vec::with_capacity(WALLET_DIRECT_DENUO_STATUS_BUNDLE_HEADER_BYTES + peer_endpoint.len());
+    bundle.extend_from_slice(WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC);
+    bundle.push(WALLET_DIRECT_DENUO_STATUS_BUNDLE_VERSION);
+    bundle.push(flags);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&listener_port.unwrap_or(0).to_be_bytes());
+    bundle.extend_from_slice(&peer_length.to_be_bytes());
+    bundle.extend_from_slice(peer_endpoint.as_bytes());
+    (bundle.len() == WALLET_DIRECT_DENUO_STATUS_BUNDLE_HEADER_BYTES + peer_endpoint.len())
+        .then_some(bundle)
+}
+
+fn wallet_direct_denuo_connect_bundle(result: AndroidDirectDenuoConnectResult) -> Option<Vec<u8>> {
+    let code = match result.outcome {
+        AndroidDirectDenuoConnectOutcome::Connected => WALLET_DIRECT_DENUO_CONNECT_CONNECTED,
+        AndroidDirectDenuoConnectOutcome::Replaced => WALLET_DIRECT_DENUO_CONNECT_REPLACED,
+        AndroidDirectDenuoConnectOutcome::Unavailable => WALLET_DIRECT_DENUO_CONNECT_UNAVAILABLE,
+        AndroidDirectDenuoConnectOutcome::Locked => WALLET_DIRECT_DENUO_CONNECT_LOCKED,
+        AndroidDirectDenuoConnectOutcome::ConnectionFailed => WALLET_DIRECT_DENUO_CONNECT_FAILED,
+        AndroidDirectDenuoConnectOutcome::ExchangeFailed => {
+            WALLET_DIRECT_DENUO_CONNECT_EXCHANGE_FAILED
+        }
+    };
+    let peer_endpoint = result
+        .peer_endpoint
+        .map(|endpoint| endpoint.to_string())
+        .unwrap_or_default();
+    let success = matches!(
+        result.outcome,
+        AndroidDirectDenuoConnectOutcome::Connected | AndroidDirectDenuoConnectOutcome::Replaced
+    );
+    if (success != !peer_endpoint.is_empty())
+        || peer_endpoint.len() > MAX_ANDROID_DENUO_ENDPOINT_BYTES
+        || !peer_endpoint
+            .bytes()
+            .all(|byte| (0x21..=0x7e).contains(&byte))
+    {
+        return None;
+    }
+    let endpoint_length = u16::try_from(peer_endpoint.len()).ok()?;
+    let mut bundle =
+        Vec::with_capacity(WALLET_DIRECT_DENUO_CONNECT_BUNDLE_HEADER_BYTES + peer_endpoint.len());
+    bundle.extend_from_slice(WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC);
+    bundle.push(WALLET_DIRECT_DENUO_CONNECT_BUNDLE_VERSION);
+    bundle.push(code);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&endpoint_length.to_be_bytes());
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(peer_endpoint.as_bytes());
+    (bundle.len() == WALLET_DIRECT_DENUO_CONNECT_BUNDLE_HEADER_BYTES + peer_endpoint.len())
+        .then_some(bundle)
 }
 
 fn bitcoin_json_bundle(json: &[u8]) -> Option<Vec<u8>> {
@@ -3741,6 +4094,70 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .into()
 }
 
+/// Return the wallet-owned direct Denuo listener and one active peer, if
+/// present. This is operational transport state only; it is never chain or
+/// wallet authority.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeWalletOwnedDirectDenuoStatus(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.direct_denuo_status_bundle()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+/// Retry a previously unavailable direct Denuo listener without reopening or
+/// changing the unlocked HNS value controller.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRetryWalletOwnedDirectDenuoListener(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.retry_direct_denuo_listener()
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+/// Explicitly disconnect the current direct Denuo transport peer. It leaves
+/// the wallet-owned listener ready for another user-paired connection.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeDisconnectWalletOwnedDirectDenuo(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.disconnect_direct_denuo_peer()
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
 /// Connect an explicit user-paired `IPv4:port` or `[IPv6]:port` Denuo wallet
 /// endpoint. This JNI boundary deliberately accepts no hostname or relay URL.
 #[unsafe(no_mangle)]
@@ -3749,21 +4166,30 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     _class: JClass<'_>,
     handle: jlong,
     endpoint: JString<'_>,
-) -> jboolean {
+) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
-        let Some(endpoint) = android_wallet_denuo_endpoint(&mut env, &endpoint) else {
-            return false;
+        let result = if let Some(endpoint) = android_wallet_denuo_endpoint(&mut env, &endpoint) {
+            let Some(record) = wallet_from_handle(handle) else {
+                return None;
+            };
+            let Some(mut controller) = record.controller_if_active() else {
+                return None;
+            };
+            controller.connect_direct_denuo_peer(endpoint)
+        } else {
+            AndroidDirectDenuoConnectResult {
+                outcome: AndroidDirectDenuoConnectOutcome::ConnectionFailed,
+                peer_endpoint: None,
+            }
         };
-        let Some(record) = wallet_from_handle(handle) else {
-            return false;
-        };
-        let Some(mut controller) = record.controller_if_active() else {
-            return false;
-        };
-        controller.connect_direct_denuo_peer(endpoint)
+        let mut bundle = wallet_direct_denuo_connect_bundle(result)?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
     }))
-    .unwrap_or(false)
-    .into()
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
 }
 
 #[unsafe(no_mangle)]
@@ -4443,6 +4869,68 @@ mod tests {
     }
 
     #[test]
+    fn direct_hns_sync_bundles_distinguish_ready_snapshots_from_partial_catchup() {
+        let read = wallet_read_bundle(br#"{"balance":{}}"#).expect("read bundle");
+        let ready = wallet_hns_sync_ready_bundle(read.as_slice()).expect("ready sync bundle");
+        assert_eq!(&ready[..4], WALLET_HNS_SYNC_BUNDLE_MAGIC);
+        assert_eq!(ready[4], WALLET_HNS_SYNC_BUNDLE_VERSION);
+        assert_eq!(ready[5], WALLET_HNS_SYNC_READY);
+        assert_eq!(
+            u32::from_be_bytes(ready[8..12].try_into().expect("ready payload length")) as usize,
+            read.len()
+        );
+        assert_eq!(
+            &ready[WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES..],
+            read.as_slice()
+        );
+
+        let progress = AndroidHnsCatchupProgress {
+            header_state: WALLET_HNS_SYNC_HEADER_CURRENT,
+            header_tip_height: 64_000,
+            birthday_height: 0,
+            scanned_height: Some(63_999),
+            scan_target_height: 64_000,
+        };
+        let catchup = wallet_hns_sync_catchup_bundle(progress).expect("catchup sync bundle");
+        assert_eq!(&catchup[..4], WALLET_HNS_SYNC_BUNDLE_MAGIC);
+        assert_eq!(catchup[4], WALLET_HNS_SYNC_BUNDLE_VERSION);
+        assert_eq!(catchup[5], WALLET_HNS_SYNC_CATCHING_UP);
+        assert_eq!(
+            &catchup[WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES..],
+            &[
+                WALLET_HNS_SYNC_HEADER_CURRENT,
+                1,
+                0,
+                0,
+                0,
+                0,
+                250,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                249,
+                255,
+                0,
+                0,
+                250,
+                0,
+            ]
+        );
+
+        assert!(
+            wallet_hns_sync_catchup_bundle(AndroidHnsCatchupProgress {
+                scanned_height: Some(64_001),
+                ..progress
+            })
+            .is_none()
+        );
+    }
+
+    #[test]
     fn wallet_hns_receive_bundle_is_versioned_exact_and_bounded() {
         let json =
             br#"{"module":"handshake","account":[1],"display":"hs1qreceive","derivation_index":0}"#;
@@ -4598,6 +5086,43 @@ mod tests {
                 "accepted invalid pairing endpoint {invalid:?}"
             );
         }
+    }
+
+    #[test]
+    fn direct_denuo_transport_bundles_preserve_listener_peer_and_replace_outcomes() {
+        let listener = "198.51.100.7:12038".parse().expect("socket endpoint");
+        let status = wallet_direct_denuo_status_bundle(true, Some(12_038), Some(listener))
+            .expect("direct Denuo status bundle");
+        assert_eq!(&status[..4], WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC);
+        assert_eq!(status[4], WALLET_DIRECT_DENUO_STATUS_BUNDLE_VERSION);
+        assert_eq!(status[5], 0b111);
+        assert_eq!(
+            u16::from_be_bytes(status[8..10].try_into().expect("listener port")),
+            12_038
+        );
+        assert_eq!(
+            std::str::from_utf8(&status[WALLET_DIRECT_DENUO_STATUS_BUNDLE_HEADER_BYTES..])
+                .expect("visible endpoint"),
+            "198.51.100.7:12038"
+        );
+
+        let replacement = wallet_direct_denuo_connect_bundle(AndroidDirectDenuoConnectResult {
+            outcome: AndroidDirectDenuoConnectOutcome::Replaced,
+            peer_endpoint: Some(listener),
+        })
+        .expect("replace result bundle");
+        assert_eq!(&replacement[..4], WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC);
+        assert_eq!(replacement[4], WALLET_DIRECT_DENUO_CONNECT_BUNDLE_VERSION);
+        assert_eq!(replacement[5], WALLET_DIRECT_DENUO_CONNECT_REPLACED);
+
+        assert!(
+            wallet_direct_denuo_connect_bundle(AndroidDirectDenuoConnectResult {
+                outcome: AndroidDirectDenuoConnectOutcome::ConnectionFailed,
+                peer_endpoint: Some(listener),
+            })
+            .is_none()
+        );
+        assert!(wallet_direct_denuo_status_bundle(false, Some(12_038), None).is_none());
     }
 
     #[test]
