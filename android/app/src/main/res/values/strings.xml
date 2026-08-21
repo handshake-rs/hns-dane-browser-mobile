@@ -256,7 +256,7 @@
     <string name="row_wallet_read_names" translatable="false">Tracked names</string>
     <string name="row_wallet_name_import" translatable="false">Import exact Handshake name</string>
     <string name="row_wallet_read_sync" translatable="false">Refresh wallet reads</string>
-    <string name="row_wallet_read_sync_summary" translatable="false">Run one bounded, tip-consistent synchronization off the UI thread before receiving or sending.</string>
+    <string name="row_wallet_read_sync_summary" translatable="false">Run one bounded, tip-consistent synchronization off the UI thread before trusting balance/history or sending.</string>
     <string name="row_wallet_send" translatable="false">Prepare exact HNS send</string>
     <string name="row_wallet_bitcoin_status" translatable="false">Direct Bitcoin status</string>
     <string name="row_wallet_bitcoin_balance" translatable="false">Bitcoin balance</string>
@@ -335,6 +335,7 @@
     <string name="wallet_reads_balance" translatable="false">%1$s HNS confirmed spendable</string>
     <string name="wallet_reads_receive_unavailable" translatable="false">No payment receive address is exposed.</string>
     <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d</string>
+    <string name="wallet_reads_receive_local" translatable="false">%1$s\nDerivation index %2$d\nReady to receive HNS locally. Synchronize before trusting balance/history or sending.</string>
     <string name="wallet_reads_name_receive_unavailable" translatable="false">No name transfer receive address is exposed.</string>
     <string name="wallet_reads_name_receive_legacy_unavailable" translatable="false">Unavailable in this legacy HNWR-v1 wallet snapshot.</string>
     <string name="wallet_reads_name_receive" translatable="false">%1$s\nName derivation index %2$d</string>

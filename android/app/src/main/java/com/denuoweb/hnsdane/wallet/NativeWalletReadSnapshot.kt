@@ -26,7 +26,13 @@ internal data class NativeWalletPaymentReceiveTarget(
     val accountId: String,
     val display: String,
     val derivationIndex: Long,
-)
+) {
+    companion object {
+        /** Decode the compact local-only HNS receive projection (HNRT v1). */
+        fun parseLocal(bundle: ByteArray): NativeWalletPaymentReceiveTarget? =
+            NativeWalletLocalReceiveTargetParser.parse(bundle)
+    }
+}
 
 /** Dedicated Handshake name-owner receive target; never a payment address. */
 internal data class NativeWalletNameReceiveTarget(
@@ -55,6 +61,96 @@ internal data class NativeWalletName(
     val registered: Boolean?,
     val expired: Boolean?,
 )
+
+/**
+ * Strict decoder for a single ordinary HNS payment receive target derived
+ * locally after unlock. HNRT intentionally contains no sync, balance, name,
+ * transaction, peer, or Bitcoin state.
+ */
+private object NativeWalletLocalReceiveTargetParser {
+    private val magic = byteArrayOf(
+        'H'.code.toByte(),
+        'N'.code.toByte(),
+        'R'.code.toByte(),
+        'T'.code.toByte(),
+    )
+
+    fun parse(bundle: ByteArray): NativeWalletPaymentReceiveTarget? = runCatching {
+        require(bundle.size in HEADER_BYTES..(HEADER_BYTES + MAX_JSON_BYTES))
+        require(magic.indices.all { index -> bundle[index] == magic[index] })
+        val header = ByteBuffer.wrap(bundle, 4, HEADER_BYTES - 4).order(ByteOrder.BIG_ENDIAN)
+        require(header.get().toInt() and 0xff == VERSION)
+        require(header.get().toInt() and 0xff == FLAGS)
+        require(header.short.toInt() == 0)
+        val jsonLength = header.int
+        require(jsonLength in 2..MAX_JSON_BYTES)
+        require(bundle.size == HEADER_BYTES + jsonLength)
+        val jsonBytes = bundle.copyOfRange(HEADER_BYTES, bundle.size)
+        try {
+            val json = jsonBytes.toString(Charsets.UTF_8)
+            require(json.toByteArray(Charsets.UTF_8).contentEquals(jsonBytes))
+            parseTarget(JSONObject(json))
+        } finally {
+            jsonBytes.fill(0)
+        }
+    }.getOrNull()
+
+    private fun parseTarget(value: JSONObject): NativeWalletPaymentReceiveTarget {
+        value.requireExactKeys("module", "account", "display", "derivation_index")
+        require(value.get("module") == "handshake")
+        val account = requireByteArray(value.getJSONArray("account"), ACCOUNT_ID_BYTES)
+        require(account.any { byte -> byte != 0.toByte() })
+        return NativeWalletPaymentReceiveTarget(
+            accountId = account.toLowerHex(),
+            display = visibleReceiveDisplay(value.get("display")),
+            derivationIndex = exactUnsignedLong(value.get("derivation_index"), UINT32_MAX),
+        )
+    }
+
+    private fun JSONObject.requireExactKeys(vararg expected: String) {
+        require(keys().asSequence().toSet() == expected.toSet())
+    }
+
+    private fun requireByteArray(value: JSONArray, expectedLength: Int): ByteArray {
+        require(value.length() == expectedLength)
+        return ByteArray(expectedLength) { index ->
+            exactUnsignedLong(value.get(index), UBYTE_MAX).toInt().toByte()
+        }
+    }
+
+    private fun visibleReceiveDisplay(value: Any): String {
+        val display = value as? String
+            ?: throw IllegalArgumentException("payment receive target is not text")
+        require(display.length in 1..MAX_RECEIVE_CHARACTERS)
+        require(display.all { character -> character.code in 0x21..0x7e })
+        return display
+    }
+
+    private fun exactUnsignedLong(value: Any, maximum: Long): Long {
+        require(value is Byte || value is Short || value is Int || value is Long)
+        val number = (value as Number).toLong()
+        require(number in 0..maximum)
+        return number
+    }
+
+    private fun ByteArray.toLowerHex(): String = buildString(size * 2) {
+        this@toLowerHex.forEach { value ->
+            val byte = value.toInt() and 0xff
+            append(HEX[byte ushr 4])
+            append(HEX[byte and 0x0f])
+        }
+    }
+
+    private const val VERSION = 1
+    private const val FLAGS = 0
+    private const val HEADER_BYTES = 12
+    private const val MAX_JSON_BYTES = 4 * 1024
+    private const val MAX_RECEIVE_CHARACTERS = 512
+    private const val ACCOUNT_ID_BYTES = 16
+    private const val UINT32_MAX = 0xffff_ffffL
+    private const val UBYTE_MAX = 0xffL
+    private const val HEX = "0123456789abcdef"
+}
 
 /** One shared closed-schema decoder for HNWR rows and HNWI import results. */
 internal object NativeWalletNameParser {

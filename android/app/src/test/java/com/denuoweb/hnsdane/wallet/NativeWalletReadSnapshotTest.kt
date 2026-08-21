@@ -167,6 +167,51 @@ class NativeWalletReadSnapshotTest {
         assertTrue(encoded.all { it == 0.toByte() })
     }
 
+    @Test
+    fun localReceiveTargetParsesBeforeSynchronizationAndTheBridgeWipesIt() {
+        val encoded = localReceiveBundle(
+            JSONObject()
+                .put("module", "handshake")
+                .put("account", bytes(16, 0x33))
+                .put("display", "hs1qlocalreceivetarget")
+                .put("derivation_index", UINT32_MAX),
+        )
+        val parsed = NativeWalletBridge.parseAndWipeLocalHnsReceiveTargetBundle(encoded)
+        assertEquals("33".repeat(16), parsed?.accountId)
+        assertEquals("hs1qlocalreceivetarget", parsed?.display)
+        assertEquals(UINT32_MAX, parsed?.derivationIndex)
+        assertTrue(encoded.all { it == 0.toByte() })
+    }
+
+    @Test
+    fun localReceiveTargetIsClosedSchemaAndFailsClosed() {
+        fun reject(mutate: (JSONObject) -> Unit) {
+            val target = JSONObject()
+                .put("module", "handshake")
+                .put("account", bytes(16, 0x33))
+                .put("display", "hs1qlocalreceivetarget")
+                .put("derivation_index", 0)
+            mutate(target)
+            assertNull(NativeWalletPaymentReceiveTarget.parseLocal(localReceiveBundle(target)))
+        }
+
+        reject { it.put("module", "bitcoin") }
+        reject { it.put("account", bytes(16, 0)) }
+        reject { it.put("display", "hs1q local") }
+        reject { it.put("derivation_index", UINT32_MAX + 1) }
+        reject { it.put("untrustedTip", 7) }
+
+        val malformed = localReceiveBundle(
+            JSONObject()
+                .put("module", "handshake")
+                .put("account", bytes(16, 0x33))
+                .put("display", "hs1qlocalreceivetarget")
+                .put("derivation_index", 0),
+        )
+        malformed[5] = 1
+        assertNull(NativeWalletPaymentReceiveTarget.parseLocal(malformed))
+    }
+
     private fun rejectV2(mutate: (JSONObject) -> Unit) {
         val candidate = snapshot()
         mutate(candidate)
@@ -251,6 +296,18 @@ class NativeWalletReadSnapshotTest {
             put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'W'.code.toByte(), 'R'.code.toByte()))
             put(version.toByte())
             put(1)
+            putShort(0)
+            putInt(json.size)
+            put(json)
+        }.array()
+    }
+
+    private fun localReceiveBundle(value: JSONObject): ByteArray {
+        val json = value.toString().toByteArray(Charsets.UTF_8)
+        return ByteBuffer.allocate(12 + json.size).order(ByteOrder.BIG_ENDIAN).apply {
+            put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'R'.code.toByte(), 'T'.code.toByte()))
+            put(1)
+            put(0)
             putShort(0)
             putInt(json.size)
             put(json)

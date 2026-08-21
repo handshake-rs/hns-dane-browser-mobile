@@ -166,6 +166,20 @@ internal object NativeWalletBridge {
             null
         }
 
+    /**
+     * Derive the current ordinary HNS payment address from the unlocked local
+     * wallet. This makes no peer or node request and is intentionally not a
+     * balance, history, or spend projection.
+     */
+    fun localHnsReceiveTarget(handle: Long): NativeWalletPaymentReceiveTarget? =
+        if (isValidHandle(handle) && isAvailable) {
+            val bundle = runCatching { nativeLocalHnsReceiveTarget(handle) }.getOrNull()
+                ?: return null
+            parseAndWipeLocalHnsReceiveTargetBundle(bundle)
+        } else {
+            null
+        }
+
     /** The active direct coordinator's authenticated floor, or null for legacy controllers. */
     fun directHnsRollbackFloor(handle: Long): ByteArray? =
         if (isValidHandle(handle) && isAvailable) {
@@ -226,6 +240,14 @@ internal object NativeWalletBridge {
 
     internal fun parseAndWipeHnsReadBundle(bundle: ByteArray): NativeWalletReadSnapshot? = try {
         NativeWalletReadSnapshot.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeLocalHnsReceiveTargetBundle(
+        bundle: ByteArray,
+    ): NativeWalletPaymentReceiveTarget? = try {
+        NativeWalletPaymentReceiveTarget.parseLocal(bundle)
     } finally {
         bundle.fill(0)
     }
@@ -699,6 +721,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeSynchronizeHnsReads(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeLocalHnsReceiveTarget(handle: Long): ByteArray?
 
     @JvmStatic
     private external fun nativeImportHnsNameExactText(

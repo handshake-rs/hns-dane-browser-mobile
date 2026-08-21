@@ -69,6 +69,11 @@ const WALLET_READ_BUNDLE_VERSION: u8 = 2;
 const WALLET_READ_BUNDLE_FLAGS: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
+const WALLET_HNS_RECEIVE_BUNDLE_MAGIC: &[u8; 4] = b"HNRT";
+const WALLET_HNS_RECEIVE_BUNDLE_VERSION: u8 = 1;
+const WALLET_HNS_RECEIVE_BUNDLE_FLAGS: u8 = 0;
+const WALLET_HNS_RECEIVE_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_HNS_RECEIVE_JSON_BYTES: usize = 4 * 1024;
 const WALLET_BITCOIN_BUNDLE_MAGIC: &[u8; 4] = b"HNBW";
 const WALLET_BITCOIN_BUNDLE_VERSION: u8 = 1;
 const WALLET_BITCOIN_BUNDLE_FLAGS: u8 = 0;
@@ -899,6 +904,31 @@ impl AndroidWalletController {
         };
         let mut json = serde_json::to_vec(&snapshot).ok()?;
         let bundle = wallet_read_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    /// Return the ordinary HNS payment receive target derived solely from the
+    /// exact unlocked local account. This does not enter the HNS direct-peer
+    /// synchronization path or activate the Bitcoin runtime.
+    fn local_hns_receive_target(&mut self) -> Option<Vec<u8>> {
+        let target = match self {
+            Self::Reads(controller) => controller.local_receive_target(),
+            Self::Value(controller) => controller.local_receive_target(),
+            Self::DirectValue { controller, .. } => controller.local_receive_target(),
+            Self::Lifecycle(_) | Self::Failed => return None,
+        };
+        let target = match target {
+            Ok(target) => target,
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet local HNS receive derivation failed: {error}"
+                ));
+                return None;
+            }
+        };
+        let mut json = serde_json::to_vec(&target).ok()?;
+        let bundle = wallet_hns_receive_bundle(json.as_slice());
         json.fill(0);
         bundle
     }
@@ -1887,6 +1917,17 @@ fn bitcoin_json_bundle(json: &[u8]) -> Option<Vec<u8>> {
         WALLET_BITCOIN_BUNDLE_FLAGS,
         WALLET_BITCOIN_BUNDLE_HEADER_BYTES,
         MAX_WALLET_BITCOIN_JSON_BYTES,
+    )
+}
+
+fn wallet_hns_receive_bundle(json: &[u8]) -> Option<Vec<u8>> {
+    wallet_json_bundle(
+        json,
+        WALLET_HNS_RECEIVE_BUNDLE_MAGIC,
+        WALLET_HNS_RECEIVE_BUNDLE_VERSION,
+        WALLET_HNS_RECEIVE_BUNDLE_FLAGS,
+        WALLET_HNS_RECEIVE_BUNDLE_HEADER_BYTES,
+        MAX_WALLET_HNS_RECEIVE_JSON_BYTES,
     )
 }
 
@@ -3973,6 +4014,25 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeLocalHnsReceiveTarget(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.local_hns_receive_target()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareHnsSend(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -4380,6 +4440,29 @@ mod tests {
         assert!(wallet_read_bundle(b"[]").is_none());
         assert!(wallet_read_bundle(b"{broken").is_none());
         assert!(wallet_read_bundle(&vec![b' '; MAX_WALLET_READ_JSON_BYTES + 1]).is_none());
+    }
+
+    #[test]
+    fn wallet_hns_receive_bundle_is_versioned_exact_and_bounded() {
+        let json =
+            br#"{"module":"handshake","account":[1],"display":"hs1qreceive","derivation_index":0}"#;
+        let bundle = wallet_hns_receive_bundle(json).expect("bounded HNS receive bundle");
+        assert_eq!(&bundle[..4], WALLET_HNS_RECEIVE_BUNDLE_MAGIC);
+        assert_eq!(bundle[4], WALLET_HNS_RECEIVE_BUNDLE_VERSION);
+        assert_eq!(bundle[5], WALLET_HNS_RECEIVE_BUNDLE_FLAGS);
+        assert_eq!(&bundle[6..8], &[0, 0]);
+        assert_eq!(
+            u32::from_be_bytes(bundle[8..12].try_into().expect("length field")),
+            json.len() as u32
+        );
+        assert_eq!(&bundle[WALLET_HNS_RECEIVE_BUNDLE_HEADER_BYTES..], json);
+
+        assert!(wallet_hns_receive_bundle(b"").is_none());
+        assert!(wallet_hns_receive_bundle(b"[]").is_none());
+        assert!(wallet_hns_receive_bundle(b"{broken").is_none());
+        assert!(
+            wallet_hns_receive_bundle(&vec![b' '; MAX_WALLET_HNS_RECEIVE_JSON_BYTES + 1]).is_none()
+        );
     }
 
     #[test]

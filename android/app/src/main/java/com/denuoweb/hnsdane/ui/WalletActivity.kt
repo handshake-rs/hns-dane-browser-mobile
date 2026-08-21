@@ -32,6 +32,7 @@ import com.denuoweb.hnsdane.wallet.NativeBitcoinSendApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
 import com.denuoweb.hnsdane.wallet.NativeWalletName
+import com.denuoweb.hnsdane.wallet.NativeWalletPaymentReceiveTarget
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
 import com.denuoweb.hnsdane.wallet.ProcessWalletControllerRetirementFailures
 import com.denuoweb.hnsdane.wallet.ProcessWalletStorageOwnership
@@ -114,6 +115,10 @@ class WalletActivity : ComponentActivity() {
     private var valueApprovalDialog: AlertDialog? = null
     private var pendingValueApproval: NativeHnsValueApproval? = null
     private var latestReadSnapshot: NativeWalletReadSnapshot? = null
+    // This is wallet-local public output. It exists only while this exact
+    // native controller stays unlocked and never substitutes for a synced
+    // balance, history, name, or spend projection.
+    private var localPaymentReceiveTarget: NativeWalletPaymentReceiveTarget? = null
     private var latestReadSnapshotHandle = INVALID_HANDLE
     private var latestReadSnapshotAuthorityGeneration = 0L
     private var latestReadSnapshotEpoch = 0L
@@ -658,11 +663,17 @@ class WalletActivity : ComponentActivity() {
         if (!beginOperation(lease, getString(R.string.wallet_status_unlocking))) return
         val epoch = lifecycleEpoch
         thread(name = "hns-wallet-unlock") {
-            val unlocked = runCatching {
+            val unlockResult: Pair<Boolean, NativeWalletPaymentReceiveTarget?> = runCatching {
                 keyStore.withDatabaseKey { key ->
-                    NativeWalletBridge.unlock(handle, key)
-                } == true
-            }.getOrDefault(false)
+                    val unlocked = NativeWalletBridge.unlock(handle, key) == true
+                    unlocked to if (unlocked) {
+                        NativeWalletBridge.localHnsReceiveTarget(handle)
+                    } else {
+                        null
+                    }
+                }
+            }.getOrNull() ?: (false to null)
+            val (unlocked, localReceiveTarget) = unlockResult
             runOnUiThread {
                 busy = false
                 if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
@@ -674,6 +685,7 @@ class WalletActivity : ComponentActivity() {
                     accountView.text = getString(R.string.wallet_account_locked)
                 } else {
                     refreshControllerState()
+                    localReceiveTarget?.let(::renderLocalPaymentReceiveTarget)
                     if (NativeWalletBridge.directHnsRollbackFloor(handle) != null) {
                         startWalletOwnedDirectDenuoWorker(handle, lease, epoch)
                     }
@@ -2057,6 +2069,7 @@ class WalletActivity : ComponentActivity() {
     private fun refreshControllerState(resetReads: Boolean = true) {
         val status = NativeWalletBridge.status(walletHandle)
         if (status == null) {
+            localPaymentReceiveTarget = null
             statusView.text = getString(R.string.wallet_status_unavailable)
             accountView.text = getString(R.string.wallet_account_unavailable)
             resetReadProjection(R.string.wallet_reads_unavailable)
@@ -2064,6 +2077,7 @@ class WalletActivity : ComponentActivity() {
             return
         }
         if (status.locked) {
+            localPaymentReceiveTarget = null
             statusView.text = getString(R.string.wallet_status_locked)
             accountView.text = getString(R.string.wallet_account_locked)
             resetReadProjection(R.string.wallet_reads_locked)
@@ -2316,12 +2330,14 @@ class WalletActivity : ComponentActivity() {
         check(walletHandle == INVALID_HANDLE) { "Wallet controller authority is already present" }
         advanceWalletAuthorityGeneration()
         walletHandle = handle
+        localPaymentReceiveTarget = null
         walletControllerIsReopenedDurable = reopenedDurable
     }
 
     private fun detachWalletController(): Long {
         val handle = walletHandle
         walletHandle = INVALID_HANDLE
+        localPaymentReceiveTarget = null
         walletControllerIsReopenedDurable = false
         if (handle != INVALID_HANDLE) advanceWalletAuthorityGeneration()
         return handle
@@ -2463,7 +2479,9 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshotEpoch = 0L
         readStatusView.text = getString(status)
         balanceView.text = getString(R.string.wallet_reads_balance_unavailable)
-        paymentReceiveView.text = getString(R.string.wallet_reads_receive_unavailable)
+        paymentReceiveView.text = localPaymentReceiveTarget?.let { target ->
+            localPaymentReceiveText(target)
+        } ?: getString(R.string.wallet_reads_receive_unavailable)
         nameReceiveView.text = getString(R.string.wallet_reads_name_receive_unavailable)
         historyView.text = getString(R.string.wallet_reads_history_unavailable)
         trackedNamesView.text = getString(R.string.wallet_reads_names_unavailable)
@@ -2517,6 +2535,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun renderReadSnapshot(snapshot: NativeWalletReadSnapshot) {
         latestReadSnapshot = snapshot
+        localPaymentReceiveTarget = snapshot.paymentReceiveTarget
         latestReadSnapshotHandle = walletHandle
         latestReadSnapshotAuthorityGeneration = walletAuthorityGeneration
         latestReadSnapshotEpoch = lifecycleEpoch
@@ -2585,6 +2604,18 @@ class WalletActivity : ComponentActivity() {
             getString(R.string.wallet_shakedex_queries_unavailable)
         }
     }
+
+    private fun renderLocalPaymentReceiveTarget(target: NativeWalletPaymentReceiveTarget) {
+        localPaymentReceiveTarget = target
+        paymentReceiveView.text = localPaymentReceiveText(target)
+    }
+
+    private fun localPaymentReceiveText(target: NativeWalletPaymentReceiveTarget): String =
+        getString(
+            R.string.wallet_reads_receive_local,
+            target.display,
+            target.derivationIndex,
+        )
 
     private fun renderImportedName(name: NativeWalletName) {
         nameImportStatusView.text = getString(
