@@ -512,7 +512,17 @@ impl AndroidWalletController {
         let summary = match self {
             Self::Reads(controller) => controller.import_name_exact_text(name),
             Self::Value(controller) => controller.import_name_exact_text(name),
-            Self::DirectValue { controller, .. } => controller.import_name_exact_text(name),
+            Self::DirectValue {
+                coordinator,
+                controller,
+            } => {
+                let now_unix = HnsReadSystemClock.now_unix().ok()?;
+                coordinator.connect_available(now_unix).ok()?;
+                coordinator
+                    .synchronize_name_proof_exact_text(name, now_unix)
+                    .ok()?;
+                controller.import_name_exact_text(name)
+            }
             Self::Lifecycle(_) | Self::Failed => return None,
         };
         let summary = match summary {
