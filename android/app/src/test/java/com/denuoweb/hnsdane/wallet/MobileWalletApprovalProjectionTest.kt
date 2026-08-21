@@ -16,8 +16,8 @@ class MobileWalletApprovalProjectionTest {
         assertEquals(
             setOf(
                 "permissions", "moduleEnablement", "send", "nameTransfer", "nameFinalize",
-                "typedSignature", "nameMarketOffer", "nameMarketPurchase", "marketIntent",
-                "fillAcceptance", "swapRedeem", "swapRefund",
+                "typedSignature", "nameMarketOffer", "nameMarketPurchase", "directOffer",
+                "directOfferTake", "swapRedeem", "swapRefund",
             ),
             prompts.map { it.summary.kind }.toSet(),
         )
@@ -351,26 +351,24 @@ class MobileWalletApprovalProjectionTest {
                 .put("warnings", array("settlementCanBeDelayed")),
         ),
         fixture(
-            providerRequest("swap_publishMarketIntent"),
+            providerRequest("swap_publishDirectOffer"),
             JSONObject()
-                .put("kind", "marketIntent")
+                .put("kind", "directOffer")
                 .put("action", "publish")
-                .put("marketIntentId", JSONObject.NULL)
+                .put("directOfferId", JSONObject.NULL)
                 .put("offered", amount("HNS", "100"))
-                .put("requestedAsset", "BTC")
-                .put("priceRound", "round-1")
+                .put("received", amount("BTC", "10"))
                 .put("maximumFee", amount("HNS", "1"))
                 .put("warnings", JSONArray()),
         ),
         fixture(
-            providerRequest("swap_acceptFill"),
+            providerRequest("swap_acceptDirectOffer"),
             JSONObject()
-                .put("kind", "fillAcceptance")
-                .put("marketIntentId", "intent-1")
-                .put("fillId", "fill-1")
+                .put("kind", "directOfferTake")
+                .put("directOfferId", "offer-1")
+                .put("swapSessionId", "session-1")
                 .put("offered", amount("HNS", "100"))
-                .put("expected", amount("BTC", "10"))
-                .put("priceRound", "round-1")
+                .put("received", amount("BTC", "10"))
                 .put("refundTimeoutUnixMs", NOW + 10_000)
                 .put("maximumFee", amount("HNS", "1"))
                 .put("warnings", array("refundRequiresManualAction")),
@@ -478,13 +476,13 @@ class MobileWalletApprovalProjectionTest {
                 "Approve name purchase" to
                     listOf("Name", "Listing ID", "Payment", "Recipient", "Maximum fee", "Warnings")
                 ),
-            "marketIntent" to (
-                "Approve market intent" to
-                    listOf("Action", "Offered", "Requested asset", "Price round", "Maximum fee")
+            "directOffer" to (
+                "Approve direct offer" to
+                    listOf("Action", "Offered", "Received", "Maximum fee")
                 ),
-            "fillAcceptance" to (
-                "Approve marketplace fill" to listOf(
-                    "Market intent ID", "Fill ID", "Offered", "Expected", "Price round",
+            "directOfferTake" to (
+                "Approve direct-offer take" to listOf(
+                    "Direct offer ID", "Swap session ID", "Offered", "Received",
                     "Refund timeout", "Maximum fee", "Warnings",
                 )
                 ),

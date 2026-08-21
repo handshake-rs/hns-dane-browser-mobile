@@ -96,21 +96,19 @@ enum WalletApprovalSummaryV3: Equatable {
         maximumFee: WalletApprovalAmountV2,
         warnings: [WalletApprovalWarningV2]
     )
-    case marketIntent(
+    case directOffer(
         action: String,
-        marketIntentID: String?,
+        directOfferID: String?,
         offered: WalletApprovalAmountV2,
-        requestedAsset: WalletAssetV2,
-        priceRound: String,
+        received: WalletApprovalAmountV2,
         maximumFee: WalletApprovalAmountV2,
         warnings: [WalletApprovalWarningV2]
     )
-    case fillAcceptance(
-        marketIntentID: String,
-        fillID: String,
+    case directOfferTake(
+        directOfferID: String,
+        swapSessionID: String,
         offered: WalletApprovalAmountV2,
-        expected: WalletApprovalAmountV2,
-        priceRound: String,
+        received: WalletApprovalAmountV2,
         refundTimeoutUnixMs: UInt64,
         maximumFee: WalletApprovalAmountV2,
         warnings: [WalletApprovalWarningV2]
@@ -142,8 +140,8 @@ enum WalletApprovalSummaryV3: Equatable {
         case .typedSignature: return "typedSignature"
         case .nameMarketOffer: return "nameMarketOffer"
         case .nameMarketPurchase: return "nameMarketPurchase"
-        case .marketIntent: return "marketIntent"
-        case .fillAcceptance: return "fillAcceptance"
+        case .directOffer: return "directOffer"
+        case .directOfferTake: return "directOfferTake"
         case .swapRedeem: return "swapRedeem"
         case .swapRefund: return "swapRefund"
         }
@@ -300,22 +298,20 @@ enum WalletApprovalProjectionV3 {
             add("Recipient", recipient)
             addAmount("Maximum fee", maximumFee)
             addWarnings(warnings)
-        case let .marketIntent(action, marketIntentID, offered, requestedAsset, priceRound, maximumFee, warnings):
-            title = "Approve market intent"
+        case let .directOffer(action, directOfferID, offered, received, maximumFee, warnings):
+            title = "Approve direct offer"
             add("Action", action)
-            if let marketIntentID { add("Market intent ID", marketIntentID) }
+            if let directOfferID { add("Direct offer ID", directOfferID) }
             addAmount("Offered", offered)
-            add("Requested asset", requestedAsset.rawValue)
-            add("Price round", priceRound)
+            addAmount("Received", received)
             addAmount("Maximum fee", maximumFee)
             addWarnings(warnings)
-        case let .fillAcceptance(marketIntentID, fillID, offered, expected, priceRound, refundTimeout, maximumFee, warnings):
-            title = "Approve marketplace fill"
-            add("Market intent ID", marketIntentID)
-            add("Fill ID", fillID)
+        case let .directOfferTake(directOfferID, swapSessionID, offered, received, refundTimeout, maximumFee, warnings):
+            title = "Approve direct-offer take"
+            add("Direct offer ID", directOfferID)
+            add("Swap session ID", swapSessionID)
             addAmount("Offered", offered)
-            addAmount("Expected", expected)
-            add("Price round", priceRound)
+            addAmount("Received", received)
             add("Refund timeout", String(refundTimeout))
             addAmount("Maximum fee", maximumFee)
             addWarnings(warnings)
@@ -463,51 +459,49 @@ enum WalletApprovalProjectionV3 {
                 maximumFee: maximumFee,
                 warnings: try warnings(value["warnings"])
             )
-        case "marketIntent":
-            try requireMethod(method, ["swap_publishMarketIntent", "swap_cancelMarketIntent"])
+        case "directOffer":
+            try requireMethod(method, ["swap_publishDirectOffer", "swap_cancelDirectOffer"])
             try requireExactFields(
                 value,
                 [
-                    "kind", "action", "marketIntentId", "offered", "requestedAsset",
-                    "priceRound", "maximumFee", "warnings",
+                    "kind", "action", "directOfferId", "offered", "received",
+                    "maximumFee", "warnings",
                 ]
             )
             let action = try oneOf(value["action"], ["publish", "cancel"])
             let offered = try amount(value["offered"], allowZero: false)
-            let requestedAsset = try asset(value["requestedAsset"])
+            let received = try amount(value["received"], allowZero: false)
             let maximumFee = try amount(value["maximumFee"], allowZero: true)
-            guard action == (method == "swap_publishMarketIntent" ? "publish" : "cancel"),
-                  offered.asset != requestedAsset,
+            guard action == (method == "swap_publishDirectOffer" ? "publish" : "cancel"),
+                  offered.asset != received.asset,
                   maximumFee.asset == offered.asset else { throw invalidApproval() }
-            return .marketIntent(
+            return .directOffer(
                 action: action,
-                marketIntentID: try optionalPublicString(value["marketIntentId"]),
+                directOfferID: try optionalPublicString(value["directOfferId"]),
                 offered: offered,
-                requestedAsset: requestedAsset,
-                priceRound: try publicString(value["priceRound"]),
+                received: received,
                 maximumFee: maximumFee,
                 warnings: try warnings(value["warnings"])
             )
-        case "fillAcceptance":
-            try requireMethod(method, ["swap_requestMatch", "swap_acceptFill"])
+        case "directOfferTake":
+            try requireMethod(method, ["swap_takeDirectOffer", "swap_acceptDirectOffer"])
             try requireExactFields(
                 value,
                 [
-                    "kind", "marketIntentId", "fillId", "offered", "expected", "priceRound",
+                    "kind", "directOfferId", "swapSessionId", "offered", "received",
                     "refundTimeoutUnixMs", "maximumFee", "warnings",
                 ]
             )
             let offered = try amount(value["offered"], allowZero: false)
-            let expected = try amount(value["expected"], allowZero: false)
+            let received = try amount(value["received"], allowZero: false)
             let maximumFee = try amount(value["maximumFee"], allowZero: true)
-            guard offered.asset != expected.asset,
+            guard offered.asset != received.asset,
                   maximumFee.asset == offered.asset else { throw invalidApproval() }
-            return .fillAcceptance(
-                marketIntentID: try publicString(value["marketIntentId"]),
-                fillID: try publicString(value["fillId"]),
+            return .directOfferTake(
+                directOfferID: try publicString(value["directOfferId"]),
+                swapSessionID: try publicString(value["swapSessionId"]),
                 offered: offered,
-                expected: expected,
-                priceRound: try publicString(value["priceRound"]),
+                received: received,
                 refundTimeoutUnixMs: try positiveTime(value["refundTimeoutUnixMs"]),
                 maximumFee: maximumFee,
                 warnings: try warnings(value["warnings"])

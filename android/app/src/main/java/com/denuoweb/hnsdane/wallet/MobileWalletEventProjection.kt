@@ -80,15 +80,11 @@ internal object MobileWalletEventProjection {
                     jsonArray(publicStringList(candidate.opt("listingIds"))),
                 )
             }
-            "priceRoundChanged" -> {
-                requireExactFields(candidate, "event", "pairs")
-                JSONObject().put("pairs", jsonArray(publicStringList(candidate.opt("pairs"))))
-            }
-            "marketIntentChanged" -> {
-                requireExactFields(candidate, "event", "marketIntentIds")
+            "directOfferChanged" -> {
+                requireExactFields(candidate, "event", "directOfferIds")
                 JSONObject().put(
-                    "marketIntentIds",
-                    jsonArray(publicStringList(candidate.opt("marketIntentIds"))),
+                    "directOfferIds",
+                    jsonArray(publicStringList(candidate.opt("directOfferIds"))),
                 )
             }
             "swapSessionChanged" -> {

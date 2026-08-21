@@ -19,8 +19,7 @@ enum WalletNativeProviderEventV2: Equatable {
     case transactionsChanged(modules: [WalletModuleV2])
     case namesChanged(names: [String])
     case nameMarketChanged(listingIDs: [String])
-    case priceRoundChanged(pairs: [String])
-    case marketIntentChanged(marketIntentIDs: [String])
+    case directOfferChanged(directOfferIDs: [String])
     case swapSessionChanged(swapSessionIDs: [String])
     case walletLocked
 
@@ -35,8 +34,7 @@ enum WalletNativeProviderEventV2: Equatable {
         case .transactionsChanged: return "transactionsChanged"
         case .namesChanged: return "namesChanged"
         case .nameMarketChanged: return "nameMarketChanged"
-        case .priceRoundChanged: return "priceRoundChanged"
-        case .marketIntentChanged: return "marketIntentChanged"
+        case .directOfferChanged: return "directOfferChanged"
         case .swapSessionChanged: return "swapSessionChanged"
         case .walletLocked: return "walletLocked"
         }
@@ -60,10 +58,8 @@ enum WalletNativeProviderEventV2: Equatable {
             return ["names": names]
         case let .nameMarketChanged(listingIDs):
             return ["listingIds": listingIDs]
-        case let .priceRoundChanged(pairs):
-            return ["pairs": pairs]
-        case let .marketIntentChanged(marketIntentIDs):
-            return ["marketIntentIds": marketIntentIDs]
+        case let .directOfferChanged(directOfferIDs):
+            return ["directOfferIds": directOfferIDs]
         case let .swapSessionChanged(swapSessionIDs):
             return ["swapSessionIds": swapSessionIDs]
         case .walletLocked:
@@ -138,12 +134,9 @@ enum WalletNativeEventProjectionV2 {
         case "nameMarketChanged":
             try exactFields(value, ["event", "listingIds"])
             return .nameMarketChanged(listingIDs: try publicStrings(value["listingIds"]))
-        case "priceRoundChanged":
-            try exactFields(value, ["event", "pairs"])
-            return .priceRoundChanged(pairs: try publicStrings(value["pairs"]))
-        case "marketIntentChanged":
-            try exactFields(value, ["event", "marketIntentIds"])
-            return .marketIntentChanged(marketIntentIDs: try publicStrings(value["marketIntentIds"]))
+        case "directOfferChanged":
+            try exactFields(value, ["event", "directOfferIds"])
+            return .directOfferChanged(directOfferIDs: try publicStrings(value["directOfferIds"]))
         case "swapSessionChanged":
             try exactFields(value, ["event", "swapSessionIds"])
             return .swapSessionChanged(swapSessionIDs: try publicStrings(value["swapSessionIds"]))

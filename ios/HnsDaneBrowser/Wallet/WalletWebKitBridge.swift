@@ -250,8 +250,8 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
         "hns_finalizeName", "hns_signTypedMessage", "asset_send",
         "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
         "nameMarket_acceptOffer", "nameMarket_finalizePurchase", "nameMarket_recoverName",
-        "swap_publishMarketIntent", "swap_cancelMarketIntent", "swap_requestMatch",
-        "swap_acceptFill", "swap_redeem", "swap_refund",
+        "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_takeDirectOffer",
+        "swap_acceptDirectOffer", "swap_redeem", "swap_refund",
     ]
     private static let providerScript = #"""
     (() => {
@@ -260,7 +260,7 @@ final class WalletWebKitBridge: NSObject, WKScriptMessageHandlerWithReply {
       const bridge = window.webkit.messageHandlers.hnsWalletNativeV1;
       const listeners = new Map();
       const pending = new Map();
-      const eventNames = new Set(['connect','disconnect','permissionsChanged','modulesChanged','accountsChanged','balancesChanged','transactionsChanged','namesChanged','nameMarketChanged','priceRoundChanged','marketIntentChanged','swapSessionChanged','walletLocked']);
+      const eventNames = new Set(['connect','disconnect','permissionsChanged','modulesChanged','accountsChanged','balancesChanged','transactionsChanged','namesChanged','nameMarketChanged','directOfferChanged','swapSessionChanged','walletLocked']);
       const retryDelays = [150, 350, 750, 1500];
       const maxPending = 16;
       const requestTimeoutMs = 90000;

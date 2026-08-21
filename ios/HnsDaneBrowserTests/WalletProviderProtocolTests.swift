@@ -24,12 +24,12 @@ final class WalletProviderProtocolTests: XCTestCase {
             "asset_getReceiveTarget", "asset_send", "nameMarket_listOffers",
             "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
             "nameMarket_acceptOffer", "nameMarket_getSession", "nameMarket_finalizePurchase",
-            "nameMarket_recoverName", "swap_getSupportedPairs", "swap_getPriceRound",
-            "swap_listMarketIntents", "swap_publishMarketIntent", "swap_cancelMarketIntent",
-            "swap_requestMatch", "swap_acceptFill", "swap_getSession", "swap_redeem", "swap_refund",
+            "nameMarket_recoverName", "swap_getSupportedPairs",
+            "swap_listDirectOffers", "swap_publishDirectOffer", "swap_cancelDirectOffer",
+            "swap_takeDirectOffer", "swap_acceptDirectOffer", "swap_getSession", "swap_redeem", "swap_refund",
         ]
         XCTAssertEqual(WalletProviderProtocolV1.methods, expectedMethods)
-        XCTAssertEqual(WalletProviderProtocolV1.noApprovalMethods.count, 23)
+        XCTAssertEqual(WalletProviderProtocolV1.noApprovalMethods.count, 22)
         XCTAssertEqual(WalletProviderProtocolV1.approvalOnlyMethods.count, 5)
         XCTAssertEqual(WalletProviderProtocolV1.approvalAndValueMethods.count, 15)
         XCTAssertTrue(
@@ -63,7 +63,7 @@ final class WalletProviderProtocolTests: XCTestCase {
             XCTAssertEqual(try WalletProviderProtocolV1.releaseClass(for: method), .approvalAndValue)
         }
         XCTAssertThrowsError(try WalletProviderProtocolV1.releaseClass(for: "future_unknown"))
-        XCTAssertEqual(WalletProviderProtocolV1.events.count, 13)
+        XCTAssertEqual(WalletProviderProtocolV1.events.count, 12)
         let request = try WalletProviderProtocolV1.parseRequest([
             "schemaVersion": 1,
             "kind": "request",
@@ -382,22 +382,22 @@ final class WalletProviderProtocolTests: XCTestCase {
                 ]
             ),
             (
-                "swap_publishMarketIntent",
+                "swap_publishDirectOffer",
                 nil,
                 [
-                    "kind": "marketIntent", "action": "publish", "marketIntentId": NSNull(),
-                    "offered": amount("HNS", "1000"), "requestedAsset": "BTC",
-                    "priceRound": "price-round-1", "maximumFee": amount("HNS", "25"),
+                    "kind": "directOffer", "action": "publish", "directOfferId": NSNull(),
+                    "offered": amount("HNS", "1000"), "received": amount("BTC", "2000"),
+                    "maximumFee": amount("HNS", "25"),
                     "warnings": ["settlementCanBeDelayed"],
                 ]
             ),
             (
-                "swap_acceptFill",
+                "swap_acceptDirectOffer",
                 nil,
                 [
-                    "kind": "fillAcceptance", "marketIntentId": "intent-1", "fillId": "fill-1",
-                    "offered": amount("HNS", "1000"), "expected": amount("ETH", "2000"),
-                    "priceRound": "price-round-1", "refundTimeoutUnixMs": NSNumber(value: now + 600_000),
+                    "kind": "directOfferTake", "directOfferId": "offer-1", "swapSessionId": "session-1",
+                    "offered": amount("HNS", "1000"), "received": amount("BTC", "2000"),
+                    "refundTimeoutUnixMs": NSNumber(value: now + 600_000),
                     "maximumFee": amount("HNS", "25"),
                     "warnings": ["refundRequiresManualAction", "settlementCanBeDelayed"],
                 ]
@@ -469,25 +469,25 @@ final class WalletProviderProtocolTests: XCTestCase {
                 ["Name", "Listing ID", "Payment", "Recipient", "Maximum fee"],
                 ["example", "listing-1", "5000 HNS", "hs1qseller", "50 HNS"]
             ),
-            "marketIntent": (
-                "Approve market intent",
+            "directOffer": (
+                "Approve direct offer",
                 [
-                    "Action", "Offered", "Requested asset", "Price round", "Maximum fee",
+                    "Action", "Offered", "Received", "Maximum fee",
                     "Warnings",
                 ],
                 [
-                    "publish", "1000 HNS", "BTC", "price-round-1", "25 HNS",
+                    "publish", "1000 HNS", "2000 BTC", "25 HNS",
                     "settlementCanBeDelayed",
                 ]
             ),
-            "fillAcceptance": (
-                "Approve marketplace fill",
+            "directOfferTake": (
+                "Approve direct-offer take",
                 [
-                    "Market intent ID", "Fill ID", "Offered", "Expected", "Price round",
+                    "Direct offer ID", "Swap session ID", "Offered", "Received",
                     "Refund timeout", "Maximum fee", "Warnings",
                 ],
                 [
-                    "intent-1", "fill-1", "1000 HNS", "2000 ETH", "price-round-1",
+                    "offer-1", "session-1", "1000 HNS", "2000 BTC",
                     String(now + 600_000), "25 HNS",
                     "refundRequiresManualAction, settlementCanBeDelayed",
                 ]
@@ -748,7 +748,7 @@ final class WalletProviderProtocolTests: XCTestCase {
         }
     }
 
-    func testAllThirteenNativeEventsProjectExactPublicPayloads() throws {
+    func testAllTwelveNativeEventsProjectExactPublicPayloads() throws {
         let candidates: [[String: Any]] = [
             ["event": "connect", "permissionGeneration": 1],
             ["event": "disconnect", "reason": "policyChanged"],
@@ -762,12 +762,11 @@ final class WalletProviderProtocolTests: XCTestCase {
             ["event": "transactionsChanged", "modules": ["ethereum"]],
             ["event": "namesChanged", "names": ["example"]],
             ["event": "nameMarketChanged", "listingIds": ["listing-1"]],
-            ["event": "priceRoundChanged", "pairs": ["HNS/BTC"]],
-            ["event": "marketIntentChanged", "marketIntentIds": ["intent-1"]],
+            ["event": "directOfferChanged", "directOfferIds": ["offer-1"]],
             ["event": "swapSessionChanged", "swapSessionIds": ["swap-1"]],
             ["event": "walletLocked"],
         ]
-        XCTAssertEqual(candidates.count, 13)
+        XCTAssertEqual(candidates.count, 12)
         var names = Set<String>()
         for candidate in candidates {
             let frame = try WalletNativeEventProjectionV2.project(candidate)

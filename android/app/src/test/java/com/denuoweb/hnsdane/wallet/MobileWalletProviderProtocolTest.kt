@@ -15,7 +15,7 @@ class MobileWalletProviderProtocolTest {
         assertEquals(1, MobileWalletProviderProtocol.SCHEMA_VERSION)
         assertEquals(2, MobileWalletProviderProtocol.WALLET_NATIVE_ABI_VERSION)
         assertEquals(allMethods, MobileWalletProviderProtocol.methods)
-        assertEquals(43, allMethods.size)
+        assertEquals(42, allMethods.size)
         assertEquals(
             noApprovalMethods,
             allMethods.filter {
@@ -37,10 +37,10 @@ class MobileWalletProviderProtocolTest {
                     WalletMethodReleaseClass.ApprovalAndValue
             }.toSet(),
         )
-        assertEquals(23, noApprovalMethods.size)
+        assertEquals(22, noApprovalMethods.size)
         assertEquals(5, approvalOnlyMethods.size)
         assertEquals(15, approvalAndValueMethods.size)
-        assertEquals(13, MobileWalletProviderProtocol.events.size)
+        assertEquals(12, MobileWalletProviderProtocol.events.size)
         val request = MobileWalletProviderProtocol.parseRequest(
             """{"schemaVersion":1,"kind":"request","requestId":"r-1","sequence":1,"method":"asset_getBalance","params":{"module":"bitcoin"}}""",
         )
@@ -367,8 +367,8 @@ class MobileWalletProviderProtocolTest {
             "hns_getBalance", "hns_getTransactions", "hns_getReceiveAddress", "hns_getNames",
             "hns_getName", "hns_importKnownName", "asset_getAccount", "asset_getBalance",
             "asset_getTransactions", "asset_getReceiveTarget", "nameMarket_listOffers",
-            "nameMarket_getSession", "swap_getSupportedPairs", "swap_getPriceRound",
-            "swap_listMarketIntents", "swap_getSession",
+            "nameMarket_getSession", "swap_getSupportedPairs",
+            "swap_listDirectOffers", "swap_getSession",
         )
         val approvalOnlyMethods = setOf(
             "wallet_enableModule", "wallet_disableModule", "wallet_requestPermissions",
@@ -378,8 +378,8 @@ class MobileWalletProviderProtocolTest {
             "hns_send", "hns_transferName", "hns_finalizeName", "asset_send",
             "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
             "nameMarket_acceptOffer", "nameMarket_finalizePurchase", "nameMarket_recoverName",
-            "swap_publishMarketIntent", "swap_cancelMarketIntent", "swap_requestMatch",
-            "swap_acceptFill", "swap_redeem", "swap_refund",
+            "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_takeDirectOffer",
+            "swap_acceptDirectOffer", "swap_redeem", "swap_refund",
         )
         val allMethods = noApprovalMethods + approvalOnlyMethods + approvalAndValueMethods
     }

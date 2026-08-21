@@ -10,12 +10,12 @@ use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
     EmbeddedHnsBackend, HnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectDenuoListener,
-    HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator, HnsLightFloor, HnsNetwork,
-    HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
-    MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
-    MobileDatabaseKey, MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent,
-    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController,
-    MobileWalletError,
+    HnsDirectDenuoMessage, HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator,
+    HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileBitcoinDirectConfig,
+    MobileBitcoinValueController, MobileDatabaseKey, MobileDenuoSessionController,
+    MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
+    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::BaseUnits;
 use jni::JNIEnv;
@@ -229,6 +229,7 @@ enum AndroidWalletController {
         coordinator: HnsDirectPeerCoordinator,
         controller: MobileHnsValueController<EmbeddedHnsBackend>,
         bitcoin: MobileBitcoinValueController,
+        denuo_sessions: MobileDenuoSessionController,
         denuo_listener: Option<HnsDirectDenuoListener>,
         denuo_peer: Option<HnsDirectDenuoPeer>,
     },
@@ -488,10 +489,20 @@ impl AndroidWalletController {
                         return false;
                     }
                 };
+                let denuo_sessions = match controller.direct_denuo_session_controller() {
+                    Ok(denuo_sessions) => denuo_sessions,
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "wallet-owned direct Denuo session controller installation failed closed: {error}"
+                        ));
+                        return false;
+                    }
+                };
                 *self = Self::DirectValue {
                     coordinator,
                     controller,
                     bitcoin,
+                    denuo_sessions,
                     denuo_listener: None,
                     denuo_peer: None,
                 };
@@ -699,6 +710,7 @@ impl AndroidWalletController {
         let Self::DirectValue {
             coordinator,
             controller,
+            denuo_sessions,
             denuo_listener,
             denuo_peer,
             ..
@@ -714,11 +726,29 @@ impl AndroidWalletController {
             }
         };
         if let Some(peer) = denuo_peer.as_mut() {
-            if controller
-                .synchronize_wallet_owned_direct_shakedex(peer, 1)
-                .is_ok()
-            {
-                return true;
+            match peer.receive_denuo_message(now_unix) {
+                Ok(HnsDirectDenuoMessage::NameMarket {
+                    request_id,
+                    message,
+                }) => {
+                    if controller
+                        .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+                        .is_ok()
+                    {
+                        return true;
+                    }
+                }
+                Ok(HnsDirectDenuoMessage::CrossChain { envelope }) => {
+                    if denuo_sessions
+                        .service_direct_envelope(peer, envelope.as_slice(), now_unix)
+                        .is_ok()
+                    {
+                        return true;
+                    }
+                }
+                Err(error) => android_log_error(&format!(
+                    "wallet-owned Denuo peer message was rejected: {error}"
+                )),
             }
             denuo_peer.take();
             return false;
@@ -744,6 +774,7 @@ impl AndroidWalletController {
         if controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+            .and_then(|_| denuo_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
             .is_err()
         {
             return false;
@@ -760,6 +791,7 @@ impl AndroidWalletController {
         let Self::DirectValue {
             coordinator,
             controller,
+            denuo_sessions,
             denuo_peer,
             ..
         } = self
@@ -800,6 +832,7 @@ impl AndroidWalletController {
         if controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+            .and_then(|_| denuo_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
             .is_err()
         {
             return false;

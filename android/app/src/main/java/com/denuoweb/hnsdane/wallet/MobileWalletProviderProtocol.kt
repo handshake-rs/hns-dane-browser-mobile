@@ -110,15 +110,15 @@ internal object MobileWalletProviderProtocol {
         "asset_getReceiveTarget", "asset_send", "nameMarket_listOffers",
         "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
         "nameMarket_acceptOffer", "nameMarket_getSession", "nameMarket_finalizePurchase",
-        "nameMarket_recoverName", "swap_getSupportedPairs", "swap_getPriceRound",
-        "swap_listMarketIntents", "swap_publishMarketIntent", "swap_cancelMarketIntent",
-        "swap_requestMatch", "swap_acceptFill", "swap_getSession", "swap_redeem", "swap_refund",
+        "nameMarket_recoverName", "swap_getSupportedPairs",
+        "swap_listDirectOffers", "swap_publishDirectOffer", "swap_cancelDirectOffer",
+        "swap_takeDirectOffer", "swap_acceptDirectOffer", "swap_getSession", "swap_redeem", "swap_refund",
     )
 
     val events: Set<String> = setOf(
         "connect", "disconnect", "permissionsChanged", "modulesChanged", "accountsChanged",
         "balancesChanged", "transactionsChanged", "namesChanged", "nameMarketChanged",
-        "priceRoundChanged", "marketIntentChanged", "swapSessionChanged", "walletLocked",
+        "directOfferChanged", "swapSessionChanged", "walletLocked",
     )
 
     val forbiddenMethods: Set<String> = setOf(
@@ -135,7 +135,7 @@ internal object MobileWalletProviderProtocol {
         "wallet_getCapabilities", "wallet_getEnabledModules", "wallet_getPermissions",
         "wallet_lock", "wallet_getStatus", "hns_requestAccounts", "hns_accounts",
         "hns_getBalance", "hns_getReceiveAddress", "hns_getNames",
-        "swap_getSupportedPairs", "swap_listMarketIntents",
+        "swap_getSupportedPairs", "swap_listDirectOffers",
     )
     private val sensitiveFields = setOf(
         "protocolversion", "requestnonce", "walletsession",
@@ -224,8 +224,8 @@ internal object MobileWalletProviderProtocol {
         "hns_getBalance", "hns_getTransactions", "hns_getReceiveAddress", "hns_getNames",
         "hns_getName", "hns_importKnownName", "asset_getAccount", "asset_getBalance",
         "asset_getTransactions", "asset_getReceiveTarget", "nameMarket_listOffers",
-        "nameMarket_getSession", "swap_getSupportedPairs", "swap_getPriceRound",
-        "swap_listMarketIntents", "swap_getSession" -> WalletMethodReleaseClass.NoApproval
+        "nameMarket_getSession", "swap_getSupportedPairs",
+        "swap_listDirectOffers", "swap_getSession" -> WalletMethodReleaseClass.NoApproval
 
         "wallet_enableModule", "wallet_disableModule", "wallet_requestPermissions",
         "hns_requestAccounts", "hns_signTypedMessage" -> WalletMethodReleaseClass.ApprovalOnly
@@ -233,8 +233,8 @@ internal object MobileWalletProviderProtocol {
         "hns_send", "hns_transferName", "hns_finalizeName", "asset_send",
         "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
         "nameMarket_acceptOffer", "nameMarket_finalizePurchase", "nameMarket_recoverName",
-        "swap_publishMarketIntent", "swap_cancelMarketIntent", "swap_requestMatch",
-        "swap_acceptFill", "swap_redeem", "swap_refund" ->
+        "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_takeDirectOffer",
+        "swap_acceptDirectOffer", "swap_redeem", "swap_refund" ->
             WalletMethodReleaseClass.ApprovalAndValue
 
         else -> fail("unsupportedMethod", "Unsupported wallet provider method")

@@ -9,7 +9,7 @@ import org.junit.Test
 
 class MobileWalletEventProjectionTest {
     @Test
-    fun allThirteenTypedEventsProjectToProviderSchemaOne() {
+    fun allTwelveTypedEventsProjectToProviderSchemaOne() {
         val nativePayloads = listOf(
             JSONObject().put("event", "connect").put("permissionGeneration", 1),
             JSONObject().put("event", "disconnect").put("reason", "authorityRevoked"),
@@ -23,8 +23,7 @@ class MobileWalletEventProjectionTest {
             moduleEvent("transactionsChanged"),
             stringListEvent("namesChanged", "names", "example"),
             stringListEvent("nameMarketChanged", "listingIds", "listing-1"),
-            stringListEvent("priceRoundChanged", "pairs", "HNS/BTC"),
-            stringListEvent("marketIntentChanged", "marketIntentIds", "intent-1"),
+            stringListEvent("directOfferChanged", "directOfferIds", "offer-1"),
             stringListEvent("swapSessionChanged", "swapSessionIds", "swap-1"),
             JSONObject().put("event", "walletLocked"),
         )

@@ -145,9 +145,9 @@ enum WalletProviderProtocolV1 {
         "asset_getReceiveTarget", "asset_send", "nameMarket_listOffers",
         "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer", "nameMarket_acceptOffer",
         "nameMarket_getSession", "nameMarket_finalizePurchase", "nameMarket_recoverName",
-        "swap_getSupportedPairs", "swap_getPriceRound", "swap_listMarketIntents",
-        "swap_publishMarketIntent", "swap_cancelMarketIntent", "swap_requestMatch",
-        "swap_acceptFill", "swap_getSession", "swap_redeem", "swap_refund",
+        "swap_getSupportedPairs", "swap_listDirectOffers",
+        "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_takeDirectOffer",
+        "swap_acceptDirectOffer", "swap_getSession", "swap_redeem", "swap_refund",
     ]
 
     static let noApprovalMethods: Set<String> = [
@@ -156,8 +156,8 @@ enum WalletProviderProtocolV1 {
         "hns_getBalance", "hns_getTransactions", "hns_getReceiveAddress", "hns_getNames",
         "hns_getName", "hns_importKnownName", "asset_getAccount", "asset_getBalance",
         "asset_getTransactions", "asset_getReceiveTarget", "nameMarket_listOffers",
-        "nameMarket_getSession", "swap_getSupportedPairs", "swap_getPriceRound",
-        "swap_listMarketIntents", "swap_getSession",
+        "nameMarket_getSession", "swap_getSupportedPairs",
+        "swap_listDirectOffers", "swap_getSession",
     ]
 
     static let approvalOnlyMethods: Set<String> = [
@@ -169,14 +169,14 @@ enum WalletProviderProtocolV1 {
         "hns_send", "hns_transferName", "hns_finalizeName", "asset_send",
         "nameMarket_createFixedPriceOffer", "nameMarket_cancelOffer",
         "nameMarket_acceptOffer", "nameMarket_finalizePurchase", "nameMarket_recoverName",
-        "swap_publishMarketIntent", "swap_cancelMarketIntent", "swap_requestMatch",
-        "swap_acceptFill", "swap_redeem", "swap_refund",
+        "swap_publishDirectOffer", "swap_cancelDirectOffer", "swap_takeDirectOffer",
+        "swap_acceptDirectOffer", "swap_redeem", "swap_refund",
     ]
 
     static let events: Set<String> = [
         "connect", "disconnect", "permissionsChanged", "modulesChanged", "accountsChanged",
         "balancesChanged", "transactionsChanged", "namesChanged", "nameMarketChanged",
-        "priceRoundChanged", "marketIntentChanged", "swapSessionChanged", "walletLocked",
+        "directOfferChanged", "swapSessionChanged", "walletLocked",
     ]
 
     static let forbiddenMethods: Set<String> = [
@@ -193,7 +193,7 @@ enum WalletProviderProtocolV1 {
         "wallet_getCapabilities", "wallet_getEnabledModules", "wallet_getPermissions",
         "wallet_lock", "wallet_getStatus", "hns_requestAccounts", "hns_accounts",
         "hns_getBalance", "hns_getReceiveAddress", "hns_getNames",
-        "swap_getSupportedPairs", "swap_listMarketIntents",
+        "swap_getSupportedPairs", "swap_listDirectOffers",
     ]
     private static let sensitiveFields: Set<String> = [
         "authorityhandle", "authorityrevision", "browserauthoritysession",

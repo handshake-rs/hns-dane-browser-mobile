@@ -377,7 +377,7 @@
     <string name="wallet_bitcoin_unavailable" translatable="false">Direct Bitcoin is available after this wallet is unlocked and its direct HNS account controller is installed.</string>
     <string name="wallet_bitcoin_locked" translatable="false">Unlock the wallet before using its direct Bitcoin account.</string>
     <string name="wallet_bitcoin_ready" translatable="false">Direct Kyoto compact-filter wallet ready. Synchronize before relying on its balance.</string>
-    <string name="wallet_bitcoin_syncing" translatable="false">Synchronizing through the wallet&apos;s direct Bitcoin peer set…</string>
+    <string name="wallet_bitcoin_syncing" translatable="false">Synchronizing through the wallet\'s direct Bitcoin peer set…</string>
     <string name="wallet_bitcoin_sync_failed" translatable="false">Bitcoin synchronization did not return a verified local snapshot.</string>
     <string name="wallet_bitcoin_synchronized" translatable="false">Verified Bitcoin state at height %1$d with %2$d/%3$d direct peers.</string>
     <string name="wallet_bitcoin_balance_unavailable" translatable="false">No local Bitcoin snapshot yet.</string>
