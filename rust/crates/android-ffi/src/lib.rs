@@ -9,12 +9,12 @@ use hns_header_consensus::{HEADER_SIZE, Header, Network};
 use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
-    EmbeddedHnsBackend, HnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
-    HnsDirectPeerCoordinator, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES,
-    MobileDatabaseKey, MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent,
-    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController,
-    MobileWalletError,
+    EmbeddedHnsBackend, HnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectDenuoListener,
+    HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator, HnsLightFloor, HnsNetwork,
+    HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
+    MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileDatabaseKey, MobileHnsReadController,
+    MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
+    MobileShakedexQuery, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::BaseUnits;
 use jni::JNIEnv;
@@ -90,6 +90,13 @@ const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
 /// first-run catch-up self-contained without allowing an unbounded JNI call.
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
 const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
+/// The standard Handshake TCP port. A direct Denuo listener speaks only the
+/// normal version/verack plus negotiated experimental board profile; it is
+/// not a full HSD service.
+const ANDROID_DIRECT_DENUO_LISTEN_PORT: u16 = 12_038;
+/// Keep one accepted wallet-peer service tick short enough that a lock or
+/// controller retirement never waits behind a long-lived peer exchange.
+const ANDROID_DIRECT_DENUO_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
@@ -214,6 +221,8 @@ enum AndroidWalletController {
     DirectValue {
         coordinator: HnsDirectPeerCoordinator,
         controller: MobileHnsValueController<EmbeddedHnsBackend>,
+        denuo_listener: Option<HnsDirectDenuoListener>,
+        denuo_peer: Option<HnsDirectDenuoPeer>,
     },
     Failed,
 }
@@ -274,16 +283,31 @@ impl AndroidWalletController {
     }
 
     fn unlock(&mut self, key: &MobileDatabaseKey) -> bool {
-        match self {
+        let unlocked = match self {
             Self::Lifecycle(controller) => controller.unlock(key).is_ok(),
             Self::Reads(controller) => controller.unlock(key).is_ok(),
             Self::Value(controller) => controller.unlock(key).is_ok(),
             Self::DirectValue { controller, .. } => controller.unlock(key).is_ok(),
             Self::Failed => false,
+        };
+        if unlocked && !self.start_direct_denuo_listener() {
+            android_log_error("wallet-owned Denuo listener was unavailable after wallet unlock");
         }
+        unlocked
     }
 
     fn lock(&mut self) -> bool {
+        // A direct board socket must never outlive the unlocked controller
+        // that owns its local validation and durable state.
+        if let Self::DirectValue {
+            denuo_listener,
+            denuo_peer,
+            ..
+        } = self
+        {
+            denuo_peer.take();
+            denuo_listener.take();
+        }
         match self {
             Self::Lifecycle(controller) => controller.lock().is_ok(),
             Self::Reads(controller) => controller.lock().is_ok(),
@@ -426,6 +450,8 @@ impl AndroidWalletController {
                 *self = Self::DirectValue {
                     coordinator,
                     controller,
+                    denuo_listener: None,
+                    denuo_peer: None,
                 };
                 true
             }
@@ -456,6 +482,104 @@ impl AndroidWalletController {
         coordinator.rollback_floor().ok()
     }
 
+    /// Start the bounded board listener only for an unlocked direct wallet.
+    /// Its socket is held by this controller and is dropped on every lock or
+    /// retirement path. Binding failure does not weaken the value wallet; it
+    /// simply leaves direct board hosting unavailable until a later unlock.
+    fn start_direct_denuo_listener(&mut self) -> bool {
+        let Self::DirectValue {
+            controller,
+            denuo_listener,
+            ..
+        } = self
+        else {
+            return true;
+        };
+        if denuo_listener.is_some() {
+            return true;
+        }
+        if controller.status().map_or(true, |status| status.locked) {
+            return false;
+        }
+        let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
+        config.connect_timeout = ANDROID_DIRECT_DENUO_SOCKET_TIMEOUT;
+        match HnsDirectDenuoListener::bind(
+            config,
+            SocketAddr::from((Ipv4Addr::UNSPECIFIED, ANDROID_DIRECT_DENUO_LISTEN_PORT)),
+        ) {
+            Ok(listener) => {
+                *denuo_listener = Some(listener);
+                true
+            }
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet-owned Denuo listener bind failed without changing wallet authority: {error}"
+                ));
+                false
+            }
+        }
+    }
+
+    /// Service exactly one accepted direct board peer event. This is called by
+    /// an Android-owned scheduler, never a hidden wallet worker. A negotiated
+    /// peer remains in the controller only while the unlocked wallet owns the
+    /// listener, and each call processes at most one inbound message.
+    fn service_direct_denuo_once(&mut self) -> bool {
+        let Self::DirectValue {
+            coordinator,
+            controller,
+            denuo_listener,
+            denuo_peer,
+        } = self
+        else {
+            return false;
+        };
+        let now_unix = match HnsReadSystemClock.now_unix() {
+            Ok(now_unix) => now_unix,
+            Err(error) => {
+                android_log_error(&format!("wallet-owned Denuo clock unavailable: {error}"));
+                return false;
+            }
+        };
+        if let Some(peer) = denuo_peer.as_mut() {
+            if controller
+                .synchronize_wallet_owned_direct_shakedex(peer, 1)
+                .is_ok()
+            {
+                return true;
+            }
+            denuo_peer.take();
+            return false;
+        }
+        let Some(listener) = denuo_listener.as_ref() else {
+            return false;
+        };
+        let height = match coordinator.rollback_floor() {
+            Ok(floor) => floor.height,
+            Err(error) => {
+                android_log_error(&format!("wallet-owned Denuo height unavailable: {error}"));
+                return false;
+            }
+        };
+        let mut peer = match listener.accept_next(height, now_unix) {
+            Ok(Some(peer)) => peer,
+            Ok(None) => return false,
+            Err(error) => {
+                android_log_error(&format!("wallet-owned Denuo peer rejected: {error}"));
+                return false;
+            }
+        };
+        if controller
+            .begin_wallet_owned_direct_shakedex(&mut peer)
+            .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+            .is_err()
+        {
+            return false;
+        }
+        *denuo_peer = Some(peer);
+        true
+    }
+
     fn synchronize_hns_reads(&mut self) -> Option<Vec<u8>> {
         let snapshot = match self {
             Self::Reads(controller) => controller.synchronize(),
@@ -463,6 +587,7 @@ impl AndroidWalletController {
             Self::DirectValue {
                 coordinator,
                 controller,
+                ..
             } => (|| -> Result<_, MobileWalletError> {
                 let now_unix = HnsReadSystemClock.now_unix()?;
                 coordinator.connect_available(now_unix)?;
@@ -515,6 +640,7 @@ impl AndroidWalletController {
             Self::DirectValue {
                 coordinator,
                 controller,
+                ..
             } => {
                 let now_unix = HnsReadSystemClock.now_unix().ok()?;
                 coordinator.connect_available(now_unix).ok()?;
@@ -3203,6 +3329,28 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .ok()
     .flatten()
     .unwrap_or(std::ptr::null_mut())
+}
+
+/// Give the foreground Android wallet worker one opportunity to accept or
+/// service a wallet-owned direct Denuo peer. The worker owns scheduling; the
+/// native controller owns the listener and drops it on every lock/destroy.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeServiceWalletOwnedDirectDenuo(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.service_direct_denuo_once()
+    }))
+    .unwrap_or(false)
+    .into()
 }
 
 #[unsafe(no_mangle)]

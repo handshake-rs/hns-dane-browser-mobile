@@ -176,6 +176,14 @@ internal object NativeWalletBridge {
             null
         }
 
+    /**
+     * Services at most one message from the unlocked wallet's own direct
+     * Denuo listener. This never contacts a relay or changes chain authority.
+     */
+    fun serviceWalletOwnedDirectDenuo(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeServiceWalletOwnedDirectDenuo(handle) }.getOrDefault(false)
+
     /** Consumes one exact UTF-8 name for the trusted native read controller only. */
     fun importHnsNameExactText(handle: Long, exactUtf8: ByteArray): NativeWalletName? = try {
         if (
@@ -541,6 +549,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeDirectHnsRollbackFloor(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeServiceWalletOwnedDirectDenuo(handle: Long): Boolean
 
     @JvmStatic
     private external fun nativeHasHnsReads(handle: Long): Boolean

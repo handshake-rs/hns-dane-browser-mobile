@@ -83,6 +83,8 @@ class WalletActivity : ComponentActivity() {
     private lateinit var nameReceiveView: TextView
     private lateinit var historyView: TextView
     private lateinit var trackedNamesView: TextView
+    @Volatile
+    private var directDenuoWorkerHandle: Long = INVALID_HANDLE
     private lateinit var nameImportInput: EditText
     private lateinit var nameImportStatusView: TextView
     private lateinit var sendRecipientInput: EditText
@@ -629,6 +631,9 @@ class WalletActivity : ComponentActivity() {
                     accountView.text = getString(R.string.wallet_account_locked)
                 } else {
                     refreshControllerState()
+                    if (NativeWalletBridge.directHnsRollbackFloor(handle) != null) {
+                        startWalletOwnedDirectDenuoWorker(handle, lease, epoch)
+                    }
                 }
             }
         }
@@ -654,6 +659,38 @@ class WalletActivity : ComponentActivity() {
                     statusView.text = getString(R.string.wallet_status_lock_failed)
                 }
                 refreshControllerState()
+            }
+        }
+    }
+
+    /**
+     * Runs only while this Activity owns the unlocked direct-wallet controller.
+     * Native code holds the listener and rejects/forgets every board socket on
+     * lock or controller retirement; this worker merely gives it bounded
+     * foreground scheduling. A later foreground-service integration can keep
+     * the same native ownership contract when Android background policy allows
+     * it, without introducing a relay.
+     */
+    private fun startWalletOwnedDirectDenuoWorker(
+        handle: Long,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+    ) {
+        if (directDenuoWorkerHandle == handle) return
+        directDenuoWorkerHandle = handle
+        thread(name = "hns-wallet-direct-denuo") {
+            try {
+                while (
+                    foreground && operationIsCurrent(epoch, lease) && walletHandle == handle &&
+                        (NativeWalletBridge.status(handle)?.locked == false)
+                ) {
+                    NativeWalletBridge.serviceWalletOwnedDirectDenuo(handle)
+                    Thread.sleep(DIRECT_DENUO_FOREGROUND_TICK_MILLIS)
+                }
+            } finally {
+                if (directDenuoWorkerHandle == handle) {
+                    directDenuoWorkerHandle = INVALID_HANDLE
+                }
             }
         }
     }
@@ -2506,6 +2543,7 @@ class WalletActivity : ComponentActivity() {
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
         const val DEFAULT_OFFER_PAGE_SIZE = 32
+        const val DIRECT_DENUO_FOREGROUND_TICK_MILLIS = 250L
         const val NUL_CHARACTER = "\u0000"
     }
 }
