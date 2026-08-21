@@ -22,6 +22,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import com.denuoweb.hnsdane.R
+import com.denuoweb.hnsdane.net.HeaderSnapshotInstaller
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
 import com.denuoweb.hnsdane.wallet.NativeHnsSendApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApproval
@@ -435,7 +436,7 @@ class WalletActivity : ComponentActivity() {
                 path,
                 databaseKey.copyOf(),
                 network,
-                SAFE_FULL_RESCAN_BIRTHDAY,
+                newWalletBirthday(walletNetwork),
             )
             val recovery = if (created != INVALID_HANDLE) {
                 NativeWalletBridge.takeRecovery(created)
@@ -1772,13 +1773,25 @@ class WalletActivity : ComponentActivity() {
         thread(name = "hns-wallet-direct-install") {
             val installed = runCatching {
                 val floor = keyStore.directHnsRollbackFloorForOpen()
-                keyStore.withDatabaseKey { databaseKey ->
-                    NativeWalletBridge.configureWalletOwnedDirectHnsValue(
-                        currentAuthority = expectedAuthority,
-                        databaseKey = databaseKey,
-                        rollbackFloor = floor,
-                    )
-                } == true
+                val bootstrap = if (
+                    walletNetwork == HandshakeNetwork.Mainnet && floor.all { it == 0.toByte() }
+                ) {
+                    HeaderSnapshotInstaller.extractWalletGenesisBootstrap(applicationContext)
+                } else {
+                    null
+                }
+                try {
+                    keyStore.withDatabaseKey { databaseKey ->
+                        NativeWalletBridge.configureWalletOwnedDirectHnsValue(
+                            currentAuthority = expectedAuthority,
+                            databaseKey = databaseKey,
+                            rollbackFloor = floor,
+                            genesisBootstrapPath = bootstrap?.absolutePath.orEmpty(),
+                        )
+                    } == true
+                } finally {
+                    bootstrap?.delete()
+                }
             }.getOrDefault(false)
             val floorStored = if (installed) {
                 NativeWalletBridge.directHnsRollbackFloor(expectedAuthority.walletHandle)?.let { floor ->
@@ -2351,6 +2364,14 @@ class WalletActivity : ComponentActivity() {
         HandshakeNetwork.Mainnet -> NativeWalletBridge.NETWORK_MAINNET
         HandshakeNetwork.Testnet -> NativeWalletBridge.NETWORK_TESTNET
         HandshakeNetwork.Regtest -> NativeWalletBridge.NETWORK_REGTEST
+    }
+
+    private fun newWalletBirthday(network: HandshakeNetwork): Long = when (network) {
+        // A newly generated seed cannot have a user-intended funding history
+        // before creation. Starting at the reviewed local checkpoint avoids a
+        // network-wide first scan while preserving full direct-peer authority.
+        HandshakeNetwork.Mainnet -> HeaderSnapshotInstaller.SNAPSHOT_HEIGHT
+        HandshakeNetwork.Testnet, HandshakeNetwork.Regtest -> SAFE_FULL_RESCAN_BIRTHDAY
     }
 
     private fun randomDatabaseKey(): ByteArray {

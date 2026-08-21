@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 hns-mobile-platform-runtime.workspace = true
+hns-header-consensus.workspace = true
 hns-wallet-ffi.workspace = true
 hns-wallet-mobile.workspace = true
 hns-wallet-types.workspace = true

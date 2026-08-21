@@ -5,6 +5,7 @@
     deny(clippy::expect_used, clippy::panic, clippy::unwrap_used)
 )]
 
+use hns_header_consensus::{HEADER_SIZE, Header, Network};
 use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
@@ -21,6 +22,8 @@ use jni::objects::{JByteArray, JCharArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jcharArray, jint, jlong, jstring};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::os::fd::{FromRawFd, RawFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -71,6 +74,13 @@ const MAX_ANDROID_WALLET_BASE_UNITS_BYTES: usize = 39;
 const MAX_ANDROID_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
 const MAX_ANDROID_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
 const ANDROID_HNS_LIGHT_FLOOR_BYTES: usize = 36;
+const ANDROID_MAINNET_GENESIS_BOOTSTRAP_MAGIC: &[u8; 11] = b"HNSHDRSNAP1";
+const ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT: u32 = 300_000;
+const ANDROID_MAINNET_GENESIS_BOOTSTRAP_BYTES: u64 = 70_800_287;
+const ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
+    0, 0, 0, 0, 0, 0, 0, 12, 52, 107, 32, 60, 77, 216, 102, 166, 136, 26, 130, 156, 157, 202, 16,
+    190, 31, 89, 123, 179, 142, 19, 43, 169,
+];
 const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
@@ -334,20 +344,65 @@ impl AndroidWalletController {
         &mut self,
         database_key: &MobileDatabaseKey,
         rollback_floor: HnsLightFloor,
+        bootstrap_snapshot_path: Option<&Path>,
     ) -> bool {
         if !matches!(self, Self::Lifecycle(_)) {
             return false;
         }
+        let Self::Lifecycle(lifecycle) = self else {
+            return false;
+        };
+        let requires_genesis_bootstrap = lifecycle.account_config().network == HnsNetwork::Mainnet
+            && lifecycle.account_config().birthday_height
+                == u64::from(ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT);
+        if requires_genesis_bootstrap && bootstrap_snapshot_path.is_none() {
+            android_log_error(
+                "wallet-owned direct HNS bootstrap asset was unavailable for a checkpoint-born wallet",
+            );
+            return false;
+        }
+        let bootstrap_headers = if let Some(path) = bootstrap_snapshot_path {
+            if requires_genesis_bootstrap {
+                match load_android_mainnet_genesis_bootstrap(path) {
+                    Ok(headers) => Some(headers),
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "wallet-owned direct HNS bootstrap rejected before controller replacement: {error}"
+                        ));
+                        return false;
+                    }
+                }
+            } else {
+                // Pre-bootstrap wallets and recovery accounts keep their
+                // honest birthday. They fall back to direct peer sync rather
+                // than letting a packaged accelerator discard discovery.
+                None
+            }
+        } else {
+            None
+        };
         let mut lifecycle = match std::mem::replace(self, Self::Failed) {
             Self::Lifecycle(controller) => controller,
             _ => return false,
         };
         let peer_config = HnsDirectPeerConfig::for_network(lifecycle.account_config().network);
-        let coordinator = match lifecycle.open_direct_hns_peer_coordinator_with_floor(
-            database_key,
-            peer_config,
-            rollback_floor,
-        ) {
+        let coordinator_result = match bootstrap_headers {
+            Some(headers) => lifecycle
+                .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
+                    database_key,
+                    peer_config,
+                    rollback_floor,
+                    ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT,
+                    ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH,
+                    headers,
+                ),
+            None => lifecycle.open_direct_hns_peer_coordinator_with_floor(
+                database_key,
+                peer_config,
+                rollback_floor,
+            ),
+        };
+        let coordinator = match coordinator_result {
             Ok(coordinator) => coordinator,
             Err(error) => {
                 android_log_error(&format!(
@@ -917,6 +972,83 @@ fn android_wallet_path(env: &mut JNIEnv<'_>, path: &JString<'_>) -> Option<PathB
         return None;
     }
     Some(path)
+}
+
+fn android_wallet_optional_path(
+    env: &mut JNIEnv<'_>,
+    path: &JString<'_>,
+) -> Option<Option<PathBuf>> {
+    let path = env.get_string(path).ok()?.to_string_lossy().into_owned();
+    if path.is_empty() {
+        return Some(None);
+    }
+    if path.len() > MAX_ANDROID_WALLET_PATH_BYTES {
+        return None;
+    }
+    let path = PathBuf::from(path);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return None;
+    }
+    Some(Some(path))
+}
+
+fn read_exact_array<const N: usize>(reader: &mut impl Read) -> Result<[u8; N], &'static str> {
+    let mut bytes = [0_u8; N];
+    reader
+        .read_exact(&mut bytes)
+        .map_err(|_| "bundled header bootstrap is truncated")?;
+    Ok(bytes)
+}
+
+/// Decode the Android-shipped header stream before its contents can cross into
+/// the wallet authority. The envelope's fixed height/hash are compiled into
+/// this app version; the wallet core then independently validates every
+/// header from canonical genesis before committing it.
+fn load_android_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, &'static str> {
+    let metadata = std::fs::metadata(path).map_err(|_| "bundled header bootstrap is unreadable")?;
+    if !metadata.is_file() || metadata.len() != ANDROID_MAINNET_GENESIS_BOOTSTRAP_BYTES {
+        return Err("bundled header bootstrap has an unexpected length");
+    }
+    let file = File::open(path).map_err(|_| "bundled header bootstrap cannot be opened")?;
+    let mut reader = BufReader::new(file);
+    if read_exact_array::<11>(&mut reader)? != *ANDROID_MAINNET_GENESIS_BOOTSTRAP_MAGIC {
+        return Err("bundled header bootstrap has an invalid magic");
+    }
+    let target_height = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
+    let header_count = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
+    let target_hash = read_exact_array::<32>(&mut reader)?;
+    if target_height != ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+        || header_count != target_height.saturating_add(1)
+        || target_hash != ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH
+    {
+        return Err("bundled header bootstrap metadata does not match this app");
+    }
+    let genesis = Header::decode(&read_exact_array::<HEADER_SIZE>(&mut reader)?)
+        .map_err(|_| "bundled header bootstrap has an invalid genesis header")?;
+    if genesis.block_hash() != Network::Mainnet.parameters().genesis_hash {
+        return Err("bundled header bootstrap has a non-mainnet genesis header");
+    }
+
+    let mut headers = Vec::with_capacity(target_height as usize);
+    for _ in 0..target_height {
+        let bytes = read_exact_array::<HEADER_SIZE>(&mut reader)?;
+        let header = Header::decode(&bytes)
+            .map_err(|_| "bundled header bootstrap contains an invalid header encoding")?;
+        headers.push(header);
+    }
+    let mut trailing = [0_u8; 1];
+    if reader
+        .read(&mut trailing)
+        .map_err(|_| "bundled header bootstrap could not be finalized")?
+        != 0
+    {
+        return Err("bundled header bootstrap has trailing data");
+    }
+    Ok(headers)
 }
 
 fn android_wallet_database_key(
@@ -2971,6 +3103,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     handle: jlong,
     database_key: JByteArray<'_>,
     rollback_floor: JByteArray<'_>,
+    bootstrap_snapshot_path: JString<'_>,
 ) -> jboolean {
     catch_unwind(AssertUnwindSafe(|| {
         let Some(database_key) = android_wallet_consumed_database_key(&mut env, &database_key)
@@ -2980,6 +3113,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         };
         let Some(rollback_floor) =
             android_wallet_consumed_hns_light_floor(&mut env, &rollback_floor)
+        else {
+            return false;
+        };
+        let Some(bootstrap_snapshot_path) =
+            android_wallet_optional_path(&mut env, &bootstrap_snapshot_path)
         else {
             return false;
         };
@@ -2999,7 +3137,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
-        controller.install_direct_hns_value(&database_key, rollback_floor)
+        controller.install_direct_hns_value(
+            &database_key,
+            rollback_floor,
+            bootstrap_snapshot_path.as_deref(),
+        )
     }))
     .unwrap_or(false)
     .into()

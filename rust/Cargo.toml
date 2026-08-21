@@ -20,6 +20,7 @@ blake2 = "0.10"
 bytes = "1"
 hex = "0.4"
 getrandom = "0.3"
+hns-header-consensus = { version = "=0.3.0", git = "https://github.com/handshake-rs/hns-rs.git", rev = "126fee8feb6f9e3e55a753c481ca5c9758870b0c" }
 hns-cache = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }
 hns-chain = { package = "hns-browser-chain", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }
 hns-core = { package = "hns-browser-primitives", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }
@@ -30,9 +31,9 @@ hns-browser-observability = { version = "=0.2.1", git = "https://github.com/hand
 hns-browser-runtime = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }
 hns-icann-dane = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d", default-features = false, features = ["mobile"] }
-hns-wallet-ffi = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "09f3c38ca3490bf4761a1a1e9e749b9de2114f0f" }
-hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "09f3c38ca3490bf4761a1a1e9e749b9de2114f0f" }
-hns-wallet-types = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "09f3c38ca3490bf4761a1a1e9e749b9de2114f0f" }
+hns-wallet-ffi = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "7fe2ae58a6195eb9c5bc6dc9ee5256c86333d967" }
+hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "7fe2ae58a6195eb9c5bc6dc9ee5256c86333d967" }
+hns-wallet-types = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "7fe2ae58a6195eb9c5bc6dc9ee5256c86333d967" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }
 hns-resolution-policy = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "4cdea838fcac4397ab9fad1b4dd1dbb901a7872d" }

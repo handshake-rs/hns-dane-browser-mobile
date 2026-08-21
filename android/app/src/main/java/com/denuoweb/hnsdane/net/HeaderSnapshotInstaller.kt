@@ -72,6 +72,34 @@ object HeaderSnapshotInstaller {
         }.getOrNull()
     }
 
+    /**
+     * Extract the app-shipped mainnet header stream for the independent wallet
+     * authority. The native wallet pins the expected endpoint and validates
+     * every header from genesis; this method merely streams the compressed APK
+     * asset to an app-private temporary file without holding it in the JVM.
+     * The caller owns and deletes the returned file after JNI consumes it.
+     */
+    fun extractWalletGenesisBootstrap(context: Context): File? {
+        val tempDir = File(context.cacheDir, "hns-wallet-header-bootstrap")
+        if (!tempDir.exists() && !tempDir.mkdirs()) {
+            return null
+        }
+        val tempFile = File(tempDir, "hns-wallet-headers-300000.snapshot")
+        return runCatching {
+            context.assets.open(ASSET_NAME).use { asset ->
+                GZIPInputStream(asset).use { gzip ->
+                    FileOutputStream(tempFile).use { output ->
+                        copySnapshotExactly(gzip, output, EXPECTED_SNAPSHOT_BYTES)
+                    }
+                }
+            }
+            tempFile
+        }.getOrElse {
+            tempFile.delete()
+            null
+        }
+    }
+
     private fun bundledSnapshotDisabled(context: Context, network: String): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(disabledKey(network), false) ||

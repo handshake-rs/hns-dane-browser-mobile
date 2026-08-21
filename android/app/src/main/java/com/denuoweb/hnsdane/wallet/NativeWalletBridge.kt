@@ -129,6 +129,7 @@ internal object NativeWalletBridge {
         currentAuthority: WalletReadBootstrapAuthority,
         databaseKey: ByteArray,
         rollbackFloor: ByteArray,
+        genesisBootstrapPath: String,
     ): Boolean = try {
         consumeDatabaseKey(databaseKey) { key ->
             consumeDirectHnsRollbackFloor(rollbackFloor) { floor ->
@@ -139,6 +140,7 @@ internal object NativeWalletBridge {
                             currentAuthority.walletHandle,
                             key,
                             floor,
+                            genesisBootstrapPath,
                         )
                     }.getOrDefault(false)
             }
@@ -534,6 +536,7 @@ internal object NativeWalletBridge {
         handle: Long,
         databaseKey: ByteArray,
         rollbackFloor: ByteArray,
+        genesisBootstrapPath: String,
     ): Boolean
 
     @JvmStatic
