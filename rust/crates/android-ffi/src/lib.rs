@@ -81,6 +81,15 @@ const ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
     0, 0, 0, 0, 0, 0, 0, 12, 52, 107, 32, 60, 77, 216, 102, 166, 136, 26, 130, 156, 157, 202, 16,
     190, 31, 89, 123, 179, 142, 19, 43, 169,
 ];
+/// HSD serves at most 2,000 headers per response. The bundled mainnet
+/// checkpoint leaves substantially less than this budget on ordinary first
+/// install, while the cap prevents a JNI read operation from becoming an
+/// unbounded network task.
+const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
+/// Each direct scan call verifies at most 2,000 wallet-filtered blocks. Keep
+/// first-run catch-up self-contained without allowing an unbounded JNI call.
+const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
+const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
 const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
@@ -457,13 +466,30 @@ impl AndroidWalletController {
             } => (|| -> Result<_, MobileWalletError> {
                 let now_unix = HnsReadSystemClock.now_unix()?;
                 coordinator.connect_available(now_unix)?;
-                // Keep each JNI call bounded. A restored wallet resumes these
-                // locally verified rounds and filtered-block ranges until its
-                // own index reaches the agreed header tip.
-                for _ in 0..4 {
-                    coordinator.synchronize_headers_once(now_unix)?;
+                // Converge through the direct peers until they agree that no
+                // extension remains. Both the round count and every peer
+                // response are bounded; a later sync resumes if a much older
+                // recovery wallet needs more work.
+                for _ in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
+                    let progress = coordinator.synchronize_headers_once(now_unix)?;
+                    if matches!(
+                        progress,
+                        hns_wallet_mobile::HnsHeaderRoundProgress::Committed(ref round)
+                            if round.accepted.is_empty()
+                    ) {
+                        break;
+                    }
                 }
-                coordinator.scan_wallet_blocks(2_000, now_unix)?;
+                // A wallet becomes fund-ready only after its exact local watch
+                // set has reached the locally agreed header tip. The direct
+                // peer coordinator independently verifies every block view.
+                for _ in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
+                    let progress = coordinator
+                        .scan_wallet_blocks(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix)?;
+                    if progress.blocks_applied == 0 {
+                        break;
+                    }
+                }
                 let _ = coordinator.refresh_mempool(now_unix)?;
                 controller.synchronize()
             })(),
