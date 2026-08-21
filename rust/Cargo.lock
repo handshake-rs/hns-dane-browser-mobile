@@ -1256,7 +1256,6 @@ dependencies = [
 [[package]]
 name = "hns-light-p2p"
 version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=6572277cb629fe0eec508a4ab3aa2f18731fabbb#6572277cb629fe0eec508a4ab3aa2f18731fabbb"
 dependencies = [
  "hns-header-consensus",
  "hns-p2p-wire",

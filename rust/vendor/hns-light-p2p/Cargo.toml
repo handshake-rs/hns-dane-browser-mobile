@@ -1,0 +1,18 @@
+[package]
+name = "hns-light-p2p"
+description = "Bounded standard Handshake light-client peer session"
+version = "0.2.1"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/handshake-rs/hns-dane-engine"
+publish = false
+keywords = ["handshake", "p2p", "light-client"]
+categories = ["cryptography", "network-programming"]
+
+[dependencies]
+hns-header-consensus = { version = "=0.3.0", git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8" }
+hns-p2p-wire = { version = "=0.3.0", git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8" }
+hns-primitives = { version = "=0.3.0", git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8" }
+hns-transaction = { version = "=0.3.0", git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8" }
+thiserror = "2.0.19"

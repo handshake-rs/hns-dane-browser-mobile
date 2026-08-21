@@ -5,6 +5,7 @@ members = [
     "crates/android-ffi",
     "crates/hns-mobile-platform-runtime",
     "crates/ios-ffi",
+    "vendor/hns-light-p2p",
 ]
 
 [workspace.package]
@@ -95,3 +96,9 @@ hns-p2p-wire = { git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0
 hns-primitives = { git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8" }
 hns-transaction = { git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8" }
 hns-urkel-proof = { git = "https://github.com/handshake-rs/hns-rs.git", rev = "42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8" }
+
+# HSD peers commonly transmit `verack` before `version`. Keep the direct
+# wallet's bounded light-client session interoperable with that valid ordering
+# until the upstream hns-light-p2p release includes the same fix.
+[patch."https://github.com/handshake-rs/hns-dane-engine.git"]
+hns-light-p2p = { path = "vendor/hns-light-p2p" }
