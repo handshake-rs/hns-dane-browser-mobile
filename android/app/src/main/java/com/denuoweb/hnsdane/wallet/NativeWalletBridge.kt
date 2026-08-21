@@ -443,6 +443,61 @@ internal object NativeWalletBridge {
             null
         }
 
+    /** Prepares a direct Bitcoin send; no signature or network submission occurs here. */
+    fun prepareBitcoinSend(
+        handle: Long,
+        destination: String,
+        amountSats: Long,
+        maximumFeeSats: Long,
+    ): NativeBitcoinSendApproval? {
+        if (
+            !isValidHandle(handle) || !isAvailable || destination.length !in 1..128 ||
+            amountSats <= 0L || maximumFeeSats <= 0L
+        ) return null
+        val destinationUtf8 = destination.toByteArray(Charsets.US_ASCII)
+        val amountAscii = amountSats.toString().toByteArray(Charsets.US_ASCII)
+        val feeAscii = maximumFeeSats.toString().toByteArray(Charsets.US_ASCII)
+        return try {
+            val bundle = runCatching {
+                nativePrepareBitcoinSend(handle, destinationUtf8, amountAscii, feeAscii)
+            }.getOrNull() ?: return null
+            val approval = try {
+                NativeBitcoinWalletBundle.sendApproval(bundle)
+            } finally {
+                bundle.fill(0)
+            }
+            if (approval == null) lock(handle)
+            approval
+        } finally {
+            destinationUtf8.fill(0)
+            amountAscii.fill(0)
+            feeAscii.fill(0)
+        }
+    }
+
+    /** Consumes the displayed direct Bitcoin approval exactly once. */
+    fun approveBitcoinSend(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): NativeBitcoinSendReceipt? = actionToken.consume { tokenAscii ->
+        if (!isValidHandle(handle) || !isAvailable) return@consume null
+        val bundle = runCatching { nativeApproveBitcoinSend(handle, tokenAscii) }.getOrNull()
+            ?: return@consume null
+        val receipt = try {
+            NativeBitcoinWalletBundle.sendReceipt(bundle)
+        } finally {
+            bundle.fill(0)
+        }
+        if (receipt == null) lock(handle)
+        receipt
+    }
+
+    fun rejectBitcoinSend(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
+        actionToken.consume { tokenAscii ->
+            isValidHandle(handle) && isAvailable &&
+                runCatching { nativeRejectBitcoinSend(handle, tokenAscii) }.getOrDefault(false)
+        } ?: false
+
     fun takeRecovery(handle: Long): CharArray? =
         if (isValidHandle(handle) && isAvailable) {
             runCatching { nativeTakeRecovery(handle) }.getOrNull()
@@ -627,6 +682,20 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeSynchronizeBitcoin(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativePrepareBitcoinSend(
+        handle: Long,
+        destinationUtf8: ByteArray,
+        amountSatsAscii: ByteArray,
+        maximumFeeSatsAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveBitcoinSend(handle: Long, actionTokenAscii: ByteArray): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRejectBitcoinSend(handle: Long, actionTokenAscii: ByteArray): Boolean
 
     @JvmStatic
     private external fun nativeSynchronizeHnsReads(handle: Long): ByteArray?

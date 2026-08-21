@@ -35,6 +35,24 @@ internal data class NativeBitcoinSynchronization(
     val requiredPeerCount: Int,
 )
 
+internal data class NativeBitcoinSendApproval(
+    val actionToken: NativeHnsValueActionToken,
+    val destination: String,
+    val amountSats: Long,
+    val feeSats: Long,
+    val maximumFeeSats: Long,
+    val expiresAtUnix: Long,
+) : AutoCloseable {
+    override fun close() = actionToken.close()
+}
+
+internal data class NativeBitcoinSendReceipt(
+    val txid: String,
+    val wtxid: String,
+    val attemptCount: Int,
+    val submittedAtUnix: Long?,
+)
+
 internal object NativeBitcoinWalletBundle {
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 16 * 1024
@@ -78,6 +96,36 @@ internal object NativeBitcoinWalletBundle {
             connectedPeerCount,
             requiredPeerCount,
         )
+    }
+
+    fun sendApproval(bundle: ByteArray): NativeBitcoinSendApproval? = parse(bundle) { object ->
+        if (
+            object.keySet() != setOf(
+                "actionToken", "destination", "amountSats", "feeSats", "maximumFeeSats", "expiresAtUnix",
+            )
+        ) return@parse null
+        val token = object.optString("actionToken", "").toByteArray(Charsets.US_ASCII)
+        val actionToken = NativeHnsValueActionToken.takeOwnership(token) ?: return@parse null
+        val destination = address(object.optString("destination", ""))
+        val amount = positiveLong(object, "amountSats")
+        val fee = positiveLong(object, "feeSats")
+        val maximumFee = positiveLong(object, "maximumFeeSats")
+        val expires = positiveLong(object, "expiresAtUnix")
+        if (destination == null || amount == null || fee == null || maximumFee == null || expires == null || fee > maximumFee) {
+            actionToken.close()
+            return@parse null
+        }
+        NativeBitcoinSendApproval(actionToken, destination, amount, fee, maximumFee, expires)
+    }
+
+    fun sendReceipt(bundle: ByteArray): NativeBitcoinSendReceipt? = parse(bundle) { object ->
+        if (object.keySet() != setOf("txid", "wtxid", "attemptCount", "submittedAtUnix")) return@parse null
+        val txid = hexHash(object.optString("txid", "")) ?: return@parse null
+        val wtxid = hexHash(object.optString("wtxid", "")) ?: return@parse null
+        val attempts = object.optInt("attemptCount", -1).takeIf { it in 1..16 } ?: return@parse null
+        val submitted = if (object.isNull("submittedAtUnix")) null else positiveLong(object, "submittedAtUnix")
+            ?: return@parse null
+        NativeBitcoinSendReceipt(txid, wtxid, attempts, submitted)
     }
 
     private inline fun <T> parse(bundle: ByteArray, project: (JSONObject) -> T?): T? = try {
@@ -132,6 +180,9 @@ internal object NativeBitcoinWalletBundle {
 
     private fun address(value: String): String? =
         value.takeIf { it.isNotBlank() && it.length <= 128 && it.all(Char::isLetterOrDigit) }
+
+    private fun hexHash(value: String): String? =
+        value.takeIf { it.length == 64 && it.all { character -> character in '0'..'9' || character in 'a'..'f' } }
 
     private fun nonnegativeLong(object: JSONObject, key: String): Long? =
         object.optLong(key, -1L).takeIf { it >= 0L }

@@ -596,6 +596,56 @@ impl AndroidWalletController {
         bundle
     }
 
+    fn prepare_bitcoin_send(
+        &mut self,
+        destination: String,
+        amount_sats: u64,
+        maximum_fee_sats: u64,
+    ) -> Option<Vec<u8>> {
+        let approval = match self {
+            Self::DirectValue { bitcoin, .. } => {
+                bitcoin.prepare_send(destination.as_str(), amount_sats, maximum_fee_sats)
+            }
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
+        }
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin send preparation failed: {error}"))
+        })
+        .ok()?;
+        let mut json = serde_json::to_vec(&approval).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        if bundle.is_none() {
+            let _ = self.lock();
+        }
+        bundle
+    }
+
+    fn approve_bitcoin_send(&mut self, action_token: &str) -> Option<Vec<u8>> {
+        let receipt = match self {
+            Self::DirectValue { bitcoin, .. } => bitcoin.approve_send(action_token),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
+        }
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin send approval failed: {error}"))
+        })
+        .ok()?;
+        let mut json = serde_json::to_vec(&receipt).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        if bundle.is_none() {
+            let _ = self.lock();
+        }
+        bundle
+    }
+
+    fn reject_bitcoin_send(&mut self, action_token: &str) -> bool {
+        match self {
+            Self::DirectValue { bitcoin, .. } => bitcoin.reject_send(action_token).is_ok(),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => false,
+        }
+    }
+
     fn direct_hns_rollback_floor(&self) -> Option<HnsLightFloor> {
         let Self::DirectValue { coordinator, .. } = self else {
             return None;
@@ -1549,6 +1599,23 @@ fn canonical_nonzero_base_units(mut bytes: Vec<u8>) -> Option<BaseUnits> {
         .and_then(|text| text.parse::<u128>().ok())
         .filter(|value| *value != 0)
         .map(BaseUnits::new);
+    bytes.fill(0);
+    value
+}
+
+fn canonical_nonzero_sats(mut bytes: Vec<u8>) -> Option<u64> {
+    let valid = !bytes.is_empty()
+        && bytes.len() <= 20
+        && bytes.iter().all(u8::is_ascii_digit)
+        && (bytes.len() == 1 || bytes.first() != Some(&b'0'));
+    if !valid {
+        bytes.fill(0);
+        return None;
+    }
+    let value = std::str::from_utf8(bytes.as_slice())
+        .ok()
+        .and_then(|text| text.parse::<u64>().ok())
+        .filter(|value| *value != 0);
     bytes.fill(0);
     value
 }
@@ -3728,6 +3795,92 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .ok()
     .flatten()
     .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareBitcoinSend(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    destination_utf8: JByteArray<'_>,
+    amount_sats_ascii: JByteArray<'_>,
+    maximum_fee_sats_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let destination = android_wallet_consumed_bytes(&mut env, &destination_utf8, 128)?;
+        let amount_sats = android_wallet_consumed_bytes(&mut env, &amount_sats_ascii, 20)?;
+        let maximum_fee_sats =
+            android_wallet_consumed_bytes(&mut env, &maximum_fee_sats_ascii, 20)?;
+        let mut destination = bounded_visible_ascii(destination, 128)?;
+        let amount_sats = canonical_nonzero_sats(amount_sats)?;
+        let maximum_fee_sats = canonical_nonzero_sats(maximum_fee_sats)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle =
+            controller.prepare_bitcoin_send(destination.take(), amount_sats, maximum_fee_sats)?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        if array.is_none() {
+            let _ = controller.lock();
+        }
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveBitcoinSend(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?;
+        let token = canonical_action_token(token)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.approve_bitcoin_send(token.0.as_str())?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        if array.is_none() {
+            let _ = controller.lock();
+        }
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectBitcoinSend(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?;
+        let token = canonical_action_token(token)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        Some(controller.reject_bitcoin_send(token.0.as_str()))
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(false)
+    .into()
 }
 
 #[unsafe(no_mangle)]
