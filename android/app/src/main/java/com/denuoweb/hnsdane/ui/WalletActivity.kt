@@ -341,6 +341,11 @@ class WalletActivity : ComponentActivity() {
                     ::showListOffersForm,
                 ))
                 addScreenRow(walletActionRow(
+                    R.string.row_wallet_pair_direct_denuo,
+                    R.string.row_wallet_pair_direct_denuo_summary,
+                    ::showPairDirectDenuoForm,
+                ))
+                addScreenRow(walletActionRow(
                     R.string.row_wallet_get_session,
                     R.string.row_wallet_get_session_summary,
                     ::showGetSessionForm,
@@ -1162,6 +1167,55 @@ class WalletActivity : ComponentActivity() {
         listOf(WalletActionInput(R.string.wallet_action_session_hint)),
     ) { values ->
         queryWalletShakedex(NativeShakedexQuery.GetSession(values[0]))
+    }
+
+    private fun showPairDirectDenuoForm() = showWalletActionForm(
+        R.string.row_wallet_pair_direct_denuo,
+        listOf(WalletActionInput(R.string.wallet_direct_denuo_endpoint_hint)),
+    ) { values ->
+        connectWalletOwnedDirectDenuo(values[0])
+    }
+
+    private fun connectWalletOwnedDirectDenuo(endpoint: String) {
+        val (lease, handle) = valueActionContext() ?: run {
+            shakedexQueryStatusView.text =
+                getString(R.string.wallet_shakedex_queries_requires_sync)
+            return
+        }
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_connecting_direct_denuo),
+                resetReads = false,
+            )
+        ) return
+        shakedexQueryStatusView.text = getString(R.string.wallet_direct_denuo_connecting)
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        thread(name = "hns-wallet-direct-denuo-connect") {
+            val connected = NativeWalletBridge.connectWalletOwnedDirectDenuo(handle, endpoint)
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                refreshControllerState(resetReads = false)
+                shakedexQueryStatusView.text = getString(
+                    if (connected) R.string.wallet_direct_denuo_connected
+                    else R.string.wallet_direct_denuo_connect_failed,
+                )
+            }
+        }
     }
 
     private fun invalidValueActionInput() {

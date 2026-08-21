@@ -276,6 +276,8 @@
     <string name="row_wallet_list_offers_summary" translatable="false">Read the current authenticated Denuo offer page and copy a listing ID.</string>
     <string name="row_wallet_get_session" translatable="false">Inspect trade session</string>
     <string name="row_wallet_get_session_summary" translatable="false">Refresh one local seller or buyer workflow by its session ID.</string>
+    <string name="row_wallet_pair_direct_denuo" translatable="false">Pair a direct Denuo wallet</string>
+    <string name="row_wallet_pair_direct_denuo_summary" translatable="false">Connect to an exact peer-shared IPv4:port or [IPv6]:port endpoint. This uses no marketplace relay or hostname lookup.</string>
 
     <string name="wallet_restore_phrase_hint" translatable="false">24-word recovery phrase</string>
     <string name="wallet_restore_phrase_required" translatable="false">Enter the complete 24-word recovery phrase.</string>
@@ -292,6 +294,7 @@
     <string name="wallet_status_broadcasting_send" translatable="false">Broadcasting approved HNS transaction…</string>
     <string name="wallet_status_preparing_value_action" translatable="false">Preparing native HNS value action…</string>
     <string name="wallet_status_querying_shakedex" translatable="false">Querying the authenticated Shakedex board…</string>
+    <string name="wallet_status_connecting_direct_denuo" translatable="false">Connecting direct Denuo peer…</string>
     <string name="wallet_status_not_created" translatable="false">No native wallet exists on this device.</string>
     <string name="wallet_status_native_unavailable" translatable="false">Native wallet core is unavailable.</string>
     <string name="wallet_status_recovery_required" translatable="false">Save the recovery phrase offline, then confirm. Leaving this screen discards the unconfirmed wallet.</string>
@@ -394,6 +397,10 @@
     <string name="wallet_shakedex_queries_loading" translatable="false">Refreshing the authenticated Shakedex board or session…</string>
     <string name="wallet_shakedex_queries_failed" translatable="false">The Shakedex query could not be completed from the current direct peer and wallet state.</string>
     <string name="wallet_shakedex_queries_result" translatable="false">Authenticated Shakedex result:&#10;%1$s</string>
+    <string name="wallet_direct_denuo_endpoint_hint" translatable="false">IPv4:port or [IPv6]:port</string>
+    <string name="wallet_direct_denuo_connecting" translatable="false">Negotiating a direct wallet-to-wallet Denuo board session…</string>
+    <string name="wallet_direct_denuo_connected" translatable="false">Direct Denuo wallet peer connected. Board exchange is running locally without a relay.</string>
+    <string name="wallet_direct_denuo_connect_failed" translatable="false">The exact direct endpoint was unavailable, incompatible, or rejected. The wallet remains unlocked and usable.</string>
     <string name="wallet_name_import_hint" translatable="false">Exact canonical Handshake name</string>
     <string name="wallet_name_import_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet before importing a name.</string>
     <string name="wallet_name_import_recovery_unconfirmed" translatable="false">Confirm the recovery backup before a trusted name backend can be installed.</string>

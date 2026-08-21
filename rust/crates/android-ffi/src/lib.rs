@@ -70,6 +70,7 @@ const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ANDROID_WALLET_NAME_BYTES: usize = 63;
 const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
+const MAX_ANDROID_DENUO_ENDPOINT_BYTES: usize = 128;
 const MAX_ANDROID_WALLET_BASE_UNITS_BYTES: usize = 39;
 const MAX_ANDROID_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
 const MAX_ANDROID_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
@@ -566,6 +567,62 @@ impl AndroidWalletController {
             Ok(None) => return false,
             Err(error) => {
                 android_log_error(&format!("wallet-owned Denuo peer rejected: {error}"));
+                return false;
+            }
+        };
+        if controller
+            .begin_wallet_owned_direct_shakedex(&mut peer)
+            .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+            .is_err()
+        {
+            return false;
+        }
+        *denuo_peer = Some(peer);
+        true
+    }
+
+    /// Connect one exact, user-paired direct board endpoint. The endpoint is
+    /// a transport locator, never a wallet, chain, listing, or name authority.
+    /// Hostnames are intentionally not accepted here: pairing uses an explicit
+    /// `IPv4:port` or `[IPv6]:port` locator and does not invoke any resolver.
+    fn connect_direct_denuo_peer(&mut self, address: SocketAddr) -> bool {
+        let Self::DirectValue {
+            coordinator,
+            controller,
+            denuo_peer,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        if denuo_peer.is_some() || controller.status().map_or(true, |status| status.locked) {
+            return false;
+        }
+        let now_unix = match HnsReadSystemClock.now_unix() {
+            Ok(now_unix) => now_unix,
+            Err(error) => {
+                android_log_error(&format!("wallet-owned Denuo clock unavailable: {error}"));
+                return false;
+            }
+        };
+        let height = match coordinator.rollback_floor() {
+            Ok(floor) => floor.height,
+            Err(error) => {
+                android_log_error(&format!("wallet-owned Denuo height unavailable: {error}"));
+                return false;
+            }
+        };
+        let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
+        config.connect_timeout = ANDROID_DIRECT_DENUO_SOCKET_TIMEOUT;
+        // Private addresses are admitted only through this exact, local-user
+        // pairing action. This permits LAN/ADB two-wallet qualification while
+        // ordinary discovery remains subject to the public-peer policy.
+        config.allow_private_addresses = true;
+        config.static_peers.push(address);
+        let mut peer = match HnsDirectDenuoPeer::connect(&config, address, height, now_unix) {
+            Ok(peer) => peer,
+            Err(error) => {
+                android_log_error(&format!("wallet-owned Denuo pair failed: {error}"));
                 return false;
             }
         };
@@ -1156,6 +1213,31 @@ fn android_wallet_optional_path(
         return None;
     }
     Some(Some(path))
+}
+
+fn android_wallet_denuo_endpoint(
+    env: &mut JNIEnv<'_>,
+    endpoint: &JString<'_>,
+) -> Option<SocketAddr> {
+    let endpoint = env
+        .get_string(endpoint)
+        .ok()?
+        .to_string_lossy()
+        .into_owned();
+    parse_android_wallet_denuo_endpoint(endpoint.as_str())
+}
+
+fn parse_android_wallet_denuo_endpoint(endpoint: &str) -> Option<SocketAddr> {
+    if endpoint.is_empty()
+        || endpoint.len() > MAX_ANDROID_DENUO_ENDPOINT_BYTES
+        || endpoint.bytes().any(|byte| !(0x21..=0x7e).contains(&byte))
+    {
+        return None;
+    }
+    endpoint
+        .parse::<SocketAddr>()
+        .ok()
+        .filter(|address| address.port() != 0)
 }
 
 fn read_exact_array<const N: usize>(reader: &mut impl Read) -> Result<[u8; N], &'static str> {
@@ -3353,6 +3435,31 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .into()
 }
 
+/// Connect an explicit user-paired `IPv4:port` or `[IPv6]:port` Denuo wallet
+/// endpoint. This JNI boundary deliberately accepts no hostname or relay URL.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeConnectWalletOwnedDirectDenuo(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    endpoint: JString<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(endpoint) = android_wallet_denuo_endpoint(&mut env, &endpoint) else {
+            return false;
+        };
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.connect_direct_denuo_peer(endpoint)
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeHasHnsReads(
     _env: JNIEnv<'_>,
@@ -3956,6 +4063,30 @@ mod tests {
         let uppercase_token = "AB".repeat(ANDROID_WALLET_ACTION_TOKEN_BYTES / 2);
         for invalid in ["ab", uppercase_token.as_str()] {
             assert!(canonical_action_token(invalid.as_bytes().to_vec()).is_none());
+        }
+    }
+
+    #[test]
+    fn direct_denuo_pairing_accepts_only_exact_socket_endpoints() {
+        assert_eq!(
+            parse_android_wallet_denuo_endpoint("198.51.100.7:12038"),
+            Some("198.51.100.7:12038".parse().expect("socket endpoint"))
+        );
+        assert_eq!(
+            parse_android_wallet_denuo_endpoint("[2001:db8::7]:12038"),
+            Some("[2001:db8::7]:12038".parse().expect("socket endpoint"))
+        );
+        for invalid in [
+            "wallet.example:12038",
+            "198.51.100.7:0",
+            "198.51.100.7",
+            " 198.51.100.7:12038",
+            "198.51.100.7:12038\n",
+        ] {
+            assert!(
+                parse_android_wallet_denuo_endpoint(invalid).is_none(),
+                "accepted invalid pairing endpoint {invalid:?}"
+            );
         }
     }
 

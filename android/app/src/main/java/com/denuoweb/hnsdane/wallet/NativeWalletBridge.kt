@@ -184,6 +184,14 @@ internal object NativeWalletBridge {
         isValidHandle(handle) && isAvailable &&
             runCatching { nativeServiceWalletOwnedDirectDenuo(handle) }.getOrDefault(false)
 
+    /**
+     * Opens one exact user-paired direct board socket. The native boundary
+     * accepts only IPv4:port or [IPv6]:port and never resolves a hostname.
+     */
+    fun connectWalletOwnedDirectDenuo(handle: Long, endpoint: String): Boolean =
+        isValidHandle(handle) && isAvailable && endpoint.length in 1..128 &&
+            runCatching { nativeConnectWalletOwnedDirectDenuo(handle, endpoint) }.getOrDefault(false)
+
     /** Consumes one exact UTF-8 name for the trusted native read controller only. */
     fun importHnsNameExactText(handle: Long, exactUtf8: ByteArray): NativeWalletName? = try {
         if (
@@ -552,6 +560,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeServiceWalletOwnedDirectDenuo(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeConnectWalletOwnedDirectDenuo(handle: Long, endpoint: String): Boolean
 
     @JvmStatic
     private external fun nativeHasHnsReads(handle: Long): Boolean
