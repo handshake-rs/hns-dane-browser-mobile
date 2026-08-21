@@ -224,7 +224,7 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => (controller.status().ok()?, false, false, false),
             Self::Reads(controller) => (controller.status().ok()?, true, false, false),
             Self::Value(controller) => (controller.status().ok()?, true, true, true),
-            Self::DirectValue { controller, .. } => (controller.status().ok()?, true, true, false),
+            Self::DirectValue { controller, .. } => (controller.status().ok()?, true, true, true),
             Self::Failed => return None,
         };
         let active_wallet = status
@@ -421,7 +421,7 @@ impl AndroidWalletController {
             }
         };
         let backend = coordinator.backend().clone();
-        match lifecycle.into_hns_value(database_key, backend, None) {
+        match lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend) {
             Ok(controller) => {
                 *self = Self::DirectValue {
                     coordinator,
