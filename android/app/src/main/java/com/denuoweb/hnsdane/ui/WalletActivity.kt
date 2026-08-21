@@ -600,8 +600,18 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
-                publishWalletController(restored, reopenedDurable = false)
-                refreshControllerState()
+                // A restored wallet is now durable, but the just-restored
+                // lifecycle controller has deliberately never been reopened
+                // from that durable store. Retire it and reopen through the
+                // normal persistent path so the direct, peer-backed HNS
+                // controller can be installed immediately. Without this
+                // transition, the user had to leave and reopen the screen
+                // before a balance snapshot or guarded HNS send was possible.
+                if (!destroyWalletController(restored)) {
+                    showControllerRetirementUncertain()
+                    return@runOnUiThread
+                }
+                openExistingWallet()
             }
         }
     }
@@ -626,8 +636,17 @@ class WalletActivity : ComponentActivity() {
                 recoveryView.clearSecret()
                 if (stored) {
                     if (lease != null && currentStorageLease() === lease) {
-                        attemptReadBootstrap(lease)
-                        refreshControllerState()
+                        // The recovery confirmation made this wallet durable.
+                        // Reopen the controller from that exact durable state
+                        // before installing direct HNS reads/value authority.
+                        // This preserves the durable-open admission boundary
+                        // while making first funding usable without an app
+                        // restart.
+                        if (destroyController()) {
+                            openExistingWallet()
+                        } else {
+                            showControllerRetirementUncertain()
+                        }
                     } else {
                         destroyController()
                         releaseStorageLease(lease)
@@ -688,6 +707,13 @@ class WalletActivity : ComponentActivity() {
                     localReceiveTarget?.let(::renderLocalPaymentReceiveTarget)
                     if (NativeWalletBridge.directHnsRollbackFloor(handle) != null) {
                         startWalletOwnedDirectDenuoWorker(handle, lease, epoch)
+                    }
+                    // A direct controller is installed locked. Once the user
+                    // has explicitly unlocked it, take one bounded, verified
+                    // snapshot so the confirmed spendable balance is visible
+                    // without requiring a separate, unexplained refresh.
+                    if (NativeWalletBridge.hasHnsReads(handle)) {
+                        synchronizeWalletReads()
                     }
                 }
             }
@@ -1119,6 +1145,13 @@ class WalletActivity : ComponentActivity() {
         val hint: Int,
         val numeric: Boolean = false,
         val initial: String = "",
+    )
+
+    /** One validated public HNS payment request retained only across its sync/review flow. */
+    private data class WalletHnsSendInput(
+        val recipient: String,
+        val amountBaseUnits: String,
+        val maximumFeeBaseUnits: String,
     )
 
     private fun walletActionRow(title: Int, summary: Int, action: () -> Unit): View =
@@ -1743,19 +1776,32 @@ class WalletActivity : ComponentActivity() {
     private fun prepareWalletSend() {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
-        val snapshot = latestReadSnapshot
+        val request = walletHnsSendInput() ?: run {
+            sendStatusView.text = getString(R.string.wallet_send_invalid)
+            return
+        }
         val status = NativeWalletBridge.status(handle)
         if (
-            handle == INVALID_HANDLE || snapshot == null || status == null || status.locked ||
+            handle == INVALID_HANDLE || status == null || status.locked ||
             !NativeWalletBridge.hasHnsValue(handle) ||
-            latestReadSnapshotHandle != handle ||
-            latestReadSnapshotAuthorityGeneration != walletAuthorityGeneration ||
-            latestReadSnapshotEpoch != lifecycleEpoch ||
             unconfirmedDatabaseKey != null
         ) {
             sendStatusView.text = getString(R.string.wallet_send_requires_sync)
             return
         }
+
+        if (hasCurrentWalletReadSnapshot(handle)) {
+            prepareWalletSendFromCurrentSnapshot(lease, handle, request)
+        } else {
+            // A first receive or a resumed wallet commonly has no snapshot
+            // yet. Review send must make that state visible and obtain one
+            // bounded verified snapshot itself, rather than silently doing
+            // nothing and forcing the user to discover a separate refresh.
+            synchronizeBeforePreparingWalletSend(lease, handle, request)
+        }
+    }
+
+    private fun walletHnsSendInput(): WalletHnsSendInput? {
         val recipient = sendRecipientInput.text?.toString().orEmpty()
         val amountBaseUnits = sendAmountInput.text?.let(::parsePositiveHnsToBaseUnits)
         val maximumFeeBaseUnits =
@@ -1764,8 +1810,74 @@ class WalletActivity : ComponentActivity() {
             recipient.toByteArray(Charsets.UTF_8).size !in 1..MAX_SEND_RECIPIENT_BYTES ||
             recipient.any { it.code !in 0x21..0x7e } ||
             amountBaseUnits == null || maximumFeeBaseUnits == null
+        ) return null
+        return WalletHnsSendInput(recipient, amountBaseUnits, maximumFeeBaseUnits)
+    }
+
+    private fun hasCurrentWalletReadSnapshot(handle: Long): Boolean =
+        latestReadSnapshot != null &&
+            latestReadSnapshotHandle == handle &&
+            latestReadSnapshotAuthorityGeneration == walletAuthorityGeneration &&
+            latestReadSnapshotEpoch == lifecycleEpoch
+
+    private fun synchronizeBeforePreparingWalletSend(
+        lease: WalletStorageOwnershipGate.Lease,
+        handle: Long,
+        request: WalletHnsSendInput,
+    ) {
+        if (!NativeWalletBridge.hasHnsReads(handle)) {
+            sendStatusView.text = getString(R.string.wallet_send_requires_sync)
+            return
+        }
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_syncing_reads),
+                resetReads = false,
+            )
+        ) return
+        sendStatusView.text = getString(R.string.wallet_send_syncing_before_review)
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        thread(name = "hns-wallet-send-sync") {
+            val snapshot = synchronizeHnsReadsWithRollbackFloor(handle)
+            runOnUiThread {
+                val mayPublish = walletReadMayPublish(
+                    expectedEpoch = epoch,
+                    currentEpoch = lifecycleEpoch,
+                    foreground = foreground,
+                    ownsCurrentLease = currentStorageLease() === lease,
+                    expectedHandle = handle,
+                    currentHandle = walletHandle,
+                    expectedAuthorityGeneration = authorityGeneration,
+                    currentAuthorityGeneration = walletAuthorityGeneration,
+                ) && operationIsCurrent(epoch, lease)
+                if (!mayPublish) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                if (snapshot == null) {
+                    refreshControllerState()
+                    sendStatusView.text = getString(R.string.wallet_send_sync_failed)
+                } else {
+                    renderReadSnapshot(snapshot)
+                    prepareWalletSendFromCurrentSnapshot(lease, handle, request)
+                }
+            }
+        }
+    }
+
+    private fun prepareWalletSendFromCurrentSnapshot(
+        lease: WalletStorageOwnershipGate.Lease,
+        handle: Long,
+        request: WalletHnsSendInput,
+    ) {
+        val status = NativeWalletBridge.status(handle)
+        if (
+            status == null || status.locked || !NativeWalletBridge.hasHnsValue(handle) ||
+            !hasCurrentWalletReadSnapshot(handle) || unconfirmedDatabaseKey != null
         ) {
-            sendStatusView.text = getString(R.string.wallet_send_invalid)
+            sendStatusView.text = getString(R.string.wallet_send_requires_sync)
             return
         }
         if (
@@ -1781,14 +1893,14 @@ class WalletActivity : ComponentActivity() {
         thread(name = "hns-wallet-send-prepare") {
             val approval = NativeWalletBridge.prepareHnsSend(
                 handle = handle,
-                recipientUtf8 = recipient.toByteArray(Charsets.UTF_8),
-                amountBaseUnitsAscii = amountBaseUnits.toByteArray(Charsets.US_ASCII),
-                maximumFeeBaseUnitsAscii = maximumFeeBaseUnits.toByteArray(Charsets.US_ASCII),
+                recipientUtf8 = request.recipient.toByteArray(Charsets.UTF_8),
+                amountBaseUnitsAscii = request.amountBaseUnits.toByteArray(Charsets.US_ASCII),
+                maximumFeeBaseUnitsAscii = request.maximumFeeBaseUnits.toByteArray(Charsets.US_ASCII),
             )
             val exact = approval?.takeIf {
-                it.recipient == recipient &&
-                    it.amountBaseUnits == amountBaseUnits &&
-                    it.maximumFeeBaseUnits == maximumFeeBaseUnits
+                it.recipient == request.recipient &&
+                    it.amountBaseUnits == request.amountBaseUnits &&
+                    it.maximumFeeBaseUnits == request.maximumFeeBaseUnits
             }
             if (approval != null && exact == null) {
                 NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)

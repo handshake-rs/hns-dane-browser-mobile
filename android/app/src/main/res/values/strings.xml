@@ -360,6 +360,8 @@
     <string name="wallet_send_locked" translatable="false">Unlock and synchronize the wallet before sending HNS.</string>
     <string name="wallet_send_unavailable" translatable="false">Guarded HNS sends are unavailable until the wallet-owned verified peer and native value controller are ready.</string>
     <string name="wallet_send_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before preparing a send.</string>
+    <string name="wallet_send_syncing_before_review" translatable="false">Synchronizing a fresh verified wallet snapshot before reviewing this send…</string>
+    <string name="wallet_send_sync_failed" translatable="false">The wallet could not obtain a verified snapshot, so no send was prepared.</string>
     <string name="wallet_send_ready" translatable="false">Ready to prepare a guarded HNS send from the snapshot at height %1$d.</string>
     <string name="wallet_send_invalid" translatable="false">Enter an exact visible HNS address, a positive amount, and a positive maximum fee. HNS amounts support at most 6 decimal places.</string>
     <string name="wallet_send_preparing" translatable="false">Preparing and validating the exact transaction summary from the locally verified wallet state…</string>
