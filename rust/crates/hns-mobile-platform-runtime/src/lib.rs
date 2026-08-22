@@ -15519,7 +15519,11 @@ fn classify_sync_status(
         } else {
             "up_to_date"
         }
-    } else if attempted > 0 && failed == attempted {
+    // `attempted` is the number of scheduler passes, whereas `failed` counts
+    // individual peer failures. A single pass can therefore fail several
+    // peers. Do not let that dimensional mismatch label an all-failed pass as
+    // merely "attempted" and accidentally retain a stale tip as current.
+    } else if attempted > 0 && successful == 0 && accepted == 0 && failed > 0 {
         "peer_failed"
     } else if attempted > 0 {
         "attempted"
@@ -21236,7 +21240,7 @@ mod tests {
         );
         assert_eq!(
             classify_sync_status(4, 0, 0, 2, false, Some(0), Some(335_684)),
-            "attempted",
+            "peer_failed",
         );
         assert_eq!(
             classify_sync_status(0, 0, 0, 0, true, None, None),

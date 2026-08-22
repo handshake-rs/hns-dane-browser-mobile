@@ -61,7 +61,13 @@ data class HnsSyncProgress(
             val target = effectiveTargetHeight ?: return false
             val lag = lagBlocks ?: return false
             val threshold = freshnessThresholdBlocks ?: return false
+            // A scheduler pass can attempt multiple peer endpoints. A result
+            // with no successful peer is a transport failure, not evidence
+            // that the retained local tip is current.
+            val attemptedWithNoSuccessfulPeer =
+                status == "attempted" && (successful ?: 0L) == 0L
             return status in CURRENT_STATUSES &&
+                !attemptedWithNoSuccessfulPeer &&
                 freshness == "current" &&
                 best > 0L &&
                 target >= best &&

@@ -138,11 +138,12 @@ const ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
 /// install, while the cap prevents a JNI read operation from becoming an
 /// unbounded network task.
 const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
-/// A header peer can legitimately close after answering one large batch. Give
-/// a foreground sync a small, bounded opportunity to replace those transport
-/// sessions and retry the exact same local agreement policy before presenting
-/// a resumable catch-up state to the user.
-const DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC: usize = 2;
+/// A header peer can legitimately close after answering one large batch. The
+/// public pool holds 12 peers and each agreement round uses exactly two
+/// independent views, so allow six bounded rounds (the initial attempt plus
+/// five replacements) to rotate through that whole pool before presenting a
+/// resumable catch-up state to the user.
+const DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC: usize = 5;
 /// Each direct scan call verifies at most 2,000 wallet-filtered blocks. Keep
 /// first-run catch-up self-contained without allowing an unbounded JNI call.
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
@@ -5320,6 +5321,16 @@ mod tests {
         let regtest = android_direct_hns_peer_config(HnsNetwork::Regtest);
         assert_eq!(regtest.target_peers, 1);
         assert_eq!(regtest.minimum_block_views, 1);
+    }
+
+    #[test]
+    fn direct_hns_header_recovery_budget_covers_the_public_peer_pool() {
+        let public_quorum = android_direct_hns_peer_config(HnsNetwork::Mainnet).minimum_block_views;
+        assert_eq!(public_quorum, 2);
+        assert_eq!(
+            (DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC + 1) * public_quorum,
+            ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS,
+        );
     }
 
     #[test]

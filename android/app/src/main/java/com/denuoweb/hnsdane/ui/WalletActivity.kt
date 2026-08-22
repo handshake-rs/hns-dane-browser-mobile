@@ -3674,7 +3674,7 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_DENUO_LISTEN_PORT = 12_038
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC = 32
-        const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 2
+        const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
         const val NUL_CHARACTER = "\u0000"
     }
 }

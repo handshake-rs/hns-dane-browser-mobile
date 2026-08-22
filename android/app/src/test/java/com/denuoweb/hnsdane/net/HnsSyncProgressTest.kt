@@ -136,6 +136,17 @@ class HnsSyncProgressTest {
     }
 
     @Test
+    fun attemptedPassWithNoSuccessfulPeerCannotRetainCurrentness() {
+        val progress = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"attempted","attempted":1,"successful":0,"accepted":0,"failed":4,"bestHeight":343703,"effectiveTargetHeight":343703,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":343681,"localTreeRootHeight":343681,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":10,"targetEvidenceExpired":false}""",
+        )
+
+        assertTrue(progress.isAuthorityReady)
+        assertFalse(progress.isCurrent)
+        assertTrue(progress.shouldShowProgress)
+    }
+
+    @Test
     fun tipCanLagWhileTheLatestCommittedTreeRootRemainsReady() {
         val progress = HnsSyncProgress.fromJson(
             """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"syncing","accepted":16,"bestHeight":335670,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":14,"freshness":"stale","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
