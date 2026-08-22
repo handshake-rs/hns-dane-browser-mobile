@@ -266,7 +266,6 @@
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">עַל. ראיות הוכחה ל-HNS הנישאות בתעודה עשויות לספק את DANE כשהן תקפות.</string>
     <string name="settings_stateless_dane_off">כבוי. הוכחת HNS ו-TLSA משתמשות בנתיב הפותר החי.</string>
-    <string name="settings_stateless_dane_certificates">תעודות DANE חסרות אזרחות ניסיוניות</string>
     <string name="settings_theme_dialog_title">ערכת נושא</string>
     <string name="settings_theme_set">ערכת הנושא הוגדרה ל-%1$s.</string>
     <string name="theme_choice_dark">כהה</string>

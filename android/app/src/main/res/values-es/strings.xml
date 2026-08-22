@@ -260,7 +260,6 @@
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">En. La evidencia de prueba HNS que porta el certificado puede satisfacer al DANE cuando sea válida.</string>
     <string name="settings_stateless_dane_off">Apagado. La prueba HNS y la evidencia TLSA utilizan la ruta de resolución en vivo.</string>
-    <string name="settings_stateless_dane_certificates">Certificados experimentales apátridas del DANE</string>
     <string name="settings_theme_dialog_title">Tema</string>
     <string name="settings_theme_set">Tema cambiado a %1$s.</string>
     <string name="theme_choice_dark">Oscuro</string>

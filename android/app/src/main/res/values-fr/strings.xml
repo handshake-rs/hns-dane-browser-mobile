@@ -260,7 +260,6 @@
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">Sur. Les preuves HNS portées par le certificat peuvent satisfaire DANE lorsqu\'elles sont valides.</string>
     <string name="settings_stateless_dane_off">Désactivé. La preuve HNS et la preuve TLSA utilisent le chemin du résolveur en direct.</string>
-    <string name="settings_stateless_dane_certificates">Certificats DANE apatrides expérimentaux</string>
     <string name="settings_theme_dialog_title">Thème</string>
     <string name="settings_theme_set">Thème défini sur %1$s.</string>
     <string name="theme_choice_dark">Sombre</string>

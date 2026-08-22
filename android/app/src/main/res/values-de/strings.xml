@@ -260,7 +260,6 @@
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">An. Ein mit einem Zertifikat versehener HNS-Nachweis kann DANE erfüllen, sofern er gültig ist.</string>
     <string name="settings_stateless_dane_off">Aus. HNS-Beweis und TLSA-Beweis verwenden den Live-Resolver-Pfad.</string>
-    <string name="settings_stateless_dane_certificates">Experimentelle zustandslose DANE-Zertifikate</string>
     <string name="settings_theme_dialog_title">Design</string>
     <string name="settings_theme_set">Design auf %1$s gesetzt.</string>
     <string name="theme_choice_dark">Dunkel</string>

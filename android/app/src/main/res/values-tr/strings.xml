@@ -260,7 +260,6 @@
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Açık. Sertifikayla taşınan HNS kanıtı, geçerli olduğunda DANE\'yi karşılayabilir.</string>
 <string name="settings_stateless_dane_off">Kapalı. HNS kanıtı ve TLSA kanıtı canlı çözümleyici yolunu kullanır.</string>
-<string name="settings_stateless_dane_certificates">Deneysel durum bilgisiz DANE sertifikaları</string>
 <string name="settings_theme_dialog_title">Tema</string>
 <string name="settings_theme_set">Tema %1$s olarak ayarlandı.</string>
 <string name="theme_choice_dark">Karanlık</string>

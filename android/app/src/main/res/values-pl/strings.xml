@@ -272,7 +272,6 @@
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Włączone. Dowód HNS znajdujący się w certyfikacie może spełniać wymagania DANE, jeśli jest ważny.</string>
 <string name="settings_stateless_dane_off">Wyłączone. Dowód HNS i dowód TLSA wykorzystują ścieżkę aktywnego modułu rozpoznawania nazw.</string>
-<string name="settings_stateless_dane_certificates">Eksperymentalne bezstanowe certyfikaty DANE</string>
 <string name="settings_theme_dialog_title">Motyw</string>
 <string name="settings_theme_set">Motyw ustawiony na %1$s.</string>
 <string name="theme_choice_dark">Ciemny</string>

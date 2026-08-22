@@ -15,7 +15,7 @@ internal class HnsNativeDownloadFetcher(
     private val namespacePolicy: BrowserNamespacePolicy,
     private val strictHnsMode: () -> Boolean = { true },
     private val dohResolverUrl: () -> String = { "" },
-    private val statelessDaneCertificates: () -> Boolean = { false },
+    private val statelessDaneCertificates: () -> Boolean = { true },
     private val experimentalP2pDnsRelay: () -> Boolean = { false },
     private val legacyHnsDohCompatibility: () -> Boolean = { false },
     private val handshakeNetwork: () -> String = { DEFAULT_NETWORK },

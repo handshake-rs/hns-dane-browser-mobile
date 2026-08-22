@@ -499,7 +499,7 @@ impl RuntimePolicy {
             hns_doh_resolver: None,
             experimental_p2p_dns_relay: false,
             legacy_hns_doh_compatibility: false,
-            stateless_dane_certificates: false,
+            stateless_dane_certificates: true,
         }
     }
 
@@ -4264,10 +4264,12 @@ impl BrowserRuntime {
             header_text.push_str(&endpoint);
             header_text.push_str("\r\n");
         }
-        if policy.stateless_dane_certificates {
-            header_text.push_str(HNS_GATEWAY_STATELESS_DANE_HEADER);
-            header_text.push_str(": 1\r\n");
-        }
+        header_text.push_str(HNS_GATEWAY_STATELESS_DANE_HEADER);
+        header_text.push_str(if policy.stateless_dane_certificates {
+            ": 1\r\n"
+        } else {
+            ": 0\r\n"
+        });
         header_text.push_str(HNS_GATEWAY_NETWORK_HEADER);
         header_text.push_str(": ");
         header_text.push_str(self.inner.configuration.network.as_str());
@@ -5035,16 +5037,26 @@ impl BrowserRuntime {
                 evidence.hns_proof = verified;
                 evidence.chain_current = verified;
                 if uses_tls {
-                    if !result.resolution_secure
-                        || !result.tls_inspection_present
-                        || result.origin_request.tls.browser_tls_decision.is_some()
-                        || !result.origin_request.tls.dnssec_secure
-                        || result.origin_request.tls.tlsa_records.is_empty()
-                        || result.origin_request.tls.tlsa_source
-                            != Some(TlsaRecordSource::NativeTlsa)
-                        || !matches!(result.dane_decision, DaneDecision::Matched(_))
-                    {
-                        return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                    match (selected_plan.tls_policy(), result.dane_decision) {
+                        (TlsTrustPolicy::Dane, DaneDecision::Matched(_))
+                            if result.resolution_secure
+                                && result.tls_inspection_present
+                                && result.origin_request.tls.browser_tls_decision.is_none()
+                                && result.origin_request.tls.dnssec_secure
+                                && !result.origin_request.tls.tlsa_records.is_empty()
+                                && result.origin_request.tls.tlsa_source
+                                    == Some(TlsaRecordSource::NativeTlsa) => {}
+                        (TlsTrustPolicy::StatelessDane, DaneDecision::StatelessMatched(_))
+                            if result.resolution_secure
+                                && result.tls_inspection_present
+                                && result.origin_request.tls.browser_tls_decision.is_none()
+                                && result.origin_request.tls.dnssec_secure
+                                && result.origin_request.tls.tlsa_records.is_empty()
+                                && result.origin_request.tls.tlsa_source.is_none()
+                                && result.origin_request.tls.stateless_dane.enabled => {}
+                        _ => {
+                            return Err(CanonicalStatusUnavailableReason::EvidenceUnavailable);
+                        }
                     }
                     evidence.dnssec = verified;
                     evidence.tlsa = verified;
@@ -7723,6 +7735,12 @@ fn build_present_root_plan(
 
     let (service, tlsa_records, tls_policy) = if query.scheme().uses_tls() {
         let mut selected = None;
+        // Preserve the preferred authenticated HNS service as a stateless
+        // candidate while continuing to look for ordinary DNSSEC TLSA data on
+        // lower-priority compatible services. A normal TLSA plan remains the
+        // preferred result; this candidate is used only when every service has
+        // authenticated TLSA absence.
+        let mut stateless_candidate = None;
         for service in services {
             let transport = match service.transport() {
                 ServiceTransport::Tcp => TlsaTransport::Tcp,
@@ -7865,9 +7883,14 @@ fn build_present_root_plan(
                     TlsTrustPolicy::Dane
                 }
                 (Namespace::Hns, true, true) => {
-                    // A securely authenticated HNS TLSA absence is the only
-                    // condition that permits trying the next protocol
-                    // advertised by this same HTTPS/SVCB service.
+                    stateless_candidate.get_or_insert((
+                        service.clone(),
+                        candidate_tlsa_records,
+                        TlsTrustPolicy::StatelessDane,
+                    ));
+                    // A later compatible service can still carry ordinary
+                    // DNSSEC TLSA data, which takes precedence over the
+                    // certificate-carried fallback.
                     continue;
                 }
                 (Namespace::Icann, true, true) => TlsTrustPolicy::WebPkiAuthenticatedAbsence,
@@ -7882,12 +7905,12 @@ fn build_present_root_plan(
             selected = Some((service, candidate_tlsa_records, candidate_policy));
             break;
         }
-        selected.ok_or_else(|| {
+        selected.or(stateless_candidate).ok_or_else(|| {
             (
-                // Secure address evidence proves namespace presence. If every
-                // advertised protocol has authenticated TLSA absence, fail
-                // the HNS root instead of converting it into namespace
-                // absence and silently selecting ICANN.
+                // Secure address evidence proves namespace presence. A
+                // missing authenticated TLSA candidate is retained above only
+                // for StatelessDane; every other unusable service still fails
+                // this root rather than silently selecting ICANN.
                 RootFailure::new(namespace, query.clone(), RootFailureKind::Unsupported, None),
                 answers.clone(),
             )
@@ -12523,7 +12546,10 @@ fn parse_gateway_headers(header_text: &str) -> Result<ParsedGatewayHeaders, &'st
     let mut hns_doh_resolver = None;
     let mut saw_hns_doh_resolver = false;
     let mut experimental_p2p_dns_relay = false;
-    let mut stateless_dane_certificates = false;
+    // Stateless DANE is normal browser behavior. Retain an explicit `0`
+    // header as an escape hatch for callers that need it disabled, while
+    // older in-process callers without the header inherit the secure default.
+    let mut stateless_dane_certificates = true;
     let mut network = NetworkKind::Mainnet;
     for line in header_text.split("\r\n").filter(|line| !line.is_empty()) {
         let Some(separator) = line.find(':') else {
@@ -12554,9 +12580,7 @@ fn parse_gateway_headers(header_text: &str) -> Result<ParsedGatewayHeaders, &'st
             continue;
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_STATELESS_DANE_HEADER) {
-            if value == "1" || value.eq_ignore_ascii_case("true") {
-                stateless_dane_certificates = true;
-            }
+            stateless_dane_certificates = value == "1" || value.eq_ignore_ascii_case("true");
             continue;
         }
         if name.eq_ignore_ascii_case(HNS_GATEWAY_NETWORK_HEADER) {
@@ -21600,6 +21624,16 @@ mod tests {
             )
             .is_err()
         );
+        assert!(
+            parse_gateway_headers("Accept: text/html\r\n")
+                .unwrap()
+                .stateless_dane_certificates
+        );
+        assert!(
+            !parse_gateway_headers("X-HNS-Browser-Stateless-DANE: 0\r\n")
+                .unwrap()
+                .stateless_dane_certificates
+        );
     }
 
     #[test]
@@ -25377,7 +25411,7 @@ mod tests {
     }
 
     #[test]
-    fn hns_address_presence_without_required_tlsa_is_a_root_failure() {
+    fn hns_authenticated_tlsa_absence_retains_a_stateless_dane_plan() {
         let now = now_unix_seconds();
         let host = CanonicalHost::parse("origin.welcome").unwrap();
         let query = OriginQuery::new(
@@ -25457,7 +25491,7 @@ mod tests {
                 },
             )
             .unwrap();
-        let delegated = match build_present_root_plan(
+        let delegated = build_present_root_plan(
             &resolver,
             Namespace::Hns,
             &query,
@@ -25465,11 +25499,13 @@ mod tests {
             now,
             &delegated_evidence,
             &IcannEvidenceRecorder::default(),
-        ) {
-            Ok(_) => panic!("secure HNS address presence without TLSA must fail classification"),
-            Err(error) => error,
+        )
+        .unwrap();
+        let RootLookup::Present(delegated_plan) = delegated.lookup else {
+            panic!("authenticated HNS TLSA absence must retain a stateless DANE plan");
         };
-        assert_eq!(delegated.0.kind(), RootFailureKind::Unsupported);
+        assert_eq!(delegated_plan.tls_policy(), TlsTrustPolicy::StatelessDane);
+        assert!(delegated_plan.tlsa_records().is_empty());
 
         let native_evidence = HnsProofEvidenceRecorder::default();
         native_evidence

@@ -284,7 +284,6 @@
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">على. قد ترضي أدلة إثبات HNS المحملة بالشهادة DANE عندما تكون صالحة.</string>
     <string name="settings_stateless_dane_off">عن. يستخدم دليل HNS وأدلة TLSA مسار المحلل المباشر.</string>
-    <string name="settings_stateless_dane_certificates">شهادات DANE التجريبية عديمة الجنسية</string>
     <string name="settings_theme_dialog_title">السمة</string>
     <string name="settings_theme_set">تم تعيين السمة إلى %1$s.</string>
     <string name="theme_choice_dark">داكن</string>

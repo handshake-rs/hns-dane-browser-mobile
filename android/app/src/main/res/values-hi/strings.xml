@@ -260,7 +260,6 @@
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">पर. प्रमाणपत्र-युक्त HNS प्रमाण साक्ष्य मान्य होने पर DANE को संतुष्ट कर सकता है।</string>
 <string name="settings_stateless_dane_off">बंद. HNS प्रमाण और TLSA प्रमाण लाइव रिज़ॉल्वर पथ का उपयोग करते हैं।</string>
-<string name="settings_stateless_dane_certificates">प्रायोगिक स्टेटलेस DANE प्रमाणपत्र</string>
 <string name="settings_theme_dialog_title">थीम</string>
 <string name="settings_theme_set">थीम %1$s पर सेट है.</string>
 <string name="theme_choice_dark">अंधेरा</string>

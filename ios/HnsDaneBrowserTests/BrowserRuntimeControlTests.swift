@@ -1122,14 +1122,18 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
     }
 
-    func testPolicyDefaultsRequireRequesterRelayOptIn() {
-        let policy = BrowserRuntimePolicyStore(defaults: defaults).load()
+    func testPolicyDefaultsEnableStatelessDANEAndRequireRequesterRelayOptIn() {
+        let store = BrowserRuntimePolicyStore(defaults: defaults)
+        let policy = store.load()
 
         XCTAssertEqual(policy.resolutionMode, .strict)
         XCTAssertNil(policy.hnsDohResolver)
-        XCTAssertFalse(policy.statelessDANECertificates)
+        XCTAssertTrue(policy.statelessDANECertificates)
         XCTAssertFalse(policy.experimentalP2PDNSRelay)
         XCTAssertFalse(policy.legacyHNSDoHCompatibility)
+
+        store.save(BrowserRuntimePolicy(statelessDANECertificates: false))
+        XCTAssertFalse(store.load().statelessDANECertificates)
     }
 
     func testFreshNativeRuntimeAcceptsZeroRevisionForDefaultPolicy() throws {
@@ -2190,7 +2194,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
-    func testStatelessDANEIsAToggleWithAndroidExplanations() throws {
+    func testStatelessDANEIsAnEnabledByDefaultSecurityToggle() throws {
         let settings = BrowserSettingsViewController(
             destination: .handshake,
             policy: .default,
@@ -2203,15 +2207,15 @@ final class BrowserRuntimeControlTests: XCTestCase {
         var content = try XCTUnwrap(cell.contentConfiguration as? UIListContentConfiguration)
         let toggle = try XCTUnwrap(cell.accessoryView as? UISwitch)
         XCTAssertEqual(cell.accessibilityIdentifier, "settings.handshake.stateless-dane-certificates")
-        XCTAssertEqual(content.text, "DANE")
+        XCTAssertEqual(content.text, "Stateless DANE")
         XCTAssertEqual(
             content.secondaryText,
-            "Off. Browser requests use the retained dual-root DNSSEC and TLSA plan."
+            "On by default. Normal DNSSEC and TLSA validation remains authoritative; a stateless HNS certificate is accepted only when its proof, DNSSEC chain, and TLSA evidence all validate."
         )
-        XCTAssertFalse(toggle.isOn)
+        XCTAssertTrue(toggle.isOn)
 
         settings.update(
-            policy: BrowserRuntimePolicy(statelessDANECertificates: true),
+            policy: BrowserRuntimePolicy(statelessDANECertificates: false),
             runtimeControlsAreAvailable: true,
             isOperationInFlight: false
         )
@@ -2219,9 +2223,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
         content = try XCTUnwrap(cell.contentConfiguration as? UIListContentConfiguration)
         XCTAssertEqual(
             content.secondaryText,
-            "On. Legacy certificate-carried evidence cannot be combined with retained dual-root plans; prepared browser requests fail closed."
+            "Off. Stateless-only HNS sites fail closed. Sites with normal DNSSEC and TLSA records continue to work."
         )
-        XCTAssertTrue(try XCTUnwrap(cell.accessoryView as? UISwitch).isOn)
+        XCTAssertFalse(try XCTUnwrap(cell.accessoryView as? UISwitch).isOn)
     }
 
     @MainActor

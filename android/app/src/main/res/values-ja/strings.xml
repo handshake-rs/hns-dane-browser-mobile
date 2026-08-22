@@ -260,7 +260,6 @@
     <string name="settings_hns_network_summary">%1$s。 %2$s</string>
     <string name="settings_stateless_dane_on">の上。証明書に含まれる HNS 証明証拠は、有効であれば DANE を満たす可能性があります。</string>
     <string name="settings_stateless_dane_off">オフ。 HNS 証明と TLSA 証拠はライブ リゾルバー パスを使用します。</string>
-    <string name="settings_stateless_dane_certificates">実験的なステートレス DANE 証明書</string>
     <string name="settings_theme_dialog_title">テーマ</string>
     <string name="settings_theme_set">テーマを %1$s に設定しました。</string>
     <string name="theme_choice_dark">ダーク</string>

@@ -188,7 +188,7 @@
     <string name="settings_synchronization" translatable="false">Synchronization</string>
     <string name="settings_sync_summary" translatable="false">View current header synchronization</string>
     <string name="settings_security" translatable="false">Security</string>
-    <string name="settings_dane" translatable="false">DANE</string>
+    <string name="settings_dane" translatable="false">Stateless DANE</string>
     <string name="settings_recovery_dns" translatable="false">Recovery DNS</string>
     <string name="settings_advanced_networking" translatable="false">Advanced networking</string>
     <string name="settings_p2p_dns_relay" translatable="false">P2P DNS relay</string>
@@ -672,11 +672,8 @@
     <string name="settings_header_resync_failed_status">Header reset did not complete. Open diagnostics for details.</string>
     <string name="settings_header_resync_failed">Header resync did not start</string>
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
-    <string name="settings_stateless_dane_on">On. Certificate-carried HNS proof evidence may satisfy DANE when valid.</string>
-    <string name="settings_stateless_dane_off">Off. HNS proof and TLSA evidence use the live resolver path.</string>
-    <string name="settings_prepared_stateless_dane_on" translatable="false">On. Legacy certificate-carried evidence cannot be combined with retained dual-root plans; prepared browser requests fail closed.</string>
-    <string name="settings_prepared_stateless_dane_off" translatable="false">Off. Browser requests use the retained dual-root DNSSEC and TLSA plan.</string>
-    <string name="settings_stateless_dane_certificates">Experimental stateless DANE certificates</string>
+    <string name="settings_stateless_dane_on">On by default. Normal DNSSEC and TLSA validation remains authoritative; a stateless HNS certificate is accepted only when its proof, DNSSEC chain, and TLSA evidence all validate.</string>
+    <string name="settings_stateless_dane_off">Off. Stateless-only HNS sites fail closed. Sites with normal DNSSEC and TLSA records continue to work.</string>
     <string name="settings_experimental_p2p_dns_relay" translatable="false">Experimental P2P DNS relay</string>
     <string name="settings_experimental_p2p_dns_relay_on" translatable="false">On by explicit request. Delegated DNS may use relay-capable Handshake peers; DNSSEC validation remains local.</string>
     <string name="settings_experimental_p2p_dns_relay_off" translatable="false">Off by default. Peer DNS relay messages are not requested.</string>

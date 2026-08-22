@@ -260,7 +260,6 @@
 <string name="settings_hns_network_summary">%1$s。 %2$s</string>
 <string name="settings_stateless_dane_on">上。證書攜帶的 HNS 證明證據在有效時可以滿足 DANE。</string>
 <string name="settings_stateless_dane_off">關閉。 HNS 證明和 TLSA 證據使用即時解析器路徑。</string>
-<string name="settings_stateless_dane_certificates">實驗性無狀態 DANE 證書</string>
 <string name="settings_theme_dialog_title">主題</string>
 <string name="settings_theme_set">主題設定為 %1$s。</string>
 <string name="theme_choice_dark">黑暗</string>

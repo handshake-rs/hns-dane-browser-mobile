@@ -109,4 +109,14 @@ class HnsResolutionPreferencesInstrumentationTest {
         assertFalse(preferences.contains("experimental_p2p_dns_relay"))
         assertFalse(HnsResolutionPreferences.experimentalP2pDnsRelay(context))
     }
+
+    @Test
+    fun freshInstallEnablesStatelessDaneButHonorsAnExplicitOptOut() {
+        assertFalse(preferences.contains("stateless_dane_certificates"))
+        assertTrue(HnsResolutionPreferences.statelessDaneCertificates(context))
+
+        HnsResolutionPreferences.setStatelessDaneCertificates(context, false)
+
+        assertFalse(HnsResolutionPreferences.statelessDaneCertificates(context))
+    }
 }

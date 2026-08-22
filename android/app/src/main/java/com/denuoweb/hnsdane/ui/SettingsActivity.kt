@@ -703,9 +703,9 @@ class SettingsActivity : ComponentActivity() {
 
     private fun statelessDaneText(): String =
         if (HnsResolutionPreferences.statelessDaneCertificates(this)) {
-            getString(R.string.settings_prepared_stateless_dane_on)
+            getString(R.string.settings_stateless_dane_on)
         } else {
-            getString(R.string.settings_prepared_stateless_dane_off)
+            getString(R.string.settings_stateless_dane_off)
         }
 
     private fun experimentalP2pRelayText(): String =

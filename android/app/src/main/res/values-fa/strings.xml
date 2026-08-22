@@ -260,7 +260,6 @@
     <string name="settings_hns_network_summary">%1$s. %2$s</string>
     <string name="settings_stateless_dane_on">روشن شواهد اثبات HNS حامل گواهی ممکن است در صورت معتبر بودن، DANE را راضی کند.</string>
     <string name="settings_stateless_dane_off">خاموش شواهد HNS و TLSA از مسیر حل کننده زنده استفاده می کنند.</string>
-    <string name="settings_stateless_dane_certificates">گواهینامه های آزمایشی DANE بدون تابعیت</string>
     <string name="settings_theme_dialog_title">پوسته</string>
     <string name="settings_theme_set">پوسته روی %1$s تنظیم شد.</string>
     <string name="theme_choice_dark">تیره</string>

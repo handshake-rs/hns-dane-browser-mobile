@@ -177,7 +177,7 @@ final class BrowserSettingsViewController: UITableViewController {
             case .clearBrowsingData: "Clear browsing data"
             case .handshakeNetwork: "Handshake network"
             case .hnsSync: "Synchronization"
-            case .statelessDANECertificates: "DANE"
+            case .statelessDANECertificates: "Stateless DANE"
             case .hnsDoHRecovery: "Recovery DNS"
             case .experimentalP2PDNSRelay: "P2P DNS relay"
             case .addHNSRelayPeer: "Relay peers"
@@ -713,9 +713,9 @@ final class BrowserSettingsViewController: UITableViewController {
             return "\(handshakeNetwork.title). \(handshakeNetwork.summary)"
         case .statelessDANECertificates:
             if policy.statelessDANECertificates {
-                return "On. Legacy certificate-carried evidence cannot be combined with retained dual-root plans; prepared browser requests fail closed."
+                return "On by default. Normal DNSSEC and TLSA validation remains authoritative; a stateless HNS certificate is accepted only when its proof, DNSSEC chain, and TLSA evidence all validate."
             }
-            return "Off. Browser requests use the retained dual-root DNSSEC and TLSA plan."
+            return "Off. Stateless-only HNS sites fail closed. Sites with normal DNSSEC and TLSA records continue to work."
         case .experimentalP2PDNSRelay:
             if policy.experimentalP2PDNSRelay {
                 return "On by explicit request. Delegated DNS may use relay-capable Handshake peers; DNSSEC validation remains local."

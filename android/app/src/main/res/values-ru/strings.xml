@@ -272,7 +272,6 @@
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Вкл. Доказательства, подтверждающие сертификат HNS, могут удовлетворять требованиям DANE, если они действительны.</string>
 <string name="settings_stateless_dane_off">Выкл. Доказательство HNS и доказательство TLSA используют путь живого преобразователя.</string>
-<string name="settings_stateless_dane_certificates">Экспериментальные сертификаты DANE без гражданства</string>
 <string name="settings_theme_dialog_title">Тема</string>
 <string name="settings_theme_set">Установлена тема %1$s.</string>
 <string name="theme_choice_dark">Темный</string>

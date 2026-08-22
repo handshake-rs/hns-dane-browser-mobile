@@ -260,7 +260,6 @@
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Bật. Bằng chứng chứng minh HNS mang theo chứng chỉ có thể đáp ứng DANE khi hợp lệ.</string>
 <string name="settings_stateless_dane_off">Tắt. Bằng chứng HNS và bằng chứng TLSA sử dụng đường dẫn trình phân giải trực tiếp.</string>
-<string name="settings_stateless_dane_certificates">Chứng chỉ DANE không trạng thái thử nghiệm</string>
 <string name="settings_theme_dialog_title">chủ đề</string>
 <string name="settings_theme_set">Chủ đề được đặt thành %1$s.</string>
 <string name="theme_choice_dark">Tối</string>

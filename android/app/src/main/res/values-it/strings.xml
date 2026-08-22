@@ -260,7 +260,6 @@
 <string name="settings_hns_network_summary">%1$s. %2$s</string>
 <string name="settings_stateless_dane_on">Su. La prova di prova HNS accompagnata dal certificato può soddisfare DANE quando valida.</string>
 <string name="settings_stateless_dane_off">Spento. La prova HNS e la prova TLSA utilizzano il percorso del risolutore live.</string>
-<string name="settings_stateless_dane_certificates">Certificati sperimentali apolidi DANE</string>
 <string name="settings_theme_dialog_title">Tema</string>
 <string name="settings_theme_set">Tema impostato su %1$s.</string>
 <string name="theme_choice_dark">Buio</string>

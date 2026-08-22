@@ -43,6 +43,7 @@ enum class HandshakeNetwork(
 internal object HnsResolutionPreferences {
     const val DEFAULT_HANDSHAKE_NETWORK = "mainnet"
     const val DEFAULT_STRICT_HNS_MODE = true
+    const val DEFAULT_STATELESS_DANE_CERTIFICATES = true
     const val DEFAULT_EXPERIMENTAL_P2P_DNS_RELAY = false
     const val DEFAULT_LEGACY_HNS_DOH_COMPATIBILITY = false
 
@@ -76,7 +77,10 @@ internal object HnsResolutionPreferences {
 
     fun statelessDaneCertificates(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_STATELESS_DANE_CERTIFICATES, false)
+            .getBoolean(
+                KEY_STATELESS_DANE_CERTIFICATES,
+                DEFAULT_STATELESS_DANE_CERTIFICATES,
+            )
 
     fun setStatelessDaneCertificates(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
