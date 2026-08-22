@@ -43,7 +43,9 @@ class SettingsActivity : ComponentActivity() {
     private var staticRelayPeerAddInProgress = false
 
     private val destination: SettingsDestination
-        get() = SettingsDestination.fromId(intent.getStringExtra(EXTRA_DESTINATION))
+        get() = SettingsDestination.fromId(
+            intent.getStringExtra(EXTRA_DESTINATION) ?: DESTINATION_BROWSER,
+        )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,7 +62,6 @@ class SettingsActivity : ComponentActivity() {
         themeStatus = preferenceSummary(themeText())
 
         when (destination) {
-            SettingsDestination.Root -> showSettingsHome()
             SettingsDestination.Browser -> showBrowserSettings()
             SettingsDestination.Homepage -> showHomepageSettings()
             SettingsDestination.Privacy -> showPrivacySettings()
@@ -83,38 +84,6 @@ class SettingsActivity : ComponentActivity() {
             refreshHistoryStatus()
             refreshDownloadStatus()
             refreshThemeStatus()
-        }
-    }
-
-    private fun showSettingsHome() {
-        setSettingsScreen(getString(R.string.screen_settings)) {
-            addView(settingsGroup {
-                addSettingsRow(navRow(getString(R.string.settings_destination_browser), getString(R.string.settings_destination_browser_summary)) {
-                    openDestination(SettingsDestination.Browser)
-                })
-                addSettingsRow(navRow(getString(R.string.section_privacy_and_data), getString(R.string.settings_destination_privacy_summary)) {
-                    openDestination(SettingsDestination.Privacy)
-                })
-                addSettingsRow(navRow(getString(R.string.settings_destination_handshake), getString(R.string.settings_destination_handshake_summary)) {
-                    openDestination(SettingsDestination.Handshake)
-                })
-                addSettingsRow(navRow(getString(R.string.section_wallet), getString(R.string.settings_destination_wallet_summary)) {
-                    // Wallet can have an authenticated direct-peer scan in
-                    // flight. Return to its existing screen instead of
-                    // creating a second WalletActivity that would contend for
-                    // the same encrypted controller and force a handoff.
-                    startActivity(
-                        Intent(this@SettingsActivity, WalletActivity::class.java)
-                            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
-                    )
-                })
-                addSettingsRow(navRow(getString(R.string.settings_destination_advanced), getString(R.string.settings_destination_advanced_summary)) {
-                    openDestination(SettingsDestination.Advanced)
-                })
-                addSettingsRow(navRow(getString(R.string.settings_destination_about), getString(R.string.settings_destination_about_summary)) {
-                    openDestination(SettingsDestination.About)
-                })
-            })
         }
     }
 
@@ -785,23 +754,27 @@ class SettingsActivity : ComponentActivity() {
     companion object {
         const val EXTRA_CURRENT_URL = "com.denuoweb.hnsdane.CURRENT_URL"
         const val EXTRA_DESTINATION = "com.denuoweb.hnsdane.SETTINGS_DESTINATION"
+        const val DESTINATION_BROWSER = "browser"
+        const val DESTINATION_PRIVACY = "privacy"
+        const val DESTINATION_HANDSHAKE = "handshake"
+        const val DESTINATION_ADVANCED = "advanced"
+        const val DESTINATION_ABOUT = "about"
         private const val ACTION_APP_LOCALE_SETTINGS = "android.settings.APP_LOCALE_SETTINGS"
     }
 
     private enum class SettingsDestination(val id: String) {
-        Root("root"),
-        Browser("browser"),
+        Browser(DESTINATION_BROWSER),
         Homepage("homepage"),
-        Privacy("privacy"),
-        Handshake("handshake"),
+        Privacy(DESTINATION_PRIVACY),
+        Handshake(DESTINATION_HANDSHAKE),
         HandshakeAdvanced("handshake_advanced"),
-        Advanced("advanced"),
-        About("about"),
+        Advanced(DESTINATION_ADVANCED),
+        About(DESTINATION_ABOUT),
         ;
 
         companion object {
             fun fromId(id: String?): SettingsDestination =
-                entries.firstOrNull { it.id == id } ?: Root
+                entries.firstOrNull { it.id == id } ?: Browser
         }
     }
 }

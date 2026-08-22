@@ -683,7 +683,24 @@ class MainActivity : ComponentActivity() {
                 dp(MENU_ICON_BUTTON_SIZE_DP),
             ))
             addView(menuDivider())
-            addView(menuRow(getString(R.string.menu_settings), popup) { openSettings() })
+            addView(menuRow(getString(R.string.settings_destination_browser), popup) {
+                openSettingsDestination(SettingsActivity.DESTINATION_BROWSER)
+            })
+            addView(menuRow(getString(R.string.section_privacy_and_data), popup) {
+                openSettingsDestination(SettingsActivity.DESTINATION_PRIVACY)
+            })
+            addView(menuRow(getString(R.string.settings_destination_handshake), popup) {
+                openSettingsDestination(SettingsActivity.DESTINATION_HANDSHAKE)
+            })
+            addView(menuRow(getString(R.string.section_wallet), popup) {
+                openWallet()
+            })
+            addView(menuRow(getString(R.string.settings_destination_advanced), popup) {
+                openSettingsDestination(SettingsActivity.DESTINATION_ADVANCED)
+            })
+            addView(menuRow(getString(R.string.settings_destination_about), popup) {
+                openSettingsDestination(SettingsActivity.DESTINATION_ABOUT)
+            })
         }
 
         popup.apply {
@@ -1390,10 +1407,18 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun openSettings() {
+    private fun openSettingsDestination(destination: String) {
         val intent = Intent(this, SettingsActivity::class.java)
+            .putExtra(SettingsActivity.EXTRA_DESTINATION, destination)
         currentPageUrl()?.let { intent.putExtra(SettingsActivity.EXTRA_CURRENT_URL, it) }
         startActivity(intent)
+    }
+
+    private fun openWallet() {
+        startActivity(
+            Intent(this, WalletActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+        )
     }
 
     private fun handleExternalMainFrameNavigation(uri: Uri, hasUserGesture: Boolean): Boolean {
