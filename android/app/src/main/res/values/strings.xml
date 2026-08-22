@@ -161,6 +161,52 @@
     <string name="section_wallet_name_actions" translatable="false">Names and Shakedex actions</string>
     <string name="section_wallet_shakedex" translatable="false">Shakedex board and sessions</string>
 
+    <!-- Settings navigation shell -->
+    <string name="settings_destination_browser" translatable="false">Browser</string>
+    <string name="settings_destination_browser_summary" translatable="false">Homepage, appearance, and language</string>
+    <string name="settings_destination_privacy_summary" translatable="false">Cookies, history, and downloads</string>
+    <string name="settings_destination_handshake" translatable="false">Handshake</string>
+    <string name="settings_destination_handshake_summary" translatable="false">Network, DANE, recovery, and sync</string>
+    <string name="settings_destination_wallet_summary" translatable="false">HNS, Bitcoin, names, and Shakedex</string>
+    <string name="settings_destination_advanced" translatable="false">Advanced</string>
+    <string name="settings_destination_advanced_summary" translatable="false">Diagnostics and developer tools</string>
+    <string name="settings_destination_about" translatable="false">About</string>
+    <string name="settings_destination_about_summary" translatable="false">Version, privacy, licenses, and support</string>
+    <string name="settings_language_system_default" translatable="false">System default</string>
+    <string name="settings_current_homepage" translatable="false">Current homepage</string>
+    <string name="settings_use_current_page" translatable="false">Use current page</string>
+    <string name="settings_change_homepage" translatable="false">Change homepage</string>
+    <string name="settings_reset" translatable="false">Reset</string>
+    <string name="settings_clear_data" translatable="false">Clear data</string>
+    <string name="settings_clear_browsing_data" translatable="false">Clear browsing data</string>
+    <string name="settings_clear_browsing_data_summary" translatable="false">Cookies, website data, history, and download records</string>
+    <string name="settings_clear_browsing_data_confirmation" translatable="false">Clear cookies, website data, browsing history, and this browser\'s download records from this device? Downloaded files will remain.</string>
+    <string name="settings_browsing_data_cleared" translatable="false">Browsing data cleared</string>
+    <string name="settings_handshake_status_label" translatable="false">● %1$s</string>
+    <string name="settings_handshake_status_detail" translatable="false">Resolver configured</string>
+    <string name="settings_connection" translatable="false">Connection</string>
+    <string name="settings_synchronization" translatable="false">Synchronization</string>
+    <string name="settings_sync_summary" translatable="false">View current header synchronization</string>
+    <string name="settings_security" translatable="false">Security</string>
+    <string name="settings_dane" translatable="false">DANE</string>
+    <string name="settings_recovery_dns" translatable="false">Recovery DNS</string>
+    <string name="settings_advanced_networking" translatable="false">Advanced networking</string>
+    <string name="settings_p2p_dns_relay" translatable="false">P2P DNS relay</string>
+    <string name="settings_relay_peers" translatable="false">Relay peers</string>
+    <string name="settings_handshake_advanced" translatable="false">Advanced</string>
+    <string name="settings_resolver_cache" translatable="false">Resolver cache</string>
+    <string name="settings_resolver_cache_detail" translatable="false">Remove only locally cached resolver data</string>
+    <string name="settings_handshake_tools" translatable="false">Handshake tools</string>
+    <string name="settings_domain_checker" translatable="false">Domain checker</string>
+    <string name="settings_connection_details" translatable="false">Connection details</string>
+    <string name="settings_connection_details_summary" translatable="false">Resolver, proof, and DANE information</string>
+    <string name="settings_app_diagnostics" translatable="false">App diagnostics</string>
+    <string name="settings_gateway_log" translatable="false">Gateway log</string>
+    <string name="settings_version" translatable="false">Version</string>
+    <string name="settings_open_source_licenses" translatable="false">Open-source licenses</string>
+    <string name="settings_support" translatable="false">Support</string>
+    <string name="settings_support_shakescape" translatable="false">Support Shakescape</string>
+
     <string name="row_agreement">Agreement</string>
     <string name="row_app_downloads">App downloads</string>
     <string name="row_app_language">App language</string>
@@ -489,6 +535,52 @@
     <string name="wallet_delete_type_delete_error" translatable="false">Type DELETE exactly.</string>
     <string name="wallet_delete_context_changed" translatable="false">Wallet ownership or identity changed. Deletion was cancelled.</string>
     <string name="wallet_delete_complete" translatable="false">Confirmed wallet deleted.</string>
+
+    <!-- Wallet dashboard states and commands. The detailed native status text
+         remains available behind the relevant destination. -->
+    <string name="wallet_dashboard_no_wallet" translatable="false">HNS WALLET</string>
+    <string name="wallet_dashboard_get_started" translatable="false">Get started</string>
+    <string name="wallet_dashboard_create_summary" translatable="false">Create a self-custodied Handshake wallet</string>
+    <string name="wallet_dashboard_restore_summary" translatable="false">Restore a 24-word wallet</string>
+    <string name="wallet_dashboard_restore_dialog_summary" translatable="false">Enter the complete 24-word recovery phrase.</string>
+    <string name="wallet_dashboard_recovery_phrase" translatable="false">RECOVERY PHRASE</string>
+    <string name="wallet_dashboard_recovery_summary" translatable="false">Write these words down offline. The wallet is not retained until you confirm.</string>
+    <string name="wallet_dashboard_locked" translatable="false">● LOCKED · %1$s</string>
+    <string name="wallet_dashboard_unlocked" translatable="false">● UNLOCKED · %1$s</string>
+    <string name="wallet_dashboard_locked_short" translatable="false">Locked</string>
+    <string name="wallet_dashboard_unlocked_short" translatable="false">Unlocked</string>
+    <string name="wallet_dashboard_unlock_summary" translatable="false">Unlock this wallet for the current session</string>
+    <string name="wallet_dashboard_hns_balance" translatable="false">HNS BALANCE</string>
+    <string name="wallet_dashboard_receive" translatable="false">RECEIVE</string>
+    <string name="wallet_dashboard_send" translatable="false">SEND</string>
+    <string name="wallet_dashboard_sync" translatable="false">SYNC</string>
+    <string name="wallet_dashboard_sync_attention" translatable="false">SYNC NEEDS ATTENTION</string>
+    <string name="wallet_dashboard_sync_required" translatable="false">Synchronize to update</string>
+    <string name="wallet_dashboard_names" translatable="false">Names</string>
+    <string name="wallet_dashboard_bitcoin" translatable="false">Bitcoin</string>
+    <string name="wallet_dashboard_shakedex" translatable="false">Shakedex</string>
+    <string name="wallet_dashboard_wallet" translatable="false">Wallet</string>
+    <string name="wallet_dashboard_connected" translatable="false">Connected</string>
+    <string name="wallet_dashboard_not_connected" translatable="false">Not connected</string>
+    <string name="wallet_dashboard_ready" translatable="false">Ready</string>
+    <string name="wallet_dashboard_recent_activity" translatable="false">Recent activity</string>
+    <string name="wallet_dashboard_no_synced_activity" translatable="false">No synchronized transaction history</string>
+    <string name="wallet_dashboard_receive_message" translatable="false">%1$s</string>
+    <string name="wallet_dashboard_name_transfer" translatable="false">Name transfer</string>
+    <string name="wallet_dashboard_copy_address" translatable="false">Copy address</string>
+    <string name="wallet_dashboard_address_unavailable" translatable="false">A receive address is not available yet</string>
+    <string name="wallet_dashboard_send_form_notice" translatable="false">A fresh verified wallet snapshot is required before the transaction is prepared.</string>
+    <string name="wallet_dashboard_name_actions" translatable="false">Name actions</string>
+    <string name="wallet_dashboard_send_bitcoin" translatable="false">Send Bitcoin</string>
+
+    <plurals name="wallet_dashboard_tracked_names" translatable="false">
+        <item quantity="one">%d tracked name</item>
+        <item quantity="other">%d tracked names</item>
+    </plurals>
+    <plurals name="wallet_dashboard_transactions" translatable="false">
+        <item quantity="one">%d synchronized transaction</item>
+        <item quantity="other">%d synchronized transactions</item>
+    </plurals>
 
     <string name="history_empty_status">No browsing history yet.</string>
     <string name="history_empty_title">No recent pages</string>

@@ -52,12 +52,18 @@ internal fun Context.screenSection(
     content: LinearLayout.() -> Unit,
 ): LinearLayout =
     LinearLayout(this).apply {
-        val colors = themeColors()
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(colors.background)
-        setPadding(0, uiDp(10), 0, uiDp(12))
+        setPadding(0, uiDp(8), 0, uiDp(12))
         addView(sectionHeading(title))
-        content()
+        addView(LinearLayout(this@screenSection).apply {
+            orientation = LinearLayout.VERTICAL
+            background = settingsSurfaceDrawable()
+            clipToOutline = true
+            content()
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ))
     }
 
 internal fun LinearLayout.addScreenRow(row: View) {
@@ -83,7 +89,7 @@ internal fun Context.preferenceRow(
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         minimumHeight = uiDp(64)
-        setPadding(0, uiDp(10), 0, uiDp(10))
+        setPadding(uiDp(16), uiDp(10), uiDp(14), uiDp(10))
         if (action != null) {
             isClickable = true
             isFocusable = true

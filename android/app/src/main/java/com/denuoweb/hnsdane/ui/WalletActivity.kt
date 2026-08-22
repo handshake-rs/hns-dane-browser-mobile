@@ -2,6 +2,8 @@ package com.denuoweb.hnsdane.ui
 
 import android.app.AlertDialog
 import android.app.KeyguardManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -108,6 +110,7 @@ class WalletActivity : ComponentActivity() {
     private lateinit var directDenuoStatusView: TextView
     private lateinit var restoreInput: EditText
     private lateinit var recoveryView: RecoveryPhraseView
+    private lateinit var dashboardContent: LinearLayout
     private var walletHandle = INVALID_HANDLE
     private var walletAuthorityGeneration = 0L
     private var walletControllerIsReopenedDurable = false
@@ -179,250 +182,13 @@ class WalletActivity : ComponentActivity() {
         directDenuoStatusView = walletReadSummary(R.string.wallet_direct_denuo_unavailable)
         restoreInput = sensitiveRestoreInput()
         recoveryView = RecoveryPhraseView(this)
-
-        setSecondaryScreen(getString(R.string.screen_wallet)) {
-            addView(screenSection(getString(R.string.section_wallet_status)) {
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_status),
-                    summaryView = statusView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_account),
-                    summaryView = accountView,
-                ))
-            })
-            addView(screenSection(getString(R.string.section_wallet_setup)) {
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_create),
-                    summary = getString(R.string.row_wallet_create_summary),
-                    actionLabel = getString(R.string.action_create_wallet),
-                ) {
-                    createWallet()
-                })
-                addView(restoreInput, LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_restore),
-                    summary = getString(R.string.row_wallet_restore_summary),
-                    actionLabel = getString(R.string.action_restore_wallet),
-                ) {
-                    restoreWallet()
-                })
-            })
-            addView(screenSection(getString(R.string.section_wallet_recovery)) {
-                addView(recoveryView, LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_recovery_confirm),
-                    summary = getString(R.string.row_wallet_recovery_confirm_summary),
-                    actionLabel = getString(R.string.action_saved_wallet_recovery),
-                ) {
-                    confirmRecoverySaved()
-                })
-            })
-            addView(screenSection(getString(R.string.section_wallet_access)) {
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_unlock),
-                    summary = getString(R.string.row_wallet_unlock_summary),
-                    actionLabel = getString(R.string.action_unlock_wallet),
-                ) {
-                    unlockWallet()
-                })
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_lock),
-                    summary = getString(R.string.row_wallet_lock_summary),
-                    actionLabel = getString(R.string.action_lock_wallet),
-                ) {
-                    lockWallet()
-                })
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_delete),
-                    summary = getString(R.string.row_wallet_delete_summary),
-                    actionLabel = getString(R.string.action_delete),
-                    destructive = true,
-                ) {
-                    requestWalletDeletion()
-                })
-            })
-            addView(screenSection(getString(R.string.section_wallet_reads)) {
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_read_module),
-                    summaryView = readStatusView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_read_balance),
-                    summaryView = balanceView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_read_receive),
-                    summaryView = paymentReceiveView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_read_name_receive),
-                    summaryView = nameReceiveView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_read_history),
-                    summaryView = historyView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_read_names),
-                    summaryView = trackedNamesView,
-                ))
-                addView(nameImportInput, LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_name_import),
-                    summaryView = nameImportStatusView,
-                    actionLabel = getString(R.string.action_import_wallet_name),
-                ) {
-                    importWalletName()
-                })
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_read_sync),
-                    summary = getString(R.string.row_wallet_read_sync_summary),
-                    actionLabel = getString(R.string.action_sync_wallet_reads),
-                ) {
-                    synchronizeWalletReads()
-                })
-            })
-            addView(screenSection(getString(R.string.section_wallet_send)) {
-                addView(sendRecipientInput, LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ))
-                addView(sendAmountInput, LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ))
-                addView(sendMaximumFeeInput, LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_send),
-                    summaryView = sendStatusView,
-                    actionLabel = getString(R.string.action_prepare_wallet_send),
-                ) {
-                    prepareWalletSend()
-                })
-            })
-            addView(screenSection(getString(R.string.section_wallet_bitcoin)) {
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_bitcoin_status),
-                    summaryView = bitcoinStatusView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_bitcoin_balance),
-                    summaryView = bitcoinBalanceView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_bitcoin_receive),
-                    summaryView = bitcoinReceiveView,
-                    actionLabel = getString(R.string.action_wallet_bitcoin_receive),
-                ) {
-                    revealBitcoinReceiveAddress()
-                })
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_bitcoin_sync),
-                    summary = getString(R.string.row_wallet_bitcoin_sync_summary),
-                    actionLabel = getString(R.string.action_sync_wallet_reads),
-                ) {
-                    synchronizeBitcoin()
-                })
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_bitcoin_send,
-                    R.string.row_wallet_bitcoin_send_summary,
-                    ::showBitcoinSendForm,
-                ))
-            })
-            addView(screenSection(getString(R.string.section_wallet_name_actions)) {
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_value_action_status),
-                    summaryView = valueActionStatusView,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_transfer_name,
-                    R.string.row_wallet_transfer_name_summary,
-                    ::showTransferNameForm,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_finalize_name,
-                    R.string.row_wallet_finalize_name_summary,
-                    ::showFinalizeNameForm,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_create_offer,
-                    R.string.row_wallet_create_offer_summary,
-                    ::showCreateOfferForm,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_cancel_offer,
-                    R.string.row_wallet_cancel_offer_summary,
-                    ::showCancelOfferForm,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_accept_offer,
-                    R.string.row_wallet_accept_offer_summary,
-                    ::showAcceptOfferForm,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_finalize_purchase,
-                    R.string.row_wallet_finalize_purchase_summary,
-                    ::showFinalizePurchaseForm,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_recover_name,
-                    R.string.row_wallet_recover_name_summary,
-                    ::showRecoverNameForm,
-                ))
-            })
-            addView(screenSection(getString(R.string.section_wallet_shakedex)) {
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_direct_denuo_host),
-                    summaryView = directDenuoStatusView,
-                ))
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_retry_direct_denuo_host),
-                    summary = getString(R.string.row_wallet_retry_direct_denuo_host_summary),
-                    actionLabel = getString(R.string.action_retry),
-                ) {
-                    retryWalletOwnedDirectDenuoListener()
-                })
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_disconnect_direct_denuo),
-                    summary = getString(R.string.row_wallet_disconnect_direct_denuo_summary),
-                    actionLabel = getString(R.string.action_disconnect),
-                ) {
-                    disconnectWalletOwnedDirectDenuo()
-                })
-                addScreenRow(preferenceRow(
-                    title = getString(R.string.row_wallet_shakedex_status),
-                    summaryView = shakedexQueryStatusView,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_list_offers,
-                    R.string.row_wallet_list_offers_summary,
-                    ::showListOffersForm,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_pair_direct_denuo,
-                    R.string.row_wallet_pair_direct_denuo_summary,
-                    ::showPairDirectDenuoForm,
-                ))
-                addScreenRow(walletActionRow(
-                    R.string.row_wallet_get_session,
-                    R.string.row_wallet_get_session_summary,
-                    ::showGetSessionForm,
-                ))
-            })
+        dashboardContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
         }
+        setSettingsScreen(getString(R.string.screen_wallet)) {
+            addView(dashboardContent)
+        }
+        renderWalletDashboard()
     }
 
     override fun onStart() {
@@ -468,6 +234,409 @@ class WalletActivity : ComponentActivity() {
         outState.clear()
         super.onSaveInstanceState(outState)
         outState.clear()
+    }
+
+    /**
+     * The wallet is an app subsystem, not another long settings form. The
+     * dashboard deliberately exposes the current state and the next useful
+     * action; detailed protocol workflows remain behind the object they affect.
+     */
+    private fun renderWalletDashboard() {
+        if (!::dashboardContent.isInitialized) return
+        dashboardContent.removeAllViews()
+        when {
+            unconfirmedDatabaseKey != null || recoveryView.hasSecret() -> renderRecoveryDashboard()
+            walletHandle == INVALID_HANDLE -> renderNoWalletDashboard()
+            NativeWalletBridge.status(walletHandle)?.locked != false -> renderLockedWalletDashboard()
+            else -> renderUnlockedWalletDashboard()
+        }
+    }
+
+    private fun renderNoWalletDashboard() {
+        dashboardContent.addView(statusCard(
+            label = getString(R.string.wallet_dashboard_no_wallet),
+            detail = statusView,
+            healthy = false,
+        ))
+        dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_get_started)) {
+            addSettingsRow(actionRow(
+                title = getString(R.string.row_wallet_create),
+                summary = getString(R.string.wallet_dashboard_create_summary),
+            ) { createWallet() })
+            addSettingsRow(navRow(
+                title = getString(R.string.row_wallet_restore),
+                summary = getString(R.string.wallet_dashboard_restore_summary),
+            ) { showRestoreWalletDialog() })
+        })
+    }
+
+    private fun renderRecoveryDashboard() {
+        dashboardContent.addView(statusCard(
+            label = getString(R.string.wallet_dashboard_recovery_phrase),
+            detail = statusView,
+            healthy = false,
+        ))
+        dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_recovery_phrase)) {
+            addView(recoveryView, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ))
+            addSettingsRow(actionRow(
+                title = getString(R.string.row_wallet_recovery_confirm),
+                summary = getString(R.string.wallet_dashboard_recovery_summary),
+            ) { confirmRecoverySaved() })
+        })
+    }
+
+    private fun renderLockedWalletDashboard() {
+        dashboardContent.addView(statusCard(
+            label = getString(R.string.wallet_dashboard_locked, walletNetwork.displayName(this)),
+            detail = statusView,
+            healthy = false,
+        ))
+        dashboardContent.addView(settingsGroup {
+            addSettingsRow(actionRow(
+                title = getString(R.string.row_wallet_unlock),
+                summary = getString(R.string.wallet_dashboard_unlock_summary),
+            ) { unlockWallet() })
+        })
+        addWalletTiles(locked = true)
+    }
+
+    private fun renderUnlockedWalletDashboard() {
+        dashboardContent.addView(statusCard(
+            label = getString(R.string.wallet_dashboard_unlocked, walletNetwork.displayName(this)),
+            detail = statusView,
+        ))
+        dashboardContent.addView(walletBalanceCard())
+        if (latestReadSnapshot == null) {
+            dashboardContent.addView(statusCard(
+                label = getString(R.string.wallet_dashboard_sync_attention),
+                detail = readStatusView,
+                healthy = false,
+            ))
+        }
+        addWalletTiles(locked = false)
+        dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_recent_activity)) {
+            addSettingsRow(navRow(
+                title = getString(R.string.wallet_dashboard_recent_activity),
+                summary = recentActivitySummary(),
+            ) { showActivityDetails() })
+        })
+    }
+
+    private fun walletBalanceCard(): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = settingsSurfaceDrawable(accent = themeColors().action)
+            setPadding(uiDp(16), uiDp(15), uiDp(16), uiDp(14))
+            addView(TextView(this@WalletActivity).apply {
+                text = getString(R.string.wallet_dashboard_hns_balance)
+                textSize = 12f
+                typeface = Typeface.DEFAULT_BOLD
+                letterSpacing = 0.08f
+                setTextColor(themeColors().action)
+            })
+            balanceView.apply {
+                textSize = 24f
+                typeface = Typeface.DEFAULT_BOLD
+                maxLines = 2
+                setTextColor(themeColors().primaryText)
+                setPadding(0, uiDp(10), 0, uiDp(12))
+            }
+            addView(balanceView)
+            addView(LinearLayout(this@WalletActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(dashboardActionButton(getString(R.string.wallet_dashboard_receive)) {
+                    showReceiveWalletDialog()
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                addView(dashboardActionButton(getString(R.string.wallet_dashboard_send), secondary = true) {
+                    showHnsSendDialog()
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    leftMargin = uiDp(8)
+                })
+                addView(dashboardActionButton(getString(R.string.wallet_dashboard_sync)) {
+                    synchronizeWalletReads()
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    leftMargin = uiDp(8)
+                })
+            })
+        }
+
+    private fun addWalletTiles(locked: Boolean) {
+        dashboardContent.addView(TextView(this).apply {
+            text = getString(R.string.section_wallet)
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.08f
+            setTextColor(themeColors().secondaryText)
+            setPadding(uiDp(4), uiDp(18), uiDp(4), uiDp(7))
+        })
+        dashboardContent.addView(walletTileRow(
+            dashboardTile(
+                title = getString(R.string.wallet_dashboard_names),
+                summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else namesSummary(),
+            ) { showNamesDashboard() },
+            dashboardTile(
+                title = getString(R.string.wallet_dashboard_bitcoin),
+                summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else bitcoinSummary(),
+            ) { showBitcoinDashboard() },
+        ))
+        dashboardContent.addView(walletTileRow(
+            dashboardTile(
+                title = getString(R.string.wallet_dashboard_shakedex),
+                summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else shakedexSummary(),
+            ) { showShakedexDashboard() },
+            dashboardTile(
+                title = getString(R.string.wallet_dashboard_wallet),
+                summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else getString(R.string.wallet_dashboard_unlocked_short),
+            ) { showWalletDetails() },
+        ))
+    }
+
+    private fun walletTileRow(first: View, second: View): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, uiDp(8))
+            addView(first, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                rightMargin = uiDp(4)
+            })
+            addView(second, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                leftMargin = uiDp(4)
+            })
+        }
+
+    private fun namesSummary(): String = latestReadSnapshot?.trackedNames?.size?.let { count ->
+        resources.getQuantityString(R.plurals.wallet_dashboard_tracked_names, count, count)
+    } ?: getString(R.string.wallet_dashboard_sync_required)
+
+    private fun bitcoinSummary(): String =
+        if (bitcoinBalanceView.text == getString(R.string.wallet_bitcoin_balance_unavailable)) {
+            getString(R.string.wallet_dashboard_sync_required)
+        } else {
+            getString(R.string.wallet_dashboard_ready)
+        }
+
+    private fun shakedexSummary(): String =
+        if (NativeWalletBridge.walletOwnedDirectDenuoStatus(walletHandle)?.peerEndpoint != null) {
+            getString(R.string.wallet_dashboard_connected)
+        } else {
+            getString(R.string.wallet_dashboard_not_connected)
+        }
+
+    private fun recentActivitySummary(): String = latestReadSnapshot?.transactions?.size?.let { count ->
+        resources.getQuantityString(R.plurals.wallet_dashboard_transactions, count, count)
+    } ?: getString(R.string.wallet_dashboard_no_synced_activity)
+
+    private fun showRestoreWalletDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.row_wallet_restore)
+            .setMessage(R.string.wallet_dashboard_restore_dialog_summary)
+            .setView(restoreInput)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_restore_wallet) { _, _ -> restoreWallet() }
+            .show()
+    }
+
+    private fun showReceiveWalletDialog() {
+        val payment = paymentReceiveView.text.toString().lineSequence().firstOrNull().orEmpty()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_dashboard_receive)
+            .setMessage(getString(R.string.wallet_dashboard_receive_message, payment))
+            .setNegativeButton(R.string.action_cancel, null)
+            .setNeutralButton(R.string.wallet_dashboard_name_transfer) { _, _ -> showNameReceiveDialog() }
+            .setPositiveButton(R.string.wallet_dashboard_copy_address) { _, _ ->
+                copyWalletAddress(payment, R.string.wallet_dashboard_receive)
+            }
+            .show()
+    }
+
+    private fun showNameReceiveDialog() {
+        val address = nameReceiveView.text.toString().lineSequence().firstOrNull().orEmpty()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_dashboard_name_transfer)
+            .setMessage(address)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.wallet_dashboard_copy_address) { _, _ ->
+                copyWalletAddress(address, R.string.wallet_dashboard_name_transfer)
+            }
+            .show()
+    }
+
+    private fun copyWalletAddress(address: String, label: Int) {
+        val unavailableAddresses = setOf(
+            getString(R.string.wallet_reads_receive_unavailable),
+            getString(R.string.wallet_reads_name_receive_unavailable),
+            getString(R.string.wallet_reads_name_receive_legacy_unavailable),
+        )
+        if (address.isBlank() || address in unavailableAddresses) {
+            Toast.makeText(this, R.string.wallet_dashboard_address_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
+        getSystemService(ClipboardManager::class.java).setPrimaryClip(
+            ClipData.newPlainText(getString(label), address),
+        )
+        Toast.makeText(this, R.string.common_copied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showHnsSendDialog() {
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(20), uiDp(4), uiDp(20), 0)
+            addView(sendRecipientInput)
+            addView(sendAmountInput)
+            addView(sendMaximumFeeInput)
+            addView(TextView(this@WalletActivity).apply {
+                text = getString(R.string.wallet_dashboard_send_form_notice)
+                textSize = 13f
+                setTextColor(themeColors().secondaryText)
+                setPadding(0, uiDp(8), 0, 0)
+            })
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_dashboard_send)
+            .setView(form)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_prepare_wallet_send) { _, _ -> prepareWalletSend() }
+            .show()
+    }
+
+    private fun showWalletDetails() {
+        val unlocked = NativeWalletBridge.status(walletHandle)?.locked == false
+        val actions = mutableListOf<Pair<String, () -> Unit>>().apply {
+            add(
+                if (unlocked) {
+                    getString(R.string.row_wallet_lock) to ::lockWallet
+                } else {
+                    getString(R.string.row_wallet_unlock) to ::unlockWallet
+                },
+            )
+            if (unlocked) {
+                add(getString(R.string.row_wallet_delete) to ::requestWalletDeletion)
+            }
+        }
+        walletDetailDialog(
+            title = getString(R.string.wallet_dashboard_wallet),
+            rows = listOf(
+                getString(R.string.row_wallet_status) to statusView.text.toString(),
+                getString(R.string.row_wallet_account) to accountView.text.toString(),
+            ),
+            actions = actions,
+        )
+    }
+
+    private fun showActivityDetails() = walletDetailDialog(
+        title = getString(R.string.wallet_dashboard_recent_activity),
+        rows = listOf(getString(R.string.wallet_dashboard_recent_activity) to historyView.text.toString()),
+    )
+
+    private fun showNamesDashboard() {
+        walletDetailDialog(
+            title = getString(R.string.wallet_dashboard_names),
+            rows = listOf(
+                getString(R.string.row_wallet_read_names) to trackedNamesView.text.toString(),
+                getString(R.string.row_wallet_value_action_status) to valueActionStatusView.text.toString(),
+            ),
+            actions = listOf(
+                getString(R.string.action_import_wallet_name) to ::showNameImportDialog,
+                getString(R.string.wallet_dashboard_name_actions) to ::showNameActionMenu,
+            ),
+        )
+    }
+
+    private fun showNameImportDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.row_wallet_name_import)
+            .setView(nameImportInput)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_import_wallet_name) { _, _ -> importWalletName() }
+            .show()
+    }
+
+    private fun showNameActionMenu() {
+        val labels = arrayOf(
+            getString(R.string.row_wallet_transfer_name),
+            getString(R.string.row_wallet_finalize_name),
+            getString(R.string.row_wallet_create_offer),
+            getString(R.string.row_wallet_cancel_offer),
+            getString(R.string.row_wallet_recover_name),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_dashboard_name_actions)
+            .setItems(labels) { _, which ->
+                when (which) {
+                    0 -> showTransferNameForm()
+                    1 -> showFinalizeNameForm()
+                    2 -> showCreateOfferForm()
+                    3 -> showCancelOfferForm()
+                    else -> showRecoverNameForm()
+                }
+            }
+            .show()
+    }
+
+    private fun showBitcoinDashboard() {
+        walletDetailDialog(
+            title = getString(R.string.wallet_dashboard_bitcoin),
+            rows = listOf(
+                getString(R.string.row_wallet_bitcoin_status) to bitcoinStatusView.text.toString(),
+                getString(R.string.row_wallet_bitcoin_balance) to bitcoinBalanceView.text.toString(),
+                getString(R.string.row_wallet_bitcoin_receive) to bitcoinReceiveView.text.toString(),
+            ),
+            actions = listOf(
+                getString(R.string.action_wallet_bitcoin_receive) to ::revealBitcoinReceiveAddress,
+                getString(R.string.action_sync_wallet_reads) to ::synchronizeBitcoin,
+                getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm,
+            ),
+        )
+    }
+
+    private fun showShakedexDashboard() {
+        walletDetailDialog(
+            title = getString(R.string.wallet_dashboard_shakedex),
+            rows = listOf(
+                getString(R.string.row_wallet_direct_denuo_host) to directDenuoStatusView.text.toString(),
+                getString(R.string.row_wallet_shakedex_status) to shakedexQueryStatusView.text.toString(),
+            ),
+            actions = listOf(
+                getString(R.string.row_wallet_list_offers) to ::showListOffersForm,
+                getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
+                getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
+                getString(R.string.row_wallet_pair_direct_denuo) to ::showPairDirectDenuoForm,
+                getString(R.string.row_wallet_get_session) to ::showGetSessionForm,
+            ),
+        )
+    }
+
+    private fun walletDetailDialog(
+        title: String,
+        rows: List<Pair<String, String>>,
+        actions: List<Pair<String, () -> Unit>> = emptyList(),
+    ) {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
+            rows.forEach { (label, detail) ->
+                addView(TextView(this@WalletActivity).apply {
+                    text = "$label\n$detail"
+                    textSize = 14f
+                    setTextColor(themeColors().primaryText)
+                    setPadding(0, uiDp(8), 0, uiDp(12))
+                })
+            }
+            actions.forEach { (label, action) ->
+                addView(dashboardActionButton(label, secondary = true, action = action), LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = uiDp(8) })
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(content)
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
     }
 
     private fun openExistingWallet() {
@@ -546,6 +715,7 @@ class WalletActivity : ComponentActivity() {
                 statusView.text = getString(R.string.wallet_status_recovery_required)
                 accountView.text = getString(R.string.wallet_account_locked)
                 resetReadProjection(R.string.wallet_reads_recovery_unconfirmed)
+                renderWalletDashboard()
             }
         }
     }
@@ -663,7 +833,7 @@ class WalletActivity : ComponentActivity() {
                 unconfirmedDatabaseKey = null
                 recoveryView.clearSecret()
                 if (stored) {
-                    if (lease != null && currentStorageLease() === lease) {
+                    if (currentStorageLease() === lease) {
                         // The recovery confirmation made this wallet durable.
                         // Reopen the controller from that exact durable state
                         // before installing direct HNS reads/value authority.
@@ -672,12 +842,13 @@ class WalletActivity : ComponentActivity() {
                         // restart.
                         if (destroyController()) {
                             openExistingWallet()
+                            renderWalletDashboard()
                         } else {
                             showControllerRetirementUncertain()
                         }
                     } else {
                         destroyController()
-                        releaseStorageLease(lease)
+                        releaseStorageLease(checkNotNull(lease))
                     }
                 } else {
                     val controllerClosed = destroyController()
@@ -695,6 +866,7 @@ class WalletActivity : ComponentActivity() {
                     if (controllerClosed) {
                         statusView.text = getString(R.string.wallet_status_key_store_failed)
                         accountView.text = getString(R.string.wallet_account_unavailable)
+                        renderWalletDashboard()
                     } else {
                         showControllerRetirementUncertain()
                     }
@@ -2384,6 +2556,7 @@ class WalletActivity : ComponentActivity() {
             resetReadProjection(R.string.wallet_reads_unavailable)
             resetBitcoinProjection()
             refreshDirectDenuoStatus()
+            renderWalletDashboard()
             return
         }
         if (status.locked) {
@@ -2394,6 +2567,7 @@ class WalletActivity : ComponentActivity() {
             resetReadProjection(R.string.wallet_reads_locked)
             resetBitcoinProjection()
             refreshDirectDenuoStatus()
+            renderWalletDashboard()
             return
         }
         statusView.text = getString(
@@ -2420,6 +2594,7 @@ class WalletActivity : ComponentActivity() {
         }
         resetBitcoinProjection()
         refreshDirectDenuoStatus()
+        renderWalletDashboard()
     }
 
     private fun attemptReadBootstrap(lease: WalletStorageOwnershipGate.Lease) {
@@ -2817,12 +2992,14 @@ class WalletActivity : ComponentActivity() {
         }
         accountView.text = getString(R.string.wallet_account_unavailable)
         resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
+        renderWalletDashboard()
     }
 
     private fun showControllerRetirementUncertain() {
         statusView.text = getString(R.string.wallet_status_controller_retirement_uncertain)
         accountView.text = getString(R.string.wallet_account_unavailable)
         resetReadProjection(R.string.wallet_reads_unavailable)
+        renderWalletDashboard()
     }
 
     private fun walletReadSummary(text: Int): TextView = preferenceSummary(
@@ -2920,6 +3097,7 @@ class WalletActivity : ComponentActivity() {
                 progress.headerTipHeight,
             )
         }
+        renderWalletDashboard()
     }
 
     private fun renderReadSnapshot(snapshot: NativeWalletReadSnapshot) {
@@ -2993,6 +3171,7 @@ class WalletActivity : ComponentActivity() {
         } else {
             getString(R.string.wallet_shakedex_queries_unavailable)
         }
+        renderWalletDashboard()
     }
 
     private fun renderLocalPaymentReceiveTarget(target: NativeWalletPaymentReceiveTarget) {

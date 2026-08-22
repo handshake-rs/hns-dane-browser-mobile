@@ -10,17 +10,14 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
-import android.text.TextUtils
-import android.util.TypedValue
-import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.webkit.CookieManager
+import android.webkit.WebStorage
 import androidx.activity.ComponentActivity
 import com.denuoweb.hnsdane.HnsDaneApplication
 import com.denuoweb.hnsdane.R
@@ -45,10 +42,11 @@ class SettingsActivity : ComponentActivity() {
     private var resolverCacheClearInProgress = false
     private var staticRelayPeerAddInProgress = false
 
+    private val destination: SettingsDestination
+        get() = SettingsDestination.fromId(intent.getStringExtra(EXTRA_DESTINATION))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val colors = themeColors()
-
         homepageStatus = preferenceSummary(BrowserPreferences.homepage(this))
         cookieStatus = preferenceSummary(cookieSummary())
         hnsNetworkStatus = preferenceSummary(hnsNetworkText())
@@ -61,238 +59,16 @@ class SettingsActivity : ComponentActivity() {
         downloadStatus = preferenceSummary(downloadSummary())
         themeStatus = preferenceSummary(themeText())
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.START
-            setBackgroundColor(colors.background)
-            setPadding(dp(20), dp(20), dp(20), dp(20))
-            applySystemBarPadding()
-            addView(heading(getString(R.string.screen_settings)))
-
-            addView(section(getString(R.string.section_start_page)) {
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_homepage),
-                    summaryView = homepageStatus,
-                    actionLabel = getString(R.string.action_edit),
-                ) {
-                    showEditHomepageDialog()
-                })
-                currentUrlFromIntent()?.let { currentUrl ->
-                    addPreference(preferenceRow(
-                        title = getString(R.string.row_set_current_page_homepage),
-                        summary = currentUrl,
-                        actionLabel = getString(R.string.action_set),
-                    ) {
-                        useCurrentPageAsHomepage(currentUrl)
-                    })
-                }
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_reset_homepage),
-                    summary = getString(R.string.row_reset_homepage_summary),
-                    actionLabel = getString(R.string.action_reset),
-                    destructive = true,
-                ) {
-                    confirmResetHomepage()
-                })
-            })
-
-            addView(section(getString(R.string.section_privacy_and_data)) {
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_cookies),
-                    summaryView = cookieStatus,
-                    actionLabel = getString(R.string.action_manage),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, CookieSettingsActivity::class.java))
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_history),
-                    summaryView = historyStatus,
-                    actionLabel = getString(R.string.action_view),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, HistoryActivity::class.java))
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_downloads),
-                    summaryView = downloadStatus,
-                    actionLabel = getString(R.string.action_view),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, DownloadsActivity::class.java))
-                })
-            })
-
-            addView(section(getString(R.string.section_wallet)) {
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_wallet),
-                    summary = getString(R.string.row_wallet_summary),
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, WalletActivity::class.java))
-                })
-            })
-
-            addView(section(getString(R.string.section_appearance)) {
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_theme),
-                    summaryView = themeStatus,
-                    actionLabel = getString(R.string.action_change),
-                ) {
-                    showThemeDialog()
-                })
-            })
-
-            addView(section(getString(R.string.section_language)) {
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_app_language),
-                    summary = getString(R.string.row_app_language_summary),
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    openAppLanguageSettings()
-                })
-            })
-
-            addView(section(getString(R.string.section_hns_resolution)) {
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_handshake_network),
-                    summaryView = hnsNetworkStatus,
-                    actionLabel = getString(R.string.action_change),
-                ) {
-                    showNetworkDialog()
-                })
-                addPreference(statelessDaneCertificateOption())
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_hns_doh_recovery),
-                    summaryView = hnsDohRecoveryStatus,
-                    actionLabel = getString(R.string.action_edit),
-                ) {
-                    showHnsDohRecoveryDialog()
-                })
-                addPreference(experimentalP2pDnsRelayOption())
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_add_hns_relay_peer),
-                    summaryView = staticRelayPeerStatus,
-                    actionLabel = getString(R.string.action_add),
-                ) {
-                    showAddStaticRelayPeerDialog()
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_clear_resolver_cache),
-                    summaryView = resolverCacheStatus,
-                    actionLabel = getString(R.string.action_clear),
-                    destructive = true,
-                ) {
-                    confirmClearResolverCache()
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_hns_sync),
-                    summary = getString(R.string.row_hns_sync_summary),
-                    actionLabel = getString(R.string.action_view),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, HnsSyncActivity::class.java))
-                })
-            })
-
-            addView(section(getString(R.string.section_diagnostics_tools)) {
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_hns_domain_setup),
-                    summary = getString(R.string.row_hns_domain_setup_summary),
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, HnsDomainWizardActivity::class.java))
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_resolver_trace),
-                    summary = getString(R.string.row_resolver_trace_summary),
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, HnsResolverTraceActivity::class.java))
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_hns_proof_details),
-                    summary = getString(R.string.row_hns_proof_details_summary),
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, HnsProofDetailsActivity::class.java))
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_tlsa_dane_inspector),
-                    summary = getString(R.string.row_tlsa_dane_inspector_summary),
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, HnsTlsaInspectorActivity::class.java))
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_diagnostics),
-                    summary = getString(R.string.row_diagnostics_summary),
-                    actionLabel = getString(R.string.action_view),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, DiagnosticsActivity::class.java))
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_gateway),
-                    summary = getString(R.string.row_gateway_summary),
-                    actionLabel = getString(R.string.action_view),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, GatewayActivity::class.java))
-                })
-            })
-
-            addView(section(getString(R.string.section_about_legal_support)) {
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_build),
-                    summary = buildLabel(),
-                ))
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_legal),
-                    summary = getString(R.string.row_legal_summary),
-                    actionLabel = getString(R.string.action_view),
-                ) {
-                    startActivity(Intent(this@SettingsActivity, LegalActivity::class.java))
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_privacy_policy),
-                    summary = BrowserAppInfo.PRIVACY_POLICY_URL,
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    openLink(
-                        Uri.parse(BrowserAppInfo.PRIVACY_POLICY_URL),
-                        getString(R.string.legal_copy_privacy_policy_url),
-                        BrowserAppInfo.PRIVACY_POLICY_URL,
-                    )
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_source_code),
-                    summary = BrowserAppInfo.SOURCE_CODE_URL,
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    openLink(
-                        Uri.parse(BrowserAppInfo.SOURCE_CODE_URL),
-                        getString(R.string.legal_copy_source_code_url),
-                        BrowserAppInfo.SOURCE_CODE_URL,
-                    )
-                })
-                addPreference(preferenceRow(
-                    title = getString(R.string.row_donate_hns),
-                    summary = getString(R.string.row_donate_hns_summary),
-                    actionLabel = getString(R.string.action_open),
-                ) {
-                    openLink(
-                        Uri.parse(BrowserAppInfo.HNS_DONATION_URI),
-                        getString(R.string.legal_copy_hns_donation_address),
-                        BrowserAppInfo.HNS_DONATION_ADDRESS,
-                    )
-                })
-            })
+        when (destination) {
+            SettingsDestination.Root -> showSettingsHome()
+            SettingsDestination.Browser -> showBrowserSettings()
+            SettingsDestination.Homepage -> showHomepageSettings()
+            SettingsDestination.Privacy -> showPrivacySettings()
+            SettingsDestination.Handshake -> showHandshakeSettings()
+            SettingsDestination.HandshakeAdvanced -> showHandshakeAdvancedSettings()
+            SettingsDestination.Advanced -> showAdvancedSettings()
+            SettingsDestination.About -> showAboutSettings()
         }
-
-        setContentView(
-            ScrollView(this).apply {
-                setBackgroundColor(colors.background)
-                addView(root, LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ))
-            },
-        )
     }
 
     override fun onResume() {
@@ -310,191 +86,218 @@ class SettingsActivity : ComponentActivity() {
         }
     }
 
-    private fun heading(text: String): TextView =
-        TextView(this).apply {
-            val colors = themeColors()
-            this.text = text
-            textSize = 28f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(colors.primaryText)
-            setPadding(0, 0, 0, dp(10))
+    private fun showSettingsHome() {
+        setSettingsScreen(getString(R.string.screen_settings)) {
+            addView(settingsGroup {
+                addSettingsRow(navRow(getString(R.string.settings_destination_browser), getString(R.string.settings_destination_browser_summary)) {
+                    openDestination(SettingsDestination.Browser)
+                })
+                addSettingsRow(navRow(getString(R.string.section_privacy_and_data), getString(R.string.settings_destination_privacy_summary)) {
+                    openDestination(SettingsDestination.Privacy)
+                })
+                addSettingsRow(navRow(getString(R.string.settings_destination_handshake), getString(R.string.settings_destination_handshake_summary)) {
+                    openDestination(SettingsDestination.Handshake)
+                })
+                addSettingsRow(navRow(getString(R.string.section_wallet), getString(R.string.settings_destination_wallet_summary)) {
+                    startActivity(Intent(this@SettingsActivity, WalletActivity::class.java))
+                })
+                addSettingsRow(navRow(getString(R.string.settings_destination_advanced), getString(R.string.settings_destination_advanced_summary)) {
+                    openDestination(SettingsDestination.Advanced)
+                })
+                addSettingsRow(navRow(getString(R.string.settings_destination_about), getString(R.string.settings_destination_about_summary)) {
+                    openDestination(SettingsDestination.About)
+                })
+            })
         }
-
-    private fun section(title: String, content: LinearLayout.() -> Unit): LinearLayout =
-        LinearLayout(this).apply {
-            val colors = themeColors()
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(colors.background)
-            setPadding(0, dp(10), 0, dp(12))
-            addView(sectionHeading(title))
-            content()
-        }
-
-    private fun sectionHeading(text: String): TextView =
-        TextView(this).apply {
-            val colors = themeColors()
-            this.text = text
-            textSize = 13f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(colors.secondaryText)
-            setPadding(0, dp(18), 0, dp(6))
-        }
-
-    private fun LinearLayout.addPreference(row: View) {
-        addView(row, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-        ))
-        addView(divider())
     }
 
-    private fun preferenceRow(
-        title: String,
-        summary: String? = null,
-        summaryView: TextView? = null,
-        actionLabel: String? = null,
-        destructive: Boolean = false,
-        action: (() -> Unit)? = null,
-    ): LinearLayout =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            minimumHeight = dp(64)
-            setPadding(0, dp(10), 0, dp(10))
-            if (action != null) {
-                isClickable = true
-                isFocusable = true
-                applySelectableBackground(this)
-                setOnClickListener { action() }
-            }
+    private fun showBrowserSettings() {
+        setSettingsScreen(getString(R.string.settings_destination_browser)) {
+            addView(settingsGroup(getString(R.string.section_start_page)) {
+                addSettingsRow(navRow(getString(R.string.row_homepage), homepageStatus) {
+                    openDestination(SettingsDestination.Homepage)
+                })
+            })
+            addView(settingsGroup(getString(R.string.section_appearance)) {
+                addSettingsRow(navRow(getString(R.string.row_theme), themeStatus) { showThemeDialog() })
+                addSettingsRow(navRow(
+                    getString(R.string.row_app_language),
+                    getString(R.string.settings_language_system_default),
+                ) { openAppLanguageSettings() })
+            })
+        }
+    }
 
-            val labels = LinearLayout(this@SettingsActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(0, 0, dp(12), 0)
-                addView(preferenceTitle(title))
-                val detail = summaryView ?: summary?.let { preferenceSummary(it) }
-                if (detail != null) {
-                    addView(detail)
-                }
+    private fun showHomepageSettings() {
+        setSettingsScreen(getString(R.string.row_homepage)) {
+            addView(settingsGroup(getString(R.string.settings_current_homepage)) {
+                addSettingsRow(valueRow(getString(R.string.row_homepage), BrowserPreferences.homepage(this@SettingsActivity)))
+            })
+            currentUrlFromIntent()?.let { currentUrl ->
+                addView(settingsGroup {
+                    addSettingsRow(actionRow(getString(R.string.settings_use_current_page)) {
+                        useCurrentPageAsHomepage(currentUrl)
+                    })
+                })
             }
-            addView(labels, LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f,
+            addView(settingsGroup {
+                addSettingsRow(actionRow(getString(R.string.settings_change_homepage)) { showEditHomepageDialog() })
+            })
+            addView(settingsGroup(getString(R.string.settings_reset)) {
+                addSettingsRow(actionRow(
+                    title = getString(R.string.row_reset_homepage),
+                    summary = getString(R.string.row_reset_homepage_summary),
+                    destructive = true,
+                ) { confirmResetHomepage() })
+            })
+        }
+    }
+
+    private fun showPrivacySettings() {
+        setSettingsScreen(getString(R.string.section_privacy_and_data)) {
+            addView(settingsGroup {
+                addSettingsRow(navRow(getString(R.string.row_cookies), cookieStatus) {
+                    startActivity(Intent(this@SettingsActivity, CookieSettingsActivity::class.java))
+                })
+                addSettingsRow(navRow(getString(R.string.row_history), historyStatus) {
+                    startActivity(Intent(this@SettingsActivity, HistoryActivity::class.java))
+                })
+                addSettingsRow(navRow(getString(R.string.row_downloads), downloadStatus) {
+                    startActivity(Intent(this@SettingsActivity, DownloadsActivity::class.java))
+                })
+            })
+            addView(settingsGroup(getString(R.string.settings_clear_data)) {
+                addSettingsRow(actionRow(
+                    title = getString(R.string.settings_clear_browsing_data),
+                    summary = getString(R.string.settings_clear_browsing_data_summary),
+                    destructive = true,
+                ) { confirmClearBrowsingData() })
+            })
+        }
+    }
+
+    private fun showHandshakeSettings() {
+        val network = HnsResolutionPreferences.handshakeNetwork(this)
+        setSettingsScreen(getString(R.string.settings_destination_handshake)) {
+            addView(statusCard(
+                label = getString(R.string.settings_handshake_status_label, network.displayName(this@SettingsActivity)),
+                detail = preferenceSummary(getString(R.string.settings_handshake_status_detail)),
             ))
-
-            if (actionLabel != null) {
-                addView(preferenceActionLabel(actionLabel, destructive))
-            }
-        }
-
-    private fun preferenceTitle(text: String): TextView =
-        TextView(this).apply {
-            val colors = themeColors()
-            this.text = text
-            textSize = 16f
-            setTextColor(colors.primaryText)
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
-        }
-
-    private fun preferenceSummary(text: String): TextView =
-        TextView(this).apply {
-            val colors = themeColors()
-            this.text = text
-            textSize = 14f
-            setTextColor(colors.secondaryText)
-            maxLines = 3
-            ellipsize = TextUtils.TruncateAt.END
-            setPadding(0, dp(3), 0, 0)
-        }
-
-    private fun preferenceActionLabel(text: String, destructive: Boolean): TextView =
-        TextView(this).apply {
-            val colors = themeColors()
-            this.text = text
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER_VERTICAL or Gravity.END
-            minWidth = dp(56)
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            setTextColor(
-                if (destructive) {
-                    colors.destructive
-                } else {
-                    colors.action
-                },
-            )
-        }
-
-    private fun statelessDaneCertificateOption(): LinearLayout =
-        LinearLayout(this).apply {
-            val colors = themeColors()
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(colors.background)
-            setPadding(0, dp(8), 0, dp(10))
-            addView(CheckBox(this@SettingsActivity).apply {
-                text = getString(R.string.settings_stateless_dane_certificates)
-                textSize = 16f
-                setTextColor(colors.primaryText)
-                setPadding(0, 0, 0, 0)
-                isChecked = HnsResolutionPreferences.statelessDaneCertificates(this@SettingsActivity)
-                setOnCheckedChangeListener { _, checked ->
+            addView(settingsGroup(getString(R.string.settings_connection)) {
+                addSettingsRow(navRow(getString(R.string.row_handshake_network), hnsNetworkStatus) { showNetworkDialog() })
+                addSettingsRow(navRow(getString(R.string.settings_synchronization), getString(R.string.settings_sync_summary)) {
+                    startActivity(Intent(this@SettingsActivity, HnsSyncActivity::class.java))
+                })
+            })
+            addView(settingsGroup(getString(R.string.settings_security)) {
+                addSettingsRow(toggleRow(
+                    title = getString(R.string.settings_dane),
+                    summary = statelessDaneText(),
+                    checked = HnsResolutionPreferences.statelessDaneCertificates(this@SettingsActivity),
+                ) { checked ->
                     HnsResolutionPreferences.setStatelessDaneCertificates(this@SettingsActivity, checked)
                     refreshStatelessDaneStatus()
-                }
+                })
+                addSettingsRow(navRow(getString(R.string.settings_recovery_dns), hnsDohRecoveryStatus) {
+                    showHnsDohRecoveryDialog()
+                })
             })
-            addView(statelessDaneStatus, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                leftMargin = dp(36)
-            })
-        }
-
-    private fun experimentalP2pDnsRelayOption(): LinearLayout =
-        LinearLayout(this).apply {
-            val colors = themeColors()
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(colors.background)
-            setPadding(0, dp(8), 0, dp(10))
-            addView(CheckBox(this@SettingsActivity).apply {
-                text = getString(R.string.settings_experimental_p2p_dns_relay)
-                textSize = 16f
-                setTextColor(colors.primaryText)
-                setPadding(0, 0, 0, 0)
-                isChecked = HnsResolutionPreferences.experimentalP2pDnsRelay(this@SettingsActivity)
-                setOnCheckedChangeListener { _, checked ->
+            addView(settingsGroup(getString(R.string.settings_advanced_networking)) {
+                addSettingsRow(toggleRow(
+                    title = getString(R.string.settings_p2p_dns_relay),
+                    summary = experimentalP2pRelayText(),
+                    checked = HnsResolutionPreferences.experimentalP2pDnsRelay(this@SettingsActivity),
+                ) { checked ->
                     HnsResolutionPreferences.setExperimentalP2pDnsRelay(this@SettingsActivity, checked)
                     refreshExperimentalP2pRelayStatus()
-                }
-            })
-            addView(experimentalP2pRelayStatus, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                leftMargin = dp(36)
+                })
+                addSettingsRow(navRow(getString(R.string.settings_relay_peers), staticRelayPeerStatus) {
+                    showAddStaticRelayPeerDialog()
+                })
+                addSettingsRow(navRow(getString(R.string.settings_handshake_advanced), getString(R.string.settings_resolver_cache_ready)) {
+                    openDestination(SettingsDestination.HandshakeAdvanced)
+                })
             })
         }
-
-    private fun divider(): View =
-        View(this).apply {
-            setBackgroundColor(themeColors().divider)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                1,
-            )
-        }
-
-    private fun applySelectableBackground(view: View) {
-        val typedValue = TypedValue()
-        theme.resolveAttribute(android.R.attr.selectableItemBackground, typedValue, true)
-        view.setBackgroundResource(typedValue.resourceId)
     }
 
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density + 0.5f).toInt()
+    private fun showHandshakeAdvancedSettings() {
+        setSettingsScreen(getString(R.string.settings_handshake_advanced)) {
+            addView(settingsGroup(getString(R.string.settings_resolver_cache)) {
+                addSettingsRow(valueRow(getString(R.string.settings_resolver_cache), resolverCacheStatus.text.toString()))
+                addSettingsRow(actionRow(
+                    title = getString(R.string.row_clear_resolver_cache),
+                    summary = getString(R.string.settings_resolver_cache_detail),
+                    destructive = true,
+                ) { confirmClearResolverCache() })
+            })
+        }
+    }
+
+    private fun showAdvancedSettings() {
+        setSettingsScreen(getString(R.string.settings_destination_advanced)) {
+            addView(settingsGroup(getString(R.string.settings_handshake_tools)) {
+                addSettingsRow(navRow(getString(R.string.settings_domain_checker), getString(R.string.row_hns_domain_setup_summary)) {
+                    startActivity(Intent(this@SettingsActivity, HnsDomainWizardActivity::class.java))
+                })
+                addSettingsRow(navRow(getString(R.string.settings_connection_details), getString(R.string.settings_connection_details_summary)) {
+                    startActivity(Intent(this@SettingsActivity, HnsResolverTraceActivity::class.java))
+                })
+            })
+            addView(settingsGroup(getString(R.string.settings_app_diagnostics)) {
+                addSettingsRow(navRow(getString(R.string.row_diagnostics), getString(R.string.row_diagnostics_summary)) {
+                    startActivity(Intent(this@SettingsActivity, DiagnosticsActivity::class.java))
+                })
+                addSettingsRow(navRow(getString(R.string.settings_gateway_log), getString(R.string.row_gateway_summary)) {
+                    startActivity(Intent(this@SettingsActivity, GatewayActivity::class.java))
+                })
+            })
+        }
+    }
+
+    private fun showAboutSettings() {
+        setSettingsScreen(getString(R.string.settings_destination_about)) {
+            addView(settingsGroup(getString(R.string.app_name)) {
+                addSettingsRow(valueRow(getString(R.string.settings_version), buildLabel()))
+                addSettingsRow(navRow(getString(R.string.row_privacy_policy), BrowserAppInfo.PRIVACY_POLICY_URL) {
+                    openLink(
+                        Uri.parse(BrowserAppInfo.PRIVACY_POLICY_URL),
+                        getString(R.string.legal_copy_privacy_policy_url),
+                        BrowserAppInfo.PRIVACY_POLICY_URL,
+                    )
+                })
+                addSettingsRow(navRow(getString(R.string.row_legal), getString(R.string.row_legal_summary)) {
+                    startActivity(Intent(this@SettingsActivity, LegalActivity::class.java))
+                })
+                addSettingsRow(navRow(getString(R.string.settings_open_source_licenses), getString(R.string.row_third_party_notices_summary)) {
+                    startActivity(Intent(this@SettingsActivity, ThirdPartyNoticesActivity::class.java))
+                })
+                addSettingsRow(navRow(getString(R.string.row_source_code), BrowserAppInfo.SOURCE_CODE_URL) {
+                    openLink(
+                        Uri.parse(BrowserAppInfo.SOURCE_CODE_URL),
+                        getString(R.string.legal_copy_source_code_url),
+                        BrowserAppInfo.SOURCE_CODE_URL,
+                    )
+                })
+            })
+            addView(settingsGroup(getString(R.string.settings_support)) {
+                addSettingsRow(navRow(getString(R.string.settings_support_shakescape), getString(R.string.row_donate_hns_summary)) {
+                    openLink(
+                        Uri.parse(BrowserAppInfo.HNS_DONATION_URI),
+                        getString(R.string.legal_copy_hns_donation_address),
+                        BrowserAppInfo.HNS_DONATION_ADDRESS,
+                    )
+                })
+            })
+        }
+    }
+
+    private fun openDestination(destination: SettingsDestination) {
+        startActivity(Intent(this, SettingsActivity::class.java).apply {
+            putExtra(EXTRA_DESTINATION, destination.id)
+            currentUrlFromIntent()?.let { putExtra(EXTRA_CURRENT_URL, it) }
+        })
+    }
 
     private fun openLink(uri: Uri, copyLabel: String, copyText: String) {
         try {
@@ -503,6 +306,34 @@ class SettingsActivity : ComponentActivity() {
             getSystemService(ClipboardManager::class.java)
                 .setPrimaryClip(ClipData.newPlainText(copyLabel, copyText))
             Toast.makeText(this, getString(R.string.common_copied_label, copyLabel), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun confirmClearBrowsingData() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_clear_browsing_data)
+            .setMessage(R.string.settings_clear_browsing_data_confirmation)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_clear) { _, _ -> clearBrowsingData() }
+            .show()
+    }
+
+    private fun clearBrowsingData() {
+        BrowserHistoryStore.clear(this)
+        BrowserDownloadStore.clear(this)
+        WebStorage.getInstance().deleteAllData()
+        CookieManager.getInstance().removeAllCookies {
+            CookieManager.getInstance().flush()
+            runOnUiThread {
+                refreshCookieStatus()
+                refreshHistoryStatus()
+                refreshDownloadStatus()
+                Toast.makeText(
+                    this,
+                    R.string.settings_browsing_data_cleared,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
         }
     }
 
@@ -946,6 +777,24 @@ class SettingsActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_CURRENT_URL = "com.denuoweb.hnsdane.CURRENT_URL"
+        const val EXTRA_DESTINATION = "com.denuoweb.hnsdane.SETTINGS_DESTINATION"
         private const val ACTION_APP_LOCALE_SETTINGS = "android.settings.APP_LOCALE_SETTINGS"
+    }
+
+    private enum class SettingsDestination(val id: String) {
+        Root("root"),
+        Browser("browser"),
+        Homepage("homepage"),
+        Privacy("privacy"),
+        Handshake("handshake"),
+        HandshakeAdvanced("handshake_advanced"),
+        Advanced("advanced"),
+        About("about"),
+        ;
+
+        companion object {
+            fun fromId(id: String?): SettingsDestination =
+                entries.firstOrNull { it.id == id } ?: Root
+        }
     }
 }
