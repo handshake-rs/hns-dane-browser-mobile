@@ -8,6 +8,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -666,7 +667,7 @@ class MainActivity : ComponentActivity() {
         val colors = themeColors()
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(colors.surface)
+            background = hamburgerPopupBackground(colors)
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 addView(menuIconButton("›", getString(R.string.menu_forward), webView.canGoForward(), popup) {
@@ -709,7 +710,7 @@ class MainActivity : ComponentActivity() {
             height = LinearLayout.LayoutParams.WRAP_CONTENT
             isFocusable = true
             isOutsideTouchable = true
-            setBackgroundDrawable(ColorDrawable(colors.surface))
+            setBackgroundDrawable(hamburgerPopupBackground(colors))
             elevation = dp(8).toFloat()
         }
         popup.showAsDropDown(
@@ -718,6 +719,17 @@ class MainActivity : ComponentActivity() {
             0,
         )
     }
+
+    private fun hamburgerPopupBackground(colors: ThemeColors) =
+        if (BrowserThemePreferences.effectiveDark(this)) {
+            GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                setColor(colors.surface)
+                setStroke(dp(1), Color.argb(DARK_MENU_OUTLINE_ALPHA, 255, 255, 255))
+            }
+        } else {
+            ColorDrawable(colors.surface)
+        }
 
     private fun menuIconButton(
         icon: String,
@@ -1704,6 +1716,7 @@ class MainActivity : ComponentActivity() {
         private const val MENU_ICON_BUTTON_SIZE_DP = 55
         private const val MENU_POPUP_WIDTH_DP = MENU_ICON_BUTTON_SIZE_DP * 3
         private const val MENU_ROW_HEIGHT_DP = 55
+        private const val DARK_MENU_OUTLINE_ALPHA = 72
         private const val MAX_DOWNLOAD_FILE_NAME_CHARS = 120
         private const val STATE_MAIN_FRAME_URL = "main_frame_url"
         private const val WHOLE_BROWSER_PROXY_SCOPE = "whole-browser.invalid"
