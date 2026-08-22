@@ -271,6 +271,11 @@ class WalletActivity : ComponentActivity() {
         when {
             unconfirmedDatabaseKey != null || recoveryView.hasSecret() -> renderRecoveryDashboard()
             walletHandle == INVALID_HANDLE -> renderNoWalletDashboard()
+            // A direct peer synchronization owns the native controller for a
+            // bounded network round. Its public progress has a separate
+            // mailbox, so preserve the known-unlocked dashboard rather than
+            // waiting for a status lock on Android's main thread.
+            walletHnsSyncInProgress -> renderUnlockedWalletDashboard()
             NativeWalletBridge.status(walletHandle)?.locked != false -> renderLockedWalletDashboard()
             else -> renderUnlockedWalletDashboard()
         }
@@ -1265,15 +1270,6 @@ class WalletActivity : ComponentActivity() {
             resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
             return
         }
-        val status = NativeWalletBridge.status(handle)
-        if (status == null || status.locked) {
-            resetReadProjection(R.string.wallet_reads_locked)
-            return
-        }
-        if (!NativeWalletBridge.hasHnsReads(handle)) {
-            resetReadProjection(R.string.wallet_reads_unavailable)
-            return
-        }
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
         walletHnsSyncInProgress = true
         readStatusView.text = getString(R.string.wallet_reads_syncing)
@@ -1282,7 +1278,23 @@ class WalletActivity : ComponentActivity() {
         val authorityGeneration = walletAuthorityGeneration
         val poller = startLiveHnsSyncProgressPolling(handle)
         thread(name = "hns-wallet-read-sync") {
-            val synchronization = synchronizeHnsReadsWithRollbackFloor(handle)
+            // Do every native controller inspection off the UI thread. A
+            // previous bounded sync may still own the controller lock; the
+            // operation gate above rejects that second tap immediately while
+            // this worker remains safe even if a lifecycle race occurs.
+            val preflightFailure = NativeWalletBridge.status(handle)?.let { status ->
+                when {
+                    status.locked -> R.string.wallet_reads_locked
+                    !NativeWalletBridge.hasHnsReads(handle) ->
+                        R.string.wallet_reads_unavailable
+                    else -> null
+                }
+            } ?: R.string.wallet_reads_locked
+            val synchronization = if (preflightFailure == null) {
+                synchronizeHnsReadsWithRollbackFloor(handle)
+            } else {
+                null
+            }
             poller.set(false)
             when {
                 synchronization?.snapshot != null ->
@@ -1315,6 +1327,7 @@ class WalletActivity : ComponentActivity() {
                 if (liveHnsSyncPoller === poller) liveHnsSyncPoller = null
                 refreshControllerState()
                 when {
+                    preflightFailure != null -> resetReadProjection(preflightFailure)
                     synchronization == null -> resetReadProjection(R.string.wallet_reads_sync_failed)
                     synchronization.snapshot != null -> renderReadSnapshot(synchronization.snapshot)
                     synchronization.catchup != null -> renderReadCatchup(synchronization.catchup)

@@ -278,6 +278,19 @@ fn lock_if_active<'a, T>(active: &AtomicBool, value: &'a Mutex<T>) -> Option<Mut
     active.load(Ordering::Acquire).then_some(guard)
 }
 
+/// Acquire an active record only when it is immediately available. Android's
+/// UI thread uses this for observational wallet state so a long direct-peer
+/// synchronization can never turn a status refresh or a second tap into an
+/// input-dispatch ANR. Operations that change wallet state keep using the
+/// blocking accessor and are scheduled off the UI thread by Kotlin.
+fn try_lock_if_active<'a, T>(
+    active: &AtomicBool,
+    value: &'a Mutex<T>,
+) -> Option<MutexGuard<'a, T>> {
+    let guard = value.try_lock().ok()?;
+    active.load(Ordering::Acquire).then_some(guard)
+}
+
 enum AndroidWalletController {
     Lifecycle(MobileWalletController),
     Reads(MobileHnsReadController<HnsNodeRpcBackend>),
@@ -1572,6 +1585,10 @@ impl AndroidWalletRecord {
 
     fn controller_if_active(&self) -> Option<MutexGuard<'_, AndroidWalletController>> {
         lock_if_active(&self.active, self.controller.as_ref())
+    }
+
+    fn controller_try_if_active(&self) -> Option<MutexGuard<'_, AndroidWalletController>> {
+        try_lock_if_active(&self.active, self.controller.as_ref())
     }
 
     fn pending_recovery_if_active(&self) -> Option<MutexGuard<'_, Option<SensitiveUtf16>>> {
@@ -4149,7 +4166,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
+        let mut controller = record.controller_try_if_active()?;
         let bundle = controller.status_bundle()?;
         env.byte_array_from_slice(bundle.as_slice())
             .ok()
@@ -4168,7 +4185,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
+        let mut controller = record.controller_try_if_active()?;
         let bundle = controller.account_bundle()?;
         env.byte_array_from_slice(bundle.as_slice())
             .ok()
@@ -4335,7 +4352,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
-        let controller = record.controller_if_active()?;
+        let controller = record.controller_try_if_active()?;
         let mut floor = android_hns_light_floor_bundle(controller.direct_hns_rollback_floor()?);
         let array = env.byte_array_from_slice(floor.as_slice()).ok();
         floor.fill(0);
@@ -4379,7 +4396,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
+        let mut controller = record.controller_try_if_active()?;
         let mut bundle = controller.direct_denuo_status_bundle()?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
@@ -4476,7 +4493,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(record) = wallet_from_handle(handle) else {
             return false;
         };
-        let Some(controller) = record.controller_if_active() else {
+        let Some(controller) = record.controller_try_if_active() else {
             return false;
         };
         controller.has_hns_reads()
@@ -4495,7 +4512,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(record) = wallet_from_handle(handle) else {
             return false;
         };
-        let Some(controller) = record.controller_if_active() else {
+        let Some(controller) = record.controller_try_if_active() else {
             return false;
         };
         controller.has_hns_value()
@@ -4514,7 +4531,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(record) = wallet_from_handle(handle) else {
             return false;
         };
-        let Some(controller) = record.controller_if_active() else {
+        let Some(controller) = record.controller_try_if_active() else {
             return false;
         };
         controller.has_bitcoin_value()
@@ -5088,6 +5105,20 @@ mod tests {
         drop(held);
 
         assert!(!queued_call.join().expect("queued call completes"));
+    }
+
+    #[test]
+    fn nonblocking_wallet_gate_refuses_a_busy_controller_without_waiting() {
+        let active = AtomicBool::new(true);
+        let state = Mutex::new(());
+        let held = state.lock().expect("hold state mutex");
+
+        assert!(try_lock_if_active(&active, &state).is_none());
+        drop(held);
+
+        assert!(try_lock_if_active(&active, &state).is_some());
+        active.store(false, Ordering::Release);
+        assert!(try_lock_if_active(&active, &state).is_none());
     }
 
     #[test]
