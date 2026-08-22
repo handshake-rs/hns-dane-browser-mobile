@@ -2118,17 +2118,18 @@ fn android_direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
 /// entire read result. Local wallet, light-index, and configuration failures
 /// deliberately remain fail-closed.
 fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
-    matches!(
-        error,
-        HnsDirectPeerError::Peer(_)
-            | HnsDirectPeerError::Io(_)
-            | HnsDirectPeerError::NoReadyPeers
-            | HnsDirectPeerError::ResponseEventLimit
-            | HnsDirectPeerError::UnexpectedPeerEvent
-            | HnsDirectPeerError::PeerRejected(_)
-            | HnsDirectPeerError::FilteredBlockUnavailable
-            | HnsDirectPeerError::InsufficientBlockViews { .. }
-    )
+    error.is_temporary_header_agreement_unavailable()
+        || matches!(
+            error,
+            HnsDirectPeerError::Peer(_)
+                | HnsDirectPeerError::Io(_)
+                | HnsDirectPeerError::NoReadyPeers
+                | HnsDirectPeerError::ResponseEventLimit
+                | HnsDirectPeerError::UnexpectedPeerEvent
+                | HnsDirectPeerError::PeerRejected(_)
+                | HnsDirectPeerError::FilteredBlockUnavailable
+                | HnsDirectPeerError::InsufficientBlockViews { .. }
+        )
 }
 
 fn direct_hns_transport_catchup(
