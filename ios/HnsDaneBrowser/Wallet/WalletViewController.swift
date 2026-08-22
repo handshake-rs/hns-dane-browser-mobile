@@ -18,6 +18,7 @@ final class WalletViewController: UIViewController {
     private var persistentWalletExists = false
     private var protectedStorageIsAvailable = true
     private var isOperating = false
+    private var walletIsUnlocked = false
     private var readGeneration: UInt64 = 0
     private var synchronizedReadsAvailable = false
     private var resolvedDatabasePath: String?
@@ -53,6 +54,7 @@ final class WalletViewController: UIViewController {
     private let synchronizeButton = UIButton(type: .system)
     private let importNameButton = UIButton(type: .system)
     private let deleteButton = UIButton(type: .system)
+    private let dashboardStack = UIStackView()
 
     init(network: BrowserHandshakeNetwork) {
         self.network = network
@@ -151,12 +153,6 @@ final class WalletViewController: UIViewController {
     }
 
     private func configureView() {
-        let introduction = UILabel()
-        introduction.font = .preferredFont(forTextStyle: .body)
-        introduction.adjustsFontForContentSizeCategory = true
-        introduction.numberOfLines = 0
-        introduction.text = "One local Handshake account on \(network.title). Lifecycle controls are always local. A scoped companion may additionally enable read-only balance, payment receive, name-transfer receive, history, and tracked-name synchronization. Sending, HNSA/HNSR, providers, swaps, and marketplaces remain unavailable."
-
         configureSummaryLabel(statusLabel, identifier: "wallet.status")
         configureSummaryLabel(accountLabel, identifier: "wallet.account")
         configureSummaryLabel(readStatusLabel, identifier: "wallet.read-status")
@@ -212,54 +208,26 @@ final class WalletViewController: UIViewController {
         deleteButton.configuration?.baseBackgroundColor = .systemRed
         deleteButton.accessibilityIdentifier = "wallet.delete-confirmed"
 
-        let actions = UIStackView(arrangedSubviews: [
-            createButton,
-            restoreButton,
-            openButton,
-            lockButton,
-            confirmRecoveryButton,
-            refreshButton,
-            synchronizeButton,
-            importNameButton,
-            deleteButton,
-        ])
-        actions.axis = .vertical
-        actions.spacing = 10
-
-        let content = UIStackView(arrangedSubviews: [
-            introduction,
-            statusLabel,
-            accountLabel,
-            readStatusLabel,
-            balanceLabel,
-            paymentReceiveLabel,
-            nameReceiveLabel,
-            historyLabel,
-            namesLabel,
-            nameImportStatusLabel,
-            actions,
-            recoveryTitle,
-            recoveryTextView,
-        ])
-        content.translatesAutoresizingMaskIntoConstraints = false
-        content.axis = .vertical
-        content.spacing = 16
+        dashboardStack.translatesAutoresizingMaskIntoConstraints = false
+        dashboardStack.axis = .vertical
+        dashboardStack.spacing = 14
+        dashboardStack.accessibilityIdentifier = "wallet.dashboard"
 
         let scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.alwaysBounceVertical = true
         view.addSubview(scrollView)
-        scrollView.addSubview(content)
+        scrollView.addSubview(dashboardStack)
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            content.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 20),
-            content.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -20),
-            content.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 20),
-            content.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -24),
-            content.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -40),
+            dashboardStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 20),
+            dashboardStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -20),
+            dashboardStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 20),
+            dashboardStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -24),
+            dashboardStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -40),
         ])
     }
 
@@ -277,6 +245,323 @@ final class WalletViewController: UIViewController {
         configuration.cornerStyle = .medium
         button.configuration = configuration
         button.addTarget(self, action: action, for: .touchUpInside)
+    }
+
+    private func renderWalletDashboard() {
+        guard isViewLoaded else { return }
+        dashboardStack.arrangedSubviews.forEach { view in
+            dashboardStack.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+
+        if unconfirmedDatabaseKey != nil {
+            renderRecoveryDashboard()
+        } else if wallet == nil && !persistentWalletExists && storageLease != nil &&
+            protectedStorageIsAvailable && walletLifecycleMayAcquireStorage {
+            renderNoWalletDashboard()
+        } else if walletIsUnlocked {
+            renderUnlockedWalletDashboard()
+        } else {
+            renderLockedWalletDashboard()
+        }
+    }
+
+    private func renderNoWalletDashboard() {
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "NO WALLET · \(network.title)",
+            body: [statusLabel, accountLabel],
+            accent: .systemPink
+        ))
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "Get started",
+            body: [createButton, restoreButton]
+        ))
+    }
+
+    private func renderRecoveryDashboard() {
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "RECOVERY PHRASE",
+            body: [statusLabel],
+            accent: .systemPink
+        ))
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "Record this phrase offline before continuing",
+            body: [recoveryTitle, recoveryTextView, confirmRecoveryButton],
+            accent: .systemOrange
+        ))
+    }
+
+    private func renderLockedWalletDashboard() {
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "● LOCKED · \(network.title)",
+            body: [statusLabel, accountLabel],
+            accent: .systemPink
+        ))
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "Wallet access",
+            body: [openButton]
+        ))
+        dashboardStack.addArrangedSubview(tileHeading("Explore"))
+        dashboardStack.addArrangedSubview(dashboardTileRow(
+            dashboardTile(
+                title: "Names",
+                summary: "Unlock to inspect names",
+                action: { [weak self] in self?.showFeatureUnavailable("Names") }
+            ),
+            dashboardTile(
+                title: "Bitcoin",
+                summary: "Not available on iOS",
+                action: { [weak self] in self?.showFeatureUnavailable("Bitcoin") }
+            )
+        ))
+        dashboardStack.addArrangedSubview(dashboardTileRow(
+            dashboardTile(
+                title: "Shakedex",
+                summary: "Not available on iOS",
+                action: { [weak self] in self?.showFeatureUnavailable("Shakedex") }
+            ),
+            dashboardTile(
+                title: "Wallet",
+                summary: "Open and unlock",
+                action: { [weak self] in self?.showWalletManagement() }
+            )
+        ))
+    }
+
+    private func renderUnlockedWalletDashboard() {
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "● UNLOCKED · \(network.title)",
+            body: [statusLabel, accountLabel],
+            accent: .systemCyan
+        ))
+
+        let receive = dashboardButton(
+            title: "Receive",
+            action: #selector(showPaymentReceiveAddress),
+            enabled: synchronizedReadsAvailable
+        )
+        let send = dashboardButton(
+            title: "Send",
+            action: #selector(showValueFeaturesUnavailable),
+            accent: .systemIndigo
+        )
+        let sync = dashboardButton(
+            title: "Sync",
+            action: #selector(synchronizeWalletReads),
+            enabled: synchronizeButton.isEnabled
+        )
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "HNS balance",
+            body: [balanceLabel, dashboardButtonRow([receive, send, sync])],
+            accent: .systemCyan
+        ))
+
+        if !synchronizedReadsAvailable {
+            dashboardStack.addArrangedSubview(dashboardCard(
+                title: "Sync needed",
+                body: [readStatusLabel],
+                accent: .systemOrange
+            ))
+        }
+
+        dashboardStack.addArrangedSubview(tileHeading("Explore"))
+        dashboardStack.addArrangedSubview(dashboardTileRow(
+            dashboardTile(
+                title: "Names",
+                summary: synchronizedReadsAvailable ? "Read-only names" : "Sync required",
+                action: { [weak self] in self?.showNamesDashboard() }
+            ),
+            dashboardTile(
+                title: "Bitcoin",
+                summary: "Not available on iOS",
+                action: { [weak self] in self?.showFeatureUnavailable("Bitcoin") }
+            )
+        ))
+        dashboardStack.addArrangedSubview(dashboardTileRow(
+            dashboardTile(
+                title: "Shakedex",
+                summary: "Not available on iOS",
+                action: { [weak self] in self?.showFeatureUnavailable("Shakedex") }
+            ),
+            dashboardTile(
+                title: "Wallet",
+                summary: "Security and lifecycle",
+                action: { [weak self] in self?.showWalletManagement() }
+            )
+        ))
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "Recent activity",
+            body: [historyLabel, dashboardButton(
+                title: "View activity",
+                action: #selector(showWalletActivity)
+            )]
+        ))
+    }
+
+    private func dashboardCard(
+        title: String,
+        body: [UIView],
+        accent: UIColor = .systemCyan
+    ) -> UIView {
+        let card = UIStackView()
+        card.axis = .vertical
+        card.spacing = 10
+        card.isLayoutMarginsRelativeArrangement = true
+        card.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 15, leading: 15, bottom: 15, trailing: 15)
+        card.backgroundColor = .secondarySystemGroupedBackground
+        card.layer.cornerRadius = 16
+        card.layer.masksToBounds = true
+
+        let heading = UILabel()
+        heading.text = title
+        heading.font = .preferredFont(forTextStyle: .caption1)
+        heading.adjustsFontForContentSizeCategory = true
+        heading.textColor = accent
+        heading.numberOfLines = 0
+        card.addArrangedSubview(heading)
+        for view in body {
+            card.addArrangedSubview(view)
+        }
+        return card
+    }
+
+    private func tileHeading(_ title: String) -> UILabel {
+        let label = UILabel()
+        label.text = title.uppercased()
+        label.font = .preferredFont(forTextStyle: .caption1)
+        label.adjustsFontForContentSizeCategory = true
+        label.textColor = .secondaryLabel
+        label.accessibilityTraits = .header
+        return label
+    }
+
+    private func dashboardTileRow(_ first: UIView, _ second: UIView) -> UIStackView {
+        let row = UIStackView(arrangedSubviews: [first, second])
+        row.axis = .horizontal
+        row.spacing = 10
+        row.distribution = .fillEqually
+        return row
+    }
+
+    private func dashboardTile(
+        title: String,
+        summary: String,
+        action: @escaping () -> Void
+    ) -> UIButton {
+        var configuration = UIButton.Configuration.tinted()
+        configuration.title = title
+        configuration.subtitle = summary
+        configuration.titleAlignment = .leading
+        configuration.cornerStyle = .medium
+        configuration.baseForegroundColor = .label
+        configuration.baseBackgroundColor = .systemIndigo
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 12, bottom: 14, trailing: 12)
+        let button = UIButton(type: .system)
+        button.configuration = configuration
+        button.contentHorizontalAlignment = .leading
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        return button
+    }
+
+    private func dashboardButton(
+        title: String,
+        action: Selector,
+        accent: UIColor = .systemCyan,
+        enabled: Bool = true
+    ) -> UIButton {
+        var configuration = UIButton.Configuration.filled()
+        configuration.title = title
+        configuration.cornerStyle = .medium
+        configuration.baseBackgroundColor = accent
+        configuration.baseForegroundColor = .black
+        let button = UIButton(type: .system)
+        button.configuration = configuration
+        button.isEnabled = enabled
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return button
+    }
+
+    private func dashboardButtonRow(_ buttons: [UIButton]) -> UIStackView {
+        let row = UIStackView(arrangedSubviews: buttons)
+        row.axis = .horizontal
+        row.spacing = 8
+        row.distribution = .fillEqually
+        return row
+    }
+
+    @objc private func showPaymentReceiveAddress() {
+        let address = paymentReceiveLabel.text ?? "Payment receive address: unavailable."
+        let alert = UIAlertController(title: "Receive HNS", message: address, preferredStyle: .alert)
+        if !address.localizedCaseInsensitiveContains("unavailable") {
+            alert.addAction(UIAlertAction(title: "Copy", style: .default) { _ in
+                UIPasteboard.general.string = address
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    @objc private func showValueFeaturesUnavailable() {
+        showFeatureUnavailable("HNS sending")
+    }
+
+    private func showFeatureUnavailable(_ feature: String) {
+        let alert = UIAlertController(
+            title: "\(feature) unavailable",
+            message: "This iOS release keeps value movement, Bitcoin, and Shakedex workflows unavailable. Local lifecycle controls and scoped read-only HNS information remain separate and device-local.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    private func showNamesDashboard() {
+        let alert = UIAlertController(
+            title: "Names",
+            message: "\(namesLabel.text ?? "Tracked names: unavailable.")\n\n\(nameImportStatusLabel.text ?? "")",
+            preferredStyle: .alert
+        )
+        if importNameButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Track exact HNS name", style: .default) { [weak self] _ in
+                self?.requestExactHnsNameImport()
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    @objc private func showWalletActivity() {
+        let alert = UIAlertController(
+            title: "Recent activity",
+            message: historyLabel.text,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func showWalletManagement() {
+        let alert = UIAlertController(
+            title: "Wallet",
+            message: "\(statusLabel.text ?? "Status unavailable.")\n\n\(accountLabel.text ?? "Account unavailable.")",
+            preferredStyle: .alert
+        )
+        if walletIsUnlocked {
+            alert.addAction(UIAlertAction(title: "Lock", style: .default) { [weak self] _ in
+                self?.lockWallet()
+            })
+        } else if openButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Unlock", style: .default) { [weak self] _ in
+                self?.openOrUnlockWallet()
+            })
+        }
+        if deleteButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Delete wallet", style: .destructive) { [weak self] _ in
+                self?.requestConfirmedWalletDeletion()
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
     }
 
     @objc private func createWallet() {
@@ -1064,6 +1349,7 @@ final class WalletViewController: UIViewController {
 
     private func refreshState() {
         confirmedDeletionAccountID = nil
+        walletIsUnlocked = false
         guard storageLease != nil else {
             if let path = resolvedDatabasePath,
                WalletStorageLeaseRegistry.isBlockedAfterRetirementFailure(path: path) {
@@ -1128,6 +1414,7 @@ final class WalletViewController: UIViewController {
             statusLabel.text = status.locked
                 ? "Status: locked. Sending and marketplace controls are unavailable."
                 : "Status: unlocked · wallet \(status.activeWallet ?? "unknown"). Sending and marketplace controls are unavailable."
+            walletIsUnlocked = !status.locked
             if status.locked {
                 accountLabel.text = "Account: unlock to view the local HNS account identity."
                 setReadAvailability(false, message: hasHnsReads
@@ -1197,6 +1484,7 @@ final class WalletViewController: UIViewController {
             viewIfLoaded?.window != nil &&
             !retirementInFlight &&
             !isOperating
+        renderWalletDashboard()
     }
 
     private func canStartNewWallet() throws -> Bool {

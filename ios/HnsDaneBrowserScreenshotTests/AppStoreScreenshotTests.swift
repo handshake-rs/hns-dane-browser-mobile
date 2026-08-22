@@ -372,27 +372,18 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
 
         let table = app.tables["settings.table"]
         XCTAssertTrue(table.waitForExistence(timeout: 10), "Settings table did not appear")
-        let statelessRow = table.cells[
-            "settings.hns-resolution.stateless-dane-certificates"
-        ]
-        let statelessToggle = app.switches[
-            "settings.hns-resolution.stateless-dane-certificates.toggle"
-        ]
-        let walletRowIdentifier = "settings.wallet.native-controls"
+        let handshakeRow = table.cells["settings.destination.handshake"]
+        let walletRowIdentifier = "settings.destination.wallet"
         let walletRow = table.cells[walletRowIdentifier]
         XCTAssertTrue(
-            scrollUp(in: table, untilFullyVisible: statelessRow),
-            "Android-aligned HNS settings did not become visible"
+            handshakeRow.waitForExistence(timeout: timeout),
+            "Handshake settings destination did not appear"
         )
         XCTAssertTrue(
-            statelessToggle.waitForExistence(timeout: timeout),
-            "Stateless DANE toggle did not appear"
+            walletRow.waitForExistence(timeout: timeout),
+            "Wallet settings destination did not appear"
         )
-        XCTAssertTrue(
-            scrollDown(in: table, untilFullyVisible: walletRow),
-            "Native Handshake wallet setting did not become fully visible"
-        )
-        let walletTitle = walletRow.staticTexts["Handshake wallet"]
+        let walletTitle = walletRow.staticTexts["Wallet"]
         XCTAssertTrue(
             walletTitle.waitForExistence(timeout: timeout),
             "Visible native wallet row did not expose its shipping title"
@@ -400,33 +391,53 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let walletRowLabel = walletTitle.label.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        XCTAssertEqual(
-            walletRowLabel,
-            "Handshake wallet",
-            "Visible native wallet title did not match its shipping copy"
+        XCTAssertEqual(walletRowLabel, "Wallet")
+
+        handshakeRow.tap()
+        let statelessRow = table.cells[
+            "settings.handshake.stateless-dane-certificates"
+        ]
+        let statelessToggle = app.switches[
+            "settings.handshake.stateless-dane-certificates.toggle"
+        ]
+        XCTAssertTrue(
+            statelessRow.waitForExistence(timeout: timeout),
+            "Handshake validation settings did not become visible"
         )
+        XCTAssertTrue(
+            statelessToggle.waitForExistence(timeout: timeout),
+            "Stateless DANE toggle did not appear"
+        )
+        XCTAssertTrue(
+            app.navigationBars["Handshake"].buttons["Settings"].waitForExistence(timeout: timeout),
+            "Settings back button did not appear"
+        )
+        app.navigationBars["Handshake"].buttons["Settings"].tap()
+        XCTAssertTrue(walletRow.waitForExistence(timeout: timeout), "Settings root did not return")
         assertNoNavigationAlert()
         return [
             "nativeWalletRowIdentifier": walletRowIdentifier,
             "nativeWalletRowLabel": walletRowLabel,
             "sourceRequestedURL": Self.hnsURL,
             "statelessDANERowIdentifier":
-                "settings.hns-resolution.stateless-dane-certificates",
+                "settings.handshake.stateless-dane-certificates",
             "statelessDANEToggleIdentifier":
-                "settings.hns-resolution.stateless-dane-certificates.toggle",
+                "settings.handshake.stateless-dane-certificates.toggle",
         ]
     }
 
     private func openProofDetails(timeout: TimeInterval) throws -> [String: Any] {
         let table = app.tables["settings.table"]
+        let advancedRow = table.cells["settings.destination.advanced"]
+        XCTAssertTrue(
+            advancedRow.waitForExistence(timeout: timeout),
+            "Advanced settings destination did not appear"
+        )
+        advancedRow.tap()
         let proofRowIdentifier = "browser-settings.proof-details"
         let proofRow = table.cells[proofRowIdentifier]
         XCTAssertTrue(
-            scrollUp(
-                in: table,
-                untilFullyVisible: proofRow,
-                maximumNormalizedMidY: 0.75
-            ),
+            proofRow.waitForExistence(timeout: timeout),
             "HNS proof details setting did not become visible"
         )
 

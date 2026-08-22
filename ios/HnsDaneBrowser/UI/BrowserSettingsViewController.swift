@@ -18,6 +18,7 @@ final class BrowserSettingsViewController: UITableViewController {
         case showCookies
         case showHistory
         case showDownloads
+        case clearBrowsingData
         case showWallet
         case setTheme(BrowserThemeMode)
         case openLanguageSettings
@@ -38,60 +39,113 @@ final class BrowserSettingsViewController: UITableViewController {
         case showSourceCode
     }
 
-    enum Section: Int, CaseIterable {
-        case startPage
-        case privacyAndData
-        case wallet
-        case appearance
-        case language
-        case hnsResolution
-        case diagnosticsAndTools
-        case aboutLegalAndSupport
+    /// The root deliberately contains only these six destinations. Detail
+    /// screens use the platform navigation stack rather than a long form.
+    enum Destination: String, CaseIterable {
+        case root
+        case browser
+        case homepage
+        case privacy
+        case handshake
+        case handshakeAdvanced
+        case advanced
+        case about
 
         var title: String {
             switch self {
+            case .root: "Settings"
+            case .browser: "Browser"
+            case .homepage: "Homepage"
+            case .privacy: "Privacy & Data"
+            case .handshake: "Handshake"
+            case .handshakeAdvanced: "Handshake Advanced"
+            case .advanced: "Advanced"
+            case .about: "About"
+            }
+        }
+    }
+
+    enum Section: CaseIterable {
+        case destinations
+        case startPage
+        case appearance
+        case homepage
+        case privacyData
+        case privacyClearData
+        case handshakeConnection
+        case handshakeSecurity
+        case handshakeAdvanced
+        case resolverCache
+        case tools
+        case diagnostics
+        case about
+        case support
+
+        var title: String? {
+            switch self {
+            case .destinations: nil
             case .startPage: "Start page"
-            case .privacyAndData: "Privacy and data"
-            case .wallet: "Wallet"
             case .appearance: "Appearance"
-            case .language: "Language"
-            case .hnsResolution: "HNS resolution"
-            case .diagnosticsAndTools: "Diagnostics and tools"
-            case .aboutLegalAndSupport: "About, legal, and support"
+            case .homepage: "Homepage"
+            case .privacyData: "Privacy & data"
+            case .privacyClearData: "Clear data"
+            case .handshakeConnection: "Connection"
+            case .handshakeSecurity: "Security"
+            case .handshakeAdvanced: "Advanced networking"
+            case .resolverCache: "Resolver cache"
+            case .tools: "Handshake tools"
+            case .diagnostics: "App & diagnostics"
+            case .about: "Shakescape"
+            case .support: "Support"
             }
         }
 
         var accessibilityIdentifier: String {
             switch self {
+            case .destinations: "settings.destinations"
             case .startPage: "settings.section.start-page"
-            case .privacyAndData: "settings.section.privacy-and-data"
-            case .wallet: "settings.section.wallet"
             case .appearance: "settings.section.appearance"
-            case .language: "settings.section.language"
-            case .hnsResolution: "settings.section.hns-resolution"
-            case .diagnosticsAndTools: "settings.section.diagnostics-and-tools"
-            case .aboutLegalAndSupport: "settings.section.about-legal-and-support"
+            case .homepage: "settings.section.homepage"
+            case .privacyData: "settings.section.privacy-and-data"
+            case .privacyClearData: "settings.section.clear-data"
+            case .handshakeConnection: "settings.section.handshake-connection"
+            case .handshakeSecurity: "settings.section.handshake-security"
+            case .handshakeAdvanced: "settings.section.handshake-advanced"
+            case .resolverCache: "settings.section.resolver-cache"
+            case .tools: "settings.section.handshake-tools"
+            case .diagnostics: "settings.section.diagnostics"
+            case .about: "settings.section.about"
+            case .support: "settings.section.support"
             }
         }
     }
 
     enum Row: Int, CaseIterable {
+        case destinationBrowser
+        case destinationPrivacy
+        case destinationHandshake
+        case wallet
+        case destinationAdvanced
+        case destinationAbout
         case homepage
+        case currentHomepage
         case setCurrentPageAsHomepage
+        case changeHomepage
         case resetHomepage
+        case theme
+        case appLanguage
         case cookies
         case history
         case downloads
-        case wallet
-        case theme
-        case appLanguage
+        case clearBrowsingData
         case handshakeNetwork
+        case hnsSync
         case statelessDANECertificates
         case hnsDoHRecovery
         case experimentalP2PDNSRelay
         case addHNSRelayPeer
+        case handshakeAdvanced
         case clearResolverCache
-        case hnsSync
         case hnsDomainSetup
         case resolverTrace
         case hnsProofDetails
@@ -105,29 +159,37 @@ final class BrowserSettingsViewController: UITableViewController {
 
         var title: String {
             switch self {
-            case .homepage: "Homepage"
-            case .setCurrentPageAsHomepage: "Set current page as homepage"
+            case .destinationBrowser: "Browser"
+            case .destinationPrivacy: "Privacy & Data"
+            case .destinationHandshake: "Handshake"
+            case .wallet: "Wallet"
+            case .destinationAdvanced: "Advanced"
+            case .destinationAbout: "About"
+            case .homepage, .currentHomepage: "Homepage"
+            case .setCurrentPageAsHomepage: "Use current page"
+            case .changeHomepage: "Change homepage"
             case .resetHomepage: "Reset homepage"
+            case .theme: "Theme"
+            case .appLanguage: "App language"
             case .cookies: "Cookies"
             case .history: "History"
             case .downloads: "Downloads"
-            case .wallet: "Handshake wallet"
-            case .theme: "Theme"
-            case .appLanguage: "App language"
+            case .clearBrowsingData: "Clear browsing data"
             case .handshakeNetwork: "Handshake network"
-            case .statelessDANECertificates: "Experimental stateless DANE certificates"
-            case .hnsDoHRecovery: "HNS recovery DNS over HTTPS"
-            case .experimentalP2PDNSRelay: "Experimental P2P DNS relay"
-            case .addHNSRelayPeer: "Add HNS relay peer"
+            case .hnsSync: "Synchronization"
+            case .statelessDANECertificates: "DANE"
+            case .hnsDoHRecovery: "Recovery DNS"
+            case .experimentalP2PDNSRelay: "P2P DNS relay"
+            case .addHNSRelayPeer: "Relay peers"
+            case .handshakeAdvanced: "Advanced"
             case .clearResolverCache: "Clear resolver cache"
-            case .hnsSync: "HNS sync"
-            case .hnsDomainSetup: "HNS domain setup"
-            case .resolverTrace: "Resolver trace"
+            case .hnsDomainSetup: "Domain checker"
+            case .resolverTrace: "Connection details"
             case .hnsProofDetails: "HNS proof details"
             case .tlsaDANEInspector: "TLSA / DANE inspector"
             case .diagnostics: "Diagnostics"
-            case .gateway: "Gateway"
-            case .build: "Build"
+            case .gateway: "Gateway log"
+            case .build: "Version"
             case .legal: "Legal"
             case .privacyPolicy: "Privacy policy"
             case .sourceCode: "Source code"
@@ -136,41 +198,48 @@ final class BrowserSettingsViewController: UITableViewController {
 
         var accessibilityIdentifier: String {
             switch self {
-            case .homepage: "settings.start-page.homepage"
-            case .setCurrentPageAsHomepage: "settings.start-page.set-current-page"
-            case .resetHomepage: "settings.start-page.reset-homepage"
+            case .destinationBrowser: "settings.destination.browser"
+            case .destinationPrivacy: "settings.destination.privacy"
+            case .destinationHandshake: "settings.destination.handshake"
+            case .wallet: "settings.destination.wallet"
+            case .destinationAdvanced: "settings.destination.advanced"
+            case .destinationAbout: "settings.destination.about"
+            case .homepage: "settings.browser.homepage"
+            case .currentHomepage: "settings.homepage.current"
+            case .setCurrentPageAsHomepage: "settings.homepage.use-current-page"
+            case .changeHomepage: "settings.homepage.change"
+            case .resetHomepage: "settings.homepage.reset"
+            case .theme: "settings.browser.theme"
+            case .appLanguage: "settings.browser.app-language"
             case .cookies: "settings.privacy-and-data.cookies"
             case .history: "settings.privacy-and-data.history"
             case .downloads: "settings.privacy-and-data.downloads"
-            case .wallet: "settings.wallet.native-controls"
-            case .theme: "settings.appearance.theme"
-            case .appLanguage: "settings.language.app-language"
-            case .handshakeNetwork: "settings.hns-resolution.handshake-network"
-            case .statelessDANECertificates:
-                "settings.hns-resolution.stateless-dane-certificates"
-            case .hnsDoHRecovery:
-                "settings.hns-resolution.hns-doh-recovery"
-            case .experimentalP2PDNSRelay:
-                "settings.hns-resolution.experimental-p2p-dns-relay"
-            case .addHNSRelayPeer: "settings.hns-resolution.add-hns-relay-peer"
-            case .clearResolverCache: "settings.hns-resolution.clear-resolver-cache"
-            case .hnsSync: "settings.hns-resolution.hns-sync"
-            case .hnsDomainSetup: "settings.diagnostics-and-tools.hns-domain-setup"
-            case .resolverTrace: "settings.diagnostics-and-tools.resolver-trace"
+            case .clearBrowsingData: "settings.privacy-and-data.clear-browsing-data"
+            case .handshakeNetwork: "settings.handshake.network"
+            case .hnsSync: "settings.handshake.sync"
+            case .statelessDANECertificates: "settings.handshake.stateless-dane-certificates"
+            case .hnsDoHRecovery: "settings.handshake.hns-doh-recovery"
+            case .experimentalP2PDNSRelay: "settings.handshake.experimental-p2p-dns-relay"
+            case .addHNSRelayPeer: "settings.handshake.add-hns-relay-peer"
+            case .handshakeAdvanced: "settings.handshake.advanced"
+            case .clearResolverCache: "settings.handshake.clear-resolver-cache"
+            case .hnsDomainSetup: "settings.advanced.hns-domain-setup"
+            case .resolverTrace: "settings.advanced.resolver-trace"
             case .hnsProofDetails: "browser-settings.proof-details"
-            case .tlsaDANEInspector: "settings.diagnostics-and-tools.tlsa-dane-inspector"
-            case .diagnostics: "settings.diagnostics-and-tools.diagnostics"
-            case .gateway: "settings.diagnostics-and-tools.gateway"
-            case .build: "settings.about-legal-and-support.build"
-            case .legal: "settings.about-legal-and-support.legal"
-            case .privacyPolicy: "settings.about-legal-and-support.privacy-policy"
-            case .sourceCode: "settings.about-legal-and-support.source-code"
+            case .tlsaDANEInspector: "settings.advanced.tlsa-dane-inspector"
+            case .diagnostics: "settings.advanced.diagnostics"
+            case .gateway: "settings.advanced.gateway"
+            case .build: "settings.about.version"
+            case .legal: "settings.about.legal"
+            case .privacyPolicy: "settings.about.privacy-policy"
+            case .sourceCode: "settings.about.source-code"
             }
         }
 
         var isRuntimeAction: Bool {
             switch self {
             case .handshakeNetwork,
+                 .hnsSync,
                  .statelessDANECertificates,
                  .hnsDoHRecovery,
                  .experimentalP2PDNSRelay,
@@ -181,30 +250,48 @@ final class BrowserSettingsViewController: UITableViewController {
                  .hnsProofDetails,
                  .tlsaDANEInspector:
                 true
-            case .homepage,
-                 .setCurrentPageAsHomepage,
-                 .resetHomepage,
-                 .cookies,
-                 .history,
-                 .downloads,
-                 .wallet,
-                 .theme,
-                 .appLanguage,
-                 .hnsSync,
-                 .diagnostics,
-                 .gateway,
-                 .build,
-                 .legal,
-                 .privacyPolicy,
-                 .sourceCode:
+            default:
                 false
             }
         }
 
         var isToggle: Bool {
             switch self {
-            case .statelessDANECertificates,
-                 .experimentalP2PDNSRelay:
+            case .statelessDANECertificates, .experimentalP2PDNSRelay: true
+            default: false
+            }
+        }
+
+        var isDestructive: Bool {
+            switch self {
+            case .resetHomepage, .clearBrowsingData, .clearResolverCache: true
+            default: false
+            }
+        }
+
+        var showsDisclosure: Bool {
+            switch self {
+            case .destinationBrowser,
+                 .destinationPrivacy,
+                 .destinationHandshake,
+                 .wallet,
+                 .destinationAdvanced,
+                 .destinationAbout,
+                 .homepage,
+                 .cookies,
+                 .history,
+                 .downloads,
+                 .hnsSync,
+                 .handshakeAdvanced,
+                 .hnsDomainSetup,
+                 .resolverTrace,
+                 .hnsProofDetails,
+                 .tlsaDANEInspector,
+                 .diagnostics,
+                 .gateway,
+                 .legal,
+                 .privacyPolicy,
+                 .sourceCode:
                 true
             default:
                 false
@@ -217,6 +304,7 @@ final class BrowserSettingsViewController: UITableViewController {
 
     weak var delegate: BrowserSettingsViewControllerDelegate?
 
+    private let destination: Destination
     private var policy: BrowserRuntimePolicy
     private var runtimeControlsAreAvailable: Bool
     private var isOperationInFlight: Bool
@@ -231,8 +319,10 @@ final class BrowserSettingsViewController: UITableViewController {
     private var relayPeerSummary =
         "Add a known relay-capable peer when discovery has not found one. Existing peers remain available."
     private weak var hnsSyncViewController: HNSSyncViewController?
+    private weak var activeDestinationController: BrowserSettingsViewController?
 
     init(
+        destination: Destination = .root,
         policy: BrowserRuntimePolicy,
         runtimeControlsAreAvailable: Bool,
         isOperationInFlight: Bool = false,
@@ -245,6 +335,7 @@ final class BrowserSettingsViewController: UITableViewController {
         themeMode: BrowserThemeMode = .system,
         handshakeNetwork: BrowserHandshakeNetwork = .mainnet
     ) {
+        self.destination = destination
         self.policy = policy
         self.runtimeControlsAreAvailable = runtimeControlsAreAvailable
         self.isOperationInFlight = isOperationInFlight
@@ -266,20 +357,22 @@ final class BrowserSettingsViewController: UITableViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Settings"
+        title = destination.title
         view.backgroundColor = .systemGroupedBackground
         tableView.accessibilityIdentifier = "settings.table"
         tableView.rowHeight = UITableView.automaticDimension
         tableView.estimatedRowHeight = 76
         tableView.sectionHeaderHeight = UITableView.automaticDimension
         tableView.estimatedSectionHeaderHeight = 44
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            barButtonSystemItem: .close,
-            target: self,
-            action: #selector(closeSettings)
-        )
-        navigationItem.rightBarButtonItem?.accessibilityLabel = "Close settings"
-        navigationItem.rightBarButtonItem?.accessibilityIdentifier = "settings.close"
+        if destination == .root {
+            navigationItem.rightBarButtonItem = UIBarButtonItem(
+                barButtonSystemItem: .close,
+                target: self,
+                action: #selector(closeSettings)
+            )
+            navigationItem.rightBarButtonItem?.accessibilityLabel = "Close settings"
+            navigationItem.rightBarButtonItem?.accessibilityIdentifier = "settings.close"
+        }
     }
 
     /// Refreshes displayed state after the browser completes an asynchronous
@@ -327,8 +420,7 @@ final class BrowserSettingsViewController: UITableViewController {
         self.downloadCount = nextDownloadCount
         self.themeMode = nextThemeMode
         self.handshakeNetwork = nextHandshakeNetwork
-        guard isViewLoaded else { return }
-        if tableStateChanged {
+        if isViewLoaded && tableStateChanged {
             tableView.reloadData()
         }
         hnsSyncViewController?.update(
@@ -336,37 +428,66 @@ final class BrowserSettingsViewController: UITableViewController {
             runtimeControlsAreAvailable: runtimeControlsAreAvailable,
             isOperationInFlight: isOperationInFlight
         )
+        activeDestinationController?.update(
+            policy: policy,
+            runtimeControlsAreAvailable: runtimeControlsAreAvailable,
+            isOperationInFlight: isOperationInFlight,
+            syncSummary: syncSummary,
+            resolverCacheSummary: nextResolverCacheSummary,
+            currentPageURL: nextCurrentPageURL,
+            homepage: nextHomepage,
+            historyCount: nextHistoryCount,
+            downloadCount: nextDownloadCount,
+            themeMode: nextThemeMode,
+            handshakeNetwork: nextHandshakeNetwork
+        )
     }
 
     func updateRelayPeerSummary(_ summary: String) {
         relayPeerSummary = summary
-        guard isViewLoaded else { return }
-        tableView.reloadData()
+        if isViewLoaded {
+            tableView.reloadData()
+        }
+        activeDestinationController?.updateRelayPeerSummary(summary)
     }
 
     static func rows(in section: Section) -> [Row] {
         switch section {
-        case .startPage:
-            [.homepage, .setCurrentPageAsHomepage, .resetHomepage]
-        case .privacyAndData:
-            [.cookies, .history, .downloads]
-        case .wallet:
-            [.wallet]
-        case .appearance:
-            [.theme]
-        case .language:
-            [.appLanguage]
-        case .hnsResolution:
+        case .destinations:
             [
-                .handshakeNetwork,
+                .destinationBrowser,
+                .destinationPrivacy,
+                .destinationHandshake,
+                .wallet,
+                .destinationAdvanced,
+                .destinationAbout,
+            ]
+        case .startPage:
+            [.homepage]
+        case .appearance:
+            [.theme, .appLanguage]
+        case .homepage:
+            [.currentHomepage, .setCurrentPageAsHomepage, .changeHomepage, .resetHomepage]
+        case .privacyData:
+            [.cookies, .history, .downloads]
+        case .privacyClearData:
+            [.clearBrowsingData]
+        case .handshakeConnection:
+            [.handshakeNetwork, .hnsSync]
+        case .handshakeSecurity:
+            [
                 .statelessDANECertificates,
                 .hnsDoHRecovery,
+            ]
+        case .handshakeAdvanced:
+            [
                 .experimentalP2PDNSRelay,
                 .addHNSRelayPeer,
-                .clearResolverCache,
-                .hnsSync,
+                .handshakeAdvanced,
             ]
-        case .diagnosticsAndTools:
+        case .resolverCache:
+            [.clearResolverCache]
+        case .tools:
             [
                 .hnsDomainSetup,
                 .resolverTrace,
@@ -375,9 +496,24 @@ final class BrowserSettingsViewController: UITableViewController {
                 .diagnostics,
                 .gateway,
             ]
-        case .aboutLegalAndSupport:
+        case .about:
             // Apple requires developer tipping in App Store apps to use In-App Purchase.
             [.build, .legal, .privacyPolicy, .sourceCode]
+        case .support:
+            []
+        }
+    }
+
+    private func sections(for destination: Destination) -> [Section] {
+        switch destination {
+        case .root: [.destinations]
+        case .browser: [.startPage, .appearance]
+        case .homepage: [.homepage]
+        case .privacy: [.privacyData, .privacyClearData]
+        case .handshake: [.handshakeConnection, .handshakeSecurity, .handshakeAdvanced]
+        case .handshakeAdvanced: [.resolverCache]
+        case .advanced: [.tools, .diagnostics]
+        case .about: [.about]
         }
     }
 
@@ -388,11 +524,11 @@ final class BrowserSettingsViewController: UITableViewController {
     }
 
     override func numberOfSections(in tableView: UITableView) -> Int {
-        Section.allCases.count
+        sections(for: destination).count
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        guard let section = Section(rawValue: section) else { return 0 }
+        guard let section = section(at: section) else { return 0 }
         return displayedRows(in: section).count
     }
 
@@ -400,10 +536,10 @@ final class BrowserSettingsViewController: UITableViewController {
         _ tableView: UITableView,
         viewForHeaderInSection sectionIndex: Int
     ) -> UIView? {
-        guard let section = Section(rawValue: sectionIndex) else { return nil }
+        guard let section = section(at: sectionIndex), let title = section.title else { return nil }
         let header = UITableViewHeaderFooterView(reuseIdentifier: nil)
         var content = UIListContentConfiguration.groupedHeader()
-        content.text = section.title
+        content.text = title
         content.textProperties.font = .preferredFont(forTextStyle: .headline)
         header.contentConfiguration = content
         header.accessibilityIdentifier = section.accessibilityIdentifier
@@ -445,12 +581,26 @@ final class BrowserSettingsViewController: UITableViewController {
 
         switch row {
         case .homepage:
-            presentHomepageConfiguration()
+            openDestination(.homepage)
+        case .destinationBrowser:
+            openDestination(.browser)
+        case .destinationPrivacy:
+            openDestination(.privacy)
+        case .destinationHandshake:
+            openDestination(.handshake)
+        case .destinationAdvanced:
+            openDestination(.advanced)
+        case .destinationAbout:
+            openDestination(.about)
+        case .currentHomepage:
+            break
         case .setCurrentPageAsHomepage:
             guard let currentPageURL else { return }
             homepage = currentPageURL
             request(.setHomepage(currentPageURL))
             tableView.reloadData()
+        case .changeHomepage:
+            presentHomepageConfiguration()
         case .resetHomepage:
             confirmResetHomepage()
         case .cookies:
@@ -459,6 +609,8 @@ final class BrowserSettingsViewController: UITableViewController {
             request(.showHistory)
         case .downloads:
             request(.showDownloads)
+        case .clearBrowsingData:
+            confirmClearBrowsingData()
         case .wallet:
             request(.showWallet)
         case .theme:
@@ -471,6 +623,8 @@ final class BrowserSettingsViewController: UITableViewController {
             presentHNSDoHRecoveryConfiguration()
         case .addHNSRelayPeer:
             presentRelayPeerConfiguration()
+        case .handshakeAdvanced:
+            openDestination(.handshakeAdvanced)
         case .clearResolverCache:
             confirmClearResolverCache()
         case .hnsSync:
@@ -504,8 +658,14 @@ final class BrowserSettingsViewController: UITableViewController {
         runtimeControlsAreAvailable && !isOperationInFlight
     }
 
+    private func section(at index: Int) -> Section? {
+        let sections = sections(for: destination)
+        guard sections.indices.contains(index) else { return nil }
+        return sections[index]
+    }
+
     private func row(at indexPath: IndexPath) -> Row? {
-        guard let section = Section(rawValue: indexPath.section) else { return nil }
+        guard let section = section(at: indexPath.section) else { return nil }
         let rows = displayedRows(in: section)
         guard rows.indices.contains(indexPath.row) else { return nil }
         return rows[indexPath.row]
@@ -513,10 +673,24 @@ final class BrowserSettingsViewController: UITableViewController {
 
     private func summary(for row: Row) -> String {
         switch row {
+        case .destinationBrowser:
+            return "Homepage, appearance, and language."
+        case .destinationPrivacy:
+            return "Cookies, history, downloads, and browser data."
+        case .destinationHandshake:
+            return "Network, sync, validation, and DNS controls."
+        case .destinationAdvanced:
+            return "Handshake tools, diagnostics, and gateway activity."
+        case .destinationAbout:
+            return "Version, legal information, and source code."
         case .homepage:
+            return homepage
+        case .currentHomepage:
             return homepage
         case .setCurrentPageAsHomepage:
             return currentPageURL ?? ""
+        case .changeHomepage:
+            return "Choose an HTTPS URL or an HNS name."
         case .resetHomepage:
             return "Restore the default Denuo Web homepage."
         case .cookies:
@@ -527,8 +701,10 @@ final class BrowserSettingsViewController: UITableViewController {
             return downloadCount == 1
                 ? "1 app-queued record"
                 : "\(downloadCount) app-queued records"
+        case .clearBrowsingData:
+            return "Clear history, download records, cookies, and website data. Downloaded files remain on this device."
         case .wallet:
-            return "Create, restore, open, unlock, lock, and inspect one local HNS account. Value and marketplace controls remain unavailable."
+            return "Open your local Handshake account, recovery controls, and read-only HNS information."
         case .theme:
             return themeMode.summary
         case .appLanguage:
@@ -552,6 +728,8 @@ final class BrowserSettingsViewController: UITableViewController {
             return "Off. No third-party HNS resolver is contacted."
         case .addHNSRelayPeer:
             return relayPeerSummary
+        case .handshakeAdvanced:
+            return "Manage resolver cache and other low-level networking data."
         case .clearResolverCache:
             return resolverCacheSummary
         case .hnsSync:
@@ -595,33 +773,20 @@ final class BrowserSettingsViewController: UITableViewController {
 
     private func configureActionCell(_ cell: UITableViewCell, row: Row) {
         let enabled = !row.isRuntimeAction || runtimeActionsAreEnabled
-        cell.isUserInteractionEnabled = enabled || row == .build
-        applyEnabledAppearance(enabled || row == .build, to: cell)
+        let selectable = enabled && row != .build && row != .currentHomepage
+        cell.isUserInteractionEnabled = selectable
+        cell.selectionStyle = selectable ? .default : .none
+        applyEnabledAppearance(enabled || row == .build || row == .currentHomepage, to: cell)
 
-        switch row {
-        case .build:
-            cell.selectionStyle = .none
-        case .resetHomepage, .clearResolverCache:
+        if row.isDestructive {
             var content = cell.contentConfiguration as? UIListContentConfiguration
                 ?? .subtitleCell()
             content.textProperties.color = enabled ? .systemRed : .tertiaryLabel
             cell.contentConfiguration = content
-        default:
-            break
         }
 
-        if let actionTitle = actionTitle(for: row) {
-            let actionLabel = UILabel()
-            actionLabel.text = actionTitle
-            actionLabel.font = .preferredFont(forTextStyle: .subheadline)
-            actionLabel.adjustsFontForContentSizeCategory = true
-            actionLabel.textColor = enabled
-                ? (row == .clearResolverCache || row == .resetHomepage
-                    ? .systemRed
-                    : view.tintColor)
-                : .tertiaryLabel
-            actionLabel.accessibilityElementsHidden = true
-            cell.accessoryView = actionLabel
+        if selectable && row.showsDisclosure {
+            cell.accessoryType = .disclosureIndicator
         }
     }
 
@@ -630,39 +795,6 @@ final class BrowserSettingsViewController: UITableViewController {
         content.textProperties.color = enabled ? .label : .tertiaryLabel
         content.secondaryTextProperties.color = enabled ? .secondaryLabel : .tertiaryLabel
         cell.contentConfiguration = content
-    }
-
-    private func actionTitle(for row: Row) -> String? {
-        switch row {
-        case .homepage: "Edit"
-        case .setCurrentPageAsHomepage: "Set"
-        case .resetHomepage: "Reset"
-        case .cookies: "Manage"
-        case .history,
-             .downloads,
-             .wallet,
-             .hnsSync,
-             .diagnostics,
-             .gateway,
-             .legal:
-            "View"
-        case .theme, .handshakeNetwork: "Change"
-        case .hnsDoHRecovery: "Edit"
-        case .addHNSRelayPeer: "Add"
-        case .clearResolverCache: "Clear"
-        case .appLanguage,
-             .hnsDomainSetup,
-             .resolverTrace,
-             .hnsProofDetails,
-             .tlsaDANEInspector,
-             .privacyPolicy,
-             .sourceCode:
-            "Open"
-        case .build,
-             .statelessDANECertificates,
-             .experimentalP2PDNSRelay:
-            nil
-        }
     }
 
     private func toggleValue(for row: Row) -> Bool {
@@ -922,6 +1054,41 @@ final class BrowserSettingsViewController: UITableViewController {
             self?.request(.clearResolverCache, marksOperationInFlight: true)
         })
         present(alert, animated: true)
+    }
+
+    private func confirmClearBrowsingData() {
+        let alert = UIAlertController(
+            title: "Clear browsing data?",
+            message: "This clears history, download records, cookies, and website data from this browser. Files already downloaded to the device are not removed.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Clear", style: .destructive) { [weak self] _ in
+            self?.request(.clearBrowsingData)
+        })
+        present(alert, animated: true)
+    }
+
+    private func openDestination(_ destination: Destination) {
+        guard let navigationController else { return }
+        let controller = BrowserSettingsViewController(
+            destination: destination,
+            policy: policy,
+            runtimeControlsAreAvailable: runtimeControlsAreAvailable,
+            isOperationInFlight: isOperationInFlight,
+            syncSummary: syncSummary,
+            resolverCacheSummary: resolverCacheSummary,
+            currentPageURL: currentPageURL,
+            homepage: homepage,
+            historyCount: historyCount,
+            downloadCount: downloadCount,
+            themeMode: themeMode,
+            handshakeNetwork: handshakeNetwork
+        )
+        controller.relayPeerSummary = relayPeerSummary
+        controller.delegate = delegate
+        activeDestinationController = controller
+        navigationController.pushViewController(controller, animated: true)
     }
 
     private func showHNSSync() {

@@ -1191,53 +1191,63 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
-    func testIOSSettingsKeepCompleteAndroidSectionAndRowOrder() {
-        XCTAssertEqual(BrowserSettingsViewController.Section.allCases.map(\.title), [
-            "Start page",
-            "Privacy and data",
-            "Wallet",
-            "Appearance",
-            "Language",
-            "HNS resolution",
-            "Diagnostics and tools",
-            "About, legal, and support",
+    func testIOSSettingsUseTheSixDestinationHierarchy() {
+        XCTAssertEqual(BrowserSettingsViewController.Destination.allCases.map(\.title), [
+            "Settings",
+            "Browser",
+            "Homepage",
+            "Privacy & Data",
+            "Handshake",
+            "Handshake Advanced",
+            "Advanced",
+            "About",
         ])
         XCTAssertEqual(
-            BrowserSettingsViewController.rows(in: .startPage),
-            [.homepage, .setCurrentPageAsHomepage, .resetHomepage]
+            BrowserSettingsViewController.rows(in: .destinations),
+            [
+                .destinationBrowser,
+                .destinationPrivacy,
+                .destinationHandshake,
+                .wallet,
+                .destinationAdvanced,
+                .destinationAbout,
+            ]
         )
         XCTAssertEqual(
-            BrowserSettingsViewController.rows(in: .privacyAndData),
+            BrowserSettingsViewController.rows(in: .homepage),
+            [.currentHomepage, .setCurrentPageAsHomepage, .changeHomepage, .resetHomepage]
+        )
+        XCTAssertEqual(
+            BrowserSettingsViewController.rows(in: .privacyData),
             [.cookies, .history, .downloads]
         )
-        XCTAssertEqual(BrowserSettingsViewController.rows(in: .wallet), [.wallet])
-        XCTAssertEqual(BrowserSettingsViewController.rows(in: .appearance), [.theme])
-        XCTAssertEqual(BrowserSettingsViewController.rows(in: .language), [.appLanguage])
-
-        let rows = BrowserSettingsViewController.rows(in: .hnsResolution)
-
         XCTAssertEqual(
-            rows,
+            BrowserSettingsViewController.rows(in: .privacyClearData),
+            [.clearBrowsingData]
+        )
+        XCTAssertEqual(
+            BrowserSettingsViewController.rows(in: .handshakeConnection),
             [
                 .handshakeNetwork,
-                .statelessDANECertificates,
-                .hnsDoHRecovery,
-                .experimentalP2PDNSRelay,
-                .addHNSRelayPeer,
-                .clearResolverCache,
                 .hnsSync,
             ]
         )
-        XCTAssertEqual(rows.map(\.title), [
-            "Handshake network",
-            "Experimental stateless DANE certificates",
-            "HNS recovery DNS over HTTPS",
-            "Experimental P2P DNS relay",
-            "Add HNS relay peer",
-            "Clear resolver cache",
-            "HNS sync",
-        ])
-        XCTAssertEqual(BrowserSettingsViewController.rows(in: .diagnosticsAndTools), [
+        XCTAssertEqual(
+            BrowserSettingsViewController.rows(in: .handshakeSecurity),
+            [
+                .statelessDANECertificates,
+                .hnsDoHRecovery,
+            ]
+        )
+        XCTAssertEqual(
+            BrowserSettingsViewController.rows(in: .handshakeAdvanced),
+            [
+                .experimentalP2PDNSRelay,
+                .addHNSRelayPeer,
+                .handshakeAdvanced,
+            ]
+        )
+        XCTAssertEqual(BrowserSettingsViewController.rows(in: .tools), [
             .hnsDomainSetup,
             .resolverTrace,
             .hnsProofDetails,
@@ -1245,7 +1255,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             .diagnostics,
             .gateway,
         ])
-        XCTAssertEqual(BrowserSettingsViewController.rows(in: .aboutLegalAndSupport), [
+        XCTAssertEqual(BrowserSettingsViewController.rows(in: .about), [
             .build,
             .legal,
             .privacyPolicy,
@@ -2128,81 +2138,72 @@ final class BrowserRuntimeControlTests: XCTestCase {
     @MainActor
     func testIOSSettingsExposeCurrentPageOnlyWhenAndroidWould() throws {
         let withoutPage = BrowserSettingsViewController(
+            destination: .homepage,
             policy: .default,
             runtimeControlsAreAvailable: true
         )
         withoutPage.loadViewIfNeeded()
-        XCTAssertEqual(withoutPage.numberOfSections(in: withoutPage.tableView), 8)
+        XCTAssertEqual(withoutPage.numberOfSections(in: withoutPage.tableView), 1)
         XCTAssertEqual(
             withoutPage.tableView(withoutPage.tableView, numberOfRowsInSection: 0),
-            2
+            3
         )
 
         let withPage = BrowserSettingsViewController(
+            destination: .homepage,
             policy: .default,
             runtimeControlsAreAvailable: true,
             currentPageURL: "https://example.com/current"
         )
         withPage.loadViewIfNeeded()
-        XCTAssertEqual(withPage.tableView(withPage.tableView, numberOfRowsInSection: 0), 3)
+        XCTAssertEqual(withPage.tableView(withPage.tableView, numberOfRowsInSection: 0), 4)
         let cell = withPage.tableView(
             withPage.tableView,
             cellForRowAt: IndexPath(row: 1, section: 0)
         )
         let content = try XCTUnwrap(cell.contentConfiguration as? UIListContentConfiguration)
-        XCTAssertEqual(content.text, "Set current page as homepage")
+        XCTAssertEqual(content.text, "Use current page")
         XCTAssertEqual(content.secondaryText, "https://example.com/current")
-        XCTAssertEqual((cell.accessoryView as? UILabel)?.text, "Set")
+        XCTAssertNil(cell.accessoryView)
     }
 
     @MainActor
-    func testIOSSettingsUseAndroidActionLabelsAcrossEverySection() {
+    func testIOSSettingsUseDestinationRowsWithoutFakeActionLabels() {
         let settings = BrowserSettingsViewController(
             policy: .default,
             runtimeControlsAreAvailable: true,
             currentPageURL: "https://example.com/current"
         )
         settings.loadViewIfNeeded()
-        let expected: [[String?]] = [
-            ["Edit", "Set", "Reset"],
-            ["Manage", "View", "View"],
-            ["View"],
-            ["Change"],
-            ["Open"],
-            ["Change", nil, "Edit", nil, "Add", "Clear", "View"],
-            ["Open", "Open", "Open", "Open", "View", "View"],
-            [nil, "View", "Open", "Open"],
-        ]
-
-        for (section, labels) in expected.enumerated() {
-            XCTAssertEqual(
-                settings.tableView(settings.tableView, numberOfRowsInSection: section),
-                labels.count
+        XCTAssertEqual(settings.numberOfSections(in: settings.tableView), 1)
+        XCTAssertEqual(settings.tableView(settings.tableView, numberOfRowsInSection: 0), 6)
+        let expectedTitles = ["Browser", "Privacy & Data", "Handshake", "Wallet", "Advanced", "About"]
+        for (row, title) in expectedTitles.enumerated() {
+            let cell = settings.tableView(
+                settings.tableView,
+                cellForRowAt: IndexPath(row: row, section: 0)
             )
-            for (row, label) in labels.enumerated() {
-                let cell = settings.tableView(
-                    settings.tableView,
-                    cellForRowAt: IndexPath(row: row, section: section)
-                )
-                XCTAssertEqual((cell.accessoryView as? UILabel)?.text, label)
-            }
+            XCTAssertEqual((cell.contentConfiguration as? UIListContentConfiguration)?.text, title)
+            XCTAssertEqual(cell.accessoryType, .disclosureIndicator)
+            XCTAssertNil(cell.accessoryView)
         }
     }
 
     @MainActor
     func testStatelessDANEIsAToggleWithAndroidExplanations() throws {
         let settings = BrowserSettingsViewController(
+            destination: .handshake,
             policy: .default,
             runtimeControlsAreAvailable: true
         )
         settings.loadViewIfNeeded()
-        let indexPath = IndexPath(row: 1, section: 5)
+        let indexPath = IndexPath(row: 0, section: 1)
 
         var cell = settings.tableView(settings.tableView, cellForRowAt: indexPath)
         var content = try XCTUnwrap(cell.contentConfiguration as? UIListContentConfiguration)
         let toggle = try XCTUnwrap(cell.accessoryView as? UISwitch)
-        XCTAssertEqual(cell.accessibilityIdentifier, "settings.hns-resolution.stateless-dane-certificates")
-        XCTAssertEqual(content.text, "Experimental stateless DANE certificates")
+        XCTAssertEqual(cell.accessibilityIdentifier, "settings.handshake.stateless-dane-certificates")
+        XCTAssertEqual(content.text, "DANE")
         XCTAssertEqual(
             content.secondaryText,
             "Off. Browser requests use the retained dual-root DNSSEC and TLSA plan."
@@ -2236,6 +2237,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             bestPeerHeight: 300_100
         )
         let settings = BrowserSettingsViewController(
+            destination: .handshake,
             policy: .default,
             runtimeControlsAreAvailable: true,
             syncSummary: initialSummary
@@ -2246,7 +2248,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         navigation.loadViewIfNeeded()
         settings.loadViewIfNeeded()
 
-        let settingsIndexPath = IndexPath(row: 6, section: 5)
+        let settingsIndexPath = IndexPath(row: 1, section: 0)
         let settingsCell = settings.tableView(
             settings.tableView,
             cellForRowAt: settingsIndexPath
@@ -2281,6 +2283,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
     @MainActor
     func testHNSSyncStatusScreenReceivesLiveSummaryUpdates() throws {
         let settings = BrowserSettingsViewController(
+            destination: .handshake,
             policy: .default,
             runtimeControlsAreAvailable: true,
             syncSummary: .unavailable
@@ -2290,7 +2293,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         settings.loadViewIfNeeded()
         settings.tableView(
             settings.tableView,
-            didSelectRowAt: IndexPath(row: 6, section: 5)
+            didSelectRowAt: IndexPath(row: 1, section: 0)
         )
         let sync = try XCTUnwrap(navigation.topViewController as? HNSSyncViewController)
         sync.loadViewIfNeeded()
@@ -2365,39 +2368,58 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
-    func testIOSSettingsUseBackedAndroidDefaultsAndActionLabels() throws {
-        let settings = BrowserSettingsViewController(
+    func testIOSSettingsKeepBackedDefaultsInTheirDetailDestinations() throws {
+        let resolverSettings = BrowserSettingsViewController(
+            destination: .handshakeAdvanced,
             policy: .default,
             runtimeControlsAreAvailable: true
         )
-        settings.loadViewIfNeeded()
+        resolverSettings.loadViewIfNeeded()
 
-        let cache = settings.tableView(
-            settings.tableView,
-            cellForRowAt: IndexPath(row: 5, section: 5)
+        let cache = resolverSettings.tableView(
+            resolverSettings.tableView,
+            cellForRowAt: IndexPath(row: 0, section: 0)
         )
         XCTAssertEqual(
             try XCTUnwrap(cache.contentConfiguration as? UIListContentConfiguration)
                 .secondaryText,
             "Ready to clear cached resolver values."
         )
-        XCTAssertEqual((cache.accessoryView as? UILabel)?.text, "Clear")
+        XCTAssertNil(cache.accessoryView)
 
-        let hnsSync = settings.tableView(
-            settings.tableView,
-            cellForRowAt: IndexPath(row: 6, section: 5)
+        let handshakeSettings = BrowserSettingsViewController(
+            destination: .handshake,
+            policy: .default,
+            runtimeControlsAreAvailable: true
         )
-        XCTAssertEqual((hnsSync.accessoryView as? UILabel)?.text, "View")
-
-        let proof = settings.tableView(
-            settings.tableView,
-            cellForRowAt: IndexPath(row: 2, section: 6)
+        handshakeSettings.loadViewIfNeeded()
+        let hnsSync = handshakeSettings.tableView(
+            handshakeSettings.tableView,
+            cellForRowAt: IndexPath(row: 1, section: 0)
         )
-        XCTAssertEqual((proof.accessoryView as? UILabel)?.text, "Open")
+        XCTAssertEqual(hnsSync.accessoryType, .disclosureIndicator)
 
-        let build = settings.tableView(
-            settings.tableView,
-            cellForRowAt: IndexPath(row: 0, section: 7)
+        let advancedSettings = BrowserSettingsViewController(
+            destination: .advanced,
+            policy: .default,
+            runtimeControlsAreAvailable: true
+        )
+        advancedSettings.loadViewIfNeeded()
+        let proof = advancedSettings.tableView(
+            advancedSettings.tableView,
+            cellForRowAt: IndexPath(row: 2, section: 0)
+        )
+        XCTAssertEqual(proof.accessoryType, .disclosureIndicator)
+
+        let aboutSettings = BrowserSettingsViewController(
+            destination: .about,
+            policy: .default,
+            runtimeControlsAreAvailable: true
+        )
+        aboutSettings.loadViewIfNeeded()
+        let build = aboutSettings.tableView(
+            aboutSettings.tableView,
+            cellForRowAt: IndexPath(row: 0, section: 0)
         )
         let buildText = try XCTUnwrap(
             (build.contentConfiguration as? UIListContentConfiguration)?.secondaryText

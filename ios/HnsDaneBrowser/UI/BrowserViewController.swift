@@ -697,6 +697,35 @@ final class BrowserViewController: UIViewController {
         presentAlertWhenReady(alert, preferredPresenter: viewer)
     }
 
+    private func clearBrowsingData(presenter: UIViewController) {
+        _ = BrowserHistoryStore.clear()
+        _ = BrowserDownloadStore.clear()
+
+        let finish: () -> Void = { [weak self, weak presenter] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.refreshSettingsIfPresented()
+                let confirmation = UIAlertController(
+                    title: "Browsing data cleared",
+                    message: "History, download records, cookies, and website data were removed. Files already downloaded to the device were kept.",
+                    preferredStyle: .alert
+                )
+                confirmation.addAction(UIAlertAction(title: "OK", style: .default))
+                self.presentAlertWhenReady(confirmation, preferredPresenter: presenter)
+            }
+        }
+
+        guard let profile = environment?.profile else {
+            finish()
+            return
+        }
+        profile.dataStore.removeData(
+            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+            modifiedSince: Date(timeIntervalSince1970: 0),
+            completionHandler: finish
+        )
+    }
+
     private func presentHistory() {
         let entries = BrowserHistoryStore.entries
         let body: String
@@ -1513,6 +1542,8 @@ extension BrowserViewController: BrowserSettingsViewControllerDelegate {
             dismissSettingsThen { [weak self] in
                 self?.presentDownloads()
             }
+        case .clearBrowsingData:
+            clearBrowsingData(presenter: controller)
         case .showWallet:
             controller.navigationController?.pushViewController(
                 WalletViewController(network: process.currentNetwork),
