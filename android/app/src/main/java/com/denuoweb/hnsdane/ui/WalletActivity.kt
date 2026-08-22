@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
+import android.util.Log
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -24,6 +25,7 @@ import androidx.activity.ComponentActivity
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.net.HeaderSnapshotInstaller
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
+import com.denuoweb.hnsdane.wallet.DirectHnsSynchronizationJournalStart
 import com.denuoweb.hnsdane.wallet.NativeHnsSendApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApprovalKind
@@ -49,6 +51,7 @@ import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
 import com.denuoweb.hnsdane.wallet.WalletStorageDeletionResult
 import com.denuoweb.hnsdane.wallet.WalletStorageOwnershipGate
+import com.denuoweb.hnsdane.wallet.beginDirectHnsSynchronizationWithRecovery
 import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
 import com.denuoweb.hnsdane.wallet.deleteWalletDatabaseArtifacts
@@ -2485,7 +2488,33 @@ class WalletActivity : ComponentActivity() {
         val openingFloor = NativeWalletBridge.directHnsRollbackFloor(handle)
             ?: return NativeWalletBridge.synchronizeHnsReads(handle)
         openingFloor.fill(0)
-        if (runCatching { keyStore.beginDirectHnsSynchronization() }.isFailure) return null
+        val journalStart = beginDirectHnsSynchronizationWithRecovery(
+            begin = keyStore::beginDirectHnsSynchronization,
+            recoverInterrupted = {
+                val recoveredFloor = NativeWalletBridge.directHnsRollbackFloor(handle)
+                    ?: throw IllegalStateException("Direct HNS rollback floor is unavailable")
+                try {
+                    // The active coordinator was opened under the
+                    // Keystore-held floor. `commit…` independently rejects a
+                    // backwards floor, so this only heals an interrupted
+                    // marker; it cannot admit a rolled-back wallet.
+                    keyStore.commitDirectHnsSynchronization(recoveredFloor)
+                } finally {
+                    recoveredFloor.fill(0)
+                }
+            },
+        )
+        when (journalStart) {
+            DirectHnsSynchronizationJournalStart.Started -> Unit
+            DirectHnsSynchronizationJournalStart.Recovered -> Log.i(
+                TAG,
+                "Recovered an interrupted direct HNS rollback journal before retrying sync",
+            )
+            DirectHnsSynchronizationJournalStart.Failed -> {
+                Log.e(TAG, "Direct HNS rollback journal could not begin or recover")
+                return null
+            }
+        }
         val synchronization = NativeWalletBridge.synchronizeHnsReads(handle)
         val updatedFloor = NativeWalletBridge.directHnsRollbackFloor(handle)
         val committed = updatedFloor?.let { floor ->
@@ -3222,6 +3251,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private companion object {
+        const val TAG = "WalletActivity"
         const val INVALID_HANDLE = 0L
         const val DATABASE_KEY_BYTES = 32
         const val MAX_RECOVERY_CHARACTERS = 256

@@ -713,6 +713,7 @@
     <string name="trace_no_tlsa_resolver_trace">No resolver trace is available. Load an HTTPS HNS page first.</string>
     <string name="trace_no_tlsa_trace">No HTTPS TLSA/DANE trace is available for this page.</string>
     <string name="trace_no_validation_details">No validation details are available for this page yet.</string>
+    <string name="trace_field_security_status">Security status: %1$s</string>
     <string name="trace_field_url">URL: %1$s</string>
     <string name="trace_field_host">Host: %1$s</string>
     <string name="trace_field_root">Root: %1$s</string>

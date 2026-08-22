@@ -111,6 +111,37 @@ internal fun walletReadBootstrapMayInstall(
         !current.retirementBlocked
 
 /**
+ * Starts a rollback-journalled direct HNS synchronization.
+ *
+ * A process can die after persisting the interruption marker but before
+ * committing its authenticated floor. The replacement direct coordinator is
+ * opened under that stored floor, so it may safely complete that interrupted
+ * journal entry before starting a new bounded synchronization. Other journal
+ * failures remain unavailable to the caller.
+ */
+internal fun beginDirectHnsSynchronizationWithRecovery(
+    begin: () -> Unit,
+    recoverInterrupted: () -> Unit,
+): DirectHnsSynchronizationJournalStart {
+    if (runCatching(begin).isSuccess) return DirectHnsSynchronizationJournalStart.Started
+    return if (runCatching {
+            recoverInterrupted()
+            begin()
+        }.isSuccess
+    ) {
+        DirectHnsSynchronizationJournalStart.Recovered
+    } else {
+        DirectHnsSynchronizationJournalStart.Failed
+    }
+}
+
+internal enum class DirectHnsSynchronizationJournalStart {
+    Started,
+    Recovered,
+    Failed,
+}
+
+/**
  * A single-use, authority-bound RPC credential.
  *
  * Construction consumes a caller-owned mutable copy. Any use attempt, even an

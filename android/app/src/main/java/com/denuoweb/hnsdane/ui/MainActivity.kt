@@ -35,6 +35,8 @@ import android.webkit.WebViewClient
 import android.net.http.SslError
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.ProgressBar
@@ -108,7 +110,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private lateinit var omnibox: EditText
     private var omniboxFullUrl: String = ""
-    private lateinit var securityLabel: TextView
+    private lateinit var securityStatusIcon: ImageButton
+    private var securityStatusText: String = ""
     private lateinit var hamburgerButton: TextView
     private lateinit var syncProgressBar: ProgressBar
     private lateinit var syncProgressStats: TextView
@@ -169,7 +172,7 @@ class MainActivity : ComponentActivity() {
                 if (!available) {
                     proxyNavigationSubmittedGeneration = null
                 }
-                if (::securityLabel.isInitialized) {
+                if (::securityStatusIcon.isInitialized) {
                     refreshSecurityState()
                     refreshSyncGateNotice()
                 }
@@ -240,21 +243,17 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        securityLabel = TextView(this).apply {
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            textSize = 13f
-            minHeight = dp(TOOLBAR_CONTROL_HEIGHT_DP)
-            setPadding(dp(8), 0, dp(8), 0)
-            setTextColor(colors.securityText)
-            text = getString(R.string.security_syncing)
+        securityStatusIcon = ImageButton(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(dp(2), dp(2), dp(2), dp(2))
+            setImageResource(securityStatusIconResource(SecurityState.Syncing))
             contentDescription = getString(R.string.security_status_content_description)
             isClickable = true
             isFocusable = true
             applyScreenSelectableBackground()
             setOnClickListener { openResolverTrace() }
         }
+        securityStatusText = getString(R.string.security_syncing)
 
         syncProgressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = SYNC_PROGRESS_MAX
@@ -315,8 +314,8 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), 0, dp(8), 0)
-            addView(securityLabel, LinearLayout.LayoutParams(
-                dp(SECURITY_LABEL_WIDTH_DP),
+            addView(securityStatusIcon, LinearLayout.LayoutParams(
+                dp(TOOLBAR_CONTROL_HEIGHT_DP),
                 dp(TOOLBAR_CONTROL_HEIGHT_DP),
             ))
             addView(omnibox, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -989,7 +988,7 @@ class MainActivity : ComponentActivity() {
             currentTargetKind in NATIVE_GATEWAY_TARGET_KINDS &&
             mainFrameHnsStatusCode == null
         ) {
-            securityLabel.text = getString(R.string.security_loading)
+            setSecurityState(SecurityState.Loading)
             return
         }
 
@@ -1133,15 +1132,10 @@ class MainActivity : ComponentActivity() {
             "hnsOnly", "icannOnly" -> selectedLabel
             else -> null
         }
-        securityLabel.text = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
-        securityLabel.contentDescription = if (selectedLabel != null) {
-            mainFrameHnsTraceJson
-                ?.let { LocalizedTraceText.namespace(this, runCatching { JSONObject(it) }.getOrNull()) }
-                ?.let { "$baseLabel. $it" }
-                ?: baseLabel
-        } else {
-            baseLabel
-        }
+        securityStatusText = namespaceBadge?.let { "$baseLabel · $it" } ?: baseLabel
+        securityStatusIcon.setImageResource(securityStatusIconResource(state))
+        securityStatusIcon.contentDescription =
+            "$securityStatusText. ${getString(R.string.security_status_content_description)}"
     }
 
     private inner class BrowserClient : WebViewClient() {
@@ -1376,7 +1370,8 @@ class MainActivity : ComponentActivity() {
         startActivity(
             Intent(this, HnsResolverTraceActivity::class.java)
                 .putExtra(HnsResolverTraceActivity.EXTRA_URL, omniboxFullUrl)
-                .putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, mainFrameHnsTraceJson),
+                .putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, mainFrameHnsTraceJson)
+                .putExtra(HnsResolverTraceActivity.EXTRA_SECURITY_STATUS, securityStatusText),
         )
     }
 
@@ -1662,7 +1657,6 @@ class MainActivity : ComponentActivity() {
         private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
         private const val SYNC_STATUS_POLL_MS = 2_000L
-        private const val SECURITY_LABEL_WIDTH_DP = 136
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22
         private const val MENU_ICON_BUTTON_SIZE_DP = 55
@@ -1683,6 +1677,29 @@ class MainActivity : ComponentActivity() {
         private val SYNC_FAILURE_STATUSES = setOf("error", "seed_failed", "peer_failed")
     }
 }
+
+/** Exact omnibar badge supplied for each browser security state. */
+internal fun securityStatusIconResource(state: SecurityState): Int =
+    when (state) {
+        SecurityState.LocalContent -> R.drawable.omnibar_status_local
+        SecurityState.Syncing -> R.drawable.omnibar_status_sync
+        SecurityState.Loading -> R.drawable.omnibar_status_load
+        SecurityState.HnsVerified -> R.drawable.omnibar_status_http
+        SecurityState.HnsViaAuthoritativeDoh -> R.drawable.omnibar_status_http_adoh
+        SecurityState.HnsViaAuthoritativeDns53 -> R.drawable.omnibar_status_http_dns53
+        SecurityState.HnsViaP2pDnsRelay -> R.drawable.omnibar_status_http_p2p
+        SecurityState.HnsViaUserConfiguredRecoveryDoh -> R.drawable.omnibar_status_http_rdoh
+        SecurityState.DaneVerified -> R.drawable.omnibar_status_https
+        SecurityState.DaneViaAuthoritativeDoh -> R.drawable.omnibar_status_https_adoh
+        SecurityState.DaneViaAuthoritativeDns53 -> R.drawable.omnibar_status_https_dns53
+        SecurityState.DaneViaP2pDnsRelay -> R.drawable.omnibar_status_https_p2p
+        SecurityState.DaneViaUserConfiguredRecoveryDoh -> R.drawable.omnibar_status_https_rdoh
+        SecurityState.StatelessDane -> R.drawable.omnibar_status_sdane
+        SecurityState.DaneViaIcannDoh -> R.drawable.omnibar_status_icann
+        SecurityState.WebPkiOnly -> R.drawable.omnibar_status_webpki
+        SecurityState.ValidationFailed -> R.drawable.omnibar_status_fail
+        SecurityState.ProofUnavailable -> R.drawable.omnibar_status_noproof
+    }
 
 private data class PendingNavigation(
     val target: BrowserTarget,

@@ -15,6 +15,9 @@ class HnsResolverTraceActivity : ComponentActivity() {
     private val traceJson: String
         get() = intent.getStringExtra(EXTRA_TRACE_JSON).orEmpty()
 
+    private val securityStatus: String
+        get() = intent.getStringExtra(EXTRA_SECURITY_STATUS).orEmpty()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -55,14 +58,14 @@ class HnsResolverTraceActivity : ComponentActivity() {
 
     private fun friendlySummary(): String {
         val trace = parsedTrace()
-            ?: return getString(R.string.trace_no_resolver_trace)
+            ?: return withSecurityStatus(getString(R.string.trace_no_resolver_trace))
         if (HnsResolutionTraceFormat.isIcann(trace)) {
-            return icannSummary(trace)
+            return withSecurityStatus(icannSummary(trace))
         }
         val fallback = trace.optJSONObject("fallback")
         val authoritativeDns = trace.optJSONObject("authoritativeDns")
         val tls = trace.optJSONObject("tls")
-        return buildString {
+        return withSecurityStatus(buildString {
             appendLine(getString(R.string.trace_field_url, url.ifBlank { trace.optString("url", getString(R.string.common_unknown)) }))
             appendLine(getString(R.string.trace_field_host, trace.optString("host", getString(R.string.common_unknown))))
             appendLine(getString(R.string.trace_field_namespace, LocalizedTraceText.namespace(this@HnsResolverTraceActivity, trace)))
@@ -99,7 +102,7 @@ class HnsResolverTraceActivity : ComponentActivity() {
             appendLine()
             appendLine(getString(R.string.trace_suggested_fix))
             appendLine(suggestedFix(trace))
-        }
+        })
     }
 
     private fun icannSummary(trace: JSONObject): String {
@@ -125,6 +128,13 @@ class HnsResolverTraceActivity : ComponentActivity() {
             appendLine(getString(R.string.trace_suggested_fix))
             appendLine(suggestedFix(trace))
         }
+    }
+
+    /** The omnibar icon intentionally keeps the compact form of this state. */
+    private fun withSecurityStatus(summary: String): String {
+        val status = securityStatus.trim()
+        if (status.isEmpty()) return summary
+        return "${getString(R.string.trace_field_security_status, status)}\n$summary"
     }
 
     private fun nullableTraceValue(trace: JSONObject, key: String): String =
@@ -255,5 +265,6 @@ class HnsResolverTraceActivity : ComponentActivity() {
     companion object {
         const val EXTRA_URL = "com.denuoweb.hnsdane.HNS_TRACE_URL"
         const val EXTRA_TRACE_JSON = "com.denuoweb.hnsdane.HNS_TRACE_JSON"
+        const val EXTRA_SECURITY_STATUS = "com.denuoweb.hnsdane.HNS_TRACE_SECURITY_STATUS"
     }
 }

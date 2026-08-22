@@ -13,6 +13,58 @@ import org.junit.Test
 
 class WalletReadBootstrapTest {
     @Test
+    fun interruptedDirectHnsJournalIsHealedBeforeTheNextBoundedSync() {
+        val calls = mutableListOf<String>()
+        var pending = true
+
+        val result = beginDirectHnsSynchronizationWithRecovery(
+            begin = {
+                calls += "begin"
+                check(!pending) { "interrupted synchronization is pending" }
+            },
+            recoverInterrupted = {
+                calls += "recover"
+                pending = false
+            },
+        )
+
+        assertEquals(DirectHnsSynchronizationJournalStart.Recovered, result)
+        assertEquals(listOf("begin", "recover", "begin"), calls)
+    }
+
+    @Test
+    fun ordinaryDirectHnsJournalStartDoesNotRunRecovery() {
+        val calls = mutableListOf<String>()
+
+        val result = beginDirectHnsSynchronizationWithRecovery(
+            begin = { calls += "begin" },
+            recoverInterrupted = { calls += "recover" },
+        )
+
+        assertEquals(DirectHnsSynchronizationJournalStart.Started, result)
+        assertEquals(listOf("begin"), calls)
+    }
+
+    @Test
+    fun unrecoverableDirectHnsJournalFailureStaysClosed() {
+        val calls = mutableListOf<String>()
+
+        val result = beginDirectHnsSynchronizationWithRecovery(
+            begin = {
+                calls += "begin"
+                error("keystore unavailable")
+            },
+            recoverInterrupted = {
+                calls += "recover"
+                error("recovery floor unavailable")
+            },
+        )
+
+        assertEquals(DirectHnsSynchronizationJournalStart.Failed, result)
+        assertEquals(listOf("begin", "recover"), calls)
+    }
+
+    @Test
     fun authorityCanonicalizesAndBindsEveryLifecycleDimension() {
         val aliasedPath = "/wallet/wallet-v1-mainnet/../wallet-v1-mainnet/wallet.sqlite3"
         val exactLease = newLease(aliasedPath)

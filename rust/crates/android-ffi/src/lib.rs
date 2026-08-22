@@ -2118,7 +2118,7 @@ fn android_direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
 /// entire read result. Local wallet, light-index, and configuration failures
 /// deliberately remain fail-closed.
 fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
-    error.is_temporary_header_agreement_unavailable()
+    direct_hns_header_agreement_is_temporarily_unavailable(&error.to_string())
         || matches!(
             error,
             HnsDirectPeerError::Peer(_)
@@ -2130,6 +2130,19 @@ fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
                 | HnsDirectPeerError::FilteredBlockUnavailable
                 | HnsDirectPeerError::InsufficientBlockViews { .. }
         )
+}
+
+/// The direct-peer error is intentionally opaque across the mobile-wallet ABI
+/// boundary. Recognize only the two reviewed spellings of a deadline reached
+/// before the required independent header responses arrived. Every other
+/// wallet error remains fail-closed.
+fn direct_hns_header_agreement_is_temporarily_unavailable(error: &str) -> bool {
+    [
+        "header round has insufficient responses",
+        "header round timed out before enough independent peers responded",
+    ]
+    .into_iter()
+    .any(|marker| error.contains(marker))
 }
 
 fn direct_hns_transport_catchup(
@@ -5040,6 +5053,19 @@ mod tests {
         ));
         assert!(!direct_hns_transport_error_is_retryable(
             &HnsDirectPeerError::WalletEvidence("invalid merkle proof".to_owned())
+        ));
+    }
+
+    #[test]
+    fn direct_hns_header_quorum_deadlines_remain_resumable_across_wallet_abi_revisions() {
+        assert!(direct_hns_header_agreement_is_temporarily_unavailable(
+            "HNS header-sync failure: header round has insufficient responses"
+        ));
+        assert!(direct_hns_header_agreement_is_temporarily_unavailable(
+            "HNS header round timed out before enough independent peers responded"
+        ));
+        assert!(!direct_hns_header_agreement_is_temporarily_unavailable(
+            "embedded HNS header authority failed: invalid chain work"
         ));
     }
 
