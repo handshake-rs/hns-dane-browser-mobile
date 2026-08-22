@@ -99,7 +99,14 @@ class SettingsActivity : ComponentActivity() {
                     openDestination(SettingsDestination.Handshake)
                 })
                 addSettingsRow(navRow(getString(R.string.section_wallet), getString(R.string.settings_destination_wallet_summary)) {
-                    startActivity(Intent(this@SettingsActivity, WalletActivity::class.java))
+                    // Wallet can have an authenticated direct-peer scan in
+                    // flight. Return to its existing screen instead of
+                    // creating a second WalletActivity that would contend for
+                    // the same encrypted controller and force a handoff.
+                    startActivity(
+                        Intent(this@SettingsActivity, WalletActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+                    )
                 })
                 addSettingsRow(navRow(getString(R.string.settings_destination_advanced), getString(R.string.settings_destination_advanced_summary)) {
                     openDestination(SettingsDestination.Advanced)

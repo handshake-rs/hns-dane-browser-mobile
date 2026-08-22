@@ -5,6 +5,7 @@ import android.app.KeyguardManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -25,6 +26,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import com.denuoweb.hnsdane.HnsDaneApplication
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.net.HeaderSnapshotInstaller
@@ -209,6 +211,20 @@ class WalletActivity : ComponentActivity() {
         setSettingsScreen(getString(R.string.screen_wallet)) {
             addView(dashboardContent)
         }
+        // Wallet synchronization is deliberately scoped to the app being
+        // visible, rather than an Android foreground service. Back from this
+        // app-owned destination therefore returns to Settings by reordering
+        // it above this Activity instead of finishing this Activity and
+        // tearing down an in-progress verified scan. Settings applies the
+        // reciprocal reorder when Wallet is selected again.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                startActivity(
+                    Intent(this@WalletActivity, SettingsActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+                )
+            }
+        })
         renderWalletDashboard()
     }
 
