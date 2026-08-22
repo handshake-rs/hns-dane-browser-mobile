@@ -17,6 +17,7 @@ import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -243,6 +244,15 @@ class WalletActivity : ComponentActivity() {
      */
     private fun renderWalletDashboard() {
         if (!::dashboardContent.isInitialized) return
+        // The dashboard is redrawn as the wallet changes state, but these
+        // views preserve live state (including secrets, selection, and status
+        // text) across redraws. Removing a card from `dashboardContent` does
+        // not detach its nested children, so detach each reusable view before
+        // placing it in a newly-created card. Without this, the second render
+        // crashes with "The specified child already has a parent."
+        listOf(statusView, readStatusView, balanceView, recoveryView).forEach { view ->
+            (view.parent as? ViewGroup)?.removeView(view)
+        }
         dashboardContent.removeAllViews()
         when {
             unconfirmedDatabaseKey != null || recoveryView.hasSecret() -> renderRecoveryDashboard()
