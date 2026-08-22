@@ -234,6 +234,7 @@ class WalletActivity : ComponentActivity() {
         walletBackgroundRetirement?.set(false)
         walletBackgroundRetirement = null
         if (retainingInAppWalletSession && currentStorageLease() != null && walletHandle != INVALID_HANDLE) {
+            Log.i(TAG, "Resuming retained direct HNS sync on the existing WalletActivity")
             // Keep the controller, peer sessions, and retry generation that
             // were already progressing while another app screen was visible.
             // In particular, do not advance lifecycleEpoch here: an in-flight
@@ -246,6 +247,7 @@ class WalletActivity : ComponentActivity() {
             refreshControllerState(resetReads = false)
             return
         }
+        Log.i(TAG, "Starting a WalletActivity storage session; no retained direct HNS controller is available")
         retainingInAppWalletSession = false
         lifecycleEpoch += 1
         resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
@@ -262,6 +264,12 @@ class WalletActivity : ComponentActivity() {
 
     override fun onStop() {
         val retainInAppSession = mayRetainInAppWalletSession()
+        Log.i(
+            TAG,
+            "Stopping WalletActivity: retainDirectHns=$retainInAppSession " +
+                "finishing=$isFinishing destroyed=$isDestroyed " +
+                "syncInProgress=$walletHnsSyncInProgress busy=$busy",
+        )
         foreground = false
         cachedHnsSyncPresentationWatcher?.set(false)
         if (retainInAppSession) {
@@ -1355,6 +1363,7 @@ class WalletActivity : ComponentActivity() {
         hnsCatchupRetry = null
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
         walletHnsSyncInProgress = true
+        Log.i(TAG, "Starting a bounded direct HNS synchronization round")
         readStatusView.text = getString(R.string.wallet_reads_syncing)
         renderWalletDashboard()
         val epoch = lifecycleEpoch
@@ -1401,6 +1410,10 @@ class WalletActivity : ComponentActivity() {
                     currentAuthorityGeneration = walletAuthorityGeneration,
                 ) && operationIsCurrent(epoch, lease)
                 if (!mayPublish) {
+                    Log.i(
+                        TAG,
+                        "Discarding completed direct HNS round because its WalletActivity authority changed",
+                    )
                     releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
@@ -1409,10 +1422,25 @@ class WalletActivity : ComponentActivity() {
                 if (liveHnsSyncPoller === poller) liveHnsSyncPoller = null
                 refreshControllerState()
                 when {
-                    preflightFailure != null -> resetReadProjection(preflightFailure)
-                    synchronization == null -> resetReadProjection(R.string.wallet_reads_sync_failed)
-                    synchronization.snapshot != null -> renderReadSnapshot(synchronization.snapshot)
+                    preflightFailure != null -> {
+                        Log.w(TAG, "Direct HNS synchronization preflight rejected the wallet state")
+                        resetReadProjection(preflightFailure)
+                    }
+                    synchronization == null -> {
+                        Log.w(TAG, "Direct HNS synchronization returned no authenticated result")
+                        resetReadProjection(R.string.wallet_reads_sync_failed)
+                    }
+                    synchronization.snapshot != null -> {
+                        Log.i(TAG, "Direct HNS synchronization reached a verified wallet snapshot")
+                        renderReadSnapshot(synchronization.snapshot)
+                    }
                     synchronization.catchup != null -> {
+                        Log.i(
+                            TAG,
+                            "Direct HNS synchronization checkpointed catch-up at " +
+                                "${synchronization.catchup.scannedHeight ?: synchronization.catchup.birthdayHeight} " +
+                                "of ${synchronization.catchup.scanTargetHeight}",
+                        )
                         renderReadCatchup(synchronization.catchup)
                         scheduleHnsCatchupRetry(lease, handle, epoch, authorityGeneration)
                     }
@@ -1439,6 +1467,7 @@ class WalletActivity : ComponentActivity() {
         hnsCatchupRetry?.set(false)
         val retry = AtomicBoolean(true)
         hnsCatchupRetry = retry
+        Log.i(TAG, "Scheduling the next bounded direct HNS catch-up round")
         thread(name = "hns-wallet-catchup-retry") {
             try {
                 Thread.sleep(HNS_CATCHUP_RETRY_DELAY_MILLIS)
@@ -1446,13 +1475,22 @@ class WalletActivity : ComponentActivity() {
                 retry.set(false)
             }
             runOnUiThread {
-                if (
+                val mayRetry =
                     retry.get() && hnsCatchupRetry === retry && !busy &&
                         !walletHnsSyncInProgress &&
                         walletOperationMayPublish(epoch, lease, handle, authorityGeneration) &&
                         NativeWalletBridge.status(handle)?.locked == false
-                ) {
+                if (mayRetry) {
+                    Log.i(TAG, "Starting the scheduled direct HNS catch-up round")
                     synchronizeWalletReads()
+                } else {
+                    Log.i(
+                        TAG,
+                        "Direct HNS catch-up retry was not authorized: " +
+                            "enabled=${retry.get()} current=${hnsCatchupRetry === retry} " +
+                            "busy=$busy syncInProgress=$walletHnsSyncInProgress " +
+                            "sessionActive=${walletSessionIsActive()}",
+                    )
                 }
             }
         }
@@ -3378,9 +3416,26 @@ class WalletActivity : ComponentActivity() {
         return AtomicBoolean(true).also { poller ->
             liveHnsSyncPoller = poller
             thread(name = "hns-wallet-live-sync-progress") {
+                var loggedStage: NativeWalletHnsLiveSyncProgress.Stage? = null
+                var loggedScanHeight: Long? = null
                 while (poller.get()) {
                     NativeWalletBridge.liveHnsSynchronizationProgress(handle)?.let { progress ->
                         WalletHnsLiveSyncPresentationCache.publishLive(walletNetwork.id, progress)
+                        val scanHeight = progress.scannedHeight
+                        if (
+                            progress.stage != loggedStage ||
+                                (scanHeight != null &&
+                                    (loggedScanHeight == null || scanHeight - loggedScanHeight!! >= 256L))
+                        ) {
+                            Log.i(
+                                TAG,
+                                "Direct HNS live progress stage=${progress.stage} " +
+                                    "headers=${progress.headerTipHeight} scan=${scanHeight ?: progress.birthdayHeight} " +
+                                    "target=${progress.scanTargetHeight}",
+                            )
+                            loggedStage = progress.stage
+                            loggedScanHeight = scanHeight
+                        }
                         runOnUiThread {
                             if (
                                 poller.get() &&
