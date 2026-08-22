@@ -127,6 +127,11 @@ const ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
 /// install, while the cap prevents a JNI read operation from becoming an
 /// unbounded network task.
 const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
+/// A header peer can legitimately close after answering one large batch. Give
+/// a foreground sync a small, bounded opportunity to replace those transport
+/// sessions and retry the exact same local agreement policy before presenting
+/// a resumable catch-up state to the user.
+const DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC: usize = 2;
 /// Each direct scan call verifies at most 2,000 wallet-filtered blocks. Keep
 /// first-run catch-up self-contained without allowing an unbounded JNI call.
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
@@ -134,8 +139,13 @@ const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
 /// Mainnet and testnet keep two independent block views, but invite more
 /// independently discovered peers than the library minimum. A stale DNS
 /// answer or an endpoint with another service on the Handshake port must not
-/// make the sole wallet sync attempt depend on the other two candidates.
-const ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS: usize = 6;
+/// make the sole wallet sync attempt depend on the other candidates.
+const ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS: usize = 12;
+/// The wallet's direct peer I/O deadline also bounds the local multi-peer
+/// header-agreement round. Eight seconds is insufficient for cold mobile TCP
+/// paths to return two full 2,000-header batches, so retain a bounded
+/// thirty-second window while still requiring independent agreement.
+const ANDROID_DIRECT_HNS_PEER_IO_TIMEOUT: Duration = Duration::from_secs(30);
 /// The standard Handshake TCP port. A direct Denuo listener speaks only the
 /// normal version/verack plus negotiated experimental board profile; it is
 /// not a full HSD service.
@@ -1006,17 +1016,35 @@ impl AndroidWalletController {
                 controller,
                 ..
             } => (|| -> Result<_, MobileWalletError> {
-                let now_unix = HnsReadSystemClock.now_unix()?;
-                if let Err(error) = coordinator.connect_available(now_unix) {
-                    return direct_hns_transport_catchup(coordinator, "connection", error);
-                }
                 // Converge through the direct peers until they agree that no
                 // extension remains. Both the round count and every peer
                 // response are bounded; a later sync resumes if a much older
                 // recovery wallet needs more work.
+                let mut header_agreement_recoveries = 0usize;
                 for _ in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
+                    // Header response failures disconnect only their own
+                    // transport sessions. Refill the independent direct-peer
+                    // pool before each new round so one peer that served a
+                    // prior 2,000-header batch cannot strand the remaining
+                    // catch-up at the next locator.
+                    let now_unix = HnsReadSystemClock.now_unix()?;
+                    if let Err(error) = coordinator.connect_available(now_unix) {
+                        return direct_hns_transport_catchup(coordinator, "connection", error);
+                    }
                     let progress = match coordinator.synchronize_headers_once(now_unix) {
                         Ok(progress) => progress,
+                        Err(error)
+                            if error.is_temporary_header_agreement_unavailable()
+                                && header_agreement_recoveries
+                                    < DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC =>
+                        {
+                            header_agreement_recoveries =
+                                header_agreement_recoveries.saturating_add(1);
+                            android_log_error(&format!(
+                                "wallet HNS direct-peer header round lacked agreement; replacing peers and retrying ({header_agreement_recoveries}/{DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC})"
+                            ));
+                            continue;
+                        }
                         Err(error) => {
                             return direct_hns_transport_catchup(
                                 coordinator,
@@ -1052,6 +1080,7 @@ impl AndroidWalletController {
                 // A wallet becomes fund-ready only after its exact local watch
                 // set has reached the locally agreed header tip. The direct
                 // peer coordinator independently verifies every block view.
+                let now_unix = HnsReadSystemClock.now_unix()?;
                 for _ in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
                     let progress = match coordinator
                         .scan_wallet_blocks(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix)
@@ -2108,6 +2137,7 @@ fn android_direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
     let mut config = HnsDirectPeerConfig::for_network(network);
     if matches!(network, HnsNetwork::Mainnet | HnsNetwork::Testnet) {
         config.target_peers = ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS;
+        config.connect_timeout = ANDROID_DIRECT_HNS_PEER_IO_TIMEOUT;
     }
     config
 }
@@ -2118,7 +2148,7 @@ fn android_direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
 /// entire read result. Local wallet, light-index, and configuration failures
 /// deliberately remain fail-closed.
 fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
-    direct_hns_header_agreement_is_temporarily_unavailable(&error.to_string())
+    error.is_temporary_header_agreement_unavailable()
         || matches!(
             error,
             HnsDirectPeerError::Peer(_)
@@ -2130,19 +2160,6 @@ fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
                 | HnsDirectPeerError::FilteredBlockUnavailable
                 | HnsDirectPeerError::InsufficientBlockViews { .. }
         )
-}
-
-/// The direct-peer error is intentionally opaque across the mobile-wallet ABI
-/// boundary. Recognize only the two reviewed spellings of a deadline reached
-/// before the required independent header responses arrived. Every other
-/// wallet error remains fail-closed.
-fn direct_hns_header_agreement_is_temporarily_unavailable(error: &str) -> bool {
-    [
-        "header round has insufficient responses",
-        "header round timed out before enough independent peers responded",
-    ]
-    .into_iter()
-    .any(|marker| error.contains(marker))
 }
 
 fn direct_hns_transport_catchup(
@@ -5024,10 +5041,12 @@ mod tests {
         let mainnet = android_direct_hns_peer_config(HnsNetwork::Mainnet);
         assert_eq!(mainnet.target_peers, ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS);
         assert_eq!(mainnet.minimum_block_views, 2);
+        assert_eq!(mainnet.connect_timeout, ANDROID_DIRECT_HNS_PEER_IO_TIMEOUT);
 
         let testnet = android_direct_hns_peer_config(HnsNetwork::Testnet);
         assert_eq!(testnet.target_peers, ANDROID_DIRECT_HNS_PUBLIC_TARGET_PEERS);
         assert_eq!(testnet.minimum_block_views, 2);
+        assert_eq!(testnet.connect_timeout, ANDROID_DIRECT_HNS_PEER_IO_TIMEOUT);
 
         let regtest = android_direct_hns_peer_config(HnsNetwork::Regtest);
         assert_eq!(regtest.target_peers, 1);
@@ -5053,19 +5072,6 @@ mod tests {
         ));
         assert!(!direct_hns_transport_error_is_retryable(
             &HnsDirectPeerError::WalletEvidence("invalid merkle proof".to_owned())
-        ));
-    }
-
-    #[test]
-    fn direct_hns_header_quorum_deadlines_remain_resumable_across_wallet_abi_revisions() {
-        assert!(direct_hns_header_agreement_is_temporarily_unavailable(
-            "HNS header-sync failure: header round has insufficient responses"
-        ));
-        assert!(direct_hns_header_agreement_is_temporarily_unavailable(
-            "HNS header round timed out before enough independent peers responded"
-        ));
-        assert!(!direct_hns_header_agreement_is_temporarily_unavailable(
-            "embedded HNS header authority failed: invalid chain work"
         ));
     }
 
