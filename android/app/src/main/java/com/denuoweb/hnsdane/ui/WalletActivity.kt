@@ -212,15 +212,15 @@ class WalletActivity : ComponentActivity() {
             addView(dashboardContent)
         }
         // Wallet synchronization is deliberately scoped to the app being
-        // visible, rather than an Android foreground service. Back from this
-        // app-owned destination therefore returns to Settings by reordering
-        // it above this Activity instead of finishing this Activity and
-        // tearing down an in-progress verified scan. Settings applies the
-        // reciprocal reorder when Wallet is selected again.
+        // visible, rather than an Android foreground service. Back returns
+        // to the browser by reordering Main above this Activity, leaving the
+        // active Wallet session in the same foreground app task. Settings can
+        // still reorder this exact WalletActivity when the user returns.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 startActivity(
-                    Intent(this@WalletActivity, SettingsActivity::class.java)
+                    Intent(this@WalletActivity, MainActivity::class.java)
+                        .putExtra(MainActivity.EXTRA_RETURN_TO_BACKGROUND_AFTER_BROWSER, true)
                         .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
                 )
             }

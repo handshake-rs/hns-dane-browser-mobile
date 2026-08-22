@@ -153,9 +153,14 @@ class MainActivity : ComponentActivity() {
     private var failedMainFrameUrl: String? = null
     private var activityStopped: Boolean = false
     private var observedHeaderResetGeneration: Long = 0L
+    private var returnToBackgroundAfterBrowserBack: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        returnToBackgroundAfterBrowserBack = intent.getBooleanExtra(
+            EXTRA_RETURN_TO_BACKGROUND_AFTER_BROWSER,
+            false,
+        )
         val colors = themeColors()
 
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
@@ -368,6 +373,12 @@ class MainActivity : ComponentActivity() {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) {
                     navigateHistory(-1)
+                } else if (returnToBackgroundAfterBrowserBack) {
+                    // Main was reordered above a retained Wallet. Returning
+                    // from browser use should background the app (which
+                    // securely retires that session) instead of revealing
+                    // Wallet and creating another Back-navigation loop.
+                    moveTaskToBack(true)
                 } else {
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
@@ -393,6 +404,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        returnToBackgroundAfterBrowserBack = intent.getBooleanExtra(
+            EXTRA_RETURN_TO_BACKGROUND_AFTER_BROWSER,
+            false,
+        )
         intent.getStringExtra(EXTRA_LOAD_URL)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
@@ -1653,6 +1668,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_LOAD_URL = "com.denuoweb.hnsdane.LOAD_URL"
+        const val EXTRA_RETURN_TO_BACKGROUND_AFTER_BROWSER =
+            "com.denuoweb.hnsdane.RETURN_TO_BACKGROUND_AFTER_BROWSER"
 
         private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
