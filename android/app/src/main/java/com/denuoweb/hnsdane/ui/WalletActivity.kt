@@ -144,6 +144,8 @@ class WalletActivity : ComponentActivity() {
     private var liveHnsSyncPoller: AtomicBoolean? = null
     @Volatile
     private var cachedHnsSyncPresentationWatcher: AtomicBoolean? = null
+    @Volatile
+    private var hnsCatchupRetry: AtomicBoolean? = null
     private val walletHnsJourney = WalletHnsJourney()
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
 
@@ -222,6 +224,8 @@ class WalletActivity : ComponentActivity() {
         foreground = false
         lifecycleEpoch += 1
         cachedHnsSyncPresentationWatcher?.set(false)
+        hnsCatchupRetry?.set(false)
+        hnsCatchupRetry = null
         storageOwner?.let(ProcessWalletStorageOwnership::retire)
         storageOwner = null
         dismissWalletDeletionDialog()
@@ -1292,6 +1296,8 @@ class WalletActivity : ComponentActivity() {
             resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
             return
         }
+        hnsCatchupRetry?.set(false)
+        hnsCatchupRetry = null
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
         walletHnsSyncInProgress = true
         readStatusView.text = getString(R.string.wallet_reads_syncing)
@@ -1351,8 +1357,47 @@ class WalletActivity : ComponentActivity() {
                     preflightFailure != null -> resetReadProjection(preflightFailure)
                     synchronization == null -> resetReadProjection(R.string.wallet_reads_sync_failed)
                     synchronization.snapshot != null -> renderReadSnapshot(synchronization.snapshot)
-                    synchronization.catchup != null -> renderReadCatchup(synchronization.catchup)
+                    synchronization.catchup != null -> {
+                        renderReadCatchup(synchronization.catchup)
+                        scheduleHnsCatchupRetry(lease, handle, epoch, authorityGeneration)
+                    }
                     else -> resetReadProjection(R.string.wallet_reads_sync_failed)
+                }
+            }
+        }
+    }
+
+    /**
+     * A direct HNS sync is bounded so it can always release controller
+     * ownership promptly. Catch-up is therefore a resumable result, not a
+     * terminal UI state: continue with a short foreground-only delay while
+     * retaining the durable verified height. Leaving Wallet cancels this
+     * scheduler; it never creates a background wallet or exposes a partial
+     * projection.
+     */
+    private fun scheduleHnsCatchupRetry(
+        lease: WalletStorageOwnershipGate.Lease,
+        handle: Long,
+        epoch: Long,
+        authorityGeneration: Long,
+    ) {
+        hnsCatchupRetry?.set(false)
+        val retry = AtomicBoolean(true)
+        hnsCatchupRetry = retry
+        thread(name = "hns-wallet-catchup-retry") {
+            try {
+                Thread.sleep(HNS_CATCHUP_RETRY_DELAY_MILLIS)
+            } catch (_: InterruptedException) {
+                retry.set(false)
+            }
+            runOnUiThread {
+                if (
+                    retry.get() && hnsCatchupRetry === retry && !busy &&
+                        !walletHnsSyncInProgress &&
+                        walletOperationMayPublish(epoch, lease, handle, authorityGeneration) &&
+                        NativeWalletBridge.status(handle)?.locked == false
+                ) {
+                    synchronizeWalletReads()
                 }
             }
         }
@@ -3678,6 +3723,7 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_DENUO_STATUS_REFRESH_TICKS = 20
         const val DIRECT_DENUO_LISTEN_PORT = 12_038
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
+        const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L
         const val DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC = 32
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
         const val NUL_CHARACTER = "\u0000"

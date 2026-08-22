@@ -1156,9 +1156,25 @@ impl AndroidWalletController {
                         header_agreement_recoveries,
                         coordinator,
                     );
-                    let progress = match coordinator
-                        .scan_wallet_blocks(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix)
-                    {
+                    // The coordinator persists every verified block before
+                    // invoking this callback. Use its clone, which shares
+                    // that same durable backend, to publish a public height
+                    // after each block instead of leaving Android at the
+                    // beginning of a long scan batch.
+                    let progress_coordinator = coordinator.clone();
+                    let progress = match coordinator.scan_wallet_blocks_with_progress(
+                        DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK,
+                        now_unix,
+                        |_| {
+                            publish_direct_hns_live_progress(
+                                live_progress,
+                                WALLET_HNS_LIVE_PROGRESS_SCANNING,
+                                0,
+                                header_agreement_recoveries,
+                                &progress_coordinator,
+                            );
+                        },
+                    ) {
                         Ok(progress) => progress,
                         Err(error) => {
                             return direct_hns_transport_catchup(
