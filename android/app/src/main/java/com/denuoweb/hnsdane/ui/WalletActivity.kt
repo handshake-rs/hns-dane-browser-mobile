@@ -270,6 +270,7 @@ class WalletActivity : ComponentActivity() {
         dashboardContent.removeAllViews()
         when {
             unconfirmedDatabaseKey != null || recoveryView.hasSecret() -> renderRecoveryDashboard()
+            hasRetainedHnsSyncPresentation() -> renderRetainedHnsSyncHandoffDashboard()
             walletHandle == INVALID_HANDLE -> renderNoWalletDashboard()
             // A direct peer synchronization owns the native controller for a
             // bounded network round. Its public progress has a separate
@@ -287,14 +288,6 @@ class WalletActivity : ComponentActivity() {
             detail = statusView,
             healthy = false,
         ))
-        if (WalletHnsLiveSyncPresentationCache.latest(walletNetwork.id) != null) {
-            restoreCachedHnsSyncPresentation()
-            dashboardContent.addView(statusCard(
-                label = getString(R.string.wallet_dashboard_sync_attention),
-                detail = readStatusView,
-                healthy = false,
-            ))
-        }
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_get_started)) {
             addSettingsRow(actionRow(
                 title = getString(R.string.row_wallet_create),
@@ -306,6 +299,30 @@ class WalletActivity : ComponentActivity() {
             ) { showRestoreWalletDialog() })
         })
     }
+
+    /**
+     * The old activity may still own a bounded native synchronization while a
+     * replacement waits for its storage lease. Its public progress proves that
+     * this is an existing wallet, so never combine that state with setup
+     * actions that could imply the wallet disappeared or restarted.
+     */
+    private fun renderRetainedHnsSyncHandoffDashboard() {
+        dashboardContent.addView(statusCard(
+            label = getString(R.string.wallet_dashboard_no_wallet),
+            detail = statusView,
+            healthy = false,
+        ))
+        restoreCachedHnsSyncPresentation()
+        dashboardContent.addView(statusCard(
+            label = getString(R.string.wallet_dashboard_sync_attention),
+            detail = readStatusView,
+            healthy = false,
+        ))
+    }
+
+    private fun hasRetainedHnsSyncPresentation(): Boolean =
+        walletHandle == INVALID_HANDLE &&
+            WalletHnsLiveSyncPresentationCache.latest(walletNetwork.id) != null
 
     private fun renderRecoveryDashboard() {
         dashboardContent.addView(statusCard(
@@ -2821,7 +2838,11 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun requestStorageLease(owner: WalletStorageOwnershipGate.Owner) {
-        statusView.text = getString(R.string.wallet_status_starting)
+        statusView.text = if (hasRetainedHnsSyncPresentation()) {
+            getString(R.string.wallet_status_sync_handoff)
+        } else {
+            getString(R.string.wallet_status_starting)
+        }
         accountView.text = getString(R.string.wallet_account_unavailable)
         resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
         val accepted = ProcessWalletStorageOwnership.acquire(owner) { lease ->

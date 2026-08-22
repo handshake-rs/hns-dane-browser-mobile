@@ -345,6 +345,7 @@
     <string name="wallet_restore_phrase_required" translatable="false">Enter the complete 24-word recovery phrase.</string>
     <string name="wallet_already_exists" translatable="false">A wallet already exists on this device.</string>
     <string name="wallet_status_starting" translatable="false">Starting native wallet controller…</string>
+    <string name="wallet_status_sync_handoff" translatable="false">Keeping the existing HNS sync connected…</string>
     <string name="wallet_status_opening" translatable="false">Opening native wallet…</string>
     <string name="wallet_status_creating" translatable="false">Creating native wallet…</string>
     <string name="wallet_status_restoring" translatable="false">Restoring native wallet…</string>
