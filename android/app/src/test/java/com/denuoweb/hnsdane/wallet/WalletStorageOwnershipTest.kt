@@ -128,6 +128,18 @@ class WalletStorageOwnershipTest {
     }
 
     @Test
+    fun backgroundReadOnlyWalletSyncRequiresVisibleForegroundService() {
+        assertTrue(
+            walletBackgroundHnsSyncMayRetain(
+                hasActiveReadOnlyHnsSync = true,
+                foregroundServiceActive = true,
+            ),
+        )
+        assertFalse(walletBackgroundHnsSyncMayRetain(true, false))
+        assertFalse(walletBackgroundHnsSyncMayRetain(false, true))
+    }
+
+    @Test
     fun controllerRetirementOwnsItsLeaseReleaseExactlyOnce() {
         val storage = WalletStorageOwnershipGate()
         val owner = storage.newOwner("/wallet/mainnet/wallet.sqlite3") {}

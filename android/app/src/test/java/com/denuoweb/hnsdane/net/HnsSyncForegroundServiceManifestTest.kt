@@ -13,21 +13,29 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 class HnsSyncForegroundServiceManifestTest {
     @Test
-    fun manifestDoesNotDeclareBackgroundHnsSyncService() {
+    fun manifestLimitsBackgroundWorkToVisibleReadOnlyWalletSync() {
         val document = DocumentBuilderFactory.newInstance()
             .apply { isNamespaceAware = true }
             .newDocumentBuilder()
             .parse(locateManifest())
 
         assertFalse(document.getElementsByTagName("uses-permission").hasAndroidName(POST_NOTIFICATIONS))
-        assertFalse(document.getElementsByTagName("uses-permission").hasAndroidName(FOREGROUND_SERVICE))
-        assertFalse(document.getElementsByTagName("uses-permission").hasAndroidName(FOREGROUND_SERVICE_DATA_SYNC))
+        assertTrue(document.getElementsByTagName("uses-permission").hasAndroidName(FOREGROUND_SERVICE))
+        assertTrue(document.getElementsByTagName("uses-permission").hasAndroidName(FOREGROUND_SERVICE_DATA_SYNC))
 
         val service = document.getElementsByTagName("service")
             .elements()
             .firstOrNull { it.getAttributeNS(ANDROID_NS, "name") == HNS_SYNC_SERVICE }
 
         assertNull(service)
+
+        val walletSyncService = document.getElementsByTagName("service")
+            .elements()
+            .firstOrNull { it.getAttributeNS(ANDROID_NS, "name") == WALLET_SYNC_SERVICE }
+
+        assertNotNull(walletSyncService)
+        assertEquals("false", walletSyncService?.getAttributeNS(ANDROID_NS, "exported"))
+        assertEquals("dataSync", walletSyncService?.getAttributeNS(ANDROID_NS, "foregroundServiceType"))
 
         val settings = document.getElementsByTagName("activity")
             .elements()
@@ -71,7 +79,6 @@ class HnsSyncForegroundServiceManifestTest {
         assertNotNull(wallet)
         assertEquals("false", wallet?.getAttributeNS(ANDROID_NS, "exported"))
         assertEquals("true", wallet?.getAttributeNS(ANDROID_NS, "excludeFromRecents"))
-        assertEquals("true", wallet?.getAttributeNS(ANDROID_NS, "stateNotNeeded"))
 
         val launcher = document.getElementsByTagName("activity")
             .elements()
@@ -115,6 +122,7 @@ class HnsSyncForegroundServiceManifestTest {
     private companion object {
         const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
         const val HNS_SYNC_SERVICE = ".net.HnsSyncForegroundService"
+        const val WALLET_SYNC_SERVICE = ".wallet.WalletSyncForegroundService"
         const val SETTINGS_ACTIVITY = ".ui.SettingsActivity"
         const val COOKIE_SETTINGS_ACTIVITY = ".ui.CookieSettingsActivity"
         const val LEGAL_ACTIVITY = ".ui.LegalActivity"

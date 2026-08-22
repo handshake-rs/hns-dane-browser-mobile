@@ -390,6 +390,9 @@
     <string name="wallet_reads_live_retrying" translatable="false">Direct peers did not agree yet. Replacing peers and retrying %1$d of %2$d from verified local height %3$d.</string>
     <string name="wallet_reads_live_scanning" translatable="false">Verified headers are current at height %1$d. Scanning wallet activity through %2$d of %3$d.</string>
     <string name="wallet_reads_live_finalizing" translatable="false">Verified headers and wallet activity are current at height %1$d. Finalizing the read-only snapshot…</string>
+    <string name="wallet_sync_notification_channel" translatable="false">Wallet synchronization</string>
+    <string name="wallet_sync_notification_title" translatable="false">Synchronizing Handshake wallet</string>
+    <string name="wallet_sync_notification_text" translatable="false">Scanning verified Handshake wallet activity.</string>
     <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read failed closed. Reopen and unlock the wallet before retrying.</string>
     <string name="wallet_reads_catching_up" translatable="false">Verified HNS wallet catch-up is in progress. No balance or spend state is exposed until it reaches the exact current tip.</string>
     <string name="wallet_reads_catching_up_headers" translatable="false">Verified header catch-up is still in progress at local height %1$d. Wallet history has scanned through %2$d of %3$d. Synchronize again to continue; no balance or spend state is exposed yet.</string>

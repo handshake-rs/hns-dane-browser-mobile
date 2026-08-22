@@ -60,6 +60,7 @@ import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
 import com.denuoweb.hnsdane.wallet.WalletStorageDeletionResult
 import com.denuoweb.hnsdane.wallet.WalletStorageOwnershipGate
+import com.denuoweb.hnsdane.wallet.WalletSyncForegroundService
 import com.denuoweb.hnsdane.wallet.beginDirectHnsSynchronizationWithRecovery
 import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
@@ -75,6 +76,7 @@ import com.denuoweb.hnsdane.wallet.walletControllerOperationMayBegin
 import com.denuoweb.hnsdane.wallet.walletDeletionMayProceed
 import com.denuoweb.hnsdane.wallet.walletNameImportMayBegin
 import com.denuoweb.hnsdane.wallet.walletNameImportMayPublish
+import com.denuoweb.hnsdane.wallet.walletBackgroundHnsSyncMayRetain
 import com.denuoweb.hnsdane.wallet.walletReadMayPublish
 import com.denuoweb.hnsdane.wallet.walletReadBootstrapMayInstall
 import com.denuoweb.hnsdane.wallet.walletReadCodeLabel
@@ -126,10 +128,11 @@ class WalletActivity : ComponentActivity() {
     private var busy = false
     private var lifecycleEpoch = 0L
     private var foreground = false
-    // A confirmed, unlocked direct wallet may keep its bounded catch-up alive
-    // while the user moves between this app's screens. This is intentionally
-    // not a background-wallet mode: a short post-stop check tears it down as
-    // soon as the whole application leaves the foreground.
+    // A confirmed, unlocked direct wallet may keep only a user-initiated,
+    // read-only direct-peer scan alive while the user moves between screens or
+    // briefly leaves the app. Android keeps that narrow exception visible with
+    // a data-sync foreground-service notification; all mutations still tear
+    // down immediately on stop.
     private var retainingInAppWalletSession = false
     private var unconfirmedDatabaseKey: ByteArray? = null
     private var storageOwner: WalletStorageOwnershipGate.Owner? = null
@@ -148,6 +151,7 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshotAuthorityGeneration = 0L
     private var latestReadSnapshotEpoch = 0L
     private var walletHnsSyncInProgress = false
+    private var walletHnsForegroundSyncServiceActive = false
     @Volatile
     private var liveHnsSyncPoller: AtomicBoolean? = null
     @Volatile
@@ -241,6 +245,14 @@ class WalletActivity : ComponentActivity() {
             // bounded scan must remain authorized to publish its checkpoint.
             retainingInAppWalletSession = false
             restoreCachedHnsSyncPresentation()
+            // Do not probe status() while a bounded scan owns the native
+            // controller mutex. Its public progress mailbox is enough to
+            // redraw this screen, and a contended probe can otherwise turn a
+            // healthy background scan into an unavailable-looking dashboard.
+            if (walletHnsSyncInProgress) {
+                renderWalletDashboard()
+                return
+            }
             // The retained authority generation is unchanged, so keep a
             // verified snapshot that finished while another app screen was
             // visible instead of resetting it to a misleading empty state.
@@ -291,6 +303,7 @@ class WalletActivity : ComponentActivity() {
         retainingInAppWalletSession = false
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
+        stopWalletHnsForegroundSyncService()
         storageOwner?.let(ProcessWalletStorageOwnership::retire)
         storageOwner = null
         dismissWalletDeletionDialog()
@@ -1367,6 +1380,7 @@ class WalletActivity : ComponentActivity() {
         hnsCatchupRetry = null
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
         walletHnsSyncInProgress = true
+        startWalletHnsForegroundSyncService()
         Log.i(TAG, "Starting a bounded direct HNS synchronization round")
         readStatusView.text = getString(R.string.wallet_reads_syncing)
         renderWalletDashboard()
@@ -1450,6 +1464,7 @@ class WalletActivity : ComponentActivity() {
                     }
                     else -> resetReadProjection(R.string.wallet_reads_sync_failed)
                 }
+                finishWalletHnsForegroundSyncIfIdle()
             }
         }
     }
@@ -1457,10 +1472,10 @@ class WalletActivity : ComponentActivity() {
     /**
      * A direct HNS sync is bounded so it can always release controller
      * ownership promptly. Catch-up is therefore a resumable result, not a
-     * terminal UI state: continue with a short foreground-only delay while
-     * retaining the durable verified height. Leaving Wallet cancels this
-     * scheduler; it never creates a background wallet or exposes a partial
-     * projection.
+     * terminal UI state: continue with a short delay while retaining the
+     * durable verified height. Its visible foreground-service notification
+     * keeps this read-only continuation alive across a brief app switch; it
+     * never exposes a partial projection.
      */
     private fun scheduleHnsCatchupRetry(
         lease: WalletStorageOwnershipGate.Lease,
@@ -1488,6 +1503,8 @@ class WalletActivity : ComponentActivity() {
                     Log.i(TAG, "Starting the scheduled direct HNS catch-up round")
                     synchronizeWalletReads()
                 } else {
+                    retry.set(false)
+                    if (hnsCatchupRetry === retry) hnsCatchupRetry = null
                     Log.i(
                         TAG,
                         "Direct HNS catch-up retry was not authorized: " +
@@ -1495,6 +1512,7 @@ class WalletActivity : ComponentActivity() {
                             "busy=$busy syncInProgress=$walletHnsSyncInProgress " +
                             "sessionActive=${walletSessionIsActive()}",
                     )
+                    finishWalletHnsForegroundSyncIfIdle()
                 }
             }
         }
@@ -3048,6 +3066,7 @@ class WalletActivity : ComponentActivity() {
         lifecycleEpoch += 1
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
+        stopWalletHnsForegroundSyncService()
         storageOwner = null
         dismissWalletDeletionDialog()
         dismissSendApproval(rejectNative = false)
@@ -3080,6 +3099,34 @@ class WalletActivity : ComponentActivity() {
 
     private fun walletSessionIsActive(): Boolean = foreground || retainingInAppWalletSession
 
+    private fun hasActiveWalletHnsSynchronization(): Boolean =
+        walletHnsSyncInProgress || hnsCatchupRetry?.get() == true
+
+    private fun startWalletHnsForegroundSyncService() {
+        if (walletHnsForegroundSyncServiceActive) return
+        walletHnsForegroundSyncServiceActive = WalletSyncForegroundService.start(this)
+        if (walletHnsForegroundSyncServiceActive) {
+            Log.i(TAG, "Started visible foreground protection for direct HNS wallet synchronization")
+        } else {
+            Log.w(TAG, "Direct HNS wallet synchronization will stop if the app leaves foreground")
+        }
+    }
+
+    private fun stopWalletHnsForegroundSyncService() {
+        if (!walletHnsForegroundSyncServiceActive) return
+        walletHnsForegroundSyncServiceActive = false
+        WalletSyncForegroundService.stop(this)
+        Log.i(TAG, "Stopped visible foreground protection for direct HNS wallet synchronization")
+    }
+
+    private fun finishWalletHnsForegroundSyncIfIdle() {
+        if (hasActiveWalletHnsSynchronization()) return
+        stopWalletHnsForegroundSyncService()
+        if (retainingInAppWalletSession && !foreground && !isAppForeground()) {
+            scheduleWalletRetirementIfApplicationBackgrounds()
+        }
+    }
+
     /**
      * Continue only public direct-peer synchronization for an already
      * confirmed and unlocked wallet. A send, deletion, restore, or any other
@@ -3094,14 +3141,19 @@ class WalletActivity : ComponentActivity() {
         ) {
             return false
         }
-        if (walletHnsSyncInProgress) {
+        if (hasActiveWalletHnsSynchronization()) {
             // A bounded direct sync owns the native controller mutex. Calling
             // status() or hasHnsReads() here would contend with that exact
             // scan and can return no result, incorrectly turning an active
-            // public sync into a teardown. This flag is set only after the
-            // operation gate accepted the read-only HNS synchronization; all
+            // public sync into a teardown. Retaining this narrow read-only
+            // exception outside the app additionally requires the visible
+            // foreground-service notification to have been started; all
             // mutations remain excluded by the busy check above.
-            return ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
+            return walletBackgroundHnsSyncMayRetain(
+                hasActiveReadOnlyHnsSync = true,
+                foregroundServiceActive = walletHnsForegroundSyncServiceActive,
+            ) &&
+                ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
         }
         return NativeWalletBridge.hasHnsReads(handle) &&
             NativeWalletBridge.status(handle)?.locked == false &&
@@ -3126,7 +3178,11 @@ class WalletActivity : ComponentActivity() {
             runOnUiThread {
                 if (
                     retirement.get() && walletBackgroundRetirement === retirement &&
-                        retainingInAppWalletSession && !foreground && !isAppForeground()
+                        retainingInAppWalletSession && !foreground && !isAppForeground() &&
+                        !walletBackgroundHnsSyncMayRetain(
+                            hasActiveReadOnlyHnsSync = hasActiveWalletHnsSynchronization(),
+                            foregroundServiceActive = walletHnsForegroundSyncServiceActive,
+                        )
                 ) {
                     walletBackgroundRetirement = null
                     retireRetainedInAppWalletSession()
@@ -3145,6 +3201,7 @@ class WalletActivity : ComponentActivity() {
         lifecycleEpoch += 1
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
+        stopWalletHnsForegroundSyncService()
         storageOwner?.let(ProcessWalletStorageOwnership::retire)
         storageOwner = null
         dismissWalletDeletionDialog()

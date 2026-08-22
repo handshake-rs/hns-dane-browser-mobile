@@ -50,6 +50,15 @@ internal fun walletReadMayPublish(
         expectedAuthorityGeneration == currentAuthorityGeneration
 
 /**
+ * A direct wallet scan may outlive the visible Activity only while Android is
+ * showing its user-initiated data-sync foreground-service notification.
+ */
+internal fun walletBackgroundHnsSyncMayRetain(
+    hasActiveReadOnlyHnsSync: Boolean,
+    foregroundServiceActive: Boolean,
+): Boolean = hasActiveReadOnlyHnsSync && foregroundServiceActive
+
+/**
  * Records leases whose release is owned by native-controller retirement rather
  * than the stale operation callback. Membership is retained for this short
  * Activity lifetime so a duplicate callback can never release the same lease.
