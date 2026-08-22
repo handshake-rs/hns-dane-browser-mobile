@@ -307,17 +307,13 @@ class WalletActivity : ComponentActivity() {
      * actions that could imply the wallet disappeared or restarted.
      */
     private fun renderRetainedHnsSyncHandoffDashboard() {
-        dashboardContent.addView(statusCard(
-            label = getString(R.string.wallet_dashboard_no_wallet),
-            detail = statusView,
-            healthy = false,
-        ))
         restoreCachedHnsSyncPresentation()
-        dashboardContent.addView(statusCard(
-            label = getString(R.string.wallet_dashboard_sync_attention),
-            detail = readStatusView,
-            healthy = false,
-        ))
+        // The retained live presentation proves that this is an existing,
+        // previously-unlocked wallet whose old controller is still completing
+        // a bounded direct-peer operation. Preserve the normal dashboard so
+        // returning to Wallet never looks like a reset, but keep every action
+        // disabled until this activity holds the replacement controller.
+        renderUnlockedWalletDashboard(actionsAvailable = false)
     }
 
     private fun hasRetainedHnsSyncPresentation(): Boolean =
@@ -357,12 +353,12 @@ class WalletActivity : ComponentActivity() {
         addWalletTiles(locked = true)
     }
 
-    private fun renderUnlockedWalletDashboard() {
+    private fun renderUnlockedWalletDashboard(actionsAvailable: Boolean = true) {
         dashboardContent.addView(statusCard(
             label = getString(R.string.wallet_dashboard_unlocked, walletNetwork.displayName(this)),
             detail = statusView,
         ))
-        dashboardContent.addView(walletBalanceCard())
+        dashboardContent.addView(walletBalanceCard(actionsAvailable))
         if (latestReadSnapshot == null || walletHnsSyncInProgress) {
             dashboardContent.addView(statusCard(
                 label = getString(R.string.wallet_dashboard_sync_attention),
@@ -370,16 +366,16 @@ class WalletActivity : ComponentActivity() {
                 healthy = false,
             ))
         }
-        addWalletTiles(locked = false)
+        addWalletTiles(locked = false, actionsAvailable = actionsAvailable)
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_recent_activity)) {
             addSettingsRow(navRow(
                 title = getString(R.string.wallet_dashboard_recent_activity),
                 summary = recentActivitySummary(),
-            ) { showActivityDetails() })
+            ) { showActivityDetails() }.disabledWhenWalletHandoff(!actionsAvailable))
         })
     }
 
-    private fun walletBalanceCard(): LinearLayout =
+    private fun walletBalanceCard(actionsAvailable: Boolean = true): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = settingsSurfaceDrawable(accent = themeColors().action)
@@ -404,21 +400,21 @@ class WalletActivity : ComponentActivity() {
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_receive)) {
                     showReceiveWalletDialog()
-                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                }.disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_send), secondary = true) {
                     showHnsSendDialog()
-                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                }.disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = uiDp(8)
                 })
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_sync)) {
                     synchronizeWalletReads()
-                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                }.disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = uiDp(8)
                 })
             })
         }
 
-    private fun addWalletTiles(locked: Boolean) {
+    private fun addWalletTiles(locked: Boolean, actionsAvailable: Boolean = true) {
         dashboardContent.addView(TextView(this).apply {
             text = getString(R.string.section_wallet)
             textSize = 12f
@@ -431,22 +427,31 @@ class WalletActivity : ComponentActivity() {
             dashboardTile(
                 title = getString(R.string.wallet_dashboard_names),
                 summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else namesSummary(),
-            ) { showNamesDashboard() },
+            ) { showNamesDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
             dashboardTile(
                 title = getString(R.string.wallet_dashboard_bitcoin),
                 summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else bitcoinSummary(),
-            ) { showBitcoinDashboard() },
+            ) { showBitcoinDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
         ))
         dashboardContent.addView(walletTileRow(
             dashboardTile(
                 title = getString(R.string.wallet_dashboard_shakedex),
                 summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else shakedexSummary(),
-            ) { showShakedexDashboard() },
+            ) { showShakedexDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
             dashboardTile(
                 title = getString(R.string.wallet_dashboard_wallet),
                 summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else getString(R.string.wallet_dashboard_unlocked_short),
-            ) { showWalletDetails() },
+            ) { showWalletDetails() }.disabledWhenWalletHandoff(!actionsAvailable),
         ))
+    }
+
+    private fun <T : View> T.disabledWhenWalletHandoff(disabled: Boolean): T = apply {
+        if (disabled) {
+            isEnabled = false
+            isClickable = false
+            isFocusable = false
+            alpha = 0.55f
+        }
     }
 
     private fun walletTileRow(first: View, second: View): LinearLayout =
