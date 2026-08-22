@@ -52,8 +52,7 @@
         <activity
             android:name=".ui.WalletActivity"
             android:excludeFromRecents="true"
-            android:exported="false"
-            android:stateNotNeeded="true" />
+            android:exported="false" />
         <activity
             android:name=".ui.HistoryActivity"
             android:exported="false" />
