@@ -25,6 +25,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.denuoweb.hnsdane.HnsDaneApplication
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.net.HeaderSnapshotInstaller
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
@@ -123,6 +124,11 @@ class WalletActivity : ComponentActivity() {
     private var busy = false
     private var lifecycleEpoch = 0L
     private var foreground = false
+    // A confirmed, unlocked direct wallet may keep its bounded catch-up alive
+    // while the user moves between this app's screens. This is intentionally
+    // not a background-wallet mode: a short post-stop check tears it down as
+    // soon as the whole application leaves the foreground.
+    private var retainingInAppWalletSession = false
     private var unconfirmedDatabaseKey: ByteArray? = null
     private var storageOwner: WalletStorageOwnershipGate.Owner? = null
     private var storageLease: WalletStorageOwnershipGate.Lease? = null
@@ -146,6 +152,8 @@ class WalletActivity : ComponentActivity() {
     private var cachedHnsSyncPresentationWatcher: AtomicBoolean? = null
     @Volatile
     private var hnsCatchupRetry: AtomicBoolean? = null
+    @Volatile
+    private var walletBackgroundRetirement: AtomicBoolean? = null
     private val walletHnsJourney = WalletHnsJourney()
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
 
@@ -207,6 +215,22 @@ class WalletActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         foreground = true
+        walletBackgroundRetirement?.set(false)
+        walletBackgroundRetirement = null
+        if (retainingInAppWalletSession && currentStorageLease() != null && walletHandle != INVALID_HANDLE) {
+            // Keep the controller, peer sessions, and retry generation that
+            // were already progressing while another app screen was visible.
+            // In particular, do not advance lifecycleEpoch here: an in-flight
+            // bounded scan must remain authorized to publish its checkpoint.
+            retainingInAppWalletSession = false
+            restoreCachedHnsSyncPresentation()
+            // The retained authority generation is unchanged, so keep a
+            // verified snapshot that finished while another app screen was
+            // visible instead of resetting it to a misleading empty state.
+            refreshControllerState(resetReads = false)
+            return
+        }
+        retainingInAppWalletSession = false
         lifecycleEpoch += 1
         resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
         restoreCachedHnsSyncPresentation()
@@ -221,9 +245,26 @@ class WalletActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        val retainInAppSession = mayRetainInAppWalletSession()
         foreground = false
-        lifecycleEpoch += 1
         cachedHnsSyncPresentationWatcher?.set(false)
+        if (retainInAppSession) {
+            // Android calls the departing Activity's onStop before it reports
+            // whether the process has actually gone background. Preserve the
+            // current lease across an in-app transition, then retire it after
+            // that lifecycle report only if no app Activity remains visible.
+            retainingInAppWalletSession = true
+            dismissWalletDeletionDialog()
+            dismissSendApproval(rejectNative = false)
+            dismissValueApproval(rejectNative = false)
+            clearNameImportInput()
+            clearSendInputs()
+            scheduleWalletRetirementIfApplicationBackgrounds()
+            super.onStop()
+            return
+        }
+        lifecycleEpoch += 1
+        retainingInAppWalletSession = false
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
         storageOwner?.let(ProcessWalletStorageOwnership::retire)
@@ -1009,12 +1050,10 @@ class WalletActivity : ComponentActivity() {
     }
 
     /**
-     * Runs only while this Activity owns the unlocked direct-wallet controller.
-     * Native code holds the listener and rejects/forgets every board socket on
-     * lock or controller retirement; this worker merely gives it bounded
-     * foreground scheduling. A later foreground-service integration can keep
-     * the same native ownership contract when Android background policy allows
-     * it, without introducing a relay.
+     * Runs while this app retains the unlocked direct-wallet session. Native
+     * code holds the listener and rejects/forgets every board socket on lock
+     * or controller retirement; this worker remains app-foreground-only and
+     * never becomes an Android background wallet service.
      */
     private fun startWalletOwnedDirectDenuoWorker(
         handle: Long,
@@ -1027,7 +1066,7 @@ class WalletActivity : ComponentActivity() {
             try {
                 var serviceTicks = 0
                 while (
-                    foreground && operationIsCurrent(epoch, lease) && walletHandle == handle &&
+                    walletSessionIsActive() && operationIsCurrent(epoch, lease) && walletHandle == handle &&
                         (NativeWalletBridge.status(handle)?.locked == false)
                 ) {
                     NativeWalletBridge.serviceWalletOwnedDirectDenuo(handle)
@@ -1338,7 +1377,7 @@ class WalletActivity : ComponentActivity() {
                 val mayPublish = walletReadMayPublish(
                     expectedEpoch = epoch,
                     currentEpoch = lifecycleEpoch,
-                    foreground = foreground,
+                    foreground = walletSessionIsActive(),
                     ownsCurrentLease = ownsLease,
                     expectedHandle = handle,
                     currentHandle = walletHandle,
@@ -2000,7 +2039,7 @@ class WalletActivity : ComponentActivity() {
     ): Boolean = walletReadMayPublish(
         expectedEpoch = epoch,
         currentEpoch = lifecycleEpoch,
-        foreground = foreground,
+        foreground = walletSessionIsActive(),
         ownsCurrentLease = currentStorageLease() === lease,
         expectedHandle = handle,
         currentHandle = walletHandle,
@@ -2945,7 +2984,12 @@ class WalletActivity : ComponentActivity() {
 
     private fun revokeStorageOwnership(owner: WalletStorageOwnershipGate.Owner) {
         if (storageOwner !== owner) return
+        retainingInAppWalletSession = false
+        walletBackgroundRetirement?.set(false)
+        walletBackgroundRetirement = null
         lifecycleEpoch += 1
+        hnsCatchupRetry?.set(false)
+        hnsCatchupRetry = null
         storageOwner = null
         dismissWalletDeletionDialog()
         dismissSendApproval(rejectNative = false)
@@ -2970,10 +3014,84 @@ class WalletActivity : ComponentActivity() {
         val owner = storageOwner ?: return null
         val lease = storageLease ?: return null
         return lease.takeIf {
-            foreground &&
+            walletSessionIsActive() &&
                 it.owner === owner &&
                 ProcessWalletStorageOwnership.isCurrent(owner, it)
         }
+    }
+
+    private fun walletSessionIsActive(): Boolean = foreground || retainingInAppWalletSession
+
+    /**
+     * Continue only public direct-peer synchronization for an already
+     * confirmed and unlocked wallet. A send, deletion, restore, or any other
+     * wallet mutation still follows the normal onStop teardown path.
+     */
+    private fun mayRetainInAppWalletSession(): Boolean {
+        val lease = currentStorageLease() ?: return false
+        val handle = walletHandle
+        if (
+            isFinishing || isDestroyed || handle == INVALID_HANDLE ||
+                unconfirmedDatabaseKey != null || (busy && !walletHnsSyncInProgress)
+        ) {
+            return false
+        }
+        return NativeWalletBridge.hasHnsReads(handle) &&
+            NativeWalletBridge.status(handle)?.locked == false &&
+            ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
+    }
+
+    /**
+     * The Application lifecycle counter is updated immediately after this
+     * Activity's onStop. Wait only long enough to observe that update, then
+     * keep the retained controller solely when another app screen is visible.
+     */
+    private fun scheduleWalletRetirementIfApplicationBackgrounds() {
+        walletBackgroundRetirement?.set(false)
+        val retirement = AtomicBoolean(true)
+        walletBackgroundRetirement = retirement
+        thread(name = "hns-wallet-background-retirement") {
+            try {
+                Thread.sleep(WALLET_BACKGROUND_RETIREMENT_GRACE_MILLIS)
+            } catch (_: InterruptedException) {
+                retirement.set(false)
+            }
+            runOnUiThread {
+                if (
+                    retirement.get() && walletBackgroundRetirement === retirement &&
+                        retainingInAppWalletSession && !foreground && !isAppForeground()
+                ) {
+                    walletBackgroundRetirement = null
+                    retireRetainedInAppWalletSession()
+                }
+            }
+        }
+    }
+
+    private fun isAppForeground(): Boolean =
+        (application as? HnsDaneApplication)?.isAppForeground == true
+
+    /** Finish the ordinary locked-controller retirement after an actual app-background transition. */
+    private fun retireRetainedInAppWalletSession() {
+        if (!retainingInAppWalletSession) return
+        retainingInAppWalletSession = false
+        lifecycleEpoch += 1
+        hnsCatchupRetry?.set(false)
+        hnsCatchupRetry = null
+        storageOwner?.let(ProcessWalletStorageOwnership::retire)
+        storageOwner = null
+        dismissWalletDeletionDialog()
+        dismissSendApproval(rejectNative = false)
+        dismissValueApproval(rejectNative = false)
+        clearRestoreInput()
+        clearNameImportInput()
+        clearSendInputs()
+        recoveryView.clearSecret()
+        val lease = storageLease
+        val retirementStarted = lease != null && retireControllerAfterNativeOperation(lease)
+        if (!retirementStarted) destroyController()
+        resetReadProjection(R.string.wallet_reads_unavailable)
+        if (!busy && lease != null) releaseStorageLeaseAfterOperation(lease)
     }
 
     private fun publishWalletController(handle: Long, reopenedDurable: Boolean) {
@@ -3724,6 +3842,7 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_DENUO_LISTEN_PORT = 12_038
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L
+        const val WALLET_BACKGROUND_RETIREMENT_GRACE_MILLIS = 250L
         const val DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC = 32
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
         const val NUL_CHARACTER = "\u0000"

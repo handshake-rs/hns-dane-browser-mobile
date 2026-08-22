@@ -38,6 +38,14 @@ class HnsDaneApplication : Application() {
     @Volatile
     private var foregroundSync: HnsSyncScheduler? = null
 
+    /**
+     * True while at least one app Activity is visible (including a transition
+     * between two in-app screens). Wallet-owned work uses this to distinguish
+     * an in-app navigation from the application actually moving background.
+     */
+    internal val isAppForeground: Boolean
+        get() = foregroundActivities.isForeground
+
     @Volatile
     private var latestSyncSnapshot: HnsSyncSnapshot? = null
     @Volatile
