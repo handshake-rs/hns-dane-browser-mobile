@@ -172,6 +172,20 @@ internal object NativeWalletBridge {
         }
 
     /**
+     * Reads the direct synchronizer's public progress mailbox without asking
+     * the native wallet controller for a wallet projection. This call is safe
+     * to poll while [synchronizeHnsReads] is waiting on direct peers.
+     */
+    fun liveHnsSynchronizationProgress(handle: Long): NativeWalletHnsLiveSyncProgress? =
+        if (isValidHandle(handle) && isAvailable) {
+            val bundle = runCatching { nativeHnsLiveSynchronizationProgress(handle) }.getOrNull()
+                ?: return null
+            parseAndWipeHnsLiveSynchronizationProgressBundle(bundle)
+        } else {
+            null
+        }
+
+    /**
      * Derive the current ordinary HNS payment address from the unlocked local
      * wallet. This makes no peer or node request and is intentionally not a
      * balance, history, or spend projection.
@@ -280,6 +294,14 @@ internal object NativeWalletBridge {
         bundle: ByteArray,
     ): NativeWalletHnsSynchronization? = try {
         NativeWalletHnsSynchronization.parse(bundle)
+    } finally {
+        bundle.fill(0)
+    }
+
+    internal fun parseAndWipeHnsLiveSynchronizationProgressBundle(
+        bundle: ByteArray,
+    ): NativeWalletHnsLiveSyncProgress? = try {
+        NativeWalletHnsLiveSyncProgress.parse(bundle)
     } finally {
         bundle.fill(0)
     }
@@ -786,6 +808,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeSynchronizeHnsReads(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeHnsLiveSynchronizationProgress(handle: Long): ByteArray?
 
     @JvmStatic
     private external fun nativeLocalHnsReceiveTarget(handle: Long): ByteArray?

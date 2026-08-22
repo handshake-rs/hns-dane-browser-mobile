@@ -38,6 +38,7 @@ import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
 import com.denuoweb.hnsdane.wallet.NativeWalletDirectDenuoConnectResult
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
 import com.denuoweb.hnsdane.wallet.NativeWalletHnsCatchupProgress
+import com.denuoweb.hnsdane.wallet.NativeWalletHnsLiveSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeWalletHnsSynchronization
 import com.denuoweb.hnsdane.wallet.NativeWalletName
 import com.denuoweb.hnsdane.wallet.NativeWalletPaymentReceiveTarget
@@ -49,6 +50,8 @@ import com.denuoweb.hnsdane.wallet.WALLET_DELETE_CONFIRMATION
 import com.denuoweb.hnsdane.wallet.WalletDeletionScope
 import com.denuoweb.hnsdane.wallet.WalletLeaseReleaseHandoff
 import com.denuoweb.hnsdane.wallet.WalletHnsJourney
+import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentation
+import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentationCache
 import com.denuoweb.hnsdane.wallet.WalletNameImportState
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
@@ -78,6 +81,7 @@ import java.io.File
 import java.security.SecureRandom
 import java.text.DateFormat
 import java.util.Date
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.math.ceil
 
@@ -112,6 +116,7 @@ class WalletActivity : ComponentActivity() {
     private lateinit var restoreInput: EditText
     private lateinit var recoveryView: RecoveryPhraseView
     private lateinit var dashboardContent: LinearLayout
+    @Volatile
     private var walletHandle = INVALID_HANDLE
     private var walletAuthorityGeneration = 0L
     private var walletControllerIsReopenedDurable = false
@@ -134,6 +139,11 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshotHandle = INVALID_HANDLE
     private var latestReadSnapshotAuthorityGeneration = 0L
     private var latestReadSnapshotEpoch = 0L
+    private var walletHnsSyncInProgress = false
+    @Volatile
+    private var liveHnsSyncPoller: AtomicBoolean? = null
+    @Volatile
+    private var cachedHnsSyncPresentationWatcher: AtomicBoolean? = null
     private val walletHnsJourney = WalletHnsJourney()
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
 
@@ -197,6 +207,9 @@ class WalletActivity : ComponentActivity() {
         foreground = true
         lifecycleEpoch += 1
         resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
+        restoreCachedHnsSyncPresentation()
+        renderWalletDashboard()
+        startCachedHnsSyncPresentationWatcher()
         lateinit var owner: WalletStorageOwnershipGate.Owner
         owner = ProcessWalletStorageOwnership.newOwner(walletStoragePath) {
             runOnUiThread { revokeStorageOwnership(owner) }
@@ -208,6 +221,7 @@ class WalletActivity : ComponentActivity() {
     override fun onStop() {
         foreground = false
         lifecycleEpoch += 1
+        cachedHnsSyncPresentationWatcher?.set(false)
         storageOwner?.let(ProcessWalletStorageOwnership::retire)
         storageOwner = null
         dismissWalletDeletionDialog()
@@ -268,6 +282,14 @@ class WalletActivity : ComponentActivity() {
             detail = statusView,
             healthy = false,
         ))
+        if (WalletHnsLiveSyncPresentationCache.latest(walletNetwork.id) != null) {
+            restoreCachedHnsSyncPresentation()
+            dashboardContent.addView(statusCard(
+                label = getString(R.string.wallet_dashboard_sync_attention),
+                detail = readStatusView,
+                healthy = false,
+            ))
+        }
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_get_started)) {
             addSettingsRow(actionRow(
                 title = getString(R.string.row_wallet_create),
@@ -319,7 +341,7 @@ class WalletActivity : ComponentActivity() {
             detail = statusView,
         ))
         dashboardContent.addView(walletBalanceCard())
-        if (latestReadSnapshot == null) {
+        if (latestReadSnapshot == null || walletHnsSyncInProgress) {
             dashboardContent.addView(statusCard(
                 label = getString(R.string.wallet_dashboard_sync_attention),
                 detail = readStatusView,
@@ -1253,11 +1275,25 @@ class WalletActivity : ComponentActivity() {
             return
         }
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
+        walletHnsSyncInProgress = true
         readStatusView.text = getString(R.string.wallet_reads_syncing)
+        renderWalletDashboard()
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
+        val poller = startLiveHnsSyncProgressPolling(handle)
         thread(name = "hns-wallet-read-sync") {
             val synchronization = synchronizeHnsReadsWithRollbackFloor(handle)
+            poller.set(false)
+            when {
+                synchronization?.snapshot != null ->
+                    WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
+
+                synchronization?.catchup != null ->
+                    WalletHnsLiveSyncPresentationCache.publishCatchup(
+                        walletNetwork.id,
+                        synchronization.catchup,
+                    )
+            }
             runOnUiThread {
                 val ownsLease = currentStorageLease() === lease
                 val mayPublish = walletReadMayPublish(
@@ -1275,6 +1311,8 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 busy = false
+                walletHnsSyncInProgress = false
+                if (liveHnsSyncPoller === poller) liveHnsSyncPoller = null
                 refreshControllerState()
                 when {
                     synchronization == null -> resetReadProjection(R.string.wallet_reads_sync_failed)
@@ -2598,6 +2636,7 @@ class WalletActivity : ComponentActivity() {
         if (resetReads) {
             if (NativeWalletBridge.hasHnsReads(walletHandle)) {
                 resetReadProjection(R.string.wallet_reads_ready_to_sync)
+                restoreCachedHnsSyncPresentation()
             } else {
                 resetReadProjection(R.string.wallet_reads_unavailable)
             }
@@ -3086,6 +3125,7 @@ class WalletActivity : ComponentActivity() {
      * bounded sync reaches the exact verified tip.
      */
     private fun renderReadCatchup(progress: NativeWalletHnsCatchupProgress) {
+        WalletHnsLiveSyncPresentationCache.publishCatchup(walletNetwork.id, progress)
         walletHnsJourney.catchupObserved()
         resetReadProjection(R.string.wallet_reads_catching_up)
         readStatusView.text = when (progress.headerState) {
@@ -3110,7 +3150,150 @@ class WalletActivity : ComponentActivity() {
         renderWalletDashboard()
     }
 
+    /**
+     * Poll an isolated native mailbox rather than the wallet controller. The
+     * poller deliberately remains alive after this Activity stops: the native
+     * bounded sync is not cancelled by Back, and its public checkpoint remains
+     * available when a replacement WalletActivity is opened.
+     */
+    private fun startLiveHnsSyncProgressPolling(handle: Long): AtomicBoolean {
+        liveHnsSyncPoller?.set(false)
+        return AtomicBoolean(true).also { poller ->
+            liveHnsSyncPoller = poller
+            thread(name = "hns-wallet-live-sync-progress") {
+                while (poller.get()) {
+                    NativeWalletBridge.liveHnsSynchronizationProgress(handle)?.let { progress ->
+                        WalletHnsLiveSyncPresentationCache.publishLive(walletNetwork.id, progress)
+                        runOnUiThread {
+                            if (
+                                poller.get() &&
+                                liveHnsSyncPoller === poller &&
+                                foreground &&
+                                walletHandle == handle
+                            ) {
+                                renderLiveHnsSyncProgress(progress)
+                            }
+                        }
+                    }
+                    if (!poller.get()) break
+                    try {
+                        Thread.sleep(LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS)
+                    } catch (_: InterruptedException) {
+                        poller.set(false)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A replacement WalletActivity may be waiting for the departing activity
+     * to finish a bounded native call and release its storage lease. Observe
+     * the same public cache during that small handoff so Back never presents
+     * a misleading empty restart state.
+     */
+    private fun startCachedHnsSyncPresentationWatcher() {
+        cachedHnsSyncPresentationWatcher?.set(false)
+        AtomicBoolean(true).also { watcher ->
+            cachedHnsSyncPresentationWatcher = watcher
+            thread(name = "hns-wallet-cached-sync-presentation") {
+                var lastPresentation: WalletHnsLiveSyncPresentation? = null
+                while (watcher.get()) {
+                    val presentation = WalletHnsLiveSyncPresentationCache.latest(walletNetwork.id)
+                    if (presentation != null && presentation != lastPresentation) {
+                        lastPresentation = presentation
+                        runOnUiThread {
+                            if (
+                                watcher.get() &&
+                                cachedHnsSyncPresentationWatcher === watcher &&
+                                foreground &&
+                                walletHandle == INVALID_HANDLE
+                            ) {
+                                restoreCachedHnsSyncPresentation()
+                                renderWalletDashboard()
+                            }
+                        }
+                    }
+                    if (!watcher.get() || walletHandle != INVALID_HANDLE) break
+                    try {
+                        Thread.sleep(LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS)
+                    } catch (_: InterruptedException) {
+                        watcher.set(false)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun restoreCachedHnsSyncPresentation() {
+        when (val presentation = WalletHnsLiveSyncPresentationCache.latest(walletNetwork.id)) {
+            is WalletHnsLiveSyncPresentation.Live -> renderLiveHnsSyncProgress(presentation.progress)
+            is WalletHnsLiveSyncPresentation.Catchup -> renderCachedHnsCatchup(presentation.progress)
+            null -> Unit
+        }
+    }
+
+    private fun renderLiveHnsSyncProgress(progress: NativeWalletHnsLiveSyncProgress) {
+        walletHnsJourney.catchupObserved()
+        readStatusView.text = when (progress.stage) {
+            NativeWalletHnsLiveSyncProgress.Stage.Connecting -> getString(
+                R.string.wallet_reads_live_connecting,
+                progress.headerTipHeight,
+            )
+
+            NativeWalletHnsLiveSyncProgress.Stage.Headers -> getString(
+                R.string.wallet_reads_live_headers,
+                progress.headerRound,
+                DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC,
+                progress.headerTipHeight,
+            )
+
+            NativeWalletHnsLiveSyncProgress.Stage.Retrying -> getString(
+                R.string.wallet_reads_live_retrying,
+                progress.headerRetries,
+                DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC,
+                progress.headerTipHeight,
+            )
+
+            NativeWalletHnsLiveSyncProgress.Stage.Scanning -> getString(
+                R.string.wallet_reads_live_scanning,
+                progress.headerTipHeight,
+                progress.scannedHeight ?: progress.birthdayHeight,
+                progress.scanTargetHeight,
+            )
+
+            NativeWalletHnsLiveSyncProgress.Stage.Finalizing -> getString(
+                R.string.wallet_reads_live_finalizing,
+                progress.headerTipHeight,
+            )
+        }
+    }
+
+    private fun renderCachedHnsCatchup(progress: NativeWalletHnsCatchupProgress) {
+        walletHnsJourney.catchupObserved()
+        readStatusView.text = when (progress.headerState) {
+            NativeWalletHnsCatchupProgress.HeaderState.Current -> getString(
+                R.string.wallet_reads_catching_up_scan,
+                progress.scannedHeight ?: progress.birthdayHeight,
+                progress.scanTargetHeight,
+            )
+
+            NativeWalletHnsCatchupProgress.HeaderState.Syncing -> getString(
+                R.string.wallet_reads_catching_up_headers,
+                progress.headerTipHeight,
+                progress.scannedHeight ?: progress.birthdayHeight,
+                progress.scanTargetHeight,
+            )
+
+            NativeWalletHnsCatchupProgress.HeaderState.Degraded -> getString(
+                R.string.wallet_reads_catching_up_degraded,
+                progress.headerTipHeight,
+            )
+        }
+    }
+
     private fun renderReadSnapshot(snapshot: NativeWalletReadSnapshot) {
+        WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
         walletHnsJourney.verifiedSnapshotObserved()
         latestReadSnapshot = snapshot
         localPaymentReceiveTarget = snapshot.paymentReceiveTarget
@@ -3296,9 +3479,12 @@ class WalletActivity : ComponentActivity() {
         check(directory.setExecutable(true, true)) { "Wallet directory is not owner-searchable" }
     }
 
-    private fun deleteWalletFiles(): Boolean =
-        !ProcessWalletControllerRetirementFailures.blocks(walletStoragePath) &&
+    private fun deleteWalletFiles(): Boolean {
+        val deleted = !ProcessWalletControllerRetirementFailures.blocks(walletStoragePath) &&
             deleteWalletDatabaseArtifacts(walletDatabaseFile)
+        if (deleted) WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
+        return deleted
+    }
 
     private fun walletNetworkCode(network: HandshakeNetwork): Int = when (network) {
         HandshakeNetwork.Mainnet -> NativeWalletBridge.NETWORK_MAINNET
@@ -3453,6 +3639,9 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_DENUO_FOREGROUND_TICK_MILLIS = 250L
         const val DIRECT_DENUO_STATUS_REFRESH_TICKS = 20
         const val DIRECT_DENUO_LISTEN_PORT = 12_038
+        const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
+        const val DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC = 32
+        const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 2
         const val NUL_CHARACTER = "\u0000"
     }
 }

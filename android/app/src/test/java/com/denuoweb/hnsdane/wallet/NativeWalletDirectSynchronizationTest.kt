@@ -41,6 +41,47 @@ class NativeWalletDirectSynchronizationTest {
     }
 
     @Test
+    fun liveProgressBundleExposesOnlyStageAndVerifiedHeightsAndIsWiped() {
+        val bundle = liveProgressBundle(
+            stage = 4,
+            headerState = 1,
+            headerRound = 0,
+            headerRetries = 1,
+            birthdayHeight = 1_000,
+            scannedHeight = 42_000,
+            scanTargetHeight = 64_000,
+        )
+
+        val parsed = NativeWalletBridge.parseAndWipeHnsLiveSynchronizationProgressBundle(bundle)
+
+        assertEquals(NativeWalletHnsLiveSyncProgress.Stage.Scanning, parsed?.stage)
+        assertEquals(NativeWalletHnsCatchupProgress.HeaderState.Current, parsed?.headerState)
+        assertEquals(0, parsed?.headerRound)
+        assertEquals(1, parsed?.headerRetries)
+        assertEquals(64_000L, parsed?.headerTipHeight)
+        assertEquals(1_000L, parsed?.birthdayHeight)
+        assertEquals(42_000L, parsed?.scannedHeight)
+        assertEquals(64_000L, parsed?.scanTargetHeight)
+        assertTrue(bundle.all { it == 0.toByte() })
+    }
+
+    @Test
+    fun malformedLiveProgressCannotBecomeAWalletProjection() {
+        val bundle = liveProgressBundle(
+            stage = 2,
+            headerState = 2,
+            headerRound = 0,
+            headerRetries = 0,
+            birthdayHeight = 0,
+            scannedHeight = 0,
+            scanTargetHeight = 64_000,
+        )
+
+        assertNull(NativeWalletBridge.parseAndWipeHnsLiveSynchronizationProgressBundle(bundle))
+        assertTrue(bundle.all { it == 0.toByte() })
+    }
+
+    @Test
     fun directDenuoStatusAndReplacementResultsHaveClosedSchemas() {
         val statusBundle = directDenuoStatusBundle(
             flags = 0b111,
@@ -81,6 +122,29 @@ class NativeWalletDirectSynchronizationTest {
         putInt(20)
         put(headerState.toByte())
         put(1)
+        putShort(0)
+        putInt(scanTargetHeight)
+        putInt(birthdayHeight)
+        putInt(scannedHeight)
+        putInt(scanTargetHeight)
+    }.array()
+
+    private fun liveProgressBundle(
+        stage: Int,
+        headerState: Int,
+        headerRound: Int,
+        headerRetries: Int,
+        birthdayHeight: Int,
+        scannedHeight: Int,
+        scanTargetHeight: Int,
+    ): ByteArray = ByteBuffer.allocate(28).order(ByteOrder.BIG_ENDIAN).apply {
+        put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'L'.code.toByte(), 'P'.code.toByte()))
+        put(1)
+        put(stage.toByte())
+        put(headerState.toByte())
+        put(1)
+        put(headerRound.toByte())
+        put(headerRetries.toByte())
         putShort(0)
         putInt(scanTargetHeight)
         putInt(birthdayHeight)

@@ -384,6 +384,11 @@
     <string name="wallet_reads_locked" translatable="false">Unlock the wallet before synchronizing read-only HNS data.</string>
     <string name="wallet_reads_ready_to_sync" translatable="false">The HNS module is configured. Synchronize to refresh its tip-bound projection before using funds.</string>
     <string name="wallet_reads_syncing" translatable="false">Synchronizing one bounded HNS read snapshot…</string>
+    <string name="wallet_reads_live_connecting" translatable="false">Finding independent Handshake peers. Verified local height %1$d; this sync continues from that checkpoint.</string>
+    <string name="wallet_reads_live_headers" translatable="false">Verifying direct-peer headers • round %1$d of %2$d • verified local height %3$d.</string>
+    <string name="wallet_reads_live_retrying" translatable="false">Direct peers did not agree yet. Replacing peers and retrying %1$d of %2$d from verified local height %3$d.</string>
+    <string name="wallet_reads_live_scanning" translatable="false">Verified headers are current at height %1$d. Scanning wallet activity through %2$d of %3$d.</string>
+    <string name="wallet_reads_live_finalizing" translatable="false">Verified headers and wallet activity are current at height %1$d. Finalizing the read-only snapshot…</string>
     <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read failed closed. Reopen and unlock the wallet before retrying.</string>
     <string name="wallet_reads_catching_up" translatable="false">Verified HNS wallet catch-up is in progress. No balance or spend state is exposed until it reaches the exact current tip.</string>
     <string name="wallet_reads_catching_up_headers" translatable="false">Verified header catch-up is still in progress at local height %1$d. Wallet history has scanned through %2$d of %3$d. Synchronize again to continue; no balance or spend state is exposed yet.</string>

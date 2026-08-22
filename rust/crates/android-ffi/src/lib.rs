@@ -83,6 +83,17 @@ const WALLET_HNS_SYNC_CATCHUP_BYTES: usize = 20;
 const WALLET_HNS_SYNC_HEADER_CURRENT: u8 = 1;
 const WALLET_HNS_SYNC_HEADER_SYNCING: u8 = 2;
 const WALLET_HNS_SYNC_HEADER_DEGRADED: u8 = 3;
+/// A read-only, non-authoritative mailbox for a direct wallet sync that is
+/// currently holding the controller mutex. The UI reads this instead of
+/// contending for the controller while a peer round is in flight.
+const WALLET_HNS_LIVE_PROGRESS_BUNDLE_MAGIC: &[u8; 4] = b"HNLP";
+const WALLET_HNS_LIVE_PROGRESS_BUNDLE_VERSION: u8 = 1;
+const WALLET_HNS_LIVE_PROGRESS_BUNDLE_BYTES: usize = 28;
+const WALLET_HNS_LIVE_PROGRESS_CONNECTING: u8 = 1;
+const WALLET_HNS_LIVE_PROGRESS_HEADERS: u8 = 2;
+const WALLET_HNS_LIVE_PROGRESS_RETRYING: u8 = 3;
+const WALLET_HNS_LIVE_PROGRESS_SCANNING: u8 = 4;
+const WALLET_HNS_LIVE_PROGRESS_FINALIZING: u8 = 5;
 const WALLET_HNS_RECEIVE_BUNDLE_MAGIC: &[u8; 4] = b"HNRT";
 const WALLET_HNS_RECEIVE_BUNDLE_VERSION: u8 = 1;
 const WALLET_HNS_RECEIVE_BUNDLE_FLAGS: u8 = 0;
@@ -296,6 +307,17 @@ struct AndroidHnsCatchupProgress {
     birthday_height: u32,
     scanned_height: Option<u32>,
     scan_target_height: u32,
+}
+
+/// The only state published while a direct HNS synchronization owns the
+/// native wallet mutex. Heights describe verified local progress, never a
+/// balance, history, name, or spend projection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct AndroidHnsLiveSyncProgress {
+    stage: u8,
+    header_round: u8,
+    header_retries: u8,
+    catchup: AndroidHnsCatchupProgress,
 }
 
 #[derive(Debug)]
@@ -1003,7 +1025,10 @@ impl AndroidWalletController {
         }
     }
 
-    fn synchronize_hns_reads(&mut self) -> Option<Vec<u8>> {
+    fn synchronize_hns_reads(
+        &mut self,
+        live_progress: &Mutex<Option<AndroidHnsLiveSyncProgress>>,
+    ) -> Option<Vec<u8>> {
         let synchronization = match self {
             Self::Reads(controller) => controller
                 .synchronize()
@@ -1021,16 +1046,30 @@ impl AndroidWalletController {
                 // response are bounded; a later sync resumes if a much older
                 // recovery wallet needs more work.
                 let mut header_agreement_recoveries = 0usize;
-                for _ in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
+                for round_index in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
                     // Header response failures disconnect only their own
                     // transport sessions. Refill the independent direct-peer
                     // pool before each new round so one peer that served a
                     // prior 2,000-header batch cannot strand the remaining
                     // catch-up at the next locator.
+                    publish_direct_hns_live_progress(
+                        live_progress,
+                        WALLET_HNS_LIVE_PROGRESS_CONNECTING,
+                        round_index.saturating_add(1),
+                        header_agreement_recoveries,
+                        coordinator,
+                    );
                     let now_unix = HnsReadSystemClock.now_unix()?;
                     if let Err(error) = coordinator.connect_available(now_unix) {
                         return direct_hns_transport_catchup(coordinator, "connection", error);
                     }
+                    publish_direct_hns_live_progress(
+                        live_progress,
+                        WALLET_HNS_LIVE_PROGRESS_HEADERS,
+                        round_index.saturating_add(1),
+                        header_agreement_recoveries,
+                        coordinator,
+                    );
                     let progress = match coordinator.synchronize_headers_once(now_unix) {
                         Ok(progress) => progress,
                         Err(error)
@@ -1040,6 +1079,13 @@ impl AndroidWalletController {
                         {
                             header_agreement_recoveries =
                                 header_agreement_recoveries.saturating_add(1);
+                            publish_direct_hns_live_progress(
+                                live_progress,
+                                WALLET_HNS_LIVE_PROGRESS_RETRYING,
+                                round_index.saturating_add(1),
+                                header_agreement_recoveries,
+                                coordinator,
+                            );
                             android_log_error(&format!(
                                 "wallet HNS direct-peer header round lacked agreement; replacing peers and retrying ({header_agreement_recoveries}/{DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC})"
                             ));
@@ -1055,6 +1101,13 @@ impl AndroidWalletController {
                     };
                     match progress {
                         hns_wallet_mobile::HnsHeaderRoundProgress::Committed(round) => {
+                            publish_direct_hns_live_progress(
+                                live_progress,
+                                WALLET_HNS_LIVE_PROGRESS_HEADERS,
+                                round_index.saturating_add(1),
+                                header_agreement_recoveries,
+                                coordinator,
+                            );
                             if round.accepted.is_empty() {
                                 break;
                             }
@@ -1081,7 +1134,14 @@ impl AndroidWalletController {
                 // set has reached the locally agreed header tip. The direct
                 // peer coordinator independently verifies every block view.
                 let now_unix = HnsReadSystemClock.now_unix()?;
-                for _ in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
+                for _scan_round in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
+                    publish_direct_hns_live_progress(
+                        live_progress,
+                        WALLET_HNS_LIVE_PROGRESS_SCANNING,
+                        0,
+                        header_agreement_recoveries,
+                        coordinator,
+                    );
                     let progress = match coordinator
                         .scan_wallet_blocks(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix)
                     {
@@ -1094,6 +1154,13 @@ impl AndroidWalletController {
                             );
                         }
                     };
+                    publish_direct_hns_live_progress(
+                        live_progress,
+                        WALLET_HNS_LIVE_PROGRESS_SCANNING,
+                        0,
+                        header_agreement_recoveries,
+                        coordinator,
+                    );
                     if progress.blocks_applied == 0 {
                         break;
                     }
@@ -1102,6 +1169,13 @@ impl AndroidWalletController {
                 if !direct_hns_progress_is_ready(coordinator, catchup)? {
                     return Ok(AndroidHnsSynchronization::CatchingUp(catchup));
                 }
+                publish_direct_hns_live_progress(
+                    live_progress,
+                    WALLET_HNS_LIVE_PROGRESS_FINALIZING,
+                    0,
+                    header_agreement_recoveries,
+                    coordinator,
+                );
                 if let Err(error) = coordinator.refresh_mempool(now_unix) {
                     return direct_hns_transport_catchup(coordinator, "mempool refresh", error);
                 }
@@ -1467,6 +1541,10 @@ struct AndroidWalletRecord {
     active: AtomicBool,
     controller: Arc<Mutex<AndroidWalletController>>,
     pending_recovery: Mutex<Option<SensitiveUtf16>>,
+    // This narrow mailbox remains available while `controller` is held by a
+    // bounded direct-peer synchronization. It contains only public progress
+    // metadata and intentionally never shares wallet read projections.
+    hns_live_sync_progress: Mutex<Option<AndroidHnsLiveSyncProgress>>,
     hns_reads_installable: bool,
     bitcoin_data_dir: PathBuf,
 }
@@ -1486,6 +1564,7 @@ impl AndroidWalletRecord {
             active: AtomicBool::new(true),
             controller: Arc::new(Mutex::new(AndroidWalletController::Lifecycle(controller))),
             pending_recovery: Mutex::new(recovery),
+            hns_live_sync_progress: Mutex::new(None),
             hns_reads_installable,
             bitcoin_data_dir,
         }
@@ -1497,6 +1576,19 @@ impl AndroidWalletRecord {
 
     fn pending_recovery_if_active(&self) -> Option<MutexGuard<'_, Option<SensitiveUtf16>>> {
         lock_if_active(&self.active, &self.pending_recovery)
+    }
+
+    fn clear_hns_live_sync_progress_if_active(&self) -> bool {
+        let Some(mut progress) = lock_if_active(&self.active, &self.hns_live_sync_progress) else {
+            return false;
+        };
+        *progress = None;
+        true
+    }
+
+    fn hns_live_sync_progress_if_active(&self) -> Option<AndroidHnsLiveSyncProgress> {
+        let progress = lock_if_active(&self.active, &self.hns_live_sync_progress)?;
+        *progress
     }
 
     fn deactivate(&self) {
@@ -2210,6 +2302,36 @@ fn direct_hns_catchup_progress(
     })
 }
 
+/// Publish a best-effort operational update without taking the wallet
+/// controller mutex. A UI reader may observe it while the synchronizer is
+/// waiting on peers; a missing update never changes the synchronization
+/// result, wallet state, or authority.
+fn publish_direct_hns_live_progress(
+    mailbox: &Mutex<Option<AndroidHnsLiveSyncProgress>>,
+    stage: u8,
+    header_round: usize,
+    header_retries: usize,
+    coordinator: &HnsDirectPeerCoordinator,
+) {
+    let Some(catchup) = direct_hns_catchup_progress(coordinator).ok() else {
+        return;
+    };
+    let Some(header_round) = u8::try_from(header_round).ok() else {
+        return;
+    };
+    let Some(header_retries) = u8::try_from(header_retries).ok() else {
+        return;
+    };
+    if let Ok(mut current) = mailbox.lock() {
+        *current = Some(AndroidHnsLiveSyncProgress {
+            stage,
+            header_round,
+            header_retries,
+            catchup,
+        });
+    }
+}
+
 fn direct_hns_progress_is_ready(
     coordinator: &HnsDirectPeerCoordinator,
     progress: AndroidHnsCatchupProgress,
@@ -2282,6 +2404,52 @@ fn wallet_hns_sync_catchup_bundle(progress: AndroidHnsCatchupProgress) -> Option
     bundle.extend_from_slice(&(payload.len() as u32).to_be_bytes());
     bundle.extend_from_slice(payload.as_slice());
     (bundle.len() == WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES + payload.len()).then_some(bundle)
+}
+
+fn wallet_hns_live_progress_bundle(progress: AndroidHnsLiveSyncProgress) -> Option<Vec<u8>> {
+    let catchup = progress.catchup;
+    if !matches!(
+        progress.stage,
+        WALLET_HNS_LIVE_PROGRESS_CONNECTING
+            | WALLET_HNS_LIVE_PROGRESS_HEADERS
+            | WALLET_HNS_LIVE_PROGRESS_RETRYING
+            | WALLET_HNS_LIVE_PROGRESS_SCANNING
+            | WALLET_HNS_LIVE_PROGRESS_FINALIZING
+    ) || !matches!(
+        catchup.header_state,
+        WALLET_HNS_SYNC_HEADER_CURRENT
+            | WALLET_HNS_SYNC_HEADER_SYNCING
+            | WALLET_HNS_SYNC_HEADER_DEGRADED
+    ) || progress.header_retries > DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC as u8
+        || !matches!(
+            (progress.stage, progress.header_round),
+            (WALLET_HNS_LIVE_PROGRESS_CONNECTING, 1..)
+                | (WALLET_HNS_LIVE_PROGRESS_HEADERS, 1..)
+                | (WALLET_HNS_LIVE_PROGRESS_RETRYING, 1..)
+                | (WALLET_HNS_LIVE_PROGRESS_SCANNING, 0)
+                | (WALLET_HNS_LIVE_PROGRESS_FINALIZING, 0)
+        )
+        || catchup.birthday_height > catchup.scan_target_height
+        || catchup.scanned_height.is_some_and(|height| {
+            height < catchup.birthday_height || height > catchup.scan_target_height
+        })
+    {
+        return None;
+    }
+    let mut bundle = Vec::with_capacity(WALLET_HNS_LIVE_PROGRESS_BUNDLE_BYTES);
+    bundle.extend_from_slice(WALLET_HNS_LIVE_PROGRESS_BUNDLE_MAGIC);
+    bundle.push(WALLET_HNS_LIVE_PROGRESS_BUNDLE_VERSION);
+    bundle.push(progress.stage);
+    bundle.push(catchup.header_state);
+    bundle.push(u8::from(catchup.scanned_height.is_some()));
+    bundle.push(progress.header_round);
+    bundle.push(progress.header_retries);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&catchup.header_tip_height.to_be_bytes());
+    bundle.extend_from_slice(&catchup.birthday_height.to_be_bytes());
+    bundle.extend_from_slice(&catchup.scanned_height.unwrap_or(0).to_be_bytes());
+    bundle.extend_from_slice(&catchup.scan_target_height.to_be_bytes());
+    (bundle.len() == WALLET_HNS_LIVE_PROGRESS_BUNDLE_BYTES).then_some(bundle)
 }
 
 fn wallet_direct_denuo_status_bundle(
@@ -4534,8 +4702,33 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
+        record
+            .clear_hns_live_sync_progress_if_active()
+            .then_some(())?;
         let mut controller = record.controller_if_active()?;
-        let mut bundle = controller.synchronize_hns_reads()?;
+        let mut bundle = controller.synchronize_hns_reads(&record.hns_live_sync_progress)?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+/// Returns the newest public progress emitted by a direct HNS synchronizer.
+/// This deliberately reads a mailbox rather than the wallet controller so UI
+/// polling stays non-blocking while peer operations own the controller mutex.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeHnsLiveSynchronizationProgress(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let progress = record.hns_live_sync_progress_if_active()?;
+        let mut bundle = wallet_hns_live_progress_bundle(progress)?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -5030,6 +5223,51 @@ mod tests {
         assert!(
             wallet_hns_sync_catchup_bundle(AndroidHnsCatchupProgress {
                 scanned_height: Some(64_001),
+                ..progress
+            })
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn direct_hns_live_progress_bundle_is_fixed_width_and_public_only() {
+        let progress = AndroidHnsLiveSyncProgress {
+            stage: WALLET_HNS_LIVE_PROGRESS_SCANNING,
+            header_round: 0,
+            header_retries: 1,
+            catchup: AndroidHnsCatchupProgress {
+                header_state: WALLET_HNS_SYNC_HEADER_CURRENT,
+                header_tip_height: 64_000,
+                birthday_height: 1_000,
+                scanned_height: Some(42_000),
+                scan_target_height: 64_000,
+            },
+        };
+        let bundle = wallet_hns_live_progress_bundle(progress).expect("live progress bundle");
+        assert_eq!(bundle.len(), WALLET_HNS_LIVE_PROGRESS_BUNDLE_BYTES);
+        assert_eq!(&bundle[..4], WALLET_HNS_LIVE_PROGRESS_BUNDLE_MAGIC);
+        assert_eq!(bundle[4], WALLET_HNS_LIVE_PROGRESS_BUNDLE_VERSION);
+        assert_eq!(bundle[5], WALLET_HNS_LIVE_PROGRESS_SCANNING);
+        assert_eq!(bundle[6], WALLET_HNS_SYNC_HEADER_CURRENT);
+        assert_eq!(bundle[7], 1);
+        assert_eq!(bundle[8], 0);
+        assert_eq!(bundle[9], 1);
+        assert_eq!(&bundle[10..12], &[0, 0]);
+        assert_eq!(
+            u32::from_be_bytes(bundle[12..16].try_into().expect("header height")),
+            64_000
+        );
+        assert_eq!(
+            u32::from_be_bytes(bundle[20..24].try_into().expect("scanned height")),
+            42_000
+        );
+
+        assert!(
+            wallet_hns_live_progress_bundle(AndroidHnsLiveSyncProgress {
+                catchup: AndroidHnsCatchupProgress {
+                    scanned_height: Some(64_001),
+                    ..progress.catchup
+                },
                 ..progress
             })
             .is_none()
