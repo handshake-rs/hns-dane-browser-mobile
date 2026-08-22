@@ -1359,6 +1359,10 @@ class WalletActivity : ComponentActivity() {
             resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
             return
         }
+        if (!NativeWalletBridge.hasHnsReads(handle)) {
+            resetReadProjection(R.string.wallet_reads_unavailable)
+            return
+        }
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
@@ -3089,6 +3093,15 @@ class WalletActivity : ComponentActivity() {
                 unconfirmedDatabaseKey != null || (busy && !walletHnsSyncInProgress)
         ) {
             return false
+        }
+        if (walletHnsSyncInProgress) {
+            // A bounded direct sync owns the native controller mutex. Calling
+            // status() or hasHnsReads() here would contend with that exact
+            // scan and can return no result, incorrectly turning an active
+            // public sync into a teardown. This flag is set only after the
+            // operation gate accepted the read-only HNS synchronization; all
+            // mutations remain excluded by the busy check above.
+            return ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
         }
         return NativeWalletBridge.hasHnsReads(handle) &&
             NativeWalletBridge.status(handle)?.locked == false &&
