@@ -1282,14 +1282,13 @@ class WalletActivity : ComponentActivity() {
             // previous bounded sync may still own the controller lock; the
             // operation gate above rejects that second tap immediately while
             // this worker remains safe even if a lifecycle race occurs.
-            val preflightFailure = NativeWalletBridge.status(handle)?.let { status ->
-                when {
-                    status.locked -> R.string.wallet_reads_locked
-                    !NativeWalletBridge.hasHnsReads(handle) ->
-                        R.string.wallet_reads_unavailable
-                    else -> null
-                }
-            } ?: R.string.wallet_reads_locked
+            val status = NativeWalletBridge.status(handle)
+            val preflightFailure = when {
+                status == null || status.locked -> R.string.wallet_reads_locked
+                !NativeWalletBridge.hasHnsReads(handle) ->
+                    R.string.wallet_reads_unavailable
+                else -> null
+            }
             val synchronization = if (preflightFailure == null) {
                 synchronizeHnsReadsWithRollbackFloor(handle)
             } else {
