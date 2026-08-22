@@ -1456,7 +1456,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-bitcoin-kyoto"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "bdk_kyoto",
  "bdk_wallet",
@@ -1478,7 +1478,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-chain-api"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "hns-wallet-types",
  "serde",
@@ -1489,7 +1489,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-ffi"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "hns-covenants",
  "hns-wallet-types",
@@ -1502,7 +1502,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-hns"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "bech32",
  "bip39",
@@ -1539,7 +1539,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-host"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "getrandom 0.3.4",
  "hns-wallet-ffi",
@@ -1551,7 +1551,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-market"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "hex",
  "hkdf",
@@ -1572,7 +1572,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-mobile"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "bdk_wallet",
  "getrandom 0.3.4",
@@ -1600,7 +1600,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-provider"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "hns-wallet-store",
  "hns-wallet-types",
@@ -1614,7 +1614,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-service"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "getrandom 0.3.4",
  "hns-marketplace-protocol",
@@ -1635,7 +1635,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-shakedex"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "hex",
  "hns-covenants",
@@ -1657,7 +1657,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-store"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "argon2",
  "chacha20poly1305",
@@ -1676,7 +1676,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-types"
 version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=1b2a1407a4d36217d98b210021da036aa3a02be9#1b2a1407a4d36217d98b210021da036aa3a02be9"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=590182f708d0256ad7d08707ebf2dbb9db53e4a9#590182f708d0256ad7d08707ebf2dbb9db53e4a9"
 dependencies = [
  "hex",
  "serde",

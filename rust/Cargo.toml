@@ -33,9 +33,9 @@ hns-browser-observability = { version = "=0.2.1", git = "https://github.com/hand
 hns-browser-runtime = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "37c9b509e6c9e001cfa738ac21f4d2ae403a703f" }
 hns-icann-dane = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "37c9b509e6c9e001cfa738ac21f4d2ae403a703f" }
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "37c9b509e6c9e001cfa738ac21f4d2ae403a703f", default-features = false, features = ["mobile"] }
-hns-wallet-ffi = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1b2a1407a4d36217d98b210021da036aa3a02be9" }
-hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1b2a1407a4d36217d98b210021da036aa3a02be9" }
-hns-wallet-types = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "1b2a1407a4d36217d98b210021da036aa3a02be9" }
+hns-wallet-ffi = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "590182f708d0256ad7d08707ebf2dbb9db53e4a9" }
+hns-wallet-mobile = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "590182f708d0256ad7d08707ebf2dbb9db53e4a9" }
+hns-wallet-types = { version = "=0.1.0", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "590182f708d0256ad7d08707ebf2dbb9db53e4a9" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "37c9b509e6c9e001cfa738ac21f4d2ae403a703f" }
 hns-resolution-policy = { version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "37c9b509e6c9e001cfa738ac21f4d2ae403a703f" }
