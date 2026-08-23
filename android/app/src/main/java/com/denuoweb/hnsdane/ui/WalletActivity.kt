@@ -107,11 +107,14 @@ class WalletActivity : ComponentActivity() {
     private lateinit var trackedNamesView: TextView
     @Volatile
     private var directDenuoWorkerHandle: Long = INVALID_HANDLE
-    private lateinit var nameImportInput: EditText
+    private var nameImportInput: EditText? = null
     private lateinit var nameImportStatusView: TextView
-    private lateinit var sendRecipientInput: EditText
-    private lateinit var sendAmountInput: EditText
-    private lateinit var sendMaximumFeeInput: EditText
+    // Send-form inputs belong to one dialog instance. Retaining and reusing a
+    // view after its dialog is dismissed would leave it parented and makes a
+    // later Review Send attempt crash when Android attaches it again.
+    private var sendRecipientInput: EditText? = null
+    private var sendAmountInput: EditText? = null
+    private var sendMaximumFeeInput: EditText? = null
     private lateinit var sendStatusView: TextView
     private lateinit var bitcoinStatusView: TextView
     private lateinit var bitcoinBalanceView: TextView
@@ -119,7 +122,7 @@ class WalletActivity : ComponentActivity() {
     private lateinit var valueActionStatusView: TextView
     private lateinit var shakedexQueryStatusView: TextView
     private lateinit var directDenuoStatusView: TextView
-    private lateinit var restoreInput: EditText
+    private var restoreInput: EditText? = null
     private lateinit var recoveryView: RecoveryPhraseView
     private lateinit var dashboardContent: LinearLayout
     @Volatile
@@ -194,11 +197,7 @@ class WalletActivity : ComponentActivity() {
         nameReceiveView = walletReadSummary(R.string.wallet_reads_name_receive_unavailable)
         historyView = walletReadSummary(R.string.wallet_reads_history_unavailable)
         trackedNamesView = walletReadSummary(R.string.wallet_reads_names_unavailable)
-        nameImportInput = exactNameImportInput()
         nameImportStatusView = walletReadSummary(R.string.wallet_name_import_unavailable)
-        sendRecipientInput = hnsSendRecipientInput()
-        sendAmountInput = hnsSendAmountInput(R.string.wallet_send_amount_hint)
-        sendMaximumFeeInput = hnsSendAmountInput(R.string.wallet_send_maximum_fee_hint)
         sendStatusView = walletReadSummary(R.string.wallet_send_unavailable)
         bitcoinStatusView = walletReadSummary(R.string.wallet_bitcoin_unavailable)
         bitcoinBalanceView = walletReadSummary(R.string.wallet_bitcoin_balance_unavailable)
@@ -208,7 +207,6 @@ class WalletActivity : ComponentActivity() {
         valueActionStatusView = walletReadSummary(R.string.wallet_value_actions_unavailable)
         shakedexQueryStatusView = walletReadSummary(R.string.wallet_shakedex_queries_unavailable)
         directDenuoStatusView = walletReadSummary(R.string.wallet_direct_denuo_unavailable)
-        restoreInput = sensitiveRestoreInput()
         recoveryView = RecoveryPhraseView(this)
         dashboardContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -572,13 +570,23 @@ class WalletActivity : ComponentActivity() {
     } ?: getString(R.string.wallet_dashboard_no_synced_activity)
 
     private fun showRestoreWalletDialog() {
-        AlertDialog.Builder(this)
+        val input = sensitiveRestoreInput()
+        restoreInput = input
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.row_wallet_restore)
             .setMessage(R.string.wallet_dashboard_restore_dialog_summary)
-            .setView(restoreInput)
+            .setView(input)
             .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_restore_wallet) { _, _ -> restoreWallet() }
-            .show()
+            .setPositiveButton(R.string.action_restore_wallet) { _, _ ->
+                val phrase = takeRestoreInput(input)
+                if (restoreInput === input) restoreInput = null
+                restoreWallet(phrase)
+            }
+            .create()
+        dialog.setOnDismissListener {
+            if (restoreInput === input) clearRestoreInput()
+        }
+        dialog.show()
     }
 
     private fun showReceiveWalletDialog() {
@@ -623,12 +631,18 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showHnsSendDialog() {
+        val recipientInput = hnsSendRecipientInput()
+        val amountInput = hnsSendAmountInput(R.string.wallet_send_amount_hint)
+        val maximumFeeInput = hnsSendAmountInput(R.string.wallet_send_maximum_fee_hint)
+        sendRecipientInput = recipientInput
+        sendAmountInput = amountInput
+        sendMaximumFeeInput = maximumFeeInput
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(uiDp(20), uiDp(4), uiDp(20), 0)
-            addView(sendRecipientInput)
-            addView(sendAmountInput)
-            addView(sendMaximumFeeInput)
+            addView(recipientInput)
+            addView(amountInput)
+            addView(maximumFeeInput)
             addView(TextView(this@WalletActivity).apply {
                 text = getString(R.string.wallet_dashboard_send_form_notice)
                 textSize = 13f
@@ -636,12 +650,24 @@ class WalletActivity : ComponentActivity() {
                 setPadding(0, uiDp(8), 0, 0)
             })
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.wallet_dashboard_send)
             .setView(form)
             .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_prepare_wallet_send) { _, _ -> prepareWalletSend() }
-            .show()
+            .setPositiveButton(R.string.action_prepare_wallet_send) { _, _ ->
+                val request = walletHnsSendInput(
+                    recipient = recipientInput.text?.toString().orEmpty(),
+                    amount = amountInput.text,
+                    maximumFee = maximumFeeInput.text,
+                )
+                clearSendInputs()
+                prepareWalletSend(request)
+            }
+            .create()
+        dialog.setOnDismissListener {
+            if (sendRecipientInput === recipientInput) clearSendInputs()
+        }
+        dialog.show()
     }
 
     private fun showWalletDetails() {
@@ -688,12 +714,22 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showNameImportDialog() {
-        AlertDialog.Builder(this)
+        val input = exactNameImportInput()
+        nameImportInput = input
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.row_wallet_name_import)
-            .setView(nameImportInput)
+            .setView(input)
             .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_import_wallet_name) { _, _ -> importWalletName() }
-            .show()
+            .setPositiveButton(R.string.action_import_wallet_name) { _, _ ->
+                val exactUtf8 = input.text?.let(::exactWalletNameUtf8)
+                clearNameImportInput()
+                importWalletName(exactUtf8)
+            }
+            .create()
+        dialog.setOnDismissListener {
+            if (nameImportInput === input) clearNameImportInput()
+        }
+        dialog.show()
     }
 
     private fun showNameActionMenu() {
@@ -862,11 +898,17 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun restoreWallet() {
-        val lease = currentStorageLease() ?: return
-        if (!canStartNewWallet(lease)) return
-        val phrase = takeRestoreInput() ?: run {
+    private fun restoreWallet(phrase: CharArray?) {
+        if (phrase == null) {
             Toast.makeText(this, R.string.wallet_restore_phrase_required, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val lease = currentStorageLease() ?: run {
+            phrase.fill('\u0000')
+            return
+        }
+        if (!canStartNewWallet(lease)) {
+            phrase.fill('\u0000')
             return
         }
         if (!beginOperation(lease, getString(R.string.wallet_status_restoring))) {
@@ -2377,10 +2419,10 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun prepareWalletSend() {
+    private fun prepareWalletSend(request: WalletHnsSendInput?) {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
-        val request = walletHnsSendInput() ?: run {
+        val validRequest = request ?: run {
             sendStatusView.text = getString(R.string.wallet_send_invalid)
             return
         }
@@ -2395,21 +2437,23 @@ class WalletActivity : ComponentActivity() {
         }
 
         if (hasCurrentWalletReadSnapshot(handle)) {
-            prepareWalletSendFromCurrentSnapshot(lease, handle, request)
+            prepareWalletSendFromCurrentSnapshot(lease, handle, validRequest)
         } else {
             // A first receive or a resumed wallet commonly has no snapshot
             // yet. Review send must make that state visible and obtain one
             // bounded verified snapshot itself, rather than silently doing
             // nothing and forcing the user to discover a separate refresh.
-            synchronizeBeforePreparingWalletSend(lease, handle, request)
+            synchronizeBeforePreparingWalletSend(lease, handle, validRequest)
         }
     }
 
-    private fun walletHnsSendInput(): WalletHnsSendInput? {
-        val recipient = sendRecipientInput.text?.toString().orEmpty()
-        val amountBaseUnits = sendAmountInput.text?.let(::parsePositiveHnsToBaseUnits)
-        val maximumFeeBaseUnits =
-            sendMaximumFeeInput.text?.let(::parsePositiveHnsToBaseUnits)
+    private fun walletHnsSendInput(
+        recipient: String,
+        amount: CharSequence?,
+        maximumFee: CharSequence?,
+    ): WalletHnsSendInput? {
+        val amountBaseUnits = amount?.let(::parsePositiveHnsToBaseUnits)
+        val maximumFeeBaseUnits = maximumFee?.let(::parsePositiveHnsToBaseUnits)
         if (
             recipient.toByteArray(Charsets.UTF_8).size !in 1..MAX_SEND_RECIPIENT_BYTES ||
             recipient.any { it.code !in 0x21..0x7e } ||
@@ -2546,7 +2590,6 @@ class WalletActivity : ComponentActivity() {
                     refreshControllerState(resetReads = false)
                     sendStatusView.text = getString(R.string.wallet_send_prepare_failed)
                 } else {
-                    clearSendInputs()
                     showSendApproval(exact, lease, epoch, authorityGeneration)
                 }
             }
@@ -2715,16 +2758,18 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun importWalletName() {
-        val lease = currentStorageLease() ?: return
+    private fun importWalletName(exactUtf8: ByteArray?) {
+        val lease = currentStorageLease() ?: run {
+            exactUtf8?.fill(0)
+            return
+        }
         val initial = walletNameImportState(lease)
         val expected = initial.readState.authority
         if (expected == null || !walletNameImportMayBegin(expected, initial)) {
+            exactUtf8?.fill(0)
             nameImportStatusView.text = getString(R.string.wallet_name_import_unavailable)
             return
         }
-        val editable = nameImportInput.text
-        val exactUtf8 = editable?.let(::exactWalletNameUtf8)
         if (exactUtf8 == null) {
             nameImportStatusView.text = getString(R.string.wallet_name_import_invalid)
             return
@@ -2740,7 +2785,6 @@ class WalletActivity : ComponentActivity() {
             exactUtf8.fill(0)
             return
         }
-        editable?.let(::wipeEditable)
         nameImportStatusView.text = getString(R.string.wallet_name_import_importing)
         val epoch = lifecycleEpoch
         val handle = expected.walletHandle
@@ -3926,8 +3970,8 @@ class WalletActivity : ComponentActivity() {
         freezesText = false
     }
 
-    private fun takeRestoreInput(): CharArray? {
-        val editable = restoreInput.text ?: return null
+    private fun takeRestoreInput(input: EditText): CharArray? {
+        val editable = input.text ?: return null
         if (editable.isEmpty() || editable.length > MAX_RECOVERY_CHARACTERS) {
             wipeEditable(editable)
             return null
@@ -3938,22 +3982,29 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun clearRestoreInput() {
-        restoreInput.text?.let(::wipeEditable)
-        restoreInput.clearFocus()
+        restoreInput?.let { input ->
+            input.text?.let(::wipeEditable)
+            input.clearFocus()
+        }
+        restoreInput = null
     }
 
     private fun clearNameImportInput() {
-        nameImportInput.text?.let(::wipeEditable)
-        nameImportInput.clearFocus()
+        nameImportInput?.let { input ->
+            input.text?.let(::wipeEditable)
+            input.clearFocus()
+        }
+        nameImportInput = null
     }
 
     private fun clearSendInputs() {
-        sendRecipientInput.text?.let(::wipeEditable)
-        sendAmountInput.text?.let(::wipeEditable)
-        sendMaximumFeeInput.text?.let(::wipeEditable)
-        sendRecipientInput.clearFocus()
-        sendAmountInput.clearFocus()
-        sendMaximumFeeInput.clearFocus()
+        listOfNotNull(sendRecipientInput, sendAmountInput, sendMaximumFeeInput).forEach { input ->
+            input.text?.let(::wipeEditable)
+            input.clearFocus()
+        }
+        sendRecipientInput = null
+        sendAmountInput = null
+        sendMaximumFeeInput = null
     }
 
     private fun wipeEditable(editable: Editable) {
