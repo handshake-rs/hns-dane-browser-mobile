@@ -345,7 +345,7 @@ class WalletActivity : ComponentActivity() {
         // not detach its nested children, so detach each reusable view before
         // placing it in a newly-created card. Without this, the second render
         // crashes with "The specified child already has a parent."
-        listOf(statusView, readStatusView, balanceView, recoveryView).forEach { view ->
+        listOf(statusView, readStatusView, balanceView, sendStatusView, recoveryView).forEach { view ->
             (view.parent as? ViewGroup)?.removeView(view)
         }
         dashboardContent.removeAllViews()
@@ -493,6 +493,16 @@ class WalletActivity : ComponentActivity() {
                     leftMargin = uiDp(8)
                 })
             })
+            // Send preparation deliberately leaves the form before its native
+            // approval is ready. Keep its guarded progress and any
+            // fail-closed result on the dashboard instead of making a tap
+            // appear to do nothing.
+            sendStatusView.apply {
+                textSize = 13f
+                setTextColor(themeColors().secondaryText)
+                setPadding(0, uiDp(12), 0, 0)
+            }
+            addView(sendStatusView)
         }
 
     private fun addWalletTiles(locked: Boolean, actionsAvailable: Boolean = true) {
@@ -2420,9 +2430,13 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareWalletSend(request: WalletHnsSendInput?) {
-        val lease = currentStorageLease() ?: return
+        val lease = currentStorageLease() ?: run {
+            Log.w(TAG, "HNS send review was not started: no current storage lease")
+            return
+        }
         val handle = walletHandle
         val validRequest = request ?: run {
+            Log.w(TAG, "HNS send review was rejected locally: invalid form input")
             sendStatusView.text = getString(R.string.wallet_send_invalid)
             return
         }
@@ -2432,17 +2446,23 @@ class WalletActivity : ComponentActivity() {
             !NativeWalletBridge.hasHnsValue(handle) ||
             unconfirmedDatabaseKey != null
         ) {
+            Log.w(
+                TAG,
+                "HNS send review was not started: native value authority or synchronized state is unavailable",
+            )
             sendStatusView.text = getString(R.string.wallet_send_requires_sync)
             return
         }
 
         if (hasCurrentWalletReadSnapshot(handle)) {
+            Log.i(TAG, "HNS send review is preparing from the current verified wallet snapshot")
             prepareWalletSendFromCurrentSnapshot(lease, handle, validRequest)
         } else {
             // A first receive or a resumed wallet commonly has no snapshot
             // yet. Review send must make that state visible and obtain one
             // bounded verified snapshot itself, rather than silently doing
             // nothing and forcing the user to discover a separate refresh.
+            Log.i(TAG, "HNS send review needs a fresh verified wallet snapshot")
             synchronizeBeforePreparingWalletSend(lease, handle, validRequest)
         }
     }
@@ -2474,6 +2494,7 @@ class WalletActivity : ComponentActivity() {
         request: WalletHnsSendInput,
     ) {
         if (!NativeWalletBridge.hasHnsReads(handle)) {
+            Log.w(TAG, "HNS send review cannot synchronize: native HNS reads are unavailable")
             sendStatusView.text = getString(R.string.wallet_send_requires_sync)
             return
         }
@@ -2482,7 +2503,10 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_status_syncing_reads),
                 resetReads = false,
             )
-        ) return
+        ) {
+            Log.w(TAG, "HNS send review snapshot synchronization could not start")
+            return
+        }
         sendStatusView.text = getString(R.string.wallet_send_syncing_before_review)
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
@@ -2506,6 +2530,7 @@ class WalletActivity : ComponentActivity() {
                 busy = false
                 val snapshot = synchronization?.snapshot
                 if (snapshot == null) {
+                    Log.w(TAG, "HNS send review did not obtain a verified wallet snapshot")
                     refreshControllerState()
                     val catchup = synchronization?.catchup
                     if (catchup == null) {
@@ -2519,6 +2544,7 @@ class WalletActivity : ComponentActivity() {
                         )
                     }
                 } else {
+                    Log.i(TAG, "HNS send review received a fresh verified wallet snapshot")
                     renderReadSnapshot(snapshot)
                     prepareWalletSendFromCurrentSnapshot(lease, handle, request)
                 }
@@ -2536,6 +2562,7 @@ class WalletActivity : ComponentActivity() {
             status == null || status.locked || !NativeWalletBridge.hasHnsValue(handle) ||
             !hasCurrentWalletReadSnapshot(handle) || unconfirmedDatabaseKey != null
         ) {
+            Log.w(TAG, "HNS send review lost its required synchronized value authority")
             sendStatusView.text = getString(R.string.wallet_send_requires_sync)
             return
         }
@@ -2545,7 +2572,10 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_status_preparing_send),
                 resetReads = false,
             )
-        ) return
+        ) {
+            Log.w(TAG, "HNS send native preparation could not start")
+            return
+        }
         sendStatusView.text = getString(R.string.wallet_send_preparing)
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
@@ -2586,10 +2616,12 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 if (exact == null) {
+                    Log.w(TAG, "HNS send native preparation returned no valid one-time approval")
                     busy = false
                     refreshControllerState(resetReads = false)
                     sendStatusView.text = getString(R.string.wallet_send_prepare_failed)
                 } else {
+                    Log.i(TAG, "HNS send native preparation produced a one-time approval for review")
                     showSendApproval(exact, lease, epoch, authorityGeneration)
                 }
             }
