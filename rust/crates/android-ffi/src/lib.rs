@@ -1218,12 +1218,15 @@ impl AndroidWalletController {
                     header_agreement_recoveries,
                     coordinator,
                 );
+                android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_start");
                 if let Err(error) = coordinator.refresh_mempool(now_unix) {
                     return direct_hns_transport_catchup(coordinator, "mempool refresh", error);
                 }
-                controller
-                    .synchronize()
-                    .map(AndroidHnsSynchronization::Ready)
+                android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_complete");
+                android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_start");
+                let snapshot = controller.synchronize()?;
+                android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_complete");
+                Ok(AndroidHnsSynchronization::Ready(snapshot))
             })(),
             Self::Lifecycle(_) | Self::Failed => return None,
         };
