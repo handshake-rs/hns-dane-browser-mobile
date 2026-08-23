@@ -1156,16 +1156,28 @@ impl AndroidWalletController {
                         header_agreement_recoveries,
                         coordinator,
                     );
-                    // The coordinator persists every verified block before
-                    // invoking this callback. Use its clone, which shares
-                    // that same durable backend, to publish a public height
-                    // after each block instead of leaving Android at the
-                    // beginning of a long scan batch.
+                    // The coordinator invokes this only after each atomically
+                    // persisted verified batch. Its clone shares that durable
+                    // backend, so Android never publishes a speculative scan
+                    // height while still receiving a responsive live update.
                     let progress_coordinator = coordinator.clone();
                     let progress = match coordinator.scan_wallet_blocks_with_progress(
                         DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK,
                         now_unix,
-                        |_| {
+                        |progress| {
+                            if let Some(telemetry) = progress.batch_telemetry {
+                                android_log_wallet_scan_metrics(&format!(
+                                    "wallet_hns_scan_batch start={} end={} blocks={} peer_fetch_ms={} peer_fast_ms={} peer_slow_ms={} merge_ms={} commit_ms={}",
+                                    telemetry.first_height,
+                                    telemetry.last_height,
+                                    telemetry.blocks,
+                                    telemetry.peer_fetch_millis,
+                                    telemetry.fastest_peer_fetch_millis,
+                                    telemetry.slowest_peer_fetch_millis,
+                                    telemetry.merge_millis,
+                                    telemetry.commit_millis,
+                                ));
+                            }
                             publish_direct_hns_live_progress(
                                 live_progress,
                                 WALLET_HNS_LIVE_PROGRESS_SCANNING,
@@ -2935,6 +2947,16 @@ fn android_log_error(message: &str) {
 
 #[cfg(target_os = "android")]
 fn android_log_request_metrics(message: &str) {
+    android_log_info("hns-request-metrics", message);
+}
+
+#[cfg(target_os = "android")]
+fn android_log_wallet_scan_metrics(message: &str) {
+    android_log_info("hns-wallet-scan", message);
+}
+
+#[cfg(target_os = "android")]
+fn android_log_info(tag: &str, message: &str) {
     use std::ffi::CString;
     #[link(name = "log")]
     unsafe extern "C" {
@@ -2945,7 +2967,7 @@ fn android_log_request_metrics(message: &str) {
         ) -> i32;
     }
     const ANDROID_LOG_INFO: i32 = 4;
-    let (Ok(tag), Ok(text)) = (CString::new("hns-request-metrics"), CString::new(message)) else {
+    let (Ok(tag), Ok(text)) = (CString::new(tag), CString::new(message)) else {
         return;
     };
     // SAFETY: tag and text are valid NUL-terminated strings for the call.
@@ -2962,6 +2984,11 @@ fn android_log_error(message: &str) {
 #[cfg(not(target_os = "android"))]
 fn android_log_request_metrics(message: &str) {
     eprintln!("hns-request-metrics: {message}");
+}
+
+#[cfg(not(target_os = "android"))]
+fn android_log_wallet_scan_metrics(message: &str) {
+    eprintln!("hns-wallet-scan: {message}");
 }
 
 fn log_panic_payload(context: &str, payload: &(dyn std::any::Any + Send)) {
