@@ -55,6 +55,7 @@ import com.denuoweb.hnsdane.wallet.WalletLeaseReleaseHandoff
 import com.denuoweb.hnsdane.wallet.WalletHnsJourney
 import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentation
 import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentationCache
+import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentationLease
 import com.denuoweb.hnsdane.wallet.WalletNameImportState
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
@@ -1379,6 +1380,7 @@ class WalletActivity : ComponentActivity() {
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
+        val presentationLease = WalletHnsLiveSyncPresentationCache.begin(walletNetwork.id)
         walletHnsSyncInProgress = true
         startWalletHnsForegroundSyncService()
         Log.i(TAG, "Starting a bounded direct HNS synchronization round")
@@ -1386,7 +1388,7 @@ class WalletActivity : ComponentActivity() {
         renderWalletDashboard()
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
-        val poller = startLiveHnsSyncProgressPolling(handle)
+        val poller = startLiveHnsSyncProgressPolling(handle, presentationLease)
         thread(name = "hns-wallet-read-sync") {
             // Do every native controller inspection off the UI thread. A
             // previous bounded sync may still own the controller lock; the
@@ -1407,13 +1409,15 @@ class WalletActivity : ComponentActivity() {
             poller.set(false)
             when {
                 synchronization?.snapshot != null ->
-                    WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
+                    WalletHnsLiveSyncPresentationCache.clear(presentationLease)
 
                 synchronization?.catchup != null ->
-                    WalletHnsLiveSyncPresentationCache.publishCatchup(
-                        walletNetwork.id,
+                    WalletHnsLiveSyncPresentationCache.finishCatchup(
+                        presentationLease,
                         synchronization.catchup,
                     )
+
+                else -> WalletHnsLiveSyncPresentationCache.clear(presentationLease)
             }
             runOnUiThread {
                 val ownsLease = currentStorageLease() === lease
@@ -3450,7 +3454,6 @@ class WalletActivity : ComponentActivity() {
      * bounded sync reaches the exact verified tip.
      */
     private fun renderReadCatchup(progress: NativeWalletHnsCatchupProgress) {
-        WalletHnsLiveSyncPresentationCache.publishCatchup(walletNetwork.id, progress)
         walletHnsJourney.catchupObserved()
         resetReadProjection(R.string.wallet_reads_catching_up)
         readStatusView.text = when (progress.headerState) {
@@ -3481,7 +3484,10 @@ class WalletActivity : ComponentActivity() {
      * bounded sync is not cancelled by Back, and its public checkpoint remains
      * available when a replacement WalletActivity is opened.
      */
-    private fun startLiveHnsSyncProgressPolling(handle: Long): AtomicBoolean {
+    private fun startLiveHnsSyncProgressPolling(
+        handle: Long,
+        presentationLease: WalletHnsLiveSyncPresentationLease,
+    ): AtomicBoolean {
         liveHnsSyncPoller?.set(false)
         return AtomicBoolean(true).also { poller ->
             liveHnsSyncPoller = poller
@@ -3490,7 +3496,7 @@ class WalletActivity : ComponentActivity() {
                 var loggedScanHeight: Long? = null
                 while (poller.get()) {
                     NativeWalletBridge.liveHnsSynchronizationProgress(handle)?.let { progress ->
-                        WalletHnsLiveSyncPresentationCache.publishLive(walletNetwork.id, progress)
+                        WalletHnsLiveSyncPresentationCache.publishLive(presentationLease, progress)
                         val scanHeight = progress.scannedHeight
                         if (
                             progress.stage != loggedStage ||

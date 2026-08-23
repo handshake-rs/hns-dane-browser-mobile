@@ -71,6 +71,68 @@ interface HnsSyncBridge {
     fun syncOnce(dataDir: String, network: String): String = syncOnce(dataDir)
 }
 
+/**
+ * Keeps native runtime handles alive through a shared read lease while a
+ * native operation is executing. New handles are created under the exclusive
+ * lock, then the lock is downgraded before calling native code so a long first
+ * sync cannot block concurrent status reads.
+ */
+internal class NativeRuntimeHandleRegistry<K> {
+    private val lifecycleLock = ReentrantReadWriteLock()
+    private val handles = mutableMapOf<K, Long>()
+
+    fun <T> withHandle(
+        key: K,
+        unavailable: T,
+        createHandle: () -> Long?,
+        block: (Long) -> T,
+    ): T {
+        val readLock = lifecycleLock.readLock()
+        readLock.lock()
+        try {
+            handles[key]?.let { handle -> return block(handle) }
+        } finally {
+            readLock.unlock()
+        }
+
+        val writeLock = lifecycleLock.writeLock()
+        var handle: Long? = null
+        writeLock.lock()
+        try {
+            handle = handles[key] ?: createHandle()?.also { created ->
+                handles[key] = created
+            } ?: return unavailable
+            // Lock downgrading is intentional: the shared lease keeps the
+            // handle alive until `block` returns, while other readers (such as
+            // syncStatus) may proceed alongside a long initial sync.
+            readLock.lock()
+        } finally {
+            writeLock.unlock()
+        }
+
+        return try {
+            block(checkNotNull(handle))
+        } finally {
+            readLock.unlock()
+        }
+    }
+
+    fun closeAll(
+        beforeDestroy: () -> Unit = {},
+        destroyHandle: (Long) -> Unit,
+    ) {
+        val writeLock = lifecycleLock.writeLock()
+        writeLock.lock()
+        try {
+            beforeDestroy()
+            handles.values.forEach(destroyHandle)
+            handles.clear()
+        } finally {
+            writeLock.unlock()
+        }
+    }
+}
+
 data class HnsGatewayFileResponse(
     val head: ByteArray,
     val bodyFile: File,
@@ -420,15 +482,10 @@ object NativeBridge :
 
     fun closeRuntimes() {
         if (!isLoaded) return
-        val writeLock = runtimeLifecycleLock.writeLock()
-        writeLock.lock()
-        try {
-            nativeProxyDestroyAll()
-            runtimeHandles.values.forEach(::nativeRuntimeDestroy)
-            runtimeHandles.clear()
-        } finally {
-            writeLock.unlock()
-        }
+        runtimeHandleRegistry.closeAll(
+            beforeDestroy = ::nativeProxyDestroyAll,
+            destroyHandle = ::nativeRuntimeDestroy,
+        )
     }
 
     private fun <T> withRuntime(
@@ -443,29 +500,19 @@ object NativeBridge :
         }
         val canonicalNetwork = canonicalRuntimeNetwork(network)
         val key = RuntimeKey(dataDir, canonicalNetwork)
-        val readLock = runtimeLifecycleLock.readLock()
-        readLock.lock()
-        try {
-            runtimeHandles[key]?.let { handle -> return block(handle) }
-        } finally {
-            readLock.unlock()
-        }
-
-        val writeLock = runtimeLifecycleLock.writeLock()
-        writeLock.lock()
-        try {
-            val existing = runtimeHandles[key]
-            if (existing != null) return block(existing)
-            val created = nativeRuntimeCreate(dataDir, canonicalNetwork)
-            if (created == INVALID_RUNTIME_HANDLE) {
-                gatewayDiag("withRuntime: runtime create returned invalid handle")
-                return unavailable
-            }
-            runtimeHandles[key] = created
-            return block(created)
-        } finally {
-            writeLock.unlock()
-        }
+        return runtimeHandleRegistry.withHandle(
+            key = key,
+            unavailable = unavailable,
+            createHandle = {
+                nativeRuntimeCreate(dataDir, canonicalNetwork).takeIf {
+                    it != INVALID_RUNTIME_HANDLE
+                } ?: run {
+                    gatewayDiag("withRuntime: runtime create returned invalid handle")
+                    null
+                }
+            },
+            block = block,
+        )
     }
 
     private external fun nativeVersion(): String
@@ -628,6 +675,5 @@ object NativeBridge :
 
     private data class RuntimeKey(val dataDir: String, val network: String)
 
-    private val runtimeLifecycleLock = ReentrantReadWriteLock()
-    private val runtimeHandles = mutableMapOf<RuntimeKey, Long>()
+    private val runtimeHandleRegistry = NativeRuntimeHandleRegistry<RuntimeKey>()
 }
