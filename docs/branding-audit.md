@@ -31,7 +31,7 @@ for compact icons and the horizontal Shakescape lockup where space permits.
 Dark navy surfaces, restrained cyan/violet glow, fine grid or topographic line
 work, and high-contrast text form the shared visual language.
 
-Tagline: **Explore. Verify. Own the Web.**
+Tagline: **Explore the web.**
 
 ## Product language
 

@@ -23,7 +23,7 @@
                                 <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="25"/>
                                 <color key="textColor" red="0.9019607843" green="0.9529411765" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                             </label>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="EXPLORE · VERIFY · OWN THE WEB" textAlignment="center" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="LaunchTagline">
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="EXPLORE THE WEB" textAlignment="center" lineBreakMode="tailTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="LaunchTagline">
                                 <rect key="frame" x="81" y="507" width="231" height="15"/>
                                 <fontDescription key="fontDescription" type="system" weight="medium" pointSize="11"/>
                                 <color key="textColor" red="0" green="1" blue="0.8784313725" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
