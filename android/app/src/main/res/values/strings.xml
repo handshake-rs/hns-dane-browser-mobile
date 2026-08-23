@@ -393,7 +393,7 @@
     <string name="wallet_sync_notification_channel" translatable="false">Wallet synchronization</string>
     <string name="wallet_sync_notification_title" translatable="false">Synchronizing Handshake wallet</string>
     <string name="wallet_sync_notification_text" translatable="false">Scanning verified Handshake wallet activity.</string>
-    <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read failed closed. Reopen and unlock the wallet before retrying.</string>
+    <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read did not complete. No balance or spend state was exposed; the wallet remains unlocked and can retry direct verification.</string>
     <string name="wallet_reads_catching_up" translatable="false">Verified HNS wallet catch-up is in progress. No balance or spend state is exposed until it reaches the exact current tip.</string>
     <string name="wallet_reads_catching_up_headers" translatable="false">Verified header catch-up is still in progress at local height %1$d. Wallet history has scanned through %2$d of %3$d. Synchronize again to continue; no balance or spend state is exposed yet.</string>
     <string name="wallet_reads_catching_up_scan" translatable="false">Verified chain headers are current. Wallet history has scanned through %1$d of %2$d. Synchronize again to continue; no balance or spend state is exposed yet.</string>
