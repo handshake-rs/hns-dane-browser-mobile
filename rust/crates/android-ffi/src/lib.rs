@@ -148,6 +148,12 @@ const DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC: usize = 5;
 /// first-run catch-up self-contained without allowing an unbounded JNI call.
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
 const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
+/// This stable trusted-native diagnostic is emitted only when the wallet
+/// scanner discovers a trailing restoration script that was outside the
+/// direct index's exact filter. The index must be extended and re-scanned;
+/// balance/history remain withheld during that recovery.
+const DIRECT_HNS_WATCH_SET_EXTENSION_REQUIRED: &str =
+    "direct wallet index watch set does not cover the requested derivation scripts";
 /// Mainnet and testnet keep two independent block views, but invite more
 /// independently discovered peers than the library minimum. A stale DNS
 /// answer or an endpoint with another service on the Handshake port must not
@@ -1224,7 +1230,26 @@ impl AndroidWalletController {
                 }
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_complete");
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_start");
-                let snapshot = controller.synchronize()?;
+                let snapshot = match controller.synchronize() {
+                    Ok(snapshot) => snapshot,
+                    Err(error) if direct_hns_watch_set_extension_required(&error) => {
+                        let changed = coordinator
+                            .extend_wallet_restore_watch_set(now_unix)
+                            .map_err(MobileWalletError::DirectHns)?;
+                        if !changed {
+                            return Err(error);
+                        }
+                        android_log_wallet_scan_metrics(
+                            "wallet_hns_finalization stage=watch_set_extended_rewind",
+                        );
+                        android_log_error(
+                            "wallet HNS direct index extended its restoration watch set; restarting authenticated wallet activity scan",
+                        );
+                        return direct_hns_catchup_progress(coordinator)
+                            .map(AndroidHnsSynchronization::CatchingUp);
+                    }
+                    Err(error) => return Err(error),
+                };
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_complete");
                 Ok(AndroidHnsSynchronization::Ready(snapshot))
             })(),
@@ -2401,6 +2426,16 @@ fn direct_hns_progress_is_ready(
     Ok(header.state == SyncState::HeaderCurrent
         && scan.scanned_height == Some(header.tip.height().get())
         && scan.scanned_hash == Some(header.tip.hash().into_bytes()))
+}
+
+fn direct_hns_watch_set_extension_required(error: &MobileWalletError) -> bool {
+    matches!(
+        error,
+        MobileWalletError::ServiceFailure {
+            code: ServiceErrorCode::RuntimeFailure,
+            message,
+        } if message.ends_with(DIRECT_HNS_WATCH_SET_EXTENSION_REQUIRED)
+    )
 }
 
 fn wallet_hns_sync_ready_bundle(read_bundle: &[u8]) -> Option<Vec<u8>> {
@@ -5612,6 +5647,30 @@ mod tests {
         ));
         assert!(!wallet_name_import_is_invalid(
             &MobileWalletError::ControllerFailed
+        ));
+    }
+
+    #[test]
+    fn direct_watch_set_recovery_is_limited_to_the_exact_native_diagnostic() {
+        assert!(direct_hns_watch_set_extension_required(
+            &MobileWalletError::ServiceFailure {
+                code: ServiceErrorCode::RuntimeFailure,
+                message: format!(
+                    "Handshake account synchronization failed: Handshake backend failed: {DIRECT_HNS_WATCH_SET_EXTENSION_REQUIRED}"
+                ),
+            }
+        ));
+        assert!(!direct_hns_watch_set_extension_required(
+            &MobileWalletError::ServiceFailure {
+                code: ServiceErrorCode::RuntimeFailure,
+                message: "Handshake backend failed: direct wallet index is not aligned with the authenticated header tip".to_owned(),
+            }
+        ));
+        assert!(!direct_hns_watch_set_extension_required(
+            &MobileWalletError::ServiceFailure {
+                code: ServiceErrorCode::InvalidRequest,
+                message: DIRECT_HNS_WATCH_SET_EXTENSION_REQUIRED.to_owned(),
+            }
         ));
     }
 
