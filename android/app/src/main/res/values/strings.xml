@@ -99,6 +99,7 @@
     <string name="sync_status_error">error</string>
     <string name="sync_status_seed_failed">seed failed</string>
     <string name="sync_status_peer_failed">peer failed</string>
+    <string name="sync_progress_preparing">Preparing Handshake synchronization…</string>
     <string name="sync_progress_target">target %1$s</string>
     <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
     <string name="sync_progress_best_height">bestHeight %1$s</string>

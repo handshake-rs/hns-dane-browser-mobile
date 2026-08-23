@@ -51,6 +51,10 @@ final class BrowserProcess {
     private(set) var currentPolicy: BrowserRuntimePolicy
     private var isForegroundSyncEnabled = false
     private var syncObserver: ((BrowserSyncSummary) -> Void)?
+    // This is deliberately presentation-only. It lets the UI acknowledge that
+    // foreground work has been scheduled before the Rust runtime publishes its
+    // authoritative `syncInFlight` status; it must never affect proxy admission.
+    private var syncPreparationObserver: (() -> Void)?
     private var syncWorkItem: DispatchWorkItem?
     private var syncScheduleGeneration: UInt64 = 0
     private var syncInFlight = false
@@ -316,15 +320,20 @@ final class BrowserProcess {
         }
     }
 
-    func resumeForegroundSync(observer: @escaping (BrowserSyncSummary) -> Void) {
+    func resumeForegroundSync(
+        observer: @escaping (BrowserSyncSummary) -> Void,
+        onSyncStarting: @escaping () -> Void = {}
+    ) {
         isForegroundSyncEnabled = true
         syncObserver = observer
+        syncPreparationObserver = onSyncStarting
         scheduleForegroundSync(after: 0)
     }
 
     func suspendForegroundSync() {
         isForegroundSyncEnabled = false
         syncObserver = nil
+        syncPreparationObserver = nil
         syncWorkItem?.cancel()
         syncWorkItem = nil
         syncScheduleGeneration &+= 1
@@ -429,6 +438,9 @@ final class BrowserProcess {
     private func startSyncIfNeeded(environment: Environment) {
         guard !syncInFlight else { return }
         syncInFlight = true
+        if isForegroundSyncEnabled {
+            syncPreparationObserver?()
+        }
         preparationQueue.async { [weak self] in
             let result = Result { try environment.runtime.syncOnce() }
             DispatchQueue.main.async {

@@ -53,6 +53,8 @@ final class BrowserViewController: UIViewController {
     private var resolverCacheSummary = "Ready to clear cached resolver values."
     private weak var settingsViewController: BrowserSettingsViewController?
     private var syncStatusPollTimer: Timer?
+    private var initialSyncStatusRefreshWorkItem: DispatchWorkItem?
+    private var isForegroundSyncPreparing = false
 
 #if DEBUG && targetEnvironment(simulator)
     private var appStoreScreenshotScene: AppStoreScreenshotScene?
@@ -95,14 +97,28 @@ final class BrowserViewController: UIViewController {
             updateSyncSummary(environment.runtime.syncSummary())
         }
         startSyncStatusPolling()
-        process.resumeForegroundSync { [weak self] summary in
-            self?.updateSyncSummary(summary)
-        }
+        resumeForegroundSync()
+    }
+
+    private func resumeForegroundSync() {
+        process.resumeForegroundSync(
+            observer: { [weak self] summary in
+                guard let self, !self.isDestroyed else { return }
+                self.isForegroundSyncPreparing = false
+                self.updateSyncSummary(summary)
+            },
+            onSyncStarting: { [weak self] in
+                guard let self, self.isForeground, !self.isDestroyed else { return }
+                self.isForegroundSyncPreparing = true
+                self.showForegroundSyncPreparation()
+            }
+        )
     }
 
     func suspendBrowsing() {
         guard !isDestroyed else { return }
         isForeground = false
+        isForegroundSyncPreparing = false
         stopSyncStatusPolling()
 #if DEBUG && targetEnvironment(simulator)
         if appStoreScreenshotScene != nil { return }
@@ -116,6 +132,7 @@ final class BrowserViewController: UIViewController {
         guard !isDestroyed else { return }
         isDestroyed = true
         isForeground = false
+        isForegroundSyncPreparing = false
         stopSyncStatusPolling()
 #if DEBUG && targetEnvironment(simulator)
         if appStoreScreenshotScene != nil { return }
@@ -1004,9 +1021,7 @@ final class BrowserViewController: UIViewController {
                 self.placeholderLabel.text = "Enter an address to begin"
             }
             if self.isForeground {
-                self.process.resumeForegroundSync { [weak self] summary in
-                    self?.updateSyncSummary(summary)
-                }
+                self.resumeForegroundSync()
             }
             self.refreshSettingsIfPresented()
         }
@@ -1073,9 +1088,7 @@ final class BrowserViewController: UIViewController {
             self.setControlOperationInFlight(false)
             self.installCoordinator(environment: environment, replayAddress: replayAddress)
             if self.isForeground {
-                self.process.resumeForegroundSync { [weak self] summary in
-                    self?.updateSyncSummary(summary)
-                }
+                self.resumeForegroundSync()
             }
             switch result {
             case .success(let revision):
@@ -1343,17 +1356,28 @@ final class BrowserViewController: UIViewController {
 
     private func updateSyncSummary(_ summary: BrowserSyncSummary) {
         latestSyncSummary = summary
-        syncLabel.text = summary.syncDiagnosticText
-        syncLabel.accessibilityLabel = "\(summary.headline). \(summary.detail)"
-        let shouldShowProgress = summary.shouldShowSyncProgress
-        syncLabel.isHidden = !shouldShowProgress
-        syncProgressView.isHidden = !shouldShowProgress
-        if let fraction = summary.syncProgressFraction {
-            syncProgressView.setProgress(Float(fraction), animated: true)
-            syncProgressView.accessibilityValue = "\(Int((fraction * 100).rounded())) percent"
+        let awaitingNativeSyncStart = isForegroundSyncPreparing
+            && !summary.syncInFlight
+            && summary.status == "idle"
+        if awaitingNativeSyncStart {
+            // The native summary remains the only authority for proxy admission
+            // below. This local state only avoids briefly presenting its prior
+            // idle snapshot while foreground work is already queued.
+            showForegroundSyncPreparation()
         } else {
-            syncProgressView.setProgress(0, animated: false)
-            syncProgressView.accessibilityValue = "Indeterminate"
+            isForegroundSyncPreparing = false
+            syncLabel.text = summary.syncDiagnosticText
+            syncLabel.accessibilityLabel = "\(summary.headline). \(summary.detail)"
+            let shouldShowProgress = summary.shouldShowSyncProgress
+            syncLabel.isHidden = !shouldShowProgress
+            syncProgressView.isHidden = !shouldShowProgress
+            if let fraction = summary.syncProgressFraction {
+                syncProgressView.setProgress(Float(fraction), animated: true)
+                syncProgressView.accessibilityValue = "\(Int((fraction * 100).rounded())) percent"
+            } else {
+                syncProgressView.setProgress(0, animated: false)
+                syncProgressView.accessibilityValue = "Indeterminate"
+            }
         }
         guard let coordinator else {
             refreshSettingsIfPresented()
@@ -1409,6 +1433,12 @@ final class BrowserViewController: UIViewController {
     private func startSyncStatusPolling() {
         stopSyncStatusPolling()
         coordinator?.refreshSyncStatus()
+        let initialRefresh = DispatchWorkItem { [weak self] in
+            guard let self, self.isForeground, !self.isDestroyed else { return }
+            self.coordinator?.refreshSyncStatus()
+        }
+        initialSyncStatusRefreshWorkItem = initialRefresh
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: initialRefresh)
         let timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) {
             [weak self] _ in
             guard let self, self.isForeground, !self.isDestroyed else { return }
@@ -1419,8 +1449,19 @@ final class BrowserViewController: UIViewController {
     }
 
     private func stopSyncStatusPolling() {
+        initialSyncStatusRefreshWorkItem?.cancel()
+        initialSyncStatusRefreshWorkItem = nil
         syncStatusPollTimer?.invalidate()
         syncStatusPollTimer = nil
+    }
+
+    private func showForegroundSyncPreparation() {
+        syncLabel.text = "Preparing Handshake synchronization…"
+        syncLabel.accessibilityLabel = "Preparing Handshake synchronization."
+        syncLabel.isHidden = false
+        syncProgressView.isHidden = false
+        syncProgressView.setProgress(0, animated: false)
+        syncProgressView.accessibilityValue = "Indeterminate"
     }
 
     private func showOperationError(

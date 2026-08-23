@@ -417,8 +417,6 @@ final class RustBrowserRuntime: BrowserRuntime {
             detail = "The runtime resolver cache now contains \(cacheEntries) entries."
         } else {
             let best = bestHeight.map(String.init) ?? "unknown"
-            let peer = peerHeight.map(String.init) ?? "unknown"
-            let estimate = estimatedTipHeight.map(String.init) ?? "unknown"
             var details: [String] = []
             if syncInFlight, let stagedBestHeight {
                 details.append("staged validated \(stagedBestHeight)")
@@ -433,8 +431,6 @@ final class RustBrowserRuntime: BrowserRuntime {
                 details.append("HNS root \(authoritativeTreeRootHeight) \(rootState)")
             }
             details.append("freshness \(freshness)")
-            details.append("raw peer \(peer)")
-            details.append("estimate \(estimate)")
             if syncInFlight {
                 details.append("staged accepted +\(stagedAccepted)")
             } else {

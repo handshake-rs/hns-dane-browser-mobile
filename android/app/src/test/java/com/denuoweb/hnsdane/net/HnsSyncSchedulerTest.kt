@@ -23,13 +23,18 @@ class HnsSyncSchedulerTest {
             clock = { 1234L },
         )
         var snapshot: HnsSyncSnapshot? = null
+        var syncStartingCount = 0
 
-        scheduler.runOnce { snapshot = it }
+        scheduler.runOnce(
+            onSnapshot = { snapshot = it },
+            onSyncStarting = { syncStartingCount += 1 },
+        )
 
         assertEquals(dataDir.absolutePath, bridge.paths.single())
         assertEquals(1234L, snapshot?.updatedAtMillis)
         assertEquals(bridge.response, snapshot?.statusJson)
         assertSame(snapshot, scheduler.lastSnapshot)
+        assertEquals(1, syncStartingCount)
         scheduler.close()
     }
 

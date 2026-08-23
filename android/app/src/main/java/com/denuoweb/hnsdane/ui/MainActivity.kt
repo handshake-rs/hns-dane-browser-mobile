@@ -137,6 +137,8 @@ class MainActivity : ComponentActivity() {
     @Volatile
     private var lastSyncSnapshot: HnsSyncSnapshot? = null
     private var syncSnapshotSubscription: Closeable? = null
+    private var syncPreparationSubscription: Closeable? = null
+    private var foregroundSyncPreparing: Boolean = false
     private var proxyAvailabilitySubscription: Closeable? = null
     @Volatile
     private var gatewayInterceptionEnabled: Boolean = false
@@ -591,7 +593,10 @@ class MainActivity : ComponentActivity() {
     private fun startSyncStatusPolling() {
         syncStatusPolling = true
         mainHandler.removeCallbacks(syncStatusPollRunnable)
-        mainHandler.postDelayed(syncStatusPollRunnable, SYNC_STATUS_POLL_MS)
+        // The first persisted-status read can race the scheduler's immediate
+        // foreground pass. Recheck promptly, then return to the low-overhead
+        // steady two-second cadence in pollSyncStatusOnce().
+        mainHandler.postDelayed(syncStatusPollRunnable, INITIAL_SYNC_STATUS_POLL_MS)
     }
 
     private fun stopSyncStatusPolling() {
@@ -630,6 +635,15 @@ class MainActivity : ComponentActivity() {
         }
 
         val app = application as? HnsDaneApplication ?: return
+        syncPreparationSubscription = app.observeSyncPreparation { preparing ->
+            mainHandler.post {
+                if (syncPreparationSubscription == null || activityDestroyed) {
+                    return@post
+                }
+                foregroundSyncPreparing = preparing
+                refreshSyncProgress()
+            }
+        }
         syncSnapshotSubscription = app.observeSync { snapshot ->
             mainHandler.post {
                 if (syncSnapshotSubscription == null || activityDestroyed) {
@@ -645,6 +659,9 @@ class MainActivity : ComponentActivity() {
     private fun stopObservingForegroundSync() {
         syncSnapshotSubscription?.close()
         syncSnapshotSubscription = null
+        syncPreparationSubscription?.close()
+        syncPreparationSubscription = null
+        foregroundSyncPreparing = false
     }
 
     private fun menuButton(): TextView =
@@ -1094,15 +1111,26 @@ class MainActivity : ComponentActivity() {
         }
 
         val progress = currentSyncProgress()
-        if (progress.shouldShowProgress) {
+        // A scheduled foreground pass may still be unpacking the local
+        // bootstrap or entering the native coordinator. Do not call that
+        // truthful-but-stale persisted status "idle"; it has not yet reached
+        // Rust's factual syncInFlight transition. This overlay never affects
+        // header authority or proxy admission below.
+        val awaitingNativeSyncStart =
+            foregroundSyncPreparing && !progress.syncInFlight && progress.status == "idle"
+        if (awaitingNativeSyncStart || progress.shouldShowProgress) {
             syncProgressBar.visibility = View.VISIBLE
             syncProgressStats.visibility = View.VISIBLE
-            val permille = progress.progressPermille()
+            val permille = if (awaitingNativeSyncStart) null else progress.progressPermille()
             syncProgressBar.isIndeterminate = permille == null
             if (permille != null) {
                 syncProgressBar.progress = permille
             }
-            syncProgressStats.text = progress.summary(this)
+            syncProgressStats.text = if (awaitingNativeSyncStart) {
+                getString(R.string.sync_progress_preparing)
+            } else {
+                progress.summary(this)
+            }
         } else {
             syncProgressBar.visibility = View.GONE
             syncProgressStats.visibility = View.GONE
@@ -1710,6 +1738,7 @@ class MainActivity : ComponentActivity() {
 
         private const val SYNC_PROGRESS_MAX = 1000
         private const val PAGE_PROGRESS_MAX = 100
+        private const val INITIAL_SYNC_STATUS_POLL_MS = 250L
         private const val SYNC_STATUS_POLL_MS = 2_000L
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22

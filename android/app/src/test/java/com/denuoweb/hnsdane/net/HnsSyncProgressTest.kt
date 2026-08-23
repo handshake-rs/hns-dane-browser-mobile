@@ -22,7 +22,7 @@ class HnsSyncProgressTest {
         assertFalse(progress.isAuthorityReady)
         assertEquals(278, progress.progressPermille())
         assertEquals(
-            "syncing • bestHeight 93,344 • target 335,684 • needs HNS root 335,665 • raw peer 335,684 • accepted +2,000 • peers 4",
+            "syncing • bestHeight 93,344 • target 335,684 • needs HNS root 335,665 • accepted +2,000 • peers 4",
             progress.summary(),
         )
     }
@@ -40,13 +40,13 @@ class HnsSyncProgressTest {
         assertFalse(progress.shouldContinueSoon)
         assertEquals(1000, progress.progressPermille())
         assertEquals(
-            "up_to_date • bestHeight 335,684 • target 335,684 • HNS root 335,665 ready • raw peer 335,684",
+            "up_to_date • bestHeight 335,684 • target 335,684 • HNS root 335,665 ready",
             progress.summary(),
         )
     }
 
     @Test
-    fun estimatedTipRemainsDiagnosticWhenAuthoritativeTargetIsUnknown() {
+    fun doesNotPresentEstimatedTipWhenAuthoritativeTargetIsUnknown() {
         val progress = HnsSyncProgress.fromJson(
             """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"syncing","accepted":2000,"bestHeight":92000,"bestPeerHeight":null,"estimatedTipHeight":335684,"effectiveTargetHeight":null,"lagBlocks":null,"freshness":"unknown","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":null,"localTreeRootHeight":91981,"treeRootReady":null,"blocksUntilAuthoritativeTreeRoot":null,"targetSource":"unknown","targetPeerGroups":0,"targetEvidenceExpired":true,"peerCount":0}""",
         )
@@ -58,7 +58,7 @@ class HnsSyncProgressTest {
         assertEquals(null, progress.progressPermille())
         val summary = progress.summary()
         assertEquals(
-            "syncing • bestHeight 92,000 • estimate 335,684 • accepted +2,000",
+            "syncing • bestHeight 92,000 • accepted +2,000",
             summary,
         )
         assertFalse(summary.contains("target unknown"))
@@ -199,7 +199,7 @@ class HnsSyncProgressTest {
         assertEquals(961, progress.progressPermille())
         val summary = progress.summary()
         assertEquals(
-            "syncing • staged validated 324,000 • target 337,000 • HNS root 299,989 ready • raw peer 337,000 • staged accepted +24,000",
+            "syncing • staged validated 324,000 • target 337,000 • HNS root 299,989 ready • staged accepted +24,000",
             summary,
         )
         assertFalse(summary.contains("committed"))

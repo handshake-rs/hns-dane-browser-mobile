@@ -30,6 +30,10 @@ class HnsDaneApplication : Application() {
         Thread(runnable, "hns-webview-startup")
     }
     private val syncListeners = CopyOnWriteArraySet<(HnsSyncSnapshot) -> Unit>()
+    // This is presentation-only. It records that a foreground header-sync
+    // pass has acquired its single-flight slot, before Rust can publish its
+    // `syncInFlight` mailbox. It is never consulted for proxy admission.
+    private val syncPreparationListeners = CopyOnWriteArraySet<(Boolean) -> Unit>()
     private val proxyAvailabilityListeners = CopyOnWriteArraySet<(Boolean) -> Unit>()
     private val foregroundActivities = ForegroundActivityCounter(
         onForeground = ::startForegroundSync,
@@ -37,6 +41,8 @@ class HnsDaneApplication : Application() {
     )
     @Volatile
     private var foregroundSync: HnsSyncScheduler? = null
+    @Volatile
+    private var foregroundSyncPreparing: Boolean = false
 
     /**
      * True while at least one app Activity is visible (including a transition
@@ -89,6 +95,19 @@ class HnsDaneApplication : Application() {
         syncListeners += listener
         latestSyncSnapshot?.let(listener)
         return Closeable { syncListeners -= listener }
+    }
+
+    /**
+     * Observes the small local interval between foreground header work
+     * acquiring its single-flight slot and Rust publishing factual in-flight
+     * status. Consumers must use
+     * this only for copy/progress presentation; authentication state still
+     * comes exclusively from [observeSync].
+     */
+    internal fun observeSyncPreparation(listener: (Boolean) -> Unit): Closeable {
+        syncPreparationListeners += listener
+        listener(foregroundSyncPreparing)
+        return Closeable { syncPreparationListeners -= listener }
     }
 
     internal fun observeProxyAvailability(listener: (Boolean) -> Unit): Closeable {
@@ -144,32 +163,38 @@ class HnsDaneApplication : Application() {
             network = { HnsResolutionPreferences.handshakeNetworkId(this) },
         )
         foregroundSync = scheduler
-        scheduler.start sync@{ snapshot ->
-            val progress = HnsSyncProgress.fromJson(snapshot.statusJson)
-            Log.i(
-                TAG,
-                "HNS sync status=${progress.status} best=${progress.bestHeight} " +
-                    "target=${progress.effectiveTargetHeight} freshness=${progress.freshness} " +
-                    "targetGroups=${progress.targetPeerGroups} attempted=${progress.attempted} " +
-                    "successful=${progress.successful} accepted=${progress.accepted} " +
-                    "failed=${progress.failed}",
-            )
-            val publish = synchronized(this) {
-                if (foregroundSync !== scheduler) {
-                    false
-                } else {
-                    latestSyncSnapshot = snapshot
-                    if (progress.isAuthorityReady) {
-                        isHeaderRecoveryInProgress = false
+        scheduler.start(
+            onSnapshot = sync@{ snapshot ->
+                val progress = HnsSyncProgress.fromJson(snapshot.statusJson)
+                Log.i(
+                    TAG,
+                    "HNS sync status=${progress.status} best=${progress.bestHeight} " +
+                        "target=${progress.effectiveTargetHeight} freshness=${progress.freshness} " +
+                        "targetGroups=${progress.targetPeerGroups} attempted=${progress.attempted} " +
+                        "successful=${progress.successful} accepted=${progress.accepted} " +
+                        "failed=${progress.failed}",
+                )
+                val publish = synchronized(this) {
+                    if (foregroundSync !== scheduler) {
+                        false
+                    } else {
+                        latestSyncSnapshot = snapshot
+                        if (progress.isAuthorityReady) {
+                            isHeaderRecoveryInProgress = false
+                        }
+                        true
                     }
-                    true
                 }
-            }
-            if (!publish) {
-                return@sync
-            }
-            syncListeners.forEach { listener -> listener(snapshot) }
-        }
+                if (!publish) {
+                    return@sync
+                }
+                publishForegroundSyncPreparation(false)
+                syncListeners.forEach { listener -> listener(snapshot) }
+            },
+            onSyncStarting = {
+                publishForegroundSyncPreparation(true, scheduler)
+            },
+        )
     }
 
     @Synchronized
@@ -177,6 +202,24 @@ class HnsDaneApplication : Application() {
         val scheduler = foregroundSync ?: return
         foregroundSync = null
         scheduler.close()
+        publishForegroundSyncPreparation(false)
+    }
+
+    private fun publishForegroundSyncPreparation(
+        preparing: Boolean,
+        expectedScheduler: HnsSyncScheduler? = null,
+    ) {
+        val listeners = synchronized(this) {
+            if (expectedScheduler != null && foregroundSync !== expectedScheduler) {
+                return
+            }
+            if (foregroundSyncPreparing == preparing) {
+                return
+            }
+            foregroundSyncPreparing = preparing
+            syncPreparationListeners.toList()
+        }
+        listeners.forEach { listener -> listener(preparing) }
     }
 
     private fun startWebViewInitialization() {

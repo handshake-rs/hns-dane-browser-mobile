@@ -223,10 +223,6 @@ data class HnsSyncProgress(
         authoritativeTreeRootHeight?.let {
             parts += if (isAuthorityReady) rootReadyText(it) else rootRequiredText(it)
         }
-        when {
-            bestPeerHeight != null -> parts += "raw peer ${formatHeight(bestPeerHeight)}"
-            estimatedTipHeight != null -> parts += "estimate ${formatHeight(estimatedTipHeight)}"
-        }
         if (syncInFlight) {
             stagedAccepted?.let { parts += stagedAcceptedText(it) }
         } else {

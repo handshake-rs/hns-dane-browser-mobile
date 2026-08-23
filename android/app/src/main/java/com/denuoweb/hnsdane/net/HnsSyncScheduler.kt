@@ -32,30 +32,49 @@ class HnsSyncScheduler(
     var lastSnapshot: HnsSyncSnapshot? = null
         private set
 
-    fun start(onSnapshot: (HnsSyncSnapshot) -> Unit) {
+    fun start(
+        onSnapshot: (HnsSyncSnapshot) -> Unit,
+        onSyncStarting: () -> Unit = {},
+    ) {
         if (!running.compareAndSet(false, true)) {
             return
         }
 
-        scheduleNext(0, onSnapshot)
+        scheduleNext(0, onSnapshot, onSyncStarting)
     }
 
-    internal fun tick(onSnapshot: (HnsSyncSnapshot) -> Unit) {
+    internal fun tick(
+        onSnapshot: (HnsSyncSnapshot) -> Unit,
+        onSyncStarting: () -> Unit = {},
+    ) {
         if (!running.get()) {
             return
         }
 
-        val snapshot = runOnceIfIdle(onSnapshot)
+        val snapshot = runOnceIfIdle(onSnapshot, onSyncStarting)
         if (running.get()) {
-            scheduleNext(snapshot?.let(::nextDelayMs) ?: activeIntervalMs, onSnapshot)
+            scheduleNext(
+                snapshot?.let(::nextDelayMs) ?: activeIntervalMs,
+                onSnapshot,
+                onSyncStarting,
+            )
         }
     }
 
-    internal fun runOnce(onSnapshot: (HnsSyncSnapshot) -> Unit): HnsSyncSnapshot =
-        checkNotNull(runOnceIfIdle(onSnapshot)) { "another HNS sync operation is already running" }
+    internal fun runOnce(
+        onSnapshot: (HnsSyncSnapshot) -> Unit,
+        onSyncStarting: () -> Unit = {},
+    ): HnsSyncSnapshot =
+        checkNotNull(runOnceIfIdle(onSnapshot, onSyncStarting)) {
+            "another HNS sync operation is already running"
+        }
 
-    private fun runOnceIfIdle(onSnapshot: (HnsSyncSnapshot) -> Unit): HnsSyncSnapshot? =
+    private fun runOnceIfIdle(
+        onSnapshot: (HnsSyncSnapshot) -> Unit,
+        onSyncStarting: () -> Unit,
+    ): HnsSyncSnapshot? =
         singleFlight.tryRun {
+            onSyncStarting()
             val snapshot = HnsSyncSnapshot(
                 statusJson = bridge.syncOnce(dataDir.absolutePath, network()),
                 updatedAtMillis = clock(),
@@ -74,9 +93,13 @@ class HnsSyncScheduler(
         }
     }
 
-    private fun scheduleNext(delayMs: Long, onSnapshot: (HnsSyncSnapshot) -> Unit) {
+    private fun scheduleNext(
+        delayMs: Long,
+        onSnapshot: (HnsSyncSnapshot) -> Unit,
+        onSyncStarting: () -> Unit,
+    ) {
         future = executor.schedule(
-            { tick(onSnapshot) },
+            { tick(onSnapshot, onSyncStarting) },
             delayMs,
             TimeUnit.MILLISECONDS,
         )

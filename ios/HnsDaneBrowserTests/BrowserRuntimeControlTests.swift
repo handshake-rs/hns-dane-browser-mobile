@@ -2683,9 +2683,10 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         XCTAssertEqual(
             summary.detail,
-            "staged validated 324000 · freshness unknown · raw peer 337000 "
-                + "· estimate 336900 · staged accepted +24000"
+            "staged validated 324000 · freshness unknown · staged accepted +24000"
         )
+        XCTAssertFalse(summary.detail.contains("raw peer"))
+        XCTAssertFalse(summary.detail.contains("estimate"))
         XCTAssertFalse(summary.syncDiagnosticText.contains("Committed"))
         XCTAssertFalse(summary.syncDiagnosticText.contains("target unknown"))
         XCTAssertFalse(summary.syncDiagnosticText.contains("HNS root unknown"))
@@ -3377,6 +3378,45 @@ final class BrowserRuntimeControlTests: XCTestCase {
             }
         )
         XCTAssertEqual(callbackCount, 1)
+    }
+
+    @MainActor
+    func testForegroundSyncReportsPresentationStartBeforeNativeCompletion() async throws {
+        let runtime = NetworkSwitchRuntimeStub(network: .testnet, rejectsPolicy: false)
+        let runtimeSyncStarted = expectation(description: "runtime sync started")
+        let allowRuntimeSyncToFinish = DispatchSemaphore(value: 0)
+        runtime.onSyncStart = { runtimeSyncStarted.fulfill() }
+        runtime.syncGate = allowRuntimeSyncToFinish
+        let process = BrowserProcess(
+            runtimeFactory: { _, _ in runtime },
+            initialNetwork: .testnet,
+            persistNetwork: { _ in }
+        )
+        defer {
+            allowRuntimeSyncToFinish.signal()
+            process.close()
+        }
+
+        let prepared = expectation(description: "runtime prepared")
+        process.prepare { _ in prepared.fulfill() }
+        await fulfillment(of: [prepared], timeout: 2)
+
+        let presentationStarted = expectation(description: "presentation sync started")
+        let syncCompleted = expectation(description: "native sync completed")
+        var presentationStartCount = 0
+        process.resumeForegroundSync(
+            observer: { _ in syncCompleted.fulfill() },
+            onSyncStarting: {
+                presentationStartCount += 1
+                presentationStarted.fulfill()
+            }
+        )
+
+        await fulfillment(of: [presentationStarted, runtimeSyncStarted], timeout: 2)
+        XCTAssertEqual(presentationStartCount, 1)
+
+        allowRuntimeSyncToFinish.signal()
+        await fulfillment(of: [syncCompleted], timeout: 2)
     }
 
     @MainActor
