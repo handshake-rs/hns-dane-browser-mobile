@@ -1173,13 +1173,14 @@ impl AndroidWalletController {
                         |progress| {
                             if let Some(telemetry) = progress.batch_telemetry {
                                 android_log_wallet_scan_metrics(&format!(
-                                    "wallet_hns_scan_batch start={} end={} blocks={} peer_fetch_ms={} peer_fast_ms={} peer_slow_ms={} merge_ms={} commit_ms={}",
+                                    "wallet_hns_scan_batch start={} end={} blocks={} peer_fetch_ms={} peer_fast_ms={} peer_slow_ms={} peer_coordination_ms={} merge_ms={} commit_ms={}",
                                     telemetry.first_height,
                                     telemetry.last_height,
                                     telemetry.blocks,
                                     telemetry.peer_fetch_millis,
                                     telemetry.fastest_peer_fetch_millis,
                                     telemetry.slowest_peer_fetch_millis,
+                                    telemetry.peer_coordination_millis,
                                     telemetry.merge_millis,
                                     telemetry.commit_millis,
                                 ));
