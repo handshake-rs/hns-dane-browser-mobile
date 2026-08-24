@@ -32,9 +32,13 @@ hns-browser-observability = "=0.2.2"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.2", default-features = false, features = ["mobile"] }
-hns-wallet-ffi = "=0.1.1"
-hns-wallet-mobile = "=0.1.1"
-hns-wallet-types = "=0.1.1"
+# Pin the mobile FFI surface to the reviewed wallet fixes until the next
+# registry cohort carries them. The same immutable revision is used for every
+# wallet crate, preventing Cargo from mixing the direct-sync controller with a
+# different mobile/types ABI.
+hns-wallet-ffi = { version = "=0.1.1", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "6e78d1fc4c789eb4708129e432f3e28bd0f185ad" }
+hns-wallet-mobile = { version = "=0.1.1", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "6e78d1fc4c789eb4708129e432f3e28bd0f185ad" }
+hns-wallet-types = { version = "=0.1.1", git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "6e78d1fc4c789eb4708129e432f3e28bd0f185ad" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.2.2"

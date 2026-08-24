@@ -666,7 +666,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1491,8 +1491,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-bitcoin-kyoto"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fc7531795b46c881dc8bf299e1a0b802c71f0ab24acf6dbe863b693dee21d24"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "bdk_kyoto",
  "bdk_wallet",
@@ -1514,8 +1513,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-chain-api"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15e80319ad5d8b7ba91beb8a19bfb17c56ac95246b50acb90dc43966df8f6311"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "hns-wallet-types",
  "serde",
@@ -1526,8 +1524,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-ffi"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a91d9f777528f97ff3f100431e3c8456b8d6d195f2eaeb74cf6aa482d81045f"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "hns-covenants",
  "hns-wallet-types",
@@ -1540,8 +1537,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-hns"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c651e8d542e05e1969ac848f296a8b2198a82c77edd6bf795c9f1e0715d87282"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "bech32",
  "bip39",
@@ -1578,8 +1574,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-host"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "222e92da8141c9409ab63000f395c0907a616edaf8e186420fe8e4e866de277c"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "getrandom 0.3.4",
  "hns-wallet-ffi",
@@ -1591,8 +1586,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-market"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7de8c238d7d9f48f40dc2d3404d654edebf51e3d3f165b2dbcd806d4eaf40cbe"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "hex",
  "hkdf",
@@ -1613,8 +1607,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-mobile"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79d6f8bde029422b227df38d36d5845e97d4086702a296b4e3c72e99cfc788ed"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "bdk_wallet",
  "getrandom 0.3.4",
@@ -1642,8 +1635,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-provider"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea747e1e549bf587ab1c6d3f4a843cfbb8040b9c742169f0d0f60b6a3a2bde71"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "hns-wallet-store",
  "hns-wallet-types",
@@ -1657,8 +1649,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-service"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a61415da1cfc2116c3d4578403f7fc8b8964b44a072398a66a9dcaf6f3654511"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "getrandom 0.3.4",
  "hns-marketplace-protocol",
@@ -1679,8 +1670,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-shakedex"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26705b7007102a711bed461c0ac2d1562d691791d96aa8a2a8203d9aee1d90f0"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "hex",
  "hns-covenants",
@@ -1702,8 +1692,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-store"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5f9e2b968013092ea2e0787e5c228f86bac39d3f6cda391f112909f12773b3f"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "argon2",
  "chacha20poly1305",
@@ -1722,8 +1711,7 @@ dependencies = [
 [[package]]
 name = "hns-wallet-types"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "763085ce7678126cab582ab0a614523385afdf92fa5957c70ca87bbfefd6787b"
+source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=6e78d1fc4c789eb4708129e432f3e28bd0f185ad#6e78d1fc4c789eb4708129e432f3e28bd0f185ad"
 dependencies = [
  "hex",
  "serde",
@@ -2454,7 +2442,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3100,7 +3088,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
