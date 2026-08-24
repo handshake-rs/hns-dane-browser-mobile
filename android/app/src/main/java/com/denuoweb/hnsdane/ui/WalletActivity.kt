@@ -664,16 +664,24 @@ class WalletActivity : ComponentActivity() {
             .setTitle(R.string.wallet_dashboard_send)
             .setView(form)
             .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_prepare_wallet_send) { _, _ ->
-                val request = walletHnsSendInput(
-                    recipient = recipientInput.text?.toString().orEmpty(),
-                    amount = amountInput.text,
-                    maximumFee = maximumFeeInput.text,
-                )
+            // Install the handler after show() so local validation can keep
+            // this exact dialog (and its entered values) open. AlertDialog's
+            // normal positive-button handler dismisses first, which turned a
+            // correct fail-closed rejection into an apparent no-op.
+            .setPositiveButton(R.string.action_prepare_wallet_send, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val request = validatedWalletHnsSendInput(
+                    recipientInput,
+                    amountInput,
+                    maximumFeeInput,
+                ) ?: return@setOnClickListener
                 clearSendInputs()
+                dialog.dismiss()
                 prepareWalletSend(request)
             }
-            .create()
+        }
         dialog.setOnDismissListener {
             if (sendRecipientInput === recipientInput) clearSendInputs()
         }
@@ -2480,6 +2488,42 @@ class WalletActivity : ComponentActivity() {
             amountBaseUnits == null || maximumFeeBaseUnits == null
         ) return null
         return WalletHnsSendInput(recipient, amountBaseUnits, maximumFeeBaseUnits)
+    }
+
+    /**
+     * Keeps input-specific feedback inside the send dialog. The normal
+     * `walletHnsSendInput` function remains the single canonical conversion
+     * to base units; this wrapper only determines which field needs repair.
+     */
+    private fun validatedWalletHnsSendInput(
+        recipientInput: EditText,
+        amountInput: EditText,
+        maximumFeeInput: EditText,
+    ): WalletHnsSendInput? {
+        val recipient = recipientInput.text?.toString().orEmpty()
+        val amount = amountInput.text
+        val maximumFee = maximumFeeInput.text
+        val recipientValid =
+            recipient.toByteArray(Charsets.UTF_8).size in 1..MAX_SEND_RECIPIENT_BYTES &&
+                recipient.none { it.code !in 0x21..0x7e }
+        val amountValid = amount?.let(::parsePositiveHnsToBaseUnits) != null
+        val maximumFeeValid = maximumFee?.let(::parsePositiveHnsToBaseUnits) != null
+        recipientInput.error = if (recipientValid) null else {
+            getString(R.string.wallet_send_recipient_invalid)
+        }
+        amountInput.error = if (amountValid) null else getString(R.string.wallet_send_amount_invalid)
+        maximumFeeInput.error = if (maximumFeeValid) null else {
+            getString(R.string.wallet_send_maximum_fee_invalid)
+        }
+        if (!recipientValid || !amountValid || !maximumFeeValid) {
+            Log.w(
+                TAG,
+                "HNS send review was rejected locally: invalid " +
+                    "recipient=${!recipientValid} amount=${!amountValid} maximumFee=${!maximumFeeValid}",
+            )
+            return null
+        }
+        return walletHnsSendInput(recipient, amount, maximumFee)
     }
 
     private fun hasCurrentWalletReadSnapshot(handle: Long): Boolean =
