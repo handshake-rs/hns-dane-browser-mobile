@@ -477,4 +477,7 @@
     <string name="proof_current_tip_text">גובה %1$s, עץ %2$s</string>
     <string name="proof_markdown_dnssec_title"># פרטי DNSSEC</string>
     <string name="proof_markdown_hns_title"># פרטי הוכחה של HNS</string>
+    <string name="action_retry">נסה שוב</string>
+    <string name="sync_progress_preparing">מכין את סנכרון Handshake…</string>
+    <string name="trace_field_security_status">מצב אבטחה: %1$s</string>
 </resources>

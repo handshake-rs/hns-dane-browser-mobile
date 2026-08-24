@@ -471,4 +471,7 @@
     <string name="proof_current_tip_text">ارتفاع %1$s، درخت %2$s</string>
     <string name="proof_markdown_dnssec_title"># جزئیات DNSSEC</string>
     <string name="proof_markdown_hns_title"># جزئیات اثبات HNS</string>
+    <string name="action_retry">تلاش مجدد</string>
+    <string name="sync_progress_preparing">در حال آماده‌سازی همگام‌سازی Handshake…</string>
+    <string name="trace_field_security_status">وضعیت امنیت: %1$s</string>
 </resources>

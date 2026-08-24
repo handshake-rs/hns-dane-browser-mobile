@@ -471,4 +471,7 @@
 <string name="proof_current_tip_text">高度 %1$s，樹 %2$s</string>
 <string name="proof_markdown_dnssec_title"># DNSSEC 詳細信息</string>
 <string name="proof_markdown_hns_title"># HNS 證明詳細信息</string>
+<string name="action_retry">重試</string>
+<string name="sync_progress_preparing">正在準備 Handshake 同步…</string>
+<string name="trace_field_security_status">安全狀態：%1$s</string>
 </resources>

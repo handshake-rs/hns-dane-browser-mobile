@@ -471,4 +471,7 @@
 <string name="proof_current_tip_text">yükseklik %1$s, ağaç %2$s</string>
 <string name="proof_markdown_dnssec_title"># DNSSEC Ayrıntılar</string>
 <string name="proof_markdown_hns_title"># HNS Kanıtı Detayları</string>
+<string name="action_retry">Yeniden dene</string>
+<string name="sync_progress_preparing">Handshake eşzamanlaması hazırlanıyor…</string>
+<string name="trace_field_security_status">Güvenlik durumu: %1$s</string>
 </resources>

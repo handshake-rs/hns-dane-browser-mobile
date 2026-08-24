@@ -471,4 +471,7 @@
     <string name="proof_current_tip_text">altura %1$s, árvore %2$s</string>
     <string name="proof_markdown_dnssec_title"># Detalhes DNSSEC</string>
     <string name="proof_markdown_hns_title"># Detalhes da prova HNS</string>
+    <string name="action_retry">Tentar novamente</string>
+    <string name="sync_progress_preparing">Preparando a sincronização do Handshake…</string>
+    <string name="trace_field_security_status">Status de segurança: %1$s</string>
 </resources>

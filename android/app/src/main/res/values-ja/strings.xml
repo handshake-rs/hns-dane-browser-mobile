@@ -471,4 +471,7 @@
     <string name="proof_current_tip_text">高さ %1$s、樹木 %2$s</string>
     <string name="proof_markdown_dnssec_title"># DNSSEC の詳細</string>
     <string name="proof_markdown_hns_title"># HNS 証明の詳細</string>
+    <string name="action_retry">再試行</string>
+    <string name="sync_progress_preparing">Handshake 同期を準備中…</string>
+    <string name="trace_field_security_status">セキュリティ状態: %1$s</string>
 </resources>

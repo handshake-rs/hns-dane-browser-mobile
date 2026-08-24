@@ -483,4 +483,7 @@
 <string name="proof_current_tip_text">высота %1$s, дерево %2$s</string>
 <string name="proof_markdown_dnssec_title">№ DNSSEC Подробности</string>
 <string name="proof_markdown_hns_title"># HNS Подробности доказательства</string>
+<string name="action_retry">Повторить</string>
+<string name="sync_progress_preparing">Подготовка синхронизации Handshake…</string>
+<string name="trace_field_security_status">Состояние безопасности: %1$s</string>
 </resources>
