@@ -414,12 +414,13 @@ internal object NativeWalletBridge {
         actionToken: NativeHnsValueActionToken,
     ): NativeHnsSendReceipt? = actionToken.consume { tokenAscii ->
         if (!isAvailable || !isValidHandle(handle)) return@consume null
-        val bundle = runCatching { nativeApproveHnsValueAction(handle, tokenAscii) }
-            .getOrNull() ?: return@consume null
-        val receipt = parseAndWipeHnsSendReceiptBundle(bundle)
-        if (receipt == null) {
-            // Broadcast may already have committed. Do not continue an
-            // ambiguous value session before a fresh unlock and sync.
+        val bundle = runCatching { nativeApproveHnsValueAction(handle, tokenAscii) }.getOrNull()
+        val receipt = bundle?.let(::parseAndWipeHnsSendReceiptBundle)
+        if (receipt == null && status(handle)?.locked != false) {
+            // The native controller deliberately remains unlocked only for
+            // its exact, proven pre-broadcast retry state. Every other
+            // missing receipt may follow authorization or peer broadcast, so
+            // retain the fail-closed lock before a later send can begin.
             lock(handle)
         }
         receipt

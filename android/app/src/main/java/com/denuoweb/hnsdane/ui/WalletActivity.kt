@@ -2731,6 +2731,13 @@ class WalletActivity : ComponentActivity() {
         thread(name = "hns-wallet-send-broadcast") {
             val receipt = NativeWalletBridge.approveHnsValueAction(handle, approval.actionToken)
             approval.close()
+            // Native code keeps this controller unlocked only when the send
+            // was rejected during final authenticated re-preparation, before
+            // signing or broadcast could begin. A null receipt in that state
+            // is therefore safe to re-sync and review again; every ambiguous
+            // outcome remains locked by NativeWalletBridge.
+            val retryAfterPreBroadcastSync =
+                receipt == null && NativeWalletBridge.status(handle)?.locked == false
             val snapshot = receipt?.let { synchronizeHnsSnapshotWithRollbackFloor(handle) }
             runOnUiThread {
                 val mayPublish = walletReadMayPublish(
@@ -2751,7 +2758,18 @@ class WalletActivity : ComponentActivity() {
                 refreshControllerState(resetReads = receipt == null || snapshot == null)
                 when {
                     receipt == null -> {
-                        sendStatusView.text = getString(R.string.wallet_send_broadcast_ambiguous)
+                        if (retryAfterPreBroadcastSync) {
+                            Log.i(
+                                TAG,
+                                "HNS send was rejected before authorization or broadcast; refreshing verified history",
+                            )
+                            sendStatusView.text = getString(
+                                R.string.wallet_send_pre_broadcast_syncing,
+                            )
+                            synchronizeWalletReads()
+                        } else {
+                            sendStatusView.text = getString(R.string.wallet_send_broadcast_ambiguous)
+                        }
                     }
                     snapshot == null -> {
                         sendStatusView.text = getString(

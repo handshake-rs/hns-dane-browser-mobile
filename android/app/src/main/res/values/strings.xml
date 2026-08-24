@@ -445,6 +445,7 @@
     <string name="wallet_send_warning_fee_change" translatable="false">The final fee estimate may change but cannot exceed the approved maximum.</string>
     <string name="wallet_send_broadcasting" translatable="false">Broadcasting the exact approved transaction through the wallet-owned peer set…</string>
     <string name="wallet_send_broadcast_ambiguous" translatable="false">No authenticated receipt could be returned. The wallet was locked. Synchronize history before deciding whether to retry; the transaction may already have broadcast.</string>
+    <string name="wallet_send_pre_broadcast_syncing" translatable="false">The transaction was not signed or broadcast. Refreshing verified wallet history before a new review…</string>
     <string name="wallet_send_accepted_sync_failed" translatable="false">Peers accepted transaction %1$s, but required post-broadcast synchronization failed. Reopen, unlock, and synchronize before another send.</string>
     <string name="wallet_send_accepted" translatable="false">Peers accepted transaction %1$s at Unix time %2$d. The wallet snapshot was refreshed.</string>
     <string name="wallet_send_rejecting" translatable="false">Discarding the pending native approval…</string>
