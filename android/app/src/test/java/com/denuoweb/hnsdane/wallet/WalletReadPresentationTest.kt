@@ -1,6 +1,7 @@
 package com.denuoweb.hnsdane.wallet
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class WalletReadPresentationTest {
@@ -14,6 +15,16 @@ class WalletReadPresentationTest {
             "340282366920938463463374607431768.211455",
             formatHnsBaseUnits("340282366920938463463374607431768211455"),
         )
+    }
+
+    @Test
+    fun hnsAmountParserAcceptsLeadingDecimalShorthandExactly() {
+        assertEquals("100000", parsePositiveHnsToBaseUnits(".1"))
+        assertEquals("10000", parsePositiveHnsToBaseUnits(".01"))
+        assertEquals("1", parsePositiveHnsToBaseUnits(".000001"))
+        assertNull(parsePositiveHnsToBaseUnits("."))
+        assertNull(parsePositiveHnsToBaseUnits("-.1"))
+        assertNull(parsePositiveHnsToBaseUnits("00.1"))
     }
 
     @Test

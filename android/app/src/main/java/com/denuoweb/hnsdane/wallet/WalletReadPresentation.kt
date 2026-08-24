@@ -14,7 +14,13 @@ internal fun formatHnsBaseUnits(baseUnits: String): String {
 /** Parses exact user-facing HNS decimal text into canonical integer base units. */
 internal fun parsePositiveHnsToBaseUnits(exact: CharSequence): String? {
     if (exact.isEmpty() || exact.length > MAX_HNS_INPUT_CHARACTERS) return null
-    val text = exact.toString()
+    // A leading fractional separator is conventional wallet input. Normalize
+    // it before the exact grammar and integer conversion so `.1` has the same
+    // unambiguous base-unit meaning as `0.1`, without admitting signs,
+    // whitespace, grouping separators, or a bare decimal point.
+    val text = exact.toString().let { input ->
+        if (input.startsWith('.')) "0$input" else input
+    }
     if (!HNS_DECIMAL_INPUT.matches(text)) return null
     val separator = text.indexOf('.')
     val whole = if (separator < 0) text else text.substring(0, separator)
