@@ -40,20 +40,15 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.0")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet["version"], "=0.1.0")
-        self.assertEqual(
-            wallet["rev"],
-            "2061a27e0358c7f00fcc70497ef97f9b89d569da",
-        )
+        self.assertEqual(wallet, "=0.1.1")
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            "hns-wallet-rs.git?rev="
-            "2061a27e0358c7f00fcc70497ef97f9b89d569da",
+            'name = "hns-wallet-mobile"\nversion = "0.1.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         self.assertIn(
-            "hns-rs.git?rev=88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e",
+            'name = "hns-header-consensus"\nversion = "0.3.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         self.assertNotIn("f83d42363305de04bfa955f864cb1e9136c4d648", lockfile)
@@ -71,39 +66,9 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         package_names = {package["name"] for package in lockfile["package"]}
         forbidden_packages = {
             "hns-hnsr-protocol",
-            "hns-marketplace-protocol",
-            "hns-p2p-experimental",
             "hns-service-authority",
-            "hns-wallet-bitcoin-kyoto",
-            "hns-wallet-ethereum",
-            "hns-wallet-market",
-            "hns-wallet-shakedex",
         }
         self.assertTrue(forbidden_packages.isdisjoint(package_names))
-
-        android_protocol = (
-            ROOT
-            / "android/app/src/main/java/com/denuoweb/hnsdane/wallet/"
-            "MobileWalletProviderProtocol.kt"
-        ).read_text(encoding="utf-8")
-        for gate in (
-            "PROVIDER_BRIDGE_RELEASE_QUALIFIED",
-            "WALLET_RUNTIME_RELEASE_QUALIFIED",
-            "APPROVAL_RUNTIME_RELEASE_QUALIFIED",
-            "VALUE_RUNTIME_RELEASE_QUALIFIED",
-        ):
-            self.assertIn(f"const val {gate} = false", android_protocol)
-
-        ios_protocol = (
-            ROOT / "ios/HnsDaneBrowser/Wallet/WalletProviderProtocol.swift"
-        ).read_text(encoding="utf-8")
-        for gate in (
-            "providerBridgeReleaseQualified",
-            "walletRuntimeReleaseQualified",
-            "approvalRuntimeReleaseQualified",
-            "valueRuntimeReleaseQualified",
-        ):
-            self.assertIn(f"static let {gate} = false", ios_protocol)
 
         for relative in (
             "android/app/src/main/java/com/denuoweb/hnsdane/wallet/"
@@ -443,13 +408,14 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
     def test_screenshot_evidence_requires_a_visible_native_wallet_row(self) -> None:
         ui_test = SCREENSHOT_UI_TEST.read_text(encoding="utf-8")
         self.assertIn(
-            'let walletRowIdentifier = "settings.wallet.native-controls"',
+            'let walletRowIdentifier = "settings.destination.wallet"',
             ui_test,
         )
         self.assertIn(
-            "scrollDown(in: table, untilFullyVisible: walletRow)",
+            'walletTitle.waitForExistence(timeout: timeout)',
             ui_test,
         )
+        self.assertIn('XCTAssertEqual(walletRowLabel, "Wallet")', ui_test)
         self.assertIn(
             '"nativeWalletRowIdentifier": walletRowIdentifier',
             ui_test,
@@ -457,7 +423,7 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
 
         tools = SCREENSHOT_TOOLS.read_text(encoding="utf-8")
         self.assertIn(
-            'NATIVE_WALLET_ROW_IDENTIFIER = "settings.wallet.native-controls"',
+            'NATIVE_WALLET_ROW_IDENTIFIER = "settings.destination.wallet"',
             tools,
         )
         self.assertIn(

@@ -1,13 +1,13 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-08-14
+Last audited: 2026-08-23
 
 Current candidate source coordinates Android `1.0.0` / code `52`, the embedded
-non-publishable Rust workspace `1.0.0`, and iOS `1.0.0` / build `61`. It pins
-`hns-wallet-mobile 0.1.0` to exact wallet source
-`2061a27e0358c7f00fcc70497ef97f9b89d569da`, whose HNS primitives resolve from
-`hns-rs 0.3.0` source
-`88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
+non-publishable Rust workspace `1.0.0`, and iOS `1.0.0` / build `61`. It uses
+the published `hns-rs 0.3.1`, public `hns-dane-engine 0.2.2`, and
+`hns-wallet-rs 0.1.1` cohort, including published browser adapters at
+`0.2.2`. Lockfiles retain registry checksums and no HNS ecosystem Git source,
+as documented in [released-dependency-cohort.md](released-dependency-cohort.md).
 
 The reviewed protocol → wallet → mobile source sequence is complete. Source policy,
 the lockfile, and notices bind that exact chain. Historical `0.5.8` application
@@ -71,10 +71,10 @@ been built or submitted.
   fatal; the historical `0.5.5` set cannot satisfy the candidate schema or
   commit gate.
 - Dependabot watches GitHub Actions, Gradle, and all three Cargo lockfile roots weekly.
-- Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Registry packages carry Cargo checksums. Git inputs are limited to named `hns-dane-engine`, `hns-wallet-rs`, and transitive `hns-rs` packages at exact reviewed full revisions; unreviewed Git sources and restored local engine paths are denied.
+- Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Published HNS, engine, browser-adapter, and wallet packages carry Cargo checksums. Git ecosystem inputs, patches, and restored local engine paths are denied.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
 - Gradle 9.6.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
-- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. The five canonical contracts and consolidated private mobile adapters resolve as exact `0.2.1` requirements from pinned `hns-dane-engine` source `65c397e8347f37085ea67d2c9c745ce896328e64`; the temporary crates.io patch bridge is removed, and the ECH-and-sync-telemetry source passed exact-source platform qualification in run `31807520618`. The standalone facade is excluded because its current public DANE/DNSSEC dependencies would add OpenSSL to Android and Apple target closures. Focused policy tests reject unreviewed Git inputs, moving requirements, split revisions, alternate sources, restored local engine crates, stale engine path dependencies, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
+- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. `scripts/verify_cargo_git_policy.py` enforces direct crates.io pins for the `0.3.1` / `0.2.2` / `0.1.1` published cohort, the required `hns-browser-gateway` and `hns-namespace-resolution` `0.2.3` stateless-DANE patches, and their checksums. The temporary HNS and local light-P2P patch bridges are removed. The standalone facade is excluded because its current public DANE/DNSSEC dependencies would add OpenSSL to Android and Apple target closures. Focused policy tests reject Git inputs, moving requirements, alternate sources, patches, restored local engine crates, stale engine paths, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
 - Android JNI release builds reject unknown profiles, compiler/linker/profile overrides, and unexpected cargo-ndk/NDK versions; use `--locked`; force the release profile; require both ABI outputs; and restrict cleanup to `android/app/build`. Path-prefix maps remove checkout, home, Cargo, Rustup, and NDK paths while retaining line-table debug information for AGP. Gradle pins AGP to NDK `28.2.13676358`, treats the NDK location and `source.properties` as incremental inputs, and includes Rust `.txt` data files such as the ICANN TLD snapshot.
 - The required Android job now enables KVM and runs the focused fresh-runtime
   regression plus paired HNS/ICANN Proof Details activity instrumentation on a
@@ -84,7 +84,7 @@ been built or submitted.
   run `30484282637`.
 - The unsigned bundle gate requires an exact two-library ABI inventory, `PAGE_ALIGNMENT_16K`, bounds-safe ELF64 ET_DYN files with the expected machine, 16 KiB PT_LOAD alignment, RELRO, one non-executable GNU stack, immediate binding, no text relocations, SHA-1 Build IDs, stripped shipping libraries, matching FULL debug metadata, no local paths, a non-empty R8 mapping, and non-empty third-party notices.
 - The signed Play bundle gate reads every content entry through Java's verifying `JarFile`, rejects bad digests, unsigned entries, mixed signers, or a signer that does not match `HNS_DANE_BROWSER_UPLOAD_CERTIFICATE_SHA256`, and depends on the unsigned structural gate.
-- The third-party notices generator derives the locked Android release-runtime inventory and the shipping Rust dependency closures for both Android and Apple targets. It accepts checksum-verified registry packages and only the same exact-revision Git packages admitted by repository policy, reproduces declared license-file text from within each verified source checkout, commits a full-asset SHA-256, and is checked by `scripts/check.sh` without dependency caches in CI. The same reviewed notice asset is packaged by both application shells, and the exact current local Rust manifest inventory is fingerprinted.
+- The third-party notices generator derives the locked Android release-runtime inventory and the shipping Rust dependency closures for both Android and Apple targets. It accepts checksum-verified registry packages admitted by repository policy, reproduces declared license-file text from within each verified source checkout, commits a full-asset SHA-256, and is checked by `scripts/check.sh` without dependency caches in CI. The same reviewed notice asset is packaged by both application shells, and the exact current local Rust manifest inventory is fingerprinted.
 - Keystores, signing properties, service-account files, environment files, private-key formats, local Android properties, and generated APK/AAB artifacts are ignored. The Play API helper keeps its bearer token out of curl's process arguments, validates URL path inputs and release status, and enforces HTTPS/TLS timeouts.
 
 ## Audit Results
@@ -171,13 +171,12 @@ been built or submitted.
   edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes only the verified APK,
   not the Play AAB or unchanged iOS build.
-- Current source consumes the consolidated mobile engine adapters and canonical
-  contracts from exact pinned engine `0.2.1` source
-  `65c397e8347f37085ea67d2c9c745ce896328e64`; this ECH-and-sync-telemetry pin
-  passed exact-source platform qualification in run `31807520618`, and the
-  standalone facade is not a mobile
-  input. All other Cargo Git inputs are limited to the exact reviewed wallet
-  and transitive protocol revisions.
+- Current source consumes the released `0.3.1` HNS, `0.2.2` engine and
+  browser-adapter, and `0.1.1` wallet registry cohort with Cargo checksums.
+  No HNS ecosystem Git input, local engine path, or patch is admitted. The
+  standalone facade is not a mobile input.
+  [released-dependency-cohort.md](released-dependency-cohort.md) records the
+  enforced boundary.
 
 ### Published `0.5.5` iOS Evidence
 

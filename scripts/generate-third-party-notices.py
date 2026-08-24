@@ -2,8 +2,7 @@
 """Generate the reviewed in-app third-party notices asset from locked inputs.
 
 Generation is deliberately offline. Rust package metadata and license files come
-from Cargo's checksum-verified registry cache or exact-revision reviewed Git
-checkouts; Android license metadata and artifacts come from Gradle's
+from Cargo's checksum-verified registry cache; Android license metadata and artifacts come from Gradle's
 dependency-verification cache. The lightweight ``--check`` mode verifies the
 complete asset digest, committed input fingerprints, and locked Android runtime
 inventory, so it is suitable for a clean CI checkout.
@@ -12,7 +11,6 @@ inventory, so it is suitable for a clean CI checkout.
 from __future__ import annotations
 
 import argparse
-from functools import lru_cache
 import hashlib
 import json
 import os
@@ -23,11 +21,7 @@ import sys
 import xml.etree.ElementTree as ElementTree
 import zipfile
 
-from verify_cargo_git_policy import (
-    CRATES_IO_SOURCE,
-    approved_git_revision,
-    is_approved_git_source,
-)
+from verify_cargo_git_policy import CRATES_IO_SOURCE
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,6 +30,7 @@ OUTPUT_SHA256 = ROOT / "scripts/third-party-notices.sha256"
 SCHEMA = "3"
 LOCKED_INPUT_PATHS = (
     "scripts/generate-third-party-notices.py",
+    "scripts/mit-0-license.txt",
     "scripts/verify_cargo_git_policy.py",
     "android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf",
     "android/app/src/main/assets/fonts/OFL-Orbitron.txt",
@@ -74,6 +69,14 @@ RUST_LICENSE_FILE_FALLBACKS = {
 DECLARED_LICENSE_FILE_FALLBACKS = {
     "CC0-1.0": ("bip39", "2.2.2"),
     "MIT OR Apache-2.0": ("quinn", "0.11.11"),
+}
+
+# hex_lit 0.1.1 declares MITNFA but its registry archive and declared upstream
+# repository contain no license file.  SPDX records MIT No Attribution (MIT-0)
+# as the canonical text; retain that small canonical asset in-tree so notice
+# generation remains offline and the checked asset records its exact input.
+STATIC_LICENSE_TEXT_FALLBACKS = {
+    "MITNFA": ("scripts/mit-0-license.txt", "canonical SPDX MIT-0 text"),
 }
 
 
@@ -388,29 +391,13 @@ def apache_license_text(coordinates: list[str]) -> str:
     return sorted(candidates, key=lambda value: (len(value), value))[0]
 
 
-def git_path_is_tracked(checkout_root: Path, candidate: Path) -> bool:
-    relative = candidate.relative_to(checkout_root).as_posix()
-    result = subprocess.run(
-        ["git", "ls-files", "--error-unmatch", "--", relative],
-        cwd=checkout_root,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    return result.returncode == 0
-
-
-def package_license_files(
-    package: dict, source_root: Path, *, require_git_tracked: bool = False
-) -> list[tuple[str, str]]:
+def package_license_files(package: dict, source_root: Path) -> list[tuple[str, str]]:
     package_dir = Path(package["manifest_path"]).resolve().parent
     files: dict[Path, str] = {}
     for candidate in sorted(package_dir.rglob("*")):
         if candidate.is_symlink() or not candidate.is_file():
             continue
         if candidate.name.upper().startswith(LICENSE_FILE_PREFIXES):
-            if require_git_tracked and not git_path_is_tracked(source_root, candidate):
-                continue
             files[candidate] = candidate.relative_to(package_dir).as_posix()
     license_file = package.get("license_file")
     if license_file:
@@ -426,10 +413,6 @@ def package_license_files(
             ) from error
         if not candidate.is_file():
             raise RuntimeError(f"Declared license file is missing: {candidate}")
-        if require_git_tracked and not git_path_is_tracked(source_root, candidate):
-            raise RuntimeError(
-                f"Declared license file is not tracked by the reviewed Git source: {candidate}"
-            )
         files.setdefault(candidate, source_relative.as_posix())
 
     result: list[tuple[str, str]] = []
@@ -446,55 +429,13 @@ def package_license_files(
     return result
 
 
-@lru_cache(maxsize=None)
-def verified_git_checkout_root(package_dir: Path, revision: str) -> Path:
-    for candidate in (package_dir, *package_dir.parents):
-        if (candidate / ".git").exists() and (candidate / "Cargo.toml").is_file():
-            checkout_root = candidate.resolve()
-            break
-    else:
-        raise RuntimeError(f"Unable to identify Cargo's Git checkout for {package_dir}.")
-    try:
-        head = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=checkout_root,
-            text=True,
-        ).strip()
-        subprocess.run(
-            ["git", "diff", "--quiet", "HEAD", "--"],
-            cwd=checkout_root,
-            check=True,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError) as error:
-        raise RuntimeError(
-            f"Unable to verify the reviewed Cargo Git checkout at {checkout_root}."
-        ) from error
-    if head != revision:
-        raise RuntimeError(
-            f"Cargo Git checkout {checkout_root} is at {head}, expected {revision}."
-        )
-    return checkout_root
-
-
 def rust_package_license_files(package: dict) -> list[tuple[str, str]]:
     source = package.get("source")
     package_dir = Path(package["manifest_path"]).resolve().parent
     if source == CRATES_IO_SOURCE:
         return package_license_files(package, package_dir)
-    if isinstance(source, str) and is_approved_git_source(
-        package["name"], package["version"], source
-    ):
-        revision = approved_git_revision(package["name"])
-        if revision is None:
-            raise RuntimeError(
-                f"Missing reviewed revision for {package['name']} {package['version']}."
-            )
-        checkout_root = verified_git_checkout_root(package_dir, revision)
-        return package_license_files(
-            package, checkout_root, require_git_tracked=True
-        )
     raise RuntimeError(
-        f"Unreviewed Cargo source for {package['name']} "
+        f"Non-registry Cargo source for {package['name']} "
         f"{package['version']}: {source}"
     )
 
@@ -601,11 +542,19 @@ def generate() -> str:
             else None
         )
         if not fallback_files:
-            raise RuntimeError(
-                f"No reviewed canonical license files exist for "
-                f"{package['name']} {package['version']} "
-                f"({package.get('license')!r})."
-            )
+            static_fallback = STATIC_LICENSE_TEXT_FALLBACKS.get(package.get("license"))
+            if static_fallback is None:
+                raise RuntimeError(
+                    f"No reviewed canonical license files exist for "
+                    f"{package['name']} {package['version']} "
+                    f"({package.get('license')!r})."
+                )
+            relative, source_name = static_fallback
+            content = (ROOT / relative).read_text(encoding="utf-8").strip()
+            if not content:
+                raise RuntimeError(f"Canonical license asset is empty: {relative}")
+            package_license_files_by_id[package_id] = [(source_name, content)]
+            continue
         package_license_files_by_id[package_id] = [
             (
                 f"canonical {package['license']} text from "
@@ -655,8 +604,8 @@ def generate() -> str:
         ),
         "",
         "License expressions and declared license files come from verified package metadata. The",
-        "reproduced texts come from checksum-verified Cargo registry packages, exact-revision",
-        "reviewed Cargo Git checkouts, or dependency-verified Android artifacts. Inclusion here",
+        "reproduced texts come from checksum-verified Cargo registry packages, a recorded",
+        "canonical SPDX license text, or dependency-verified Android artifacts. Inclusion here",
         "does not imply endorsement by the component authors.",
         "",
         f"Generator schema: {SCHEMA}",

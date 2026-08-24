@@ -42,11 +42,13 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 reconciliation before submission.
 
 Current source is the `1.0.0` release candidate: Android code `52`, embedded
-non-publishable Rust workspace `1.0.0`, and iOS build `61`. It pins exact reviewed
-`hns-wallet-rs 0.1.0` source
-`2061a27e0358c7f00fcc70497ef97f9b89d569da`, whose protocol closure uses
-`hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`. Both native
-shells expose local create, restore, open, status, unlock, lock, and one-account
+non-publishable Rust workspace `1.0.0`, and iOS build `61`. It directly pins
+published `hns-rs 0.3.1`, `hns-dane-engine 0.2.2`, and
+`hns-wallet-rs 0.1.1` crates with lockfile checksums. The browser adapters are
+also exact published `0.2.2` packages; the source tags, registry checks, and
+removal of the obsolete local light-P2P patch are recorded in
+[the released dependency cohort](docs/released-dependency-cohort.md).
+Both native shells expose local create, restore, open, status, unlock, lock, and one-account
 identity controls plus strict, bounded HNWR-v2 emission and native UI for
 synchronized HNS balance, distinct ordinary-payment and name-transfer receive
 targets, transaction history, tracked names, and module status. The decoders
@@ -154,7 +156,8 @@ release qualification, and broader device-qualification work are tracked in
   wallet lifecycle/read-only projection screen.
 - `fixtures/`: bounded cross-language experimental DNS-relay framing and
   request-correlation fixtures.
-- `docs/`: Architecture, security model, version audit, and milestone notes.
+- `docs/`: Architecture, security model, version audit, milestones, and the
+  [released Rust dependency cohort](docs/released-dependency-cohort.md).
 - `docs/sync-audit.md`: first-run sync path, progress UI, and remaining sync-speed bottlenecks.
 - `docs/supply-chain-audit.md`: pinned build inputs, CI/release gates, and residual reproducibility risks.
 - `docs/wallet-provider-mobile.md`: separation between the native
@@ -237,10 +240,11 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
   connectedDebugAndroidTest
 ```
 
-Cargo and platform builds fetch the mobile browser adapters and five canonical
-contracts at `0.2.1` only from pinned source
-`65c397e8347f37085ea67d2c9c745ce896328e64`. This ECH-and-sync-telemetry
-revision passed exact-source platform qualification in full CI `31807520618`.
+Cargo and platform builds consume direct HNS, engine, browser-adapter, and
+wallet crates from the released `0.3.1` / `0.2.2` / `0.1.1` registry cohort
+with committed checksums. There is no Git ecosystem input; see the
+[released dependency cohort](docs/released-dependency-cohort.md) for the
+version and release provenance.
 The umbrella
 `hns-dane-engine` facade is intentionally not in the mobile dependency graph:
 that source currently brings its public OpenSSL-backed DANE/DNSSEC stack into

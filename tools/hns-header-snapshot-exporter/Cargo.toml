@@ -7,7 +7,7 @@ license = "PolyForm-Noncommercial-1.0.0"
 [workspace]
 
 [dependencies]
-hns-chain = { package = "hns-browser-chain", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
-hns-core = { package = "hns-browser-primitives", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
-hns-p2p = { package = "hns-browser-p2p", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
-hns-sync = { package = "hns-browser-sync", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
+hns-chain = { package = "hns-browser-chain", version = "=0.2.2" }
+hns-core = { package = "hns-browser-primitives", version = "=0.2.2" }
+hns-p2p = { package = "hns-browser-p2p", version = "=0.2.2" }
+hns-sync = { package = "hns-browser-sync", version = "=0.2.2" }

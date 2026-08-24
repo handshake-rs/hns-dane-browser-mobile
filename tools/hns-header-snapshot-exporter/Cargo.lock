@@ -156,8 +156,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hns-browser-chain"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c62e1a39a0cb1c306c11ac05affd88adac9424cfe795f6f84d169719859d19b7"
 dependencies = [
  "hns-browser-primitives",
  "rusqlite",
@@ -166,8 +167,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-p2p"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bc9ebdacfe1e3b440efc242ea8ba11d1d92e59ccc9f8c938cab10a052760688"
 dependencies = [
  "getrandom",
  "hns-browser-primitives",
@@ -178,8 +180,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-primitives"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38ab8bf42f3e4de99f007c8bd53c5d39519dad68cebe95791a0654a226fd8d47"
 dependencies = [
  "blake2",
  "hex",
@@ -192,8 +195,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-sync"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3da6c592fe537ef692da0cc03e9d4118fdab097aac19a88f33adf5184ed2428"
 dependencies = [
  "hns-browser-chain",
  "hns-browser-p2p",
@@ -204,8 +208,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-urkel"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=65c397e8347f37085ea67d2c9c745ce896328e64#65c397e8347f37085ea67d2c9c745ce896328e64"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0a9fdf6d94b31f5cf9defe3c958f72c923d4151672e755a93034f1c108ca61c"
 dependencies = [
  "hns-browser-primitives",
  "thiserror",

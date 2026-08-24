@@ -46,9 +46,8 @@ def live_provenance() -> dict:
         },
         "schemaVersion": LIVE_PROVENANCE_SCHEMA_VERSION,
         "settings": {
-            "nativeWalletRowIdentifier": "settings.wallet.native-controls",
-            "nativeWalletRowLabel":
-                "Handshake wallet, Manage one device-local Handshake wallet.",
+            "nativeWalletRowIdentifier": "settings.destination.wallet",
+            "nativeWalletRowLabel": "Wallet",
             "sourceRequestedURL": "https://denuoweb/",
             "statelessDANERowIdentifier":
                 "settings.hns-resolution.stateless-dane-certificates",
@@ -329,7 +328,7 @@ class ScreenshotManifestTests(unittest.TestCase):
 
         provenance = live_provenance()
         provenance["settings"]["nativeWalletRowLabel"] = "Wallet unavailable"
-        with self.assertRaisesRegex(ScreenshotToolError, "visible Handshake wallet row"):
+        with self.assertRaisesRegex(ScreenshotToolError, "visible Wallet row"):
             validate_live_provenance(provenance)
 
         provenance = live_provenance()

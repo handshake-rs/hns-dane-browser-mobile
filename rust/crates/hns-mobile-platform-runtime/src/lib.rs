@@ -19706,7 +19706,7 @@ mod tests {
                     hns_doh_resolver: None,
                     experimental_p2p_dns_relay: false,
                     legacy_hns_doh_compatibility: true,
-                    stateless_dane_certificates: false,
+                    stateless_dane_certificates: true,
                 },
                 |_| Ok(()),
             )
@@ -27407,6 +27407,7 @@ mod tests {
     fn rejected_raw_gateway_policy_operations_fail_closed() {
         let (data_dir, runtime) =
             runtime_with_cached_loopback_name("runtime-raw-gateway-fail-closed");
+        let policy_before_rejection = runtime.policy().unwrap();
         let rejected_policy = RuntimePolicy {
             hns_doh_resolver: Some("http://resolver.example.net/dns-query".to_owned()),
             ..RuntimePolicy::compatibility()
@@ -27439,7 +27440,7 @@ mod tests {
             0
         );
         assert!(pooled_gateway_resolver_stacks(&runtime).is_empty());
-        assert_eq!(runtime.policy().unwrap(), RuntimePolicy::compatibility());
+        assert_eq!(runtime.policy().unwrap(), policy_before_rejection);
         cleanup_dir(&data_dir);
     }
 

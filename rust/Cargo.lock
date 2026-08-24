@@ -880,9 +880,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.15"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cb093c84e8bd9b188d4c4a8cb6579fc016968d14c99882163cd3ff402a4f155"
+checksum = "a9f37a958b41b3b19ee2707c06439c0e9e547e847223eb791ecb0cb821c65e27"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -1018,8 +1018,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-chain"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c62e1a39a0cb1c306c11ac05affd88adac9424cfe795f6f84d169719859d19b7"
 dependencies = [
  "hns-browser-primitives",
  "rusqlite",
@@ -1028,8 +1029,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-dane"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62ad07b8758f1c7f0442c303179dd3e095bd58178a0fbf68f6db246e11f0c6ec"
 dependencies = [
  "hns-browser-dnssec",
  "hns-browser-primitives",
@@ -1040,8 +1042,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-dnssec"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "147ec51710989e72dd7eda41d1459803fc3dfe84718a5b14026acb19f0e57221"
 dependencies = [
  "hns-browser-primitives",
  "num-bigint",
@@ -1055,8 +1058,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-gateway"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "daab85f1edf6570408d7dcf7a858b1dc344038affe9a0c9eb16c2cd85b28c23e"
 dependencies = [
  "hns-browser-dane",
  "hns-browser-primitives",
@@ -1070,8 +1074,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-loopback-proxy"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81357f0f018c5b692d2db16e01a6b5175d2dd7ce399aa5a7b99532b76af8a208"
 dependencies = [
  "base64 0.22.1",
  "hns-browser-dane",
@@ -1090,8 +1095,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-observability"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c592c2be3d9b6ee1bb27eecfdeb93971182df1cc00dc9c9e296f4742c8da4665"
 dependencies = [
  "hns-browser-runtime",
  "hns-icann-dane",
@@ -1102,8 +1108,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-p2p"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bc9ebdacfe1e3b440efc242ea8ba11d1d92e59ccc9f8c938cab10a052760688"
 dependencies = [
  "getrandom 0.3.4",
  "hns-browser-primitives",
@@ -1114,8 +1121,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-primitives"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38ab8bf42f3e4de99f007c8bd53c5d39519dad68cebe95791a0654a226fd8d47"
 dependencies = [
  "blake2",
  "hex",
@@ -1128,8 +1136,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-resolver"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a9ce47ecee7f6dc2a468de72693dd3aa52f80d0866d1eca35a0604d3aaaf5fb"
 dependencies = [
  "hns-browser-dane",
  "hns-browser-dnssec",
@@ -1142,13 +1151,15 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-runtime"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbdc7aecafbfdb12e6314d06016f5e6a8a3fb799da880da0e8b746156e55895a"
 
 [[package]]
 name = "hns-browser-sync"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3da6c592fe537ef692da0cc03e9d4118fdab097aac19a88f33adf5184ed2428"
 dependencies = [
  "hns-browser-chain",
  "hns-browser-p2p",
@@ -1159,8 +1170,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-transport"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "229e21bdfbb6463c15c291faecf099db19e716ec956a2d36ada2a388cca4223b"
 dependencies = [
  "bytes",
  "h2",
@@ -1180,8 +1192,9 @@ dependencies = [
 
 [[package]]
 name = "hns-browser-urkel"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0a9fdf6d94b31f5cf9defe3c958f72c923d4151672e755a93034f1c108ca61c"
 dependencies = [
  "hns-browser-primitives",
  "thiserror 2.0.19",
@@ -1189,8 +1202,9 @@ dependencies = [
 
 [[package]]
 name = "hns-cache"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5b0ea892e4894f5312839d66370cac8e8e602aedea3fdad21cf669c6f1e7e33"
 dependencies = [
  "hns-dns-wire",
  "sha2",
@@ -1199,8 +1213,9 @@ dependencies = [
 
 [[package]]
 name = "hns-covenants"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a423d169b430185d42ec32ece6a9f06a2ce5ae68d7656266d30a21e0dd45a8a"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -1211,21 +1226,24 @@ dependencies = [
 
 [[package]]
 name = "hns-dns-wire"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfaf23f3344407a3be6db09fe9a70e172c65287a7675934526a4f3b1ab397e59"
 
 [[package]]
 name = "hns-encoding"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e26a7824c63926c951c767e160dada9dbb8ebc8239788a2be912d0e46c80ebe"
 dependencies = [
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "hns-header-consensus"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73641b99a32955205be2cfaacc7f2160b09e41543e8c8b7f4475103b5a2642ff"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -1236,13 +1254,15 @@ dependencies = [
 
 [[package]]
 name = "hns-icann-dane"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b2f04230b8a103f2ca77a26a26164b6c212d8edd429541adaf0481dcfb38473"
 
 [[package]]
 name = "hns-light-chain"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4a6dc2c8402f3593483d2e554347a3694b811f5e#4a6dc2c8402f3593483d2e554347a3694b811f5e"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dbbca83648e2f60d7dd6dd146c9692d8888006f99647595db947daa6992f3ee"
 dependencies = [
  "blake2",
  "hns-covenants",
@@ -1255,7 +1275,9 @@ dependencies = [
 
 [[package]]
 name = "hns-light-p2p"
-version = "0.2.1"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dda76cca1ca788d63d9a8f1be2bc3a2576398b05fed378392328d7d4dd5f2622"
 dependencies = [
  "hns-header-consensus",
  "hns-p2p-wire",
@@ -1266,8 +1288,9 @@ dependencies = [
 
 [[package]]
 name = "hns-light-sync"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4a6dc2c8402f3593483d2e554347a3694b811f5e#4a6dc2c8402f3593483d2e554347a3694b811f5e"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d9615872a08c73f2cdb500a35b1f6cdaa8cf695d77e0c8ef01bbe76c81f466b"
 dependencies = [
  "hns-header-consensus",
  "hns-light-chain",
@@ -1278,8 +1301,9 @@ dependencies = [
 
 [[package]]
 name = "hns-light-wallet"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=4a6dc2c8402f3593483d2e554347a3694b811f5e#4a6dc2c8402f3593483d2e554347a3694b811f5e"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "527027d1ae468a71cd8d4a10fbb285191226f807d976531d252e0ec320e0c2c4"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -1293,8 +1317,9 @@ dependencies = [
 
 [[package]]
 name = "hns-marketplace-protocol"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b546ce71fb9fe5136ccf96eb54c70a46c87bf1576a7c1d36e46ee844754dbe5"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -1309,8 +1334,9 @@ dependencies = [
 
 [[package]]
 name = "hns-mining"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d7d8902df977b7b0c885e78bc510fe4603104389a40f384bda2babf92990e2f"
 dependencies = [
  "blake2",
  "hns-covenants",
@@ -1351,13 +1377,15 @@ dependencies = [
 
 [[package]]
 name = "hns-namespace-resolution"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cb311521721c2ef69bca2585a43b31964ccabb87fb28b2e9d9898e4184ef526"
 
 [[package]]
 name = "hns-p2p-experimental"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e41ae74ab0179b1840ef35f7184db2695ae95e21ae5756f4203917eab0191e"
 dependencies = [
  "hex",
  "hns-encoding",
@@ -1370,8 +1398,9 @@ dependencies = [
 
 [[package]]
 name = "hns-p2p-wire"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0084790190701ba2385ec2073437b45b63f78ab28f3af909ab5d21844d48404c"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -1385,8 +1414,9 @@ dependencies = [
 
 [[package]]
 name = "hns-primitives"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d3e25cbb7384ea527bcdde75f9fdc37e72f84967c06900c8deda156caec7e58"
 dependencies = [
  "hex",
  "thiserror 2.0.19",
@@ -1394,13 +1424,15 @@ dependencies = [
 
 [[package]]
 name = "hns-resolution-policy"
-version = "0.2.1"
-source = "git+https://github.com/handshake-rs/hns-dane-engine.git?rev=37c9b509e6c9e001cfa738ac21f4d2ae403a703f#37c9b509e6c9e001cfa738ac21f4d2ae403a703f"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fbec3e00dec6e8bd9407cc3022d08f28e025209f47ef926cfab15167b8ca392"
 
 [[package]]
 name = "hns-script"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b4d09362215c66509f36cfb5fd54797092f2cb939e43fb0040660d544900836"
 dependencies = [
  "blake2",
  "hns-encoding",
@@ -1416,8 +1448,9 @@ dependencies = [
 
 [[package]]
 name = "hns-swap"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44c030325fc0154fe4ee7696af0334fdae4bdba982f019deef5e8cab0fece6c3"
 dependencies = [
  "blake2",
  "hns-covenants",
@@ -1433,8 +1466,9 @@ dependencies = [
 
 [[package]]
 name = "hns-transaction"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adc5fd7e6f7cbcf782f7566411db78b5db2fb2af4840234df8c675dc434098b4"
 dependencies = [
  "blake2",
  "hns-covenants",
@@ -1445,8 +1479,9 @@ dependencies = [
 
 [[package]]
 name = "hns-urkel-proof"
-version = "0.3.0"
-source = "git+https://github.com/handshake-rs/hns-rs.git?rev=42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8#42b0efe14e2a54d4a4a8e0c8633e021c2531a3e8"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e240b52c4f22775a3a00812ed96fe063766b40e09e49a1d48ca69da44737c944"
 dependencies = [
  "blake2",
  "hns-primitives",
@@ -1455,8 +1490,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-bitcoin-kyoto"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fc7531795b46c881dc8bf299e1a0b802c71f0ab24acf6dbe863b693dee21d24"
 dependencies = [
  "bdk_kyoto",
  "bdk_wallet",
@@ -1477,8 +1513,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-chain-api"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15e80319ad5d8b7ba91beb8a19bfb17c56ac95246b50acb90dc43966df8f6311"
 dependencies = [
  "hns-wallet-types",
  "serde",
@@ -1488,8 +1525,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-ffi"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a91d9f777528f97ff3f100431e3c8456b8d6d195f2eaeb74cf6aa482d81045f"
 dependencies = [
  "hns-covenants",
  "hns-wallet-types",
@@ -1501,8 +1539,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-hns"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c651e8d542e05e1969ac848f296a8b2198a82c77edd6bf795c9f1e0715d87282"
 dependencies = [
  "bech32",
  "bip39",
@@ -1538,8 +1577,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-host"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "222e92da8141c9409ab63000f395c0907a616edaf8e186420fe8e4e866de277c"
 dependencies = [
  "getrandom 0.3.4",
  "hns-wallet-ffi",
@@ -1550,8 +1590,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-market"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7de8c238d7d9f48f40dc2d3404d654edebf51e3d3f165b2dbcd806d4eaf40cbe"
 dependencies = [
  "hex",
  "hkdf",
@@ -1571,8 +1612,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-mobile"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79d6f8bde029422b227df38d36d5845e97d4086702a296b4e3c72e99cfc788ed"
 dependencies = [
  "bdk_wallet",
  "getrandom 0.3.4",
@@ -1599,8 +1641,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-provider"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea747e1e549bf587ab1c6d3f4a843cfbb8040b9c742169f0d0f60b6a3a2bde71"
 dependencies = [
  "hns-wallet-store",
  "hns-wallet-types",
@@ -1613,8 +1656,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-service"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a61415da1cfc2116c3d4578403f7fc8b8964b44a072398a66a9dcaf6f3654511"
 dependencies = [
  "getrandom 0.3.4",
  "hns-marketplace-protocol",
@@ -1634,8 +1678,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-shakedex"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26705b7007102a711bed461c0ac2d1562d691791d96aa8a2a8203d9aee1d90f0"
 dependencies = [
  "hex",
  "hns-covenants",
@@ -1656,8 +1701,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-store"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5f9e2b968013092ea2e0787e5c228f86bac39d3f6cda391f112909f12773b3f"
 dependencies = [
  "argon2",
  "chacha20poly1305",
@@ -1675,8 +1721,9 @@ dependencies = [
 
 [[package]]
 name = "hns-wallet-types"
-version = "0.1.0"
-source = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=3c7e201d84dddb1bdd8df8e096358b4420889d59#3c7e201d84dddb1bdd8df8e096358b4420889d59"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "763085ce7678126cab582ab0a614523385afdf92fa5957c70ca87bbfefd6787b"
 dependencies = [
  "hex",
  "serde",
@@ -2204,7 +2251,7 @@ dependencies = [
  "bytes",
  "getrandom 0.3.4",
  "lru-slab",
- "rand 0.9.4",
+ "rand 0.9.5",
  "ring",
  "rustc-hash",
  "rustls",
@@ -2264,9 +2311,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c5af06bb1b7d3216d91932aed5265164bf384dc89cd6ba05cf59a35f5f76ea"
+checksum = "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.5",
@@ -2768,9 +2815,9 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e61e67053d25a4e82c844e8424039d9745781b3fc4f32b8d55ed50f5f667ef3"
+checksum = "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f"
 dependencies = [
  "tinyvec_macros",
 ]
@@ -3053,7 +3100,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3367,13 +3414,13 @@ dependencies = [
 
 [[package]]
 name = "zerovec-derive"
-version = "0.11.3"
+version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "625dc425cab0dca6dc3c3319506e6593dcb08a9f387ea3b284dbd52a92c40555"
+checksum = "34df6fc39dbd26ddc9c10e6a2984476e13acce22e64e4487636ef494369225da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.118",
+ "syn 3.0.3",
 ]
 
 [[package]]

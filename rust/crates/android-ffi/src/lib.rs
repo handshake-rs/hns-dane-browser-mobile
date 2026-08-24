@@ -301,14 +301,14 @@ fn try_lock_if_active<'a, T>(
 enum AndroidWalletController {
     Lifecycle(MobileWalletController),
     Reads(MobileHnsReadController<HnsNodeRpcBackend>),
-    Value(MobileHnsValueController<HnsNodeRpcBackend>),
+    Value(Box<MobileHnsValueController<HnsNodeRpcBackend>>),
     /// The installed wallet's self-contained HNS path. Header agreement,
     /// filtered-block discovery, fee observations, and transaction broadcast
     /// all use ordinary HNS peers through the same encrypted wallet store.
     DirectValue {
         coordinator: HnsDirectPeerCoordinator,
-        controller: MobileHnsValueController<EmbeddedHnsBackend>,
-        bitcoin: MobileBitcoinValueController,
+        controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
+        bitcoin: Box<MobileBitcoinValueController>,
         denuo_sessions: MobileDenuoSessionController,
         denuo_listener: Option<HnsDirectDenuoListener>,
         denuo_peer: Option<HnsDirectDenuoPeer>,
@@ -342,7 +342,7 @@ struct AndroidHnsLiveSyncProgress {
 
 #[derive(Debug)]
 enum AndroidHnsSynchronization {
-    Ready(hns_wallet_mobile::MobileHnsReadSnapshot),
+    Ready(Box<hns_wallet_mobile::MobileHnsReadSnapshot>),
     CatchingUp(AndroidHnsCatchupProgress),
 }
 
@@ -521,7 +521,7 @@ impl AndroidWalletController {
             shakedex_policy_json,
         ) {
             Ok(controller) => {
-                *self = Self::Value(controller);
+                *self = Self::Value(Box::new(controller));
                 true
             }
             Err(error) => {
@@ -635,8 +635,8 @@ impl AndroidWalletController {
                 };
                 *self = Self::DirectValue {
                     coordinator,
-                    controller,
-                    bitcoin,
+                    controller: Box::new(controller),
+                    bitcoin: Box::new(bitcoin),
                     denuo_sessions,
                     denuo_listener: None,
                     denuo_peer: None,
@@ -1052,10 +1052,10 @@ impl AndroidWalletController {
         let synchronization = match self {
             Self::Reads(controller) => controller
                 .synchronize()
-                .map(AndroidHnsSynchronization::Ready),
+                .map(|snapshot| AndroidHnsSynchronization::Ready(Box::new(snapshot))),
             Self::Value(controller) => controller
                 .synchronize()
-                .map(AndroidHnsSynchronization::Ready),
+                .map(|snapshot| AndroidHnsSynchronization::Ready(Box::new(snapshot))),
             Self::DirectValue {
                 coordinator,
                 controller,
@@ -1252,7 +1252,7 @@ impl AndroidWalletController {
                     Err(error) => return Err(error),
                 };
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_complete");
-                Ok(AndroidHnsSynchronization::Ready(snapshot))
+                Ok(AndroidHnsSynchronization::Ready(Box::new(snapshot)))
             })(),
             Self::Lifecycle(_) | Self::Failed => return None,
         };
@@ -2599,7 +2599,7 @@ fn wallet_direct_denuo_connect_bundle(result: AndroidDirectDenuoConnectResult) -
         result.outcome,
         AndroidDirectDenuoConnectOutcome::Connected | AndroidDirectDenuoConnectOutcome::Replaced
     );
-    if (success != !peer_endpoint.is_empty())
+    if success == peer_endpoint.is_empty()
         || peer_endpoint.len() > MAX_ANDROID_DENUO_ENDPOINT_BYTES
         || !peer_endpoint
             .bytes()
@@ -4543,12 +4543,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let result = if let Some(endpoint) = android_wallet_denuo_endpoint(&mut env, &endpoint) {
-            let Some(record) = wallet_from_handle(handle) else {
-                return None;
-            };
-            let Some(mut controller) = record.controller_if_active() else {
-                return None;
-            };
+            let record = wallet_from_handle(handle)?;
+            let mut controller = record.controller_if_active()?;
             controller.connect_direct_denuo_peer(endpoint)
         } else {
             AndroidDirectDenuoConnectResult {

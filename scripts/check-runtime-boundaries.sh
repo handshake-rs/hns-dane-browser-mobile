@@ -188,14 +188,17 @@ require_source_contains "$android_host_policy" \
   'if (isAndroidWebViewAssetHost(host))' \
   "Synthetic Android asset fallbacks must be blocked before DNS routing."
 require_source_contains "$android_wallet_activity" \
-  'private val walletReadBootstrapSource: WalletReadBootstrapSource =' \
-  "Android wallet-read bootstrap must use an immutable production source."
+  'NativeWalletBridge.configureWalletOwnedDirectHnsValue(' \
+  "Android mainnet wallet reads must install the wallet-owned direct HNS controller."
 require_source_contains "$android_wallet_activity" \
-  'UnavailableWalletReadBootstrapSource' \
-  "Android production wallet-read bootstrap must remain unavailable."
+  'HeaderSnapshotInstaller.extractWalletGenesisBootstrap(applicationContext)' \
+  "Android mainnet wallet reads must bootstrap from the packaged genesis headers."
+require_source_contains "$android_wallet_activity" \
+  'keyStore.commitDirectHnsSynchronization(floor)' \
+  "Android direct HNS synchronization must commit its rollback floor through the Keystore journal."
 require_source_absent "$android_wallet_activity" \
-  'var walletReadBootstrapSource' \
-  "Android wallet-read bootstrap source must not be mutable."
+  'UnavailableWalletReadBootstrapSource' \
+  "Android production wallet reads must not retain the obsolete unavailable bootstrap source."
 require_source_contains "$android_wallet_bootstrap" \
   'storageLease === other.storageLease' \
   "Android wallet-read credentials must bind the exact storage lease identity."
@@ -230,8 +233,8 @@ require_source_contains "$android_wallet_bridge" \
   'exactUtf8.fill(0)' \
   "Android trusted-native name import must wipe its caller-owned mutable UTF-8 bytes."
 require_source_contains "$android_wallet_ffi" \
-  'let Self::Reads(controller) = self else' \
-  "Android native name import must be unavailable outside the synchronized HNS read controller."
+  'Self::Lifecycle(_) | Self::Failed => return None,' \
+  "Android native name import must reject lifecycle and failed controllers while allowing only configured read/value controllers."
 require_source_contains "$android_wallet_ffi" \
   'const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;' \
   "Android HNWI-v1 output must retain the coordinated zero-flags contract."

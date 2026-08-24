@@ -13,11 +13,12 @@ into the app.
 | Android app | `1.0.0` / code `52` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.0` / build `61` | `ios/project.yml` |
-| Native wallet controller | `hns-wallet-mobile 0.1.0` at `2061a27e0358c7f00fcc70497ef97f9b89d569da` | `rust/Cargo.toml`, `rust/Cargo.lock` |
-| Wallet protocol closure | `hns-rs 0.3.0` at `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e` | `rust/Cargo.lock` |
+| Native wallet controller | published `hns-wallet-mobile 0.1.1` | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
+| Wallet protocol closure | published `hns-rs 0.3.1` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
-| Mobile engine adapters and canonical contracts | Git `0.2.1` at `65c397e8347f37085ea67d2c9c745ce896328e64` (exact-source platform qualification passed) | Cargo manifests and all three locks; full CI `31807520618` |
+| Public engine contracts | published `hns-dane-engine 0.2.2` crates, with `hns-namespace-resolution 0.2.3` | Cargo manifests and checksum-bearing locks |
+| Browser engine adapters | published exact `hns-browser-* 0.2.2` packages, with `hns-browser-gateway 0.2.3` | Cargo manifests and all three locks |
 | Standalone engine facade | Not in the mobile graph; upstream mobile-safe dependency boundary required | Cargo manifests and target-filtered metadata |
 | Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
 | Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |
@@ -117,12 +118,11 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- `hns-wallet-mobile` is pinned to wallet `0.1.0` source
-  `2061a27e0358c7f00fcc70497ef97f9b89d569da`. Its lock closure uses
-  `hns-rs 0.3.0` source `88ed7c64db52a6fcfce4146a8fc17b1377dfcc8e`.
-  The dependency sequence is complete. Earlier run `31807520618` qualified only
-  HNWR-v2 source `986accb7d86d220af63187031e629a9ce69d71e5` and predates
-  the `2061a27` pin/import tranche. Exact current application source
+- The mobile dependency sequence uses published wallet `0.1.1`, HNS `0.3.1`,
+  engine, and browser-adapter `0.2.2` crates. The complete source and checksum
+  policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).
+  Earlier run `31807520618` qualified only HNWR-v2 source
+  `986accb7d86d220af63187031e629a9ce69d71e5`. Exact current application source
   `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
   dispatched CI matrix in run `31835813994`: repository policy,
   Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,

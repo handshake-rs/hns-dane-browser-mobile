@@ -49,7 +49,7 @@ SCREENSHOT_PROFILES = {
 LIVE_PROVENANCE_ATTACHMENT = "LIVE_APPSTORE_PROVENANCE"
 LIVE_CAPTURE_MODE = "live-production-runtime"
 LIVE_PROVENANCE_SCHEMA_VERSION = 3
-NATIVE_WALLET_ROW_IDENTIFIER = "settings.wallet.native-controls"
+NATIVE_WALLET_ROW_IDENTIFIER = "settings.destination.wallet"
 EXACT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 RETRYABLE_DUAL_ROOT_SECURITY_LABEL = (
     "The Rust proxy rejected the dual-root response · Dual-root validation failed"
@@ -401,11 +401,9 @@ def validate_live_provenance(document: Any) -> dict[str, Any]:
             "settings provenance is missing the visible native wallet row"
         )
     wallet_label = document["settings"].get("nativeWalletRowLabel")
-    if not isinstance(wallet_label, str) or not wallet_label.startswith(
-        "Handshake wallet"
-    ):
+    if wallet_label != "Wallet":
         raise ScreenshotToolError(
-            "settings provenance does not identify the visible Handshake wallet row"
+            "settings provenance does not identify the visible Wallet row"
         )
     return document
 

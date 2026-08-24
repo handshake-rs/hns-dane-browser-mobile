@@ -83,8 +83,8 @@ The capture fails instead of producing an artifact when:
   WebPKI;
 - Proof Details does not open within 60 seconds;
 - Proof Details does not identify the same `denuoweb` HNS navigation;
-- the native `settings.wallet.native-controls` row is not fully visible with
-  its shipping Handshake wallet label when the Settings image is captured;
+- the native `settings.destination.wallet` row is not directly visible with
+  its shipping `Wallet` label when the Settings image is captured;
 - the public WebPKI page does not finish within 90 seconds;
 - the app presents a navigation or runtime alert;
 - the Release app binary contains the Debug fixture environment key; or
@@ -112,7 +112,7 @@ qualification matrix in `docs/ios-device-validation.md`.
    `DANE verified` and the public-page label reports either `DANE verified` or
    `WebPKI verified · no secure TLSA`, matching what is visibly shown. Confirm
    `runtimeEvidence.settings.nativeWalletRowIdentifier` is exactly
-   `settings.wallet.native-controls`.
+   `settings.destination.wallet`.
 3. Put the downloaded artifact contents below
    `build/app-store-live-screenshots/`, then run:
 

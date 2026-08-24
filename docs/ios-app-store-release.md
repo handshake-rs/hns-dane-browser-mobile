@@ -251,7 +251,7 @@ build, test, and static-analysis evidence only, not a signed product, screenshot
 set, store declaration/readback, upload/submission, or physical-iPhone result.
 Build `60` must not be uploaded until a fresh
 screenshot manifest names the exact release checkout selected for signing and
-carries provenance schema 3 with `settings.wallet.native-controls` visible;
+carries provenance schema 3 with `settings.destination.wallet` visible;
 the protected workflow must then rerun its complete exact-checkout gate before
 credential materialization. App Privacy/category answers also require live
 reconciliation. After upload, replace this paragraph with the retained IPA

@@ -108,7 +108,7 @@ boundary.
 - [ ] Replace the retained `0.5.5` screenshot set with fresh, exact-commit
   `1.0.0` iPhone screenshots showing the visible unavailable read rows.
 - [ ] Confirm provenance schema 3 records
-  `settings.wallet.native-controls`, and visually verify that native wallet
+  `settings.destination.wallet`, and visually verify that native wallet
   entry without displaying a recovery phrase, account identifier, database
   material, or other secret.
 - [ ] Use one accepted 6.9-inch or 6.5-inch resolution with no alpha channel.

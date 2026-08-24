@@ -9,10 +9,10 @@ license = "PolyForm-Noncommercial-1.0.0"
 cargo-fuzz = true
 
 [dependencies]
-hns-core = { package = "hns-browser-primitives", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
-hns-dane = { package = "hns-browser-dane", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
-hns-p2p = { package = "hns-browser-p2p", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
-hns-urkel = { package = "hns-browser-urkel", version = "=0.2.1", git = "https://github.com/handshake-rs/hns-dane-engine.git", rev = "65c397e8347f37085ea67d2c9c745ce896328e64" }
+hns-core = { package = "hns-browser-primitives", version = "=0.2.2" }
+hns-dane = { package = "hns-browser-dane", version = "=0.2.2" }
+hns-p2p = { package = "hns-browser-p2p", version = "=0.2.2" }
+hns-urkel = { package = "hns-browser-urkel", version = "=0.2.2" }
 libfuzzer-sys = "0.4"
 
 [[bin]]
