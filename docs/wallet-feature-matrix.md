@@ -55,6 +55,14 @@ set the final fee. For the next single-input mainnet send exercise, use at least
 a 0.05 HNS cap; native preparation still fails closed if the size-derived fee
 would exceed it.
 
+The previously dropped low-fee transaction retains its exact approved bytes
+and remains visible as dropped, but automatic recovery now skips it when those
+bytes no longer satisfy the current wallet fee policy. That incompatibility no
+longer makes every later synchronization fail. Its short input reservation is
+still released by normal reconciliation, allowing a separately reviewed send
+to select the confirmed unspent coin again if peers continue to report the old
+transaction absent.
+
 The send row remains incomplete until an installed build demonstrates no
 unnecessary birthday rescan and the transaction is observed in a verified
 block. The broader goal also remains incomplete until the physical-iPhone and
