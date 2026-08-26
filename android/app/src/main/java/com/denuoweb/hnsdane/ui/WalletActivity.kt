@@ -39,6 +39,7 @@ import com.denuoweb.hnsdane.wallet.NativeHnsValueIntent
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSendApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
 import com.denuoweb.hnsdane.wallet.NativeWalletDirectDenuoConnectResult
+import com.denuoweb.hnsdane.wallet.directDenuoControls
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
 import com.denuoweb.hnsdane.wallet.NativeWalletHnsCatchupProgress
 import com.denuoweb.hnsdane.wallet.NativeWalletHnsLiveSyncProgress
@@ -799,19 +800,35 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showShakedexDashboard() {
+        val transport = NativeWalletBridge.walletOwnedDirectDenuoStatus(walletHandle)
+        val transportControls = directDenuoControls(transport)
+        val actions = mutableListOf<Pair<String, () -> Unit>>(
+            getString(R.string.row_wallet_list_offers) to ::showListOffersForm,
+            getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
+            getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
+            getString(R.string.row_wallet_pair_direct_denuo) to ::showPairDirectDenuoForm,
+            getString(R.string.row_wallet_get_session) to ::showGetSessionForm,
+        ).apply {
+            if (transportControls.retryListener) {
+                add(
+                    getString(R.string.row_wallet_retry_direct_denuo_host) to
+                        ::retryWalletOwnedDirectDenuoListener,
+                )
+            }
+            if (transportControls.disconnectPeer) {
+                add(
+                    getString(R.string.row_wallet_disconnect_direct_denuo) to
+                        ::disconnectWalletOwnedDirectDenuo,
+                )
+            }
+        }
         walletDetailDialog(
             title = getString(R.string.wallet_dashboard_shakedex),
             rows = listOf(
                 getString(R.string.row_wallet_direct_denuo_host) to directDenuoStatusView.text.toString(),
                 getString(R.string.row_wallet_shakedex_status) to shakedexQueryStatusView.text.toString(),
             ),
-            actions = listOf(
-                getString(R.string.row_wallet_list_offers) to ::showListOffersForm,
-                getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
-                getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
-                getString(R.string.row_wallet_pair_direct_denuo) to ::showPairDirectDenuoForm,
-                getString(R.string.row_wallet_get_session) to ::showGetSessionForm,
-            ),
+            actions = actions,
         )
     }
 

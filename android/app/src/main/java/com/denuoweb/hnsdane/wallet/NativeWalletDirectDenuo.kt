@@ -15,6 +15,19 @@ internal data class NativeWalletDirectDenuoStatus(
     }
 }
 
+/** Exact conditional transport controls shown by the native Shakedex dashboard. */
+internal data class NativeWalletDirectDenuoControls(
+    val retryListener: Boolean,
+    val disconnectPeer: Boolean,
+)
+
+internal fun directDenuoControls(
+    status: NativeWalletDirectDenuoStatus?,
+): NativeWalletDirectDenuoControls = NativeWalletDirectDenuoControls(
+    retryListener = status?.listenerPort == null,
+    disconnectPeer = status?.peerEndpoint != null,
+)
+
 /** Exact result of a user-requested direct Denuo connection attempt. */
 internal data class NativeWalletDirectDenuoConnectResult(
     val outcome: Outcome,

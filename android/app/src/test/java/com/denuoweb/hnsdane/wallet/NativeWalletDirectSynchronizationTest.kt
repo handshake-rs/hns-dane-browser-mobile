@@ -9,6 +9,30 @@ import org.junit.Test
 
 class NativeWalletDirectSynchronizationTest {
     @Test
+    fun directDenuoDashboardExposesRecoveryAndDisconnectControlsWhenApplicable() {
+        assertEquals(
+            NativeWalletDirectDenuoControls(retryListener = true, disconnectPeer = false),
+            directDenuoControls(null),
+        )
+        assertEquals(
+            NativeWalletDirectDenuoControls(retryListener = false, disconnectPeer = false),
+            directDenuoControls(
+                NativeWalletDirectDenuoStatus(true, listenerPort = 12_038, peerEndpoint = null),
+            ),
+        )
+        assertEquals(
+            NativeWalletDirectDenuoControls(retryListener = false, disconnectPeer = true),
+            directDenuoControls(
+                NativeWalletDirectDenuoStatus(
+                    true,
+                    listenerPort = 12_038,
+                    peerEndpoint = "198.51.100.7:12038",
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun catchingUpBundleExposesOnlyBoundedProgressAndIsWipedAfterParsing() {
         val bundle = catchupBundle(
             headerState = 1,
