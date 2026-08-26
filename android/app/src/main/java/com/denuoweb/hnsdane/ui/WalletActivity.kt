@@ -2178,14 +2178,16 @@ class WalletActivity : ComponentActivity() {
         shakedexQueryStatusView.text = getString(R.string.wallet_shakedex_queries_invalid)
     }
 
-    private fun valueActionContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
+    private fun valueActionContext(
+        requiresShakedex: Boolean = true,
+    ): Pair<WalletStorageOwnershipGate.Lease, Long>? {
         val lease = currentStorageLease() ?: return null
         val handle = walletHandle
         val snapshot = latestReadSnapshot
         val status = NativeWalletBridge.status(handle)
         return (lease to handle).takeIf {
             handle != INVALID_HANDLE && snapshot != null && status != null && !status.locked &&
-                status.hnsValueEnabled && status.shakedexEnabled &&
+                status.hnsValueEnabled && (!requiresShakedex || status.shakedexEnabled) &&
                 NativeWalletBridge.hasHnsValue(handle) &&
                 latestReadSnapshotHandle == handle &&
                 latestReadSnapshotAuthorityGeneration == walletAuthorityGeneration &&
@@ -2222,7 +2224,16 @@ class WalletActivity : ComponentActivity() {
     ) && operationIsCurrent(epoch, lease)
 
     private fun prepareWalletValueAction(intent: NativeHnsValueIntent) {
-        val (lease, handle) = valueActionContext() ?: run {
+        val requiresShakedex = when (intent) {
+            is NativeHnsValueIntent.TransferName,
+            is NativeHnsValueIntent.FinalizeName -> false
+            is NativeHnsValueIntent.CreateFixedPriceOffer,
+            is NativeHnsValueIntent.CancelOffer,
+            is NativeHnsValueIntent.AcceptOffer,
+            is NativeHnsValueIntent.FinalizePurchase,
+            is NativeHnsValueIntent.RecoverName -> true
+        }
+        val (lease, handle) = valueActionContext(requiresShakedex) ?: run {
             valueActionStatusView.text = getString(R.string.wallet_value_actions_requires_sync)
             return
         }
@@ -2232,7 +2243,7 @@ class WalletActivity : ComponentActivity() {
                 resetReads = false,
             )
         ) return
-        valueActionStatusView.text = getString(R.string.wallet_value_actions_preparing)
+        valueActionStatusView.text = getString(R.string.wallet_value_actions_syncing)
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
         val expectedKind = when (intent) {
@@ -2246,7 +2257,11 @@ class WalletActivity : ComponentActivity() {
                 NativeHnsValueApprovalKind.NAME_MARKET_PURCHASE
         }
         thread(name = "hns-wallet-value-prepare") {
-            val approval = NativeWalletBridge.prepareHnsValueAction(handle, intent)
+            val synchronization = synchronizeHnsReadsWithRollbackFloor(handle)
+            val snapshot = synchronization?.snapshot
+            val approval = snapshot?.let {
+                NativeWalletBridge.prepareHnsValueAction(handle, intent)
+            }
             val exact = approval?.takeIf { it.kind == expectedKind }
             if (approval != null && exact == null) {
                 NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
@@ -2274,10 +2289,28 @@ class WalletActivity : ComponentActivity() {
                 }
                 if (exact == null) {
                     busy = false
-                    refreshControllerState(resetReads = false)
-                    valueActionStatusView.text =
-                        getString(R.string.wallet_value_actions_prepare_failed)
+                    if (snapshot == null) {
+                        refreshControllerState()
+                        val catchup = synchronization?.catchup
+                        if (catchup == null) {
+                            valueActionStatusView.text =
+                                getString(R.string.wallet_value_actions_sync_failed)
+                        } else {
+                            renderReadCatchup(catchup)
+                            valueActionStatusView.text = getString(
+                                R.string.wallet_value_actions_catchup,
+                                catchup.scannedHeight ?: catchup.birthdayHeight,
+                                catchup.scanTargetHeight,
+                            )
+                        }
+                    } else {
+                        renderReadSnapshot(snapshot)
+                        refreshControllerState(resetReads = false)
+                        valueActionStatusView.text =
+                            getString(R.string.wallet_value_actions_prepare_failed)
+                    }
                 } else {
+                    snapshot?.let(::renderReadSnapshot)
                     showValueApproval(exact, lease, epoch, authorityGeneration)
                 }
             }

@@ -14,7 +14,7 @@ Website JavaScript has no access to any operation below.
 | Payment receive target | Local derivation before full synchronization plus synchronized snapshot | Local derivation before full synchronization plus synchronized snapshot | Closed receive bundle, exact account identity, purpose and derivation validation; raw-copy tests | Physical-iPhone copy exercise |
 | Name-transfer receive target | Synchronized dashboard and copy dialog | Synchronized dashboard and copy dialog | HNWR-v2 requires a distinct purpose/account-bound target; projection tests reject conflation | Physical-iPhone copy exercise |
 | Balance, pending outgoing, available-after-pending, and history | Strict snapshot dashboard | Strict snapshot dashboard | Exact integer projection prevents a pending outgoing spend from remaining apparently available; duplicate and incoherent history fail closed | Confirm a real outgoing transaction on chain and synchronize the final state |
-| Send review | Fresh direct synchronization, exact request echo, one-time native approval | Fresh direct synchronization, exact request echo, one-time native approval | Closed send approval, recipient/amount/maximum-fee equality, expiry, and rollback-floor checks | Requalify with the forward-only change watch-set fix installed |
+| Send review | Fresh direct synchronization, exact request echo, one-time native approval | Fresh direct synchronization, exact request echo, one-time native approval | Closed send approval, recipient/amount/maximum-fee equality, expiry, rollback-floor checks, and canonical HSD network wallet fee floors | Requalify with the forward-only change watch-set and fee-policy fixes installed |
 | Reject send | Dialog cancel/reject consumes the pending token | Dialog cancel/reject consumes the pending token | One-shot native rejection; lifecycle loss locks or suppresses stale publication | Final installed-device cancel/background cases |
 | Approve and submit send | Native approval, peer submission, then snapshot refresh | Native approval, peer submission, then snapshot refresh | Exact signed bytes are retained for bounded dropped-send resubmission; socket submission remains `broadcast`, peer-returned inventory is `mempool`, and only verified inclusion is `confirmed` | A mined transaction is still required; peer-observed mempool display is insufficient |
 | Send change watch-set update | Shared embedded backend | Shared embedded backend | Exact one-script internal-change extension preserves authenticated scan head and history; ambiguous changes retain the birthday-rewind path | Install and repeat Android send review without a block-zero rescan |
@@ -33,7 +33,7 @@ not prove miner admission: later synchronization classified the transaction as
 dropped/unconfirmed and the wallet rescanned from its block-zero birthday.
 Local mempool presentation therefore remains pending state, not confirmation.
 
-Three later local-main fixes are stacked but not installed in that exercise:
+Four later local-main fixes are stacked but not installed in that exercise:
 
 - exact serialized bytes are retained and reused for bounded dropped-send
   resubmission;
@@ -44,7 +44,16 @@ Three later local-main fixes are stacked but not installed in that exercise:
   short propagation window. It becomes `mempool` only after a connected peer
   returns the transaction and `confirmed` only after verified block inclusion.
   The submitted transaction remains visible from its encrypted workflow while
-  awaiting that peer response.
+  awaiting that peer response; and
+- direct mainnet fee selection now uses the canonical HSD normal-wallet floor
+  of 100,000 dollarydoos per 1,000 policy virtual bytes instead of confusing
+  the 1,000-dollarydoo protocol relay minimum with a miner-targeted estimate.
+  Testnet and regtest retain HSD's 20,000-dollarydoo normal-wallet floor.
+
+The UI describes the entered fee as a cap because raising it does not itself
+set the final fee. For the next single-input mainnet send exercise, use at least
+a 0.05 HNS cap; native preparation still fails closed if the size-derived fee
+would exceed it.
 
 The send row remains incomplete until an installed build demonstrates no
 unnecessary birthday rescan and the transaction is observed in a verified

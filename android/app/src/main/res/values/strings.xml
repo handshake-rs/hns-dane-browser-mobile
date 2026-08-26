@@ -425,7 +425,7 @@
     <string name="wallet_reads_more" translatable="false">%1$d more items are present in this synchronized snapshot.</string>
     <string name="wallet_send_recipient_hint" translatable="false">Exact mainnet HNS recipient address</string>
     <string name="wallet_send_amount_hint" translatable="false">Amount in HNS (up to 6 decimals)</string>
-    <string name="wallet_send_maximum_fee_hint" translatable="false">Maximum fee in HNS</string>
+    <string name="wallet_send_maximum_fee_hint" translatable="false">Maximum fee cap in HNS (use at least 0.05 for the mainnet test)</string>
     <string name="wallet_send_waiting_for_wallet" translatable="false">Open and unlock a confirmed wallet before sending HNS.</string>
     <string name="wallet_send_recovery_unconfirmed" translatable="false">Confirm the recovery backup before HNS value authority can be installed.</string>
     <string name="wallet_send_locked" translatable="false">Unlock and synchronize the wallet before sending HNS.</string>
@@ -442,7 +442,7 @@
     <string name="wallet_send_preparing" translatable="false">Preparing and validating the exact transaction summary from the locally verified wallet state…</string>
     <string name="wallet_send_prepare_failed" translatable="false">The send could not be prepared. The wallet failed closed if peer or evidence validation failed.</string>
     <string name="wallet_send_approval_title" translatable="false">Approve this HNS transaction?</string>
-    <string name="wallet_send_approval_message" translatable="false">Recipient:&#10;%1$s&#10;&#10;Amount:&#10;%2$s HNS&#10;&#10;Maximum fee:&#10;%3$s HNS&#10;&#10;Finality:&#10;%4$s&#10;&#10;Warning:&#10;%5$s&#10;&#10;Approval expires:&#10;%6$s&#10;&#10;Only this exact one-time native action can be broadcast.</string>
+    <string name="wallet_send_approval_message" translatable="false">Recipient:&#10;%1$s&#10;&#10;Amount:&#10;%2$s HNS&#10;&#10;Maximum fee cap:&#10;%3$s HNS&#10;&#10;The wallet selects an HSD-compatible network fee at or below that cap.&#10;&#10;Finality:&#10;%4$s&#10;&#10;Warning:&#10;%5$s&#10;&#10;Approval expires:&#10;%6$s&#10;&#10;Only this exact one-time native action can be broadcast.</string>
     <string name="wallet_send_finality_pow" translatable="false">Proof-of-work confirmations</string>
     <string name="wallet_send_warning_fee_change" translatable="false">The final fee estimate may change but cannot exceed the approved maximum.</string>
     <string name="wallet_send_broadcasting" translatable="false">Broadcasting the exact approved transaction through the wallet-owned peer set…</string>
@@ -491,6 +491,9 @@
     <string name="wallet_value_actions_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before preparing a name or Shakedex action.</string>
     <string name="wallet_value_actions_ready" translatable="false">All native HNS name and Shakedex actions are ready at height %1$d.</string>
     <string name="wallet_value_actions_invalid" translatable="false">The action fields are not canonical. HNS amounts support at most 6 decimal places.</string>
+    <string name="wallet_value_actions_syncing" translatable="false">Synchronizing direct HNS state before preparing the exact native action…</string>
+    <string name="wallet_value_actions_sync_failed" translatable="false">A fresh verified HNS snapshot could not be obtained. Synchronize before reviewing this action.</string>
+    <string name="wallet_value_actions_catchup" translatable="false">HNS action review is waiting for wallet scan catch-up (%1$d of %2$d). Continue synchronization before reviewing the action.</string>
     <string name="wallet_value_actions_preparing" translatable="false">Preparing the exact native action and approval summary…</string>
     <string name="wallet_value_actions_prepare_failed" translatable="false">The action could not be prepared from the current synchronized state.</string>
     <string name="wallet_value_actions_expires" translatable="false">Approval expires: %1$s</string>

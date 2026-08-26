@@ -551,7 +551,7 @@ final class WalletViewController: UIViewController {
         }
         let alert = UIAlertController(
             title: "Send HNS",
-            message: "A direct peer synchronization runs before review. The exact recipient, amount, maximum fee, and expiry are shown before broadcast.",
+            message: "A direct peer synchronization runs before review. The maximum fee is a cap; the wallet selects an HSD-compatible network fee at or below it. Use a cap of at least 0.05 HNS for the next mainnet test.",
             preferredStyle: .alert
         )
         alert.addTextField { field in
@@ -570,7 +570,7 @@ final class WalletViewController: UIViewController {
             field.accessibilityIdentifier = "wallet.send.amount"
         }
         alert.addTextField { field in
-            field.placeholder = "Maximum fee in HNS"
+            field.placeholder = "Maximum fee cap in HNS (for example, 0.05)"
             field.keyboardType = .decimalPad
             field.textContentType = nil
             field.accessibilityIdentifier = "wallet.send.maximum-fee"
@@ -1081,7 +1081,7 @@ final class WalletViewController: UIViewController {
             fields: [
                 .init(label: "Exact name", placeholder: "name"),
                 .init(label: "Recipient", placeholder: "Recipient address"),
-                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
             ]
         ) { [weak self] values in
             guard let self,
@@ -1102,7 +1102,7 @@ final class WalletViewController: UIViewController {
             fields: [
                 .init(label: "Exact name", placeholder: "name"),
                 .init(label: "Expected recipient (optional)", placeholder: "Recipient address"),
-                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
             ]
         ) { [weak self] values in
             guard let self,
@@ -1127,7 +1127,7 @@ final class WalletViewController: UIViewController {
             fields: [
                 .init(label: "Exact name", placeholder: "name"),
                 .init(label: "Price in HNS", placeholder: "1", numeric: true),
-                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
                 .init(label: "Listing lifetime in seconds", placeholder: "86400", numeric: true, initialValue: "86400"),
             ]
         ) { [weak self] values in
@@ -1165,7 +1165,7 @@ final class WalletViewController: UIViewController {
             title: "Recover name from offer",
             fields: [
                 .init(label: "Seller session ID", placeholder: "64 lowercase hex characters"),
-                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
             ]
         ) { [weak self] values in
             guard let self,
@@ -1185,7 +1185,7 @@ final class WalletViewController: UIViewController {
             title: "Accept offer",
             fields: [
                 .init(label: "Listing ID", placeholder: "64 lowercase hex characters"),
-                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
             ]
         ) { [weak self] values in
             guard let self,
@@ -1203,7 +1203,7 @@ final class WalletViewController: UIViewController {
             title: "Finalize purchase",
             fields: [
                 .init(label: "Session ID", placeholder: "64 lowercase hex characters"),
-                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
             ]
         ) { [weak self] values in
             guard let self,
