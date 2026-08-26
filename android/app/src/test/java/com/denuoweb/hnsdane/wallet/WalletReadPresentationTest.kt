@@ -6,6 +6,32 @@ import org.junit.Test
 
 class WalletReadPresentationTest {
     @Test
+    fun durableWalletNeverFallsBackToFirstRunWhenControllerWasRetired() {
+        assertEquals(
+            WalletDashboardMode.LockedWallet,
+            walletDashboardMode(
+                hasUnconfirmedRecovery = false,
+                hasRetainedSynchronization = false,
+                hasController = false,
+                hasDurableWalletStorage = true,
+                synchronizationInProgress = false,
+                controllerUnlocked = false,
+            ),
+        )
+        assertEquals(
+            WalletDashboardMode.NoWallet,
+            walletDashboardMode(
+                hasUnconfirmedRecovery = false,
+                hasRetainedSynchronization = false,
+                hasController = false,
+                hasDurableWalletStorage = false,
+                synchronizationInProgress = false,
+                controllerUnlocked = false,
+            ),
+        )
+    }
+
+    @Test
     fun hnsAmountsRemainExactWithoutFloatingPoint() {
         assertEquals("0", formatHnsBaseUnits("0"))
         assertEquals("1", formatHnsBaseUnits("1000000"))

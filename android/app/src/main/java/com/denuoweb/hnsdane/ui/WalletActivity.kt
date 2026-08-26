@@ -52,6 +52,7 @@ import com.denuoweb.hnsdane.wallet.ProcessWalletStorageOwnership
 import com.denuoweb.hnsdane.wallet.WALLET_DATABASE_FILE_NAME
 import com.denuoweb.hnsdane.wallet.WALLET_DELETE_CONFIRMATION
 import com.denuoweb.hnsdane.wallet.WalletDeletionScope
+import com.denuoweb.hnsdane.wallet.WalletDashboardMode
 import com.denuoweb.hnsdane.wallet.WalletLeaseReleaseHandoff
 import com.denuoweb.hnsdane.wallet.WalletHnsJourney
 import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentation
@@ -76,6 +77,7 @@ import com.denuoweb.hnsdane.wallet.hnsReceiveTargets
 import com.denuoweb.hnsdane.wallet.parsePositiveHnsToBaseUnits
 import com.denuoweb.hnsdane.wallet.walletDeleteConfirmationMatches
 import com.denuoweb.hnsdane.wallet.walletDatabaseArtifacts
+import com.denuoweb.hnsdane.wallet.walletDashboardMode
 import com.denuoweb.hnsdane.wallet.walletControllerOperationMayBegin
 import com.denuoweb.hnsdane.wallet.walletDeletionMayProceed
 import com.denuoweb.hnsdane.wallet.walletNameImportMayBegin
@@ -178,6 +180,8 @@ class WalletActivity : ComponentActivity() {
     private var hnsCatchupRetry: AtomicBoolean? = null
     @Volatile
     private var walletBackgroundRetirement: AtomicBoolean? = null
+    private var durableWalletStoragePresent = false
+    private var walletOpenDeferredUntilDeviceUnlock = false
     private val walletHnsJourney = WalletHnsJourney()
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
 
@@ -193,6 +197,11 @@ class WalletActivity : ComponentActivity() {
             WALLET_DATABASE_FILE_NAME,
         ).absoluteFile
         walletStoragePath = walletDatabaseFile.path
+        // A native controller is deliberately retired whenever the app goes
+        // to the background, but its absence must never make a durable wallet
+        // look like a first-run setup. The storage lease performs the full
+        // key/file reconciliation before this hint can authorize any action.
+        durableWalletStoragePresent = walletDatabaseFile.exists()
         keyStore = AndroidWalletKeyStore(applicationContext, walletNetwork.id)
         statusView = preferenceSummary(
             text = getString(R.string.wallet_status_starting),
@@ -243,6 +252,21 @@ class WalletActivity : ComponentActivity() {
             }
         })
         renderWalletDashboard()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (
+            hasFocus && walletOpenDeferredUntilDeviceUnlock && foreground && !busy &&
+            walletHandle == INVALID_HANDLE && durableWalletStoragePresent &&
+            currentStorageLease() != null
+        ) {
+            val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+            if (keyguard?.isDeviceLocked == false) {
+                walletOpenDeferredUntilDeviceUnlock = false
+                openExistingWallet()
+            }
+        }
     }
 
     override fun onStart() {
@@ -363,17 +387,30 @@ class WalletActivity : ComponentActivity() {
             (view.parent as? ViewGroup)?.removeView(view)
         }
         dashboardContent.removeAllViews()
-        when {
-            unconfirmedDatabaseKey != null || recoveryView.hasSecret() -> renderRecoveryDashboard()
-            hasRetainedHnsSyncPresentation() -> renderRetainedHnsSyncHandoffDashboard()
-            walletHandle == INVALID_HANDLE -> renderNoWalletDashboard()
-            // A direct peer synchronization owns the native controller for a
-            // bounded network round. Its public progress has a separate
-            // mailbox, so preserve the known-unlocked dashboard rather than
-            // waiting for a status lock on Android's main thread.
-            walletHnsSyncInProgress -> renderUnlockedWalletDashboard()
-            NativeWalletBridge.status(walletHandle)?.locked != false -> renderLockedWalletDashboard()
-            else -> renderUnlockedWalletDashboard()
+        val hasController = walletHandle != INVALID_HANDLE
+        // A direct peer synchronization owns the native controller for a
+        // bounded network round. Its public progress has a separate mailbox,
+        // so never wait for its status mutex on Android's main thread.
+        val controllerUnlocked = hasController && (
+            walletHnsSyncInProgress || NativeWalletBridge.status(walletHandle)?.locked == false
+        )
+        when (
+            walletDashboardMode(
+                hasUnconfirmedRecovery =
+                    unconfirmedDatabaseKey != null || recoveryView.hasSecret(),
+                hasRetainedSynchronization = hasRetainedHnsSyncPresentation(),
+                hasController = hasController,
+                hasDurableWalletStorage = durableWalletStoragePresent,
+                synchronizationInProgress = walletHnsSyncInProgress,
+                controllerUnlocked = controllerUnlocked,
+            )
+        ) {
+            WalletDashboardMode.Recovery -> renderRecoveryDashboard()
+            WalletDashboardMode.RetainedSynchronization ->
+                renderRetainedHnsSyncHandoffDashboard()
+            WalletDashboardMode.NoWallet -> renderNoWalletDashboard()
+            WalletDashboardMode.LockedWallet -> renderLockedWalletDashboard()
+            WalletDashboardMode.UnlockedWallet -> renderUnlockedWalletDashboard()
         }
     }
 
@@ -443,7 +480,9 @@ class WalletActivity : ComponentActivity() {
             addSettingsRow(actionRow(
                 title = getString(R.string.row_wallet_unlock),
                 summary = getString(R.string.wallet_dashboard_unlock_summary),
-            ) { unlockWallet() })
+            ) {
+                if (walletHandle == INVALID_HANDLE) openExistingWallet() else unlockWallet()
+            })
         })
         addWalletTiles(locked = true)
     }
@@ -872,12 +911,16 @@ class WalletActivity : ComponentActivity() {
     private fun openExistingWallet() {
         val lease = currentStorageLease() ?: return
         if (!beginOperation(lease, getString(R.string.wallet_status_opening))) return
+        walletOpenDeferredUntilDeviceUnlock = false
         val epoch = lifecycleEpoch
         val path = walletDatabaseFile.absolutePath
         thread(name = "hns-wallet-open") {
+            var databaseKeyAvailable = false
             val opened = runCatching {
-                keyStore.withDatabaseKey { key -> NativeWalletBridge.open(path, key) }
-                    ?: INVALID_HANDLE
+                keyStore.withDatabaseKey { key ->
+                    databaseKeyAvailable = true
+                    NativeWalletBridge.open(path, key)
+                } ?: INVALID_HANDLE
             }.getOrDefault(INVALID_HANDLE)
             runOnUiThread {
                 busy = false
@@ -887,9 +930,21 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 if (opened == INVALID_HANDLE) {
-                    statusView.text = getString(R.string.wallet_status_open_failed)
-                    accountView.text = getString(R.string.wallet_account_unavailable)
+                    durableWalletStoragePresent = true
+                    walletOpenDeferredUntilDeviceUnlock = !databaseKeyAvailable
+                    statusView.text = getString(
+                        if (databaseKeyAvailable) {
+                            R.string.wallet_status_open_failed
+                        } else {
+                            R.string.wallet_status_device_locked
+                        },
+                    )
+                    accountView.text = getString(R.string.wallet_account_locked)
+                    resetReadProjection(R.string.wallet_reads_locked)
+                    renderWalletDashboard()
                 } else {
+                    walletOpenDeferredUntilDeviceUnlock = false
+                    durableWalletStoragePresent = true
                     publishWalletController(opened, reopenedDurable = true)
                     attemptReadBootstrap(lease)
                     refreshControllerState()
@@ -3274,15 +3329,18 @@ class WalletActivity : ComponentActivity() {
             statusView.text = getString(R.string.wallet_status_key_store_unavailable)
             accountView.text = getString(R.string.wallet_account_unavailable)
         } else if (!storage.first) {
+            durableWalletStoragePresent = true
             statusView.text = getString(R.string.wallet_status_delete_cleanup_pending)
             accountView.text = getString(R.string.wallet_account_unavailable)
             resetReadProjection(R.string.wallet_reads_unavailable)
         } else if (!busy && walletHandle == INVALID_HANDLE && storage.second) {
+            durableWalletStoragePresent = true
             // Reopening establishes the only controller state eligible for a
             // future product-owned scoped read credential. This screen never
             // sources an endpoint or credential from user-controlled input.
             openExistingWallet()
         } else if (!busy && walletHandle == INVALID_HANDLE) {
+            durableWalletStoragePresent = false
             showNoWallet()
         }
     }
@@ -3588,6 +3646,8 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showNoWallet() {
+        durableWalletStoragePresent = false
+        walletOpenDeferredUntilDeviceUnlock = false
         statusView.text = if (NativeWalletBridge.isAvailable) {
             getString(R.string.wallet_status_not_created)
         } else {

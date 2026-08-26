@@ -2,6 +2,36 @@ package com.denuoweb.hnsdane.wallet
 
 import java.math.BigInteger
 
+internal enum class WalletDashboardMode {
+    Recovery,
+    RetainedSynchronization,
+    NoWallet,
+    LockedWallet,
+    UnlockedWallet,
+}
+
+/**
+ * A process-local controller is intentionally disposable on Android lifecycle
+ * transitions. Durable storage therefore remains independent evidence that
+ * the setup actions must stay hidden while that controller is reopened.
+ */
+internal fun walletDashboardMode(
+    hasUnconfirmedRecovery: Boolean,
+    hasRetainedSynchronization: Boolean,
+    hasController: Boolean,
+    hasDurableWalletStorage: Boolean,
+    synchronizationInProgress: Boolean,
+    controllerUnlocked: Boolean,
+): WalletDashboardMode = when {
+    hasUnconfirmedRecovery -> WalletDashboardMode.Recovery
+    hasRetainedSynchronization -> WalletDashboardMode.RetainedSynchronization
+    !hasController && hasDurableWalletStorage -> WalletDashboardMode.LockedWallet
+    !hasController -> WalletDashboardMode.NoWallet
+    synchronizationInProgress -> WalletDashboardMode.UnlockedWallet
+    !controllerUnlocked -> WalletDashboardMode.LockedWallet
+    else -> WalletDashboardMode.UnlockedWallet
+}
+
 internal fun formatHnsBaseUnits(baseUnits: String): String {
     val value = BigInteger(baseUnits)
     require(value.signum() >= 0)
