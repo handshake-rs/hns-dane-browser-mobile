@@ -41,6 +41,42 @@ internal fun NativeWalletTransaction.displayAmount(): String = buildString {
     append(" HNS")
 }
 
+/**
+ * Separates confirmed chain value from outgoing transactions that are still
+ * pending. The native snapshot's `balance` is intentionally chain-confirmed;
+ * calling it spendable without applying its same-snapshot mempool history can
+ * overstate what the user should attempt to spend again.
+ */
+internal data class WalletHnsBalanceProjection(
+    val confirmedBaseUnits: String,
+    val pendingOutgoingBaseUnits: String,
+    val availableAfterPendingBaseUnits: String,
+    val pendingOutgoingExceedsConfirmed: Boolean,
+) {
+    val hasPendingOutgoing: Boolean
+        get() = pendingOutgoingBaseUnits != "0"
+}
+
+internal fun NativeWalletReadSnapshot.hnsBalanceProjection(): WalletHnsBalanceProjection {
+    val confirmed = BigInteger(balanceBaseUnits)
+    val pendingOutgoing = transactions
+        .asSequence()
+        .filter { transaction ->
+            transaction.negative && transaction.status in PENDING_HNS_TRANSACTION_STATUSES
+        }
+        .fold(BigInteger.ZERO) { total, transaction ->
+            total.add(BigInteger(transaction.magnitudeBaseUnits))
+        }
+    val pendingExceedsConfirmed = pendingOutgoing > confirmed
+    val available = if (pendingExceedsConfirmed) BigInteger.ZERO else confirmed - pendingOutgoing
+    return WalletHnsBalanceProjection(
+        confirmedBaseUnits = confirmed.toString(),
+        pendingOutgoingBaseUnits = pendingOutgoing.toString(),
+        availableAfterPendingBaseUnits = available.toString(),
+        pendingOutgoingExceedsConfirmed = pendingExceedsConfirmed,
+    )
+}
+
 internal fun walletReadCodeLabel(value: String): String = buildString(value.length + 8) {
     value.forEachIndexed { index, character ->
         when {
@@ -59,3 +95,9 @@ private const val MAX_HNS_INPUT_CHARACTERS = 46
 private val HNS_BASE_UNITS = BigInteger.TEN.pow(HNS_DECIMAL_PLACES)
 private val MAX_HNS_BASE_UNITS = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE)
 private val HNS_DECIMAL_INPUT = Regex("(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,6})?")
+private val PENDING_HNS_TRANSACTION_STATUSES = setOf(
+    "prepared",
+    "authorized",
+    "broadcast",
+    "mempool",
+)

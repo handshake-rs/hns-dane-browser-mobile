@@ -1,5 +1,6 @@
 import Security
 import UIKit
+import UniformTypeIdentifiers
 
 /// Native wallet-control surface.  Every HNS peer, consensus, block scan,
 /// signing, and broadcast operation remains in the Rust controller; UIKit
@@ -24,6 +25,10 @@ final class WalletViewController: UIViewController {
     private var shakedexAvailable = false
     private var readGeneration: UInt64 = 0
     private var synchronizedReadsAvailable = false
+    /// Native-validated receive targets are retained separately from their
+    /// human-readable labels. Pasteboard actions must never copy headings or
+    /// derivation metadata as though those bytes were part of an address.
+    private var receiveTargets: WalletReceiveTargets?
     private var resolvedDatabasePath: String?
     private var storageLease: WalletStorageLeaseToken?
     private var walletAuthorityRequested = false
@@ -509,11 +514,27 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func showPaymentReceiveAddress() {
-        let address = paymentReceiveLabel.text ?? "Payment receive address: unavailable."
-        let alert = UIAlertController(title: "Receive HNS", message: address, preferredStyle: .alert)
-        if !address.localizedCaseInsensitiveContains("unavailable") {
-            alert.addAction(UIAlertAction(title: "Copy", style: .default) { _ in
-                UIPasteboard.general.string = address
+        let alert = UIAlertController(
+            title: "Receive HNS",
+            message: [paymentReceiveLabel.text, nameReceiveLabel.text]
+                .compactMap { $0 }
+                .joined(separator: "\n\n"),
+            preferredStyle: .alert
+        )
+        if let paymentReceiveAddress = receiveTargets?.paymentAddress {
+            alert.addAction(UIAlertAction(title: "Copy payment address", style: .default) { _ in
+                UIPasteboard.general.setItems(
+                    [[UTType.plainText.identifier: paymentReceiveAddress]],
+                    options: [.localOnly: true]
+                )
+            })
+        }
+        if let nameReceiveAddress = receiveTargets?.nameTransferAddress {
+            alert.addAction(UIAlertAction(title: "Copy name-transfer address", style: .default) { _ in
+                UIPasteboard.general.setItems(
+                    [[UTType.plainText.identifier: nameReceiveAddress]],
+                    options: [.localOnly: true]
+                )
             })
         }
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
@@ -2397,6 +2418,7 @@ final class WalletViewController: UIViewController {
 
     private func publish(_ snapshot: NativeHnsReadSnapshot) {
         let presentation = WalletReadPresenter.present(snapshot)
+        receiveTargets = WalletReceiveTargets(snapshot: snapshot)
         readStatusLabel.text = presentation.status
         balanceLabel.text = presentation.balance
         paymentReceiveLabel.text = presentation.paymentReceive
@@ -2406,6 +2428,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func clearReadProjection() {
+        receiveTargets = nil
         balanceLabel.text = "Confirmed spendable balance: unavailable."
         paymentReceiveLabel.text = "Payment receive address: unavailable."
         nameReceiveLabel.text = "Name transfer receive address: unavailable."
@@ -3129,6 +3152,19 @@ struct WalletReadPresentation: Equatable, Sendable {
     let names: String
 }
 
+/// Raw native-validated receive values used by copy/share controls. This is a
+/// deliberately separate projection from `WalletReadPresentation`, whose
+/// strings are formatted for people and must never be treated as addresses.
+struct WalletReceiveTargets: Equatable, Sendable {
+    let paymentAddress: String
+    let nameTransferAddress: String?
+
+    init(snapshot: NativeHnsReadSnapshot) {
+        paymentAddress = snapshot.receiveTarget.display
+        nameTransferAddress = snapshot.nameReceiveTarget?.display
+    }
+}
+
 /// Deterministic, bounded UIKit projection of a native-validated HNWR snapshot.
 /// This adapter does not infer authority or fetch data; publication remains
 /// gated by the exact wallet identity, storage lease, lifecycle, and generation.
@@ -3172,9 +3208,26 @@ enum WalletReadPresenter {
             )
         }
 
+        let balance = WalletHnsBalancePresenter.present(snapshot)
+        let balanceText: String
+        if balance.pendingOutgoingExceedsConfirmed {
+            balanceText = [
+                "\(formatHnsBaseUnits(balance.confirmedBaseUnits)) HNS confirmed on chain",
+                "\(formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)) HNS pending outgoing",
+                "Available balance is withheld until synchronization reconciles the pending transactions.",
+            ].joined(separator: "\n")
+        } else if balance.hasPendingOutgoing {
+            balanceText = [
+                "\(formatHnsBaseUnits(balance.confirmedBaseUnits)) HNS confirmed on chain",
+                "\(formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)) HNS pending outgoing",
+                "\(formatHnsBaseUnits(balance.availableAfterPendingBaseUnits)) HNS available after pending",
+            ].joined(separator: "\n")
+        } else {
+            balanceText = "\(formatHnsBaseUnits(balance.confirmedBaseUnits)) HNS confirmed and available"
+        }
         return WalletReadPresentation(
-            status: "Direct Handshake wallet synchronized at height \(snapshot.moduleStatus.validatedHeight). The confirmed balance is safe to review and send from.",
-            balance: "\(formatHnsBaseUnits(snapshot.balance.baseUnits)) HNS confirmed spendable",
+            status: "Direct Handshake wallet synchronized at height \(snapshot.moduleStatus.validatedHeight). Pending outgoing transactions are reflected in the available balance.",
+            balance: balanceText,
             paymentReceive: "Payment receive\n\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)",
             nameReceive: snapshot.nameReceiveTarget.map {
                 "Name transfer receive\n\($0.display)\nName derivation index \($0.derivationIndex)"
@@ -3246,6 +3299,92 @@ enum WalletReadPresenter {
     private static func appendRemainingCount(_ entries: String, remaining: Int) -> String {
         guard remaining > 0 else { return entries }
         return "\(entries)\n\n\(remaining) more items are present in this synchronized snapshot."
+    }
+}
+
+struct WalletHnsBalanceProjection: Equatable, Sendable {
+    let confirmedBaseUnits: String
+    let pendingOutgoingBaseUnits: String
+    let availableAfterPendingBaseUnits: String
+    let pendingOutgoingExceedsConfirmed: Bool
+
+    var hasPendingOutgoing: Bool { pendingOutgoingBaseUnits != "0" }
+}
+
+/// Exact decimal-string accounting for the same native snapshot. Swift has no
+/// built-in UInt128, so this intentionally performs digit arithmetic rather
+/// than passing wallet values through `Double` or a bounded decimal type.
+enum WalletHnsBalancePresenter {
+    private static let pendingStatuses: Set<String> = [
+        "prepared", "authorized", "broadcast", "mempool",
+    ]
+
+    static func present(_ snapshot: NativeHnsReadSnapshot) -> WalletHnsBalanceProjection {
+        let confirmed = snapshot.balance.baseUnits
+        let pending = snapshot.transactionHistory.reduce("0") { total, transaction in
+            guard transaction.netAmount.negative,
+                  pendingStatuses.contains(transaction.status) else {
+                return total
+            }
+            return add(total, transaction.netAmount.magnitude)
+        }
+        let exceeds = compare(pending, confirmed) == .orderedDescending
+        return WalletHnsBalanceProjection(
+            confirmedBaseUnits: confirmed,
+            pendingOutgoingBaseUnits: pending,
+            availableAfterPendingBaseUnits: exceeds ? "0" : subtract(confirmed, pending),
+            pendingOutgoingExceedsConfirmed: exceeds
+        )
+    }
+
+    private static func compare(_ left: String, _ right: String) -> ComparisonResult {
+        if left.count != right.count {
+            return left.count < right.count ? .orderedAscending : .orderedDescending
+        }
+        if left == right { return .orderedSame }
+        return left.lexicographicallyPrecedes(right) ? .orderedAscending : .orderedDescending
+    }
+
+    private static func add(_ left: String, _ right: String) -> String {
+        let lhs = Array(left.utf8.reversed())
+        let rhs = Array(right.utf8.reversed())
+        let count = max(lhs.count, rhs.count)
+        var result = [UInt8]()
+        result.reserveCapacity(count + 1)
+        var carry = 0
+        for index in 0..<count {
+            let a = index < lhs.count ? Int(lhs[index] - UInt8(ascii: "0")) : 0
+            let b = index < rhs.count ? Int(rhs[index] - UInt8(ascii: "0")) : 0
+            let value = a + b + carry
+            result.append(UInt8(value % 10) + UInt8(ascii: "0"))
+            carry = value / 10
+        }
+        if carry != 0 { result.append(UInt8(carry) + UInt8(ascii: "0")) }
+        return String(bytes: result.reversed(), encoding: .ascii)!
+    }
+
+    private static func subtract(_ left: String, _ right: String) -> String {
+        precondition(compare(left, right) != .orderedAscending)
+        let lhs = Array(left.utf8.reversed())
+        let rhs = Array(right.utf8.reversed())
+        var result = [UInt8]()
+        result.reserveCapacity(lhs.count)
+        var borrow = 0
+        for index in lhs.indices {
+            let a = Int(lhs[index] - UInt8(ascii: "0")) - borrow
+            let b = index < rhs.count ? Int(rhs[index] - UInt8(ascii: "0")) : 0
+            if a < b {
+                result.append(UInt8(a + 10 - b) + UInt8(ascii: "0"))
+                borrow = 1
+            } else {
+                result.append(UInt8(a - b) + UInt8(ascii: "0"))
+                borrow = 0
+            }
+        }
+        while result.count > 1, result.last == UInt8(ascii: "0") {
+            result.removeLast()
+        }
+        return String(bytes: result.reversed(), encoding: .ascii)!
     }
 }
 

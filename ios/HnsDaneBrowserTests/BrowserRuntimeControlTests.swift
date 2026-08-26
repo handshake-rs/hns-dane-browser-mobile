@@ -595,12 +595,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
             bundle: hnsReadBundle(json: versionTwoJSON, version: 2)
         )
         let presentation = WalletReadPresenter.present(snapshot, maximumVisibleItems: 1)
+        let receiveTargets = WalletReceiveTargets(snapshot: snapshot)
 
         XCTAssertEqual(
             presentation.status,
-            "Handshake reads are ready at height 42. Value movement and marketplace controls are unavailable."
+            "Direct Handshake wallet synchronized at height 42. Pending outgoing transactions are reflected in the available balance."
         )
-        XCTAssertEqual(presentation.balance, "12.345678 HNS confirmed spendable")
+        XCTAssertEqual(presentation.balance, "12.345678 HNS confirmed and available")
         XCTAssertEqual(
             presentation.paymentReceive,
             "Payment receive\nrs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz\nDerivation index 7"
@@ -610,6 +611,16 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "Name transfer receive\nrs1qnameowner0000000000000000000000000000000\nName derivation index 11"
         )
         XCTAssertNotEqual(presentation.paymentReceive, presentation.nameReceive)
+        XCTAssertEqual(
+            receiveTargets.paymentAddress,
+            "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz"
+        )
+        XCTAssertEqual(
+            receiveTargets.nameTransferAddress,
+            "rs1qnameowner0000000000000000000000000000000"
+        )
+        XCTAssertNotEqual(receiveTargets.paymentAddress, presentation.paymentReceive)
+        XCTAssertNotEqual(receiveTargets.nameTransferAddress, presentation.nameReceive)
         XCTAssertEqual(
             presentation.history,
             "confirmed · -0.25 HNS\n\(firstTransactionHex)\nBlock 40 · 3 confirmations\n\n1 more items are present in this synchronized snapshot."
@@ -629,8 +640,28 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(fullPresentation.history.contains("more items"))
         XCTAssertFalse(fullPresentation.names.contains("more items"))
 
+        let pendingOutgoingJSON = versionTwoJSON.replacingOccurrences(
+            of: "\"negative\":false,\"magnitude\":\"1000000\"",
+            with: "\"negative\":true,\"magnitude\":\"100123\""
+        )
+        let pendingOutgoingSnapshot = try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: pendingOutgoingJSON, version: 2)
+        )
+        let pendingBalance = WalletHnsBalancePresenter.present(pendingOutgoingSnapshot)
+        XCTAssertEqual(pendingBalance.confirmedBaseUnits, "12345678")
+        XCTAssertEqual(pendingBalance.pendingOutgoingBaseUnits, "100123")
+        XCTAssertEqual(pendingBalance.availableAfterPendingBaseUnits, "12245555")
+        XCTAssertFalse(pendingBalance.pendingOutgoingExceedsConfirmed)
+        XCTAssertEqual(
+            WalletReadPresenter.present(pendingOutgoingSnapshot).balance,
+            "12.345678 HNS confirmed on chain\n" +
+                "0.100123 HNS pending outgoing\n" +
+                "12.245555 HNS available after pending"
+        )
+
         let versionOne = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))
         let versionOnePresentation = WalletReadPresenter.present(versionOne)
+        let versionOneReceiveTargets = WalletReceiveTargets(snapshot: versionOne)
         XCTAssertEqual(
             versionOnePresentation.nameReceive,
             "Name transfer receive: unavailable for HNWR-v1."
@@ -638,6 +669,11 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertTrue(versionOnePresentation.paymentReceive.contains(
             "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz"
         ))
+        XCTAssertEqual(
+            versionOneReceiveTargets.paymentAddress,
+            "rs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz"
+        )
+        XCTAssertNil(versionOneReceiveTargets.nameTransferAddress)
     }
 
     func testNativeHNSReadConfigurationIsAuthorityBoundOneShotAndRedacted() throws {

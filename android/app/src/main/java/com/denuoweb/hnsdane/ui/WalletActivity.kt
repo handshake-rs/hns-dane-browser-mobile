@@ -71,6 +71,7 @@ import com.denuoweb.hnsdane.wallet.exactWalletNameUtf8
 import com.denuoweb.hnsdane.wallet.walletNameImportRefreshMatches
 import com.denuoweb.hnsdane.wallet.displayAmount
 import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
+import com.denuoweb.hnsdane.wallet.hnsBalanceProjection
 import com.denuoweb.hnsdane.wallet.parsePositiveHnsToBaseUnits
 import com.denuoweb.hnsdane.wallet.walletDeleteConfirmationMatches
 import com.denuoweb.hnsdane.wallet.walletDatabaseArtifacts
@@ -1140,7 +1141,7 @@ class WalletActivity : ComponentActivity() {
                     }
                     // A direct controller is installed locked. Once the user
                     // has explicitly unlocked it, take one bounded, verified
-                    // snapshot so the confirmed spendable balance is visible
+                    // snapshot so the confirmed available balance is visible
                     // without requiring a separate, unexplained refresh.
                     if (NativeWalletBridge.hasHnsReads(handle)) {
                         synchronizeWalletReads()
@@ -2795,16 +2796,28 @@ class WalletActivity : ComponentActivity() {
                             )
                             synchronizeWalletReads()
                         } else {
+                            Log.w(
+                                TAG,
+                                "HNS send outcome is ambiguous; the native controller locked before another value action",
+                            )
                             sendStatusView.text = getString(R.string.wallet_send_broadcast_ambiguous)
                         }
                     }
                     snapshot == null -> {
+                        Log.w(
+                            TAG,
+                            "HNS peers accepted the transaction, but post-broadcast wallet synchronization failed",
+                        )
                         sendStatusView.text = getString(
                             R.string.wallet_send_accepted_sync_failed,
                             receipt.txid,
                         )
                     }
                     else -> {
+                        Log.i(
+                            TAG,
+                            "HNS peers accepted the transaction and the verified wallet snapshot was refreshed",
+                        )
                         renderReadSnapshot(snapshot)
                         sendStatusView.text = getString(
                             R.string.wallet_send_accepted,
@@ -3822,10 +3835,24 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshotAuthorityGeneration = walletAuthorityGeneration
         latestReadSnapshotEpoch = lifecycleEpoch
         readStatusView.text = getString(R.string.wallet_reads_ready, snapshot.height)
-        balanceView.text = getString(
-            R.string.wallet_reads_balance,
-            formatHnsBaseUnits(snapshot.balanceBaseUnits),
-        )
+        val balance = snapshot.hnsBalanceProjection()
+        balanceView.text = when {
+            balance.pendingOutgoingExceedsConfirmed -> getString(
+                R.string.wallet_reads_balance_pending_inconsistent,
+                formatHnsBaseUnits(balance.confirmedBaseUnits),
+                formatHnsBaseUnits(balance.pendingOutgoingBaseUnits),
+            )
+            balance.hasPendingOutgoing -> getString(
+                R.string.wallet_reads_balance_with_pending,
+                formatHnsBaseUnits(balance.confirmedBaseUnits),
+                formatHnsBaseUnits(balance.pendingOutgoingBaseUnits),
+                formatHnsBaseUnits(balance.availableAfterPendingBaseUnits),
+            )
+            else -> getString(
+                R.string.wallet_reads_balance,
+                formatHnsBaseUnits(balance.confirmedBaseUnits),
+            )
+        }
         paymentReceiveView.text = getString(
             R.string.wallet_reads_receive,
             snapshot.paymentReceiveTarget.display,

@@ -33,4 +33,71 @@ class WalletReadPresentationTest {
         assertEquals("watch only canonical state decoder unavailable", walletReadCodeLabel("watchOnlyCanonicalStateDecoderUnavailable"))
         assertEquals("wallet scan", walletReadCodeLabel("wallet_scan"))
     }
+
+    @Test
+    fun pendingOutgoingIsRemovedFromAvailableWithoutChangingConfirmedChainValue() {
+        val snapshot = walletSnapshot(
+            balanceBaseUnits = "1000000",
+            transactions = listOf(
+                walletTransaction(status = "mempool", negative = true, magnitude = "100123"),
+                walletTransaction(status = "mempool", negative = false, magnitude = "50000"),
+                walletTransaction(status = "confirmed", negative = true, magnitude = "25000"),
+                walletTransaction(status = "dropped", negative = true, magnitude = "9000"),
+            ),
+        )
+
+        assertEquals(
+            WalletHnsBalanceProjection(
+                confirmedBaseUnits = "1000000",
+                pendingOutgoingBaseUnits = "100123",
+                availableAfterPendingBaseUnits = "899877",
+                pendingOutgoingExceedsConfirmed = false,
+            ),
+            snapshot.hnsBalanceProjection(),
+        )
+    }
+
+    @Test
+    fun inconsistentPendingOutgoingWithholdsAvailableBalance() {
+        val projection = walletSnapshot(
+            balanceBaseUnits = "100",
+            transactions = listOf(
+                walletTransaction(status = "broadcast", negative = true, magnitude = "101"),
+            ),
+        ).hnsBalanceProjection()
+
+        assertEquals("0", projection.availableAfterPendingBaseUnits)
+        assertEquals(true, projection.pendingOutgoingExceedsConfirmed)
+    }
+
+    private fun walletSnapshot(
+        balanceBaseUnits: String,
+        transactions: List<NativeWalletTransaction>,
+    ) = NativeWalletReadSnapshot(
+        balanceBaseUnits = balanceBaseUnits,
+        paymentReceiveTarget = NativeWalletPaymentReceiveTarget(
+            accountId = "01".padEnd(32, '0'),
+            display = "hs1qpayment",
+            derivationIndex = 0,
+        ),
+        nameReceiveTarget = null,
+        height = 1,
+        transactions = transactions,
+        trackedNames = emptyList(),
+    )
+
+    private fun walletTransaction(
+        status: String,
+        negative: Boolean,
+        magnitude: String,
+    ) = NativeWalletTransaction(
+        txid = "01".padEnd(64, '0'),
+        status = status,
+        negative = negative,
+        magnitudeBaseUnits = magnitude,
+        feeBaseUnits = null,
+        blockHeight = null,
+        firstSeenUnix = 1,
+        confirmationCount = 0,
+    )
 }
