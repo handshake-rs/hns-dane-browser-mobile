@@ -635,7 +635,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let fullPresentation = WalletReadPresenter.present(snapshot, maximumVisibleItems: 2)
         XCTAssertTrue(fullPresentation.history.contains(
-            "mempool · 1 HNS\n\(secondTransactionHex)\nUnconfirmed"
+            "pending (local wallet) · 1 HNS\n\(secondTransactionHex)\nUnconfirmed"
         ))
         XCTAssertTrue(fullPresentation.names.contains(
             "second · proof height 41\nnot wallet owned · empty · not registered\n\(secondHash)"

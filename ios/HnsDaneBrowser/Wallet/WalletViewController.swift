@@ -3211,7 +3211,7 @@ enum WalletReadPresenter {
                     "Block \($0) · \(transaction.confirmationCount) confirmations"
                 } ?? "Unconfirmed"
                 return [
-                    "\(codeLabel(transaction.status)) · \(displayAmount(transaction))",
+                    "\(transactionStatusLabel(transaction.status)) · \(displayAmount(transaction))",
                     lowerHex(transaction.txid),
                     chainPosition,
                 ].joined(separator: "\n")
@@ -3292,6 +3292,14 @@ enum WalletReadPresenter {
             }
         }
         return label
+    }
+
+    static func transactionStatusLabel(_ value: String) -> String {
+        switch value {
+        case "broadcast": return "submitted to peers"
+        case "mempool": return "pending (local wallet)"
+        default: return codeLabel(value)
+        }
     }
 
     static func presentName(_ name: NativeHnsReadSnapshot.KnownName) -> String {

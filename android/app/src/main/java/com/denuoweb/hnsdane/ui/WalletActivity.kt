@@ -84,6 +84,7 @@ import com.denuoweb.hnsdane.wallet.walletBackgroundHnsSyncMayRetain
 import com.denuoweb.hnsdane.wallet.walletReadMayPublish
 import com.denuoweb.hnsdane.wallet.walletReadBootstrapMayInstall
 import com.denuoweb.hnsdane.wallet.walletReadCodeLabel
+import com.denuoweb.hnsdane.wallet.walletTransactionStatusLabel
 import com.denuoweb.hnsdane.wallet.walletSetupMayInspectStorage
 import com.denuoweb.hnsdane.wallet.walletStorageNamespace
 import java.io.File
@@ -3886,7 +3887,7 @@ class WalletActivity : ComponentActivity() {
                 }
                 getString(
                     R.string.wallet_reads_transaction,
-                    walletReadCodeLabel(transaction.status),
+                    walletTransactionStatusLabel(transaction.status),
                     transaction.displayAmount(),
                     transaction.txid,
                     chainPosition,

@@ -35,6 +35,14 @@ class WalletReadPresentationTest {
     }
 
     @Test
+    fun localTransactionStatesDoNotClaimRemoteMempoolAdmission() {
+        assertEquals("pending (local wallet)", walletTransactionStatusLabel("mempool"))
+        assertEquals("submitted to peers", walletTransactionStatusLabel("broadcast"))
+        assertEquals("confirmed", walletTransactionStatusLabel("confirmed"))
+        assertEquals("dropped", walletTransactionStatusLabel("dropped"))
+    }
+
+    @Test
     fun pendingOutgoingIsRemovedFromAvailableWithoutChangingConfirmedChainValue() {
         val snapshot = walletSnapshot(
             balanceBaseUnits = "1000000",

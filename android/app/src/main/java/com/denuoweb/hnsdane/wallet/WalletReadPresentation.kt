@@ -102,6 +102,18 @@ internal fun walletReadCodeLabel(value: String): String = buildString(value.leng
     }
 }
 
+/**
+ * Do not present a process-local wallet status as proof of remote mempool
+ * admission. The raw code remains unchanged for strict ABI parsing and
+ * pending-balance arithmetic; only the human-facing transaction label is
+ * qualified here.
+ */
+internal fun walletTransactionStatusLabel(value: String): String = when (value) {
+    "broadcast" -> "submitted to peers"
+    "mempool" -> "pending (local wallet)"
+    else -> walletReadCodeLabel(value)
+}
+
 private const val HNS_DECIMAL_PLACES = 6
 private const val MAX_HNS_INPUT_CHARACTERS = 46
 private val HNS_BASE_UNITS = BigInteger.TEN.pow(HNS_DECIMAL_PLACES)
