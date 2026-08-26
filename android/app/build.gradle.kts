@@ -509,6 +509,17 @@ val androidNdkHome = providers.gradleProperty("hns.androidNdkHome").orNull
     ?: System.getenv("ANDROID_NDK_HOME")
     ?: System.getenv("ANDROID_NDK_ROOT")
     ?: ""
+val androidAbis = providers.gradleProperty("hns.androidAbis").orNull
+    ?.split(',')
+    ?.map(String::trim)
+    ?.filter(String::isNotEmpty)
+    ?: listOf("arm64-v8a", "x86_64")
+require(androidAbis.isNotEmpty() && androidAbis.toSet().size == androidAbis.size) {
+    "hns.androidAbis must select unique Android ABIs"
+}
+require(androidAbis.all { it in setOf("arm64-v8a", "x86_64") }) {
+    "hns.androidAbis supports only arm64-v8a and x86_64"
+}
 val buildRustAndroid = tasks.register<Exec>("buildRustAndroid") {
     val rootDir = rootProject.layout.projectDirectory.asFile.parentFile
     val script = rootDir.resolve("scripts/build-rust-android.sh")
@@ -519,6 +530,7 @@ val buildRustAndroid = tasks.register<Exec>("buildRustAndroid") {
     environment("ANDROID_NDK_HOME", androidNdkHome)
     environment("ANDROID_NDK_ROOT", androidNdkHome)
     environment("HNS_RUST_ANDROID_PROFILE", "release")
+    environment("HNS_RUST_ANDROID_ABIS", androidAbis.joinToString(","))
 
     inputs.files(
         script,
@@ -532,6 +544,7 @@ val buildRustAndroid = tasks.register<Exec>("buildRustAndroid") {
         rootDir.resolve("rust/rust-toolchain.toml"),
     )
     inputs.property("rustAndroidProfile", "release")
+    inputs.property("rustAndroidAbis", androidAbis)
     inputs.property("cargoNdkVersion", System.getenv("HNS_CARGO_NDK_VERSION") ?: "4.1.2")
     inputs.property(
         "androidNdkVersion",
@@ -565,7 +578,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += androidAbis
         }
     }
 

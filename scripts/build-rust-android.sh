@@ -6,6 +6,7 @@ OUT_DIR="${1:-$ROOT_DIR/android/app/build/generated/rustJniLibs}"
 PROFILE="${HNS_RUST_ANDROID_PROFILE:-release}"
 EXPECTED_CARGO_NDK_VERSION="${HNS_CARGO_NDK_VERSION:-4.1.2}"
 EXPECTED_NDK_VERSION="${HNS_ANDROID_NDK_VERSION:-28.2.13676358}"
+ANDROID_ABIS_CSV="${HNS_RUST_ANDROID_ABIS:-arm64-v8a,x86_64}"
 RUST_TOOLCHAIN="1.92.0"
 CARGO=(cargo "+$RUST_TOOLCHAIN")
 RUSTC=(rustc "+$RUST_TOOLCHAIN")
@@ -17,6 +18,27 @@ case "$PROFILE" in
     exit 2
     ;;
 esac
+
+IFS=',' read -r -a ANDROID_ABIS <<< "$ANDROID_ABIS_CSV"
+if [[ ${#ANDROID_ABIS[@]} -eq 0 ]]; then
+  echo "ERROR: HNS_RUST_ANDROID_ABIS must select at least one Android ABI." >&2
+  exit 2
+fi
+seen_android_abis=" "
+for abi in "${ANDROID_ABIS[@]}"; do
+  case "$abi" in
+    arm64-v8a|x86_64) ;;
+    *)
+      echo "ERROR: unsupported Android ABI in HNS_RUST_ANDROID_ABIS: $abi" >&2
+      exit 2
+      ;;
+  esac
+  if [[ "$seen_android_abis" == *" $abi "* ]]; then
+    echo "ERROR: duplicate Android ABI in HNS_RUST_ANDROID_ABIS: $abi" >&2
+    exit 2
+  fi
+  seen_android_abis+="$abi "
+done
 
 configured_rust_toolchain="$(
   sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
@@ -82,10 +104,11 @@ case "$OUT_DIR" in
 esac
 find "$OUT_DIR" -type f -name '*.so' -delete
 
-ARGS=(
-  ndk
-  -t arm64-v8a
-  -t x86_64
+ARGS=(ndk)
+for abi in "${ANDROID_ABIS[@]}"; do
+  ARGS+=( -t "$abi" )
+done
+ARGS+=(
   -P 30
   -o "$OUT_DIR"
   build
@@ -154,7 +177,7 @@ fi
 cd "$ROOT_DIR/rust"
 "${CARGO[@]}" "${ARGS[@]}" --locked
 
-for abi in arm64-v8a x86_64; do
+for abi in "${ANDROID_ABIS[@]}"; do
   library="$OUT_DIR/$abi/libhns_dane_browser_ffi.so"
   if [[ ! -s "$library" ]]; then
     echo "ERROR: cargo-ndk did not produce the required library: $library" >&2
