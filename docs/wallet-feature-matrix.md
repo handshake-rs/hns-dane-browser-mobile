@@ -16,7 +16,7 @@ Website JavaScript has no access to any operation below.
 | Balance, pending outgoing, available-after-pending, and history | Strict snapshot dashboard | Strict snapshot dashboard | Exact integer projection prevents a pending outgoing spend from remaining apparently available; duplicate and incoherent history fail closed | Confirm a real outgoing transaction on chain and synchronize the final state |
 | Send review | Fresh direct synchronization, exact request echo, one-time native approval | Fresh direct synchronization, exact request echo, one-time native approval | Closed send approval, recipient/amount/maximum-fee equality, expiry, and rollback-floor checks | Requalify with the forward-only change watch-set fix installed |
 | Reject send | Dialog cancel/reject consumes the pending token | Dialog cancel/reject consumes the pending token | One-shot native rejection; lifecycle loss locks or suppresses stale publication | Final installed-device cancel/background cases |
-| Approve and submit send | Native approval, peer submission, then snapshot refresh | Native approval, peer submission, then snapshot refresh | Exact signed bytes are retained for bounded dropped-send resubmission; submission wording does not claim confirmation | A mined transaction is still required; local mempool display is insufficient |
+| Approve and submit send | Native approval, peer submission, then snapshot refresh | Native approval, peer submission, then snapshot refresh | Exact signed bytes are retained for bounded dropped-send resubmission; socket submission remains `broadcast`, peer-returned inventory is `mempool`, and only verified inclusion is `confirmed` | A mined transaction is still required; peer-observed mempool display is insufficient |
 | Send change watch-set update | Shared embedded backend | Shared embedded backend | Exact one-script internal-change extension preserves authenticated scan head and history; ambiguous changes retain the birthday-rewind path | Install and repeat Android send review without a block-zero rescan |
 | Track exact HNS name | Direct proof sync followed by canonical import; loopback compatibility path remains | Direct proof sync followed by canonical import; loopback compatibility path remains | Exact UTF-8/canonical-name validation, verified name proof, bounded HNWI result, and stale-authority suppression | Credentialed direct device exercise on both platforms |
 | Transfer and finalize name | Fresh sync, native review, reject/approve/result refresh | Fresh sync, native review, reject/approve/result refresh | Closed schema-three disclosures and value-result decoders cover exact name, address, covenant and fee fields | Regtest or controlled-device end-to-end transaction exercises |
@@ -33,12 +33,18 @@ not prove miner admission: later synchronization classified the transaction as
 dropped/unconfirmed and the wallet rescanned from its block-zero birthday.
 Local mempool presentation therefore remains pending state, not confirmation.
 
-Two later local-main fixes are stacked but not installed in that exercise:
+Three later local-main fixes are stacked but not installed in that exercise:
 
 - exact serialized bytes are retained and reused for bounded dropped-send
-  resubmission; and
+  resubmission;
 - an exactly proven internal change-gap extension updates the embedded watch
-  set without discarding authenticated scan coverage or transaction history.
+  set without discarding authenticated scan coverage or transaction history;
+  and
+- a successful socket write remains a durable `broadcast` submission during a
+  short propagation window. It becomes `mempool` only after a connected peer
+  returns the transaction and `confirmed` only after verified block inclusion.
+  The submitted transaction remains visible from its encrypted workflow while
+  awaiting that peer response.
 
 The send row remains incomplete until an installed build demonstrates no
 unnecessary birthday rescan and the transaction is observed in a verified
