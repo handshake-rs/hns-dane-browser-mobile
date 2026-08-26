@@ -97,15 +97,16 @@ The iOS shell uses one persistent identified `WKWebsiteDataStore` with one authe
 
 ## Native wallet and dormant website-provider boundary
 
-The Android/iOS `1.0.0` release candidate links the exact pinned
+The current local Android/iOS stack links the exact pinned
 `hns-wallet-mobile` controller to app-native create, restore, open, status,
-unlock, lock, one-time recovery, destroy, and single non-value HNS account
-identity controls. Both shells emit strict HNWR-v2 and implement native UI for
-synchronized balance, structurally distinct ordinary-payment and name-transfer
-receive targets, history, tracked names, and module status. Historical HNWR-v1
-and current HNWR-v2 use separate exact five- and six-field decoders, so a field
-cannot be smuggled across versions. The controller is not a browser provider and no wallet secret or
-method enters WebView/WKWebView. These controls are not in the current public
+unlock, lock, one-time recovery, destroy, and single-account controls. Both
+shells compose a wallet-owned direct HNS peer controller for synchronized
+balance, structurally distinct receive targets, history, names, send review and
+broadcast, and closed name/Shakedex actions. Historical HNWR-v1 and current
+HNWR-v2 use separate exact five- and six-field decoders, and native approval and
+result bundles also use closed, bounded schemas. The controller is not a browser
+provider: no wallet secret, action, approval token, or method enters
+WebView/WKWebView. These controls are not in the current public
 Play, GitHub, or App Store binaries; the underlying lifecycle tranche passed its
 fresh-install Android exercise at
 `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Historical `0.5.8` source
@@ -125,8 +126,10 @@ authorized uninstall removed only the debug package/data; production remained
 installed and untouched. The on-device digest matched, cold launch succeeded,
 and the native wallet screen showed the no-wallet controls and fail-closed read
 projection. No wallet, secret, account, credentialed read, or value action ran.
-Signed artifacts, current screenshots, store declaration/upload, credentialed
-wallet qualification, and the physical-iPhone matrix remain release gates.
+Signed artifacts, current screenshots, store declaration/upload, installed
+Android send-review qualification, and the physical-iPhone matrix remain
+release gates. The currently reported Android regression is being handled
+without deleting or resetting the existing wallet database.
 
 HNWR configuration is loopback-only and accepts a bounded mutable scoped
 authorization value that is consumed and wiped. Output is bounded and its

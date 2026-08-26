@@ -98,6 +98,21 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ] + payload
     }
 
+    private func hnsValueBundle(magic: String, json: String) -> [UInt8] {
+        let payload = Array(json.utf8)
+        let length = UInt32(payload.count)
+        return Array(magic.utf8) + [
+            1,
+            0,
+            0,
+            0,
+            UInt8((length >> 24) & 0xff),
+            UInt8((length >> 16) & 0xff),
+            UInt8((length >> 8) & 0xff),
+            UInt8(length & 0xff),
+        ] + payload
+    }
+
     private func hnsNameSummaryJSON(name: String = "alpha") -> String {
         """
         {"name":"\(name)","nameHash":"\(String(repeating: "a", count: 64))","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false}
@@ -3633,6 +3648,112 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(walletDirectHnsRollbackFloorAtLeast(older, committed))
         XCTAssertFalse(walletDirectHnsRollbackFloorAtLeast([], committed))
         XCTAssertFalse(walletDirectHnsRollbackFloorAtLeast(committed, [0]))
+    }
+
+    func testNativeHnsValueIntentsEncodeOnlyClosedCanonicalShapes() throws {
+        let transfer = NativeHnsValueIntent.transferName(
+            name: "alpha",
+            recipient: "rs1qfixture",
+            maximumFeeBaseUnits: "1000"
+        )
+        let transferObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(try transfer.encodedBytes()))
+                as? [String: Any]
+        )
+        XCTAssertEqual(Set(transferObject.keys), ["action", "name", "recipient", "maximumFee"])
+        XCTAssertEqual(transferObject["action"] as? String, "transferName")
+        XCTAssertEqual(transferObject["maximumFee"] as? String, "1000")
+        XCTAssertEqual(transfer.expectedApprovalKind, .nameTransfer)
+
+        let finalize = NativeHnsValueIntent.finalizeName(
+            name: "alpha",
+            expectedRecipient: nil,
+            maximumFeeBaseUnits: "2000"
+        )
+        let finalizeObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(try finalize.encodedBytes()))
+                as? [String: Any]
+        )
+        XCTAssertTrue(finalizeObject["expectedRecipient"] is NSNull)
+        XCTAssertEqual(finalize.expectedApprovalKind, .nameFinalize)
+
+        XCTAssertThrowsError(try NativeHnsValueIntent.transferName(
+            name: "alpha",
+            recipient: "recipient with spaces",
+            maximumFeeBaseUnits: "1"
+        ).encodedBytes())
+        XCTAssertThrowsError(try NativeHnsValueIntent.createFixedPriceOffer(
+            name: "alpha",
+            priceBaseUnits: "1",
+            maximumFeeBaseUnits: "1",
+            listingLifetimeSeconds: 599
+        ).encodedBytes())
+        XCTAssertThrowsError(try NativeHnsValueIntent.cancelOffer(
+            sellerSessionID: String(repeating: "0", count: 64)
+        ).encodedBytes())
+
+        let query = try NativeShakedexQuery.listOffers(cursor: nil, limit: 32).encodedBytes()
+        let queryObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(query)) as? [String: Any]
+        )
+        XCTAssertEqual(Set(queryObject.keys), ["query", "cursor", "limit"])
+        XCTAssertEqual(queryObject["query"] as? String, "listOffers")
+        XCTAssertTrue(queryObject["cursor"] is NSNull)
+        XCTAssertThrowsError(
+            try NativeShakedexQuery.listOffers(cursor: nil, limit: 0).encodedBytes()
+        )
+    }
+
+    func testNativeHnsValueApprovalAndResultsRejectShapeDrift() throws {
+        let token = String(repeating: "a", count: 64)
+        let approvalJSON = """
+        {"actionToken":"\(token)","expiresAtUnix":42,"summary":{"kind":"nameTransfer","name":"alpha","recipient":"rs1qfixture","maximumFee":{"asset":"HNS","base_units":"1000"},"warnings":["feeEstimateMayChange","nameTransferIsIrreversible"]}}
+        """
+        let approval = try NativeHnsValueApproval.decode(
+            bundle: hnsValueBundle(magic: "HNVP", json: approvalJSON)
+        )
+        XCTAssertEqual(approval.kind, .nameTransfer)
+        XCTAssertEqual(approval.title, "Transfer Handshake name")
+        XCTAssertTrue(approval.detailLines.contains("Maximum fee: 0.001 HNS"))
+        approval.actionToken.discard()
+
+        XCTAssertThrowsError(try NativeHnsValueApproval.decode(
+            bundle: hnsValueBundle(
+                magic: "HNVP",
+                json: approvalJSON.replacingOccurrences(
+                    of: "\"warnings\":",
+                    with: "\"unknown\":true,\"warnings\":"
+                )
+            )
+        ))
+        XCTAssertThrowsError(try NativeHnsValueApproval.decode(
+            bundle: hnsValueBundle(
+                magic: "HNVP",
+                json: approvalJSON.replacingOccurrences(
+                    of: "nameTransferIsIrreversible",
+                    with: "unknownWarning"
+                )
+            )
+        ))
+
+        let valueResult = try NativeHnsValueResult.decode(
+            bundle: hnsValueBundle(
+                magic: "HNVX",
+                json: "{\"module\":\"handshake\",\"accepted\":true}"
+            ),
+            magic: Array("HNVX".utf8)
+        )
+        XCTAssertTrue(valueResult.displayJSON.contains("handshake"))
+        let queryResult = try NativeShakedexQueryResult.decode(
+            bundle: hnsValueBundle(
+                magic: "HNVQ",
+                json: "{\"offers\":[],\"nextCursor\":null}"
+            )
+        )
+        XCTAssertTrue(queryResult.displayJSON.contains("offers"))
+        XCTAssertThrowsError(try NativeShakedexQueryResult.decode(
+            bundle: hnsValueBundle(magic: "HNVX", json: "{\"offers\":[]}")
+        ))
     }
 }
 

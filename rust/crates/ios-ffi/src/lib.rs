@@ -26,7 +26,7 @@ use hns_wallet_mobile::{
     HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES,
     MobileDatabaseKey, MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot,
     MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
-    MobileWalletController, MobileWalletError,
+    MobileShakedexQuery, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::BaseUnits;
 use serde_json::{Value, json};
@@ -117,12 +117,19 @@ const WALLET_VALUE_APPROVAL_BUNDLE_MAGIC: &[u8; 4] = b"HNVP";
 const WALLET_VALUE_APPROVAL_BUNDLE_VERSION: u8 = 1;
 const WALLET_VALUE_RESULT_BUNDLE_MAGIC: &[u8; 4] = b"HNVX";
 const WALLET_VALUE_RESULT_BUNDLE_VERSION: u8 = 1;
+const WALLET_SHAKEDEX_QUERY_BUNDLE_MAGIC: &[u8; 4] = b"HNVQ";
+const WALLET_SHAKEDEX_QUERY_BUNDLE_VERSION: u8 = 1;
 const WALLET_JSON_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_HNS_RECEIVE_JSON_BYTES: usize = 4 * 1024;
 const MAX_WALLET_VALUE_APPROVAL_JSON_BYTES: usize = 16 * 1024;
-const MAX_WALLET_VALUE_RESULT_JSON_BYTES: usize = 16 * 1024;
+const MAX_WALLET_VALUE_RESULT_JSON_BYTES: usize = 256 * 1024;
 const MAX_WALLET_VALUE_RECIPIENT_BYTES: usize = 512;
 const MAX_WALLET_BASE_UNITS_BYTES: usize = 39;
+/// Closed native value-intent JSON is accepted only from UIKit. This cap is
+/// deliberately independent of the larger approval/result envelopes.
+const MAX_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
+const MAX_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
+const MAX_WALLET_SHAKEDEX_RESULT_JSON_BYTES: usize = 256 * 1024;
 const WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const HNS_LIGHT_FLOOR_BYTES: usize = 36;
 const MAINNET_GENESIS_BOOTSTRAP_MAGIC: &[u8; 11] = b"HNSHDRSNAP1";
@@ -1475,7 +1482,8 @@ unsafe fn wallet_action_token(slice: HnsBrowserSlice) -> Result<String, FfiFailu
     let valid = bytes.len() == WALLET_ACTION_TOKEN_BYTES
         && bytes
             .iter()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte));
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+        && bytes.iter().any(|byte| *byte != b'0');
     if !valid {
         bytes.fill(0);
         return Err(FfiFailure::invalid("wallet action token is invalid"));
@@ -1485,6 +1493,40 @@ unsafe fn wallet_action_token(slice: HnsBrowserSlice) -> Result<String, FfiFailu
         bytes.fill(0);
         FfiFailure::invalid("wallet action token is invalid")
     })
+}
+
+/// Decodes only the published closed HNS wallet intent enum. The iOS C ABI
+/// has no provider or WebKit caller, but retaining a strict byte/shape bound
+/// here prevents UIKit form data from becoming an unbounded native parser
+/// input and keeps this path congruent with Android's JNI boundary.
+unsafe fn wallet_value_intent(slice: HnsBrowserSlice) -> Result<MobileHnsValueIntent, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(slice, MAX_WALLET_VALUE_INTENT_JSON_BYTES) }?;
+    let valid_frame =
+        bytes.len() >= 2 && bytes.first() == Some(&b'{') && bytes.last() == Some(&b'}');
+    let intent = if valid_frame {
+        serde_json::from_slice::<MobileHnsValueIntent>(bytes.as_slice()).ok()
+    } else {
+        None
+    };
+    bytes.fill(0);
+    intent.ok_or_else(|| FfiFailure::invalid("wallet value intent is invalid"))
+}
+
+/// Decodes a closed native Shakedex query. Like value intents, this is a
+/// UIKit-only input and has no provider or renderer counterpart.
+unsafe fn wallet_shakedex_query(slice: HnsBrowserSlice) -> Result<MobileShakedexQuery, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(slice, MAX_WALLET_SHAKEDEX_QUERY_JSON_BYTES) }?;
+    let valid_frame =
+        bytes.len() >= 2 && bytes.first() == Some(&b'{') && bytes.last() == Some(&b'}');
+    let query = if valid_frame {
+        serde_json::from_slice::<MobileShakedexQuery>(bytes.as_slice()).ok()
+    } else {
+        None
+    };
+    bytes.fill(0);
+    query.ok_or_else(|| FfiFailure::invalid("wallet Shakedex query is invalid"))
 }
 
 fn wallet_json_bundle(
@@ -2274,7 +2316,7 @@ pub unsafe extern "C" fn hns_browser_hns_root(
 }
 
 #[unsafe(no_mangle)]
-/// Creates one native, non-value Handshake wallet and retains its one-time
+/// Creates one native Handshake wallet and retains its one-time
 /// recovery phrase until [`hns_browser_wallet_take_recovery_phrase`] succeeds.
 ///
 /// # Safety
@@ -2318,7 +2360,7 @@ pub unsafe extern "C" fn hns_browser_wallet_create(
 }
 
 #[unsafe(no_mangle)]
-/// Restores one native, non-value Handshake wallet from an owned, bounded
+/// Restores one native Handshake wallet from an owned, bounded
 /// recovery phrase copy that is wiped before returning.
 ///
 /// # Safety
@@ -2415,6 +2457,14 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
         ensure_wallet_active(&entry)?;
         let hns_reads_enabled = entry.controller.has_hns_reads();
         let hns_value_enabled = entry.controller.has_hns_value();
+        // The only iOS value composition is created with the published
+        // wallet-owned direct Shakedex controller. Keep this explicit in the
+        // status projection so UIKit never infers marketplace availability
+        // merely from a generic value flag.
+        let shakedex_enabled = matches!(
+            &entry.controller,
+            NativeWalletController::DirectHnsValue { .. }
+        );
         let status = entry
             .controller
             .with_mut(
@@ -2433,6 +2483,7 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
                     .all(|module| module_wire_name(*module) == "handshake")
         };
         if !enabled_modules_are_allowed
+            || (shakedex_enabled && !hns_value_enabled)
             || status.mainnet_settlement_enabled
             || status.locked != status.active_wallet.is_none()
         {
@@ -2463,6 +2514,8 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
         }
         json.push_str("],\"hnsValueEnabled\":");
         json.push_str(if hns_value_enabled { "true" } else { "false" });
+        json.push_str(",\"shakedexEnabled\":");
+        json.push_str(if shakedex_enabled { "true" } else { "false" });
         json.push_str(",\"mainnetSettlementEnabled\":");
         json.push_str(if status.mainnet_settlement_enabled {
             "true"
@@ -2593,6 +2646,7 @@ pub unsafe extern "C" fn hns_browser_wallet_has_hns_reads(
     })
 }
 
+#[unsafe(no_mangle)]
 /// Installs the wallet-owned direct HNS controller around one reopened durable
 /// wallet. The direct controller derives its own account watch set, discovers
 /// HNS peers, validates consensus headers/filtered blocks, and broadcasts
@@ -2634,6 +2688,7 @@ pub unsafe extern "C" fn hns_browser_wallet_configure_direct_hns_value(
     })
 }
 
+#[unsafe(no_mangle)]
 /// # Safety
 /// `out_enabled` must point to one writable byte. Only zero or one is written.
 pub unsafe extern "C" fn hns_browser_wallet_has_hns_value(
@@ -2653,6 +2708,7 @@ pub unsafe extern "C" fn hns_browser_wallet_has_hns_value(
     })
 }
 
+#[unsafe(no_mangle)]
 /// Returns the exact direct controller rollback floor. This is public chain
 /// authority metadata rather than wallet-secret material, but it remains an
 /// app-native result and is never exposed to WebKit.
@@ -2688,6 +2744,7 @@ pub unsafe extern "C" fn hns_browser_wallet_direct_hns_rollback_floor(
     })
 }
 
+#[unsafe(no_mangle)]
 /// Derives the active ordinary HNS payment target from the unlocked local
 /// wallet. This is intentionally local-only: it does not query peers, claim a
 /// balance, or advance synchronization state.
@@ -2731,6 +2788,7 @@ pub unsafe extern "C" fn hns_browser_wallet_local_hns_receive_target(
     })
 }
 
+#[unsafe(no_mangle)]
 /// Prepares one exact native HNS payment. The action cannot broadcast until
 /// the returned single-use approval token is explicitly approved by the
 /// native UI; no WebKit or page data path can invoke this C entry point.
@@ -2808,6 +2866,140 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_send(
     })
 }
 
+/// Prepares one closed native HNS name or Shakedex value action. The JSON is
+/// decoded directly into the published `MobileHnsValueIntent` enum and is
+/// accepted only from the local iOS wallet UI; no provider, URL, peer, or
+/// WebKit frame can invoke this entry point. The returned HNVP-v1 bundle must
+/// be displayed and explicitly approved or rejected exactly once.
+///
+/// # Safety
+/// `intent_json` must remain readable for its declared length and
+/// `out_approval_bundle` must point to one writable owned-buffer value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_value_action(
+    wallet: HnsBrowserWalletHandle,
+    intent_json: HnsBrowserSlice,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        // SAFETY: This export carries the caller's readable-slice contract.
+        let intent = unsafe { wallet_value_intent(intent_json) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { controller, .. } = &mut entry.controller
+        else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        let approval = controller
+            .prepare_value_action(intent)
+            .map_err(|_| direct_hns_not_ready("HNS value action requires a current wallet scan"))?;
+        if approval.summary.validate().is_err() {
+            let _ = controller.lock();
+            return Err(wallet_runtime_failure("HNS value approval is invalid"));
+        }
+        let mut json = serde_json::to_vec(&approval)
+            .map_err(|_| wallet_runtime_failure("unable to encode HNS value approval"))?;
+        let bundle = match wallet_json_bundle(
+            json.as_slice(),
+            WALLET_VALUE_APPROVAL_BUNDLE_MAGIC,
+            WALLET_VALUE_APPROVAL_BUNDLE_VERSION,
+            MAX_WALLET_VALUE_APPROVAL_JSON_BYTES,
+        ) {
+            Ok(bundle) => bundle,
+            Err(error) => {
+                json.fill(0);
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        json.fill(0);
+        let output = match allocate_output(&bundle.0, true) {
+            Ok(output) => output,
+            Err(error) => {
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+/// Runs one bounded local Shakedex query through the configured direct HNS
+/// controller. Its HNVQ-v1 result remains native-only and is not a page
+/// provider response. Queries do not authorize a transaction and do not
+/// advance the direct header/rollback authority.
+///
+/// # Safety
+/// `query_json` must remain readable for its declared length and
+/// `out_result_bundle` must point to one writable owned-buffer value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_query_shakedex(
+    wallet: HnsBrowserWalletHandle,
+    query_json: HnsBrowserSlice,
+    out_result_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_result_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_result_bundle, HnsBrowserBuffer::empty()) };
+        // SAFETY: This export carries the caller's readable-slice contract.
+        let query = unsafe { wallet_shakedex_query(query_json) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { controller, .. } = &mut entry.controller
+        else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        let result = controller
+            .query_shakedex(query)
+            .map_err(|_| direct_hns_not_ready("HNS Shakedex query is unavailable"))?;
+        if !result.is_object() {
+            let _ = controller.lock();
+            return Err(wallet_runtime_failure("HNS Shakedex result is invalid"));
+        }
+        let mut json = serde_json::to_vec(&result)
+            .map_err(|_| wallet_runtime_failure("unable to encode HNS Shakedex result"))?;
+        let bundle = match wallet_json_bundle(
+            json.as_slice(),
+            WALLET_SHAKEDEX_QUERY_BUNDLE_MAGIC,
+            WALLET_SHAKEDEX_QUERY_BUNDLE_VERSION,
+            MAX_WALLET_SHAKEDEX_RESULT_JSON_BYTES,
+        ) {
+            Ok(bundle) => bundle,
+            Err(error) => {
+                json.fill(0);
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        json.fill(0);
+        let output = match allocate_output(&bundle.0, true) {
+            Ok(output) => output,
+            Err(error) => {
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_result_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Consumes one displayed direct-HNS send approval and returns a minimized
 /// receipt only after the native controller accepts the broadcast.
 ///
@@ -2871,6 +3063,73 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_hns_send(
     })
 }
 
+/// Approves one displayed non-send HNS value action. The exact native result
+/// is returned in a private HNVX-v1 envelope only when it is a bounded JSON
+/// object. UIKit treats a malformed or absent result as an ambiguous value
+/// outcome and locks before allowing another action.
+///
+/// # Safety
+/// `action_token` must remain readable for its declared length and
+/// `out_result_bundle` must point to one writable owned-buffer value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_approve_hns_value_action_result(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_result_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_result_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_result_bundle, HnsBrowserBuffer::empty()) };
+        // SAFETY: This export carries the caller's readable-slice contract.
+        let action_token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { controller, .. } = &mut entry.controller
+        else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        let result = controller
+            .approve_value_action(action_token.as_str())
+            .map_err(|_| wallet_runtime_failure("HNS value approval was rejected"))?;
+        if !result.is_object() {
+            let _ = controller.lock();
+            return Err(wallet_runtime_failure("HNS value result is invalid"));
+        }
+        let mut json = serde_json::to_vec(&result)
+            .map_err(|_| wallet_runtime_failure("unable to encode HNS value result"))?;
+        let bundle = match wallet_json_bundle(
+            json.as_slice(),
+            WALLET_VALUE_RESULT_BUNDLE_MAGIC,
+            WALLET_VALUE_RESULT_BUNDLE_VERSION,
+            MAX_WALLET_VALUE_RESULT_JSON_BYTES,
+        ) {
+            Ok(bundle) => bundle,
+            Err(error) => {
+                json.fill(0);
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        json.fill(0);
+        let output = match allocate_output(&bundle.0, true) {
+            Ok(output) => output,
+            Err(error) => {
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_result_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Rejects and consumes one displayed direct-HNS send approval.
 ///
 /// # Safety
@@ -3699,6 +3958,9 @@ mod tests {
             "hns_browser_wallet_prepare_hns_send",
             "hns_browser_wallet_approve_hns_send",
             "hns_browser_wallet_reject_hns_send",
+            "hns_browser_wallet_prepare_hns_value_action",
+            "hns_browser_wallet_approve_hns_value_action_result",
+            "hns_browser_wallet_query_shakedex",
             "hns_browser_wallet_unlock",
             "hns_browser_wallet_lock",
             "hns_browser_wallet_take_recovery_phrase",
@@ -3960,6 +4222,50 @@ mod tests {
             ffi_call(|| -> Result<(), FfiFailure> { panic!("contained test panic") }),
             HNS_BROWSER_RESULT_PANIC
         );
+    }
+
+    #[test]
+    fn native_hns_value_inputs_are_closed_bounded_and_canonical() {
+        let _guard = test_guard();
+        let transfer = br#"{"action":"transferName","name":"alpha","recipient":"rs1qfixture","maximumFee":"1000"}"#;
+        // SAFETY: The exact JSON bytes remain readable for this call.
+        assert!(matches!(
+            unsafe { wallet_value_intent(ffi_slice(transfer)) },
+            Ok(MobileHnsValueIntent::TransferName { .. })
+        ));
+        for invalid in [
+            br#"{}"#.as_slice(),
+            br#"{"action":"send","recipient":"rs1qfixture"}"#.as_slice(),
+            br#" {"action":"transferName"}"#.as_slice(),
+        ] {
+            // SAFETY: Each invalid byte slice remains readable for the call.
+            assert!(unsafe { wallet_value_intent(ffi_slice(invalid)) }.is_err());
+        }
+        let oversized_intent = HnsBrowserSlice {
+            ptr: ptr::without_provenance::<u8>(1),
+            len: (MAX_WALLET_VALUE_INTENT_JSON_BYTES + 1) as u64,
+        };
+        // SAFETY: The length is rejected before the intentionally invalid pointer is read.
+        assert!(unsafe { wallet_value_intent(oversized_intent) }.is_err());
+
+        let list = br#"{"query":"listOffers","cursor":null,"limit":32}"#;
+        // SAFETY: The exact query bytes remain readable for this call.
+        assert!(matches!(
+            unsafe { wallet_shakedex_query(ffi_slice(list)) },
+            Ok(MobileShakedexQuery::ListOffers { .. })
+        ));
+        // SAFETY: An unknown query is a readable, bounded input and must fail closed.
+        assert!(unsafe { wallet_shakedex_query(ffi_slice(br#"{"query":"unknown"}"#)) }.is_err());
+
+        let token = [b'a'; WALLET_ACTION_TOKEN_BYTES];
+        // SAFETY: The canonical token bytes remain readable for this call.
+        assert!(unsafe { wallet_action_token(ffi_slice(&token)) }.is_ok());
+        let zero = [b'0'; WALLET_ACTION_TOKEN_BYTES];
+        // SAFETY: The all-zero token bytes remain readable for this call.
+        assert!(unsafe { wallet_action_token(ffi_slice(&zero)) }.is_err());
+        let uppercase = [b'A'; WALLET_ACTION_TOKEN_BYTES];
+        // SAFETY: Uppercase token bytes remain readable and must be rejected.
+        assert!(unsafe { wallet_action_token(ffi_slice(&uppercase)) }.is_err());
     }
 
     #[test]
@@ -4262,7 +4568,7 @@ mod tests {
         );
         assert_eq!(
             owned_string(status),
-            "{\"locked\":true,\"activeWallet\":null,\"enabledModules\":[\"handshake\"],\"hnsValueEnabled\":false,\"mainnetSettlementEnabled\":false}"
+            "{\"locked\":true,\"activeWallet\":null,\"enabledModules\":[\"handshake\"],\"hnsValueEnabled\":false,\"shakedexEnabled\":false,\"mainnetSettlementEnabled\":false}"
         );
         assert_eq!(hns_browser_buffer_free(status), HNS_BROWSER_RESULT_OK);
         assert_eq!(hns_browser_wallet_destroy(wallet), HNS_BROWSER_RESULT_OK);

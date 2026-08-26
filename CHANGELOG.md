@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Added wallet-owned direct HNS synchronization, receive derivation, exact
+  send review/reject/approval/broadcast, rollback-floor journaling, and bounded
+  native progress reporting without depending on the legacy loopback RPC seam.
+- Added native Android and iOS name transfer/finalization and closed Shakedex
+  offer/purchase actions. Approval prompts are decoded from strict native
+  bundles and remain unavailable to websites or the dormant provider boundary.
+- Added Android direct-Denuo listener, explicit IP-literal peer pairing, peer
+  servicing, replacement, and disconnect controls for wallet-owned offer
+  exchange. Matching iOS transport controls remain in progress.
+
+### Fixed
+
+- Android now supplies and validates the bundled mainnet bootstrap snapshot on
+  every eligible direct-wallet reopen, including when a nonzero rollback floor
+  is already journaled, avoiding a false setup failure that could look like a
+  reset-to-genesis rescan.
+- Direct-wallet setup retains the usable lifecycle controller when coordinator
+  creation fails, allowing a safe retry without poisoning the wallet handle.
+- Exported the complete direct HNS send/name/Shakedex Apple C ABI with stable
+  unmangled symbols and extended the archive/header parity gate accordingly.
+
+### Qualification
+
+- Rust iOS-FFI unit tests, the exact host static-archive symbol scan, and C11 /
+  C++17 header smoke compilation pass locally for this stack. A Swift/Xcode
+  build is unavailable on this Linux host. Android debug-APK and installed
+  send-review qualification are intentionally deferred until the pending
+  device logs are available; no wallet database reset is part of this work.
+
 ## 1.0.0 - 2026-08-20
 
 ### Added

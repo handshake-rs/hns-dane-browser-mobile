@@ -212,9 +212,9 @@ HnsBrowserResult hns_browser_hns_root(
 
 /*
  * Native wallet controls retain one local HNS account. Direct HNS sync and
- * send operations are native-only and require the caller to present a native
- * approval; no provider, WebKit, settlement, or marketplace authority is
- * exposed through this ABI.
+ * send, name, and Shakedex operations are native-only and require the caller
+ * to present a native approval; no provider, WebKit, settlement, or
+ * marketplace authority is exposed through this ABI.
  */
 HnsBrowserResult hns_browser_wallet_create(
     HnsBrowserSlice database_path,
@@ -322,6 +322,25 @@ HnsBrowserResult hns_browser_wallet_approve_hns_send(
 HnsBrowserResult hns_browser_wallet_reject_hns_send(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice action_token);
+/*
+ * Closed UIKit-only HNS name/Shakedex value intents. The bounded JSON input
+ * must decode as the published MobileHnsValueIntent enum; successful prepare
+ * returns HNVP-v1 and can be consumed once by the generic approval result
+ * call below. HNVX-v1 and HNVQ-v1 outputs are private native UI data, never
+ * provider or WebKit responses.
+ */
+HnsBrowserResult hns_browser_wallet_prepare_hns_value_action(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice intent_json,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_hns_value_action_result(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_result_bundle);
+HnsBrowserResult hns_browser_wallet_query_shakedex(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice query_json,
+    HnsBrowserBuffer *out_result_bundle);
 HnsBrowserResult hns_browser_wallet_unlock(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice database_key);

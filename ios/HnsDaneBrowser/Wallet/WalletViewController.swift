@@ -21,6 +21,7 @@ final class WalletViewController: UIViewController {
     private var isOperating = false
     private var walletIsUnlocked = false
     private var directHnsValueAvailable = false
+    private var shakedexAvailable = false
     private var readGeneration: UInt64 = 0
     private var synchronizedReadsAvailable = false
     private var resolvedDatabasePath: String?
@@ -38,6 +39,8 @@ final class WalletViewController: UIViewController {
     private weak var hnsSendFormAlert: UIAlertController?
     private weak var hnsSendApprovalAlert: UIAlertController?
     private var pendingHnsSendApproval: NativeHnsSendApproval?
+    private weak var hnsValueApprovalAlert: UIAlertController?
+    private var pendingHnsValueApproval: NativeHnsValueApproval?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -135,6 +138,8 @@ final class WalletViewController: UIViewController {
         NotificationCenter.default.removeObserver(self)
         pendingHnsSendApproval?.actionToken.discard()
         pendingHnsSendApproval = nil
+        pendingHnsValueApproval?.actionToken.discard()
+        pendingHnsValueApproval = nil
         recoverySecret?.clear()
         let currentWallet = wallet
         let currentLease = storageLease
@@ -198,7 +203,7 @@ final class WalletViewController: UIViewController {
         configureButton(refreshButton, title: "Refresh status", action: #selector(refreshWallet))
         configureButton(
             synchronizeButton,
-            title: "Synchronize read-only wallet",
+            title: "Synchronize HNS wallet",
             action: #selector(synchronizeWalletReads)
         )
         configureButton(
@@ -313,7 +318,7 @@ final class WalletViewController: UIViewController {
             dashboardTile(
                 title: "Names",
                 summary: "Unlock to inspect names",
-                action: { [weak self] in self?.showFeatureUnavailable("Names") }
+                action: { [weak self] in self?.showNamesDashboard() }
             ),
             dashboardTile(
                 title: "Bitcoin",
@@ -324,8 +329,8 @@ final class WalletViewController: UIViewController {
         dashboardStack.addArrangedSubview(dashboardTileRow(
             dashboardTile(
                 title: "Shakedex",
-                summary: "Not available on iOS",
-                action: { [weak self] in self?.showFeatureUnavailable("Shakedex") }
+                summary: "Unlock and synchronize",
+                action: { [weak self] in self?.showShakedexDashboard() }
             ),
             dashboardTile(
                 title: "Wallet",
@@ -376,7 +381,8 @@ final class WalletViewController: UIViewController {
         dashboardStack.addArrangedSubview(dashboardTileRow(
             dashboardTile(
                 title: "Names",
-                summary: synchronizedReadsAvailable ? "Read-only names" : "Sync required",
+                summary: synchronizedReadsAvailable && directHnsValueAvailable
+                    ? "Track, transfer, and manage" : "Sync required",
                 action: { [weak self] in self?.showNamesDashboard() }
             ),
             dashboardTile(
@@ -388,8 +394,9 @@ final class WalletViewController: UIViewController {
         dashboardStack.addArrangedSubview(dashboardTileRow(
             dashboardTile(
                 title: "Shakedex",
-                summary: "Not available on iOS",
-                action: { [weak self] in self?.showFeatureUnavailable("Shakedex") }
+                summary: synchronizedReadsAvailable && directHnsValueAvailable
+                    ? "Offers and purchase steps" : "Sync required",
+                action: { [weak self] in self?.showShakedexDashboard() }
             ),
             dashboardTile(
                 title: "Wallet",
@@ -879,6 +886,594 @@ final class WalletViewController: UIViewController {
                 self?.requestExactHnsNameImport()
             })
         }
+        if hnsValueActionMayStart {
+            alert.addAction(UIAlertAction(title: "Name actions", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showNameActionMenu() }
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private var hnsValueActionMayStart: Bool {
+        !isOperating &&
+            wallet != nil &&
+            walletIsUnlocked &&
+            directHnsValueAvailable &&
+            synchronizedReadsAvailable &&
+            unconfirmedDatabaseKey == nil &&
+            storageLease != nil
+    }
+
+    private var shakedexActionMayStart: Bool {
+        hnsValueActionMayStart && shakedexAvailable
+    }
+
+    private func showNameActionMenu() {
+        guard hnsValueActionMayStart, presentedViewController == nil else { return }
+        let alert = UIAlertController(
+            title: "Name actions",
+            message: "Every action runs one fresh direct-peer synchronization and shows the exact native review before broadcast.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Transfer name", style: .default) { [weak self] _ in
+            self?.afterWalletMenuDismissal { [weak self] in self?.showTransferNameForm() }
+        })
+        alert.addAction(UIAlertAction(title: "Finalize transfer", style: .default) { [weak self] _ in
+            self?.afterWalletMenuDismissal { [weak self] in self?.showFinalizeNameForm() }
+        })
+        if shakedexAvailable {
+            alert.addAction(UIAlertAction(title: "Create fixed-price offer", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showCreateOfferForm() }
+            })
+            alert.addAction(UIAlertAction(title: "Cancel offer", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showCancelOfferForm() }
+            })
+            alert.addAction(UIAlertAction(title: "Recover name from offer", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showRecoverNameForm() }
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func showShakedexDashboard() {
+        guard presentedViewController == nil else { return }
+        let alert = UIAlertController(
+            title: "Shakedex",
+            message: shakedexActionMayStart
+                ? "Offers and purchase steps remain in the direct native HNS controller. No page or provider can request them."
+                : "Unlock and synchronize the direct HNS wallet before querying offers or preparing a purchase step.",
+            preferredStyle: .alert
+        )
+        if shakedexActionMayStart {
+            alert.addAction(UIAlertAction(title: "List offers", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showListOffersForm() }
+            })
+            alert.addAction(UIAlertAction(title: "Get session", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showGetSessionForm() }
+            })
+            alert.addAction(UIAlertAction(title: "Accept offer", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showAcceptOfferForm() }
+            })
+            alert.addAction(UIAlertAction(title: "Finalize purchase", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showFinalizePurchaseForm() }
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func afterWalletMenuDismissal(_ action: @escaping () -> Void) {
+        guard presentedViewController != nil else {
+            action()
+            return
+        }
+        dismiss(animated: true, completion: action)
+    }
+
+    /// UIKit alerts are intentionally collected one field at a time. This
+    /// avoids an oversized alert form and guarantees a Cancel clears the
+    /// current text before any direct wallet operation begins.
+    private func collectHnsValueForm(
+        title: String,
+        fields: [WalletHnsValueFormField],
+        index: Int = 0,
+        values: [String] = [],
+        completion: @escaping ([String]) -> Void
+    ) {
+        guard index < fields.count else {
+            completion(values)
+            return
+        }
+        guard presentedViewController == nil else { return }
+        let fieldDefinition = fields[index]
+        let alert = UIAlertController(
+            title: title,
+            message: "\(index + 1) of \(fields.count): \(fieldDefinition.label)",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = fieldDefinition.placeholder
+            field.text = fieldDefinition.initialValue
+            field.keyboardType = fieldDefinition.numeric ? .decimalPad : .asciiCapable
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.spellCheckingType = .no
+            field.textContentType = nil
+            field.accessibilityIdentifier = "wallet.hns-value.\(index)"
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            alert.textFields?.forEach { $0.text = nil; $0.resignFirstResponder() }
+        })
+        alert.addAction(UIAlertAction(title: index + 1 == fields.count ? "Review" : "Next", style: .default) { [weak self, weak alert] _ in
+            guard let self, let alert else { return }
+            let text = alert.textFields?.first?.text ?? ""
+            alert.textFields?.first?.text = nil
+            alert.textFields?.first?.resignFirstResponder()
+            let nextValues = values + [text]
+            self.afterWalletMenuDismissal {
+                self.collectHnsValueForm(
+                    title: title,
+                    fields: fields,
+                    index: index + 1,
+                    values: nextValues,
+                    completion: completion
+                )
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func showTransferNameForm() {
+        collectHnsValueForm(
+            title: "Transfer name",
+            fields: [
+                .init(label: "Exact name", placeholder: "name"),
+                .init(label: "Recipient", placeholder: "Recipient address"),
+                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+            ]
+        ) { [weak self] values in
+            guard let self,
+                  values.count == 3,
+                  let fee = Self.positiveHnsBaseUnits(values[2]) else {
+                self?.showErrorMessage("Enter a name, recipient, and positive maximum fee with no more than six decimal places.")
+                return
+            }
+            self.beginHnsValueAction(
+                .transferName(name: values[0], recipient: values[1], maximumFeeBaseUnits: fee)
+            )
+        }
+    }
+
+    private func showFinalizeNameForm() {
+        collectHnsValueForm(
+            title: "Finalize transfer",
+            fields: [
+                .init(label: "Exact name", placeholder: "name"),
+                .init(label: "Expected recipient (optional)", placeholder: "Recipient address"),
+                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+            ]
+        ) { [weak self] values in
+            guard let self,
+                  values.count == 3,
+                  let fee = Self.positiveHnsBaseUnits(values[2]) else {
+                self?.showErrorMessage("Enter a name and positive maximum fee with no more than six decimal places.")
+                return
+            }
+            self.beginHnsValueAction(
+                .finalizeName(
+                    name: values[0],
+                    expectedRecipient: values[1].isEmpty ? nil : values[1],
+                    maximumFeeBaseUnits: fee
+                )
+            )
+        }
+    }
+
+    private func showCreateOfferForm() {
+        collectHnsValueForm(
+            title: "Create fixed-price offer",
+            fields: [
+                .init(label: "Exact name", placeholder: "name"),
+                .init(label: "Price in HNS", placeholder: "1", numeric: true),
+                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+                .init(label: "Listing lifetime in seconds", placeholder: "86400", numeric: true, initialValue: "86400"),
+            ]
+        ) { [weak self] values in
+            guard let self,
+                  values.count == 4,
+                  let price = Self.positiveHnsBaseUnits(values[1]),
+                  let fee = Self.positiveHnsBaseUnits(values[2]),
+                  let lifetime = UInt64(values[3]) else {
+                self?.showErrorMessage("Enter a name, positive price/fee, and a whole-number listing lifetime.")
+                return
+            }
+            self.beginHnsValueAction(
+                .createFixedPriceOffer(
+                    name: values[0],
+                    priceBaseUnits: price,
+                    maximumFeeBaseUnits: fee,
+                    listingLifetimeSeconds: lifetime
+                )
+            )
+        }
+    }
+
+    private func showCancelOfferForm() {
+        collectHnsValueForm(
+            title: "Cancel offer",
+            fields: [.init(label: "Seller session ID", placeholder: "64 lowercase hex characters")]
+        ) { [weak self] values in
+            guard let self, let sellerSessionID = values.first else { return }
+            self.beginHnsValueAction(.cancelOffer(sellerSessionID: sellerSessionID))
+        }
+    }
+
+    private func showRecoverNameForm() {
+        collectHnsValueForm(
+            title: "Recover name from offer",
+            fields: [
+                .init(label: "Seller session ID", placeholder: "64 lowercase hex characters"),
+                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+            ]
+        ) { [weak self] values in
+            guard let self,
+                  values.count == 2,
+                  let fee = Self.positiveHnsBaseUnits(values[1]) else {
+                self?.showErrorMessage("Enter the seller session ID and a positive maximum fee.")
+                return
+            }
+            self.beginHnsValueAction(
+                .recoverName(sellerSessionID: values[0], maximumFeeBaseUnits: fee)
+            )
+        }
+    }
+
+    private func showAcceptOfferForm() {
+        collectHnsValueForm(
+            title: "Accept offer",
+            fields: [
+                .init(label: "Listing ID", placeholder: "64 lowercase hex characters"),
+                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+            ]
+        ) { [weak self] values in
+            guard let self,
+                  values.count == 2,
+                  let fee = Self.positiveHnsBaseUnits(values[1]) else {
+                self?.showErrorMessage("Enter the listing ID and a positive maximum fee.")
+                return
+            }
+            self.beginHnsValueAction(.acceptOffer(listingID: values[0], maximumFeeBaseUnits: fee))
+        }
+    }
+
+    private func showFinalizePurchaseForm() {
+        collectHnsValueForm(
+            title: "Finalize purchase",
+            fields: [
+                .init(label: "Session ID", placeholder: "64 lowercase hex characters"),
+                .init(label: "Maximum fee in HNS", placeholder: "0.01", numeric: true),
+            ]
+        ) { [weak self] values in
+            guard let self,
+                  values.count == 2,
+                  let fee = Self.positiveHnsBaseUnits(values[1]) else {
+                self?.showErrorMessage("Enter the session ID and a positive maximum fee.")
+                return
+            }
+            self.beginHnsValueAction(
+                .finalizePurchase(sessionID: values[0], maximumFeeBaseUnits: fee)
+            )
+        }
+    }
+
+    private func showListOffersForm() {
+        collectHnsValueForm(
+            title: "List offers",
+            fields: [
+                .init(label: "Cursor (optional)", placeholder: "64 lowercase hex characters"),
+                .init(label: "Page size", placeholder: "32", numeric: true, initialValue: "32"),
+            ]
+        ) { [weak self] values in
+            guard let self,
+                  values.count == 2,
+                  let limit = UInt8(values[1]) else {
+                self?.showErrorMessage("Enter an optional cursor and a page size from 1 to 64.")
+                return
+            }
+            self.beginShakedexQuery(.listOffers(cursor: values[0].isEmpty ? nil : values[0], limit: limit))
+        }
+    }
+
+    private func showGetSessionForm() {
+        collectHnsValueForm(
+            title: "Get session",
+            fields: [.init(label: "Session ID", placeholder: "64 lowercase hex characters")]
+        ) { [weak self] values in
+            guard let self, let sessionID = values.first else { return }
+            self.beginShakedexQuery(.getSession(sessionID: sessionID))
+        }
+    }
+
+    private func beginHnsValueAction(_ intent: NativeHnsValueIntent) {
+        guard hnsValueActionMayStart,
+              !intent.requiresShakedex || shakedexAvailable,
+              let lease = storageLease,
+              let wallet else {
+            showErrorMessage("Unlock and synchronize the direct HNS wallet before reviewing this action.")
+            return
+        }
+        isOperating = true
+        readGeneration &+= 1
+        let generation = readGeneration
+        let walletIdentity = ObjectIdentifier(wallet)
+        let authorityGeneration = walletAuthorityGeneration
+        let expectedKind = intent.expectedApprovalKind
+        readStatusLabel.text = "Synchronizing the direct HNS wallet for native action review…"
+        refreshButtonStates()
+        let keychain = keychain
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
+            let outcome: Result<NativeHnsValueApproval, Error> = Result {
+                _ = try Self.synchronizeDirectHnsReads(wallet: wallet, keychain: keychain)
+                var intentJSON = try intent.encodedBytes()
+                let approval = try wallet.prepareHnsValueAction(intentJSON: &intentJSON)
+                guard approval.kind == expectedKind else {
+                    try? wallet.rejectHnsValueAction(approval.actionToken)
+                    try? wallet.lock()
+                    throw NativeWalletBridgeError.invalidOutput(
+                        "native HNS approval kind changed the requested action"
+                    )
+                }
+                return approval
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else {
+                    if case .success(let approval) = outcome {
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            try? wallet.rejectHnsValueAction(approval.actionToken)
+                        }
+                    }
+                    return
+                }
+                switch outcome {
+                case .success(let approval):
+                    self.showHnsValueApproval(
+                        approval,
+                        lease: lease,
+                        generation: generation,
+                        walletIdentity: walletIdentity,
+                        authorityGeneration: authorityGeneration
+                    )
+                case .failure(let error):
+                    self.isOperating = false
+                    self.refreshState()
+                    self.readStatusLabel.text =
+                        "The native HNS action review could not be prepared. Synchronize before retrying."
+                    self.showError(error)
+                }
+            }
+        }
+    }
+
+    private func showHnsValueApproval(
+        _ approval: NativeHnsValueApproval,
+        lease: WalletStorageLeaseToken,
+        generation: UInt64,
+        walletIdentity: ObjectIdentifier,
+        authorityGeneration: UInt64
+    ) {
+        dismissPendingHnsValueApproval(rejectNatively: true)
+        pendingHnsValueApproval = approval
+        let date = Date(timeIntervalSince1970: TimeInterval(approval.expiresAtUnix))
+        let expiry = DateFormatter.localizedString(
+            from: date,
+            dateStyle: .medium,
+            timeStyle: .medium
+        )
+        let message = (approval.detailLines + ["Expires: \(expiry)"]).joined(separator: "\n\n")
+        let alert = UIAlertController(
+            title: approval.title,
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) { [weak self] _ in
+            self?.rejectHnsValueApproval(
+                approval,
+                lease: lease,
+                generation: generation,
+                walletIdentity: walletIdentity,
+                authorityGeneration: authorityGeneration
+            )
+        })
+        alert.addAction(UIAlertAction(title: "Approve and broadcast", style: .destructive) { [weak self] _ in
+            self?.approveHnsValueApproval(
+                approval,
+                lease: lease,
+                generation: generation,
+                walletIdentity: walletIdentity,
+                authorityGeneration: authorityGeneration
+            )
+        })
+        hnsValueApprovalAlert = alert
+        present(alert, animated: true)
+    }
+
+    private func approveHnsValueApproval(
+        _ approval: NativeHnsValueApproval,
+        lease: WalletStorageLeaseToken,
+        generation: UInt64,
+        walletIdentity: ObjectIdentifier,
+        authorityGeneration: UInt64
+    ) {
+        guard pendingHnsValueApproval?.actionToken === approval.actionToken,
+              let wallet else { return }
+        pendingHnsValueApproval = nil
+        hnsValueApprovalAlert = nil
+        readStatusLabel.text = "Executing the approved native HNS action…"
+        let keychain = keychain
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
+            let outcome: Result<(NativeHnsValueResult, NativeHnsReadSnapshot?), Error> = Result {
+                let result = try wallet.approveHnsValueActionResult(approval.actionToken)
+                let refreshed = try? Self.synchronizeDirectHnsReads(
+                    wallet: wallet,
+                    keychain: keychain
+                )
+                return (result, refreshed)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else { return }
+                self.isOperating = false
+                self.refreshState()
+                switch outcome {
+                case .success(let result):
+                    if let snapshot = result.1 { self.publish(snapshot) }
+                    self.readStatusLabel.text = result.1 == nil
+                        ? "The native HNS action was accepted. Unlock and synchronize to refresh wallet state."
+                        : "The native HNS action was accepted and wallet state was refreshed."
+                    self.showNativeHnsResult(title: "HNS action accepted", json: result.0.displayJSON)
+                case .failure(let error):
+                    self.readStatusLabel.text =
+                        "The HNS action outcome is ambiguous. The wallet was locked; unlock and synchronize before another action."
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func rejectHnsValueApproval(
+        _ approval: NativeHnsValueApproval,
+        lease: WalletStorageLeaseToken,
+        generation: UInt64,
+        walletIdentity: ObjectIdentifier,
+        authorityGeneration: UInt64
+    ) {
+        guard pendingHnsValueApproval?.actionToken === approval.actionToken,
+              let wallet else { return }
+        pendingHnsValueApproval = nil
+        hnsValueApprovalAlert = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let outcome = Result { try wallet.rejectHnsValueAction(approval.actionToken) }
+            if case .failure = outcome { try? wallet.lock() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else { return }
+                self.isOperating = false
+                self.refreshState()
+                switch outcome {
+                case .success:
+                    self.readStatusLabel.text = "Native HNS action rejected. Nothing was broadcast."
+                case .failure(let error):
+                    self.readStatusLabel.text = "HNS action rejection could not be verified. The wallet was locked."
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func dismissPendingHnsValueApproval(rejectNatively: Bool) {
+        let approval = pendingHnsValueApproval
+        pendingHnsValueApproval = nil
+        hnsValueApprovalAlert?.dismiss(animated: false)
+        hnsValueApprovalAlert = nil
+        guard let approval else { return }
+        if rejectNatively, let wallet {
+            DispatchQueue.global(qos: .userInitiated).async {
+                if (try? wallet.rejectHnsValueAction(approval.actionToken)) == nil {
+                    try? wallet.lock()
+                }
+            }
+        } else {
+            approval.actionToken.discard()
+        }
+        isOperating = false
+    }
+
+    private func beginShakedexQuery(_ query: NativeShakedexQuery) {
+        guard shakedexActionMayStart,
+              let lease = storageLease,
+              let wallet else {
+            showErrorMessage("Unlock and synchronize the direct HNS wallet before querying Shakedex.")
+            return
+        }
+        isOperating = true
+        readGeneration &+= 1
+        let generation = readGeneration
+        let walletIdentity = ObjectIdentifier(wallet)
+        let authorityGeneration = walletAuthorityGeneration
+        readStatusLabel.text = "Refreshing direct HNS state for the Shakedex query…"
+        refreshButtonStates()
+        let keychain = keychain
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
+            let outcome: Result<NativeShakedexQueryResult, Error> = Result {
+                _ = try Self.synchronizeDirectHnsReads(wallet: wallet, keychain: keychain)
+                var queryJSON = try query.encodedBytes()
+                return try wallet.queryShakedex(queryJSON: &queryJSON)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else { return }
+                self.isOperating = false
+                self.refreshState()
+                switch outcome {
+                case .success(let result):
+                    self.readStatusLabel.text = "Shakedex query completed through the native wallet."
+                    self.showNativeHnsResult(title: "Shakedex result", json: result.displayJSON)
+                case .failure(let error):
+                    self.readStatusLabel.text = "Shakedex query failed. Synchronize before retrying."
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func showNativeHnsResult(title: String, json: String) {
+        let alert = UIAlertController(title: title, message: json, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
     }
@@ -1493,7 +2088,7 @@ final class WalletViewController: UIViewController {
               status.activeWallet?.isEmpty == false else {
             throw WalletProviderError(
                 code: "walletDeletionLocked",
-                message: "Unlock the non-value Handshake wallet before deleting it."
+                message: "Unlock the local Handshake wallet before deleting it."
             )
         }
         let accounts = try wallet.accounts()
@@ -1503,7 +2098,7 @@ final class WalletViewController: UIViewController {
               account.receiveDisplay == nil,
               walletAccountIDIsCanonical(account.accountId) else {
             throw NativeWalletBridgeError.invalidOutput(
-                "confirmed deletion requires one exact non-value HNS account"
+                "confirmed deletion requires one exact local HNS account"
             )
         }
 
@@ -1655,6 +2250,7 @@ final class WalletViewController: UIViewController {
     ) {
         guard wallet !== controller else { return }
         dismissPendingHnsSendApproval(rejectNatively: true)
+        dismissPendingHnsValueApproval(rejectNatively: true)
         try? wallet?.lock()
         wallet?.close()
         wallet = controller
@@ -1846,6 +2442,7 @@ final class WalletViewController: UIViewController {
         confirmedDeletionAccountID = nil
         walletIsUnlocked = false
         directHnsValueAvailable = false
+        shakedexAvailable = false
         guard storageLease != nil else {
             if let path = resolvedDatabasePath,
                WalletStorageLeaseRegistry.isBlockedAfterRetirementFailure(path: path) {
@@ -1904,6 +2501,7 @@ final class WalletViewController: UIViewController {
                 : status.enabledModules.isEmpty
             guard enabledModulesAreAllowed,
                   status.hnsValueEnabled == hasHnsValue,
+                  status.shakedexEnabled == hasHnsValue,
                   !status.mainnetSettlementEnabled else {
                 throw NativeWalletBridgeError.invalidOutput(
                     "native HNS wallet exposed an incoherent capability set"
@@ -1914,6 +2512,7 @@ final class WalletViewController: UIViewController {
                 : "Status: unlocked · wallet \(status.activeWallet ?? "unknown")."
             walletIsUnlocked = !status.locked
             directHnsValueAvailable = hasHnsValue && !status.locked
+            shakedexAvailable = status.shakedexEnabled && !status.locked
             if status.locked {
                 accountLabel.text = "Account: unlock to view the local HNS account identity."
                 setReadAvailability(false, message: hasHnsReads
@@ -2083,6 +2682,7 @@ final class WalletViewController: UIViewController {
     @objc private func protectWalletLifecycle() {
         clearWalletNameImportPrompt(dismiss: true)
         dismissPendingHnsSendApproval(rejectNatively: true)
+        dismissPendingHnsValueApproval(rejectNatively: true)
         clearRestoreInput()
         let shouldDeleteIncompleteWallet = unconfirmedDatabaseKey != nil
         if var key = unconfirmedDatabaseKey {
@@ -2483,6 +3083,25 @@ private struct WalletHnsSendRequest: Sendable {
     let recipient: String
     let amountBaseUnits: String
     let maximumFeeBaseUnits: String
+}
+
+private struct WalletHnsValueFormField: Sendable {
+    let label: String
+    let placeholder: String
+    let numeric: Bool
+    let initialValue: String?
+
+    init(
+        label: String,
+        placeholder: String,
+        numeric: Bool = false,
+        initialValue: String? = nil
+    ) {
+        self.label = label
+        self.placeholder = placeholder
+        self.numeric = numeric
+        self.initialValue = initialValue
+    }
 }
 
 private enum WalletHnsNameImportOutcome: Sendable {

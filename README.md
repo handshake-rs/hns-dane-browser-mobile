@@ -48,34 +48,31 @@ published `hns-rs 0.3.1`, `hns-dane-engine 0.2.2`, and
 also exact published `0.2.2` packages; the source tags, registry checks, and
 removal of the obsolete local light-P2P patch are recorded in
 [the released dependency cohort](docs/released-dependency-cohort.md).
-Both native shells expose local create, restore, open, status, unlock, lock, and one-account
-identity controls plus strict, bounded HNWR-v2 emission and native UI for
-synchronized HNS balance, distinct ordinary-payment and name-transfer receive
-targets, transaction history, tracked names, and module status. The decoders
-retain the historical HNWR-v1 five-field contract separately and require the
-exact six-field shape for v2; neither shape enters website-provider JSON.
+Both native shells expose local create, restore, open, status, unlock, lock, and
+one-account identity controls. The current local `main` stack also composes a
+wallet-owned direct HNS peer controller: synchronized balance, distinct payment
+and name-transfer receive targets, history, tracked names, send review and
+broadcast, name transfer/finalization, and closed Shakedex name-market actions
+stay in native code and never enter website-provider JSON. Strict HNWR-v1/v2,
+send-approval, value-approval, and result decoders reject unknown fields,
+noncanonical values, and oversized output before UI publication.
 
-The actual product does not provision the scoped loopback authorization or
-indexed wallet backend required by that read boundary, so candidate source
-keeps every synchronized field in its fail-closed unavailable state.
-No scoped indexed backend is provisioned to the app. A pruned node with wallet
-indexing and scoped authentication can serve current-wallet indexed history and
-authenticated raw bytes already retained by an existing wallet; a fresh restore
-additionally needs archive-capable raw transaction bytes or another durable
-wallet-relevant raw-transaction source. The native screens and JNI/C ABIs expose
-one trusted exact-text name import through that same backend. It preserves the
-input UTF-8 bytes, returns only a minimized HNWI-v1 summary, refreshes HNWR-v2
-rows after success, and remains visibly unavailable without the backend.
-Send/value, website-provider, settlement, active HNSA/HNSR, exchange,
-and P2P-marketplace paths remain independently gated off. Source contains a
-dormant HRM/HNSA wallet-consumer admission seam, but shipping builds provision
-no broker authority or recognized application profile and cannot invoke it.
-The exact Apple CI
-gate exercises retirement queue/lease behavior and stale-completion
-publication-authority predicates; it does not execute an end-to-end credentialed
-native read in flight. Supplying read authority still requires the missing
-credential/backend/data boundary, and the signed physical-iPhone matrix remains
-open.
+The older scoped-loopback indexed-wallet backend remains available as a
+separate compatibility seam, but the native direct-wallet path does not depend
+on it. Android additionally exposes explicit IP-literal direct-Denuo pairing
+and a wallet-owned listener for peer-to-peer offer exchange. The iOS name and
+Shakedex action surface currently has the same closed local controller and
+approval boundary; direct-Denuo transport parity is still being implemented.
+Website-provider value capability, active HNSA/HNSR admission, and mainnet
+cross-chain settlement remain independently disabled. No page can request or
+approve a native wallet action.
+
+These direct-wallet changes are unreleased local source. Rust and ABI tests
+cover their closed boundaries, but the current stack has not yet passed the
+complete Apple build/device matrix or a new Android debug APK/device run. In
+particular, Android send-review/resume behavior is awaiting diagnostic logs and
+another state-preserving device qualification; no current claim should be read
+as proof of a successful installed-device send.
 
 Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI run
@@ -150,10 +147,10 @@ release qualification, and broader device-qualification work are tracked in
 - `rust/fuzz/`: `cargo-fuzz` parser harnesses for DNS, HNS resource values, P2P frames, Urkel proofs, TLSA records, and X.509 SPKI extraction.
 - `android/`: Kotlin Android browser shell with WebView, namespace-agnostic URL
   admission, whole-browser proxy lifecycle integration, JNI, and a native-only
-  wallet lifecycle/read-only projection screen.
+  direct HNS wallet screen.
 - `ios/`: Swift/UIKit WKWebView shell with whole-data-store proxy admission,
   lifecycle/certificate integration, the stable Apple C ABI, and a native-only
-  wallet lifecycle/read-only projection screen.
+  direct HNS wallet screen.
 - `fixtures/`: bounded cross-language experimental DNS-relay framing and
   request-correlation fixtures.
 - `docs/`: Architecture, security model, version audit, milestones, and the

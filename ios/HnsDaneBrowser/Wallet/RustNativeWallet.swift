@@ -19,6 +19,7 @@ struct NativeWalletStatus: Decodable, Equatable {
     let activeWallet: String?
     let enabledModules: [String]
     let hnsValueEnabled: Bool
+    let shakedexEnabled: Bool
     let mainnetSettlementEnabled: Bool
 }
 
@@ -693,6 +694,208 @@ struct NativeHnsSendReceipt: Equatable, Sendable {
     let acceptedAtUnix: UInt64
 }
 
+/// Every non-send HNS value action deliberately exposed by the native mobile
+/// wallet. This is a closed mirror of the published Rust intent enum, not a
+/// website-provider schema. The encoded JSON is consumed and wiped at the C
+/// boundary before Rust parses it again.
+enum NativeHnsValueIntent: Sendable {
+    case transferName(name: String, recipient: String, maximumFeeBaseUnits: String)
+    case finalizeName(name: String, expectedRecipient: String?, maximumFeeBaseUnits: String)
+    case createFixedPriceOffer(
+        name: String,
+        priceBaseUnits: String,
+        maximumFeeBaseUnits: String,
+        listingLifetimeSeconds: UInt64
+    )
+    case cancelOffer(sellerSessionID: String)
+    case acceptOffer(listingID: String, maximumFeeBaseUnits: String)
+    case finalizePurchase(sessionID: String, maximumFeeBaseUnits: String)
+    case recoverName(sellerSessionID: String, maximumFeeBaseUnits: String)
+
+    enum ApprovalKind: Equatable, Sendable {
+        case nameTransfer
+        case nameFinalize
+        case nameMarketOffer
+        case nameMarketPurchase
+    }
+
+    var expectedApprovalKind: ApprovalKind {
+        switch self {
+        case .transferName:
+            return .nameTransfer
+        case .finalizeName:
+            return .nameFinalize
+        case .createFixedPriceOffer, .cancelOffer, .recoverName:
+            return .nameMarketOffer
+        case .acceptOffer, .finalizePurchase:
+            return .nameMarketPurchase
+        }
+    }
+
+    var requiresShakedex: Bool {
+        switch self {
+        case .transferName, .finalizeName:
+            return false
+        case .createFixedPriceOffer, .cancelOffer, .acceptOffer,
+             .finalizePurchase, .recoverName:
+            return true
+        }
+    }
+
+    func encodedBytes() throws -> [UInt8] {
+        let object: [String: Any]
+        switch self {
+        case let .transferName(name, recipient, maximumFee):
+            guard Self.isPublicText(name, maximum: 63),
+                  Self.isPublicText(recipient, maximum: 512),
+                  Self.isPositiveBaseUnits(maximumFee) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid HNS name-transfer input")
+            }
+            object = [
+                "action": "transferName",
+                "name": name,
+                "recipient": recipient,
+                "maximumFee": maximumFee,
+            ]
+        case let .finalizeName(name, expectedRecipient, maximumFee):
+            guard Self.isPublicText(name, maximum: 63),
+                  expectedRecipient.map({ Self.isPublicText($0, maximum: 512) }) ?? true,
+                  Self.isPositiveBaseUnits(maximumFee) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid HNS name-finalize input")
+            }
+            object = [
+                "action": "finalizeName",
+                "name": name,
+                "expectedRecipient": expectedRecipient.map { $0 as Any } ?? NSNull(),
+                "maximumFee": maximumFee,
+            ]
+        case let .createFixedPriceOffer(name, price, maximumFee, lifetime):
+            guard Self.isPublicText(name, maximum: 63),
+                  Self.isPositiveBaseUnits(price),
+                  Self.isPositiveBaseUnits(maximumFee),
+                  (600...2_592_000).contains(lifetime) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid fixed-price name offer input")
+            }
+            object = [
+                "action": "createFixedPriceOffer",
+                "name": name,
+                "price": price,
+                "maximumFee": maximumFee,
+                "listingLifetimeSeconds": lifetime,
+            ]
+        case let .cancelOffer(sellerSessionID):
+            guard Self.isObjectID(sellerSessionID) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid name-offer seller session")
+            }
+            object = ["action": "cancelOffer", "sellerSessionId": sellerSessionID]
+        case let .acceptOffer(listingID, maximumFee):
+            guard Self.isObjectID(listingID), Self.isPositiveBaseUnits(maximumFee) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid name-offer acceptance input")
+            }
+            object = [
+                "action": "acceptOffer",
+                "listingId": listingID,
+                "maximumFee": maximumFee,
+            ]
+        case let .finalizePurchase(sessionID, maximumFee):
+            guard Self.isObjectID(sessionID), Self.isPositiveBaseUnits(maximumFee) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid name-purchase finalization input")
+            }
+            object = [
+                "action": "finalizePurchase",
+                "sessionId": sessionID,
+                "maximumFee": maximumFee,
+            ]
+        case let .recoverName(sellerSessionID, maximumFee):
+            guard Self.isObjectID(sellerSessionID), Self.isPositiveBaseUnits(maximumFee) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid name-offer recovery input")
+            }
+            object = [
+                "action": "recoverName",
+                "sellerSessionId": sellerSessionID,
+                "maximumFee": maximumFee,
+            ]
+        }
+        var data = try JSONSerialization.data(withJSONObject: object, options: [])
+        defer { data.resetBytes(in: data.startIndex..<data.endIndex) }
+        guard (2...8_192).contains(data.count) else {
+            throw NativeWalletBridgeError.invalidOutput("HNS value intent exceeds native input bound")
+        }
+        return [UInt8](data)
+    }
+
+    private static func isPublicText(_ value: String, maximum: Int) -> Bool {
+        let bytes = Array(value.utf8)
+        return (1...maximum).contains(bytes.count) &&
+            bytes.allSatisfy({ (0x21...0x7e).contains($0) })
+    }
+
+    private static func isPositiveBaseUnits(_ value: String) -> Bool {
+        NativeHnsReadSnapshot.Amount.isCanonicalBaseUnits(value) && value != "0"
+    }
+
+    fileprivate static func isObjectID(_ value: String) -> Bool {
+        let bytes = Array(value.utf8)
+        return bytes.count == 64 &&
+            bytes.contains(where: { $0 != UInt8(ascii: "0") }) &&
+            bytes.allSatisfy({
+                (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                    (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+            })
+    }
+}
+
+enum NativeShakedexQuery: Sendable {
+    case listOffers(cursor: String?, limit: UInt8)
+    case getSession(sessionID: String)
+
+    func encodedBytes() throws -> [UInt8] {
+        let object: [String: Any]
+        switch self {
+        case let .listOffers(cursor, limit):
+            guard (1...64).contains(limit),
+                  cursor.map(NativeHnsValueIntent.isObjectID) ?? true else {
+                throw NativeWalletBridgeError.invalidOutput("invalid Shakedex list query")
+            }
+            object = [
+                "query": "listOffers",
+                "cursor": cursor.map { $0 as Any } ?? NSNull(),
+                "limit": Int(limit),
+            ]
+        case let .getSession(sessionID):
+            guard NativeHnsValueIntent.isObjectID(sessionID) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid Shakedex session query")
+            }
+            object = ["query": "getSession", "sessionId": sessionID]
+        }
+        var data = try JSONSerialization.data(withJSONObject: object, options: [])
+        defer { data.resetBytes(in: data.startIndex..<data.endIndex) }
+        guard (2...4_096).contains(data.count) else {
+            throw NativeWalletBridgeError.invalidOutput("Shakedex query exceeds native input bound")
+        }
+        return [UInt8](data)
+    }
+}
+
+/// Strict, locally rendered non-send value-action review. The raw Rust
+/// summary is never passed through as an opaque prompt: every supported kind
+/// has an exact key set, bounded fields, and a locally selected title/rows.
+struct NativeHnsValueApproval {
+    let actionToken: NativeHnsSendActionToken
+    let expiresAtUnix: UInt64
+    let kind: NativeHnsValueIntent.ApprovalKind
+    let title: String
+    let detailLines: [String]
+}
+
+struct NativeHnsValueResult: Sendable {
+    let displayJSON: String
+}
+
+struct NativeShakedexQueryResult: Sendable {
+    let displayJSON: String
+}
+
 private enum NativeHnsValueBundle {
     private static let headerLength = 12
 
@@ -839,6 +1042,276 @@ private extension NativeHnsSendReceipt {
         defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
         let decoded = try JSONDecoder().decode(NativeHnsSendReceiptPayload.self, from: payload)
         return NativeHnsSendReceipt(txid: decoded.txid, acceptedAtUnix: decoded.acceptedAtUnix)
+    }
+}
+
+private struct NativeHnsValueApprovalPayload: Decodable {
+    let actionToken: String
+    let expiresAtUnix: UInt64
+    let summary: Summary
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case actionToken, expiresAtUnix, summary
+    }
+
+    struct Summary: Decodable {
+        let kind: NativeHnsValueIntent.ApprovalKind
+        let title: String
+        let detailLines: [String]
+
+        private enum KindKey: String, CodingKey, CaseIterable {
+            case kind
+        }
+
+        private enum NameKeys: String, CodingKey, CaseIterable {
+            case kind, name, recipient, maximumFee, warnings
+        }
+
+        private enum OfferKeys: String, CodingKey, CaseIterable {
+            case kind, action, name, listingId, price, maximumFee, warnings
+        }
+
+        private enum PurchaseKeys: String, CodingKey, CaseIterable {
+            case kind, name, listingId, payment, recipient, maximumFee, warnings
+        }
+
+        init(from decoder: Decoder) throws {
+            let kind = try decoder.container(keyedBy: KindKey.self)
+                .decode(String.self, forKey: .kind)
+            switch kind {
+            case "nameTransfer", "nameFinalize":
+                let container = try decoder.strictContainer(keyedBy: NameKeys.self)
+                let name = try container.decode(String.self, forKey: .name)
+                let recipient = try container.decode(String.self, forKey: .recipient)
+                let maximumFee = try container.decode(
+                    NativeHnsReadSnapshot.Amount.self,
+                    forKey: .maximumFee
+                )
+                let warnings = try container.decode([String].self, forKey: .warnings)
+                let expectedWarnings = kind == "nameTransfer"
+                    ? ["feeEstimateMayChange", "nameTransferIsIrreversible"]
+                    : ["feeEstimateMayChange"]
+                guard Self.isPublicText(name, maximum: 63),
+                      Self.isPublicText(recipient, maximum: 512),
+                      maximumFee.baseUnits != "0",
+                      warnings == expectedWarnings else {
+                    throw NativeWalletBridgeError.invalidOutput("invalid HNS name action summary")
+                }
+                self.kind = kind == "nameTransfer" ? .nameTransfer : .nameFinalize
+                title = kind == "nameTransfer"
+                    ? "Transfer Handshake name"
+                    : "Finalize name transfer"
+                detailLines = [
+                    "Name: \(name)",
+                    "Recipient: \(recipient)",
+                    "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS",
+                ] + warnings.map(Self.warningText)
+            case "nameMarketOffer":
+                let container = try decoder.strictContainer(keyedBy: OfferKeys.self)
+                let action = try container.decode(String.self, forKey: .action)
+                let name = try container.decode(String.self, forKey: .name)
+                let listingID = try container.decodeIfPresent(String.self, forKey: .listingId)
+                let price = try container.decode(NativeHnsReadSnapshot.Amount.self, forKey: .price)
+                let maximumFee = try container.decode(
+                    NativeHnsReadSnapshot.Amount.self,
+                    forKey: .maximumFee
+                )
+                let warnings = try container.decode([String].self, forKey: .warnings)
+                let expectedWarnings: [String]
+                switch action {
+                case "create":
+                    expectedWarnings = [
+                        "feeEstimateMayChange",
+                        "nameTransferIsIrreversible",
+                        "settlementCanBeDelayed",
+                    ]
+                case "recover":
+                    expectedWarnings = [
+                        "feeEstimateMayChange",
+                        "refundRequiresManualAction",
+                        "settlementCanBeDelayed",
+                    ]
+                case "cancel":
+                    expectedWarnings = []
+                default:
+                    throw NativeWalletBridgeError.invalidOutput("unknown HNS name-offer action")
+                }
+                guard Self.isPublicText(name, maximum: 63),
+                      listingID.map(NativeHnsValueIntent.isObjectID) ?? true,
+                      price.baseUnits != "0",
+                      (action == "cancel" || maximumFee.baseUnits != "0"),
+                      warnings == expectedWarnings else {
+                    throw NativeWalletBridgeError.invalidOutput("invalid HNS name-offer summary")
+                }
+                self.kind = .nameMarketOffer
+                switch action {
+                case "create":
+                    title = "Create fixed-price name offer"
+                case "cancel":
+                    title = "Cancel name offer"
+                case "recover":
+                    title = "Recover name from offer"
+                default:
+                    throw NativeWalletBridgeError.invalidOutput("unknown HNS name-offer action")
+                }
+                var lines = [
+                    "Name: \(name)",
+                    "Price: \(Self.formatHnsBaseUnits(price.baseUnits)) HNS",
+                ]
+                if let listingID { lines.append("Listing: \(listingID)") }
+                lines.append(
+                    "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS"
+                )
+                detailLines = lines + warnings.map(Self.warningText)
+            case "nameMarketPurchase":
+                let container = try decoder.strictContainer(keyedBy: PurchaseKeys.self)
+                let name = try container.decode(String.self, forKey: .name)
+                let listingID = try container.decode(String.self, forKey: .listingId)
+                let payment = try container.decode(NativeHnsReadSnapshot.Amount.self, forKey: .payment)
+                let recipient = try container.decode(String.self, forKey: .recipient)
+                let maximumFee = try container.decode(
+                    NativeHnsReadSnapshot.Amount.self,
+                    forKey: .maximumFee
+                )
+                let warnings = try container.decode([String].self, forKey: .warnings)
+                guard Self.isPublicText(name, maximum: 63),
+                      NativeHnsValueIntent.isObjectID(listingID),
+                      payment.baseUnits != "0",
+                      Self.isPublicText(recipient, maximum: 512),
+                      maximumFee.baseUnits != "0",
+                      warnings == ["feeEstimateMayChange", "settlementCanBeDelayed"] else {
+                    throw NativeWalletBridgeError.invalidOutput("invalid HNS name-purchase summary")
+                }
+                self.kind = .nameMarketPurchase
+                title = "Execute Shakedex purchase step"
+                detailLines = [
+                    "Name: \(name)",
+                    "Listing/session: \(listingID)",
+                    "Payment: \(Self.formatHnsBaseUnits(payment.baseUnits)) HNS",
+                    "Recipient: \(recipient)",
+                    "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS",
+                ] + warnings.map(Self.warningText)
+            default:
+                throw NativeWalletBridgeError.invalidOutput("unsupported HNS value summary")
+            }
+        }
+
+        private static func isPublicText(_ value: String, maximum: Int) -> Bool {
+            let bytes = Array(value.utf8)
+            return (1...maximum).contains(bytes.count) &&
+                bytes.allSatisfy({ (0x21...0x7e).contains($0) })
+        }
+
+        /// Keep native approval decoding independent of the UIKit wallet
+        /// presenter. The input has already passed the strict unsigned amount
+        /// decoder, so this is a display-only fixed-six-decimal projection.
+        private static func formatHnsBaseUnits(_ baseUnits: String) -> String {
+            let decimalPlaces = 6
+            let zeroes = max(0, decimalPlaces + 1 - baseUnits.count)
+            let padded = String(repeating: "0", count: zeroes) + baseUnits
+            let split = padded.index(padded.endIndex, offsetBy: -decimalPlaces)
+            let whole = String(padded[..<split])
+            var fraction = String(padded[split...])
+            while fraction.last == "0" { fraction.removeLast() }
+            return fraction.isEmpty ? whole : "\(whole).\(fraction)"
+        }
+
+        private static func warningText(_ warning: String) -> String {
+            switch warning {
+            case "feeEstimateMayChange":
+                return "Warning: network fee may change before broadcast."
+            case "nameTransferIsIrreversible":
+                return "Warning: the name transfer is irreversible."
+            case "refundRequiresManualAction":
+                return "Warning: recovery requires an explicit manual action."
+            case "settlementCanBeDelayed":
+                return "Warning: Shakedex settlement can require later steps."
+            default:
+                return ""
+            }
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        actionToken = try container.decode(String.self, forKey: .actionToken)
+        expiresAtUnix = try container.decode(UInt64.self, forKey: .expiresAtUnix)
+        summary = try container.decode(Summary.self, forKey: .summary)
+    }
+}
+
+extension NativeHnsValueApproval {
+    static func decode(bundle: [UInt8]) throws -> NativeHnsValueApproval {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle,
+            magic: Array("HNVP".utf8),
+            maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let decoded = try JSONDecoder().decode(NativeHnsValueApprovalPayload.self, from: payload)
+        var tokenBytes = Array(decoded.actionToken.utf8)
+        guard let token = NativeHnsSendActionToken(takingASCII: &tokenBytes) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS value action token")
+        }
+        return NativeHnsValueApproval(
+            actionToken: token,
+            expiresAtUnix: decoded.expiresAtUnix,
+            kind: decoded.summary.kind,
+            title: decoded.summary.title,
+            detailLines: decoded.summary.detailLines
+        )
+    }
+}
+
+extension NativeHnsValueResult {
+    static func decode(bundle: [UInt8], magic: [UInt8]) throws -> NativeHnsValueResult {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle,
+            magic: magic,
+            maximumJSONBytes: 256 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let object = try JSONSerialization.jsonObject(with: payload, options: [])
+        guard let dictionary = object as? [String: Any],
+              !dictionary.isEmpty,
+              Self.isBoundedJSONObject(dictionary, depth: 0) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid native HNS value result")
+        }
+        var display = try JSONSerialization.data(
+            withJSONObject: dictionary,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        defer { display.resetBytes(in: display.startIndex..<display.endIndex) }
+        guard let text = String(data: display, encoding: .utf8),
+              text.utf8.count <= 512 * 1_024 else {
+            throw NativeWalletBridgeError.invalidOutput("native HNS value result is not displayable")
+        }
+        return NativeHnsValueResult(displayJSON: text)
+    }
+
+    private static func isBoundedJSONObject(_ value: Any, depth: Int) -> Bool {
+        guard depth <= 8 else { return false }
+        switch value {
+        case let dictionary as [String: Any]:
+            return dictionary.count <= 128 && dictionary.allSatisfy {
+                $0.key.utf8.count <= 128 && isBoundedJSONObject($0.value, depth: depth + 1)
+            }
+        case let array as [Any]:
+            return array.count <= 256 && array.allSatisfy { isBoundedJSONObject($0, depth: depth + 1) }
+        case let string as String:
+            return string.utf8.count <= 4_096
+        case is NSNumber, is NSNull:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+extension NativeShakedexQueryResult {
+    static func decode(bundle: [UInt8]) throws -> NativeShakedexQueryResult {
+        let result = try NativeHnsValueResult.decode(bundle: bundle, magic: Array("HNVQ".utf8))
+        return NativeShakedexQueryResult(displayJSON: result.displayJSON)
     }
 }
 
@@ -1138,6 +1611,63 @@ final class RustNativeWallet: @unchecked Sendable {
         }
     }
 
+    func prepareHnsValueAction(
+        intentJSON: inout [UInt8]
+    ) throws -> NativeHnsValueApproval {
+        defer { WalletSecretBytes.wipe(&intentJSON) }
+        guard (2...8_192).contains(intentJSON.count) else {
+            throw NativeWalletBridgeError.invalidOutput("HNS value intent is outside its byte bound")
+        }
+        var output = HnsBrowserBuffer()
+        let result = try intentJSON.withUnsafeBufferPointer { intent in
+            hns_browser_wallet_prepare_hns_value_action(
+                try liveHandle(),
+                HnsBrowserSlice(ptr: intent.baseAddress, len: UInt64(intent.count)),
+                &output
+            )
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet HNS value preparation")
+        do {
+            var bundle = try NativeWalletBridge.bytes(copying: output)
+            defer { WalletSecretBytes.wipe(&bundle) }
+            return try NativeHnsValueApproval.decode(bundle: bundle)
+        } catch {
+            // A completed native prepare owns an executable action token. A
+            // malformed display projection therefore locks rather than leaves
+            // that action available without a human-readable review.
+            try? lock()
+            throw error
+        }
+    }
+
+    func queryShakedex(
+        queryJSON: inout [UInt8]
+    ) throws -> NativeShakedexQueryResult {
+        defer { WalletSecretBytes.wipe(&queryJSON) }
+        guard (2...4_096).contains(queryJSON.count) else {
+            throw NativeWalletBridgeError.invalidOutput("Shakedex query is outside its byte bound")
+        }
+        var output = HnsBrowserBuffer()
+        let result = try queryJSON.withUnsafeBufferPointer { query in
+            hns_browser_wallet_query_shakedex(
+                try liveHandle(),
+                HnsBrowserSlice(ptr: query.baseAddress, len: UInt64(query.count)),
+                &output
+            )
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet Shakedex query")
+        do {
+            var bundle = try NativeWalletBridge.bytes(copying: output)
+            defer { WalletSecretBytes.wipe(&bundle) }
+            return try NativeShakedexQueryResult.decode(bundle: bundle)
+        } catch {
+            try? lock()
+            throw error
+        }
+    }
+
     func approveHnsSend(_ actionToken: NativeHnsSendActionToken) throws -> NativeHnsSendReceipt {
         try actionToken.consume { token in
             var output = HnsBrowserBuffer()
@@ -1163,6 +1693,31 @@ final class RustNativeWallet: @unchecked Sendable {
         }
     }
 
+    func approveHnsValueActionResult(
+        _ actionToken: NativeHnsSendActionToken
+    ) throws -> NativeHnsValueResult {
+        try actionToken.consume { token in
+            var output = HnsBrowserBuffer()
+            let result = try token.withUnsafeBufferPointer { buffer in
+                hns_browser_wallet_approve_hns_value_action_result(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: buffer.baseAddress, len: UInt64(buffer.count)),
+                    &output
+                )
+            }
+            defer { NativeWalletBridge.free(output) }
+            try NativeWalletBridge.check(result, operation: "wallet HNS value approval")
+            do {
+                var bundle = try NativeWalletBridge.bytes(copying: output)
+                defer { WalletSecretBytes.wipe(&bundle) }
+                return try NativeHnsValueResult.decode(bundle: bundle, magic: Array("HNVX".utf8))
+            } catch {
+                try? lock()
+                throw error
+            }
+        }
+    }
+
     func rejectHnsSend(_ actionToken: NativeHnsSendActionToken) throws {
         try actionToken.consume { token in
             let result = try token.withUnsafeBufferPointer { buffer in
@@ -1173,6 +1728,10 @@ final class RustNativeWallet: @unchecked Sendable {
             }
             try NativeWalletBridge.check(result, operation: "wallet HNS send rejection")
         }
+    }
+
+    func rejectHnsValueAction(_ actionToken: NativeHnsSendActionToken) throws {
+        try rejectHnsSend(actionToken)
     }
 
     func synchronizeHnsReads() throws -> NativeHnsReadSnapshot {

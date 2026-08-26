@@ -57,29 +57,36 @@ The public Google Play `0.5.6` / code `47`, GitHub Android `0.5.7` / code `48`,
 and App Store `0.5.5` / build `57` binaries predate the native controller and
 remain historical wallet-free releases.
 
-## Native app controls in the 1.0.0 release candidate
+## Native app controls in the current local main stack
 
 Both platform shells now link a narrow native controller for:
 
 - create and one-time recovery display;
 - restore from a recovery phrase;
 - open, status, unlock, lock, and controller destruction;
-- exactly one local non-value Handshake account identity; and
-- a strict read-only projection and native UI for synchronized HNS balance,
+- exactly one local Handshake account identity;
+- a strict native projection and UI for synchronized HNS balance,
   distinct payment and name-transfer receive targets, transaction history,
-  tracked names, and module status.
+  tracked names, and module status;
+- a wallet-owned direct HNS peer path for synchronization, local receive
+  derivation, exact send review/reject/approval/broadcast, and rollback-floor
+  journaling; and
+- closed native name transfer/finalization and Shakedex offer/purchase actions
+  with exact local approval summaries and bounded result decoding.
 
-The read projection and trusted-native exact-text name import are present in
-source but unavailable in the installed candidate because neither product shell
-provisions their required scoped loopback credential or indexed wallet backend.
-The import is native-only, preserves the caller's UTF-8 bytes exactly, returns
-only one minimized name summary, and requires a successful HNWR-v2 refresh
-before new rows are published. Invalid text is non-poisoning; runtime,
-projection, allocation, or refresh faults lock and fail closed. This slice
-cannot send or move value, perform other name operations, act as HNSA or
-HNSR, settle, exchange, use Shakedex/Denuo, or operate a P2P marketplace. It is
-not connected to page JavaScript. No website provider is installed or announced,
-and no page can invoke these native controls.
+The direct path publishes wallet state only after verified peer agreement and
+keeps partial catch-up distinct from a spendable snapshot. It does not require
+the older scoped-loopback credential/indexed backend. Android also exposes a
+wallet-owned direct-Denuo listener and explicit IP-literal pairing. The iOS
+local name/Shakedex controller and approval surface are present; its matching
+direct-Denuo transport controls remain work in progress. The exact-text legacy
+name import remains available only through the separate loopback backend.
+
+None of these controls is connected to page JavaScript. No website provider is
+installed or announced, and no page can invoke a native action. Active HNSA or
+HNSR authority and mainnet cross-chain settlement remain disabled. The current
+direct-wallet stack is unreleased and still requires Android send-review/device
+requalification and the full Apple build/simulator/physical-device matrix.
 
 Android uses a non-exported `WalletActivity`, a narrow JNI bridge, bounded
 monotonic native handles, and `AndroidWalletKeyStore`. The 32-byte database key
@@ -126,7 +133,18 @@ app cannot deterministically zeroize. The source therefore claims best-effort
 clearing on iOS, not complete in-memory phrase erasure. This limitation must be
 part of iOS qualification and release review.
 
-## Synchronized HNS read boundary
+## Synchronized HNS boundaries
+
+The primary local path is a wallet-owned direct HNS peer coordinator. It
+verifies peer/header agreement, retains a journaled rollback floor, scans
+wallet-relevant blocks, observes fees, and broadcasts approved transactions
+without granting the browser proxy or a website wallet authority. Partial
+catch-up is reported separately from a complete spendable snapshot. Android
+and iOS require the exact current wallet identity, storage lease, lifecycle
+authority, and operation generation before publishing direct-wallet output.
+
+The older scoped-loopback boundary remains available for compatibility and
+trusted exact-text name import:
 
 The Rust JNI and Apple C ABI compose
 `MobileHnsReadController<HnsNodeRpcBackend>` only after an already durable wallet
@@ -141,16 +159,16 @@ they reject cross-version shapes, malformed headers, unknown fields, unequal or
 zero target accounts, conflated targets, duplicate identities, noncanonical
 values, inconsistent heights, and oversized output before UI publication.
 
-Neither application controller currently creates or passes that configuration.
-The wallet screen therefore shows the read rows and a fail-closed unavailable
-message, but cannot populate them. The browser's ordinary authenticated proxy is
-not silently reused as wallet authority. A pruned node with wallet indexing and
+Neither application silently reuses the browser's ordinary authenticated proxy
+as wallet authority. A pruned node with wallet indexing and
 scoped RPC authentication can serve indexed confirmation/history and
 authenticated raw bytes retained by an existing wallet. Fresh restore
 additionally needs archive-capable raw transaction bytes or another durable
 wallet-relevant raw-transaction source behind the dedicated scoped loopback
-gateway. Known names remain unchanged until a successful trusted-native import
-or another separately reviewed tracking path commits canonical evidence.
+gateway. This backend is not provisioned by the current product; that does not
+disable the separately composed direct-wallet path. Known names remain
+unchanged until verified direct scanning or a successful trusted-native import
+commits canonical evidence.
 
 Both platforms run read synchronization away from the UI thread and require the
 exact generation, lease, and controller identity before publishing. Contended
@@ -165,12 +183,11 @@ app/simulator CI in `31807520618`. Exact current application source
 `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually
 dispatched CI matrix, including the full Apple gate and aggregate Required CI,
 in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed.
-XCTest covers the retirement queue/lease behavior and
-stale-completion publication-authority predicates, not an end-to-end
-credentialed native read or import in flight. Hosted CI is not physical-iPhone
-evidence. iOS product wiring still may not supply a
-credential until the scoped credential/indexed backend/data boundary exists,
-and physical-iPhone qualification remains open.
+XCTest covers the retirement queue/lease behavior and stale-completion
+publication-authority predicates. New closed direct send/name/Shakedex decoders
+have source tests, while an exact current Xcode run and physical-iPhone
+qualification remain open. The legacy name-import path still cannot operate
+until the separate scoped credential/indexed backend/data boundary exists.
 
 ## Trusted-native exact-text name import
 
