@@ -67,6 +67,9 @@ Website-provider value capability, active HNSA/HNSR admission, and mainnet
 cross-chain settlement remain independently disabled. No page can request or
 approve a native wallet action.
 
+The current per-action source, test, and device evidence is tracked in the
+[native HNS wallet feature matrix](docs/wallet-feature-matrix.md).
+
 These direct-wallet changes are unreleased local source. Rust and ABI tests
 cover their closed boundaries, but the current stack has not yet passed the
 complete Apple build/device matrix or a successful Android on-chain send. The
