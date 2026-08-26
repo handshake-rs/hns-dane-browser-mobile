@@ -86,8 +86,36 @@ name import remains available only through the separate loopback backend.
 None of these controls is connected to page JavaScript. No website provider is
 installed or announced, and no page can invoke a native action. Active HNSA or
 HNSR authority and mainnet cross-chain settlement remain disabled. The current
-direct-wallet stack is unreleased and still requires Android send-review/device
-requalification and the full Apple build/simulator/physical-device matrix.
+direct-wallet stack is unreleased and still requires the full Apple
+build/simulator/physical-device matrix and broader signed Android release
+qualification.
+
+Android send review and broadcast were requalified on a Pixel 9 on 2026-08-25
+against exact installed source `2156746`. The signer-matched ARM64 debug APK
+updated `com.denuoweb.hnsdane.debug` in place without changing its original
+first-install time or package sandbox. The retained log sequence showed a
+verified snapshot at height `344267`, preparation of one one-time send
+approval, no process restart, no native exception, no rollback-floor error,
+and no zero-height rescan. The device then reported that peers accepted the
+transaction and the required post-broadcast snapshot refresh succeeded. This
+is direct-send debug qualification for that device and transaction, not
+store-signed release or broader device-matrix evidence.
+
+That test also exposed a presentation defect: the native `balance` field is a
+confirmed-chain coin total, so it remains unchanged while an outgoing
+transaction is only in the mempool. Calling that value “confirmed spendable”
+overstated immediately available funds even though the native value workflow
+still fences the pending spend. Source `fd34715` fixes both platform shells by
+deriving pending outgoing value from the same strict transaction snapshot and
+showing confirmed-on-chain, pending-outgoing, and available-after-pending
+amounts separately with exact integer arithmetic. Once the transaction is
+confirmed and synchronized, its negative effect moves into the confirmed
+chain balance and is no longer subtracted a second time. The same source also
+fixes iOS receive copying so UIKit places only the raw native-validated payment
+or name-transfer target on the local pasteboard, never its heading or
+derivation metadata. These `fd34715` changes passed Android debug unit tests,
+the portable runtime-boundary audit, and the 17-test Apple C-ABI/export gate;
+the complete Xcode/UIKit test gate remains open.
 
 Android uses a non-exported `WalletActivity`, a narrow JNI bridge, bounded
 monotonic native handles, and `AndroidWalletKeyStore`. The 32-byte database key
