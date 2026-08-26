@@ -25,10 +25,10 @@ struct WalletUIState {
 }
 
 /// Keeps the value-changing approval and its required read refresh in one
-/// operation. Peer acceptance is authoritative even if the subsequent read
-/// refresh is temporarily unavailable, so refresh failure is represented
-/// separately instead of changing a successful broadcast into an ambiguous
-/// send outcome.
+/// operation. Successful submission proves that the exact approved bytes were
+/// written to the connected peer set; it is not remote mempool admission or
+/// confirmation. Refresh failure is represented separately because the send
+/// may still have propagated and must not be replaced blindly.
 struct WalletHnsPostBroadcastResult<Receipt, Snapshot> {
     let receipt: Receipt
     let snapshot: Snapshot?

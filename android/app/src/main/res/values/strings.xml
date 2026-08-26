@@ -448,8 +448,8 @@
     <string name="wallet_send_broadcasting" translatable="false">Broadcasting the exact approved transaction through the wallet-owned peer set…</string>
     <string name="wallet_send_broadcast_ambiguous" translatable="false">No authenticated receipt could be returned. The wallet was locked. Synchronize history before deciding whether to retry; the transaction may already have broadcast.</string>
     <string name="wallet_send_pre_broadcast_syncing" translatable="false">The transaction was not signed or broadcast. Refreshing verified wallet history before a new review…</string>
-    <string name="wallet_send_accepted_sync_failed" translatable="false">Peers accepted transaction %1$s, but required post-broadcast synchronization failed. Reopen, unlock, and synchronize before another send.</string>
-    <string name="wallet_send_accepted" translatable="false">Peers accepted transaction %1$s at Unix time %2$d. The wallet snapshot was refreshed.</string>
+    <string name="wallet_send_accepted_sync_failed" translatable="false">Transaction %1$s was submitted to connected peers, but required post-broadcast synchronization failed. Reopen, unlock, and synchronize before another send. Submission is not confirmation.</string>
+    <string name="wallet_send_accepted" translatable="false">Transaction %1$s was submitted to connected peers at Unix time %2$d. The verified wallet snapshot was refreshed; submission is not confirmation.</string>
     <string name="wallet_send_rejecting" translatable="false">Discarding the pending native approval…</string>
     <string name="wallet_send_rejected" translatable="false">Send rejected. No transaction was broadcast.</string>
     <string name="wallet_send_reject_failed" translatable="false">The pending approval could not be discarded cleanly, so the wallet was locked.</string>

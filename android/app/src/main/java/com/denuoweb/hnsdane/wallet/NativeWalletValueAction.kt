@@ -78,7 +78,7 @@ internal data class NativeHnsSendApproval(
     }
 }
 
-/** Minimized closed projection returned only after the node accepts a broadcast. */
+/** Minimized closed projection returned after the approved bytes are submitted for broadcast. */
 internal data class NativeHnsSendReceipt(
     val txid: String,
     val acceptedAtUnix: Long,

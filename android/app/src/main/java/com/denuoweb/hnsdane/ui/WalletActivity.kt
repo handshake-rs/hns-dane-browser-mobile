@@ -2811,7 +2811,7 @@ class WalletActivity : ComponentActivity() {
                     snapshot == null -> {
                         Log.w(
                             TAG,
-                            "HNS peers accepted the transaction, but post-broadcast wallet synchronization failed",
+                            "HNS transaction was submitted to peers, but post-broadcast wallet synchronization failed",
                         )
                         sendStatusView.text = getString(
                             R.string.wallet_send_accepted_sync_failed,
@@ -2821,7 +2821,7 @@ class WalletActivity : ComponentActivity() {
                     else -> {
                         Log.i(
                             TAG,
-                            "HNS peers accepted the transaction and the verified wallet snapshot was refreshed",
+                            "HNS transaction was submitted to peers and the verified wallet snapshot was refreshed",
                         )
                         renderReadSnapshot(snapshot)
                         sendStatusView.text = getString(

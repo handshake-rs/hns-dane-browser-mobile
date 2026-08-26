@@ -1670,9 +1670,19 @@ fn synchronize_wallet_owned_direct_hns(
     coordinator
         .refresh_mempool(now_unix)
         .map_err(|_| direct_hns_not_ready("direct HNS mempool refresh is unavailable"))?;
-    controller
+    let mut snapshot = controller
         .synchronize()
-        .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is still catching up"))
+        .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is still catching up"))?;
+    if controller
+        .rebroadcast_dropped_hns_sends()
+        .map_err(|_| direct_hns_not_ready("dropped HNS send resubmission is unavailable"))?
+        > 0
+    {
+        snapshot = controller
+            .synchronize()
+            .map_err(|_| direct_hns_not_ready("resubmitted HNS send refresh is unavailable"))?;
+    }
+    Ok(snapshot)
 }
 
 unsafe fn wallet_visible_ascii(

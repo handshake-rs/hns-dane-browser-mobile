@@ -1240,7 +1240,7 @@ impl AndroidWalletController {
                 }
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_complete");
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_start");
-                let snapshot = match controller.synchronize() {
+                let mut snapshot = match controller.synchronize() {
                     Ok(snapshot) => snapshot,
                     Err(error) if direct_hns_watch_set_extension_required(&error) => {
                         let changed = coordinator
@@ -1260,6 +1260,13 @@ impl AndroidWalletController {
                     }
                     Err(error) => return Err(error),
                 };
+                let rebroadcasted = controller.rebroadcast_dropped_hns_sends()?;
+                if rebroadcasted > 0 {
+                    android_log_wallet_scan_metrics(&format!(
+                        "wallet_hns_finalization stage=dropped_send_resubmitted count={rebroadcasted}"
+                    ));
+                    snapshot = controller.synchronize()?;
+                }
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_complete");
                 Ok(AndroidHnsSynchronization::Ready(Box::new(snapshot)))
             })(),
