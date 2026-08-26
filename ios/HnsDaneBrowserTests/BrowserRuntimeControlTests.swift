@@ -3755,6 +3755,37 @@ final class BrowserRuntimeControlTests: XCTestCase {
             bundle: hnsValueBundle(magic: "HNVX", json: "{\"offers\":[]}")
         ))
     }
+
+    func testNativeDirectDenuoBundlesRejectTransportShapeDrift() throws {
+        let endpoint = Array("198.51.100.7:12038".utf8)
+        var status = Array("HNDS".utf8) + [1, 0b111, 0, 0, 0x2f, 0x06]
+        status += [UInt8(endpoint.count >> 8), UInt8(endpoint.count & 0xff)] + endpoint
+        XCTAssertEqual(
+            try NativeDirectDenuoBundle.status(status),
+            NativeDirectDenuoStatus(
+                unlocked: true,
+                listenerPort: 12_038,
+                peerEndpoint: "198.51.100.7:12038"
+            )
+        )
+
+        var connected = Array("HNDC".utf8) + [1, 1, 0, 0]
+        connected += [UInt8(endpoint.count >> 8), UInt8(endpoint.count & 0xff), 0, 0] + endpoint
+        XCTAssertEqual(
+            try NativeDirectDenuoBundle.connect(connected),
+            NativeDirectDenuoConnectResult(
+                outcome: .connected,
+                peerEndpoint: "198.51.100.7:12038"
+            )
+        )
+        var unknownFlags = status
+        unknownFlags[5] = 0x80
+        XCTAssertThrowsError(try NativeDirectDenuoBundle.status(unknownFlags))
+        var badReserved = connected
+        badReserved[11] = 1
+        XCTAssertThrowsError(try NativeDirectDenuoBundle.connect(badReserved))
+        XCTAssertThrowsError(try NativeDirectDenuoBundle.connect(status))
+    }
 }
 
 @MainActor

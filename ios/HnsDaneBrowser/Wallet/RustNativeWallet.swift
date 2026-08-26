@@ -896,6 +896,85 @@ struct NativeShakedexQueryResult: Sendable {
     let displayJSON: String
 }
 
+struct NativeDirectDenuoStatus: Equatable, Sendable {
+    let unlocked: Bool
+    let listenerPort: UInt16?
+    let peerEndpoint: String?
+}
+
+struct NativeDirectDenuoConnectResult: Equatable, Sendable {
+    enum Outcome: UInt8, Equatable, Sendable {
+        case connected = 1
+        case replaced = 2
+        case unavailable = 3
+        case locked = 4
+        case connectionFailed = 5
+        case exchangeFailed = 6
+    }
+
+    let outcome: Outcome
+    let peerEndpoint: String?
+}
+
+enum NativeDirectDenuoBundle {
+    private static let headerBytes = 12
+    private static let maximumEndpointBytes = 128
+
+    static func status(_ bundle: [UInt8]) throws -> NativeDirectDenuoStatus {
+        let endpoint = try validated(bundle, magic: Array("HNDS".utf8), lengthOffset: 10)
+        let flags = bundle[5]
+        guard flags & ~UInt8(0b111) == 0 else { throw invalid() }
+        let unlocked = flags & 1 != 0
+        let listening = flags & 2 != 0
+        let paired = flags & 4 != 0
+        let port = UInt16(bundle[8]) << 8 | UInt16(bundle[9])
+        guard unlocked || (!listening && !paired),
+              (port != 0) == listening,
+              (!endpoint.isEmpty) == paired else { throw invalid() }
+        return NativeDirectDenuoStatus(
+            unlocked: unlocked,
+            listenerPort: listening ? port : nil,
+            peerEndpoint: paired ? endpoint : nil
+        )
+    }
+
+    static func connect(_ bundle: [UInt8]) throws -> NativeDirectDenuoConnectResult {
+        let endpoint = try validated(bundle, magic: Array("HNDC".utf8), lengthOffset: 8)
+        guard let outcome = NativeDirectDenuoConnectResult.Outcome(rawValue: bundle[5]),
+              (bundle[10] == 0 && bundle[11] == 0) else { throw invalid() }
+        let success = outcome == .connected || outcome == .replaced
+        guard success == !endpoint.isEmpty else { throw invalid() }
+        return NativeDirectDenuoConnectResult(
+            outcome: outcome,
+            peerEndpoint: success ? endpoint : nil
+        )
+    }
+
+    private static func validated(
+        _ bundle: [UInt8],
+        magic: [UInt8],
+        lengthOffset: Int
+    ) throws -> String {
+        guard bundle.count >= headerBytes,
+              bundle.count <= headerBytes + maximumEndpointBytes,
+              Array(bundle[0..<4]) == magic,
+              bundle[4] == 1,
+              bundle[6] == 0,
+              bundle[7] == 0 else { throw invalid() }
+        let length = Int(UInt16(bundle[lengthOffset]) << 8 | UInt16(bundle[lengthOffset + 1]))
+        guard bundle.count == headerBytes + length else { throw invalid() }
+        let bytes = Array(bundle[headerBytes...])
+        guard let endpoint = String(bytes: bytes, encoding: .utf8),
+              endpoint.utf8.elementsEqual(bytes),
+              endpoint.utf8.allSatisfy({ (0x21...0x7e).contains($0) }) else { throw invalid() }
+        return endpoint
+    }
+
+    private static func invalid() -> NativeWalletBridgeError {
+        .invalidOutput("invalid direct Denuo transport bundle")
+    }
+}
+
 private enum NativeHnsValueBundle {
     private static let headerLength = 12
 
@@ -1666,6 +1745,62 @@ final class RustNativeWallet: @unchecked Sendable {
             try? lock()
             throw error
         }
+    }
+
+    func directDenuoStatus() throws -> NativeDirectDenuoStatus {
+        var output = HnsBrowserBuffer()
+        let result = hns_browser_wallet_direct_denuo_status(try liveHandle(), &output)
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet direct Denuo status")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        return try NativeDirectDenuoBundle.status(bundle)
+    }
+
+    func retryDirectDenuoListener() throws {
+        try NativeWalletBridge.check(
+            hns_browser_wallet_retry_direct_denuo_listener(try liveHandle()),
+            operation: "wallet direct Denuo listener retry"
+        )
+    }
+
+    func connectDirectDenuo(endpoint: String) throws -> NativeDirectDenuoConnectResult {
+        var output = HnsBrowserBuffer()
+        let currentHandle = try liveHandle()
+        let result = NativeWalletBridge.withUTF8Slice(endpoint) { endpoint in
+            hns_browser_wallet_connect_direct_denuo(
+                currentHandle, endpoint, &output
+            )
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet direct Denuo connection")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        return try NativeDirectDenuoBundle.connect(bundle)
+    }
+
+    func disconnectDirectDenuo() throws -> Bool {
+        var disconnected: UInt8 = 0
+        try NativeWalletBridge.check(
+            hns_browser_wallet_disconnect_direct_denuo(try liveHandle(), &disconnected),
+            operation: "wallet direct Denuo disconnect"
+        )
+        guard disconnected <= 1 else {
+            throw NativeWalletBridgeError.invalidOutput("direct Denuo disconnect is not boolean")
+        }
+        return disconnected == 1
+    }
+
+    func serviceDirectDenuo() throws -> Bool {
+        var serviced: UInt8 = 0
+        try NativeWalletBridge.check(
+            hns_browser_wallet_service_direct_denuo(try liveHandle(), &serviced),
+            operation: "wallet direct Denuo service"
+        )
+        guard serviced <= 1 else {
+            throw NativeWalletBridgeError.invalidOutput("direct Denuo service result is not boolean")
+        }
+        return serviced == 1
     }
 
     func approveHnsSend(_ actionToken: NativeHnsSendActionToken) throws -> NativeHnsSendReceipt {

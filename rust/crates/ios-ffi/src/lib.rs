@@ -21,12 +21,13 @@ use hns_mobile_platform_runtime::{
 };
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
-    EmbeddedHnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
-    HnsDirectPeerCoordinator, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES,
-    MobileDatabaseKey, MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot,
-    MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
-    MobileShakedexQuery, MobileWalletController, MobileWalletError,
+    EmbeddedHnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectDenuoListener,
+    HnsDirectDenuoMessage, HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator,
+    HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileDatabaseKey,
+    MobileDenuoSessionController, MobileHnsNameSummary, MobileHnsReadController,
+    MobileHnsReadSnapshot, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
+    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::BaseUnits;
 use serde_json::{Value, json};
@@ -34,7 +35,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::{BufReader, Read};
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::ptr;
@@ -130,6 +131,20 @@ const MAX_WALLET_BASE_UNITS_BYTES: usize = 39;
 const MAX_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
 const MAX_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
 const MAX_WALLET_SHAKEDEX_RESULT_JSON_BYTES: usize = 256 * 1024;
+const MAX_WALLET_DENUO_ENDPOINT_BYTES: usize = 128;
+const WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
+const WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC: &[u8; 4] = b"HNDC";
+const WALLET_DIRECT_DENUO_BUNDLE_VERSION: u8 = 1;
+const WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES: usize = 12;
+const WALLET_DIRECT_DENUO_STATUS_UNLOCKED: u8 = 1;
+const WALLET_DIRECT_DENUO_STATUS_LISTENING: u8 = 1 << 1;
+const WALLET_DIRECT_DENUO_STATUS_PAIRED: u8 = 1 << 2;
+const WALLET_DIRECT_DENUO_CONNECT_CONNECTED: u8 = 1;
+const WALLET_DIRECT_DENUO_CONNECT_REPLACED: u8 = 2;
+const WALLET_DIRECT_DENUO_CONNECT_UNAVAILABLE: u8 = 3;
+const WALLET_DIRECT_DENUO_CONNECT_LOCKED: u8 = 4;
+const WALLET_DIRECT_DENUO_CONNECT_FAILED: u8 = 5;
+const WALLET_DIRECT_DENUO_CONNECT_EXCHANGE_FAILED: u8 = 6;
 const WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const HNS_LIGHT_FLOOR_BYTES: usize = 36;
 const MAINNET_GENESIS_BOOTSTRAP_MAGIC: &[u8; 11] = b"HNSHDRSNAP1";
@@ -142,6 +157,8 @@ const MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
 const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
 const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
+const IOS_DIRECT_DENUO_LISTEN_PORT: u16 = 12_038;
+const IOS_DIRECT_DENUO_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
 const WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -713,8 +730,27 @@ enum NativeWalletController {
     DirectHnsValue {
         coordinator: HnsDirectPeerCoordinator,
         controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
+        denuo_sessions: MobileDenuoSessionController,
+        denuo_listener: Option<HnsDirectDenuoListener>,
+        denuo_peer: Option<HnsDirectDenuoPeer>,
     },
     Failed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IosDirectDenuoConnectOutcome {
+    Connected,
+    Replaced,
+    Unavailable,
+    Locked,
+    ConnectionFailed,
+    ExchangeFailed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct IosDirectDenuoConnectResult {
+    outcome: IosDirectDenuoConnectOutcome,
+    peer_endpoint: Option<SocketAddr>,
 }
 
 impl NativeWalletController {
@@ -753,10 +789,16 @@ impl NativeWalletController {
             Self::DirectHnsValue {
                 coordinator,
                 controller,
+                denuo_sessions,
+                denuo_listener,
+                denuo_peer,
             } => {
                 *self = Self::DirectHnsValue {
                     coordinator,
                     controller,
+                    denuo_sessions,
+                    denuo_listener,
+                    denuo_peer,
                 };
                 Err(MobileWalletError::ControllerFailed)
             }
@@ -826,9 +868,13 @@ impl NativeWalletController {
         let backend = coordinator.backend().clone();
         let controller =
             lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend)?;
+        let denuo_sessions = controller.direct_denuo_session_controller()?;
         *self = Self::DirectHnsValue {
             coordinator,
             controller: Box::new(controller),
+            denuo_sessions,
+            denuo_listener: None,
+            denuo_peer: None,
         };
         Ok(())
     }
@@ -841,6 +887,193 @@ impl NativeWalletController {
         matches!(self, Self::DirectHnsValue { .. })
     }
 
+    fn start_direct_denuo_listener(&mut self) -> bool {
+        let Self::DirectHnsValue {
+            controller,
+            denuo_listener,
+            ..
+        } = self
+        else {
+            return true;
+        };
+        if denuo_listener.is_some() {
+            return true;
+        }
+        if controller.status().map_or(true, |status| status.locked) {
+            return false;
+        }
+        let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
+        config.connect_timeout = IOS_DIRECT_DENUO_SOCKET_TIMEOUT;
+        match HnsDirectDenuoListener::bind(
+            config,
+            SocketAddr::from((Ipv4Addr::UNSPECIFIED, IOS_DIRECT_DENUO_LISTEN_PORT)),
+        ) {
+            Ok(listener) => {
+                *denuo_listener = Some(listener);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    fn clear_direct_denuo_transport(&mut self) {
+        if let Self::DirectHnsValue {
+            denuo_listener,
+            denuo_peer,
+            ..
+        } = self
+        {
+            denuo_peer.take();
+            denuo_listener.take();
+        }
+    }
+
+    fn direct_denuo_status(&mut self) -> Option<Vec<u8>> {
+        let Self::DirectHnsValue {
+            controller,
+            denuo_listener,
+            denuo_peer,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let unlocked = !controller.status().ok()?.locked;
+        let listener_port = denuo_listener
+            .as_ref()
+            .and_then(|listener| listener.local_addr().ok())
+            .map(|address| address.port());
+        let peer_endpoint = denuo_peer.as_ref().map(HnsDirectDenuoPeer::address);
+        wallet_direct_denuo_status_bundle(unlocked, listener_port, peer_endpoint)
+    }
+
+    fn disconnect_direct_denuo_peer(&mut self) -> bool {
+        let Self::DirectHnsValue { denuo_peer, .. } = self else {
+            return false;
+        };
+        denuo_peer.take().is_some()
+    }
+
+    fn service_direct_denuo_once(&mut self) -> bool {
+        let Self::DirectHnsValue {
+            coordinator,
+            controller,
+            denuo_sessions,
+            denuo_listener,
+            denuo_peer,
+        } = self
+        else {
+            return false;
+        };
+        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
+            return false;
+        };
+        if let Some(peer) = denuo_peer.as_mut() {
+            let accepted = match peer.receive_denuo_message(now_unix) {
+                Ok(HnsDirectDenuoMessage::NameMarket {
+                    request_id,
+                    message,
+                }) => controller
+                    .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+                    .is_ok(),
+                Ok(HnsDirectDenuoMessage::CrossChain { envelope }) => denuo_sessions
+                    .service_direct_envelope(peer, envelope.as_slice(), now_unix)
+                    .is_ok(),
+                Err(_) => false,
+            };
+            if accepted {
+                return true;
+            }
+            denuo_peer.take();
+            return false;
+        }
+        let Some(listener) = denuo_listener.as_ref() else {
+            return false;
+        };
+        let Ok(floor) = coordinator.rollback_floor() else {
+            return false;
+        };
+        let mut peer = match listener.accept_next(floor.height, now_unix) {
+            Ok(Some(peer)) => peer,
+            Ok(None) | Err(_) => return false,
+        };
+        if controller
+            .begin_wallet_owned_direct_shakedex(&mut peer)
+            .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+            .and_then(|_| denuo_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
+            .is_err()
+        {
+            return false;
+        }
+        *denuo_peer = Some(peer);
+        true
+    }
+
+    fn connect_direct_denuo_peer(&mut self, address: SocketAddr) -> IosDirectDenuoConnectResult {
+        let Self::DirectHnsValue {
+            coordinator,
+            controller,
+            denuo_sessions,
+            denuo_peer,
+            ..
+        } = self
+        else {
+            return IosDirectDenuoConnectResult {
+                outcome: IosDirectDenuoConnectOutcome::Unavailable,
+                peer_endpoint: None,
+            };
+        };
+        if controller.status().map_or(true, |status| status.locked) {
+            return IosDirectDenuoConnectResult {
+                outcome: IosDirectDenuoConnectOutcome::Locked,
+                peer_endpoint: None,
+            };
+        }
+        let (Ok(now_unix), Ok(floor)) =
+            (HnsReadSystemClock.now_unix(), coordinator.rollback_floor())
+        else {
+            return IosDirectDenuoConnectResult {
+                outcome: IosDirectDenuoConnectOutcome::ConnectionFailed,
+                peer_endpoint: None,
+            };
+        };
+        let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
+        config.connect_timeout = IOS_DIRECT_DENUO_SOCKET_TIMEOUT;
+        config.allow_private_addresses = true;
+        config.static_peers.push(address);
+        let mut peer = match HnsDirectDenuoPeer::connect(&config, address, floor.height, now_unix) {
+            Ok(peer) => peer,
+            Err(_) => {
+                return IosDirectDenuoConnectResult {
+                    outcome: IosDirectDenuoConnectOutcome::ConnectionFailed,
+                    peer_endpoint: None,
+                };
+            }
+        };
+        if controller
+            .begin_wallet_owned_direct_shakedex(&mut peer)
+            .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+            .and_then(|_| denuo_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
+            .is_err()
+        {
+            return IosDirectDenuoConnectResult {
+                outcome: IosDirectDenuoConnectOutcome::ExchangeFailed,
+                peer_endpoint: None,
+            };
+        }
+        let outcome = if denuo_peer.is_some() {
+            IosDirectDenuoConnectOutcome::Replaced
+        } else {
+            IosDirectDenuoConnectOutcome::Connected
+        };
+        let endpoint = peer.address();
+        *denuo_peer = Some(peer);
+        IosDirectDenuoConnectResult {
+            outcome,
+            peer_endpoint: Some(endpoint),
+        }
+    }
+
     fn lock_fail_closed(&mut self) {
         match self {
             Self::Lifecycle(controller) => {
@@ -849,7 +1082,14 @@ impl NativeWalletController {
             Self::HnsReads(controller) => {
                 let _ = controller.lock();
             }
-            Self::DirectHnsValue { controller, .. } => {
+            Self::DirectHnsValue {
+                controller,
+                denuo_listener,
+                denuo_peer,
+                ..
+            } => {
+                denuo_peer.take();
+                denuo_listener.take();
                 let _ = controller.lock();
             }
             Self::Failed => {}
@@ -1527,6 +1767,93 @@ unsafe fn wallet_shakedex_query(slice: HnsBrowserSlice) -> Result<MobileShakedex
     };
     bytes.fill(0);
     query.ok_or_else(|| FfiFailure::invalid("wallet Shakedex query is invalid"))
+}
+
+unsafe fn wallet_denuo_endpoint(slice: HnsBrowserSlice) -> Result<SocketAddr, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let endpoint = unsafe { required_input_str(slice, MAX_WALLET_DENUO_ENDPOINT_BYTES) }?;
+    if endpoint.bytes().any(|byte| !(0x21..=0x7e).contains(&byte)) {
+        return Err(FfiFailure::invalid("direct Denuo endpoint is invalid"));
+    }
+    endpoint
+        .parse::<SocketAddr>()
+        .ok()
+        .filter(|address| address.port() != 0)
+        .ok_or_else(|| FfiFailure::invalid("direct Denuo endpoint must be an IP literal and port"))
+}
+
+fn wallet_direct_denuo_status_bundle(
+    unlocked: bool,
+    listener_port: Option<u16>,
+    peer_endpoint: Option<SocketAddr>,
+) -> Option<Vec<u8>> {
+    if !unlocked && (listener_port.is_some() || peer_endpoint.is_some()) {
+        return None;
+    }
+    let endpoint = peer_endpoint
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    if endpoint.len() > MAX_WALLET_DENUO_ENDPOINT_BYTES
+        || !endpoint.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
+    {
+        return None;
+    }
+    let endpoint_length = u16::try_from(endpoint.len()).ok()?;
+    let mut flags = if unlocked {
+        WALLET_DIRECT_DENUO_STATUS_UNLOCKED
+    } else {
+        0
+    };
+    if listener_port.is_some() {
+        flags |= WALLET_DIRECT_DENUO_STATUS_LISTENING;
+    }
+    if !endpoint.is_empty() {
+        flags |= WALLET_DIRECT_DENUO_STATUS_PAIRED;
+    }
+    let mut bundle = Vec::with_capacity(WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES + endpoint.len());
+    bundle.extend_from_slice(WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC);
+    bundle.push(WALLET_DIRECT_DENUO_BUNDLE_VERSION);
+    bundle.push(flags);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&listener_port.unwrap_or(0).to_be_bytes());
+    bundle.extend_from_slice(&endpoint_length.to_be_bytes());
+    bundle.extend_from_slice(endpoint.as_bytes());
+    (bundle.len() == WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES + endpoint.len()).then_some(bundle)
+}
+
+fn wallet_direct_denuo_connect_bundle(result: IosDirectDenuoConnectResult) -> Option<Vec<u8>> {
+    let code = match result.outcome {
+        IosDirectDenuoConnectOutcome::Connected => WALLET_DIRECT_DENUO_CONNECT_CONNECTED,
+        IosDirectDenuoConnectOutcome::Replaced => WALLET_DIRECT_DENUO_CONNECT_REPLACED,
+        IosDirectDenuoConnectOutcome::Unavailable => WALLET_DIRECT_DENUO_CONNECT_UNAVAILABLE,
+        IosDirectDenuoConnectOutcome::Locked => WALLET_DIRECT_DENUO_CONNECT_LOCKED,
+        IosDirectDenuoConnectOutcome::ConnectionFailed => WALLET_DIRECT_DENUO_CONNECT_FAILED,
+        IosDirectDenuoConnectOutcome::ExchangeFailed => WALLET_DIRECT_DENUO_CONNECT_EXCHANGE_FAILED,
+    };
+    let endpoint = result
+        .peer_endpoint
+        .map(|value| value.to_string())
+        .unwrap_or_default();
+    let success = matches!(
+        result.outcome,
+        IosDirectDenuoConnectOutcome::Connected | IosDirectDenuoConnectOutcome::Replaced
+    );
+    if success == endpoint.is_empty()
+        || endpoint.len() > MAX_WALLET_DENUO_ENDPOINT_BYTES
+        || !endpoint.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
+    {
+        return None;
+    }
+    let endpoint_length = u16::try_from(endpoint.len()).ok()?;
+    let mut bundle = Vec::with_capacity(WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES + endpoint.len());
+    bundle.extend_from_slice(WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC);
+    bundle.push(WALLET_DIRECT_DENUO_BUNDLE_VERSION);
+    bundle.push(code);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&endpoint_length.to_be_bytes());
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(endpoint.as_bytes());
+    (bundle.len() == WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES + endpoint.len()).then_some(bundle)
 }
 
 fn wallet_json_bundle(
@@ -3000,6 +3327,118 @@ pub unsafe extern "C" fn hns_browser_wallet_query_shakedex(
 }
 
 #[unsafe(no_mangle)]
+/// # Safety
+/// `out_status_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_direct_denuo_status(
+    wallet: HnsBrowserWalletHandle,
+    out_status_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_status_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_status_bundle, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let bundle = entry.controller.direct_denuo_status().ok_or_else(|| {
+            FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct Denuo transport is unavailable",
+            )
+        })?;
+        let output = allocate_output(&bundle, false)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_status_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hns_browser_wallet_retry_direct_denuo_listener(
+    wallet: HnsBrowserWalletHandle,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .start_direct_denuo_listener()
+            .then_some(())
+            .ok_or_else(|| {
+                FfiFailure::new(
+                    HNS_BROWSER_RESULT_NOT_READY,
+                    "direct Denuo listener is unavailable",
+                )
+            })
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `endpoint` must remain readable and `out_connect_bundle` must be writable.
+pub unsafe extern "C" fn hns_browser_wallet_connect_direct_denuo(
+    wallet: HnsBrowserWalletHandle,
+    endpoint: HnsBrowserSlice,
+    out_connect_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_connect_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_connect_bundle, HnsBrowserBuffer::empty()) };
+        // SAFETY: This export carries the caller's readable-slice contract.
+        let endpoint = unsafe { wallet_denuo_endpoint(endpoint) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let result = entry.controller.connect_direct_denuo_peer(endpoint);
+        let bundle = wallet_direct_denuo_connect_bundle(result).ok_or_else(FfiFailure::internal)?;
+        let output = allocate_output(&bundle, false)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_connect_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `out_disconnected` must point to one writable byte.
+pub unsafe extern "C" fn hns_browser_wallet_disconnect_direct_denuo(
+    wallet: HnsBrowserWalletHandle,
+    out_disconnected: *mut u8,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_disconnected)?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let disconnected = u8::from(entry.controller.disconnect_direct_denuo_peer());
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_disconnected, disconnected) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `out_serviced` must point to one writable byte.
+pub unsafe extern "C" fn hns_browser_wallet_service_direct_denuo(
+    wallet: HnsBrowserWalletHandle,
+    out_serviced: *mut u8,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_serviced)?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let serviced = u8::from(entry.controller.service_direct_denuo_once());
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_serviced, serviced) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Consumes one displayed direct-HNS send approval and returns a minimized
 /// receipt only after the native controller accepts the broadcast.
 ///
@@ -3216,6 +3655,7 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_name_exact_text(
             NativeWalletController::DirectHnsValue {
                 coordinator,
                 controller,
+                ..
             } => {
                 // Parse only after proving the direct value controller is
                 // live. Exact text is preserved through proof acquisition and
@@ -3312,6 +3752,7 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
             NativeWalletController::DirectHnsValue {
                 coordinator,
                 controller,
+                ..
             } => synchronize_wallet_owned_direct_hns(coordinator, controller)?,
             NativeWalletController::Lifecycle(_) => {
                 return Err(FfiFailure::new(
@@ -3355,7 +3796,11 @@ pub unsafe extern "C" fn hns_browser_wallet_unlock(
                 |controller| controller.unlock(&key),
                 |controller| controller.unlock(&key),
             )
-            .map_err(|_| wallet_runtime_failure("native wallet unlock was rejected"))
+            .map_err(|_| wallet_runtime_failure("native wallet unlock was rejected"))?;
+        // Listener availability is operational rather than wallet authority;
+        // a local bind denial must not relock or discard the HNS controller.
+        let _ = entry.controller.start_direct_denuo_listener();
+        Ok(())
     })
 }
 
@@ -3365,6 +3810,7 @@ pub extern "C" fn hns_browser_wallet_lock(wallet: HnsBrowserWalletHandle) -> Hns
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
+        entry.controller.clear_direct_denuo_transport();
         entry
             .controller
             .with_mut(
@@ -3961,6 +4407,11 @@ mod tests {
             "hns_browser_wallet_prepare_hns_value_action",
             "hns_browser_wallet_approve_hns_value_action_result",
             "hns_browser_wallet_query_shakedex",
+            "hns_browser_wallet_direct_denuo_status",
+            "hns_browser_wallet_retry_direct_denuo_listener",
+            "hns_browser_wallet_connect_direct_denuo",
+            "hns_browser_wallet_disconnect_direct_denuo",
+            "hns_browser_wallet_service_direct_denuo",
             "hns_browser_wallet_unlock",
             "hns_browser_wallet_lock",
             "hns_browser_wallet_take_recovery_phrase",
@@ -4266,6 +4717,48 @@ mod tests {
         let uppercase = [b'A'; WALLET_ACTION_TOKEN_BYTES];
         // SAFETY: Uppercase token bytes remain readable and must be rejected.
         assert!(unsafe { wallet_action_token(ffi_slice(&uppercase)) }.is_err());
+    }
+
+    #[test]
+    fn direct_denuo_inputs_and_bundles_are_closed() {
+        let _guard = test_guard();
+        // SAFETY: Each endpoint slice remains readable for the call.
+        assert!(matches!(
+            unsafe { wallet_denuo_endpoint(ffi_slice(b"198.51.100.7:12038")) },
+            Ok(endpoint) if endpoint == "198.51.100.7:12038".parse().expect("socket endpoint")
+        ));
+        // SAFETY: The IPv6 endpoint remains readable for the call.
+        assert!(unsafe { wallet_denuo_endpoint(ffi_slice(b"[2001:db8::7]:12038")) }.is_ok());
+        for invalid in [
+            b"wallet.example:12038".as_slice(),
+            b"198.51.100.7:0".as_slice(),
+            b" 198.51.100.7:12038".as_slice(),
+        ] {
+            // SAFETY: Each invalid endpoint remains readable for the call.
+            assert!(unsafe { wallet_denuo_endpoint(ffi_slice(invalid)) }.is_err());
+        }
+
+        let endpoint = "198.51.100.7:12038".parse().expect("socket endpoint");
+        let status = wallet_direct_denuo_status_bundle(true, Some(12_038), Some(endpoint))
+            .expect("status bundle");
+        assert_eq!(&status[..4], WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC);
+        assert_eq!(status[5], 0b111);
+        assert_eq!(&status[12..], b"198.51.100.7:12038");
+        let connected = wallet_direct_denuo_connect_bundle(IosDirectDenuoConnectResult {
+            outcome: IosDirectDenuoConnectOutcome::Connected,
+            peer_endpoint: Some(endpoint),
+        })
+        .expect("connect bundle");
+        assert_eq!(&connected[..4], WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC);
+        assert_eq!(connected[5], WALLET_DIRECT_DENUO_CONNECT_CONNECTED);
+        assert!(wallet_direct_denuo_status_bundle(false, Some(12_038), None).is_none());
+        assert!(
+            wallet_direct_denuo_connect_bundle(IosDirectDenuoConnectResult {
+                outcome: IosDirectDenuoConnectOutcome::ConnectionFailed,
+                peer_endpoint: Some(endpoint),
+            })
+            .is_none()
+        );
     }
 
     #[test]

@@ -12,9 +12,10 @@ All notable changes to this project will be documented in this file.
 - Added native Android and iOS name transfer/finalization and closed Shakedex
   offer/purchase actions. Approval prompts are decoded from strict native
   bundles and remain unavailable to websites or the dormant provider boundary.
-- Added Android direct-Denuo listener, explicit IP-literal peer pairing, peer
-  servicing, replacement, and disconnect controls for wallet-owned offer
-  exchange. Matching iOS transport controls remain in progress.
+- Added Android and iOS direct-Denuo listeners, explicit IP-literal peer
+  pairing, bounded peer servicing, replacement, and disconnect controls for
+  wallet-owned offer exchange. Transport is dropped on lock or protected
+  lifecycle exit and never accepts hostnames or website authority.
 
 ### Fixed
 

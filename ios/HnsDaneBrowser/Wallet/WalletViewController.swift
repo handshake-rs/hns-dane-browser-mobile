@@ -41,6 +41,9 @@ final class WalletViewController: UIViewController {
     private var pendingHnsSendApproval: NativeHnsSendApproval?
     private weak var hnsValueApprovalAlert: UIAlertController?
     private var pendingHnsValueApproval: NativeHnsValueApproval?
+    private var directDenuoServiceTimer: Timer?
+    private var directDenuoServiceInFlight = false
+    private var directDenuoStatusSnapshot: NativeDirectDenuoStatus?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -136,6 +139,7 @@ final class WalletViewController: UIViewController {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        directDenuoServiceTimer?.invalidate()
         pendingHnsSendApproval?.actionToken.discard()
         pendingHnsSendApproval = nil
         pendingHnsValueApproval?.actionToken.discard()
@@ -939,10 +943,21 @@ final class WalletViewController: UIViewController {
 
     private func showShakedexDashboard() {
         guard presentedViewController == nil else { return }
+        let denuoStatus = shakedexActionMayStart ? directDenuoStatusSnapshot : nil
+        let transportLine: String
+        if let denuoStatus {
+            let listener = denuoStatus.listenerPort.map { "listening on \($0)" }
+                ?? "listener unavailable"
+            let peer = denuoStatus.peerEndpoint.map { "paired with \($0)" }
+                ?? "no paired peer"
+            transportLine = "\(listener); \(peer)."
+        } else {
+            transportLine = "Direct-Denuo transport unavailable while locked or unsynchronized."
+        }
         let alert = UIAlertController(
             title: "Shakedex",
             message: shakedexActionMayStart
-                ? "Offers and purchase steps remain in the direct native HNS controller. No page or provider can request them."
+                ? "Offers and purchase steps remain in the direct native HNS controller. \(transportLine) No page or provider can request them."
                 : "Unlock and synchronize the direct HNS wallet before querying offers or preparing a purchase step.",
             preferredStyle: .alert
         )
@@ -959,6 +974,19 @@ final class WalletViewController: UIViewController {
             alert.addAction(UIAlertAction(title: "Finalize purchase", style: .default) { [weak self] _ in
                 self?.afterWalletMenuDismissal { [weak self] in self?.showFinalizePurchaseForm() }
             })
+            alert.addAction(UIAlertAction(title: "Pair direct peer", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showPairDirectDenuoForm() }
+            })
+            if denuoStatus?.listenerPort == nil {
+                alert.addAction(UIAlertAction(title: "Retry listener", style: .default) { [weak self] _ in
+                    self?.retryDirectDenuoListener()
+                })
+            }
+            if denuoStatus?.peerEndpoint != nil {
+                alert.addAction(UIAlertAction(title: "Disconnect peer", style: .destructive) { [weak self] _ in
+                    self?.disconnectDirectDenuoPeer()
+                })
+            }
         }
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
@@ -1193,6 +1221,157 @@ final class WalletViewController: UIViewController {
         ) { [weak self] values in
             guard let self, let sessionID = values.first else { return }
             self.beginShakedexQuery(.getSession(sessionID: sessionID))
+        }
+    }
+
+    private func showPairDirectDenuoForm() {
+        collectHnsValueForm(
+            title: "Pair direct Denuo peer",
+            fields: [.init(label: "IP-literal endpoint", placeholder: "192.0.2.1:12038")]
+        ) { [weak self] values in
+            guard let self, let endpoint = values.first else { return }
+            self.connectDirectDenuoPeer(endpoint)
+        }
+    }
+
+    private func connectDirectDenuoPeer(_ endpoint: String) {
+        runDirectDenuoOperation(status: "Pairing the explicit direct-Denuo endpoint…") {
+            try $0.connectDirectDenuo(endpoint: endpoint)
+        } completion: { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let connection):
+                switch connection.outcome {
+                case .connected:
+                    self.readStatusLabel.text =
+                        "Direct-Denuo peer connected at \(connection.peerEndpoint ?? "unknown endpoint")."
+                case .replaced:
+                    self.readStatusLabel.text =
+                        "Direct-Denuo peer replaced with \(connection.peerEndpoint ?? "unknown endpoint")."
+                case .unavailable:
+                    self.readStatusLabel.text = "Direct-Denuo transport is unavailable."
+                case .locked:
+                    self.readStatusLabel.text = "Unlock the wallet before pairing a direct-Denuo peer."
+                case .connectionFailed:
+                    self.readStatusLabel.text = "The explicit direct-Denuo endpoint could not be reached."
+                case .exchangeFailed:
+                    self.readStatusLabel.text = "The peer connected but rejected the bounded Denuo exchange."
+                }
+            case .failure(let error):
+                self.readStatusLabel.text = "Direct-Denuo pairing failed without changing wallet or chain state."
+                self.showError(error)
+            }
+        }
+    }
+
+    private func retryDirectDenuoListener() {
+        runDirectDenuoOperation(status: "Retrying the wallet-owned direct-Denuo listener…") {
+            try $0.retryDirectDenuoListener()
+            return true
+        } completion: { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success:
+                self.readStatusLabel.text = "The wallet-owned direct-Denuo listener is ready."
+            case .failure(let error):
+                self.readStatusLabel.text = "The direct-Denuo listener remains unavailable; the HNS wallet is unchanged."
+                self.showError(error)
+            }
+        }
+    }
+
+    private func disconnectDirectDenuoPeer() {
+        runDirectDenuoOperation(status: "Disconnecting the direct-Denuo peer…") {
+            try $0.disconnectDirectDenuo()
+        } completion: { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let disconnected):
+                self.readStatusLabel.text = disconnected
+                    ? "Direct-Denuo peer disconnected."
+                    : "No direct-Denuo peer was connected."
+            case .failure(let error):
+                self.readStatusLabel.text = "Direct-Denuo disconnect could not be verified."
+                self.showError(error)
+            }
+        }
+    }
+
+    private func runDirectDenuoOperation<ResultValue>(
+        status: String,
+        operation: @escaping (RustNativeWallet) throws -> ResultValue,
+        completion: @escaping (Result<ResultValue, Error>) -> Void
+    ) {
+        guard shakedexActionMayStart,
+              let wallet,
+              let lease = storageLease else {
+            showErrorMessage("Unlock and synchronize the direct HNS wallet first.")
+            return
+        }
+        isOperating = true
+        readGeneration &+= 1
+        let generation = readGeneration
+        let identity = ObjectIdentifier(wallet)
+        let authority = walletAuthorityGeneration
+        readStatusLabel.text = status
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try operation(wallet) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: identity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authority,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else { return }
+                self.isOperating = false
+                self.refreshState()
+                completion(result)
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func updateDirectDenuoServiceTimer() {
+        let shouldRun = walletAuthorityRequested && shakedexAvailable && walletIsUnlocked
+        if !shouldRun {
+            directDenuoServiceTimer?.invalidate()
+            directDenuoServiceTimer = nil
+            directDenuoStatusSnapshot = nil
+            return
+        }
+        guard directDenuoServiceTimer == nil else { return }
+        directDenuoServiceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
+            [weak self] _ in self?.serviceDirectDenuoOnce()
+        }
+    }
+
+    private func serviceDirectDenuoOnce() {
+        guard !directDenuoServiceInFlight,
+              !isOperating,
+              shakedexAvailable,
+              walletAuthorityRequested,
+              let wallet else { return }
+        directDenuoServiceInFlight = true
+        let identity = ObjectIdentifier(wallet)
+        let authority = walletAuthorityGeneration
+        DispatchQueue.global(qos: .utility).async {
+            _ = try? wallet.serviceDirectDenuo()
+            let status = try? wallet.directDenuoStatus()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.directDenuoServiceInFlight = false
+                guard self.walletAuthorityRequested,
+                      self.walletAuthorityGeneration == authority,
+                      self.wallet.map({ ObjectIdentifier($0) }) == identity else { return }
+                self.directDenuoStatusSnapshot = status
+            }
         }
     }
 
@@ -2443,6 +2622,7 @@ final class WalletViewController: UIViewController {
         walletIsUnlocked = false
         directHnsValueAvailable = false
         shakedexAvailable = false
+        updateDirectDenuoServiceTimer()
         guard storageLease != nil else {
             if let path = resolvedDatabasePath,
                WalletStorageLeaseRegistry.isBlockedAfterRetirementFailure(path: path) {
@@ -2513,6 +2693,7 @@ final class WalletViewController: UIViewController {
             walletIsUnlocked = !status.locked
             directHnsValueAvailable = hasHnsValue && !status.locked
             shakedexAvailable = status.shakedexEnabled && !status.locked
+            updateDirectDenuoServiceTimer()
             if status.locked {
                 accountLabel.text = "Account: unlock to view the local HNS account identity."
                 setReadAvailability(false, message: hasHnsReads
@@ -2544,6 +2725,8 @@ final class WalletViewController: UIViewController {
                 }
             }
         } catch {
+            shakedexAvailable = false
+            updateDirectDenuoServiceTimer()
             statusLabel.text = "Status unavailable."
             accountLabel.text = "Account unavailable."
             setReadAvailability(false, message: "Read-only synchronization status is unavailable.")
@@ -2680,6 +2863,8 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func protectWalletLifecycle() {
+        directDenuoServiceTimer?.invalidate()
+        directDenuoServiceTimer = nil
         clearWalletNameImportPrompt(dismiss: true)
         dismissPendingHnsSendApproval(rejectNatively: true)
         dismissPendingHnsValueApproval(rejectNatively: true)

@@ -59,10 +59,10 @@ noncanonical values, and oversized output before UI publication.
 
 The older scoped-loopback indexed-wallet backend remains available as a
 separate compatibility seam, but the native direct-wallet path does not depend
-on it. Android additionally exposes explicit IP-literal direct-Denuo pairing
-and a wallet-owned listener for peer-to-peer offer exchange. The iOS name and
-Shakedex action surface currently has the same closed local controller and
-approval boundary; direct-Denuo transport parity is still being implemented.
+on it. Android and iOS additionally expose explicit IP-literal direct-Denuo
+pairing and a wallet-owned listener for peer-to-peer offer exchange. The
+listener and paired transport are dropped on wallet lock and protected
+lifecycle exits.
 Website-provider value capability, active HNSA/HNSR admission, and mainnet
 cross-chain settlement remain independently disabled. No page can request or
 approve a native wallet action.

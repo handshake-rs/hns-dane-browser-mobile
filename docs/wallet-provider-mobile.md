@@ -76,10 +76,11 @@ Both platform shells now link a narrow native controller for:
 
 The direct path publishes wallet state only after verified peer agreement and
 keeps partial catch-up distinct from a spendable snapshot. It does not require
-the older scoped-loopback credential/indexed backend. Android also exposes a
-wallet-owned direct-Denuo listener and explicit IP-literal pairing. The iOS
-local name/Shakedex controller and approval surface are present; its matching
-direct-Denuo transport controls remain work in progress. The exact-text legacy
+the older scoped-loopback credential/indexed backend. Android and iOS also
+expose a wallet-owned direct-Denuo listener, explicit IP-literal pairing,
+bounded peer servicing, replacement, and disconnect. iOS declares the local
+network purpose required by the platform and services the transport only while
+the protected foreground wallet owns authority. The exact-text legacy
 name import remains available only through the separate loopback backend.
 
 None of these controls is connected to page JavaScript. No website provider is

@@ -341,6 +341,27 @@ HnsBrowserResult hns_browser_wallet_query_shakedex(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice query_json,
     HnsBrowserBuffer *out_result_bundle);
+/*
+ * Wallet-owned direct-Denuo transport. HNDS-v1 reports listener/peer state;
+ * HNDC-v1 reports one explicit connection attempt. The endpoint must be an
+ * IPv4:port or [IPv6]:port literal. No hostname lookup or WebKit authority is
+ * admitted. Service processes at most one accepted peer event.
+ */
+HnsBrowserResult hns_browser_wallet_direct_denuo_status(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_status_bundle);
+HnsBrowserResult hns_browser_wallet_retry_direct_denuo_listener(
+    HnsBrowserWalletHandle wallet);
+HnsBrowserResult hns_browser_wallet_connect_direct_denuo(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice endpoint,
+    HnsBrowserBuffer *out_connect_bundle);
+HnsBrowserResult hns_browser_wallet_disconnect_direct_denuo(
+    HnsBrowserWalletHandle wallet,
+    uint8_t *out_disconnected);
+HnsBrowserResult hns_browser_wallet_service_direct_denuo(
+    HnsBrowserWalletHandle wallet,
+    uint8_t *out_serviced);
 HnsBrowserResult hns_browser_wallet_unlock(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice database_key);
