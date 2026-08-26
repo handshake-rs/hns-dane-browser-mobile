@@ -315,6 +315,51 @@ final class WalletProviderProtocolTests: XCTestCase {
         XCTAssertFalse(apparentlyReady.allowsApprovalAction)
     }
 
+    func testAcceptedHnsSendImmediatelyAttemptsWalletRefresh() throws {
+        var operations: [String] = []
+        let result: WalletHnsPostBroadcastResult<String, String> = try approveAndRefreshHnsWallet(
+            approve: {
+                operations.append("approve")
+                return "receipt"
+            },
+            synchronize: {
+                operations.append("synchronize")
+                return "snapshot"
+            }
+        )
+
+        XCTAssertEqual(operations, ["approve", "synchronize"])
+        XCTAssertEqual(result.receipt, "receipt")
+        XCTAssertEqual(result.snapshot, "snapshot")
+    }
+
+    func testAcceptedHnsSendRemainsAcceptedWhenRefreshFails() throws {
+        enum ProbeError: Error { case failed }
+        let result: WalletHnsPostBroadcastResult<String, String> = try approveAndRefreshHnsWallet(
+            approve: { "receipt" },
+            synchronize: { throw ProbeError.failed }
+        )
+
+        XCTAssertEqual(result.receipt, "receipt")
+        XCTAssertNil(result.snapshot)
+    }
+
+    func testFailedHnsApprovalDoesNotAttemptRefresh() {
+        enum ProbeError: Error { case failed }
+        var synchronized = false
+
+        XCTAssertThrowsError(
+            try approveAndRefreshHnsWallet(
+                approve: { throw ProbeError.failed },
+                synchronize: {
+                    synchronized = true
+                    return "snapshot"
+                }
+            ) as WalletHnsPostBroadcastResult<String, String>
+        )
+        XCTAssertFalse(synchronized)
+    }
+
     func testAllTwelveApprovalKindsValidateAndRenderFixedRows() throws {
         let now = Self.nowUnixMs
         let cases: [(method: String, params: Any?, summary: [String: Any])] = [

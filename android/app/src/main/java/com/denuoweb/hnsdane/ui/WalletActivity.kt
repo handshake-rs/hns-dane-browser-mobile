@@ -72,6 +72,7 @@ import com.denuoweb.hnsdane.wallet.walletNameImportRefreshMatches
 import com.denuoweb.hnsdane.wallet.displayAmount
 import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
 import com.denuoweb.hnsdane.wallet.hnsBalanceProjection
+import com.denuoweb.hnsdane.wallet.hnsReceiveTargets
 import com.denuoweb.hnsdane.wallet.parsePositiveHnsToBaseUnits
 import com.denuoweb.hnsdane.wallet.walletDeleteConfirmationMatches
 import com.denuoweb.hnsdane.wallet.walletDatabaseArtifacts
@@ -483,7 +484,9 @@ class WalletActivity : ComponentActivity() {
             balanceView.apply {
                 textSize = 24f
                 typeface = Typeface.DEFAULT_BOLD
-                maxLines = 2
+                // Confirmed, pending-outgoing, and available-after-pending are
+                // intentionally separate rows while a send is unconfirmed.
+                maxLines = 4
                 setTextColor(themeColors().primaryText)
                 setPadding(0, uiDp(10), 0, uiDp(12))
             }
@@ -612,7 +615,9 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showReceiveWalletDialog() {
-        val payment = paymentReceiveView.text.toString().lineSequence().firstOrNull().orEmpty()
+        val payment = latestReadSnapshot?.hnsReceiveTargets()?.paymentAddress
+            ?: localPaymentReceiveTarget?.display
+            ?: ""
         AlertDialog.Builder(this)
             .setTitle(R.string.wallet_dashboard_receive)
             .setMessage(getString(R.string.wallet_dashboard_receive_message, payment))
@@ -625,7 +630,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showNameReceiveDialog() {
-        val address = nameReceiveView.text.toString().lineSequence().firstOrNull().orEmpty()
+        val address = latestReadSnapshot?.hnsReceiveTargets()?.nameTransferAddress.orEmpty()
         AlertDialog.Builder(this)
             .setTitle(R.string.wallet_dashboard_name_transfer)
             .setMessage(address)

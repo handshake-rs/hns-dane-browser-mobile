@@ -77,6 +77,18 @@ internal fun NativeWalletReadSnapshot.hnsBalanceProjection(): WalletHnsBalancePr
     )
 }
 
+/** Raw native-validated receive values for copy/share controls. */
+internal data class WalletHnsReceiveTargets(
+    val paymentAddress: String,
+    val nameTransferAddress: String?,
+)
+
+internal fun NativeWalletReadSnapshot.hnsReceiveTargets(): WalletHnsReceiveTargets =
+    WalletHnsReceiveTargets(
+        paymentAddress = paymentReceiveTarget.display,
+        nameTransferAddress = nameReceiveTarget?.display,
+    )
+
 internal fun walletReadCodeLabel(value: String): String = buildString(value.length + 8) {
     value.forEachIndexed { index, character ->
         when {

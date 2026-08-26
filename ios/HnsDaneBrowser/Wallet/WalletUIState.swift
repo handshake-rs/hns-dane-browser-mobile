@@ -23,3 +23,24 @@ struct WalletUIState {
         WalletNativeReleaseGates.approvalDispatchAvailable && walletAvailable && !locked && !busy
     }
 }
+
+/// Keeps the value-changing approval and its required read refresh in one
+/// operation. Peer acceptance is authoritative even if the subsequent read
+/// refresh is temporarily unavailable, so refresh failure is represented
+/// separately instead of changing a successful broadcast into an ambiguous
+/// send outcome.
+struct WalletHnsPostBroadcastResult<Receipt, Snapshot> {
+    let receipt: Receipt
+    let snapshot: Snapshot?
+}
+
+func approveAndRefreshHnsWallet<Receipt, Snapshot>(
+    approve: () throws -> Receipt,
+    synchronize: () throws -> Snapshot
+) throws -> WalletHnsPostBroadcastResult<Receipt, Snapshot> {
+    let receipt = try approve()
+    return WalletHnsPostBroadcastResult(
+        receipt: receipt,
+        snapshot: try? synchronize()
+    )
+}

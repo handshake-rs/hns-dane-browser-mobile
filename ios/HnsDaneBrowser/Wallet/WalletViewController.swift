@@ -802,8 +802,16 @@ final class WalletViewController: UIViewController {
         pendingHnsSendApproval = nil
         hnsSendApprovalAlert = nil
         readStatusLabel.text = "Broadcasting the approved HNS send…"
-        DispatchQueue.global(qos: .userInitiated).async {
-            let outcome = Result { try wallet.approveHnsSend(approval.actionToken) }
+        let keychain = keychain
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
+            let outcome: Result<WalletHnsPostBroadcastResult<NativeHnsSendReceipt, NativeHnsReadSnapshot>, Error> = Result {
+                try approveAndRefreshHnsWallet(
+                    approve: { try wallet.approveHnsSend(approval.actionToken) },
+                    synchronize: {
+                        try Self.synchronizeDirectHnsReads(wallet: wallet, keychain: keychain)
+                    }
+                )
+            }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 guard walletReadMayPublish(
@@ -820,8 +828,11 @@ final class WalletViewController: UIViewController {
                 self.isOperating = false
                 self.refreshState()
                 switch outcome {
-                case .success(let receipt):
-                    self.readStatusLabel.text = "HNS send accepted by the direct peer: \(receipt.txid). Synchronize to refresh confirmed activity."
+                case .success(let result):
+                    if let snapshot = result.snapshot { self.publish(snapshot) }
+                    self.readStatusLabel.text = result.snapshot == nil
+                        ? "HNS send accepted by the direct peer: \(result.receipt.txid). Unlock and synchronize to refresh wallet state."
+                        : "HNS send accepted by the direct peer: \(result.receipt.txid). The verified wallet snapshot was refreshed."
                 case .failure(let error):
                     self.readStatusLabel.text = "HNS send outcome is ambiguous. The wallet was locked; unlock and synchronize before taking another action."
                     self.showError(error)
