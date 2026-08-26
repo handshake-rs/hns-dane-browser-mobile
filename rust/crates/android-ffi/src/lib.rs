@@ -578,26 +578,31 @@ impl AndroidWalletController {
         } else {
             None
         };
-        let mut lifecycle = match std::mem::replace(self, Self::Failed) {
-            Self::Lifecycle(controller) => controller,
-            _ => return false,
-        };
-        let peer_config = android_direct_hns_peer_config(lifecycle.account_config().network);
-        let coordinator_result = match bootstrap_headers {
-            Some(headers) => lifecycle
-                .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
+        // A bad or unavailable bootstrap/floor must not poison the reopened
+        // lifecycle controller.  Keep it in place until the coordinator opens
+        // successfully so the user can retry setup without recreating the
+        // wallet or losing its persisted scan checkpoint.
+        let coordinator_result = {
+            let Self::Lifecycle(lifecycle) = self else {
+                return false;
+            };
+            let peer_config = android_direct_hns_peer_config(lifecycle.account_config().network);
+            match bootstrap_headers {
+                Some(headers) => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
+                        database_key,
+                        peer_config,
+                        rollback_floor,
+                        ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT,
+                        ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH,
+                        headers,
+                    ),
+                None => lifecycle.open_direct_hns_peer_coordinator_with_floor(
                     database_key,
                     peer_config,
                     rollback_floor,
-                    ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT,
-                    ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH,
-                    headers,
                 ),
-            None => lifecycle.open_direct_hns_peer_coordinator_with_floor(
-                database_key,
-                peer_config,
-                rollback_floor,
-            ),
+            }
         };
         let coordinator = match coordinator_result {
             Ok(coordinator) => coordinator,
@@ -607,6 +612,10 @@ impl AndroidWalletController {
                 ));
                 return false;
             }
+        };
+        let lifecycle = match std::mem::replace(self, Self::Failed) {
+            Self::Lifecycle(controller) => controller,
+            _ => return false,
         };
         let backend = coordinator.backend().clone();
         match lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend) {
