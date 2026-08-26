@@ -80,8 +80,9 @@ the older scoped-loopback credential/indexed backend. Android and iOS also
 expose a wallet-owned direct-Denuo listener, explicit IP-literal pairing,
 bounded peer servicing, replacement, and disconnect. iOS declares the local
 network purpose required by the platform and services the transport only while
-the protected foreground wallet owns authority. The exact-text legacy
-name import remains available only through the separate loopback backend.
+the protected foreground wallet owns authority. Exact-text name import uses
+verified direct name-proof synchronization when the direct value controller is
+active; the older loopback implementation remains a compatibility path.
 
 None of these controls is connected to page JavaScript. No website provider is
 installed or announced, and no page can invoke a native action. Active HNSA or
@@ -90,16 +91,20 @@ direct-wallet stack is unreleased and still requires the full Apple
 build/simulator/physical-device matrix and broader signed Android release
 qualification.
 
-Android send review and broadcast were requalified on a Pixel 9 on 2026-08-25
-against exact installed source `2156746`. The signer-matched ARM64 debug APK
+Android send review and peer submission were exercised on a Pixel 9 on
+2026-08-25 against exact installed source `2156746`. The signer-matched ARM64 debug APK
 updated `com.denuoweb.hnsdane.debug` in place without changing its original
 first-install time or package sandbox. The retained log sequence showed a
 verified snapshot at height `344267`, preparation of one one-time send
 approval, no process restart, no native exception, no rollback-floor error,
-and no zero-height rescan. The device then reported that peers accepted the
-transaction and the required post-broadcast snapshot refresh succeeded. This
-is direct-send debug qualification for that device and transaction, not
-store-signed release or broader device-matrix evidence.
+and no immediate zero-height rescan. The device then reported peer submission
+and a post-broadcast snapshot refresh, but later synchronization classified the
+transaction as dropped/unconfirmed after another birthday rescan. The displayed
+local mempool state did not prove remote miner admission, so this is not a
+successful-send qualification. The mobile stack now pins exact-byte
+dropped-send resubmission plus a forward-only internal-change watch-set update
+that preserves verified scan coverage and transaction history. Installed-device
+confirmation of both fixes remains open.
 
 That test also exposed a presentation defect: the native `balance` field is a
 confirmed-chain coin total, so it remains unchanged while an outgoing
@@ -172,8 +177,10 @@ catch-up is reported separately from a complete spendable snapshot. Android
 and iOS require the exact current wallet identity, storage lease, lifecycle
 authority, and operation generation before publishing direct-wallet output.
 
-The older scoped-loopback boundary remains available for compatibility and
-trusted exact-text name import:
+The older scoped-loopback boundary remains available for compatibility.
+Trusted exact-text name import can also use the direct wallet: both native ABIs
+first acquire the exact verified name proof from the direct coordinator and
+then commit the canonical import through the same bounded mobile controller.
 
 The Rust JNI and Apple C ABI compose
 `MobileHnsReadController<HnsNodeRpcBackend>` only after an already durable wallet
@@ -215,8 +222,9 @@ in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed.
 XCTest covers the retirement queue/lease behavior and stale-completion
 publication-authority predicates. New closed direct send/name/Shakedex decoders
 have source tests, while an exact current Xcode run and physical-iPhone
-qualification remain open. The legacy name-import path still cannot operate
-until the separate scoped credential/indexed backend/data boundary exists.
+qualification remain open. Only the compatibility loopback name-import path
+requires the separate scoped credential/indexed backend/data boundary; the
+direct proof-backed path does not.
 
 ## Trusted-native exact-text name import
 

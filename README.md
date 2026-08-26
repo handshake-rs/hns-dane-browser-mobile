@@ -69,10 +69,14 @@ approve a native wallet action.
 
 These direct-wallet changes are unreleased local source. Rust and ABI tests
 cover their closed boundaries, but the current stack has not yet passed the
-complete Apple build/device matrix or a new Android debug APK/device run. In
-particular, Android send-review/resume behavior is awaiting diagnostic logs and
-another state-preserving device qualification; no current claim should be read
-as proof of a successful installed-device send.
+complete Apple build/device matrix or a successful Android on-chain send. The
+latest state-preserving Android exercise proved review and peer submission but
+the transaction later returned as dropped/unconfirmed after the wallet
+restarted and rescanned from block zero. Local mempool presentation is not
+evidence that a miner retained the transaction. Exact-byte dropped-send
+recovery is pinned in the mobile stack, and the subsequent forward-only change
+watch-set fix preserves the authenticated scan head instead of triggering a
+birthday rescan; both still require installed-device requalification.
 
 Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI run
