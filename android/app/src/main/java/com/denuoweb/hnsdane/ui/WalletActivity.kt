@@ -91,6 +91,16 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.math.ceil
 
+/**
+ * The native direct-wallet installer determines whether a wallet actually
+ * consumes this stream from its persisted birthday.  The Android shell cannot
+ * safely infer that birthday, so Mainnet must make the pinned stream available
+ * on every installation; native ignores it for recovery wallets that retain a
+ * different honest birthday.
+ */
+internal fun walletDirectHnsNeedsGenesisBootstrap(network: HandshakeNetwork): Boolean =
+    network == HandshakeNetwork.Mainnet
+
 /** Dedicated native controller for one complete Handshake wallet and Shakedex account. */
 class WalletActivity : ComponentActivity() {
     private lateinit var keyStore: AndroidWalletKeyStore
@@ -2990,9 +3000,17 @@ class WalletActivity : ComponentActivity() {
         thread(name = "hns-wallet-direct-install") {
             val installed = runCatching {
                 val floor = keyStore.directHnsRollbackFloorForOpen()
-                val bootstrap = if (
-                    walletNetwork == HandshakeNetwork.Mainnet && floor.all { it == 0.toByte() }
-                ) {
+                // A checkpoint-born Mainnet wallet must receive its pinned
+                // genesis-header stream on *every* controller installation,
+                // not just the first one.  The Keystore floor is a rollback
+                // guard, not a substitute for the bootstrap input: the
+                // native lifecycle layer rejects a birthday-300,000 direct
+                // controller without it even when the encrypted checkpoint
+                // and floor already resume at a newer height.  Supplying it
+                // again lets native validate the file and then reopen the
+                // persisted authenticated checkpoint; it does not rescan
+                // from genesis or overwrite chain state.
+                val bootstrap = if (walletDirectHnsNeedsGenesisBootstrap(walletNetwork)) {
                     HeaderSnapshotInstaller.extractWalletGenesisBootstrap(applicationContext)
                 } else {
                     null

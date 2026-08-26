@@ -38,6 +38,17 @@ class HnsResolutionPreferencesTest {
     }
 
     @Test
+    fun directWalletAlwaysSuppliesPinnedBootstrapOnMainnetReinstall() {
+        // The direct controller uses the encrypted checkpoint and Keystore
+        // floor to resume.  Supplying this source again is required for a
+        // checkpoint-born wallet and must not depend on whether that floor is
+        // still zero after a prior scan.
+        assertTrue(walletDirectHnsNeedsGenesisBootstrap(HandshakeNetwork.Mainnet))
+        assertFalse(walletDirectHnsNeedsGenesisBootstrap(HandshakeNetwork.Testnet))
+        assertFalse(walletDirectHnsNeedsGenesisBootstrap(HandshakeNetwork.Regtest))
+    }
+
+    @Test
     fun handshakeNetworkFromIdDefaultsToMainnet() {
         assertEquals(HandshakeNetwork.Mainnet, HandshakeNetwork.fromId(null))
         assertEquals(HandshakeNetwork.Mainnet, HandshakeNetwork.fromId("unknown"))
