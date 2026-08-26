@@ -359,7 +359,7 @@ final class WalletViewController: UIViewController {
         let receive = dashboardButton(
             title: "Receive",
             action: #selector(showPaymentReceiveAddress),
-            enabled: synchronizedReadsAvailable && directHnsValueAvailable
+            enabled: receiveTargets != nil && directHnsValueAvailable && !isOperating
         )
         let send = dashboardButton(
             title: "Send",
@@ -831,8 +831,8 @@ final class WalletViewController: UIViewController {
                 case .success(let result):
                     if let snapshot = result.snapshot { self.publish(snapshot) }
                     self.readStatusLabel.text = result.snapshot == nil
-                        ? "HNS send accepted by the direct peer: \(result.receipt.txid). Unlock and synchronize to refresh wallet state."
-                        : "HNS send accepted by the direct peer: \(result.receipt.txid). The verified wallet snapshot was refreshed."
+                        ? "HNS send submitted to connected peers: \(result.receipt.txid). Submission is not confirmation; unlock and synchronize to refresh wallet state."
+                        : "HNS send submitted to connected peers: \(result.receipt.txid). The verified wallet snapshot was refreshed; submission is not confirmation."
                 case .failure(let error):
                     self.readStatusLabel.text = "HNS send outcome is ambiguous. The wallet was locked; unlock and synchronize before taking another action."
                     self.showError(error)
@@ -2745,10 +2745,13 @@ final class WalletViewController: UIViewController {
                     : "Preparing the direct HNS wallet is required before synchronization.")
                 if hasHnsValue {
                     let receive = try wallet.localHnsReceiveTarget()
+                    receiveTargets = WalletReceiveTargets(localPaymentAddress: receive.display)
                     paymentReceiveLabel.text = "Payment receive\n\(receive.display)\nDerivation index \(receive.derivationIndex)"
                 }
             }
         } catch {
+            walletIsUnlocked = false
+            directHnsValueAvailable = false
             shakedexAvailable = false
             updateDirectDenuoServiceTimer()
             statusLabel.text = "Status unavailable."
@@ -3170,9 +3173,20 @@ struct WalletReceiveTargets: Equatable, Sendable {
     let paymentAddress: String
     let nameTransferAddress: String?
 
+    init(paymentAddress: String, nameTransferAddress: String?) {
+        self.paymentAddress = paymentAddress
+        self.nameTransferAddress = nameTransferAddress
+    }
+
+    init(localPaymentAddress: String) {
+        self.init(paymentAddress: localPaymentAddress, nameTransferAddress: nil)
+    }
+
     init(snapshot: NativeHnsReadSnapshot) {
-        paymentAddress = snapshot.receiveTarget.display
-        nameTransferAddress = snapshot.nameReceiveTarget?.display
+        self.init(
+            paymentAddress: snapshot.receiveTarget.display,
+            nameTransferAddress: snapshot.nameReceiveTarget?.display
+        )
     }
 }
 

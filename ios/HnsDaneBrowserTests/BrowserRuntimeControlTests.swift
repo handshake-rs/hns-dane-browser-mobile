@@ -621,6 +621,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
         XCTAssertNotEqual(receiveTargets.paymentAddress, presentation.paymentReceive)
         XCTAssertNotEqual(receiveTargets.nameTransferAddress, presentation.nameReceive)
+        let localTargets = WalletReceiveTargets(localPaymentAddress: "rs1qlocalreceive")
+        XCTAssertEqual(localTargets.paymentAddress, "rs1qlocalreceive")
+        XCTAssertNil(localTargets.nameTransferAddress)
         XCTAssertEqual(
             presentation.history,
             "confirmed · -0.25 HNS\n\(firstTransactionHex)\nBlock 40 · 3 confirmations\n\n1 more items are present in this synchronized snapshot."
