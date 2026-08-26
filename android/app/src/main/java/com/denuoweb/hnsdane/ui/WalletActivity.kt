@@ -2815,7 +2815,7 @@ class WalletActivity : ComponentActivity() {
                             "HNS transaction was submitted to peers, but post-broadcast wallet synchronization failed",
                         )
                         sendStatusView.text = getString(
-                            R.string.wallet_send_accepted_sync_failed,
+                            R.string.wallet_send_submitted_sync_failed,
                             receipt.txid,
                         )
                     }
@@ -2826,7 +2826,7 @@ class WalletActivity : ComponentActivity() {
                         )
                         renderReadSnapshot(snapshot)
                         sendStatusView.text = getString(
-                            R.string.wallet_send_accepted,
+                            R.string.wallet_send_submitted,
                             receipt.txid,
                             receipt.acceptedAtUnix,
                         )
