@@ -149,3 +149,54 @@ final class HeaderSnapshotBootstrapper {
         defaults.set(true, forKey: Self.installedMarkerKey)
     }
 }
+
+/// Produces one private, short-lived copy of the bundled header stream for
+/// the wallet's independent direct-peer coordinator. The browser runtime and
+/// wallet deliberately validate this stream independently: a browser header
+/// cache is never wallet chain authority.
+final class WalletHeaderSnapshotBootstrapper {
+    private let resourceURL: () -> URL?
+    private let fileManager: FileManager
+    private let decompressor: HeaderSnapshotDecompressing
+
+    init(
+        resourceURL: @escaping () -> URL? = {
+            Bundle.main.url(
+                forResource: "hns_headers_300000.snapshot",
+                withExtension: "gzip"
+            )
+        },
+        fileManager: FileManager = .default,
+        decompressor: HeaderSnapshotDecompressing = ZlibHeaderSnapshotDecompressor()
+    ) {
+        self.resourceURL = resourceURL
+        self.fileManager = fileManager
+        self.decompressor = decompressor
+    }
+
+    /// The closure receives a complete-file-protected uncompressed snapshot
+    /// and must finish native configuration before returning. The snapshot is
+    /// removed on every exit, including native controller rejection.
+    func withGenesisSnapshot<T>(_ body: (URL) throws -> T) throws -> T {
+        guard let compressedURL = resourceURL() else {
+            throw HeaderSnapshotBootstrapError.bundledSnapshotMissing
+        }
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("hns-wallet-header-bootstrap", isDirectory: true)
+        try fileManager.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true,
+            attributes: [.protectionKey: FileProtectionType.complete]
+        )
+        let snapshotURL = temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("snapshot")
+        defer { try? fileManager.removeItem(at: snapshotURL) }
+        try decompressor.decompress(
+            source: compressedURL,
+            destination: snapshotURL,
+            expectedBytes: HeaderSnapshotBootstrapper.expectedUncompressedBytes
+        )
+        return try body(snapshotURL)
+    }
+}

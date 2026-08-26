@@ -9,6 +9,8 @@
 )]
 #![deny(unsafe_op_in_unsafe_fn)]
 
+use hns_header_consensus::{HEADER_SIZE, Header, Network};
+use hns_light_sync::SyncState;
 use hns_mobile_platform_runtime::{
     BrowserNameClass, BrowserProxy, BrowserProxyResolverPolicy, BrowserProxySecurityPath,
     BrowserProxyStatus, BrowserProxyStatusObserver, BrowserProxyTlsPolicy, BrowserRuntime,
@@ -19,15 +21,22 @@ use hns_mobile_platform_runtime::{
 };
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
-    HnsBootstrapPolicy, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileDatabaseKey,
-    MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot, MobilePlatform,
-    MobileRecoveryPhrase, MobileWalletController, MobileWalletError,
+    EmbeddedHnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
+    HnsDirectPeerCoordinator, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
+    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES,
+    MobileDatabaseKey, MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot,
+    MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
+    MobileWalletController, MobileWalletError,
 };
+use hns_wallet_types::BaseUnits;
+use serde_json::{Value, json};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::net::SocketAddr;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::{Component, Path, PathBuf};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, TryLockError};
@@ -102,6 +111,30 @@ const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;
 const WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_NAME_INPUT_BYTES: usize = 63;
 const MAX_WALLET_NAME_IMPORT_JSON_BYTES: usize = 4 * 1024;
+const WALLET_HNS_RECEIVE_BUNDLE_MAGIC: &[u8; 4] = b"HNRT";
+const WALLET_HNS_RECEIVE_BUNDLE_VERSION: u8 = 1;
+const WALLET_VALUE_APPROVAL_BUNDLE_MAGIC: &[u8; 4] = b"HNVP";
+const WALLET_VALUE_APPROVAL_BUNDLE_VERSION: u8 = 1;
+const WALLET_VALUE_RESULT_BUNDLE_MAGIC: &[u8; 4] = b"HNVX";
+const WALLET_VALUE_RESULT_BUNDLE_VERSION: u8 = 1;
+const WALLET_JSON_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_HNS_RECEIVE_JSON_BYTES: usize = 4 * 1024;
+const MAX_WALLET_VALUE_APPROVAL_JSON_BYTES: usize = 16 * 1024;
+const MAX_WALLET_VALUE_RESULT_JSON_BYTES: usize = 16 * 1024;
+const MAX_WALLET_VALUE_RECIPIENT_BYTES: usize = 512;
+const MAX_WALLET_BASE_UNITS_BYTES: usize = 39;
+const WALLET_ACTION_TOKEN_BYTES: usize = 64;
+const HNS_LIGHT_FLOOR_BYTES: usize = 36;
+const MAINNET_GENESIS_BOOTSTRAP_MAGIC: &[u8; 11] = b"HNSHDRSNAP1";
+const MAINNET_GENESIS_BOOTSTRAP_HEIGHT: u32 = 300_000;
+const MAINNET_GENESIS_BOOTSTRAP_BYTES: u64 = 70_800_287;
+const MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
+    0, 0, 0, 0, 0, 0, 0, 12, 52, 107, 32, 60, 77, 216, 102, 166, 136, 26, 130, 156, 157, 202, 16,
+    190, 31, 89, 123, 179, 142, 19, 43, 169,
+];
+const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
+const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
+const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
 const WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -667,6 +700,13 @@ struct WalletEntry {
 enum NativeWalletController {
     Lifecycle(MobileWalletController),
     HnsReads(MobileHnsReadController<HnsNodeRpcBackend>),
+    /// The iOS wallet's self-contained HNS path. The coordinator owns the
+    /// independently verified peer/header/block state, while the value
+    /// controller owns wallet evidence, fee observation, and broadcast.
+    DirectHnsValue {
+        coordinator: HnsDirectPeerCoordinator,
+        controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
+    },
     Failed,
 }
 
@@ -677,10 +717,14 @@ impl NativeWalletController {
         hns_reads: impl FnOnce(
             &mut MobileHnsReadController<HnsNodeRpcBackend>,
         ) -> Result<T, MobileWalletError>,
+        direct_hns_value: impl FnOnce(
+            &mut MobileHnsValueController<EmbeddedHnsBackend>,
+        ) -> Result<T, MobileWalletError>,
     ) -> Result<T, MobileWalletError> {
         match self {
             Self::Lifecycle(controller) => lifecycle(controller),
             Self::HnsReads(controller) => hns_reads(controller),
+            Self::DirectHnsValue { controller, .. } => direct_hns_value(controller),
             Self::Failed => Err(MobileWalletError::ControllerFailed),
         }
     }
@@ -699,12 +743,95 @@ impl NativeWalletController {
                 *self = Self::HnsReads(controller);
                 Err(MobileWalletError::ControllerFailed)
             }
+            Self::DirectHnsValue {
+                coordinator,
+                controller,
+            } => {
+                *self = Self::DirectHnsValue {
+                    coordinator,
+                    controller,
+                };
+                Err(MobileWalletError::ControllerFailed)
+            }
             Self::Failed => Err(MobileWalletError::ControllerFailed),
         }
     }
 
+    /// Converts a reopened lifecycle controller into the wallet-owned direct
+    /// HNS implementation. No RPC URL, peer locator, relay, or website data
+    /// crosses this boundary: the published wallet derives its own watch set
+    /// and discovers/verifies ordinary Handshake peers itself.
+    fn enable_direct_hns_value(
+        &mut self,
+        database_key: &MobileDatabaseKey,
+        rollback_floor: HnsLightFloor,
+        bootstrap_snapshot_path: Option<&Path>,
+    ) -> Result<(), MobileWalletError> {
+        let Self::Lifecycle(lifecycle) = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        let requires_genesis_bootstrap = lifecycle.account_config().network == HnsNetwork::Mainnet
+            && lifecycle.account_config().birthday_height
+                == u64::from(MAINNET_GENESIS_BOOTSTRAP_HEIGHT);
+        if requires_genesis_bootstrap && bootstrap_snapshot_path.is_none() {
+            return Err(MobileWalletError::ControllerFailed);
+        }
+        let bootstrap_headers = if requires_genesis_bootstrap {
+            let path = bootstrap_snapshot_path.ok_or(MobileWalletError::ControllerFailed)?;
+            Some(
+                load_mainnet_genesis_bootstrap(path)
+                    .map_err(|_| MobileWalletError::ControllerFailed)?,
+            )
+        } else {
+            None
+        };
+        // Opening the coordinator can fail for transient filesystem, peer
+        // bootstrap, or rollback-floor reasons.  Keep the lifecycle
+        // controller intact until that step succeeds so a caller can report
+        // the failure and safely retry rather than being left with a poisoned
+        // in-memory handle that forces an unnecessary wallet reopen.
+        let coordinator = {
+            let Self::Lifecycle(lifecycle) = self else {
+                return Err(MobileWalletError::ControllerFailed);
+            };
+            let peer_config = direct_hns_peer_config(lifecycle.account_config().network);
+            match bootstrap_headers {
+                Some(headers) => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
+                        database_key,
+                        peer_config,
+                        rollback_floor,
+                        MAINNET_GENESIS_BOOTSTRAP_HEIGHT,
+                        MAINNET_GENESIS_BOOTSTRAP_HASH,
+                        headers,
+                    )?,
+                None => lifecycle.open_direct_hns_peer_coordinator_with_floor(
+                    database_key,
+                    peer_config,
+                    rollback_floor,
+                )?,
+            }
+        };
+        let lifecycle = match std::mem::replace(self, Self::Failed) {
+            Self::Lifecycle(controller) => controller,
+            _ => return Err(MobileWalletError::ControllerFailed),
+        };
+        let backend = coordinator.backend().clone();
+        let controller =
+            lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend)?;
+        *self = Self::DirectHnsValue {
+            coordinator,
+            controller: Box::new(controller),
+        };
+        Ok(())
+    }
+
     const fn has_hns_reads(&self) -> bool {
-        matches!(self, Self::HnsReads(_))
+        matches!(self, Self::HnsReads(_) | Self::DirectHnsValue { .. })
+    }
+
+    const fn has_hns_value(&self) -> bool {
+        matches!(self, Self::DirectHnsValue { .. })
     }
 
     fn lock_fail_closed(&mut self) {
@@ -713,6 +840,9 @@ impl NativeWalletController {
                 let _ = controller.lock();
             }
             Self::HnsReads(controller) => {
+                let _ = controller.lock();
+            }
+            Self::DirectHnsValue { controller, .. } => {
                 let _ = controller.lock();
             }
             Self::Failed => {}
@@ -931,6 +1061,141 @@ fn wallet_network(value: u32) -> Result<HnsNetwork, FfiFailure> {
     }
 }
 
+fn direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
+    let mut config = HnsDirectPeerConfig::for_network(network);
+    if matches!(network, HnsNetwork::Mainnet | HnsNetwork::Testnet) {
+        // Mainnet/testnet discovery is allowed to replace a bounded pool of
+        // candidates. The direct wallet still requires independently agreed
+        // headers before it treats any peer as chain authority.
+        config.target_peers = 12;
+        config.connect_timeout = Duration::from_secs(30);
+    }
+    config
+}
+
+unsafe fn wallet_direct_hns_floor(slice: HnsBrowserSlice) -> Result<HnsLightFloor, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(slice, HNS_LIGHT_FLOOR_BYTES) }?;
+    if bytes.len() != HNS_LIGHT_FLOOR_BYTES {
+        bytes.fill(0);
+        return Err(FfiFailure::invalid(
+            "wallet direct HNS rollback floor is invalid",
+        ));
+    }
+    let height = u32::from_be_bytes(bytes[..4].try_into().map_err(|_| FfiFailure::internal())?);
+    let mut chainwork = [0_u8; 32];
+    chainwork.copy_from_slice(&bytes[4..]);
+    bytes.fill(0);
+    Ok(HnsLightFloor { height, chainwork })
+}
+
+fn wallet_direct_hns_floor_bytes(floor: HnsLightFloor) -> [u8; HNS_LIGHT_FLOOR_BYTES] {
+    let mut output = [0_u8; HNS_LIGHT_FLOOR_BYTES];
+    output[..4].copy_from_slice(&floor.height.to_be_bytes());
+    output[4..].copy_from_slice(&floor.chainwork);
+    output
+}
+
+unsafe fn wallet_optional_snapshot_path(
+    slice: HnsBrowserSlice,
+) -> Result<Option<PathBuf>, FfiFailure> {
+    if slice.ptr.is_null() && slice.len == 0 {
+        return Ok(None);
+    }
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let path = unsafe { required_input_str(slice, MAX_PATH_BYTES) }?;
+    let path = PathBuf::from(path);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(FfiFailure::invalid(
+            "wallet header bootstrap path is invalid",
+        ));
+    }
+    Ok(Some(path))
+}
+
+fn read_exact_array<const N: usize>(reader: &mut impl Read) -> Result<[u8; N], FfiFailure> {
+    let mut bytes = [0_u8; N];
+    reader.read_exact(&mut bytes).map_err(|_| {
+        FfiFailure::new(
+            HNS_BROWSER_RESULT_INVALID_ARGUMENT,
+            "wallet header bootstrap is truncated",
+        )
+    })?;
+    Ok(bytes)
+}
+
+/// Parse the same constant-pinned direct-wallet snapshot used by Android.
+/// The outer app resource is only an accelerator: every header is still
+/// independently replayed and checked by the wallet coordinator before it is
+/// committed as local authority.
+fn load_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, FfiFailure> {
+    let metadata = std::fs::metadata(path).map_err(|_| {
+        FfiFailure::new(
+            HNS_BROWSER_RESULT_INVALID_ARGUMENT,
+            "wallet header bootstrap is unreadable",
+        )
+    })?;
+    if !metadata.is_file() || metadata.len() != MAINNET_GENESIS_BOOTSTRAP_BYTES {
+        return Err(FfiFailure::invalid(
+            "wallet header bootstrap has an unexpected length",
+        ));
+    }
+    let file = File::open(path).map_err(|_| {
+        FfiFailure::new(
+            HNS_BROWSER_RESULT_INVALID_ARGUMENT,
+            "wallet header bootstrap cannot be opened",
+        )
+    })?;
+    let mut reader = BufReader::new(file);
+    if read_exact_array::<11>(&mut reader)? != *MAINNET_GENESIS_BOOTSTRAP_MAGIC {
+        return Err(FfiFailure::invalid(
+            "wallet header bootstrap has an invalid magic",
+        ));
+    }
+    let target_height = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
+    let header_count = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
+    let target_hash = read_exact_array::<32>(&mut reader)?;
+    if target_height != MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+        || header_count != target_height.saturating_add(1)
+        || target_hash != MAINNET_GENESIS_BOOTSTRAP_HASH
+    {
+        return Err(FfiFailure::invalid(
+            "wallet header bootstrap metadata does not match this app",
+        ));
+    }
+    let genesis = Header::decode(&read_exact_array::<HEADER_SIZE>(&mut reader)?).map_err(|_| {
+        FfiFailure::invalid("wallet header bootstrap has an invalid genesis header")
+    })?;
+    if genesis.block_hash() != Network::Mainnet.parameters().genesis_hash {
+        return Err(FfiFailure::invalid(
+            "wallet header bootstrap has a non-mainnet genesis header",
+        ));
+    }
+    let mut headers = Vec::with_capacity(target_height as usize);
+    for _ in 0..target_height {
+        let header =
+            Header::decode(&read_exact_array::<HEADER_SIZE>(&mut reader)?).map_err(|_| {
+                FfiFailure::invalid("wallet header bootstrap contains an invalid header")
+            })?;
+        headers.push(header);
+    }
+    let mut trailing = [0_u8; 1];
+    if reader
+        .read(&mut trailing)
+        .map_err(|_| FfiFailure::invalid("wallet header bootstrap could not be finalized"))?
+        != 0
+    {
+        return Err(FfiFailure::invalid(
+            "wallet header bootstrap has trailing data",
+        ));
+    }
+    Ok(headers)
+}
+
 unsafe fn wallet_database_key(slice: HnsBrowserSlice) -> Result<MobileDatabaseKey, FfiFailure> {
     let len = checked_len(slice.len, MOBILE_DATABASE_KEY_BYTES)?;
     if len != MOBILE_DATABASE_KEY_BYTES || slice.ptr.is_null() {
@@ -1089,6 +1354,198 @@ fn wallet_name_import_failure(error: &MobileWalletError) -> FfiFailure {
 
 fn wallet_runtime_failure(message: &'static str) -> FfiFailure {
     FfiFailure::new(HNS_BROWSER_RESULT_RUNTIME_ERROR, message)
+}
+
+fn direct_hns_not_ready(message: &'static str) -> FfiFailure {
+    FfiFailure::new(HNS_BROWSER_RESULT_NOT_READY, message)
+}
+
+/// Progress the direct controller through bounded header agreement and wallet
+/// scans before asking the value controller for a balance/history snapshot.
+/// A partial catch-up is explicitly `NOT_READY`; it is never presented as an
+/// empty balance or a send-ready wallet.
+fn synchronize_wallet_owned_direct_hns(
+    coordinator: &mut HnsDirectPeerCoordinator,
+    controller: &mut MobileHnsValueController<EmbeddedHnsBackend>,
+) -> Result<MobileHnsReadSnapshot, FfiFailure> {
+    for _ in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
+        let now_unix = HnsReadSystemClock
+            .now_unix()
+            .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+        coordinator
+            .connect_available(now_unix)
+            .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
+        match coordinator
+            .synchronize_headers_once(now_unix)
+            .map_err(|_| direct_hns_not_ready("direct HNS header agreement is unavailable"))?
+        {
+            hns_wallet_mobile::HnsHeaderRoundProgress::Committed(round) => {
+                if round.accepted.is_empty() {
+                    break;
+                }
+            }
+            hns_wallet_mobile::HnsHeaderRoundProgress::AwaitingResponses { .. } => {
+                return Err(direct_hns_not_ready(
+                    "direct HNS header agreement is still in progress",
+                ));
+            }
+        }
+    }
+    let header = coordinator
+        .backend()
+        .header_sync_status()
+        .map_err(|_| wallet_runtime_failure("direct HNS header status is unavailable"))?;
+    if header.state != SyncState::HeaderCurrent {
+        return Err(direct_hns_not_ready(
+            "direct HNS headers are still catching up",
+        ));
+    }
+    let now_unix = HnsReadSystemClock
+        .now_unix()
+        .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+    for _ in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
+        let progress = coordinator
+            .scan_wallet_blocks_with_progress(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix, |_| {})
+            .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is unavailable"))?;
+        if progress.blocks_applied == 0 {
+            break;
+        }
+    }
+    let header = coordinator
+        .backend()
+        .header_sync_status()
+        .map_err(|_| wallet_runtime_failure("direct HNS header status is unavailable"))?;
+    if header.state != SyncState::HeaderCurrent {
+        return Err(direct_hns_not_ready(
+            "direct HNS headers are still catching up",
+        ));
+    }
+    coordinator
+        .refresh_mempool(now_unix)
+        .map_err(|_| direct_hns_not_ready("direct HNS mempool refresh is unavailable"))?;
+    controller
+        .synchronize()
+        .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is still catching up"))
+}
+
+unsafe fn wallet_visible_ascii(
+    slice: HnsBrowserSlice,
+    maximum: usize,
+) -> Result<String, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(slice, maximum) }?;
+    if bytes.is_empty() || bytes.iter().any(|byte| !(0x21..=0x7e).contains(byte)) {
+        bytes.fill(0);
+        return Err(FfiFailure::invalid(
+            "wallet value input is not bounded visible ASCII",
+        ));
+    }
+    String::from_utf8(bytes).map_err(|error| {
+        let mut bytes = error.into_bytes();
+        bytes.fill(0);
+        FfiFailure::invalid("wallet value input is not valid UTF-8")
+    })
+}
+
+unsafe fn wallet_nonzero_base_units(slice: HnsBrowserSlice) -> Result<BaseUnits, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(slice, MAX_WALLET_BASE_UNITS_BYTES) }?;
+    let valid = !bytes.is_empty()
+        && bytes.iter().all(u8::is_ascii_digit)
+        && (bytes.len() == 1 || bytes.first() != Some(&b'0'));
+    if !valid {
+        bytes.fill(0);
+        return Err(FfiFailure::invalid(
+            "wallet amount is not canonical base units",
+        ));
+    }
+    let value = std::str::from_utf8(bytes.as_slice())
+        .ok()
+        .and_then(|text| text.parse::<u128>().ok())
+        .filter(|value| *value != 0)
+        .map(BaseUnits::new)
+        .ok_or_else(|| FfiFailure::invalid("wallet amount is not canonical base units"));
+    bytes.fill(0);
+    value
+}
+
+unsafe fn wallet_action_token(slice: HnsBrowserSlice) -> Result<String, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(slice, WALLET_ACTION_TOKEN_BYTES) }?;
+    let valid = bytes.len() == WALLET_ACTION_TOKEN_BYTES
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte));
+    if !valid {
+        bytes.fill(0);
+        return Err(FfiFailure::invalid("wallet action token is invalid"));
+    }
+    String::from_utf8(bytes).map_err(|error| {
+        let mut bytes = error.into_bytes();
+        bytes.fill(0);
+        FfiFailure::invalid("wallet action token is invalid")
+    })
+}
+
+fn wallet_json_bundle(
+    json: &[u8],
+    magic: &[u8; 4],
+    version: u8,
+    maximum_json_bytes: usize,
+) -> Result<SensitiveBytes, FfiFailure> {
+    if json.is_empty()
+        || json.len() > maximum_json_bytes
+        || json.first() != Some(&b'{')
+        || json.last() != Some(&b'}')
+    {
+        return Err(FfiFailure::new(
+            HNS_BROWSER_RESULT_RESOURCE_EXHAUSTED,
+            "wallet native result exceeds the ABI output bound",
+        ));
+    }
+    let length = u32::try_from(json.len()).map_err(|_| FfiFailure::internal())?;
+    let mut bundle = Vec::with_capacity(WALLET_JSON_BUNDLE_HEADER_BYTES + json.len());
+    bundle.extend_from_slice(magic);
+    bundle.push(version);
+    bundle.push(0);
+    bundle.extend_from_slice(&[0, 0]);
+    bundle.extend_from_slice(&length.to_be_bytes());
+    bundle.extend_from_slice(json);
+    Ok(SensitiveBytes(bundle))
+}
+
+fn native_hns_send_receipt(result: Value) -> Option<Value> {
+    let object = result.as_object()?;
+    let expected = [
+        "module",
+        "workflowId",
+        "requestNonce",
+        "txid",
+        "acceptedAtUnix",
+    ];
+    if object.len() != expected.len() || expected.iter().any(|key| !object.contains_key(*key)) {
+        return None;
+    }
+    if object.get("module")?.as_str()? != "handshake"
+        || !object.get("workflowId")?.is_null()
+        || object.get("requestNonce")?.as_u64()? == 0
+    {
+        return None;
+    }
+    let txid = object.get("txid")?.as_str()?;
+    if txid.len() != 64
+        || txid
+            .bytes()
+            .any(|byte| !byte.is_ascii_digit() && !(b'a'..=b'f').contains(&byte))
+    {
+        return None;
+    }
+    let accepted_at_unix = object.get("acceptedAtUnix")?.as_u64()?;
+    Some(json!({
+        "module": "handshake",
+        "txid": txid,
+        "acceptedAtUnix": accepted_at_unix,
+    }))
 }
 
 fn json_string(output: &mut String, value: &str) {
@@ -1956,15 +2413,17 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        let lifecycle_only = entry.controller.is_lifecycle();
+        let hns_reads_enabled = entry.controller.has_hns_reads();
+        let hns_value_enabled = entry.controller.has_hns_value();
         let status = entry
             .controller
             .with_mut(
                 |controller| controller.status(),
                 |controller| controller.status(),
+                |controller| controller.status(),
             )
             .map_err(|_| wallet_runtime_failure("unable to read native wallet status"))?;
-        let enabled_modules_are_allowed = if lifecycle_only {
+        let enabled_modules_are_allowed = if !hns_reads_enabled {
             status.enabled_modules.is_empty()
         } else {
             status.enabled_modules.len() == 1
@@ -1980,9 +2439,10 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
             let _ = entry.controller.with_mut(
                 |controller| controller.lock(),
                 |controller| controller.lock(),
+                |controller| controller.lock(),
             );
             return Err(wallet_runtime_failure(
-                "native wallet exposed a forbidden value-capable status",
+                "native wallet exposed an invalid HNS status",
             ));
         }
 
@@ -2001,7 +2461,9 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
             }
             json_string(&mut json, &module_wire_name(module));
         }
-        json.push_str("],\"mainnetSettlementEnabled\":");
+        json.push_str("],\"hnsValueEnabled\":");
+        json.push_str(if hns_value_enabled { "true" } else { "false" });
+        json.push_str(",\"mainnetSettlementEnabled\":");
         json.push_str(if status.mainnet_settlement_enabled {
             "true"
         } else {
@@ -2034,6 +2496,7 @@ pub unsafe extern "C" fn hns_browser_wallet_accounts(
             .with_mut(
                 |controller| controller.accounts(),
                 |controller| controller.accounts(),
+                |controller| controller.accounts(),
             )
             .map_err(|_| wallet_runtime_failure("unable to read native wallet accounts"))?;
         if accounts.len() != 1
@@ -2041,6 +2504,7 @@ pub unsafe extern "C" fn hns_browser_wallet_accounts(
             || module_wire_name(accounts[0].module) != "handshake"
         {
             let _ = entry.controller.with_mut(
+                |controller| controller.lock(),
                 |controller| controller.lock(),
                 |controller| controller.lock(),
             );
@@ -2129,6 +2593,311 @@ pub unsafe extern "C" fn hns_browser_wallet_has_hns_reads(
     })
 }
 
+/// Installs the wallet-owned direct HNS controller around one reopened durable
+/// wallet. The direct controller derives its own account watch set, discovers
+/// HNS peers, validates consensus headers/filtered blocks, and broadcasts
+/// through those peers; callers cannot provide an RPC endpoint, peer, relay,
+/// or provider payload.
+///
+/// `rollback_floor` is the exact 36-byte device-bound `height || chainwork`
+/// floor. `bootstrap_snapshot_path` is either null/zero for non-mainnet
+/// checkpoint paths or the app-private decompressed bundled snapshot.
+///
+/// # Safety
+/// All non-empty slices must remain readable for their declared length.
+pub unsafe extern "C" fn hns_browser_wallet_configure_direct_hns_value(
+    wallet: HnsBrowserWalletHandle,
+    database_key: HnsBrowserSlice,
+    rollback_floor: HnsBrowserSlice,
+    bootstrap_snapshot_path: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        // SAFETY: This export carries the caller's readable-slice contracts.
+        let key = unsafe { wallet_database_key(database_key) }?;
+        // SAFETY: This export carries the caller's readable-slice contracts.
+        let floor = unsafe { wallet_direct_hns_floor(rollback_floor) }?;
+        // SAFETY: This export carries the caller's readable-slice contracts.
+        let snapshot_path = unsafe { wallet_optional_snapshot_path(bootstrap_snapshot_path) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        if !entry.hns_reads_installable || !entry.controller.is_lifecycle() {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet requires a reopened durable controller",
+            ));
+        }
+        entry
+            .controller
+            .enable_direct_hns_value(&key, floor, snapshot_path.as_deref())
+            .map_err(|_| wallet_runtime_failure("unable to install direct HNS wallet"))
+    })
+}
+
+/// # Safety
+/// `out_enabled` must point to one writable byte. Only zero or one is written.
+pub unsafe extern "C" fn hns_browser_wallet_has_hns_value(
+    wallet: HnsBrowserWalletHandle,
+    out_enabled: *mut u8,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_enabled)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_enabled, 0) };
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_enabled, u8::from(entry.controller.has_hns_value())) };
+        Ok(())
+    })
+}
+
+/// Returns the exact direct controller rollback floor. This is public chain
+/// authority metadata rather than wallet-secret material, but it remains an
+/// app-native result and is never exposed to WebKit.
+///
+/// # Safety
+/// `out_floor` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_direct_hns_rollback_floor(
+    wallet: HnsBrowserWalletHandle,
+    out_floor: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_floor)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_floor, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { coordinator, .. } = &entry.controller else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        let bytes = wallet_direct_hns_floor_bytes(
+            coordinator
+                .rollback_floor()
+                .map_err(|_| wallet_runtime_failure("direct HNS rollback floor is unavailable"))?,
+        );
+        let output = allocate_output(&bytes, false)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_floor, output) };
+        Ok(())
+    })
+}
+
+/// Derives the active ordinary HNS payment target from the unlocked local
+/// wallet. This is intentionally local-only: it does not query peers, claim a
+/// balance, or advance synchronization state.
+///
+/// # Safety
+/// `out_target_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_local_hns_receive_target(
+    wallet: HnsBrowserWalletHandle,
+    out_target_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_target_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_target_bundle, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { controller, .. } = &mut entry.controller
+        else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        let target = controller
+            .local_receive_target()
+            .map_err(|_| wallet_runtime_failure("local HNS receive target is unavailable"))?;
+        let mut json = serde_json::to_vec(&target)
+            .map_err(|_| wallet_runtime_failure("unable to encode local HNS receive target"))?;
+        let bundle = wallet_json_bundle(
+            json.as_slice(),
+            WALLET_HNS_RECEIVE_BUNDLE_MAGIC,
+            WALLET_HNS_RECEIVE_BUNDLE_VERSION,
+            MAX_WALLET_HNS_RECEIVE_JSON_BYTES,
+        )?;
+        json.fill(0);
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_target_bundle, output) };
+        Ok(())
+    })
+}
+
+/// Prepares one exact native HNS payment. The action cannot broadcast until
+/// the returned single-use approval token is explicitly approved by the
+/// native UI; no WebKit or page data path can invoke this C entry point.
+///
+/// # Safety
+/// The input slices must remain readable for their declared lengths and
+/// `out_approval_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_send(
+    wallet: HnsBrowserWalletHandle,
+    recipient: HnsBrowserSlice,
+    amount_base_units: HnsBrowserSlice,
+    maximum_fee_base_units: HnsBrowserSlice,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        // SAFETY: This export carries the caller's readable-slice contracts.
+        let recipient =
+            unsafe { wallet_visible_ascii(recipient, MAX_WALLET_VALUE_RECIPIENT_BYTES) }?;
+        // SAFETY: This export carries the caller's readable-slice contracts.
+        let amount = unsafe { wallet_nonzero_base_units(amount_base_units) }?;
+        // SAFETY: This export carries the caller's readable-slice contracts.
+        let maximum_fee = unsafe { wallet_nonzero_base_units(maximum_fee_base_units) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { controller, .. } = &mut entry.controller
+        else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        let approval = controller
+            .prepare_value_action(MobileHnsValueIntent::Send {
+                recipient,
+                amount,
+                maximum_fee,
+            })
+            .map_err(|_| {
+                direct_hns_not_ready("HNS send preparation requires a current wallet scan")
+            })?;
+        if approval.summary.validate().is_err() {
+            let _ = controller.lock();
+            return Err(wallet_runtime_failure("HNS send approval is invalid"));
+        }
+        let mut json = serde_json::to_vec(&approval)
+            .map_err(|_| wallet_runtime_failure("unable to encode HNS send approval"))?;
+        let bundle = match wallet_json_bundle(
+            json.as_slice(),
+            WALLET_VALUE_APPROVAL_BUNDLE_MAGIC,
+            WALLET_VALUE_APPROVAL_BUNDLE_VERSION,
+            MAX_WALLET_VALUE_APPROVAL_JSON_BYTES,
+        ) {
+            Ok(bundle) => bundle,
+            Err(error) => {
+                json.fill(0);
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        json.fill(0);
+        let output = match allocate_output(&bundle.0, true) {
+            Ok(output) => output,
+            Err(error) => {
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+/// Consumes one displayed direct-HNS send approval and returns a minimized
+/// receipt only after the native controller accepts the broadcast.
+///
+/// # Safety
+/// `action_token` must remain readable for its declared length and
+/// `out_receipt_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_approve_hns_send(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_receipt_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_receipt_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_receipt_bundle, HnsBrowserBuffer::empty()) };
+        // SAFETY: This export carries the caller's readable-slice contract.
+        let action_token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { controller, .. } = &mut entry.controller
+        else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        let result = controller
+            .approve_value_action(action_token.as_str())
+            .map_err(|_| wallet_runtime_failure("HNS send approval was rejected"))?;
+        let receipt = native_hns_send_receipt(result).ok_or_else(|| {
+            let _ = controller.lock();
+            wallet_runtime_failure("HNS send result is invalid")
+        })?;
+        let mut json = serde_json::to_vec(&receipt)
+            .map_err(|_| wallet_runtime_failure("unable to encode HNS send receipt"))?;
+        let bundle = match wallet_json_bundle(
+            json.as_slice(),
+            WALLET_VALUE_RESULT_BUNDLE_MAGIC,
+            WALLET_VALUE_RESULT_BUNDLE_VERSION,
+            MAX_WALLET_VALUE_RESULT_JSON_BYTES,
+        ) {
+            Ok(bundle) => bundle,
+            Err(error) => {
+                json.fill(0);
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        json.fill(0);
+        let output = match allocate_output(&bundle.0, true) {
+            Ok(output) => output,
+            Err(error) => {
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_receipt_bundle, output) };
+        Ok(())
+    })
+}
+
+/// Rejects and consumes one displayed direct-HNS send approval.
+///
+/// # Safety
+/// `action_token` must remain readable for its declared length.
+pub unsafe extern "C" fn hns_browser_wallet_reject_hns_send(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        // SAFETY: This export carries the caller's readable-slice contract.
+        let action_token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { controller, .. } = &mut entry.controller
+        else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        controller
+            .reject_value_action(action_token.as_str())
+            .map_err(|_| wallet_runtime_failure("HNS send rejection failed"))
+    })
+}
+
 #[unsafe(no_mangle)]
 /// Imports one exact canonical Handshake name only through the trusted native
 /// HNS read controller. No trimming, case conversion, IDNA, Unicode
@@ -2179,6 +2948,47 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_name_exact_text(
                             // Projection/evidence failures can occur after the
                             // service call. Enforce the lock at this ABI boundary
                             // rather than relying only on upstream behavior.
+                            let _ = controller.lock();
+                        }
+                        return Err(failure);
+                    }
+                }
+            }
+            NativeWalletController::DirectHnsValue {
+                coordinator,
+                controller,
+            } => {
+                // Parse only after proving the direct value controller is
+                // live. Exact text is preserved through proof acquisition and
+                // the downstream native import; no display-side name rewrite
+                // can alter the wallet evidence being tracked.
+                let name = unsafe { wallet_exact_hns_name(exact_name) }?;
+                let text = std::str::from_utf8(&name.0).map_err(|_| {
+                    FfiFailure::new(
+                        HNS_BROWSER_RESULT_INVALID_UTF8,
+                        "wallet HNS name is not valid UTF-8",
+                    )
+                })?;
+                let now_unix = HnsReadSystemClock
+                    .now_unix()
+                    .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+                coordinator
+                    .connect_available(now_unix)
+                    .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
+                coordinator
+                    .synchronize_name_proof_exact_text(text, now_unix)
+                    .map_err(|_| direct_hns_not_ready("direct HNS name proof is unavailable"))?;
+                match controller.import_name_exact_text(text) {
+                    Ok(summary) if summary.name.as_bytes() == name.0.as_slice() => summary,
+                    Ok(_) => {
+                        let _ = controller.lock();
+                        return Err(wallet_runtime_failure(
+                            "HNS name import summary changed the exact input text",
+                        ));
+                    }
+                    Err(error) => {
+                        let failure = wallet_name_import_failure(&error);
+                        if failure.code != HNS_BROWSER_RESULT_INVALID_ARGUMENT {
                             let _ = controller.lock();
                         }
                         return Err(failure);
@@ -2240,6 +3050,10 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
             NativeWalletController::HnsReads(controller) => controller
                 .synchronize()
                 .map_err(|_| wallet_runtime_failure("synchronized HNS wallet read failed"))?,
+            NativeWalletController::DirectHnsValue {
+                coordinator,
+                controller,
+            } => synchronize_wallet_owned_direct_hns(coordinator, controller)?,
             NativeWalletController::Lifecycle(_) => {
                 return Err(FfiFailure::new(
                     HNS_BROWSER_RESULT_NOT_READY,
@@ -2280,6 +3094,7 @@ pub unsafe extern "C" fn hns_browser_wallet_unlock(
             .with_mut(
                 |controller| controller.unlock(&key),
                 |controller| controller.unlock(&key),
+                |controller| controller.unlock(&key),
             )
             .map_err(|_| wallet_runtime_failure("native wallet unlock was rejected"))
     })
@@ -2294,6 +3109,7 @@ pub extern "C" fn hns_browser_wallet_lock(wallet: HnsBrowserWalletHandle) -> Hns
         entry
             .controller
             .with_mut(
+                |controller| controller.lock(),
                 |controller| controller.lock(),
                 |controller| controller.lock(),
             )
@@ -2353,6 +3169,7 @@ pub extern "C" fn hns_browser_wallet_destroy(wallet: HnsBrowserWalletHandle) -> 
         entry.active = false;
         drop(entry.pending_recovery_phrase.take());
         let _ = entry.controller.with_mut(
+            |controller| controller.lock(),
             |controller| controller.lock(),
             |controller| controller.lock(),
         );
@@ -2873,8 +3690,15 @@ mod tests {
             "hns_browser_wallet_accounts",
             "hns_browser_wallet_configure_hns_reads",
             "hns_browser_wallet_has_hns_reads",
+            "hns_browser_wallet_configure_direct_hns_value",
+            "hns_browser_wallet_has_hns_value",
+            "hns_browser_wallet_direct_hns_rollback_floor",
+            "hns_browser_wallet_local_hns_receive_target",
             "hns_browser_wallet_synchronize_hns_reads",
             "hns_browser_wallet_import_hns_name_exact_text",
+            "hns_browser_wallet_prepare_hns_send",
+            "hns_browser_wallet_approve_hns_send",
+            "hns_browser_wallet_reject_hns_send",
             "hns_browser_wallet_unlock",
             "hns_browser_wallet_lock",
             "hns_browser_wallet_take_recovery_phrase",
@@ -3438,7 +4262,7 @@ mod tests {
         );
         assert_eq!(
             owned_string(status),
-            "{\"locked\":true,\"activeWallet\":null,\"enabledModules\":[\"handshake\"],\"mainnetSettlementEnabled\":false}"
+            "{\"locked\":true,\"activeWallet\":null,\"enabledModules\":[\"handshake\"],\"hnsValueEnabled\":false,\"mainnetSettlementEnabled\":false}"
         );
         assert_eq!(hns_browser_buffer_free(status), HNS_BROWSER_RESULT_OK);
         assert_eq!(hns_browser_wallet_destroy(wallet), HNS_BROWSER_RESULT_OK);

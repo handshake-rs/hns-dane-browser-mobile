@@ -18,6 +18,7 @@ struct NativeWalletStatus: Decodable, Equatable {
     let locked: Bool
     let activeWallet: String?
     let enabledModules: [String]
+    let hnsValueEnabled: Bool
     let mainnetSettlementEnabled: Bool
 }
 
@@ -628,6 +629,219 @@ enum NativeHnsNameImportBundle {
     }
 }
 
+/// Owns a single native HNS value-action capability.  It is intentionally not
+/// representable as a `String` outside this file: a value action must either
+/// be consumed once by approve/reject or be wiped when its review UI leaves.
+final class NativeHnsSendActionToken: @unchecked Sendable {
+    private let stateLock = NSLock()
+    private var bytes: [UInt8]
+    private var consumed = false
+
+    init?(takingASCII candidate: inout [UInt8]) {
+        defer { WalletSecretBytes.wipe(&candidate) }
+        guard candidate.count == 64,
+              candidate.allSatisfy({
+                  (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                      (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+              }),
+              candidate.contains(where: { $0 != UInt8(ascii: "0") }) else {
+            return nil
+        }
+        bytes = candidate
+        candidate.removeAll(keepingCapacity: false)
+    }
+
+    func consume<T>(_ body: (inout [UInt8]) throws -> T) throws -> T {
+        stateLock.lock()
+        guard !consumed else {
+            stateLock.unlock()
+            throw NativeWalletBridgeError.invalidOutput("HNS action token was already consumed")
+        }
+        consumed = true
+        var retained = bytes
+        WalletSecretBytes.wipe(&bytes)
+        stateLock.unlock()
+        defer { WalletSecretBytes.wipe(&retained) }
+        return try body(&retained)
+    }
+
+    func discard() {
+        stateLock.lock()
+        consumed = true
+        WalletSecretBytes.wipe(&bytes)
+        stateLock.unlock()
+    }
+
+    deinit { discard() }
+}
+
+/// Exact native summary that must be displayed before an HNS payment can be
+/// approved.  The app verifies the requested fields a second time before it
+/// presents this structure to the user.
+struct NativeHnsSendApproval {
+    let actionToken: NativeHnsSendActionToken
+    let expiresAtUnix: UInt64
+    let amountBaseUnits: String
+    let recipient: String
+    let maximumFeeBaseUnits: String
+    let finality: String
+    let warnings: [String]
+}
+
+struct NativeHnsSendReceipt: Equatable, Sendable {
+    let txid: String
+    let acceptedAtUnix: UInt64
+}
+
+private enum NativeHnsValueBundle {
+    private static let headerLength = 12
+
+    static func payload(
+        _ bundle: [UInt8],
+        magic: [UInt8],
+        maximumJSONBytes: Int
+    ) throws -> Data {
+        guard bundle.count >= headerLength,
+              bundle.count <= headerLength + maximumJSONBytes,
+              Array(bundle[0..<4]) == magic,
+              bundle[4] == 1,
+              bundle[5] == 0,
+              bundle[6] == 0,
+              bundle[7] == 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid native HNS value bundle header")
+        }
+        let payloadLength = bundle[8..<12].reduce(UInt32(0)) { partial, byte in
+            (partial << 8) | UInt32(byte)
+        }
+        guard payloadLength >= 2,
+              payloadLength <= UInt32(maximumJSONBytes),
+              Int(payloadLength) == bundle.count - headerLength,
+              bundle[headerLength] == UInt8(ascii: "{"),
+              bundle.last == UInt8(ascii: "}") else {
+            throw NativeWalletBridgeError.invalidOutput("invalid native HNS value bundle length")
+        }
+        return Data(bundle[headerLength...])
+    }
+}
+
+private struct NativeHnsSendApprovalPayload: Decodable {
+    let actionToken: String
+    let expiresAtUnix: UInt64
+    let summary: Summary
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case actionToken, expiresAtUnix, summary
+    }
+
+    struct Summary: Decodable {
+        let kind: String
+        let amount: NativeHnsReadSnapshot.Amount
+        let recipient: String
+        let maximumFee: NativeHnsReadSnapshot.Amount
+        let chain: String
+        let finality: String
+        let warnings: [String]
+
+        private enum CodingKeys: String, CodingKey, CaseIterable {
+            case kind, amount, recipient, maximumFee, chain, finality, warnings
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+            kind = try container.decode(String.self, forKey: .kind)
+            amount = try container.decode(NativeHnsReadSnapshot.Amount.self, forKey: .amount)
+            recipient = try container.decode(String.self, forKey: .recipient)
+            maximumFee = try container.decode(
+                NativeHnsReadSnapshot.Amount.self,
+                forKey: .maximumFee
+            )
+            chain = try container.decode(String.self, forKey: .chain)
+            finality = try container.decode(String.self, forKey: .finality)
+            warnings = try container.decode([String].self, forKey: .warnings)
+            guard kind == "send",
+                  chain == "handshake",
+                  recipient.utf8.count <= 512,
+                  !recipient.isEmpty,
+                  recipient.utf8.allSatisfy({ (0x21...0x7e).contains($0) }),
+                  finality == "proof_of_work_confirmations",
+                  warnings == ["feeEstimateMayChange"] else {
+                throw NativeWalletBridgeError.invalidOutput("invalid HNS send approval summary")
+            }
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        actionToken = try container.decode(String.self, forKey: .actionToken)
+        expiresAtUnix = try container.decode(UInt64.self, forKey: .expiresAtUnix)
+        summary = try container.decode(Summary.self, forKey: .summary)
+    }
+}
+
+private struct NativeHnsSendReceiptPayload: Decodable {
+    let module: String
+    let txid: String
+    let acceptedAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case module, txid, acceptedAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        module = try container.decode(String.self, forKey: .module)
+        txid = try container.decode(String.self, forKey: .txid)
+        acceptedAtUnix = try container.decode(UInt64.self, forKey: .acceptedAtUnix)
+        guard module == "handshake",
+              txid.utf8.count == 64,
+              txid.utf8.allSatisfy({
+                  (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                      (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+              }),
+              txid.utf8.contains(where: { $0 != UInt8(ascii: "0") }) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS send receipt")
+        }
+    }
+}
+
+private extension NativeHnsSendApproval {
+    static func decode(bundle: [UInt8]) throws -> NativeHnsSendApproval {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle,
+            magic: Array("HNVP".utf8),
+            maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let decoded = try JSONDecoder().decode(NativeHnsSendApprovalPayload.self, from: payload)
+        var tokenBytes = Array(decoded.actionToken.utf8)
+        guard let token = NativeHnsSendActionToken(takingASCII: &tokenBytes) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS send action token")
+        }
+        return NativeHnsSendApproval(
+            actionToken: token,
+            expiresAtUnix: decoded.expiresAtUnix,
+            amountBaseUnits: decoded.summary.amount.baseUnits,
+            recipient: decoded.summary.recipient,
+            maximumFeeBaseUnits: decoded.summary.maximumFee.baseUnits,
+            finality: decoded.summary.finality,
+            warnings: decoded.summary.warnings
+        )
+    }
+}
+
+private extension NativeHnsSendReceipt {
+    static func decode(bundle: [UInt8]) throws -> NativeHnsSendReceipt {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle,
+            magic: Array("HNVX".utf8),
+            maximumJSONBytes: 256 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let decoded = try JSONDecoder().decode(NativeHnsSendReceiptPayload.self, from: payload)
+        return NativeHnsSendReceipt(txid: decoded.txid, acceptedAtUnix: decoded.acceptedAtUnix)
+    }
+}
+
 /** A successful import may publish only after HNWR-v2 confirms its exact identity. */
 func walletNameImportRefreshMatches(
     imported: NativeHnsReadSnapshot.KnownName,
@@ -817,6 +1031,150 @@ final class RustNativeWallet: @unchecked Sendable {
         return enabled == 1
     }
 
+    /// Installs the wallet-owned direct HNS composition.  Configuration is
+    /// deliberately one-way: the native controller owns peer discovery,
+    /// consensus verification, block scanning, and broadcast thereafter.
+    func configureDirectHnsValue(
+        databaseKey: UnsafeRawBufferPointer,
+        rollbackFloor: inout [UInt8],
+        bootstrapSnapshotPath: String?
+    ) throws {
+        defer { WalletSecretBytes.wipe(&rollbackFloor) }
+        guard rollbackFloor.count == 36 else {
+            throw NativeWalletBridgeError.invalidOutput("direct HNS rollback floor has invalid length")
+        }
+        let currentHandle = try liveHandle()
+        try rollbackFloor.withUnsafeBufferPointer { floor in
+            try NativeWalletBridge.withOptionalUTF8Slice(bootstrapSnapshotPath) { snapshot in
+                try NativeWalletBridge.check(
+                    hns_browser_wallet_configure_direct_hns_value(
+                        currentHandle,
+                        NativeWalletBridge.slice(databaseKey),
+                        HnsBrowserSlice(ptr: floor.baseAddress, len: UInt64(floor.count)),
+                        snapshot
+                    ),
+                    operation: "wallet direct HNS configuration"
+                )
+            }
+        }
+    }
+
+    func hasHnsValue() throws -> Bool {
+        var enabled: UInt8 = 0
+        try NativeWalletBridge.check(
+            hns_browser_wallet_has_hns_value(try liveHandle(), &enabled),
+            operation: "wallet HNS value availability"
+        )
+        guard enabled <= 1 else {
+            throw NativeWalletBridgeError.invalidOutput("HNS value availability is not boolean")
+        }
+        return enabled == 1
+    }
+
+    func directHnsRollbackFloor() throws -> [UInt8] {
+        var output = HnsBrowserBuffer()
+        let result = hns_browser_wallet_direct_hns_rollback_floor(try liveHandle(), &output)
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet direct HNS rollback floor")
+        let floor = try NativeWalletBridge.bytes(copying: output)
+        guard floor.count == 36 else {
+            throw NativeWalletBridgeError.invalidOutput("native direct HNS rollback floor has invalid length")
+        }
+        return floor
+    }
+
+    func localHnsReceiveTarget() throws -> NativeHnsReadSnapshot.ReceiveTarget {
+        var output = HnsBrowserBuffer()
+        let result = hns_browser_wallet_local_hns_receive_target(try liveHandle(), &output)
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet local HNS receive target")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        var payload = try NativeHnsValueBundle.payload(
+            bundle,
+            magic: Array("HNRT".utf8),
+            maximumJSONBytes: 4_096
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        return try JSONDecoder().decode(NativeHnsReadSnapshot.ReceiveTarget.self, from: payload)
+    }
+
+    func prepareHnsSend(
+        recipient: inout [UInt8],
+        amountBaseUnits: inout [UInt8],
+        maximumFeeBaseUnits: inout [UInt8]
+    ) throws -> NativeHnsSendApproval {
+        defer {
+            WalletSecretBytes.wipe(&recipient)
+            WalletSecretBytes.wipe(&amountBaseUnits)
+            WalletSecretBytes.wipe(&maximumFeeBaseUnits)
+        }
+        let currentHandle = try liveHandle()
+        var output = HnsBrowserBuffer()
+        let result = try recipient.withUnsafeBufferPointer { recipient in
+            try amountBaseUnits.withUnsafeBufferPointer { amount in
+                try maximumFeeBaseUnits.withUnsafeBufferPointer { maximumFee in
+                    hns_browser_wallet_prepare_hns_send(
+                        currentHandle,
+                        HnsBrowserSlice(ptr: recipient.baseAddress, len: UInt64(recipient.count)),
+                        HnsBrowserSlice(ptr: amount.baseAddress, len: UInt64(amount.count)),
+                        HnsBrowserSlice(ptr: maximumFee.baseAddress, len: UInt64(maximumFee.count)),
+                        &output
+                    )
+                }
+            }
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet HNS send preparation")
+        do {
+            var bundle = try NativeWalletBridge.bytes(copying: output)
+            defer { WalletSecretBytes.wipe(&bundle) }
+            return try NativeHnsSendApproval.decode(bundle: bundle)
+        } catch {
+            // A successful native prepare may have installed a pending action.
+            // Never leave it executable when its display projection failed.
+            try? lock()
+            throw error
+        }
+    }
+
+    func approveHnsSend(_ actionToken: NativeHnsSendActionToken) throws -> NativeHnsSendReceipt {
+        try actionToken.consume { token in
+            var output = HnsBrowserBuffer()
+            let result = try token.withUnsafeBufferPointer { buffer in
+                hns_browser_wallet_approve_hns_send(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: buffer.baseAddress, len: UInt64(buffer.count)),
+                    &output
+                )
+            }
+            defer { NativeWalletBridge.free(output) }
+            try NativeWalletBridge.check(result, operation: "wallet HNS send approval")
+            do {
+                var bundle = try NativeWalletBridge.bytes(copying: output)
+                defer { WalletSecretBytes.wipe(&bundle) }
+                return try NativeHnsSendReceipt.decode(bundle: bundle)
+            } catch {
+                // Approval may already have signed or broadcast.  Lock on any
+                // malformed/undeliverable result rather than guessing state.
+                try? lock()
+                throw error
+            }
+        }
+    }
+
+    func rejectHnsSend(_ actionToken: NativeHnsSendActionToken) throws {
+        try actionToken.consume { token in
+            let result = try token.withUnsafeBufferPointer { buffer in
+                hns_browser_wallet_reject_hns_send(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: buffer.baseAddress, len: UInt64(buffer.count))
+                )
+            }
+            try NativeWalletBridge.check(result, operation: "wallet HNS send rejection")
+        }
+    }
+
     func synchronizeHnsReads() throws -> NativeHnsReadSnapshot {
         var output = HnsBrowserBuffer()
         let result = hns_browser_wallet_synchronize_hns_reads(try liveHandle(), &output)
@@ -951,6 +1309,16 @@ private enum NativeWalletBridge {
         return try bytes.withUnsafeBufferPointer { buffer in
             try body(HnsBrowserSlice(ptr: buffer.baseAddress, len: UInt64(buffer.count)))
         }
+    }
+
+    static func withOptionalUTF8Slice<T>(
+        _ value: String?,
+        body: (HnsBrowserSlice) throws -> T
+    ) rethrows -> T {
+        guard let value else {
+            return try body(HnsBrowserSlice(ptr: nil, len: 0))
+        }
+        return try withUTF8Slice(value, body: body)
     }
 
     static func slice(_ bytes: UnsafeRawBufferPointer) -> HnsBrowserSlice {

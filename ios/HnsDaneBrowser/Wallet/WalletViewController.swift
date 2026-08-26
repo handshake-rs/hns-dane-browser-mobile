@@ -1,8 +1,9 @@
 import Security
 import UIKit
 
-/// First native wallet-control surface. It intentionally has no WebKit
-/// provider, approvals, value movement, settlement, or marketplace controls.
+/// Native wallet-control surface.  Every HNS peer, consensus, block scan,
+/// signing, and broadcast operation remains in the Rust controller; UIKit
+/// only requests a local native action and displays its exact review result.
 @MainActor
 final class WalletViewController: UIViewController {
     private let network: BrowserHandshakeNetwork
@@ -19,6 +20,7 @@ final class WalletViewController: UIViewController {
     private var protectedStorageIsAvailable = true
     private var isOperating = false
     private var walletIsUnlocked = false
+    private var directHnsValueAvailable = false
     private var readGeneration: UInt64 = 0
     private var synchronizedReadsAvailable = false
     private var resolvedDatabasePath: String?
@@ -33,6 +35,9 @@ final class WalletViewController: UIViewController {
     private weak var restorePhraseField: UITextField?
     private weak var walletNameImportAlert: UIAlertController?
     private weak var walletNameImportField: UITextField?
+    private weak var hnsSendFormAlert: UIAlertController?
+    private weak var hnsSendApprovalAlert: UIAlertController?
+    private var pendingHnsSendApproval: NativeHnsSendApproval?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -128,6 +133,8 @@ final class WalletViewController: UIViewController {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        pendingHnsSendApproval?.actionToken.discard()
+        pendingHnsSendApproval = nil
         recoverySecret?.clear()
         let currentWallet = wallet
         let currentLease = storageLease
@@ -338,12 +345,13 @@ final class WalletViewController: UIViewController {
         let receive = dashboardButton(
             title: "Receive",
             action: #selector(showPaymentReceiveAddress),
-            enabled: synchronizedReadsAvailable
+            enabled: synchronizedReadsAvailable && directHnsValueAvailable
         )
         let send = dashboardButton(
             title: "Send",
-            action: #selector(showValueFeaturesUnavailable),
-            accent: .systemIndigo
+            action: #selector(showHnsSendForm),
+            accent: .systemIndigo,
+            enabled: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating
         )
         let sync = dashboardButton(
             title: "Sync",
@@ -501,14 +509,359 @@ final class WalletViewController: UIViewController {
         present(alert, animated: true)
     }
 
-    @objc private func showValueFeaturesUnavailable() {
-        showFeatureUnavailable("HNS sending")
+    @objc private func showHnsSendForm() {
+        guard !isOperating,
+              walletIsUnlocked,
+              directHnsValueAvailable,
+              synchronizedReadsAvailable,
+              presentedViewController == nil else {
+            return
+        }
+        let alert = UIAlertController(
+            title: "Send HNS",
+            message: "A direct peer synchronization runs before review. The exact recipient, amount, maximum fee, and expiry are shown before broadcast.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "Recipient address"
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.spellCheckingType = .no
+            field.textContentType = nil
+            field.isSecureTextEntry = false
+            field.accessibilityIdentifier = "wallet.send.recipient"
+        }
+        alert.addTextField { field in
+            field.placeholder = "Amount in HNS"
+            field.keyboardType = .decimalPad
+            field.textContentType = nil
+            field.accessibilityIdentifier = "wallet.send.amount"
+        }
+        alert.addTextField { field in
+            field.placeholder = "Maximum fee in HNS"
+            field.keyboardType = .decimalPad
+            field.textContentType = nil
+            field.accessibilityIdentifier = "wallet.send.maximum-fee"
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.clearHnsSendForm(alert)
+        })
+        alert.addAction(UIAlertAction(title: "Review send", style: .default) { [weak self, weak alert] _ in
+            guard let self, let alert else { return }
+            let request = self.takeHnsSendRequest(from: alert)
+            self.clearHnsSendForm(alert)
+            guard let request else {
+                self.showErrorMessage(
+                    "Enter a visible HNS recipient, a positive amount, and a positive maximum fee with no more than six decimal places."
+                )
+                return
+            }
+            self.beginHnsSendReview(request)
+        })
+        hnsSendFormAlert = alert
+        present(alert, animated: true)
+    }
+
+    private func clearHnsSendForm(_ alert: UIAlertController?) {
+        alert?.textFields?.forEach { field in
+            field.text = nil
+            field.resignFirstResponder()
+        }
+        if hnsSendFormAlert === alert {
+            hnsSendFormAlert = nil
+        }
+    }
+
+    private func takeHnsSendRequest(from alert: UIAlertController) -> WalletHnsSendRequest? {
+        let fields = alert.textFields ?? []
+        guard fields.count == 3 else { return nil }
+        var recipient = Array((fields[0].text ?? "").utf8)
+        defer { WalletSecretBytes.wipe(&recipient) }
+        guard (1...512).contains(recipient.count),
+              recipient.allSatisfy({ (0x21...0x7e).contains($0) }),
+              let recipientText = String(bytes: recipient, encoding: .utf8),
+              let amount = Self.positiveHnsBaseUnits(fields[1].text ?? ""),
+              let maximumFee = Self.positiveHnsBaseUnits(fields[2].text ?? "") else {
+            return nil
+        }
+        return WalletHnsSendRequest(
+            recipient: recipientText,
+            amountBaseUnits: amount,
+            maximumFeeBaseUnits: maximumFee
+        )
+    }
+
+    /// Converts exact wallet decimal text to canonical base units without a
+    /// floating-point conversion.  HNS has six decimal places; the native
+    /// boundary repeats this validation before it can prepare an action.
+    private static func positiveHnsBaseUnits(_ exact: String) -> String? {
+        var input = Array(exact.utf8)
+        defer { WalletSecretBytes.wipe(&input) }
+        guard !input.isEmpty, input.count <= 46 else { return nil }
+        if input.first == UInt8(ascii: ".") {
+            input.insert(UInt8(ascii: "0"), at: 0)
+        }
+        let decimalPositions = input.enumerated().filter { $0.element == UInt8(ascii: ".") }
+        guard decimalPositions.count <= 1,
+              input.allSatisfy({
+                  (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) || $0 == UInt8(ascii: ".")
+              }) else {
+            return nil
+        }
+        let separator = decimalPositions.first?.offset
+        let whole = separator.map { Array(input[..<$0]) } ?? input
+        let fraction = separator.map { Array(input[($0 + 1)...]) } ?? []
+        guard !whole.isEmpty,
+              (whole.count == 1 || whole.first != UInt8(ascii: "0")),
+              separator == nil || !fraction.isEmpty,
+              fraction.count <= 6 else {
+            return nil
+        }
+        var baseUnits = whole
+        baseUnits.append(contentsOf: fraction)
+        baseUnits.append(contentsOf: repeatElement(UInt8(ascii: "0"), count: 6 - fraction.count))
+        while baseUnits.count > 1, baseUnits.first == UInt8(ascii: "0") {
+            baseUnits.removeFirst()
+        }
+        let maximum = Array("340282366920938463463374607431768211455".utf8)
+        defer { WalletSecretBytes.wipe(&baseUnits) }
+        guard baseUnits != [UInt8(ascii: "0")],
+              baseUnits.count < maximum.count ||
+                (baseUnits.count == maximum.count &&
+                    (baseUnits.elementsEqual(maximum) ||
+                        baseUnits.lexicographicallyPrecedes(maximum, by: <))),
+              let result = String(bytes: baseUnits, encoding: .ascii) else {
+            return nil
+        }
+        return result
+    }
+
+    private func beginHnsSendReview(_ request: WalletHnsSendRequest) {
+        guard !isOperating,
+              let lease = storageLease,
+              let wallet,
+              walletIsUnlocked,
+              directHnsValueAvailable,
+              synchronizedReadsAvailable,
+              unconfirmedDatabaseKey == nil else {
+            showErrorMessage("Unlock and synchronize the direct HNS wallet before reviewing a send.")
+            return
+        }
+        isOperating = true
+        readGeneration &+= 1
+        let generation = readGeneration
+        let walletIdentity = ObjectIdentifier(wallet)
+        let authorityGeneration = walletAuthorityGeneration
+        readStatusLabel.text = "Synchronizing the direct HNS wallet for send review…"
+        refreshButtonStates()
+        let keychain = keychain
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
+            let outcome: Result<NativeHnsSendApproval, Error> = Result {
+                _ = try Self.synchronizeDirectHnsReads(wallet: wallet, keychain: keychain)
+                var recipient = Array(request.recipient.utf8)
+                var amount = Array(request.amountBaseUnits.utf8)
+                var maximumFee = Array(request.maximumFeeBaseUnits.utf8)
+                let approval = try wallet.prepareHnsSend(
+                    recipient: &recipient,
+                    amountBaseUnits: &amount,
+                    maximumFeeBaseUnits: &maximumFee
+                )
+                guard approval.recipient == request.recipient,
+                      approval.amountBaseUnits == request.amountBaseUnits,
+                      approval.maximumFeeBaseUnits == request.maximumFeeBaseUnits else {
+                    try? wallet.rejectHnsSend(approval.actionToken)
+                    try? wallet.lock()
+                    throw NativeWalletBridgeError.invalidOutput(
+                        "native HNS send approval changed the displayed request"
+                    )
+                }
+                return approval
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else {
+                    if case .success(let approval) = outcome {
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            try? wallet.rejectHnsSend(approval.actionToken)
+                        }
+                    }
+                    return
+                }
+                switch outcome {
+                case .success(let approval):
+                    self.showHnsSendApproval(
+                        approval,
+                        lease: lease,
+                        generation: generation,
+                        walletIdentity: walletIdentity,
+                        authorityGeneration: authorityGeneration
+                    )
+                case .failure(let error):
+                    self.isOperating = false
+                    self.refreshState()
+                    self.readStatusLabel.text = "HNS send review could not be prepared. Synchronize again before retrying."
+                    self.showError(error)
+                }
+            }
+        }
+    }
+
+    private func showHnsSendApproval(
+        _ approval: NativeHnsSendApproval,
+        lease: WalletStorageLeaseToken,
+        generation: UInt64,
+        walletIdentity: ObjectIdentifier,
+        authorityGeneration: UInt64
+    ) {
+        dismissPendingHnsSendApproval(rejectNatively: true)
+        pendingHnsSendApproval = approval
+        let date = Date(timeIntervalSince1970: TimeInterval(approval.expiresAtUnix))
+        let expiry = DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .medium)
+        let message = [
+            "Recipient: \(approval.recipient)",
+            "Amount: \(WalletReadPresenter.formatHnsBaseUnits(approval.amountBaseUnits)) HNS",
+            "Maximum fee: \(WalletReadPresenter.formatHnsBaseUnits(approval.maximumFeeBaseUnits)) HNS",
+            "Finality: proof-of-work confirmations",
+            "Warning: fee estimate may change",
+            "Expires: \(expiry)",
+        ].joined(separator: "\n\n")
+        let alert = UIAlertController(title: "Review HNS send", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) { [weak self] _ in
+            self?.rejectHnsSendApproval(
+                approval,
+                lease: lease,
+                generation: generation,
+                walletIdentity: walletIdentity,
+                authorityGeneration: authorityGeneration
+            )
+        })
+        alert.addAction(UIAlertAction(title: "Broadcast", style: .destructive) { [weak self] _ in
+            self?.approveHnsSendApproval(
+                approval,
+                lease: lease,
+                generation: generation,
+                walletIdentity: walletIdentity,
+                authorityGeneration: authorityGeneration
+            )
+        })
+        hnsSendApprovalAlert = alert
+        present(alert, animated: true)
+    }
+
+    private func approveHnsSendApproval(
+        _ approval: NativeHnsSendApproval,
+        lease: WalletStorageLeaseToken,
+        generation: UInt64,
+        walletIdentity: ObjectIdentifier,
+        authorityGeneration: UInt64
+    ) {
+        guard pendingHnsSendApproval?.actionToken === approval.actionToken,
+              let wallet else { return }
+        pendingHnsSendApproval = nil
+        hnsSendApprovalAlert = nil
+        readStatusLabel.text = "Broadcasting the approved HNS send…"
+        DispatchQueue.global(qos: .userInitiated).async {
+            let outcome = Result { try wallet.approveHnsSend(approval.actionToken) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else { return }
+                self.isOperating = false
+                self.refreshState()
+                switch outcome {
+                case .success(let receipt):
+                    self.readStatusLabel.text = "HNS send accepted by the direct peer: \(receipt.txid). Synchronize to refresh confirmed activity."
+                case .failure(let error):
+                    self.readStatusLabel.text = "HNS send outcome is ambiguous. The wallet was locked; unlock and synchronize before taking another action."
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func rejectHnsSendApproval(
+        _ approval: NativeHnsSendApproval,
+        lease: WalletStorageLeaseToken,
+        generation: UInt64,
+        walletIdentity: ObjectIdentifier,
+        authorityGeneration: UInt64
+    ) {
+        guard pendingHnsSendApproval?.actionToken === approval.actionToken,
+              let wallet else { return }
+        pendingHnsSendApproval = nil
+        hnsSendApprovalAlert = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let outcome = Result { try wallet.rejectHnsSend(approval.actionToken) }
+            if case .failure = outcome { try? wallet.lock() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else { return }
+                self.isOperating = false
+                self.refreshState()
+                switch outcome {
+                case .success:
+                    self.readStatusLabel.text = "HNS send rejected. No payment was broadcast."
+                case .failure(let error):
+                    self.readStatusLabel.text = "HNS send rejection could not be verified. The wallet was locked."
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func dismissPendingHnsSendApproval(rejectNatively: Bool) {
+        let approval = pendingHnsSendApproval
+        pendingHnsSendApproval = nil
+        hnsSendApprovalAlert?.dismiss(animated: false)
+        hnsSendApprovalAlert = nil
+        guard let approval else { return }
+        if rejectNatively, let wallet {
+            DispatchQueue.global(qos: .userInitiated).async {
+                if (try? wallet.rejectHnsSend(approval.actionToken)) == nil {
+                    try? wallet.lock()
+                }
+            }
+        } else {
+            approval.actionToken.discard()
+        }
+        isOperating = false
     }
 
     private func showFeatureUnavailable(_ feature: String) {
         let alert = UIAlertController(
             title: "\(feature) unavailable",
-            message: "This iOS release keeps value movement, Bitcoin, and Shakedex workflows unavailable. Local lifecycle controls and scoped read-only HNS information remain separate and device-local.",
+            message: "This wallet build does not expose that workflow on iOS yet. HNS receive, direct synchronization, native send review, and broadcast remain local to the native wallet controller.",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -686,9 +1039,10 @@ final class WalletViewController: UIViewController {
                 prompt: "Authenticate to open your Handshake wallet"
             ) { key -> RustNativeWallet in
                 let controller: RustNativeWallet
-                if let wallet {
+                if let wallet, walletWasReopenedFromDurableStorage {
                     controller = wallet
                 } else {
+                    wallet?.close()
                     controller = try RustNativeWallet.open(
                         databasePath: path,
                         databaseKey: key
@@ -709,8 +1063,8 @@ final class WalletViewController: UIViewController {
                 reopenedFromDurableStorage: reopenedFromDurableStorage
             )
             persistentWalletExists = true
-            try installWalletReadBootstrapIfAvailable()
         }
+        beginDirectHnsInstallationIfNeeded()
     }
 
     @objc private func lockWallet() {
@@ -775,12 +1129,18 @@ final class WalletViewController: UIViewController {
         let generation = readGeneration
         let walletIdentity = ObjectIdentifier(wallet)
         let authorityGeneration = walletAuthorityGeneration
-        readStatusLabel.text = "Synchronizing read-only HNS wallet data…"
+        readStatusLabel.text = "Synchronizing direct HNS wallet data…"
         refreshButtonStates()
-        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+        let keychain = keychain
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
             let outcome: WalletHnsReadOutcome
             do {
-                outcome = .success(try wallet.synchronizeHnsReads())
+                outcome = .success(
+                    try Self.synchronizeDirectHnsReads(
+                        wallet: wallet,
+                        keychain: keychain
+                    )
+                )
             } catch {
                 outcome = .failure(error.localizedDescription)
             }
@@ -804,13 +1164,67 @@ final class WalletViewController: UIViewController {
                 case .success(let snapshot):
                     self.publish(snapshot)
                 case .failure(let detail):
-                    self.readStatusLabel.text = "Read synchronization failed. The wallet was locked; unlock before retrying."
+                    self.readStatusLabel.text = "HNS synchronization did not finish. The direct wallet was locked; unlock before retrying."
                     self.clearReadProjection()
                     self.showErrorMessage(detail)
                 }
                 self.refreshButtonStates()
             }
         }
+    }
+
+    /// Runs one direct-peer synchronization while holding the platform's
+    /// monotonic floor journal.  The commit deliberately occurs even when the
+    /// native bounded round returns an error: a round can safely persist newer
+    /// headers before a later peer, proof, or scan step reports not-ready.
+    /// Leaving the journal pending in that case would make a subsequent open
+    /// unable to distinguish an interrupted safe checkpoint from rollback.
+    nonisolated private static func synchronizeDirectHnsReads(
+        wallet: RustNativeWallet,
+        keychain: WalletKeychainStore
+    ) throws -> NativeHnsReadSnapshot {
+        try withDirectHnsFloorJournal(wallet: wallet, keychain: keychain) {
+            try wallet.synchronizeHnsReads()
+        }
+    }
+
+    /// Applies the same interruption-safe floor discipline to any native
+    /// operation that can advance direct peer/header authority.  Exact-name
+    /// imports resolve and validate a proof through the direct coordinator, so
+    /// they must not be allowed to move it outside this journal either.
+    nonisolated private static func withDirectHnsFloorJournal<T>(
+        wallet: RustNativeWallet,
+        keychain: WalletKeychainStore,
+        work: () throws -> T
+    ) throws -> T {
+        guard try wallet.hasHnsValue() else {
+            return try work()
+        }
+        do {
+            try keychain.beginDirectHnsSynchronization()
+        } catch {
+            // A previous app interruption left a durable pending marker.  The
+            // active coordinator was opened under the committed floor, so an
+            // equal-or-newer local floor can only heal that marker.
+            var recoveredFloor = try wallet.directHnsRollbackFloor()
+            defer { WalletSecretBytes.wipe(&recoveredFloor) }
+            try keychain.commitDirectHnsSynchronization(recoveredFloor)
+            try keychain.beginDirectHnsSynchronization()
+        }
+
+        let result = Result { try work() }
+        do {
+            var updatedFloor = try wallet.directHnsRollbackFloor()
+            defer { WalletSecretBytes.wipe(&updatedFloor) }
+            try keychain.commitDirectHnsSynchronization(updatedFloor)
+        } catch {
+            // A missing or backward floor is ambiguous chain authority.
+            // Native lock drops any pending value action before this error can
+            // return to UIKit.
+            try? wallet.lock()
+            throw error
+        }
+        return try result.get()
     }
 
     @objc private func requestExactHnsNameImport() {
@@ -883,15 +1297,22 @@ final class WalletViewController: UIViewController {
         nameImportStatusLabel.text =
             "Tracking one exact HNS name and refreshing synchronized wallet rows…"
         refreshButtonStates()
+        let keychain = keychain
 
-        DispatchQueue.global(qos: .userInitiated).async { [wallet, input] in
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, input, keychain] in
             let outcome: WalletHnsNameImportOutcome
             do {
-                let imported = try input.consume { exactBytes in
-                    try wallet.importHnsNameExactText(&exactBytes)
-                }
                 do {
-                    let refreshed = try wallet.synchronizeHnsReads()
+                    let (imported, refreshed) = try Self.withDirectHnsFloorJournal(
+                        wallet: wallet,
+                        keychain: keychain
+                    ) {
+                        let imported = try input.consume { exactBytes in
+                            try wallet.importHnsNameExactText(&exactBytes)
+                        }
+                        let refreshed = try wallet.synchronizeHnsReads()
+                        return (imported, refreshed)
+                    }
                     guard walletNameImportRefreshMatches(
                         imported: imported,
                         refreshed: refreshed
@@ -1233,6 +1654,7 @@ final class WalletViewController: UIViewController {
         reopenedFromDurableStorage: Bool
     ) {
         guard wallet !== controller else { return }
+        dismissPendingHnsSendApproval(rejectNatively: true)
         try? wallet?.lock()
         wallet?.close()
         wallet = controller
@@ -1241,23 +1663,96 @@ final class WalletViewController: UIViewController {
         clearWalletNameImportPrompt(dismiss: true)
     }
 
-    private func installWalletReadBootstrapIfAvailable() throws {
-        guard let authority = currentWalletReadBootstrapAuthority(),
-              let wallet,
-              (try wallet.hasHnsReads()) == false else {
+    /// Configures a freshly reopened durable wallet with its own direct HNS
+    /// peers.  Unlike the historic loopback-read path, this has no companion
+    /// credential or endpoint.  Mainnet uses the product-pinned header stream
+    /// only for the checkpoint-born wallet birthday; Rust independently pins
+    /// and validates every byte before it replaces the lifecycle controller.
+    private func beginDirectHnsInstallationIfNeeded() {
+        guard !isOperating,
+              let authority = currentWalletReadBootstrapAuthority(),
+              walletReadBootstrapMayInstall(
+                  expected: authority,
+                  current: currentWalletReadBootstrapState()
+              ),
+              let wallet else {
             return
         }
-        _ = try attemptWalletReadBootstrap(
-            expectedAuthority: authority,
-            source: readBootstrapSource,
-            currentState: { [self] in currentWalletReadBootstrapState() },
-            install: { currentAuthority, configuration in
-                try wallet.configureHnsReads(
-                    configuration,
-                    currentAuthority: currentAuthority
-                )
+        let alreadyInstalled = ((try? wallet.hasHnsReads()) == true) ||
+            ((try? wallet.hasHnsValue()) == true)
+        guard !alreadyInstalled else { return }
+
+        isOperating = true
+        readGeneration &+= 1
+        let generation = readGeneration
+        let expectedWalletIdentity = ObjectIdentifier(wallet)
+        let expectedAuthorityGeneration = walletAuthorityGeneration
+        let expectedLease = authority.lease
+        readStatusLabel.text = "Preparing the direct HNS wallet…"
+        refreshButtonStates()
+
+        let keychain = keychain
+        let installNetwork = network
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
+            let outcome: Result<Void, Error> = Result {
+                var openingFloor = try keychain.directHnsRollbackFloorForOpen()
+                defer { WalletSecretBytes.wipe(&openingFloor) }
+
+                let install: (String?) throws -> Void = { snapshotPath in
+                    let configured = try keychain.withDatabaseKey(
+                        prompt: "Authenticate to enable your direct HNS wallet"
+                    ) { databaseKey in
+                        try wallet.configureDirectHnsValue(
+                            databaseKey: databaseKey,
+                            rollbackFloor: &openingFloor,
+                            bootstrapSnapshotPath: snapshotPath
+                        )
+                    }
+                    guard configured != nil else {
+                        throw WalletProviderError(
+                            code: "walletKeyUnavailable",
+                            message: "The device-bound wallet key is unavailable."
+                        )
+                    }
+                }
+
+                if installNetwork == .mainnet {
+                    try WalletHeaderSnapshotBootstrapper().withGenesisSnapshot { snapshot in
+                        try install(snapshot.path)
+                    }
+                } else {
+                    try install(nil)
+                }
+                var installedFloor = try wallet.directHnsRollbackFloor()
+                defer { WalletSecretBytes.wipe(&installedFloor) }
+                try keychain.storeInitialDirectHnsRollbackFloor(installedFloor)
             }
-        )
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                guard walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: expectedLease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: expectedWalletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: expectedAuthorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                ) else {
+                    return
+                }
+                self.isOperating = false
+                switch outcome {
+                case .success:
+                    self.readStatusLabel.text = "Direct HNS wallet is ready. Synchronize before viewing a balance or sending."
+                case .failure(let error):
+                    self.readStatusLabel.text = "Direct HNS wallet setup failed. Unlock and try again."
+                    self.showError(error)
+                }
+                self.refreshState()
+            }
+        }
     }
 
     private func currentWalletReadBootstrapAuthority() -> WalletReadBootstrapAuthority? {
@@ -1350,6 +1845,7 @@ final class WalletViewController: UIViewController {
     private func refreshState() {
         confirmedDeletionAccountID = nil
         walletIsUnlocked = false
+        directHnsValueAvailable = false
         guard storageLease != nil else {
             if let path = resolvedDatabasePath,
                WalletStorageLeaseRegistry.isBlockedAfterRetirementFailure(path: path) {
@@ -1401,25 +1897,28 @@ final class WalletViewController: UIViewController {
         }
         do {
             let hasHnsReads = try wallet.hasHnsReads()
+            let hasHnsValue = try wallet.hasHnsValue()
             let status = try wallet.status()
             let enabledModulesAreAllowed = hasHnsReads
                 ? status.enabledModules == ["handshake"]
                 : status.enabledModules.isEmpty
             guard enabledModulesAreAllowed,
+                  status.hnsValueEnabled == hasHnsValue,
                   !status.mainnetSettlementEnabled else {
                 throw NativeWalletBridgeError.invalidOutput(
-                    "value-capable modules are not permitted in this mobile slice"
+                    "native HNS wallet exposed an incoherent capability set"
                 )
             }
             statusLabel.text = status.locked
-                ? "Status: locked. Sending and marketplace controls are unavailable."
-                : "Status: unlocked · wallet \(status.activeWallet ?? "unknown"). Sending and marketplace controls are unavailable."
+                ? "Status: locked. Unlock before direct HNS synchronization or sending."
+                : "Status: unlocked · wallet \(status.activeWallet ?? "unknown")."
             walletIsUnlocked = !status.locked
+            directHnsValueAvailable = hasHnsValue && !status.locked
             if status.locked {
                 accountLabel.text = "Account: unlock to view the local HNS account identity."
                 setReadAvailability(false, message: hasHnsReads
-                    ? "Read-only synchronization is configured; unlock the wallet to synchronize."
-                    : "Read-only synchronization requires a scoped companion credential that this build does not install.")
+                    ? "Direct HNS synchronization is configured; unlock the wallet to synchronize."
+                    : "Direct HNS setup starts after this confirmed wallet is reopened and unlocked.")
             } else {
                 let accounts = try wallet.accounts()
                 guard accounts.count == 1,
@@ -1427,7 +1926,7 @@ final class WalletViewController: UIViewController {
                       account.module == "handshake",
                       account.receiveDisplay == nil else {
                     throw NativeWalletBridgeError.invalidOutput(
-                        "native wallet must expose exactly one non-value HNS account"
+                        "native wallet must expose exactly one local HNS account"
                     )
                 }
                 accountLabel.text = "Account: \(account.label) · \(account.module) · \(account.accountId)"
@@ -1436,8 +1935,14 @@ final class WalletViewController: UIViewController {
                     confirmedDeletionAccountID = account.accountId
                 }
                 setReadAvailability(hasHnsReads, message: hasHnsReads
-                    ? "Read-only HNS synchronization is ready."
-                    : "Read-only synchronization requires a scoped companion credential that this build does not install.")
+                    ? (hasHnsValue
+                        ? "Direct HNS synchronization is ready. Synchronize before sending."
+                        : "HNS read synchronization is ready.")
+                    : "Preparing the direct HNS wallet is required before synchronization.")
+                if hasHnsValue {
+                    let receive = try wallet.localHnsReceiveTarget()
+                    paymentReceiveLabel.text = "Payment receive\n\(receive.display)\nDerivation index \(receive.derivationIndex)"
+                }
             }
         } catch {
             statusLabel.text = "Status unavailable."
@@ -1577,6 +2082,7 @@ final class WalletViewController: UIViewController {
 
     @objc private func protectWalletLifecycle() {
         clearWalletNameImportPrompt(dismiss: true)
+        dismissPendingHnsSendApproval(rejectNatively: true)
         clearRestoreInput()
         let shouldDeleteIncompleteWallet = unconfirmedDatabaseKey != nil
         if var key = unconfirmedDatabaseKey {
@@ -1892,7 +2398,7 @@ enum WalletReadPresenter {
         }
 
         return WalletReadPresentation(
-            status: "Handshake reads are ready at height \(snapshot.moduleStatus.validatedHeight). Value movement and marketplace controls are unavailable.",
+            status: "Direct Handshake wallet synchronized at height \(snapshot.moduleStatus.validatedHeight). The confirmed balance is safe to review and send from.",
             balance: "\(formatHnsBaseUnits(snapshot.balance.baseUnits)) HNS confirmed spendable",
             paymentReceive: "Payment receive\n\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)",
             nameReceive: snapshot.nameReceiveTarget.map {
@@ -1971,6 +2477,12 @@ enum WalletReadPresenter {
 private enum WalletHnsReadOutcome: Sendable {
     case success(NativeHnsReadSnapshot)
     case failure(String)
+}
+
+private struct WalletHnsSendRequest: Sendable {
+    let recipient: String
+    let amountBaseUnits: String
+    let maximumFeeBaseUnits: String
 }
 
 private enum WalletHnsNameImportOutcome: Sendable {

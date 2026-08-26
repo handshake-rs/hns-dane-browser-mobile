@@ -211,9 +211,10 @@ HnsBrowserResult hns_browser_hns_root(
     HnsBrowserBuffer *out_root);
 
 /*
- * Native wallet controls are intentionally limited to one non-value HNS
- * account. No provider, value-movement, settlement, or marketplace authority
- * is exposed through this ABI.
+ * Native wallet controls retain one local HNS account. Direct HNS sync and
+ * send operations are native-only and require the caller to present a native
+ * approval; no provider, WebKit, settlement, or marketplace authority is
+ * exposed through this ABI.
  */
 HnsBrowserResult hns_browser_wallet_create(
     HnsBrowserSlice database_path,
@@ -254,6 +255,33 @@ HnsBrowserResult hns_browser_wallet_has_hns_reads(
     HnsBrowserWalletHandle wallet,
     uint8_t *out_enabled);
 /*
+ * Composes the self-contained direct HNS controller. The 36-byte rollback
+ * floor is u32 big-endian height followed by 32-byte chainwork. The optional
+ * bootstrap path names an app-private decompressed bundled header stream; it
+ * is required for a checkpoint-born mainnet wallet. No endpoint, peer, relay,
+ * provider message, or URL is accepted here.
+ */
+HnsBrowserResult hns_browser_wallet_configure_direct_hns_value(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice database_key,
+    HnsBrowserSlice rollback_floor,
+    HnsBrowserSlice bootstrap_snapshot_path);
+HnsBrowserResult hns_browser_wallet_has_hns_value(
+    HnsBrowserWalletHandle wallet,
+    uint8_t *out_enabled);
+/* Returns the active direct controller's 36-byte rollback floor. */
+HnsBrowserResult hns_browser_wallet_direct_hns_rollback_floor(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_floor);
+/*
+ * Returns a private HNRT-v1 bundle with the locally derived ordinary HNS
+ * payment receive target. It makes no peer request and does not claim a
+ * balance or current history projection.
+ */
+HnsBrowserResult hns_browser_wallet_local_hns_receive_target(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_target_bundle);
+/*
  * Returns a private Rust-owned HNWR-v2 bundle containing one exact serialized
  * MobileHnsReadSnapshot with distinct ordinary-payment and name-transfer
  * receive targets. Free it promptly; never log it or expose it to WebKit.
@@ -275,6 +303,25 @@ HnsBrowserResult hns_browser_wallet_import_hns_name_exact_text(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice exact_name,
     HnsBrowserBuffer *out_summary_bundle);
+/*
+ * A direct native-only HNS send. Preparation returns HNVP-v1, whose one-shot
+ * action token may be approved once to return HNVX-v1, or rejected. Input
+ * amounts are canonical nonzero base-unit ASCII integers. None of these
+ * operations are installed into a website provider or WebKit bridge.
+ */
+HnsBrowserResult hns_browser_wallet_prepare_hns_send(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice recipient,
+    HnsBrowserSlice amount_base_units,
+    HnsBrowserSlice maximum_fee_base_units,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_hns_send(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_receipt_bundle);
+HnsBrowserResult hns_browser_wallet_reject_hns_send(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
 HnsBrowserResult hns_browser_wallet_unlock(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice database_key);

@@ -3604,6 +3604,36 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "phase 4: rejected maintenance work executed its callback"
         )
     }
+
+    func testDirectHnsRollbackFloorOrderingUsesHeightThenChainwork() {
+        var base = [UInt8](repeating: 0, count: 36)
+        base[3] = 42
+        base[35] = 10
+
+        var newerWorkAtSameHeight = base
+        newerWorkAtSameHeight[35] = 11
+        XCTAssertTrue(walletDirectHnsRollbackFloorAtLeast(newerWorkAtSameHeight, base))
+        XCTAssertFalse(walletDirectHnsRollbackFloorAtLeast(base, newerWorkAtSameHeight))
+
+        var laterHeight = base
+        laterHeight[3] = 43
+        laterHeight[35] = 0
+        XCTAssertTrue(walletDirectHnsRollbackFloorAtLeast(laterHeight, newerWorkAtSameHeight))
+        XCTAssertTrue(walletDirectHnsRollbackFloorAtLeast(base, base))
+    }
+
+    func testDirectHnsRollbackFloorRejectsMalformedOrEarlierHeight() {
+        var committed = [UInt8](repeating: 0, count: 36)
+        committed[3] = 200
+        committed[4] = 1
+
+        var older = committed
+        older[3] = 199
+        older[35] = UInt8.max
+        XCTAssertFalse(walletDirectHnsRollbackFloorAtLeast(older, committed))
+        XCTAssertFalse(walletDirectHnsRollbackFloorAtLeast([], committed))
+        XCTAssertFalse(walletDirectHnsRollbackFloorAtLeast(committed, [0]))
+    }
 }
 
 @MainActor
