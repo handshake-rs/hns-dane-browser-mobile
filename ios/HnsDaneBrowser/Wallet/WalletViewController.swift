@@ -325,16 +325,16 @@ final class WalletViewController: UIViewController {
                 action: { [weak self] in self?.showNamesDashboard() }
             ),
             dashboardTile(
-                title: "Bitcoin",
-                summary: "Not available on iOS",
-                action: { [weak self] in self?.showFeatureUnavailable("Bitcoin") }
+                title: "Shakedex",
+                summary: "Unlock and synchronize",
+                action: { [weak self] in self?.showShakedexDashboard() }
             )
         ))
         dashboardStack.addArrangedSubview(dashboardTileRow(
             dashboardTile(
-                title: "Shakedex",
-                summary: "Unlock and synchronize",
-                action: { [weak self] in self?.showShakedexDashboard() }
+                title: "Activity",
+                summary: "Inspect wallet history",
+                action: { [weak self] in self?.showActivityDetails() }
             ),
             dashboardTile(
                 title: "Wallet",
@@ -390,17 +390,17 @@ final class WalletViewController: UIViewController {
                 action: { [weak self] in self?.showNamesDashboard() }
             ),
             dashboardTile(
-                title: "Bitcoin",
-                summary: "Not available on iOS",
-                action: { [weak self] in self?.showFeatureUnavailable("Bitcoin") }
-            )
-        ))
-        dashboardStack.addArrangedSubview(dashboardTileRow(
-            dashboardTile(
                 title: "Shakedex",
                 summary: synchronizedReadsAvailable && directHnsValueAvailable
                     ? "Offers and purchase steps" : "Sync required",
                 action: { [weak self] in self?.showShakedexDashboard() }
+            )
+        ))
+        dashboardStack.addArrangedSubview(dashboardTileRow(
+            dashboardTile(
+                title: "Activity",
+                summary: "Transactions and synchronized evidence",
+                action: { [weak self] in self?.showActivityDetails() }
             ),
             dashboardTile(
                 title: "Wallet",
@@ -867,16 +867,6 @@ final class WalletViewController: UIViewController {
             approval.actionToken.discard()
         }
         isOperating = false
-    }
-
-    private func showFeatureUnavailable(_ feature: String) {
-        let alert = UIAlertController(
-            title: "\(feature) unavailable",
-            message: "This wallet build does not expose that workflow on iOS yet. HNS receive, direct synchronization, native send review, and broadcast remain local to the native wallet controller.",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
     }
 
     private func showNamesDashboard() {
