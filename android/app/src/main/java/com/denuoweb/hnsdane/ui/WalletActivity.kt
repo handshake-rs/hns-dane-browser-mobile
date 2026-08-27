@@ -2860,7 +2860,23 @@ class WalletActivity : ComponentActivity() {
             // outcome remains locked by NativeWalletBridge.
             val retryAfterPreBroadcastSync =
                 receipt == null && NativeWalletBridge.status(handle)?.locked == false
-            val snapshot = receipt?.let { synchronizeHnsSnapshotWithRollbackFloor(handle) }
+            var refreshedSnapshot: NativeWalletReadSnapshot? = null
+            var verifiedAdmissionStatus: String? = null
+            if (receipt != null) {
+                for (attempt in 0 until HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS) {
+                    refreshedSnapshot = synchronizeHnsSnapshotWithRollbackFloor(handle)
+                    verifiedAdmissionStatus = refreshedSnapshot?.transactions
+                        ?.singleOrNull { transaction -> transaction.txid == receipt.txid }
+                        ?.status
+                        ?.takeIf { status -> status == "mempool" || status == "confirmed" }
+                    if (verifiedAdmissionStatus != null || refreshedSnapshot == null) break
+                    if (attempt + 1 < HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS) {
+                        Thread.sleep(HNS_POST_BROADCAST_VERIFICATION_INTERVAL_MILLIS)
+                    }
+                }
+            }
+            val snapshot = refreshedSnapshot
+            val admissionStatus = verifiedAdmissionStatus
             runOnUiThread {
                 val mayPublish = walletReadMayPublish(
                     expectedEpoch = epoch,
@@ -2907,16 +2923,24 @@ class WalletActivity : ComponentActivity() {
                             receipt.txid,
                         )
                     }
+                    admissionStatus != null -> {
+                        Log.i(TAG, "HNS transaction has verified network admission status=$admissionStatus")
+                        renderReadSnapshot(snapshot)
+                        sendStatusView.text = getString(
+                            R.string.wallet_send_admission_verified,
+                            receipt.txid,
+                            admissionStatus,
+                        )
+                    }
                     else -> {
-                        Log.i(
+                        Log.w(
                             TAG,
-                            "HNS transaction was submitted to peers and the verified wallet snapshot was refreshed",
+                            "HNS transaction bytes were written to peers but mempool admission was not verified",
                         )
                         renderReadSnapshot(snapshot)
                         sendStatusView.text = getString(
-                            R.string.wallet_send_submitted,
+                            R.string.wallet_send_admission_unverified,
                             receipt.txid,
-                            receipt.acceptedAtUnix,
                         )
                     }
                 }
@@ -4295,6 +4319,8 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_DENUO_LISTEN_PORT = 12_038
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L
+        const val HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS = 3
+        const val HNS_POST_BROADCAST_VERIFICATION_INTERVAL_MILLIS = 1_000L
         const val WALLET_BACKGROUND_RETIREMENT_GRACE_MILLIS = 250L
         const val DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC = 32
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5

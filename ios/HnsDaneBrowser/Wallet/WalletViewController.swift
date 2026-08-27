@@ -805,12 +805,18 @@ final class WalletViewController: UIViewController {
         let keychain = keychain
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
             let outcome: Result<WalletHnsPostBroadcastResult<NativeHnsSendReceipt, NativeHnsReadSnapshot>, Error> = Result {
-                try approveAndRefreshHnsWallet(
-                    approve: { try wallet.approveHnsSend(approval.actionToken) },
-                    synchronize: {
-                        try Self.synchronizeDirectHnsReads(wallet: wallet, keychain: keychain)
-                    }
-                )
+                let receipt = try wallet.approveHnsSend(approval.actionToken)
+                var snapshot: NativeHnsReadSnapshot? = nil
+                for attempt in 0..<3 {
+                    snapshot = try? Self.synchronizeDirectHnsReads(wallet: wallet, keychain: keychain)
+                    let admitted = snapshot?.transactionHistory.contains(where: {
+                        Self.lowerHex($0.txid) == receipt.txid
+                            && ($0.status == "mempool" || $0.status == "confirmed")
+                    }) == true
+                    if admitted || snapshot == nil { break }
+                    if attempt < 2 { Thread.sleep(forTimeInterval: 1) }
+                }
+                return WalletHnsPostBroadcastResult(receipt: receipt, snapshot: snapshot)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -830,9 +836,17 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let result):
                     if let snapshot = result.snapshot { self.publish(snapshot) }
-                    self.readStatusLabel.text = result.snapshot == nil
-                        ? "HNS send submitted to connected peers: \(result.receipt.txid). Submission is not confirmation; unlock and synchronize to refresh wallet state."
-                        : "HNS send submitted to connected peers: \(result.receipt.txid). The verified wallet snapshot was refreshed; submission is not confirmation."
+                    let admissionStatus = result.snapshot?.transactionHistory
+                        .first(where: { Self.lowerHex($0.txid) == result.receipt.txid })?
+                        .status
+                    if let admissionStatus,
+                       admissionStatus == "mempool" || admissionStatus == "confirmed" {
+                        self.readStatusLabel.text = "HNS transaction \(result.receipt.txid) has verified network status: \(admissionStatus). You may close the wallet; confirmation still requires inclusion in a verified block."
+                    } else if result.snapshot == nil {
+                        self.readStatusLabel.text = "HNS transaction \(result.receipt.txid) was written to connected peers, but post-broadcast verification failed. Its signed workflow remains saved. Unlock and synchronize before another send; remote mempool admission is not verified."
+                    } else {
+                        self.readStatusLabel.text = "HNS transaction \(result.receipt.txid) was written to connected peers, but the refreshed verified snapshot did not prove remote mempool admission. The signed transaction remains saved for exact-byte recovery. Do not prepare another send; keep the wallet open and synchronize again."
+                    }
                 case .failure(let error):
                     self.readStatusLabel.text = "HNS send outcome is ambiguous. The wallet was locked; unlock and synchronize before taking another action."
                     self.showError(error)
