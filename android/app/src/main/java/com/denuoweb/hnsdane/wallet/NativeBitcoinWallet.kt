@@ -35,6 +35,13 @@ internal data class NativeBitcoinSynchronization(
     val requiredPeerCount: Int,
 )
 
+internal data class NativeBitcoinSyncProgress(
+    val successfulHandshakes: Int,
+    val connectionsMet: Boolean,
+    val chainHeight: Long?,
+    val completionBasisPoints: Long,
+)
+
 internal data class NativeBitcoinSendApproval(
     val actionToken: NativeHnsValueActionToken,
     val destination: String,
@@ -95,6 +102,30 @@ internal object NativeBitcoinWalletBundle {
             checkpointHeight,
             connectedPeerCount,
             requiredPeerCount,
+        )
+    }
+
+    fun syncProgress(bundle: ByteArray): NativeBitcoinSyncProgress? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf(
+            "successfulHandshakes", "connectionsMet", "chainHeight",
+            "completionBasisPoints",
+        ))) return@parse null
+        val handshakes = json.optInt("successfulHandshakes", -1).takeIf { it in 0..255 }
+            ?: return@parse null
+        val connectionsMet = when (json.opt("connectionsMet")) {
+            true -> true
+            false -> false
+            else -> return@parse null
+        }
+        val chainHeight = if (json.isNull("chainHeight")) null else
+            nonnegativeLong(json, "chainHeight") ?: return@parse null
+        val completion = nonnegativeLong(json, "completionBasisPoints")
+            ?.takeIf { it <= 10_000L } ?: return@parse null
+        NativeBitcoinSyncProgress(
+            handshakes,
+            connectionsMet,
+            chainHeight,
+            completion,
         )
     }
 

@@ -459,6 +459,10 @@
     <string name="wallet_bitcoin_locked" translatable="false">Unlock the wallet before using its direct Bitcoin account.</string>
     <string name="wallet_bitcoin_ready" translatable="false">Direct Kyoto compact-filter wallet ready. Synchronize before relying on its balance.</string>
     <string name="wallet_bitcoin_syncing" translatable="false">Synchronizing through the wallet\'s direct Bitcoin peer set…</string>
+    <string name="wallet_bitcoin_sync_connecting" translatable="false">Connecting to direct Bitcoin peers… %1$d successful handshakes. Elapsed %2$s; ETA waits for scan progress.</string>
+    <string name="wallet_bitcoin_sync_discovering" translatable="false">Bitcoin peer quorum is ready. Discovering and validating the chain/filter range… Elapsed %1$s; ETA waits for scan progress.</string>
+    <string name="wallet_bitcoin_sync_progress" translatable="false">Bitcoin compact-filter scan %1$d.%2$d%% at validated chain height %3$s. Elapsed %4$s; ETA %5$s.</string>
+    <string name="wallet_bitcoin_sync_eta_calculating" translatable="false">calculating after more progress</string>
     <string name="wallet_bitcoin_sync_failed" translatable="false">Bitcoin synchronization did not return a verified local snapshot.</string>
     <string name="wallet_bitcoin_synchronized" translatable="false">Verified Bitcoin state at height %1$d with %2$d/%3$d direct peers.</string>
     <string name="wallet_bitcoin_balance_unavailable" translatable="false">No local Bitcoin snapshot yet.</string>

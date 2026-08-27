@@ -679,6 +679,22 @@ impl AndroidWalletController {
         }
     }
 
+    fn bitcoin_shutdown_handle(&self) -> Option<hns_wallet_mobile::MobileBitcoinShutdownHandle> {
+        match self {
+            Self::DirectValue { bitcoin, .. } => bitcoin.shutdown_handle(),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => None,
+        }
+    }
+
+    fn bitcoin_sync_progress_handle(
+        &self,
+    ) -> Option<hns_wallet_mobile::MobileBitcoinSyncProgressHandle> {
+        match self {
+            Self::DirectValue { bitcoin, .. } => bitcoin.sync_progress_handle(),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => None,
+        }
+    }
+
     fn bitcoin_snapshot(&mut self) -> Option<Vec<u8>> {
         let snapshot = match self {
             Self::DirectValue { bitcoin, .. } => bitcoin.snapshot(),
@@ -1652,6 +1668,11 @@ struct AndroidWalletRecord {
     // bounded direct-peer synchronization. It contains only public progress
     // metadata and intentionally never shares wallet read projections.
     hns_live_sync_progress: Mutex<Option<AndroidHnsLiveSyncProgress>>,
+    // Kyoto synchronization owns `controller` for a bounded cycle. Keep only
+    // its authority-free stop signal outside that mutex so lock/destroy can
+    // wake the cycle before waiting to retire decrypted wallet state.
+    bitcoin_shutdown: Mutex<Option<hns_wallet_mobile::MobileBitcoinShutdownHandle>>,
+    bitcoin_sync_progress: Mutex<Option<hns_wallet_mobile::MobileBitcoinSyncProgressHandle>>,
     hns_reads_installable: bool,
     bitcoin_data_dir: PathBuf,
 }
@@ -1672,6 +1693,8 @@ impl AndroidWalletRecord {
             controller: Arc::new(Mutex::new(AndroidWalletController::Lifecycle(controller))),
             pending_recovery: Mutex::new(recovery),
             hns_live_sync_progress: Mutex::new(None),
+            bitcoin_shutdown: Mutex::new(None),
+            bitcoin_sync_progress: Mutex::new(None),
             hns_reads_installable,
             bitcoin_data_dir,
         }
@@ -1704,6 +1727,41 @@ impl AndroidWalletRecord {
 
     fn deactivate(&self) {
         self.active.store(false, Ordering::Release);
+    }
+
+    fn replace_bitcoin_shutdown(
+        &self,
+        handle: Option<hns_wallet_mobile::MobileBitcoinShutdownHandle>,
+    ) {
+        if let Ok(mut current) = self.bitcoin_shutdown.lock() {
+            *current = handle;
+        }
+    }
+
+    fn request_bitcoin_shutdown(&self) {
+        if let Ok(mut current) = self.bitcoin_shutdown.lock() {
+            if let Some(handle) = current.take() {
+                let _ = handle.request_shutdown();
+            }
+        }
+    }
+
+    fn replace_bitcoin_sync_progress(
+        &self,
+        handle: Option<hns_wallet_mobile::MobileBitcoinSyncProgressHandle>,
+    ) {
+        if let Ok(mut current) = self.bitcoin_sync_progress.lock() {
+            *current = handle;
+        }
+    }
+
+    fn bitcoin_sync_progress_bundle(&self) -> Option<Vec<u8>> {
+        let current = self.bitcoin_sync_progress.lock().ok()?;
+        let progress = current.as_ref()?.snapshot();
+        let mut json = serde_json::to_vec(&progress).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
     }
 }
 
@@ -4713,6 +4771,27 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeBitcoinSyncProgress(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        if !record.active.load(Ordering::Acquire) {
+            return None;
+        }
+        let mut bundle = record.bitcoin_sync_progress_bundle()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareBitcoinSend(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -5114,7 +5193,17 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
-        controller.unlock(&key)
+        let unlocked = controller.unlock(&key);
+        let bitcoin_shutdown = unlocked
+            .then(|| controller.bitcoin_shutdown_handle())
+            .flatten();
+        let bitcoin_sync_progress = unlocked
+            .then(|| controller.bitcoin_sync_progress_handle())
+            .flatten();
+        drop(controller);
+        record.replace_bitcoin_shutdown(bitcoin_shutdown);
+        record.replace_bitcoin_sync_progress(bitcoin_sync_progress);
+        unlocked
     }))
     .unwrap_or(false)
     .into()
@@ -5130,6 +5219,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(record) = wallet_from_handle(handle) else {
             return false;
         };
+        record.request_bitcoin_shutdown();
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
@@ -5172,6 +5262,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return false;
         };
         record.deactivate();
+        record.request_bitcoin_shutdown();
         if let Ok(mut pending) = record.pending_recovery.lock() {
             pending.take();
         }

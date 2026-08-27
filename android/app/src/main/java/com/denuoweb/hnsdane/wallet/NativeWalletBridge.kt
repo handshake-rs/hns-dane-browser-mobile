@@ -544,6 +544,19 @@ internal object NativeWalletBridge {
             null
         }
 
+    fun bitcoinSyncProgress(handle: Long): NativeBitcoinSyncProgress? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeBitcoinSyncProgress(handle) }.getOrNull()?.let { bundle ->
+                try {
+                    NativeBitcoinWalletBundle.syncProgress(bundle)
+                } finally {
+                    bundle.fill(0)
+                }
+            }
+        } else {
+            null
+        }
+
     /** Prepares a direct Bitcoin send; no signature or network submission occurs here. */
     fun prepareBitcoinSend(
         handle: Long,
@@ -868,6 +881,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeTakeRecovery(handle: Long): CharArray?
+
+    @JvmStatic
+    private external fun nativeBitcoinSyncProgress(handle: Long): ByteArray?
 
     @JvmStatic
     private external fun nativeDestroy(handle: Long): Boolean

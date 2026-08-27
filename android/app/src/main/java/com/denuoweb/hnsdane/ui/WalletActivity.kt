@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Bundle
+import android.os.SystemClock
 import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
@@ -37,6 +38,7 @@ import com.denuoweb.hnsdane.wallet.NativeHnsValueApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApprovalKind
 import com.denuoweb.hnsdane.wallet.NativeHnsValueIntent
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSendApproval
+import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
 import com.denuoweb.hnsdane.wallet.NativeWalletDirectDenuoConnectResult
 import com.denuoweb.hnsdane.wallet.directDenuoControls
@@ -171,6 +173,9 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshotAuthorityGeneration = 0L
     private var latestReadSnapshotEpoch = 0L
     private var walletHnsSyncInProgress = false
+    private var walletBitcoinSyncInProgress = false
+    @Volatile
+    private var bitcoinSyncProgressWatcher: AtomicBoolean? = null
     private var walletHnsForegroundSyncServiceActive = false
     @Volatile
     private var liveHnsSyncPoller: AtomicBoolean? = null
@@ -286,7 +291,7 @@ class WalletActivity : ComponentActivity() {
             // controller mutex. Its public progress mailbox is enough to
             // redraw this screen, and a contended probe can otherwise turn a
             // healthy background scan into an unavailable-looking dashboard.
-            if (walletHnsSyncInProgress) {
+            if (walletHnsSyncInProgress || walletBitcoinSyncInProgress) {
                 renderWalletDashboard()
                 return
             }
@@ -1716,16 +1721,21 @@ class WalletActivity : ComponentActivity() {
             return
         }
         if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads), resetReads = false)) return
+        walletBitcoinSyncInProgress = true
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_syncing)
         val epoch = lifecycleEpoch
+        startBitcoinSyncProgressWatcher(handle, lease, epoch)
         thread(name = "bitcoin-wallet-direct-sync") {
             val synchronization = NativeWalletBridge.synchronizeBitcoin(handle)
             runOnUiThread {
+                walletBitcoinSyncInProgress = false
+                bitcoinSyncProgressWatcher?.set(false)
+                bitcoinSyncProgressWatcher = null
+                busy = false
                 if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
                     releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
-                busy = false
                 if (synchronization == null) {
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_failed)
                 } else {
@@ -1739,6 +1749,93 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun startBitcoinSyncProgressWatcher(
+        handle: Long,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+    ) {
+        bitcoinSyncProgressWatcher?.set(false)
+        val watcher = AtomicBoolean(true)
+        bitcoinSyncProgressWatcher = watcher
+        val startedAt = SystemClock.elapsedRealtime()
+        thread(name = "bitcoin-wallet-sync-progress") {
+            var baselineWork: Long? = null
+            var baselineAt = startedAt
+            while (
+                watcher.get() && walletBitcoinSyncInProgress &&
+                operationIsCurrent(epoch, lease) && walletHandle == handle
+            ) {
+                val progress = NativeWalletBridge.bitcoinSyncProgress(handle)
+                val now = SystemClock.elapsedRealtime()
+                if (progress != null) {
+                    val completedWork = progress.completionBasisPoints
+                    if (baselineWork == null && completedWork > 0L) {
+                        baselineWork = completedWork
+                        baselineAt = now
+                    }
+                    val baseline = baselineWork
+                    val etaMillis = if (baseline != null) {
+                        estimateBitcoinSyncRemainingMillis(
+                            completedWork = completedWork,
+                            totalWork = 10_000L,
+                            baselineWork = baseline,
+                            measurementMillis = now - baselineAt,
+                        )
+                    } else {
+                        null
+                    }
+                    runOnUiThread {
+                        if (
+                            watcher.get() && walletBitcoinSyncInProgress &&
+                            operationIsCurrent(epoch, lease) && walletHandle == handle
+                        ) {
+                            bitcoinStatusView.text = bitcoinSyncProgressText(
+                                progress,
+                                now - startedAt,
+                                etaMillis,
+                            )
+                        }
+                    }
+                }
+                try {
+                    Thread.sleep(BITCOIN_SYNC_PROGRESS_POLL_MILLIS)
+                } catch (_: InterruptedException) {
+                    watcher.set(false)
+                }
+            }
+        }
+    }
+
+    private fun bitcoinSyncProgressText(
+        progress: NativeBitcoinSyncProgress,
+        elapsedMillis: Long,
+        etaMillis: Long?,
+    ): String {
+        val elapsed = formatBitcoinSyncDuration(elapsedMillis)
+        if (!progress.connectionsMet) {
+            return getString(
+                R.string.wallet_bitcoin_sync_connecting,
+                progress.successfulHandshakes,
+                elapsed,
+            )
+        }
+        if (progress.completionBasisPoints <= 0L) {
+            return getString(R.string.wallet_bitcoin_sync_discovering, elapsed)
+        }
+        val percentTenths = progress.completionBasisPoints.coerceIn(0L, 10_000L) / 10L
+        val chainHeight = progress.chainHeight?.toString() ?: getString(R.string.common_unknown)
+        val eta = etaMillis?.let(::formatBitcoinSyncDuration)
+            ?: getString(R.string.wallet_bitcoin_sync_eta_calculating)
+        return getString(
+            R.string.wallet_bitcoin_sync_progress,
+            percentTenths / 10L,
+            percentTenths % 10L,
+            chainHeight,
+            elapsed,
+            eta,
+        )
     }
 
     private fun resetBitcoinProjection() {
@@ -3458,7 +3555,8 @@ class WalletActivity : ComponentActivity() {
         val handle = walletHandle
         if (
             isFinishing || isDestroyed || handle == INVALID_HANDLE ||
-                unconfirmedDatabaseKey != null || (busy && !walletHnsSyncInProgress)
+                unconfirmedDatabaseKey != null ||
+                (busy && !walletHnsSyncInProgress && !walletBitcoinSyncInProgress)
         ) {
             return false
         }
@@ -3475,6 +3573,13 @@ class WalletActivity : ComponentActivity() {
                 foregroundServiceActive = walletHnsForegroundSyncServiceActive,
             ) &&
                 ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
+        }
+        if (walletBitcoinSyncInProgress) {
+            // Preserve a read-only Bitcoin synchronization across navigation
+            // within this app. If the whole app backgrounds, the grace-period
+            // retirement requests Kyoto shutdown through its out-of-lock
+            // lifecycle handle before waiting for native controller teardown.
+            return ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
         }
         return NativeWalletBridge.hasHnsReads(handle) &&
             NativeWalletBridge.status(handle)?.locked == false &&
@@ -4345,6 +4450,7 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_DENUO_STATUS_REFRESH_TICKS = 20
         const val DIRECT_DENUO_LISTEN_PORT = 12_038
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
+        const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L
         const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L
         const val HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS = 3
         const val HNS_POST_BROADCAST_VERIFICATION_INTERVAL_MILLIS = 1_000L
@@ -4352,6 +4458,34 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC = 32
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
         const val NUL_CHARACTER = "\u0000"
+    }
+}
+
+internal fun estimateBitcoinSyncRemainingMillis(
+    completedWork: Long,
+    totalWork: Long,
+    baselineWork: Long,
+    measurementMillis: Long,
+): Long? {
+    val measuredWork = completedWork - baselineWork
+    val remainingWork = totalWork - completedWork
+    if (
+        totalWork <= 0L || completedWork !in 0 until totalWork || baselineWork < 0L ||
+        measuredWork < 32L || measurementMillis < 5_000L || remainingWork <= 0L
+    ) return null
+    val estimate = measurementMillis.toDouble() * remainingWork.toDouble() / measuredWork.toDouble()
+    return estimate.takeIf { it.isFinite() && it in 1.0..604_800_000.0 }?.toLong()
+}
+
+internal fun formatBitcoinSyncDuration(milliseconds: Long): String {
+    val seconds = (milliseconds.coerceAtLeast(0L) / 1_000L)
+    val hours = seconds / 3_600L
+    val minutes = (seconds % 3_600L) / 60L
+    val remainder = seconds % 60L
+    return when {
+        hours > 0L -> "${hours}h ${minutes}m"
+        minutes > 0L -> "${minutes}m ${remainder}s"
+        else -> "${remainder}s"
     }
 }
 
