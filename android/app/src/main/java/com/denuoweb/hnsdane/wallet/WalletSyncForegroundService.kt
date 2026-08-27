@@ -15,7 +15,7 @@ import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.ui.WalletActivity
 
 /**
- * Keeps a user-initiated, read-only direct HNS wallet scan eligible to run
+ * Keeps a user-initiated, read-only direct HNS or Bitcoin wallet scan eligible to run
  * while the user briefly leaves the app. The service deliberately owns no
  * wallet key, controller, or signing capability; [WalletActivity] continues
  * to own the authenticated native operation and stops this service when the

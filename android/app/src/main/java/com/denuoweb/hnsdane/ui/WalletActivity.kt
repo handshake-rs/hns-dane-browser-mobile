@@ -176,7 +176,7 @@ class WalletActivity : ComponentActivity() {
     private var walletBitcoinSyncInProgress = false
     @Volatile
     private var bitcoinSyncProgressWatcher: AtomicBoolean? = null
-    private var walletHnsForegroundSyncServiceActive = false
+    private var walletForegroundSyncServiceActive = false
     @Volatile
     private var liveHnsSyncPoller: AtomicBoolean? = null
     @Volatile
@@ -320,9 +320,10 @@ class WalletActivity : ComponentActivity() {
         val retainInAppSession = mayRetainInAppWalletSession()
         Log.i(
             TAG,
-            "Stopping WalletActivity: retainDirectHns=$retainInAppSession " +
+            "Stopping WalletActivity: retainDirectWallet=$retainInAppSession " +
                 "finishing=$isFinishing destroyed=$isDestroyed " +
-                "syncInProgress=$walletHnsSyncInProgress busy=$busy",
+                "hnsSync=$walletHnsSyncInProgress bitcoinSync=$walletBitcoinSyncInProgress " +
+                "busy=$busy",
         )
         foreground = false
         cachedHnsSyncPresentationWatcher?.set(false)
@@ -345,7 +346,7 @@ class WalletActivity : ComponentActivity() {
         retainingInAppWalletSession = false
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
-        stopWalletHnsForegroundSyncService()
+        stopWalletForegroundSyncService()
         storageOwner?.let(ProcessWalletStorageOwnership::retire)
         storageOwner = null
         dismissWalletDeletionDialog()
@@ -1600,7 +1601,7 @@ class WalletActivity : ComponentActivity() {
         invalidateReadSnapshotAuthority()
         val presentationLease = WalletHnsLiveSyncPresentationCache.begin(walletNetwork.id)
         walletHnsSyncInProgress = true
-        startWalletHnsForegroundSyncService()
+        startWalletForegroundSyncService("HNS")
         Log.i(TAG, "Starting a bounded direct HNS synchronization round")
         readStatusView.text = getString(R.string.wallet_reads_syncing)
         renderWalletDashboard()
@@ -1686,7 +1687,7 @@ class WalletActivity : ComponentActivity() {
                     }
                     else -> retainReadProjectionAfterRefreshFailure()
                 }
-                finishWalletHnsForegroundSyncIfIdle()
+                finishWalletForegroundSyncIfIdle()
             }
         }
     }
@@ -1734,7 +1735,7 @@ class WalletActivity : ComponentActivity() {
                             "busy=$busy syncInProgress=$walletHnsSyncInProgress " +
                             "sessionActive=${walletSessionIsActive()}",
                     )
-                    finishWalletHnsForegroundSyncIfIdle()
+                    finishWalletForegroundSyncIfIdle()
                 }
             }
         }
@@ -1788,6 +1789,7 @@ class WalletActivity : ComponentActivity() {
         }
         walletBitcoinSyncInProgress = true
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_syncing)
+        startWalletForegroundSyncService("Bitcoin")
         Log.i(TAG, "Starting a bounded direct Bitcoin synchronization round")
         val epoch = lifecycleEpoch
         startBitcoinSyncProgressWatcher(handle, lease, epoch)
@@ -1797,6 +1799,7 @@ class WalletActivity : ComponentActivity() {
                 walletBitcoinSyncInProgress = false
                 bitcoinSyncProgressWatcher?.set(false)
                 bitcoinSyncProgressWatcher = null
+                finishWalletForegroundSyncIfIdle()
                 if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
                     releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
@@ -1889,6 +1892,10 @@ class WalletActivity : ComponentActivity() {
             return getString(
                 R.string.wallet_bitcoin_sync_connecting,
                 progress.successfulHandshakes,
+                progress.requiredPeerCount,
+                progress.connectionFailures,
+                progress.peerTimeouts,
+                progress.incompatiblePeers,
                 elapsed,
             )
         }
@@ -3565,7 +3572,7 @@ class WalletActivity : ComponentActivity() {
         lifecycleEpoch += 1
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
-        stopWalletHnsForegroundSyncService()
+        stopWalletForegroundSyncService()
         storageOwner = null
         dismissWalletDeletionDialog()
         dismissSendApproval(rejectNative = false)
@@ -3603,26 +3610,26 @@ class WalletActivity : ComponentActivity() {
     private fun hasActiveWalletHnsSynchronization(): Boolean =
         walletHnsSyncInProgress || hnsCatchupRetry?.get() == true
 
-    private fun startWalletHnsForegroundSyncService() {
-        if (walletHnsForegroundSyncServiceActive) return
-        walletHnsForegroundSyncServiceActive = WalletSyncForegroundService.start(this)
-        if (walletHnsForegroundSyncServiceActive) {
-            Log.i(TAG, "Started visible foreground protection for direct HNS wallet synchronization")
+    private fun startWalletForegroundSyncService(chain: String) {
+        if (walletForegroundSyncServiceActive) return
+        walletForegroundSyncServiceActive = WalletSyncForegroundService.start(this)
+        if (walletForegroundSyncServiceActive) {
+            Log.i(TAG, "Started visible foreground protection for direct $chain wallet synchronization")
         } else {
-            Log.w(TAG, "Direct HNS wallet synchronization will stop if the app leaves foreground")
+            Log.w(TAG, "Direct $chain wallet synchronization will stop if the app leaves foreground")
         }
     }
 
-    private fun stopWalletHnsForegroundSyncService() {
-        if (!walletHnsForegroundSyncServiceActive) return
-        walletHnsForegroundSyncServiceActive = false
+    private fun stopWalletForegroundSyncService() {
+        if (!walletForegroundSyncServiceActive) return
+        walletForegroundSyncServiceActive = false
         WalletSyncForegroundService.stop(this)
-        Log.i(TAG, "Stopped visible foreground protection for direct HNS wallet synchronization")
+        Log.i(TAG, "Stopped visible foreground protection for direct wallet synchronization")
     }
 
-    private fun finishWalletHnsForegroundSyncIfIdle() {
-        if (hasActiveWalletHnsSynchronization()) return
-        stopWalletHnsForegroundSyncService()
+    private fun finishWalletForegroundSyncIfIdle() {
+        if (hasActiveWalletHnsSynchronization() || walletBitcoinSyncInProgress) return
+        stopWalletForegroundSyncService()
         if (retainingInAppWalletSession && !foreground && !isAppForeground()) {
             scheduleWalletRetirementIfApplicationBackgrounds()
         }
@@ -3652,16 +3659,17 @@ class WalletActivity : ComponentActivity() {
             // mutations remain excluded by the busy check above.
             return walletBackgroundHnsSyncMayRetain(
                 hasActiveReadOnlyHnsSync = true,
-                foregroundServiceActive = walletHnsForegroundSyncServiceActive,
+                foregroundServiceActive = walletForegroundSyncServiceActive,
             ) &&
                 ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
         }
         if (walletBitcoinSyncInProgress) {
-            // Preserve a read-only Bitcoin synchronization across navigation
-            // within this app. If the whole app backgrounds, the grace-period
-            // retirement requests Kyoto shutdown through its out-of-lock
-            // lifecycle handle before waiting for native controller teardown.
-            return ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
+            // A user-started read-only Bitcoin scan may cross an app-background
+            // transition only while its visible data-sync notification is
+            // active. Lock/delete still explicitly stop Kyoto and retire the
+            // controller through the ordinary lifecycle path.
+            return walletForegroundSyncServiceActive &&
+                ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
         }
         return NativeWalletBridge.hasHnsReads(handle) &&
             NativeWalletBridge.status(handle)?.locked == false &&
@@ -3687,9 +3695,10 @@ class WalletActivity : ComponentActivity() {
                 if (
                     retirement.get() && walletBackgroundRetirement === retirement &&
                         retainingInAppWalletSession && !foreground && !isAppForeground() &&
-                        !walletBackgroundHnsSyncMayRetain(
+                        !walletBackgroundSynchronizationMayRetain(
                             hasActiveReadOnlyHnsSync = hasActiveWalletHnsSynchronization(),
-                            foregroundServiceActive = walletHnsForegroundSyncServiceActive,
+                            hasActiveReadOnlyBitcoinSync = walletBitcoinSyncInProgress,
+                            foregroundServiceActive = walletForegroundSyncServiceActive,
                         )
                 ) {
                     walletBackgroundRetirement = null
@@ -3709,7 +3718,7 @@ class WalletActivity : ComponentActivity() {
         lifecycleEpoch += 1
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
-        stopWalletHnsForegroundSyncService()
+        stopWalletForegroundSyncService()
         storageOwner?.let(ProcessWalletStorageOwnership::retire)
         storageOwner = null
         dismissWalletDeletionDialog()
@@ -4563,6 +4572,13 @@ internal fun estimateBitcoinSyncRemainingMillis(
 
 internal fun walletBitcoinOperationMayStart(bitcoinSyncInProgress: Boolean): Boolean =
     !bitcoinSyncInProgress
+
+internal fun walletBackgroundSynchronizationMayRetain(
+    hasActiveReadOnlyHnsSync: Boolean,
+    hasActiveReadOnlyBitcoinSync: Boolean,
+    foregroundServiceActive: Boolean,
+): Boolean =
+    foregroundServiceActive && (hasActiveReadOnlyHnsSync || hasActiveReadOnlyBitcoinSync)
 
 internal fun formatBitcoinSyncDuration(milliseconds: Long): String {
     val seconds = (milliseconds.coerceAtLeast(0L) / 1_000L)

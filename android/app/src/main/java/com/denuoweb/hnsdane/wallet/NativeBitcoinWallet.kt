@@ -37,6 +37,10 @@ internal data class NativeBitcoinSynchronization(
 
 internal data class NativeBitcoinSyncProgress(
     val successfulHandshakes: Int,
+    val requiredPeerCount: Int,
+    val connectionFailures: Int,
+    val peerTimeouts: Int,
+    val incompatiblePeers: Int,
     val connectionsMet: Boolean,
     val chainHeight: Long?,
     val completionBasisPoints: Long,
@@ -107,10 +111,19 @@ internal object NativeBitcoinWalletBundle {
 
     fun syncProgress(bundle: ByteArray): NativeBitcoinSyncProgress? = parse(bundle) { json ->
         if (!hasExactKeys(json, setOf(
-            "successfulHandshakes", "connectionsMet", "chainHeight",
+            "successfulHandshakes", "requiredPeerCount", "connectionFailures",
+            "peerTimeouts", "incompatiblePeers", "connectionsMet", "chainHeight",
             "completionBasisPoints",
         ))) return@parse null
         val handshakes = json.optInt("successfulHandshakes", -1).takeIf { it in 0..255 }
+            ?: return@parse null
+        val requiredPeers = json.optInt("requiredPeerCount", -1).takeIf { it in 1..255 }
+            ?: return@parse null
+        val connectionFailures = json.optInt("connectionFailures", -1).takeIf { it in 0..65_535 }
+            ?: return@parse null
+        val peerTimeouts = json.optInt("peerTimeouts", -1).takeIf { it in 0..65_535 }
+            ?: return@parse null
+        val incompatiblePeers = json.optInt("incompatiblePeers", -1).takeIf { it in 0..65_535 }
             ?: return@parse null
         val connectionsMet = when (json.opt("connectionsMet")) {
             true -> true
@@ -123,6 +136,10 @@ internal object NativeBitcoinWalletBundle {
             ?.takeIf { it <= 10_000L } ?: return@parse null
         NativeBitcoinSyncProgress(
             handshakes,
+            requiredPeers,
+            connectionFailures,
+            peerTimeouts,
+            incompatiblePeers,
             connectionsMet,
             chainHeight,
             completion,

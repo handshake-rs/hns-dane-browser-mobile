@@ -12,6 +12,14 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
+    fun background_retention_requires_a_visible_service_for_either_read_only_sync() {
+        assertEquals(true, walletBackgroundSynchronizationMayRetain(true, false, true))
+        assertEquals(true, walletBackgroundSynchronizationMayRetain(false, true, true))
+        assertEquals(false, walletBackgroundSynchronizationMayRetain(false, true, false))
+        assertEquals(false, walletBackgroundSynchronizationMayRetain(false, false, true))
+    }
+
+    @Test
     fun eta_waits_for_a_meaningful_measurement_window() {
         assertNull(estimateBitcoinSyncRemainingMillis(40, 200, 20, 4_999))
         assertNull(estimateBitcoinSyncRemainingMillis(40, 200, 20, 10_000))

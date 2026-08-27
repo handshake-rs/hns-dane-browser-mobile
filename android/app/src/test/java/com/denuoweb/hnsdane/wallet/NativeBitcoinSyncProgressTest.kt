@@ -10,10 +10,14 @@ class NativeBitcoinSyncProgressTest {
     @Test
     fun parses_the_closed_bounded_progress_projection() {
         val progress = NativeBitcoinWalletBundle.syncProgress(bundle(
-            """{"successfulHandshakes":2,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":7200}""",
+            """{"successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":4,"peerTimeouts":1,"incompatiblePeers":2,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":7200}""",
         ))
         requireNotNull(progress)
         assertEquals(2, progress.successfulHandshakes)
+        assertEquals(3, progress.requiredPeerCount)
+        assertEquals(4, progress.connectionFailures)
+        assertEquals(1, progress.peerTimeouts)
+        assertEquals(2, progress.incompatiblePeers)
         assertEquals(910000L, progress.chainHeight)
         assertEquals(7200L, progress.completionBasisPoints)
     }
@@ -21,10 +25,10 @@ class NativeBitcoinSyncProgressTest {
     @Test
     fun rejects_impossible_or_extended_progress() {
         assertNull(NativeBitcoinWalletBundle.syncProgress(bundle(
-            """{"successfulHandshakes":2,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":10001}""",
+            """{"successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":0,"peerTimeouts":0,"incompatiblePeers":0,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":10001}""",
         )))
         assertNull(NativeBitcoinWalletBundle.syncProgress(bundle(
-            """{"successfulHandshakes":2,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":20,"peer":"untrusted"}""",
+            """{"successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":0,"peerTimeouts":0,"incompatiblePeers":0,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":20,"peer":"untrusted"}""",
         )))
     }
 
