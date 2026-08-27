@@ -1528,7 +1528,17 @@ class WalletActivity : ComponentActivity() {
         }
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
-        if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
+        // A refresh must not erase the last authenticated projection before
+        // its replacement exists. Keep it visible, but invalidate its
+        // authority fence immediately so a stale balance can never prepare a
+        // send while this round is pending or after a failed refresh.
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_syncing_reads),
+                resetReads = false,
+            )
+        ) return
+        invalidateReadSnapshotAuthority()
         val presentationLease = WalletHnsLiveSyncPresentationCache.begin(walletNetwork.id)
         walletHnsSyncInProgress = true
         startWalletHnsForegroundSyncService()
@@ -1599,7 +1609,7 @@ class WalletActivity : ComponentActivity() {
                     }
                     synchronization == null -> {
                         Log.w(TAG, "Direct HNS synchronization returned no authenticated result")
-                        resetReadProjection(R.string.wallet_reads_sync_failed)
+                        retainReadProjectionAfterRefreshFailure()
                     }
                     synchronization.snapshot != null -> {
                         Log.i(TAG, "Direct HNS synchronization reached a verified wallet snapshot")
@@ -1615,7 +1625,7 @@ class WalletActivity : ComponentActivity() {
                         renderReadCatchup(synchronization.catchup)
                         scheduleHnsCatchupRetry(lease, handle, epoch, authorityGeneration)
                     }
-                    else -> resetReadProjection(R.string.wallet_reads_sync_failed)
+                    else -> retainReadProjectionAfterRefreshFailure()
                 }
                 finishWalletHnsForegroundSyncIfIdle()
             }
@@ -3753,6 +3763,28 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_shakedex_queries_unavailable)
             }
             else -> getString(R.string.wallet_shakedex_queries_unavailable)
+        }
+    }
+
+    /**
+     * Preserve a verified projection for display while making it unusable as
+     * current value authority. The exact handle/generation/epoch join is what
+     * gates send preparation, so clearing only that join is fail-closed
+     * without replacing useful balance and history with an empty screen.
+     */
+    private fun invalidateReadSnapshotAuthority() {
+        latestReadSnapshotHandle = INVALID_HANDLE
+        latestReadSnapshotAuthorityGeneration = 0L
+        latestReadSnapshotEpoch = 0L
+    }
+
+    private fun retainReadProjectionAfterRefreshFailure() {
+        invalidateReadSnapshotAuthority()
+        if (latestReadSnapshot == null) {
+            resetReadProjection(R.string.wallet_reads_sync_failed)
+        } else {
+            readStatusView.text = getString(R.string.wallet_reads_refresh_failed_retained)
+            renderWalletDashboard()
         }
     }
 
