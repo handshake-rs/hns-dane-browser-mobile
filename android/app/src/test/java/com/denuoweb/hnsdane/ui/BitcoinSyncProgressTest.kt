@@ -6,6 +6,12 @@ import org.junit.Test
 
 class BitcoinSyncProgressTest {
     @Test
+    fun only_another_bitcoin_operation_is_gated_by_the_bitcoin_sync_flag() {
+        assertEquals(true, walletBitcoinOperationMayStart(false))
+        assertEquals(false, walletBitcoinOperationMayStart(true))
+    }
+
+    @Test
     fun eta_waits_for_a_meaningful_measurement_window() {
         assertNull(estimateBitcoinSyncRemainingMillis(40, 200, 20, 4_999))
         assertNull(estimateBitcoinSyncRemainingMillis(40, 200, 20, 10_000))

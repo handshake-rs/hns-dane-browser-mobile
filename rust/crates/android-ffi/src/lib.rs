@@ -308,7 +308,6 @@ enum AndroidWalletController {
     DirectValue {
         coordinator: HnsDirectPeerCoordinator,
         controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
-        bitcoin: Box<MobileBitcoinValueController>,
         denuo_sessions: MobileDenuoSessionController,
         denuo_listener: Option<HnsDirectDenuoListener>,
         denuo_peer: Option<HnsDirectDenuoPeer>,
@@ -422,27 +421,13 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => controller.unlock(key).is_ok(),
             Self::Reads(controller) => controller.unlock(key).is_ok(),
             Self::Value(controller) => controller.unlock(key).is_ok(),
-            Self::DirectValue {
-                controller,
-                bitcoin,
-                ..
-            } => {
+            Self::DirectValue { controller, .. } => {
                 if let Err(error) = controller.unlock(key) {
                     android_log_error(&format!(
                         "wallet-owned direct HNS unlock failed closed: {error}"
                     ));
                     false
                 } else {
-                    // Bitcoin is an adjacent runtime, not an authority for
-                    // the HNS account or its receive address. Keep HNS
-                    // available if Kyoto cannot start; its own UI remains
-                    // unavailable until activation succeeds.
-                    if let Err(error) = bitcoin.activate() {
-                        android_log_error(&format!(
-                            "wallet-owned direct Bitcoin activation is unavailable; HNS remains unlocked: {error}"
-                        ));
-                        let _ = bitcoin.deactivate();
-                    }
                     true
                 }
             }
@@ -466,18 +451,13 @@ impl AndroidWalletController {
             denuo_peer.take();
             denuo_listener.take();
         }
-        let bitcoin_stopped = match self {
-            Self::DirectValue { bitcoin, .. } => bitcoin.deactivate().is_ok(),
-            _ => true,
-        };
-        let locked = match self {
+        match self {
             Self::Lifecycle(controller) => controller.lock().is_ok(),
             Self::Reads(controller) => controller.lock().is_ok(),
             Self::Value(controller) => controller.lock().is_ok(),
             Self::DirectValue { controller, .. } => controller.lock().is_ok(),
             Self::Failed => false,
-        };
-        bitcoin_stopped && locked
+        }
     }
 
     fn install_hns_reads(&mut self, backend: HnsNodeRpcBackend) -> bool {
@@ -542,12 +522,12 @@ impl AndroidWalletController {
         rollback_floor: HnsLightFloor,
         bootstrap_snapshot_path: Option<&Path>,
         bitcoin_data_dir: PathBuf,
-    ) -> bool {
+    ) -> Option<MobileBitcoinValueController> {
         if !matches!(self, Self::Lifecycle(_)) {
-            return false;
+            return None;
         }
         let Self::Lifecycle(lifecycle) = self else {
-            return false;
+            return None;
         };
         let requires_genesis_bootstrap = lifecycle.account_config().network == HnsNetwork::Mainnet
             && lifecycle.account_config().birthday_height
@@ -556,7 +536,7 @@ impl AndroidWalletController {
             android_log_error(
                 "wallet-owned direct HNS bootstrap asset was unavailable for a checkpoint-born wallet",
             );
-            return false;
+            return None;
         }
         let bootstrap_headers = if let Some(path) = bootstrap_snapshot_path {
             if requires_genesis_bootstrap {
@@ -566,7 +546,7 @@ impl AndroidWalletController {
                         android_log_error(&format!(
                             "wallet-owned direct HNS bootstrap rejected before controller replacement: {error}"
                         ));
-                        return false;
+                        return None;
                     }
                 }
             } else {
@@ -584,7 +564,7 @@ impl AndroidWalletController {
         // wallet or losing its persisted scan checkpoint.
         let coordinator_result = {
             let Self::Lifecycle(lifecycle) = self else {
-                return false;
+                return None;
             };
             let peer_config = android_direct_hns_peer_config(lifecycle.account_config().network);
             match bootstrap_headers {
@@ -610,12 +590,12 @@ impl AndroidWalletController {
                 android_log_error(&format!(
                     "wallet-owned direct HNS coordinator installation failed closed: {error}"
                 ));
-                return false;
+                return None;
             }
         };
         let lifecycle = match std::mem::replace(self, Self::Failed) {
             Self::Lifecycle(controller) => controller,
-            _ => return false,
+            _ => return None,
         };
         let backend = coordinator.backend().clone();
         match lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend) {
@@ -630,7 +610,7 @@ impl AndroidWalletController {
                         android_log_error(&format!(
                             "wallet-owned direct Bitcoin controller installation failed closed: {error}"
                         ));
-                        return false;
+                        return None;
                     }
                 };
                 let denuo_sessions = match controller.direct_denuo_session_controller() {
@@ -639,24 +619,23 @@ impl AndroidWalletController {
                         android_log_error(&format!(
                             "wallet-owned direct Denuo session controller installation failed closed: {error}"
                         ));
-                        return false;
+                        return None;
                     }
                 };
                 *self = Self::DirectValue {
                     coordinator,
                     controller: Box::new(controller),
-                    bitcoin: Box::new(bitcoin),
                     denuo_sessions,
                     denuo_listener: None,
                     denuo_peer: None,
                 };
-                true
+                Some(bitcoin)
             }
             Err(error) => {
                 android_log_error(&format!(
                     "wallet-owned direct HNS value controller installation failed closed: {error}"
                 ));
-                false
+                None
             }
         }
     }
@@ -670,151 +649,6 @@ impl AndroidWalletController {
 
     const fn has_hns_value(&self) -> bool {
         matches!(self, Self::Value(_) | Self::DirectValue { .. })
-    }
-
-    fn has_bitcoin_value(&self) -> bool {
-        match self {
-            Self::DirectValue { bitcoin, .. } => bitcoin.is_active(),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => false,
-        }
-    }
-
-    fn bitcoin_shutdown_handle(&self) -> Option<hns_wallet_mobile::MobileBitcoinShutdownHandle> {
-        match self {
-            Self::DirectValue { bitcoin, .. } => bitcoin.shutdown_handle(),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => None,
-        }
-    }
-
-    fn bitcoin_sync_progress_handle(
-        &self,
-    ) -> Option<hns_wallet_mobile::MobileBitcoinSyncProgressHandle> {
-        match self {
-            Self::DirectValue { bitcoin, .. } => bitcoin.sync_progress_handle(),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => None,
-        }
-    }
-
-    fn bitcoin_snapshot(&mut self) -> Option<Vec<u8>> {
-        let snapshot = match self {
-            Self::DirectValue { bitcoin, .. } => bitcoin.snapshot(),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
-        };
-        let snapshot = match snapshot {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                android_log_error(&format!("wallet Bitcoin snapshot failed: {error}"));
-                return None;
-            }
-        };
-        let mut json = serde_json::to_vec(&snapshot).ok()?;
-        let bundle = bitcoin_json_bundle(json.as_slice());
-        json.fill(0);
-        bundle
-    }
-
-    fn next_bitcoin_receive_address(&mut self) -> Option<Vec<u8>> {
-        let result = match self {
-            Self::DirectValue { bitcoin, .. } => {
-                let address = bitcoin.next_receive_address();
-                let snapshot = bitcoin.snapshot();
-                match (address, snapshot) {
-                    (Ok(address), Ok(snapshot)) => Ok((address, snapshot)),
-                    (Err(error), _) | (_, Err(error)) => Err(error),
-                }
-            }
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
-        };
-        let (address, snapshot) = match result {
-            Ok(result) => result,
-            Err(error) => {
-                android_log_error(&format!("wallet Bitcoin receive address failed: {error}"));
-                return None;
-            }
-        };
-        let json = serde_json::to_vec(&json!({
-            "receiveAddress": address,
-            "snapshot": snapshot,
-        }))
-        .ok()?;
-        let bundle = bitcoin_json_bundle(json.as_slice());
-        let mut json = json;
-        json.fill(0);
-        bundle
-    }
-
-    fn synchronize_bitcoin(&mut self) -> Option<Vec<u8>> {
-        let (receipt, snapshot) = match self {
-            Self::DirectValue { bitcoin, .. } => bitcoin.synchronize_once(),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
-        }
-        .map_err(|error| {
-            android_log_error(&format!("wallet Bitcoin synchronization failed: {error}"));
-            error
-        })
-        .ok()?;
-        let json = serde_json::to_vec(&json!({
-            "snapshot": snapshot,
-            "sequence": receipt.sequence,
-            "checkpointHeight": receipt.checkpoint.height,
-            "connectedPeerCount": receipt.connected_peer_count,
-            "requiredPeerCount": receipt.required_peer_count,
-        }))
-        .ok()?;
-        let bundle = bitcoin_json_bundle(json.as_slice());
-        let mut json = json;
-        json.fill(0);
-        bundle
-    }
-
-    fn prepare_bitcoin_send(
-        &mut self,
-        destination: String,
-        amount_sats: u64,
-        maximum_fee_sats: u64,
-    ) -> Option<Vec<u8>> {
-        let approval = match self {
-            Self::DirectValue { bitcoin, .. } => {
-                bitcoin.prepare_send(destination.as_str(), amount_sats, maximum_fee_sats)
-            }
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
-        }
-        .map_err(|error| {
-            android_log_error(&format!("wallet Bitcoin send preparation failed: {error}"))
-        })
-        .ok()?;
-        let mut json = serde_json::to_vec(&approval).ok()?;
-        let bundle = bitcoin_json_bundle(json.as_slice());
-        json.fill(0);
-        if bundle.is_none() {
-            let _ = self.lock();
-        }
-        bundle
-    }
-
-    fn approve_bitcoin_send(&mut self, action_token: &str) -> Option<Vec<u8>> {
-        let receipt = match self {
-            Self::DirectValue { bitcoin, .. } => bitcoin.approve_send(action_token),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => return None,
-        }
-        .map_err(|error| {
-            android_log_error(&format!("wallet Bitcoin send approval failed: {error}"))
-        })
-        .ok()?;
-        let mut json = serde_json::to_vec(&receipt).ok()?;
-        let bundle = bitcoin_json_bundle(json.as_slice());
-        json.fill(0);
-        if bundle.is_none() {
-            let _ = self.lock();
-        }
-        bundle
-    }
-
-    fn reject_bitcoin_send(&mut self, action_token: &str) -> bool {
-        match self {
-            Self::DirectValue { bitcoin, .. } => bitcoin.reject_send(action_token).is_ok(),
-            Self::Lifecycle(_) | Self::Reads(_) | Self::Value(_) | Self::Failed => false,
-        }
     }
 
     fn direct_hns_rollback_floor(&self) -> Option<HnsLightFloor> {
@@ -1660,17 +1494,114 @@ fn wallet_name_import_is_invalid(error: &MobileWalletError) -> bool {
     )
 }
 
+fn android_bitcoin_snapshot(controller: &MobileBitcoinValueController) -> Option<Vec<u8>> {
+    let snapshot = controller
+        .snapshot()
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin snapshot failed: {error}"));
+        })
+        .ok()?;
+    let mut json = serde_json::to_vec(&snapshot).ok()?;
+    let bundle = bitcoin_json_bundle(json.as_slice());
+    json.fill(0);
+    bundle
+}
+
+fn android_next_bitcoin_receive_address(
+    controller: &mut MobileBitcoinValueController,
+) -> Option<Vec<u8>> {
+    let address = controller
+        .next_receive_address()
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin receive address failed: {error}"));
+        })
+        .ok()?;
+    let snapshot = controller
+        .snapshot()
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin receive snapshot failed: {error}"));
+        })
+        .ok()?;
+    let mut json = serde_json::to_vec(&json!({
+        "receiveAddress": address,
+        "snapshot": snapshot,
+    }))
+    .ok()?;
+    let bundle = bitcoin_json_bundle(json.as_slice());
+    json.fill(0);
+    bundle
+}
+
+fn android_synchronize_bitcoin(controller: &mut MobileBitcoinValueController) -> Option<Vec<u8>> {
+    let (receipt, snapshot) = controller
+        .synchronize_once()
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin synchronization failed: {error}"));
+        })
+        .ok()?;
+    let mut json = serde_json::to_vec(&json!({
+        "snapshot": snapshot,
+        "sequence": receipt.sequence,
+        "checkpointHeight": receipt.checkpoint.height,
+        "connectedPeerCount": receipt.connected_peer_count,
+        "requiredPeerCount": receipt.required_peer_count,
+    }))
+    .ok()?;
+    let bundle = bitcoin_json_bundle(json.as_slice());
+    json.fill(0);
+    bundle
+}
+
+fn android_prepare_bitcoin_send(
+    controller: &mut MobileBitcoinValueController,
+    destination: &str,
+    amount_sats: u64,
+    maximum_fee_sats: u64,
+) -> Option<Vec<u8>> {
+    let approval = controller
+        .prepare_send(destination, amount_sats, maximum_fee_sats)
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin send preparation failed: {error}"));
+        })
+        .ok()?;
+    let mut json = serde_json::to_vec(&approval).ok()?;
+    let bundle = bitcoin_json_bundle(json.as_slice());
+    json.fill(0);
+    bundle
+}
+
+fn android_approve_bitcoin_send(
+    controller: &mut MobileBitcoinValueController,
+    action_token: &str,
+) -> Option<Vec<u8>> {
+    let receipt = controller
+        .approve_send(action_token)
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin send approval failed: {error}"));
+        })
+        .ok()?;
+    let mut json = serde_json::to_vec(&receipt).ok()?;
+    let bundle = bitcoin_json_bundle(json.as_slice());
+    json.fill(0);
+    bundle
+}
+
 struct AndroidWalletRecord {
     active: AtomicBool,
     controller: Arc<Mutex<AndroidWalletController>>,
+    // Kyoto and Bitcoin value state have an independent exclusion domain.
+    // A compact-filter scan may hold this mutex for a bounded cycle without
+    // preventing HNS reads, names, sends, or Denuo service from acquiring the
+    // HNS controller mutex above.
+    bitcoin_controller: Mutex<Option<MobileBitcoinValueController>>,
     pending_recovery: Mutex<Option<SensitiveUtf16>>,
     // This narrow mailbox remains available while `controller` is held by a
     // bounded direct-peer synchronization. It contains only public progress
     // metadata and intentionally never shares wallet read projections.
     hns_live_sync_progress: Mutex<Option<AndroidHnsLiveSyncProgress>>,
-    // Kyoto synchronization owns `controller` for a bounded cycle. Keep only
-    // its authority-free stop signal outside that mutex so lock/destroy can
-    // wake the cycle before waiting to retire decrypted wallet state.
+    // Kyoto synchronization owns `bitcoin_controller` for a bounded cycle.
+    // Keep its authority-free stop signal outside both controller mutexes so
+    // lock/destroy can wake the cycle before waiting to retire wallet state.
     bitcoin_shutdown: Mutex<Option<hns_wallet_mobile::MobileBitcoinShutdownHandle>>,
     bitcoin_sync_progress: Mutex<Option<hns_wallet_mobile::MobileBitcoinSyncProgressHandle>>,
     hns_reads_installable: bool,
@@ -1691,6 +1622,7 @@ impl AndroidWalletRecord {
         Self {
             active: AtomicBool::new(true),
             controller: Arc::new(Mutex::new(AndroidWalletController::Lifecycle(controller))),
+            bitcoin_controller: Mutex::new(None),
             pending_recovery: Mutex::new(recovery),
             hns_live_sync_progress: Mutex::new(None),
             bitcoin_shutdown: Mutex::new(None),
@@ -1706,6 +1638,27 @@ impl AndroidWalletRecord {
 
     fn controller_try_if_active(&self) -> Option<MutexGuard<'_, AndroidWalletController>> {
         try_lock_if_active(&self.active, self.controller.as_ref())
+    }
+
+    fn bitcoin_if_active(&self) -> Option<MutexGuard<'_, Option<MobileBitcoinValueController>>> {
+        lock_if_active(&self.active, &self.bitcoin_controller)
+    }
+
+    fn bitcoin_try_if_active(
+        &self,
+    ) -> Option<MutexGuard<'_, Option<MobileBitcoinValueController>>> {
+        try_lock_if_active(&self.active, &self.bitcoin_controller)
+    }
+
+    fn install_bitcoin_controller(&self, controller: MobileBitcoinValueController) -> bool {
+        let Some(mut slot) = self.bitcoin_if_active() else {
+            return false;
+        };
+        if slot.is_some() {
+            return false;
+        }
+        *slot = Some(controller);
+        true
     }
 
     fn pending_recovery_if_active(&self) -> Option<MutexGuard<'_, Option<SensitiveUtf16>>> {
@@ -1739,10 +1692,10 @@ impl AndroidWalletRecord {
     }
 
     fn request_bitcoin_shutdown(&self) {
-        if let Ok(mut current) = self.bitcoin_shutdown.lock() {
-            if let Some(handle) = current.take() {
-                let _ = handle.request_shutdown();
-            }
+        if let Ok(mut current) = self.bitcoin_shutdown.lock()
+            && let Some(handle) = current.take()
+        {
+            let _ = handle.request_shutdown();
         }
     }
 
@@ -1762,6 +1715,24 @@ impl AndroidWalletRecord {
         let bundle = bitcoin_json_bundle(json.as_slice());
         json.fill(0);
         bundle
+    }
+
+    /// Stop Bitcoin first, release that exclusion domain, and only then lock
+    /// HNS. No path may retain both controller mutexes at once.
+    fn lock_wallet_if_active(&self) -> bool {
+        self.request_bitcoin_shutdown();
+        let bitcoin_stopped = {
+            self.bitcoin_if_active()
+                .and_then(|mut bitcoin| {
+                    bitcoin.as_mut().map(|bitcoin| bitcoin.deactivate().is_ok())
+                })
+                .unwrap_or(true)
+        };
+        let Some(mut controller) = self.controller_if_active() else {
+            return false;
+        };
+        let hns_locked = controller.lock();
+        bitcoin_stopped && hns_locked
     }
 }
 
@@ -4507,12 +4478,28 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
-        controller.install_direct_hns_value(
+        let bitcoin = controller.install_direct_hns_value(
             &database_key,
             rollback_floor,
             bootstrap_snapshot_path.as_deref(),
             record.bitcoin_data_dir.clone(),
-        )
+        );
+        drop(controller);
+        match bitcoin {
+            Some(bitcoin) => {
+                if record.install_bitcoin_controller(bitcoin) {
+                    true
+                } else {
+                    // HNS was already replaced with the direct-value
+                    // controller. If its paired Bitcoin domain cannot be
+                    // installed, leave the resulting wallet closed instead of
+                    // exposing a partial setup.
+                    let _ = record.lock_wallet_if_active();
+                    false
+                }
+            }
+            None => false,
+        }
     }))
     .unwrap_or(false)
     .into()
@@ -4704,10 +4691,12 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(record) = wallet_from_handle(handle) else {
             return false;
         };
-        let Some(controller) = record.controller_try_if_active() else {
+        let Some(bitcoin) = record.bitcoin_try_if_active() else {
             return false;
         };
-        controller.has_bitcoin_value()
+        bitcoin
+            .as_ref()
+            .is_some_and(MobileBitcoinValueController::is_active)
     }))
     .unwrap_or(false)
     .into()
@@ -4721,8 +4710,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
-        let mut bundle = controller.bitcoin_snapshot()?;
+        let bitcoin = record.bitcoin_try_if_active()?;
+        let mut bundle = android_bitcoin_snapshot(bitcoin.as_ref()?)?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -4740,8 +4729,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
-        let mut bundle = controller.next_bitcoin_receive_address()?;
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        let mut bundle = android_next_bitcoin_receive_address(bitcoin.as_mut()?)?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -4759,8 +4748,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
-        let mut bundle = controller.synchronize_bitcoin()?;
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        let mut bundle = android_synchronize_bitcoin(bitcoin.as_mut()?)?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -4809,14 +4798,15 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let amount_sats = canonical_nonzero_sats(amount_sats)?;
         let maximum_fee_sats = canonical_nonzero_sats(maximum_fee_sats)?;
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
-        let mut bundle =
-            controller.prepare_bitcoin_send(destination.take(), amount_sats, maximum_fee_sats)?;
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        let mut bundle = android_prepare_bitcoin_send(
+            bitcoin.as_mut()?,
+            destination.take().as_str(),
+            amount_sats,
+            maximum_fee_sats,
+        )?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
-        if array.is_none() {
-            let _ = controller.lock();
-        }
         array.map(JByteArray::into_raw)
     }))
     .ok()
@@ -4839,13 +4829,10 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         )?;
         let token = canonical_action_token(token)?;
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
-        let mut bundle = controller.approve_bitcoin_send(token.0.as_str())?;
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        let mut bundle = android_approve_bitcoin_send(bitcoin.as_mut()?, token.0.as_str())?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
-        if array.is_none() {
-            let _ = controller.lock();
-        }
         array.map(JByteArray::into_raw)
     }))
     .ok()
@@ -4868,8 +4855,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         )?;
         let token = canonical_action_token(token)?;
         let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
-        Some(controller.reject_bitcoin_send(token.0.as_str()))
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        Some(bitcoin.as_mut()?.reject_send(token.0.as_str()).is_ok())
     }))
     .ok()
     .flatten()
@@ -5194,13 +5181,29 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return false;
         };
         let unlocked = controller.unlock(&key);
-        let bitcoin_shutdown = unlocked
-            .then(|| controller.bitcoin_shutdown_handle())
-            .flatten();
-        let bitcoin_sync_progress = unlocked
-            .then(|| controller.bitcoin_sync_progress_handle())
-            .flatten();
         drop(controller);
+        let (bitcoin_shutdown, bitcoin_sync_progress) = if unlocked {
+            let Some(mut bitcoin) = record.bitcoin_if_active() else {
+                // Unlock is an all-or-closed transition for a direct wallet.
+                // Re-lock HNS if its Bitcoin exclusion domain is unavailable.
+                let _ = record.lock_wallet_if_active();
+                return false;
+            };
+            let Some(bitcoin) = bitcoin.as_mut() else {
+                return unlocked;
+            };
+            if let Err(error) = bitcoin.activate() {
+                android_log_error(&format!(
+                    "wallet-owned direct Bitcoin activation is unavailable; HNS remains unlocked: {error}"
+                ));
+                let _ = bitcoin.deactivate();
+                (None, None)
+            } else {
+                (bitcoin.shutdown_handle(), bitcoin.sync_progress_handle())
+            }
+        } else {
+            (None, None)
+        };
         record.replace_bitcoin_shutdown(bitcoin_shutdown);
         record.replace_bitcoin_sync_progress(bitcoin_sync_progress);
         unlocked
@@ -5219,11 +5222,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(record) = wallet_from_handle(handle) else {
             return false;
         };
-        record.request_bitcoin_shutdown();
-        let Some(mut controller) = record.controller_if_active() else {
-            return false;
-        };
-        controller.lock()
+        record.lock_wallet_if_active()
     }))
     .unwrap_or(false)
     .into()
@@ -5263,6 +5262,12 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         };
         record.deactivate();
         record.request_bitcoin_shutdown();
+        if let Ok(mut bitcoin) = record.bitcoin_controller.lock() {
+            if let Some(bitcoin) = bitcoin.as_mut() {
+                let _ = bitcoin.deactivate();
+            }
+            bitcoin.take();
+        }
         if let Ok(mut pending) = record.pending_recovery.lock() {
             pending.take();
         }
@@ -5325,6 +5330,20 @@ mod tests {
         assert!(try_lock_if_active(&active, &state).is_some());
         active.store(false, Ordering::Release);
         assert!(try_lock_if_active(&active, &state).is_none());
+    }
+
+    #[test]
+    fn bitcoin_contention_does_not_contend_with_the_hns_controller_domain() {
+        let active = AtomicBool::new(true);
+        let hns_controller = Mutex::new(());
+        let bitcoin_controller = Mutex::new(());
+        let bitcoin_sync = bitcoin_controller.lock().expect("hold Bitcoin domain");
+
+        assert!(try_lock_if_active(&active, &hns_controller).is_some());
+        assert!(try_lock_if_active(&active, &bitcoin_controller).is_none());
+
+        drop(bitcoin_sync);
+        assert!(try_lock_if_active(&active, &bitcoin_controller).is_some());
     }
 
     #[test]

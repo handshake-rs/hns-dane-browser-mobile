@@ -280,7 +280,7 @@ class WalletActivity : ComponentActivity() {
         walletBackgroundRetirement?.set(false)
         walletBackgroundRetirement = null
         if (retainingInAppWalletSession && currentStorageLease() != null && walletHandle != INVALID_HANDLE) {
-            Log.i(TAG, "Resuming retained direct HNS sync on the existing WalletActivity")
+            Log.i(TAG, "Resuming retained direct wallet sync on the existing WalletActivity")
             // Keep the controller, peer sessions, and retry generation that
             // were already progressing while another app screen was visible.
             // In particular, do not advance lifecycleEpoch here: an in-flight
@@ -365,7 +365,9 @@ class WalletActivity : ComponentActivity() {
         if (hadUnconfirmedWallet && lease != null) {
             deleteWalletFiles()
         }
-        if (!busy && lease != null) releaseStorageLeaseAfterOperation(lease)
+        if (!busy && !walletBitcoinSyncInProgress && lease != null) {
+            releaseStorageLeaseAfterOperation(lease)
+        }
         super.onStop()
     }
 
@@ -1689,6 +1691,10 @@ class WalletActivity : ComponentActivity() {
     private fun revealBitcoinReceiveAddress() {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
+        if (!walletBitcoinOperationMayStart(walletBitcoinSyncInProgress)) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
+            return
+        }
         if (handle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(handle)) {
             resetBitcoinProjection()
             return
@@ -1716,11 +1722,18 @@ class WalletActivity : ComponentActivity() {
     private fun synchronizeBitcoin() {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
+        if (!walletBitcoinOperationMayStart(walletBitcoinSyncInProgress)) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_already_running)
+            return
+        }
+        if (busy) {
+            showWalletBusyFeedback()
+            return
+        }
         if (handle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(handle)) {
             resetBitcoinProjection()
             return
         }
-        if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads), resetReads = false)) return
         walletBitcoinSyncInProgress = true
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_syncing)
         val epoch = lifecycleEpoch
@@ -1731,7 +1744,6 @@ class WalletActivity : ComponentActivity() {
                 walletBitcoinSyncInProgress = false
                 bitcoinSyncProgressWatcher?.set(false)
                 bitcoinSyncProgressWatcher = null
-                busy = false
                 if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
                     releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
@@ -1952,26 +1964,36 @@ class WalletActivity : ComponentActivity() {
             .show()
     }
 
-    private fun showBitcoinSendForm() = showWalletActionForm(
-        R.string.row_wallet_bitcoin_send,
-        listOf(
-            WalletActionInput(R.string.wallet_bitcoin_send_destination_hint),
-            WalletActionInput(R.string.wallet_bitcoin_send_amount_hint, numeric = true),
-            WalletActionInput(R.string.wallet_bitcoin_send_fee_hint, numeric = true),
-        ),
-    ) { values ->
-        val amountSats = values[1].toLongOrNull()?.takeIf { it > 0L }
-        val maximumFeeSats = values[2].toLongOrNull()?.takeIf { it > 0L }
-        if (amountSats == null || maximumFeeSats == null) {
-            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_prepare_failed)
-            return@showWalletActionForm
+    private fun showBitcoinSendForm() {
+        if (!walletBitcoinOperationMayStart(walletBitcoinSyncInProgress)) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
+            return
         }
-        prepareBitcoinSend(values[0], amountSats, maximumFeeSats)
+        showWalletActionForm(
+            R.string.row_wallet_bitcoin_send,
+            listOf(
+                WalletActionInput(R.string.wallet_bitcoin_send_destination_hint),
+                WalletActionInput(R.string.wallet_bitcoin_send_amount_hint, numeric = true),
+                WalletActionInput(R.string.wallet_bitcoin_send_fee_hint, numeric = true),
+            ),
+        ) { values ->
+            val amountSats = values[1].toLongOrNull()?.takeIf { it > 0L }
+            val maximumFeeSats = values[2].toLongOrNull()?.takeIf { it > 0L }
+            if (amountSats == null || maximumFeeSats == null) {
+                bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_prepare_failed)
+                return@showWalletActionForm
+            }
+            prepareBitcoinSend(values[0], amountSats, maximumFeeSats)
+        }
     }
 
     private fun prepareBitcoinSend(destination: String, amountSats: Long, maximumFeeSats: Long) {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
+        if (!walletBitcoinOperationMayStart(walletBitcoinSyncInProgress)) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
+            return
+        }
         if (handle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(handle)) {
             bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_unavailable)
             return
@@ -3242,7 +3264,7 @@ class WalletActivity : ComponentActivity() {
                 resetReadProjection(R.string.wallet_reads_unavailable)
             }
         }
-        resetBitcoinProjection()
+        if (!walletBitcoinSyncInProgress) resetBitcoinProjection()
         refreshDirectDenuoStatus()
         renderWalletDashboard()
     }
@@ -3499,7 +3521,9 @@ class WalletActivity : ComponentActivity() {
         val retirementStarted = lease != null && retireControllerAfterNativeOperation(lease)
         if (!retirementStarted) destroyController()
         if (hadUnconfirmedWallet && lease != null) deleteWalletFiles()
-        if (!busy && lease != null) releaseStorageLeaseAfterOperation(lease)
+        if (!busy && !walletBitcoinSyncInProgress && lease != null) {
+            releaseStorageLeaseAfterOperation(lease)
+        }
         statusView.text = getString(R.string.wallet_status_unavailable)
         accountView.text = getString(R.string.wallet_account_unavailable)
         resetReadProjection(R.string.wallet_reads_unavailable)
@@ -3555,8 +3579,7 @@ class WalletActivity : ComponentActivity() {
         val handle = walletHandle
         if (
             isFinishing || isDestroyed || handle == INVALID_HANDLE ||
-                unconfirmedDatabaseKey != null ||
-                (busy && !walletHnsSyncInProgress && !walletBitcoinSyncInProgress)
+                unconfirmedDatabaseKey != null || (busy && !walletHnsSyncInProgress)
         ) {
             return false
         }
@@ -3641,7 +3664,9 @@ class WalletActivity : ComponentActivity() {
         val retirementStarted = lease != null && retireControllerAfterNativeOperation(lease)
         if (!retirementStarted) destroyController()
         resetReadProjection(R.string.wallet_reads_unavailable)
-        if (!busy && lease != null) releaseStorageLeaseAfterOperation(lease)
+        if (!busy && !walletBitcoinSyncInProgress && lease != null) {
+            releaseStorageLeaseAfterOperation(lease)
+        }
     }
 
     private fun publishWalletController(handle: Long, reopenedDurable: Boolean) {
@@ -3692,7 +3717,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     /**
-     * A bounded RPC may still own the native controller mutex when onStop or a
+     * A bounded RPC may still own a native controller domain when onStop or a
      * replacement Activity revokes this owner. Retire on a worker and retain
      * the storage lease until native destruction finishes; the stale operation
      * callback is explicitly denied release authority for the handed-off lease.
@@ -3700,7 +3725,7 @@ class WalletActivity : ComponentActivity() {
     private fun retireControllerAfterNativeOperation(
         lease: WalletStorageOwnershipGate.Lease,
     ): Boolean {
-        if (!busy) return false
+        if (!busy && !walletBitcoinSyncInProgress) return false
         val handle = walletHandle
         if (handle == INVALID_HANDLE) return false
         check(leaseReleaseHandoff.handOffToRetirement(lease)) {
@@ -4476,6 +4501,9 @@ internal fun estimateBitcoinSyncRemainingMillis(
     val estimate = measurementMillis.toDouble() * remainingWork.toDouble() / measuredWork.toDouble()
     return estimate.takeIf { it.isFinite() && it in 1.0..604_800_000.0 }?.toLong()
 }
+
+internal fun walletBitcoinOperationMayStart(bitcoinSyncInProgress: Boolean): Boolean =
+    !bitcoinSyncInProgress
 
 internal fun formatBitcoinSyncDuration(milliseconds: Long): String {
     val seconds = (milliseconds.coerceAtLeast(0L) / 1_000L)
