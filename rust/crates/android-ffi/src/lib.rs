@@ -1265,6 +1265,26 @@ impl AndroidWalletController {
                     android_log_wallet_scan_metrics(&format!(
                         "wallet_hns_finalization stage=dropped_send_resubmitted count={rebroadcasted}"
                     ));
+                    // A successful socket write proves neither peer policy
+                    // admission nor mempool retention. Give the connected
+                    // peer set one bounded propagation interval, refresh its
+                    // advertised mempool under a fresh trusted timestamp, and
+                    // only then publish the post-recovery wallet snapshot.
+                    std::thread::sleep(Duration::from_secs(1));
+                    android_log_wallet_scan_metrics(
+                        "wallet_hns_finalization stage=post_rebroadcast_mempool_start",
+                    );
+                    let post_rebroadcast_now = HnsReadSystemClock.now_unix()?;
+                    if let Err(error) = coordinator.refresh_mempool(post_rebroadcast_now) {
+                        return direct_hns_transport_catchup(
+                            coordinator,
+                            "post-rebroadcast mempool refresh",
+                            error,
+                        );
+                    }
+                    android_log_wallet_scan_metrics(
+                        "wallet_hns_finalization stage=post_rebroadcast_mempool_complete",
+                    );
                     snapshot = controller.synchronize()?;
                 }
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_complete");

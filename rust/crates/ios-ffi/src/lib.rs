@@ -1678,6 +1678,18 @@ fn synchronize_wallet_owned_direct_hns(
         .map_err(|_| direct_hns_not_ready("dropped HNS send resubmission is unavailable"))?
         > 0
     {
+        // Socket completion is not peer mempool admission. Wait one bounded
+        // propagation interval and refresh authenticated peer evidence before
+        // returning the recovery snapshot to Swift.
+        std::thread::sleep(Duration::from_secs(1));
+        let post_rebroadcast_now = HnsReadSystemClock
+            .now_unix()
+            .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+        coordinator
+            .refresh_mempool(post_rebroadcast_now)
+            .map_err(|_| {
+                direct_hns_not_ready("post-rebroadcast HNS mempool refresh is unavailable")
+            })?;
         snapshot = controller
             .synchronize()
             .map_err(|_| direct_hns_not_ready("resubmitted HNS send refresh is unavailable"))?;
