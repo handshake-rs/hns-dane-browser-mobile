@@ -69,7 +69,7 @@ class WalletReadPresentationTest {
     }
 
     @Test
-    fun pendingOutgoingIsRemovedFromAvailableWithoutChangingConfirmedChainValue() {
+    fun pendingOutgoingDoesNotDoubleSubtractNativeSpendableBalance() {
         val snapshot = walletSnapshot(
             balanceBaseUnits = "1000000",
             transactions = listOf(
@@ -82,17 +82,15 @@ class WalletReadPresentationTest {
 
         assertEquals(
             WalletHnsBalanceProjection(
-                confirmedBaseUnits = "1000000",
+                spendableBaseUnits = "1000000",
                 pendingOutgoingBaseUnits = "100123",
-                availableAfterPendingBaseUnits = "899877",
-                pendingOutgoingExceedsConfirmed = false,
             ),
             snapshot.hnsBalanceProjection(),
         )
     }
 
     @Test
-    fun inconsistentPendingOutgoingWithholdsAvailableBalance() {
+    fun pendingOutgoingCanExceedSpendableWhenItsInputIsFullyReserved() {
         val projection = walletSnapshot(
             balanceBaseUnits = "100",
             transactions = listOf(
@@ -100,8 +98,8 @@ class WalletReadPresentationTest {
             ),
         ).hnsBalanceProjection()
 
-        assertEquals("0", projection.availableAfterPendingBaseUnits)
-        assertEquals(true, projection.pendingOutgoingExceedsConfirmed)
+        assertEquals("100", projection.spendableBaseUnits)
+        assertEquals("101", projection.pendingOutgoingBaseUnits)
     }
 
     @Test

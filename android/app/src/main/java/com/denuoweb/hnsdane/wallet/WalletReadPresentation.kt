@@ -72,23 +72,21 @@ internal fun NativeWalletTransaction.displayAmount(): String = buildString {
 }
 
 /**
- * Separates confirmed chain value from outgoing transactions that are still
- * pending. The native snapshot's `balance` is intentionally chain-confirmed;
- * calling it spendable without applying its same-snapshot mempool history can
- * overstate what the user should attempt to spend again.
+ * Separates the native reservation-aware spendable balance from outgoing
+ * transactions that are still pending. The native value runtime already
+ * excludes every actively reserved input; subtracting a transaction's net
+ * amount here would double-count the reservation and still fail to represent
+ * the indivisible input value that is temporarily unavailable.
  */
 internal data class WalletHnsBalanceProjection(
-    val confirmedBaseUnits: String,
+    val spendableBaseUnits: String,
     val pendingOutgoingBaseUnits: String,
-    val availableAfterPendingBaseUnits: String,
-    val pendingOutgoingExceedsConfirmed: Boolean,
 ) {
     val hasPendingOutgoing: Boolean
         get() = pendingOutgoingBaseUnits != "0"
 }
 
 internal fun NativeWalletReadSnapshot.hnsBalanceProjection(): WalletHnsBalanceProjection {
-    val confirmed = BigInteger(balanceBaseUnits)
     val pendingOutgoing = transactions
         .asSequence()
         .filter { transaction ->
@@ -97,13 +95,9 @@ internal fun NativeWalletReadSnapshot.hnsBalanceProjection(): WalletHnsBalancePr
         .fold(BigInteger.ZERO) { total, transaction ->
             total.add(BigInteger(transaction.magnitudeBaseUnits))
         }
-    val pendingExceedsConfirmed = pendingOutgoing > confirmed
-    val available = if (pendingExceedsConfirmed) BigInteger.ZERO else confirmed - pendingOutgoing
     return WalletHnsBalanceProjection(
-        confirmedBaseUnits = confirmed.toString(),
+        spendableBaseUnits = BigInteger(balanceBaseUnits).toString(),
         pendingOutgoingBaseUnits = pendingOutgoing.toString(),
-        availableAfterPendingBaseUnits = available.toString(),
-        pendingOutgoingExceedsConfirmed = pendingExceedsConfirmed,
     )
 }
 

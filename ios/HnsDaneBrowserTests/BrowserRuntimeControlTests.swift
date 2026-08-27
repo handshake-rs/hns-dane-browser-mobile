@@ -651,15 +651,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
             bundle: hnsReadBundle(json: pendingOutgoingJSON, version: 2)
         )
         let pendingBalance = WalletHnsBalancePresenter.present(pendingOutgoingSnapshot)
-        XCTAssertEqual(pendingBalance.confirmedBaseUnits, "12345678")
+        XCTAssertEqual(pendingBalance.spendableBaseUnits, "12345678")
         XCTAssertEqual(pendingBalance.pendingOutgoingBaseUnits, "100123")
-        XCTAssertEqual(pendingBalance.availableAfterPendingBaseUnits, "12245555")
-        XCTAssertFalse(pendingBalance.pendingOutgoingExceedsConfirmed)
         XCTAssertEqual(
             WalletReadPresenter.present(pendingOutgoingSnapshot).balance,
-            "12.345678 HNS confirmed on chain\n" +
+            "12.345678 HNS spendable now\n" +
                 "0.100123 HNS pending outgoing\n" +
-                "12.245555 HNS available after pending"
+                "Confirmed inputs are reserved until peer or chain evidence settles the pending transaction."
         )
 
         let versionOne = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))

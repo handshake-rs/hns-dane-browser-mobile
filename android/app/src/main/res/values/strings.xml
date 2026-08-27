@@ -402,9 +402,8 @@
     <string name="wallet_reads_catching_up_degraded" translatable="false">Verified header catch-up could not reach a current peer agreement at local height %1$d. No balance or spend state is exposed; synchronize again after direct peers recover.</string>
     <string name="wallet_reads_ready" translatable="false">Handshake wallet state is ready at height %1$d.</string>
     <string name="wallet_reads_balance_unavailable" translatable="false">No synchronized balance is exposed.</string>
-    <string name="wallet_reads_balance" translatable="false">%1$s HNS confirmed and available</string>
-    <string name="wallet_reads_balance_with_pending" translatable="false">%1$s HNS confirmed on chain\n%2$s HNS pending outgoing\n%3$s HNS available after pending</string>
-    <string name="wallet_reads_balance_pending_inconsistent" translatable="false">%1$s HNS confirmed on chain\n%2$s HNS pending outgoing\nAvailable balance is withheld until synchronization reconciles the pending transactions.</string>
+    <string name="wallet_reads_balance" translatable="false">%1$s HNS spendable now</string>
+    <string name="wallet_reads_balance_with_pending" translatable="false">%1$s HNS spendable now\n%2$s HNS pending outgoing\nConfirmed inputs are reserved until peer or chain evidence settles the pending transaction.</string>
     <string name="wallet_reads_receive_unavailable" translatable="false">No payment receive address is exposed.</string>
     <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d</string>
     <string name="wallet_reads_receive_local" translatable="false">%1$s\nDerivation index %2$d\nReady to receive HNS locally. Synchronize before trusting balance/history or sending.</string>

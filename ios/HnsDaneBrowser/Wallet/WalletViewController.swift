@@ -3249,20 +3249,14 @@ enum WalletReadPresenter {
 
         let balance = WalletHnsBalancePresenter.present(snapshot)
         let balanceText: String
-        if balance.pendingOutgoingExceedsConfirmed {
+        if balance.hasPendingOutgoing {
             balanceText = [
-                "\(formatHnsBaseUnits(balance.confirmedBaseUnits)) HNS confirmed on chain",
+                "\(formatHnsBaseUnits(balance.spendableBaseUnits)) HNS spendable now",
                 "\(formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)) HNS pending outgoing",
-                "Available balance is withheld until synchronization reconciles the pending transactions.",
-            ].joined(separator: "\n")
-        } else if balance.hasPendingOutgoing {
-            balanceText = [
-                "\(formatHnsBaseUnits(balance.confirmedBaseUnits)) HNS confirmed on chain",
-                "\(formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)) HNS pending outgoing",
-                "\(formatHnsBaseUnits(balance.availableAfterPendingBaseUnits)) HNS available after pending",
+                "Confirmed inputs are reserved until peer or chain evidence settles the pending transaction.",
             ].joined(separator: "\n")
         } else {
-            balanceText = "\(formatHnsBaseUnits(balance.confirmedBaseUnits)) HNS confirmed and available"
+            balanceText = "\(formatHnsBaseUnits(balance.spendableBaseUnits)) HNS spendable now"
         }
         return WalletReadPresentation(
             status: "Direct Handshake wallet synchronized at height \(snapshot.moduleStatus.validatedHeight). Pending outgoing transactions are reflected in the available balance.",
@@ -3350,10 +3344,8 @@ enum WalletReadPresenter {
 }
 
 struct WalletHnsBalanceProjection: Equatable, Sendable {
-    let confirmedBaseUnits: String
+    let spendableBaseUnits: String
     let pendingOutgoingBaseUnits: String
-    let availableAfterPendingBaseUnits: String
-    let pendingOutgoingExceedsConfirmed: Bool
 
     var hasPendingOutgoing: Bool { pendingOutgoingBaseUnits != "0" }
 }
@@ -3367,7 +3359,6 @@ enum WalletHnsBalancePresenter {
     ]
 
     static func present(_ snapshot: NativeHnsReadSnapshot) -> WalletHnsBalanceProjection {
-        let confirmed = snapshot.balance.baseUnits
         let pending = snapshot.transactionHistory.reduce("0") { total, transaction in
             guard transaction.netAmount.negative,
                   pendingStatuses.contains(transaction.status) else {
@@ -3375,21 +3366,10 @@ enum WalletHnsBalancePresenter {
             }
             return add(total, transaction.netAmount.magnitude)
         }
-        let exceeds = compare(pending, confirmed) == .orderedDescending
         return WalletHnsBalanceProjection(
-            confirmedBaseUnits: confirmed,
-            pendingOutgoingBaseUnits: pending,
-            availableAfterPendingBaseUnits: exceeds ? "0" : subtract(confirmed, pending),
-            pendingOutgoingExceedsConfirmed: exceeds
+            spendableBaseUnits: snapshot.balance.baseUnits,
+            pendingOutgoingBaseUnits: pending
         )
-    }
-
-    private static func compare(_ left: String, _ right: String) -> ComparisonResult {
-        if left.count != right.count {
-            return left.count < right.count ? .orderedAscending : .orderedDescending
-        }
-        if left == right { return .orderedSame }
-        return left.lexicographicallyPrecedes(right) ? .orderedAscending : .orderedDescending
     }
 
     private static func add(_ left: String, _ right: String) -> String {
@@ -3410,29 +3390,6 @@ enum WalletHnsBalancePresenter {
         return String(bytes: result.reversed(), encoding: .ascii)!
     }
 
-    private static func subtract(_ left: String, _ right: String) -> String {
-        precondition(compare(left, right) != .orderedAscending)
-        let lhs = Array(left.utf8.reversed())
-        let rhs = Array(right.utf8.reversed())
-        var result = [UInt8]()
-        result.reserveCapacity(lhs.count)
-        var borrow = 0
-        for index in lhs.indices {
-            let a = Int(lhs[index] - UInt8(ascii: "0")) - borrow
-            let b = index < rhs.count ? Int(rhs[index] - UInt8(ascii: "0")) : 0
-            if a < b {
-                result.append(UInt8(a + 10 - b) + UInt8(ascii: "0"))
-                borrow = 1
-            } else {
-                result.append(UInt8(a - b) + UInt8(ascii: "0"))
-                borrow = 0
-            }
-        }
-        while result.count > 1, result.last == UInt8(ascii: "0") {
-            result.removeLast()
-        }
-        return String(bytes: result.reversed(), encoding: .ascii)!
-    }
 }
 
 private enum WalletHnsReadOutcome: Sendable {

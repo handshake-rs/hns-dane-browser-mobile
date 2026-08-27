@@ -524,9 +524,9 @@ class WalletActivity : ComponentActivity() {
             balanceView.apply {
                 textSize = 24f
                 typeface = Typeface.DEFAULT_BOLD
-                // Confirmed, pending-outgoing, and available-after-pending are
-                // intentionally separate rows while a send is unconfirmed.
-                maxLines = 4
+                // Spendable value and pending outgoing value are intentionally
+                // separate rows while a send is unconfirmed.
+                maxLines = Int.MAX_VALUE
                 setTextColor(themeColors().primaryText)
                 setPadding(0, uiDp(10), 0, uiDp(12))
             }
@@ -3959,21 +3959,16 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshotEpoch = lifecycleEpoch
         readStatusView.text = getString(R.string.wallet_reads_ready, snapshot.height)
         val balance = snapshot.hnsBalanceProjection()
+        balanceView.textSize = if (balance.hasPendingOutgoing) 18f else 24f
         balanceView.text = when {
-            balance.pendingOutgoingExceedsConfirmed -> getString(
-                R.string.wallet_reads_balance_pending_inconsistent,
-                formatHnsBaseUnits(balance.confirmedBaseUnits),
-                formatHnsBaseUnits(balance.pendingOutgoingBaseUnits),
-            )
             balance.hasPendingOutgoing -> getString(
                 R.string.wallet_reads_balance_with_pending,
-                formatHnsBaseUnits(balance.confirmedBaseUnits),
+                formatHnsBaseUnits(balance.spendableBaseUnits),
                 formatHnsBaseUnits(balance.pendingOutgoingBaseUnits),
-                formatHnsBaseUnits(balance.availableAfterPendingBaseUnits),
             )
             else -> getString(
                 R.string.wallet_reads_balance,
-                formatHnsBaseUnits(balance.confirmedBaseUnits),
+                formatHnsBaseUnits(balance.spendableBaseUnits),
             )
         }
         paymentReceiveView.text = getString(
