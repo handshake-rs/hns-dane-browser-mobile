@@ -837,12 +837,12 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showBitcoinDashboard() {
-        walletDetailDialog(
+        walletLiveDetailDialog(
             title = getString(R.string.wallet_dashboard_bitcoin),
             rows = listOf(
-                getString(R.string.row_wallet_bitcoin_status) to bitcoinStatusView.text.toString(),
-                getString(R.string.row_wallet_bitcoin_balance) to bitcoinBalanceView.text.toString(),
-                getString(R.string.row_wallet_bitcoin_receive) to bitcoinReceiveView.text.toString(),
+                getString(R.string.row_wallet_bitcoin_status) to bitcoinStatusView,
+                getString(R.string.row_wallet_bitcoin_balance) to bitcoinBalanceView,
+                getString(R.string.row_wallet_bitcoin_receive) to bitcoinReceiveView,
             ),
             actions = listOf(
                 getString(R.string.action_wallet_bitcoin_receive) to ::revealBitcoinReceiveAddress,
@@ -850,6 +850,58 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm,
             ),
         )
+    }
+
+    /**
+     * Bitcoin synchronization reports progress independently from the HNS UI
+     * operation gate. Retain its actual projection views in this detail sheet
+     * so a long Kyoto scan updates the visible dialog instead of changing only
+     * a frozen backing value behind it.
+     */
+    private fun walletLiveDetailDialog(
+        title: String,
+        rows: List<Pair<String, TextView>>,
+        actions: List<Pair<String, () -> Unit>>,
+    ) {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
+            rows.forEach { (label, detail) ->
+                (detail.parent as? ViewGroup)?.removeView(detail)
+                addView(TextView(this@WalletActivity).apply {
+                    text = label
+                    textSize = 14f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(themeColors().primaryText)
+                    setPadding(0, uiDp(8), 0, 0)
+                })
+                addView(detail.apply {
+                    textSize = 14f
+                    setTextColor(themeColors().primaryText)
+                    setPadding(0, uiDp(3), 0, uiDp(12))
+                })
+            }
+            actions.forEach { (label, action) ->
+                addView(
+                    dashboardActionButton(label, secondary = true, action = action),
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { bottomMargin = uiDp(8) },
+                )
+            }
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(content)
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.setOnDismissListener {
+            rows.forEach { (_, detail) ->
+                (detail.parent as? ViewGroup)?.removeView(detail)
+            }
+        }
+        dialog.show()
     }
 
     private fun showShakedexDashboard() {
@@ -1736,6 +1788,7 @@ class WalletActivity : ComponentActivity() {
         }
         walletBitcoinSyncInProgress = true
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_syncing)
+        Log.i(TAG, "Starting a bounded direct Bitcoin synchronization round")
         val epoch = lifecycleEpoch
         startBitcoinSyncProgressWatcher(handle, lease, epoch)
         thread(name = "bitcoin-wallet-direct-sync") {
@@ -1749,8 +1802,14 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 if (synchronization == null) {
+                    Log.w(TAG, "Direct Bitcoin synchronization returned no verified snapshot")
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_failed)
                 } else {
+                    Log.i(
+                        TAG,
+                        "Direct Bitcoin synchronization reached checkpoint " +
+                            "${synchronization.checkpointHeight}",
+                    )
                     renderBitcoinSnapshot(synchronization.snapshot)
                     bitcoinStatusView.text = getString(
                         R.string.wallet_bitcoin_synchronized,
