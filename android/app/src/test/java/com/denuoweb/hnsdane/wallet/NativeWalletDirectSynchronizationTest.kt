@@ -65,6 +65,39 @@ class NativeWalletDirectSynchronizationTest {
     }
 
     @Test
+    fun restoredWalletBirthdayAboveLocalHeadersRemainsResumable() {
+        val bundle = catchupBundle(
+            headerState = 2,
+            birthdayHeight = 70_000,
+            scannedHeight = null,
+            scanTargetHeight = 64_000,
+        )
+
+        val parsed = NativeWalletBridge.parseAndWipeHnsSynchronizationBundle(bundle)
+
+        assertEquals(NativeWalletHnsCatchupProgress.HeaderState.Syncing, parsed?.catchup?.headerState)
+        assertEquals(64_000L, parsed?.catchup?.headerTipHeight)
+        assertEquals(70_000L, parsed?.catchup?.birthdayHeight)
+        assertNull(parsed?.catchup?.scannedHeight)
+        assertTrue(bundle.all { it == 0.toByte() })
+
+        val liveBundle = liveProgressBundle(
+            stage = 2,
+            headerState = 2,
+            headerRound = 1,
+            headerRetries = 0,
+            birthdayHeight = 70_000,
+            scannedHeight = null,
+            scanTargetHeight = 64_000,
+        )
+        val live = NativeWalletBridge.parseAndWipeHnsLiveSynchronizationProgressBundle(liveBundle)
+        assertEquals(64_000L, live?.headerTipHeight)
+        assertEquals(70_000L, live?.birthdayHeight)
+        assertNull(live?.scannedHeight)
+        assertTrue(liveBundle.all { it == 0.toByte() })
+    }
+
+    @Test
     fun liveProgressBundleExposesOnlyStageAndVerifiedHeightsAndIsWiped() {
         val bundle = liveProgressBundle(
             stage = 4,
@@ -136,7 +169,7 @@ class NativeWalletDirectSynchronizationTest {
     private fun catchupBundle(
         headerState: Int,
         birthdayHeight: Int,
-        scannedHeight: Int,
+        scannedHeight: Int?,
         scanTargetHeight: Int,
     ): ByteArray = ByteBuffer.allocate(32).order(ByteOrder.BIG_ENDIAN).apply {
         put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'S'.code.toByte(), 'Y'.code.toByte()))
@@ -145,11 +178,11 @@ class NativeWalletDirectSynchronizationTest {
         putShort(0)
         putInt(20)
         put(headerState.toByte())
-        put(1)
+        put(if (scannedHeight == null) 0.toByte() else 1.toByte())
         putShort(0)
         putInt(scanTargetHeight)
         putInt(birthdayHeight)
-        putInt(scannedHeight)
+        putInt(scannedHeight ?: 0)
         putInt(scanTargetHeight)
     }.array()
 
@@ -159,20 +192,20 @@ class NativeWalletDirectSynchronizationTest {
         headerRound: Int,
         headerRetries: Int,
         birthdayHeight: Int,
-        scannedHeight: Int,
+        scannedHeight: Int?,
         scanTargetHeight: Int,
     ): ByteArray = ByteBuffer.allocate(28).order(ByteOrder.BIG_ENDIAN).apply {
         put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'L'.code.toByte(), 'P'.code.toByte()))
         put(1)
         put(stage.toByte())
         put(headerState.toByte())
-        put(1)
+        put(if (scannedHeight == null) 0.toByte() else 1.toByte())
         put(headerRound.toByte())
         put(headerRetries.toByte())
         putShort(0)
         putInt(scanTargetHeight)
         putInt(birthdayHeight)
-        putInt(scannedHeight)
+        putInt(scannedHeight ?: 0)
         putInt(scanTargetHeight)
     }.array()
 

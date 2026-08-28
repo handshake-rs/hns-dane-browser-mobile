@@ -1717,11 +1717,14 @@ fn direct_hns_public_progress(
         .light_scan_status()
         .map_err(|_| wallet_runtime_failure("direct HNS scan status is unavailable"))?;
     let verified_header_height = header.tip.height().get();
-    if scan.birthday_height > verified_header_height
-        || scan
-            .scanned_height
-            .is_some_and(|height| height < scan.birthday_height || height > verified_header_height)
-    {
+    // A restored wallet may legitimately have a birthday above the bundled
+    // or partially synchronized local header tip. Publish that header-only
+    // catch-up state; scanning begins after verified headers reach birthday.
+    if !wallet_hns_sync_heights_are_coherent(
+        scan.birthday_height,
+        scan.scanned_height,
+        verified_header_height,
+    ) {
         return Err(FfiFailure::internal());
     }
     Ok(HnsBrowserWalletHnsSyncProgress {
@@ -1734,6 +1737,15 @@ fn direct_hns_public_progress(
         scanned_height: u64::from(scan.scanned_height.unwrap_or(0)),
         target_height: u64::from(verified_header_height),
     })
+}
+
+fn wallet_hns_sync_heights_are_coherent(
+    birthday_height: u32,
+    scanned_height: Option<u32>,
+    verified_header_height: u32,
+) -> bool {
+    scanned_height
+        .is_none_or(|height| height >= birthday_height && height <= verified_header_height)
 }
 
 fn publish_direct_hns_public_progress(
@@ -4730,6 +4742,26 @@ mod tests {
         assert!(header.contains("#ifndef HNS_BROWSER_H"));
         assert!(header.contains("extern \"C\""));
         assert!(!header.contains("hns_browser_proxy_matches_authentication("));
+    }
+
+    #[test]
+    fn restored_wallet_birthday_above_local_headers_is_resumable() {
+        assert!(wallet_hns_sync_heights_are_coherent(70_000, None, 64_000));
+        assert!(wallet_hns_sync_heights_are_coherent(
+            1_000,
+            Some(42_000),
+            64_000
+        ));
+        assert!(!wallet_hns_sync_heights_are_coherent(
+            70_000,
+            Some(70_000),
+            64_000
+        ));
+        assert!(!wallet_hns_sync_heights_are_coherent(
+            1_000,
+            Some(999),
+            64_000
+        ));
     }
 
     #[test]

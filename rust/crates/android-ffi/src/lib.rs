@@ -2590,7 +2590,13 @@ fn direct_hns_catchup_progress(
         SyncState::Degraded => WALLET_HNS_SYNC_HEADER_DEGRADED,
     };
     let header_tip_height = header.tip.height().get();
-    if scan.birthday_height > header_tip_height || scan.scanned_height > Some(header_tip_height) {
+    // A restored wallet may legitimately have a birthday above the bundled
+    // or partially synchronized local header tip. Header synchronization must
+    // reach that height before the first wallet block can be scanned.
+    if scan
+        .scanned_height
+        .is_some_and(|height| height < scan.birthday_height || height > header_tip_height)
+    {
         return Err(MobileWalletError::ControllerFailed);
     }
     Ok(AndroidHnsCatchupProgress {
@@ -2698,11 +2704,9 @@ fn wallet_hns_sync_catchup_bundle(progress: AndroidHnsCatchupProgress) -> Option
         WALLET_HNS_SYNC_HEADER_CURRENT
             | WALLET_HNS_SYNC_HEADER_SYNCING
             | WALLET_HNS_SYNC_HEADER_DEGRADED
-    ) || progress.birthday_height > progress.scan_target_height
-        || progress.scanned_height.is_some_and(|height| {
-            height < progress.birthday_height || height > progress.scan_target_height
-        })
-    {
+    ) || progress.scanned_height.is_some_and(|height| {
+        height < progress.birthday_height || height > progress.scan_target_height
+    }) {
         return None;
     }
     let mut payload = Vec::with_capacity(WALLET_HNS_SYNC_CATCHUP_BYTES);
@@ -2749,7 +2753,6 @@ fn wallet_hns_live_progress_bundle(progress: AndroidHnsLiveSyncProgress) -> Opti
                 | (WALLET_HNS_LIVE_PROGRESS_SCANNING, 0)
                 | (WALLET_HNS_LIVE_PROGRESS_FINALIZING, 0)
         )
-        || catchup.birthday_height > catchup.scan_target_height
         || catchup.scanned_height.is_some_and(|height| {
             height < catchup.birthday_height || height > catchup.scan_target_height
         })
@@ -5724,6 +5727,22 @@ mod tests {
             })
             .is_none()
         );
+
+        let before_birthday = AndroidHnsCatchupProgress {
+            header_state: WALLET_HNS_SYNC_HEADER_SYNCING,
+            header_tip_height: 64_000,
+            birthday_height: 70_000,
+            scanned_height: None,
+            scan_target_height: 64_000,
+        };
+        assert!(wallet_hns_sync_catchup_bundle(before_birthday).is_some());
+        assert!(
+            wallet_hns_sync_catchup_bundle(AndroidHnsCatchupProgress {
+                scanned_height: Some(70_000),
+                ..before_birthday
+            })
+            .is_none()
+        );
     }
 
     #[test]
@@ -5768,6 +5787,22 @@ mod tests {
                 ..progress
             })
             .is_none()
+        );
+
+        assert!(
+            wallet_hns_live_progress_bundle(AndroidHnsLiveSyncProgress {
+                stage: WALLET_HNS_LIVE_PROGRESS_HEADERS,
+                header_round: 1,
+                header_retries: 0,
+                catchup: AndroidHnsCatchupProgress {
+                    header_state: WALLET_HNS_SYNC_HEADER_SYNCING,
+                    header_tip_height: 64_000,
+                    birthday_height: 70_000,
+                    scanned_height: None,
+                    scan_target_height: 64_000,
+                },
+            })
+            .is_some()
         );
     }
 

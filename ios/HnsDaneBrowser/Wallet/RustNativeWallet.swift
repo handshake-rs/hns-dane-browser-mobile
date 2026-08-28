@@ -1892,7 +1892,6 @@ final class RustNativeWallet: @unchecked Sendable {
               native.has_scanned_height <= 1,
               native.reserved0 == 0,
               let stage = WalletHnsSyncStage(rawValue: native.stage),
-              native.birthday_height <= native.target_height,
               native.verified_header_height == native.target_height else {
             throw NativeWalletBridgeError.invalidOutput(
                 "wallet HNS synchronization progress is incoherent"

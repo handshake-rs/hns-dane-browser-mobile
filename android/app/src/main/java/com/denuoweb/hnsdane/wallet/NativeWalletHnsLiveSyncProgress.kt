@@ -85,7 +85,6 @@ private object NativeWalletHnsLiveSyncProgressParser {
         val encodedScannedHeight = value.int.toUnsignedLong()
         val scanTargetHeight = value.int.toUnsignedLong()
         require(headerTipHeight == scanTargetHeight)
-        require(birthdayHeight <= scanTargetHeight)
         val scannedHeight = if (hasScannedHeight) {
             encodedScannedHeight.also { height ->
                 require(height in birthdayHeight..scanTargetHeight)

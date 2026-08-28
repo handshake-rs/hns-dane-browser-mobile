@@ -267,6 +267,14 @@ qualification remain open. Only the compatibility loopback name-import path
 requires the separate scoped credential/indexed backend/data boundary; the
 direct proof-backed path does not.
 
+A restored wallet birthday may be above the bundled or partially synchronized
+local header tip. That is a normal header-only catch-up state: public progress
+continues to expose the verified header height and configured birthday, the
+wallet scan remains absent, and no balance or spend authority is projected.
+Scanning begins only after independently agreed headers reach the birthday.
+Only an actual scanned height below birthday or above the verified header tip
+is rejected as incoherent.
+
 ## Trusted-native exact-text name import
 
 The Android JNI exposes a bounded native-only bulk name import and the Apple C

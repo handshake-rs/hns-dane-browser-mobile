@@ -3244,6 +3244,11 @@ final class WalletViewController: UIViewController {
             statusLabel.text = "Keeping the existing HNS synchronization connected."
             accountLabel.text = "Account controls return after synchronization protection finishes."
             let scanned = progress.scannedHeight ?? progress.birthdayHeight
+            if progress.scannedHeight == nil,
+               progress.verifiedHeaderHeight < progress.birthdayHeight {
+                readStatusLabel.text = "Verified headers are at height \(progress.verifiedHeaderHeight) and are catching up toward this restored wallet’s birthday height \(progress.birthdayHeight). Wallet activity scanning has not started."
+                break
+            }
             switch progress.stage {
             case .connecting:
                 readStatusLabel.text = "Connecting verified HNS peers. Verified headers are currently at height \(progress.verifiedHeaderHeight)."
@@ -3258,7 +3263,10 @@ final class WalletViewController: UIViewController {
             statusLabel.text = "Stopping the existing HNS synchronization now."
             accountLabel.text = "Account controls return after synchronization protection finishes."
             readStatusLabel.text = progress.map {
-                "Last verified header height \($0.verifiedHeaderHeight); wallet scan height \($0.scannedHeight ?? $0.birthdayHeight) of \($0.targetHeight)."
+                if let scannedHeight = $0.scannedHeight {
+                    return "Last verified header height \($0.verifiedHeaderHeight); wallet scan height \(scannedHeight) of \($0.targetHeight)."
+                }
+                return "Last verified header height \($0.verifiedHeaderHeight); wallet birthday height \($0.birthdayHeight); wallet scanning has not started."
             } ?? "No additional synchronization batch will start; the active atomic call is unwinding."
         case .terminal(let progress):
             statusLabel.text = "HNS synchronization finished. Wallet protection is releasing."

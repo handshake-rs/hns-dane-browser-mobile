@@ -4241,6 +4241,15 @@ class WalletActivity : ComponentActivity() {
     private fun renderReadCatchup(progress: NativeWalletHnsCatchupProgress) {
         walletHnsJourney.catchupObserved()
         resetReadProjection(R.string.wallet_reads_catching_up)
+        if (progress.scannedHeight == null && progress.headerTipHeight < progress.birthdayHeight) {
+            readStatusView.text = getString(
+                R.string.wallet_reads_catching_up_before_birthday,
+                progress.headerTipHeight,
+                progress.birthdayHeight,
+            )
+            renderWalletDashboard()
+            return
+        }
         readStatusView.text = when (progress.headerState) {
             NativeWalletHnsCatchupProgress.HeaderState.Current -> getString(
                 R.string.wallet_reads_catching_up_scan,
@@ -4413,6 +4422,14 @@ class WalletActivity : ComponentActivity() {
 
     private fun renderCachedHnsCatchup(progress: NativeWalletHnsCatchupProgress) {
         walletHnsJourney.catchupObserved()
+        if (progress.scannedHeight == null && progress.headerTipHeight < progress.birthdayHeight) {
+            readStatusView.text = getString(
+                R.string.wallet_reads_catching_up_before_birthday,
+                progress.headerTipHeight,
+                progress.birthdayHeight,
+            )
+            return
+        }
         readStatusView.text = when (progress.headerState) {
             NativeWalletHnsCatchupProgress.HeaderState.Current -> getString(
                 R.string.wallet_reads_catching_up_scan,
