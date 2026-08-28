@@ -30,6 +30,169 @@ struct NativeWalletAccount: Decodable, Equatable {
     let receiveDisplay: String?
 }
 
+struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
+    let network: String
+    let receiveAddress: String
+    let confirmedSats: UInt64
+    let trustedPendingSats: UInt64
+    let untrustedPendingSats: UInt64
+    let immatureSats: UInt64
+    let totalSats: UInt64
+    let synchronizedHeight: UInt64
+    let connectedPeerCount: UInt8
+    let requiredPeerCount: UInt8
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case network, receiveAddress, confirmedSats, trustedPendingSats
+        case untrustedPendingSats, immatureSats, totalSats, synchronizedHeight
+        case connectedPeerCount, requiredPeerCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        network = try container.decode(String.self, forKey: .network)
+        receiveAddress = try container.decode(String.self, forKey: .receiveAddress)
+        confirmedSats = try container.decode(UInt64.self, forKey: .confirmedSats)
+        trustedPendingSats = try container.decode(UInt64.self, forKey: .trustedPendingSats)
+        untrustedPendingSats = try container.decode(UInt64.self, forKey: .untrustedPendingSats)
+        immatureSats = try container.decode(UInt64.self, forKey: .immatureSats)
+        totalSats = try container.decode(UInt64.self, forKey: .totalSats)
+        synchronizedHeight = try container.decode(UInt64.self, forKey: .synchronizedHeight)
+        connectedPeerCount = try container.decode(UInt8.self, forKey: .connectedPeerCount)
+        requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
+        let subtotal = confirmedSats.addingReportingOverflow(trustedPendingSats)
+        let subtotal2 = subtotal.partialValue.addingReportingOverflow(untrustedPendingSats)
+        let expected = subtotal2.partialValue.addingReportingOverflow(immatureSats)
+        guard ["mainnet", "testnet", "testnet4", "signet", "regtest"].contains(network),
+              Self.validAddress(receiveAddress),
+              !subtotal.overflow, !subtotal2.overflow, !expected.overflow,
+              expected.partialValue == totalSats,
+              connectedPeerCount <= 8, requiredPeerCount <= 8 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin snapshot")
+        }
+    }
+
+    fileprivate static func validAddress(_ value: String) -> Bool {
+        !value.isEmpty && value.utf8.count <= 128 && value.utf8.allSatisfy {
+            (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                (UInt8(ascii: "A")...UInt8(ascii: "Z")).contains($0) ||
+                (UInt8(ascii: "a")...UInt8(ascii: "z")).contains($0)
+        }
+    }
+}
+
+struct NativeBitcoinReceiveAddress: Decodable, Equatable, Sendable {
+    let receiveAddress: String
+    let snapshot: NativeBitcoinWalletSnapshot
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case receiveAddress, snapshot }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        receiveAddress = try container.decode(String.self, forKey: .receiveAddress)
+        snapshot = try container.decode(NativeBitcoinWalletSnapshot.self, forKey: .snapshot)
+        guard receiveAddress == snapshot.receiveAddress else {
+            throw NativeWalletBridgeError.invalidOutput("Bitcoin receive result changed its snapshot address")
+        }
+    }
+}
+
+struct NativeBitcoinSynchronization: Decodable, Equatable, Sendable {
+    let snapshot: NativeBitcoinWalletSnapshot
+    let sequence: UInt64
+    let checkpointHeight: UInt64
+    let connectedPeerCount: UInt8
+    let requiredPeerCount: UInt8
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case snapshot, sequence, checkpointHeight, connectedPeerCount, requiredPeerCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        snapshot = try container.decode(NativeBitcoinWalletSnapshot.self, forKey: .snapshot)
+        sequence = try container.decode(UInt64.self, forKey: .sequence)
+        checkpointHeight = try container.decode(UInt64.self, forKey: .checkpointHeight)
+        connectedPeerCount = try container.decode(UInt8.self, forKey: .connectedPeerCount)
+        requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
+        guard sequence > 0,
+              checkpointHeight == snapshot.synchronizedHeight,
+              connectedPeerCount == snapshot.connectedPeerCount,
+              requiredPeerCount == snapshot.requiredPeerCount else {
+            throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin synchronization")
+        }
+    }
+}
+
+struct NativeBitcoinSyncProgress: Decodable, Equatable, Sendable {
+    let successfulHandshakes: UInt8
+    let requiredPeerCount: UInt8
+    let connectionFailures: UInt16
+    let peerTimeouts: UInt16
+    let incompatiblePeers: UInt16
+    let connectionsMet: Bool
+    let chainHeight: UInt64?
+    let completionBasisPoints: UInt16
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case successfulHandshakes, requiredPeerCount, connectionFailures, peerTimeouts
+        case incompatiblePeers, connectionsMet, chainHeight, completionBasisPoints
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        successfulHandshakes = try container.decode(UInt8.self, forKey: .successfulHandshakes)
+        requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
+        connectionFailures = try container.decode(UInt16.self, forKey: .connectionFailures)
+        peerTimeouts = try container.decode(UInt16.self, forKey: .peerTimeouts)
+        incompatiblePeers = try container.decode(UInt16.self, forKey: .incompatiblePeers)
+        connectionsMet = try container.decode(Bool.self, forKey: .connectionsMet)
+        chainHeight = try container.decodeIfPresent(UInt64.self, forKey: .chainHeight)
+        completionBasisPoints = try container.decode(UInt16.self, forKey: .completionBasisPoints)
+        guard requiredPeerCount > 0, completionBasisPoints <= 10_000 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin progress")
+        }
+    }
+}
+
+struct NativeBitcoinSendApproval {
+    let actionToken: NativeHnsSendActionToken
+    let destination: String
+    let amountSats: UInt64
+    let feeSats: UInt64
+    let maximumFeeSats: UInt64
+    let expiresAtUnix: UInt64
+}
+
+struct NativeBitcoinSendReceipt: Decodable, Equatable, Sendable {
+    let txid: String
+    let wtxid: String
+    let attemptCount: UInt8
+    let submittedAtUnix: UInt64?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case txid, wtxid, attemptCount, submittedAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        txid = try container.decode(String.self, forKey: .txid)
+        wtxid = try container.decode(String.self, forKey: .wtxid)
+        attemptCount = try container.decode(UInt8.self, forKey: .attemptCount)
+        submittedAtUnix = try container.decodeIfPresent(UInt64.self, forKey: .submittedAtUnix)
+        let validHash: (String) -> Bool = { value in
+            value.utf8.count == 64 && value.utf8.allSatisfy {
+                (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                    (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+            }
+        }
+        guard validHash(txid), validHash(wtxid), (1...16).contains(attemptCount),
+              submittedAtUnix.map { $0 > 0 } ?? true else {
+            throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin send receipt")
+        }
+    }
+}
+
 struct WalletReadBootstrapAuthority:
     Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible
 {
@@ -1006,6 +1169,58 @@ private enum NativeHnsValueBundle {
     }
 }
 
+private struct NativeBitcoinSendApprovalPayload: Decodable {
+    let actionToken: String
+    let destination: String
+    let amountSats: UInt64
+    let feeSats: UInt64
+    let maximumFeeSats: UInt64
+    let expiresAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case actionToken, destination, amountSats, feeSats, maximumFeeSats, expiresAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        actionToken = try container.decode(String.self, forKey: .actionToken)
+        destination = try container.decode(String.self, forKey: .destination)
+        amountSats = try container.decode(UInt64.self, forKey: .amountSats)
+        feeSats = try container.decode(UInt64.self, forKey: .feeSats)
+        maximumFeeSats = try container.decode(UInt64.self, forKey: .maximumFeeSats)
+        expiresAtUnix = try container.decode(UInt64.self, forKey: .expiresAtUnix)
+        guard NativeBitcoinWalletSnapshot.validAddress(destination),
+              amountSats > 0, feeSats > 0, maximumFeeSats > 0,
+              feeSats <= maximumFeeSats, expiresAtUnix > 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin send approval")
+        }
+    }
+}
+
+private extension NativeBitcoinSendApproval {
+    static func decode(bundle: [UInt8]) throws -> NativeBitcoinSendApproval {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle,
+            magic: Array("HNBW".utf8),
+            maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let decoded = try JSONDecoder().decode(NativeBitcoinSendApprovalPayload.self, from: payload)
+        var token = Array(decoded.actionToken.utf8)
+        guard let actionToken = NativeHnsSendActionToken(takingASCII: &token) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin action token")
+        }
+        return NativeBitcoinSendApproval(
+            actionToken: actionToken,
+            destination: decoded.destination,
+            amountSats: decoded.amountSats,
+            feeSats: decoded.feeSats,
+            maximumFeeSats: decoded.maximumFeeSats,
+            expiresAtUnix: decoded.expiresAtUnix
+        )
+    }
+}
+
 private struct NativeHnsSendApprovalPayload: Decodable {
     let actionToken: String
     let expiresAtUnix: UInt64
@@ -1623,6 +1838,124 @@ final class RustNativeWallet: @unchecked Sendable {
         return enabled == 1
     }
 
+    func hasBitcoinValue() throws -> Bool {
+        var enabled: UInt8 = 0
+        try NativeWalletBridge.check(
+            hns_browser_wallet_has_bitcoin_value(try liveHandle(), &enabled),
+            operation: "wallet Bitcoin availability"
+        )
+        guard enabled <= 1 else {
+            throw NativeWalletBridgeError.invalidOutput("Bitcoin availability is not boolean")
+        }
+        return enabled == 1
+    }
+
+    func bitcoinSnapshot() throws -> NativeBitcoinWalletSnapshot {
+        try decodeBitcoinBundle(operation: "wallet Bitcoin snapshot") { handle, output in
+            hns_browser_wallet_bitcoin_snapshot(handle, output)
+        }
+    }
+
+    func nextBitcoinReceiveAddress() throws -> NativeBitcoinReceiveAddress {
+        try decodeBitcoinBundle(operation: "wallet Bitcoin receive address") { handle, output in
+            hns_browser_wallet_next_bitcoin_receive_address(handle, output)
+        }
+    }
+
+    func synchronizeBitcoin() throws -> NativeBitcoinSynchronization {
+        try decodeBitcoinBundle(operation: "wallet Bitcoin synchronization") { handle, output in
+            hns_browser_wallet_synchronize_bitcoin(handle, output)
+        }
+    }
+
+    func bitcoinSynchronizationProgress() throws -> NativeBitcoinSyncProgress? {
+        var output = HnsBrowserBuffer()
+        let result = hns_browser_wallet_bitcoin_sync_progress(try liveHandle(), &output)
+        defer { NativeWalletBridge.free(output) }
+        if result == HNS_BROWSER_RESULT_NOT_READY { return nil }
+        try NativeWalletBridge.check(result, operation: "wallet Bitcoin synchronization progress")
+        return try decodeBitcoinOutput(output, as: NativeBitcoinSyncProgress.self)
+    }
+
+    func cancelBitcoinSynchronization() throws {
+        try NativeWalletBridge.check(
+            hns_browser_wallet_cancel_bitcoin_sync(try liveHandle()),
+            operation: "wallet Bitcoin synchronization cancellation"
+        )
+    }
+
+    func prepareBitcoinSend(
+        destination: inout [UInt8],
+        amountSats: inout [UInt8],
+        maximumFeeSats: inout [UInt8]
+    ) throws -> NativeBitcoinSendApproval {
+        defer {
+            WalletSecretBytes.wipe(&destination)
+            WalletSecretBytes.wipe(&amountSats)
+            WalletSecretBytes.wipe(&maximumFeeSats)
+        }
+        var output = HnsBrowserBuffer()
+        let currentHandle = try liveHandle()
+        let result = destination.withUnsafeBufferPointer { destination in
+            amountSats.withUnsafeBufferPointer { amount in
+                maximumFeeSats.withUnsafeBufferPointer { fee in
+                    hns_browser_wallet_prepare_bitcoin_send(
+                        currentHandle,
+                        HnsBrowserSlice(ptr: destination.baseAddress, len: UInt64(destination.count)),
+                        HnsBrowserSlice(ptr: amount.baseAddress, len: UInt64(amount.count)),
+                        HnsBrowserSlice(ptr: fee.baseAddress, len: UInt64(fee.count)),
+                        &output
+                    )
+                }
+            }
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet Bitcoin send preparation")
+        do {
+            var bundle = try NativeWalletBridge.bytes(copying: output)
+            defer { WalletSecretBytes.wipe(&bundle) }
+            return try NativeBitcoinSendApproval.decode(bundle: bundle)
+        } catch {
+            try? lock()
+            throw error
+        }
+    }
+
+    func approveBitcoinSend(
+        _ actionToken: NativeHnsSendActionToken
+    ) throws -> NativeBitcoinSendReceipt {
+        try actionToken.consume { token in
+            var output = HnsBrowserBuffer()
+            let result = try token.withUnsafeBufferPointer { bytes in
+                hns_browser_wallet_approve_bitcoin_send(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count)),
+                    &output
+                )
+            }
+            defer { NativeWalletBridge.free(output) }
+            try NativeWalletBridge.check(result, operation: "wallet Bitcoin send approval")
+            do {
+                return try decodeBitcoinOutput(output, as: NativeBitcoinSendReceipt.self)
+            } catch {
+                try? lock()
+                throw error
+            }
+        }
+    }
+
+    func rejectBitcoinSend(_ actionToken: NativeHnsSendActionToken) throws {
+        try actionToken.consume { token in
+            let result = try token.withUnsafeBufferPointer { bytes in
+                hns_browser_wallet_reject_bitcoin_send(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
+                )
+            }
+            try NativeWalletBridge.check(result, operation: "wallet Bitcoin send rejection")
+        }
+    }
+
     func directHnsRollbackFloor() throws -> [UInt8] {
         var output = HnsBrowserBuffer()
         let result = hns_browser_wallet_direct_hns_rollback_floor(try liveHandle(), &output)
@@ -2034,6 +2367,32 @@ final class RustNativeWallet: @unchecked Sendable {
         defer { NativeWalletBridge.free(output) }
         try NativeWalletBridge.check(result, operation: operation)
         return try JSONDecoder().decode(T.self, from: NativeWalletBridge.data(copying: output))
+    }
+
+    private func decodeBitcoinBundle<T: Decodable>(
+        operation: String,
+        invoke: (HnsBrowserWalletHandle, UnsafeMutablePointer<HnsBrowserBuffer>?) -> HnsBrowserResult
+    ) throws -> T {
+        var output = HnsBrowserBuffer()
+        let result = invoke(try liveHandle(), &output)
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: operation)
+        return try decodeBitcoinOutput(output, as: T.self)
+    }
+
+    private func decodeBitcoinOutput<T: Decodable>(
+        _ output: HnsBrowserBuffer,
+        as type: T.Type
+    ) throws -> T {
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        var payload = try NativeHnsValueBundle.payload(
+            bundle,
+            magic: Array("HNBW".utf8),
+            maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        return try JSONDecoder().decode(type, from: payload)
     }
 }
 

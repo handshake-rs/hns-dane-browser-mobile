@@ -50,6 +50,13 @@ final class WalletViewController: UIViewController {
     private var directDenuoServiceInFlight = false
     private var directDenuoStatusSnapshot: NativeDirectDenuoStatus?
     private var hnsSyncPresentationTimer: Timer?
+    private var bitcoinSyncInProgress = false
+    private var bitcoinSyncStopRequested = false
+    private var bitcoinSyncTimer: Timer?
+    private var bitcoinSnapshot: NativeBitcoinWalletSnapshot?
+    private var bitcoinValueAvailable = false
+    private weak var bitcoinSendApprovalAlert: UIAlertController?
+    private var pendingBitcoinSendApproval: NativeBitcoinSendApproval?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -60,6 +67,9 @@ final class WalletViewController: UIViewController {
     private let historyLabel = UILabel()
     private let namesLabel = UILabel()
     private let nameImportStatusLabel = UILabel()
+    private let bitcoinStatusLabel = UILabel()
+    private let bitcoinBalanceLabel = UILabel()
+    private let bitcoinReceiveLabel = UILabel()
     private let recoveryTitle = UILabel()
     private let recoveryTextView = UITextView()
     private let createButton = UIButton(type: .system)
@@ -71,6 +81,9 @@ final class WalletViewController: UIViewController {
     private let synchronizeButton = UIButton(type: .system)
     private let importNameButton = UIButton(type: .system)
     private let deleteButton = UIButton(type: .system)
+    private let bitcoinReceiveButton = UIButton(type: .system)
+    private let bitcoinSyncButton = UIButton(type: .system)
+    private let bitcoinSendButton = UIButton(type: .system)
     private let dashboardStack = UIStackView()
 
     init(network: BrowserHandshakeNetwork) {
@@ -153,6 +166,9 @@ final class WalletViewController: UIViewController {
         pendingHnsSendApproval = nil
         pendingHnsValueApproval?.actionToken.discard()
         pendingHnsValueApproval = nil
+        pendingBitcoinSendApproval?.actionToken.discard()
+        pendingBitcoinSendApproval = nil
+        bitcoinSyncTimer?.invalidate()
         recoverySecret?.clear()
         let currentWallet = wallet
         let currentLease = storageLease
@@ -187,6 +203,12 @@ final class WalletViewController: UIViewController {
         configureSummaryLabel(historyLabel, identifier: "wallet.history")
         configureSummaryLabel(namesLabel, identifier: "wallet.names")
         configureSummaryLabel(nameImportStatusLabel, identifier: "wallet.name-import-status")
+        configureSummaryLabel(bitcoinStatusLabel, identifier: "wallet.bitcoin-status")
+        configureSummaryLabel(bitcoinBalanceLabel, identifier: "wallet.bitcoin-balance")
+        configureSummaryLabel(bitcoinReceiveLabel, identifier: "wallet.bitcoin-receive")
+        bitcoinStatusLabel.text = "Direct Bitcoin wallet is unavailable while locked."
+        bitcoinBalanceLabel.text = "Bitcoin balance: unavailable."
+        bitcoinReceiveLabel.text = "BIP84 receive address: unavailable."
 
         recoveryTitle.font = .preferredFont(forTextStyle: .headline)
         recoveryTitle.adjustsFontForContentSizeCategory = true
@@ -218,6 +240,21 @@ final class WalletViewController: UIViewController {
             synchronizeButton,
             title: "Synchronize HNS wallet",
             action: #selector(synchronizeWalletReads)
+        )
+        configureButton(
+            bitcoinReceiveButton,
+            title: "New Bitcoin address",
+            action: #selector(nextBitcoinReceiveAddress)
+        )
+        configureButton(
+            bitcoinSyncButton,
+            title: "Synchronize Bitcoin",
+            action: #selector(toggleBitcoinSynchronization)
+        )
+        configureButton(
+            bitcoinSendButton,
+            title: "Send Bitcoin",
+            action: #selector(showBitcoinSendForm)
         )
         configureButton(
             importNameButton,
@@ -397,6 +434,20 @@ final class WalletViewController: UIViewController {
             accent: .systemCyan
         ))
 
+        bitcoinSyncButton.configuration?.title = bitcoinSyncInProgress
+            ? (bitcoinSyncStopRequested ? "Stopping Bitcoin sync…" : "Stop Bitcoin sync")
+            : "Synchronize Bitcoin"
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "Bitcoin wallet",
+            body: [
+                bitcoinStatusLabel,
+                bitcoinBalanceLabel,
+                bitcoinReceiveLabel,
+                dashboardButtonRow([bitcoinReceiveButton, bitcoinSendButton, bitcoinSyncButton]),
+            ],
+            accent: .systemOrange
+        ))
+
         if !synchronizedReadsAvailable {
             dashboardStack.addArrangedSubview(dashboardCard(
                 title: "Sync needed",
@@ -558,6 +609,224 @@ final class WalletViewController: UIViewController {
         }
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
+    }
+
+    @objc private func nextBitcoinReceiveAddress() {
+        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress else { return }
+        bitcoinReceiveButton.isEnabled = false
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result { try wallet.nextBitcoinReceiveAddress() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                self.bitcoinReceiveButton.isEnabled = true
+                switch outcome {
+                case .success(let receive):
+                    self.renderBitcoinSnapshot(receive.snapshot)
+                    self.bitcoinStatusLabel.text = "New BIP84 receive address derived locally."
+                    self.presentBitcoinReceiveAddress(receive.receiveAddress)
+                case .failure(let error):
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func presentBitcoinReceiveAddress(_ address: String) {
+        let alert = UIAlertController(
+            title: "Receive Bitcoin",
+            message: address,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Copy address", style: .default) { _ in
+            UIPasteboard.general.setItems(
+                [[UTType.plainText.identifier: address]],
+                options: [.localOnly: true]
+            )
+        })
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    @objc private func toggleBitcoinSynchronization() {
+        if bitcoinSyncInProgress {
+            stopBitcoinSynchronization()
+        } else {
+            startBitcoinSynchronization()
+        }
+    }
+
+    private func startBitcoinSynchronization() {
+        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress else { return }
+        bitcoinSyncInProgress = true
+        bitcoinSyncStopRequested = false
+        bitcoinStatusLabel.text = "Connecting to direct Bitcoin peers…"
+        startBitcoinProgressWatcher(wallet: wallet)
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result { try wallet.synchronizeBitcoin() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                let stopped = self.bitcoinSyncStopRequested
+                self.bitcoinSyncTimer?.invalidate()
+                self.bitcoinSyncTimer = nil
+                self.bitcoinSyncInProgress = false
+                self.bitcoinSyncStopRequested = false
+                switch outcome {
+                case .success(let synchronization):
+                    self.renderBitcoinSnapshot(synchronization.snapshot)
+                    self.bitcoinStatusLabel.text = "Bitcoin synchronized at height \(synchronization.checkpointHeight) with \(synchronization.connectedPeerCount)/\(synchronization.requiredPeerCount) peers."
+                case .failure where stopped:
+                    self.bitcoinStatusLabel.text = "Bitcoin synchronization stopped at the last durable checkpoint."
+                    if let snapshot = try? wallet.bitcoinSnapshot() {
+                        self.renderBitcoinSnapshot(snapshot)
+                    }
+                case .failure(let error):
+                    self.bitcoinStatusLabel.text = "Bitcoin synchronization did not complete."
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func stopBitcoinSynchronization() {
+        guard let wallet, bitcoinSyncInProgress, !bitcoinSyncStopRequested else { return }
+        bitcoinSyncStopRequested = true
+        bitcoinStatusLabel.text = "Stopping Bitcoin synchronization now…"
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result { try wallet.cancelBitcoinSynchronization() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                if case .failure(let error) = outcome {
+                    self.bitcoinSyncStopRequested = false
+                    self.showError(error)
+                    self.refreshButtonStates()
+                }
+            }
+        }
+    }
+
+    private func startBitcoinProgressWatcher(wallet: RustNativeWallet) {
+        bitcoinSyncTimer?.invalidate()
+        bitcoinSyncTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet, self.bitcoinSyncInProgress else {
+                return
+            }
+            DispatchQueue.global(qos: .utility).async { [weak self, weak wallet] in
+                guard let wallet else { return }
+                let progress = try? wallet.bitcoinSynchronizationProgress()
+                DispatchQueue.main.async { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet,
+                          self.bitcoinSyncInProgress, let progress else { return }
+                    let percent = Double(progress.completionBasisPoints) / 100
+                    let height = progress.chainHeight.map { " · chain height \($0)" } ?? ""
+                    self.bitcoinStatusLabel.text = progress.connectionsMet
+                        ? "Scanning Bitcoin compact filters · \(String(format: "%.2f", percent))%\(height)"
+                        : "Connecting to Bitcoin peers · \(progress.successfulHandshakes)/\(progress.requiredPeerCount) handshakes\(height)"
+                }
+            }
+        }
+    }
+
+    @objc private func showBitcoinSendForm() {
+        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress else { return }
+        let alert = UIAlertController(
+            title: "Send Bitcoin",
+            message: "Enter a native Bitcoin address, amount in satoshis, and an absolute fee cap. The native wallet will show the exact selected fee before signing.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "Bitcoin address"
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+        }
+        alert.addTextField { field in
+            field.placeholder = "Amount (sats)"
+            field.keyboardType = .numberPad
+        }
+        alert.addTextField { field in
+            field.placeholder = "Maximum fee (sats)"
+            field.keyboardType = .numberPad
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Review send", style: .default) {
+            [weak self, weak alert, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let fields = alert?.textFields, fields.count == 3 else { return }
+            var destination = Array((fields[0].text ?? "").utf8)
+            var amount = Array((fields[1].text ?? "").utf8)
+            var fee = Array((fields[2].text ?? "").utf8)
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result {
+                    try wallet.prepareBitcoinSend(
+                        destination: &destination,
+                        amountSats: &amount,
+                        maximumFeeSats: &fee
+                    )
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    switch outcome {
+                    case .success(let approval): self.presentBitcoinSendApproval(approval, wallet: wallet)
+                    case .failure(let error): self.showError(error)
+                    }
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func presentBitcoinSendApproval(
+        _ approval: NativeBitcoinSendApproval,
+        wallet: RustNativeWallet
+    ) {
+        pendingBitcoinSendApproval?.actionToken.discard()
+        pendingBitcoinSendApproval = approval
+        let message = """
+        Destination: \(approval.destination)
+        Amount: \(approval.amountSats) sats
+        Selected fee: \(approval.feeSats) sats
+        Maximum fee: \(approval.maximumFeeSats) sats
+
+        This approval is single-use and expires at Unix time \(approval.expiresAtUnix).
+        """
+        let alert = UIAlertController(title: "Review Bitcoin send", message: message, preferredStyle: .alert)
+        bitcoinSendApprovalAlert = alert
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) { [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingBitcoinSendApproval else { return }
+            self.pendingBitcoinSendApproval = nil
+            DispatchQueue.global(qos: .userInitiated).async { try? wallet.rejectBitcoinSend(pending.actionToken) }
+        })
+        alert.addAction(UIAlertAction(title: "Sign and broadcast", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingBitcoinSendApproval else { return }
+            self.pendingBitcoinSendApproval = nil
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.approveBitcoinSend(pending.actionToken) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    switch outcome {
+                    case .success(let receipt):
+                        self.bitcoinStatusLabel.text = "Bitcoin transaction broadcast: \(receipt.txid)"
+                        if let snapshot = try? wallet.bitcoinSnapshot() { self.renderBitcoinSnapshot(snapshot) }
+                    case .failure(let error): self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func renderBitcoinSnapshot(_ snapshot: NativeBitcoinWalletSnapshot) {
+        bitcoinSnapshot = snapshot
+        bitcoinBalanceLabel.text = "Confirmed: \(snapshot.confirmedSats) sats · pending: \(snapshot.trustedPendingSats + snapshot.untrustedPendingSats) sats · total: \(snapshot.totalSats) sats"
+        bitcoinReceiveLabel.text = "BIP84 receive\n\(snapshot.receiveAddress)"
     }
 
     @objc private func showHnsSendForm() {
@@ -2562,6 +2831,15 @@ final class WalletViewController: UIViewController {
         guard wallet !== controller else { return }
         dismissPendingHnsSendApproval(rejectNatively: true)
         dismissPendingHnsValueApproval(rejectNatively: true)
+        pendingBitcoinSendApproval?.actionToken.discard()
+        pendingBitcoinSendApproval = nil
+        bitcoinSendApprovalAlert?.dismiss(animated: false)
+        bitcoinSyncTimer?.invalidate()
+        bitcoinSyncTimer = nil
+        bitcoinSyncInProgress = false
+        bitcoinSyncStopRequested = false
+        bitcoinValueAvailable = false
+        bitcoinSnapshot = nil
         try? wallet?.lock()
         wallet?.close()
         wallet = controller
@@ -2814,6 +3092,9 @@ final class WalletViewController: UIViewController {
         do {
             let hasHnsReads = try wallet.hasHnsReads()
             let hasHnsValue = try wallet.hasHnsValue()
+            let hasBitcoinValue = bitcoinSyncInProgress
+                ? bitcoinValueAvailable
+                : try wallet.hasBitcoinValue()
             let status = try wallet.status()
             let enabledModulesAreAllowed = hasHnsReads
                 ? status.enabledModules == ["handshake"]
@@ -2831,6 +3112,7 @@ final class WalletViewController: UIViewController {
                 : "Status: unlocked · wallet \(status.activeWallet ?? "unknown")."
             walletIsUnlocked = !status.locked
             directHnsValueAvailable = hasHnsValue && !status.locked
+            bitcoinValueAvailable = hasBitcoinValue && !status.locked
             shakedexAvailable = status.shakedexEnabled && !status.locked
             updateDirectDenuoServiceTimer()
             if status.locked {
@@ -2863,10 +3145,18 @@ final class WalletViewController: UIViewController {
                     receiveTargets = WalletReceiveTargets(localPaymentAddress: receive.display)
                     paymentReceiveLabel.text = "Payment receive\n\(receive.display)\nDerivation index \(receive.derivationIndex)"
                 }
+                if hasBitcoinValue, !bitcoinSyncInProgress,
+                   let snapshot = try? wallet.bitcoinSnapshot() {
+                    renderBitcoinSnapshot(snapshot)
+                    bitcoinStatusLabel.text = "Direct Bitcoin wallet ready at durable height \(snapshot.synchronizedHeight)."
+                } else if !hasBitcoinValue {
+                    bitcoinStatusLabel.text = "Direct Bitcoin wallet is unavailable until setup and unlock complete."
+                }
             }
         } catch {
             walletIsUnlocked = false
             directHnsValueAvailable = false
+            if !bitcoinSyncInProgress { bitcoinValueAvailable = false }
             shakedexAvailable = false
             updateDirectDenuoServiceTimer()
             statusLabel.text = "Status unavailable."
@@ -2892,13 +3182,21 @@ final class WalletViewController: UIViewController {
         createButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
         restoreButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
         openButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasIncompleteWallet && (hasWallet || persistentWalletExists) && !isOperating
-        lockButton.isEnabled = ownsStorage && protectedStorageIsAvailable && hasWallet && !hasIncompleteWallet && !isOperating
+        lockButton.isEnabled = ownsStorage && protectedStorageIsAvailable && hasWallet &&
+            !hasIncompleteWallet && !isOperating && !bitcoinSyncInProgress
         confirmRecoveryButton.isEnabled = ownsStorage && hasIncompleteWallet && recoverySecret != nil && !isOperating
         refreshButton.isEnabled = ownsStorage &&
             (hasWallet || encryptedOrphanCleanupPending) &&
             !hasIncompleteWallet &&
             !isOperating
         synchronizeButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && synchronizedReadsAvailable && !isOperating
+        bitcoinReceiveButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
+            bitcoinValueAvailable && !bitcoinSyncInProgress
+        bitcoinSendButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
+            bitcoinValueAvailable && !bitcoinSyncInProgress
+        bitcoinSyncButton.isEnabled = bitcoinSyncInProgress
+            ? !bitcoinSyncStopRequested
+            : ownsStorage && hasWallet && walletIsUnlocked && bitcoinValueAvailable
         let importState = currentWalletNameImportState()
         importNameButton.isEnabled = importState.authority.map {
             walletNameImportMayStart(expected: $0, current: importState)
@@ -2930,7 +3228,8 @@ final class WalletViewController: UIViewController {
             walletLifecycleMayAcquireStorage &&
             viewIfLoaded?.window != nil &&
             !retirementInFlight &&
-            !isOperating)
+            !isOperating &&
+            !bitcoinSyncInProgress)
         renderWalletDashboard()
     }
 

@@ -24,10 +24,11 @@ use hns_wallet_mobile::{
     EmbeddedHnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectDenuoListener,
     HnsDirectDenuoMessage, HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator,
     HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock,
-    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileDatabaseKey,
-    MobileDenuoSessionController, MobileHnsNameSummary, MobileHnsReadController,
-    MobileHnsReadSnapshot, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
-    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
+    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig,
+    MobileBitcoinValueController, MobileDatabaseKey, MobileDenuoSessionController,
+    MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot, MobileHnsValueController,
+    MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
+    MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::BaseUnits;
 use serde_json::{Value, json};
@@ -114,6 +115,11 @@ const MAX_WALLET_NAME_INPUT_BYTES: usize = 63;
 const MAX_WALLET_NAME_IMPORT_JSON_BYTES: usize = 4 * 1024;
 const WALLET_HNS_RECEIVE_BUNDLE_MAGIC: &[u8; 4] = b"HNRT";
 const WALLET_HNS_RECEIVE_BUNDLE_VERSION: u8 = 1;
+const WALLET_BITCOIN_BUNDLE_MAGIC: &[u8; 4] = b"HNBW";
+const WALLET_BITCOIN_BUNDLE_VERSION: u8 = 1;
+const MAX_WALLET_BITCOIN_JSON_BYTES: usize = 16 * 1024;
+const MAX_WALLET_BITCOIN_ADDRESS_BYTES: usize = 128;
+const MAX_WALLET_BITCOIN_SATS_BYTES: usize = 20;
 const WALLET_VALUE_APPROVAL_BUNDLE_MAGIC: &[u8; 4] = b"HNVP";
 const WALLET_VALUE_APPROVAL_BUNDLE_VERSION: u8 = 1;
 const WALLET_VALUE_RESULT_BUNDLE_MAGIC: &[u8; 4] = b"HNVX";
@@ -754,6 +760,7 @@ struct WalletEntry {
     controller: NativeWalletController,
     pending_recovery_phrase: Option<SensitiveBytes>,
     hns_reads_installable: bool,
+    bitcoin_data_dir: PathBuf,
     active: bool,
 }
 
@@ -851,7 +858,8 @@ impl NativeWalletController {
         database_key: &MobileDatabaseKey,
         rollback_floor: HnsLightFloor,
         bootstrap_snapshot_path: Option<&Path>,
-    ) -> Result<(), MobileWalletError> {
+        bitcoin_data_dir: PathBuf,
+    ) -> Result<MobileBitcoinValueController, MobileWalletError> {
         let Self::Lifecycle(lifecycle) = self else {
             return Err(MobileWalletError::ControllerFailed);
         };
@@ -904,6 +912,11 @@ impl NativeWalletController {
         let backend = coordinator.backend().clone();
         let controller =
             lifecycle.into_hns_value_with_wallet_owned_direct_shakedex(database_key, backend)?;
+        let bitcoin_config = MobileBitcoinDirectConfig::for_hns_wallet(
+            controller.account_config().network,
+            bitcoin_data_dir,
+        );
+        let bitcoin = controller.direct_bitcoin_value_controller(bitcoin_config)?;
         let denuo_sessions = controller.direct_denuo_session_controller()?;
         *self = Self::DirectHnsValue {
             coordinator,
@@ -912,7 +925,7 @@ impl NativeWalletController {
             denuo_listener: None,
             denuo_peer: None,
         };
-        Ok(())
+        Ok(bitcoin)
     }
 
     const fn has_hns_reads(&self) -> bool {
@@ -1210,8 +1223,87 @@ struct HandleRegistry {
     proxies: HashMap<HnsBrowserProxyHandle, Arc<ProxyEntry>>,
     wallets: HashMap<HnsBrowserWalletHandle, Arc<Mutex<WalletEntry>>>,
     wallet_hns_sync_controls: HashMap<HnsBrowserWalletHandle, Arc<WalletHnsSyncControl>>,
+    wallet_bitcoin_controls: HashMap<HnsBrowserWalletHandle, Arc<WalletBitcoinControl>>,
     starting_proxy_runtimes: HashSet<HnsBrowserRuntimeHandle>,
     starting_wallets: usize,
+}
+
+#[derive(Default)]
+struct WalletBitcoinControl {
+    controller: Mutex<Option<MobileBitcoinValueController>>,
+    shutdown: Mutex<Option<hns_wallet_mobile::MobileBitcoinShutdownHandle>>,
+    progress: Mutex<Option<hns_wallet_mobile::MobileBitcoinSyncProgressHandle>>,
+    activity: Mutex<WalletBitcoinSyncActivityState>,
+}
+
+#[derive(Default)]
+struct WalletBitcoinSyncActivityState {
+    active: bool,
+    cancellation_requested: bool,
+}
+
+impl WalletBitcoinSyncActivityState {
+    fn begin(&mut self) -> bool {
+        if self.active {
+            return false;
+        }
+        self.active = true;
+        self.cancellation_requested = false;
+        true
+    }
+
+    fn request_cancellation(&mut self) -> bool {
+        if !self.active {
+            return false;
+        }
+        self.cancellation_requested = true;
+        true
+    }
+
+    fn finish(&mut self) {
+        self.active = false;
+        self.cancellation_requested = false;
+    }
+}
+
+struct WalletBitcoinSyncActivity {
+    control: Arc<WalletBitcoinControl>,
+}
+
+impl Drop for WalletBitcoinSyncActivity {
+    fn drop(&mut self) {
+        if let Ok(mut activity) = self.control.activity.lock() {
+            activity.finish();
+        }
+    }
+}
+
+impl WalletBitcoinControl {
+    fn request_shutdown(&self) {
+        if let Ok(mut current) = self.shutdown.lock()
+            && let Some(handle) = current.take()
+        {
+            let _ = handle.request_shutdown();
+        }
+    }
+
+    fn replace_runtime_handles(&self, controller: &MobileBitcoinValueController) {
+        if let Ok(mut current) = self.shutdown.lock() {
+            *current = controller.shutdown_handle();
+        }
+        if let Ok(mut current) = self.progress.lock() {
+            *current = controller.sync_progress_handle();
+        }
+    }
+
+    fn clear_runtime_handles(&self) {
+        if let Ok(mut current) = self.shutdown.lock() {
+            *current = None;
+        }
+        if let Ok(mut current) = self.progress.lock() {
+            *current = None;
+        }
+    }
 }
 
 #[derive(Default)]
@@ -1334,6 +1426,29 @@ fn wallet_hns_sync_control_entry(
         })
 }
 
+fn wallet_bitcoin_control_entry(
+    handle: HnsBrowserWalletHandle,
+) -> Result<Arc<WalletBitcoinControl>, FfiFailure> {
+    if handle == 0 {
+        return Err(FfiFailure::new(
+            HNS_BROWSER_RESULT_NOT_FOUND,
+            "wallet handle is invalid or stale",
+        ));
+    }
+    handle_registry()
+        .lock()
+        .map_err(|_| FfiFailure::internal())?
+        .wallet_bitcoin_controls
+        .get(&handle)
+        .cloned()
+        .ok_or_else(|| {
+            FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_FOUND,
+                "wallet handle is invalid or stale",
+            )
+        })
+}
+
 fn reserve_wallet_start() -> Result<WalletStartReservation, FfiFailure> {
     let mut registry = handle_registry()
         .lock()
@@ -1374,6 +1489,9 @@ fn insert_wallet(
     registry
         .wallet_hns_sync_controls
         .insert(handle, Arc::new(WalletHnsSyncControl::default()));
+    registry
+        .wallet_bitcoin_controls
+        .insert(handle, Arc::new(WalletBitcoinControl::default()));
     Ok(handle)
 }
 
@@ -1385,6 +1503,15 @@ fn ensure_wallet_active(entry: &WalletEntry) -> Result<(), FfiFailure> {
         ));
     }
     Ok(())
+}
+
+/// Kyoto's compact-filter state is an app-private sibling of the encrypted
+/// wallet database. The exact derivation also prevents bounded simultaneous
+/// handles from aliasing one another's Bitcoin journal.
+fn ios_wallet_bitcoin_data_dir(database_path: &Path) -> PathBuf {
+    let mut data_dir = database_path.to_path_buf();
+    data_dir.set_extension("bitcoin-kyoto");
+    data_dir
 }
 
 fn wallet_network(value: u32) -> Result<HnsNetwork, FfiFailure> {
@@ -1947,6 +2074,38 @@ unsafe fn wallet_action_token(slice: HnsBrowserSlice) -> Result<String, FfiFailu
     })
 }
 
+unsafe fn wallet_bitcoin_address(slice: HnsBrowserSlice) -> Result<String, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let value = unsafe { wallet_visible_ascii(slice, MAX_WALLET_BITCOIN_ADDRESS_BYTES) }?;
+    if value.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+        Ok(value)
+    } else {
+        Err(FfiFailure::invalid(
+            "Bitcoin address is not canonical visible ASCII",
+        ))
+    }
+}
+
+unsafe fn wallet_nonzero_sats(slice: HnsBrowserSlice) -> Result<u64, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(slice, MAX_WALLET_BITCOIN_SATS_BYTES) }?;
+    let valid = !bytes.is_empty()
+        && bytes.iter().all(u8::is_ascii_digit)
+        && (bytes.len() == 1 || bytes.first() != Some(&b'0'));
+    let value = valid
+        .then(|| {
+            std::str::from_utf8(bytes.as_slice())
+                .ok()?
+                .parse::<u64>()
+                .ok()
+        })
+        .flatten()
+        .filter(|value| *value != 0)
+        .ok_or_else(|| FfiFailure::invalid("Bitcoin amount is not canonical nonzero satoshis"));
+    bytes.fill(0);
+    value
+}
+
 /// Decodes only the published closed HNS wallet intent enum. The iOS C ABI
 /// has no provider or WebKit caller, but retaining a strict byte/shape bound
 /// here prevents UIKit form data from becoming an unbounded native parser
@@ -2093,6 +2252,19 @@ fn wallet_json_bundle(
     bundle.extend_from_slice(&length.to_be_bytes());
     bundle.extend_from_slice(json);
     Ok(SensitiveBytes(bundle))
+}
+
+fn wallet_bitcoin_bundle(value: &impl serde::Serialize) -> Result<SensitiveBytes, FfiFailure> {
+    let mut json = serde_json::to_vec(value)
+        .map_err(|_| wallet_runtime_failure("unable to encode direct Bitcoin result"))?;
+    let result = wallet_json_bundle(
+        json.as_slice(),
+        WALLET_BITCOIN_BUNDLE_MAGIC,
+        WALLET_BITCOIN_BUNDLE_VERSION,
+        MAX_WALLET_BITCOIN_JSON_BYTES,
+    );
+    json.fill(0);
+    result
 }
 
 fn native_hns_send_receipt(result: Value) -> Option<Value> {
@@ -2876,6 +3048,8 @@ pub unsafe extern "C" fn hns_browser_wallet_create(
         let path = unsafe { required_input_str(database_path, MAX_PATH_BYTES) }?;
         // SAFETY: This unsafe export carries the caller's readable-slice contracts.
         let key = unsafe { wallet_database_key(database_key) }?;
+        let path = PathBuf::from(path);
+        let bitcoin_data_dir = ios_wallet_bitcoin_data_dir(&path);
         let policy = HnsBootstrapPolicy::new(wallet_network(network)?, birthday_height);
         let reservation = reserve_wallet_start()?;
         let creation = MobileWalletController::create(&path, &key, MobilePlatform::Ios, policy)
@@ -2888,6 +3062,7 @@ pub unsafe extern "C" fn hns_browser_wallet_create(
                 controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: Some(recovery_phrase),
                 hns_reads_installable: false,
+                bitcoin_data_dir,
                 active: true,
             },
             reservation,
@@ -2923,6 +3098,8 @@ pub unsafe extern "C" fn hns_browser_wallet_restore(
         let key = unsafe { wallet_database_key(database_key) }?;
         // SAFETY: This unsafe export carries the caller's readable-slice contracts.
         let phrase = unsafe { wallet_recovery_phrase(recovery_phrase) }?;
+        let path = PathBuf::from(path);
+        let bitcoin_data_dir = ios_wallet_bitcoin_data_dir(&path);
         let policy = HnsBootstrapPolicy::new(wallet_network(network)?, birthday_height);
         let reservation = reserve_wallet_start()?;
         let controller =
@@ -2933,6 +3110,7 @@ pub unsafe extern "C" fn hns_browser_wallet_restore(
                 controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: None,
                 hns_reads_installable: true,
+                bitcoin_data_dir,
                 active: true,
             },
             reservation,
@@ -2962,6 +3140,8 @@ pub unsafe extern "C" fn hns_browser_wallet_open(
         let path = unsafe { required_input_str(database_path, MAX_PATH_BYTES) }?;
         // SAFETY: This unsafe export carries the caller's readable-slice contracts.
         let key = unsafe { wallet_database_key(database_key) }?;
+        let path = PathBuf::from(path);
+        let bitcoin_data_dir = ios_wallet_bitcoin_data_dir(&path);
         let reservation = reserve_wallet_start()?;
         let controller = MobileWalletController::open(&path, &key, MobilePlatform::Ios)
             .map_err(|_| wallet_runtime_failure("unable to open native wallet"))?;
@@ -2970,6 +3150,7 @@ pub unsafe extern "C" fn hns_browser_wallet_open(
                 controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: None,
                 hns_reads_installable: true,
+                bitcoin_data_dir,
                 active: true,
             },
             reservation,
@@ -3211,6 +3392,7 @@ pub unsafe extern "C" fn hns_browser_wallet_configure_direct_hns_value(
         let floor = unsafe { wallet_direct_hns_floor(rollback_floor) }?;
         // SAFETY: This export carries the caller's readable-slice contracts.
         let snapshot_path = unsafe { wallet_optional_snapshot_path(bootstrap_snapshot_path) }?;
+        let bitcoin_control = wallet_bitcoin_control_entry(wallet)?;
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
@@ -3220,10 +3402,38 @@ pub unsafe extern "C" fn hns_browser_wallet_configure_direct_hns_value(
                 "direct HNS wallet requires a reopened durable controller",
             ));
         }
-        entry
+        let bitcoin_data_dir = entry.bitcoin_data_dir.clone();
+        let mut bitcoin = entry
             .controller
-            .enable_direct_hns_value(&key, floor, snapshot_path.as_deref())
-            .map_err(|_| wallet_runtime_failure("unable to install direct HNS wallet"))
+            .enable_direct_hns_value(&key, floor, snapshot_path.as_deref(), bitcoin_data_dir)
+            .map_err(|_| {
+                wallet_runtime_failure("unable to install direct HNS and Bitcoin wallet")
+            })?;
+        let hns_unlocked = entry
+            .controller
+            .with_mut(
+                |controller| controller.status(),
+                |controller| controller.status(),
+                |controller| controller.status(),
+            )
+            .map(|status| !status.locked)
+            .unwrap_or(false);
+        drop(entry);
+        let mut slot = bitcoin_control
+            .controller
+            .lock()
+            .map_err(|_| FfiFailure::internal())?;
+        if slot.is_some() {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct Bitcoin wallet is already configured",
+            ));
+        }
+        if hns_unlocked && bitcoin.activate().is_ok() {
+            bitcoin_control.replace_runtime_handles(&bitcoin);
+        }
+        *slot = Some(bitcoin);
+        Ok(())
     })
 }
 
@@ -4068,6 +4278,356 @@ pub extern "C" fn hns_browser_wallet_cancel_hns_sync(
 }
 
 #[unsafe(no_mangle)]
+/// Reports whether the independent wallet-owned Kyoto controller is active.
+///
+/// # Safety
+/// `out_enabled` must point to one writable byte.
+pub unsafe extern "C" fn hns_browser_wallet_has_bitcoin_value(
+    wallet: HnsBrowserWalletHandle,
+    out_enabled: *mut u8,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_enabled)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_enabled, 0) };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let enabled = slot
+            .as_ref()
+            .is_some_and(MobileBitcoinValueController::is_active);
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_enabled, u8::from(enabled)) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Returns the last durable direct Bitcoin projection without networking.
+///
+/// # Safety
+/// `out_snapshot_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_bitcoin_snapshot(
+    wallet: HnsBrowserWalletHandle,
+    out_snapshot_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_snapshot_bundle)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_snapshot_bundle, HnsBrowserBuffer::empty()) };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct Bitcoin synchronization is active")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_ref()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let snapshot = controller
+            .snapshot()
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin snapshot failed"))?;
+        let bundle = wallet_bitcoin_bundle(&snapshot)?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_snapshot_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Reveals and persists one locally derived BIP84 receive address.
+///
+/// # Safety
+/// `out_receive_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_next_bitcoin_receive_address(
+    wallet: HnsBrowserWalletHandle,
+    out_receive_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_receive_bundle)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_receive_bundle, HnsBrowserBuffer::empty()) };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct Bitcoin synchronization is active")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let receive_address = controller
+            .next_receive_address()
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin receive address failed"))?;
+        let snapshot = controller
+            .snapshot()
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin receive snapshot failed"))?;
+        let bundle = wallet_bitcoin_bundle(&json!({
+            "receiveAddress": receive_address,
+            "snapshot": snapshot,
+        }))?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_receive_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Drives one user-scheduled compact-filter synchronization cycle. Bitcoin
+/// owns a distinct mutex, so this call never prevents HNS controller use.
+///
+/// # Safety
+/// `out_sync_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_synchronize_bitcoin(
+    wallet: HnsBrowserWalletHandle,
+    out_sync_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_sync_bundle)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_sync_bundle, HnsBrowserBuffer::empty()) };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        {
+            let mut activity = control
+                .activity
+                .lock()
+                .map_err(|_| FfiFailure::internal())?;
+            if !activity.begin() {
+                return Err(direct_hns_not_ready(
+                    "direct Bitcoin synchronization is already active",
+                ));
+            }
+        }
+        let _activity = WalletBitcoinSyncActivity {
+            control: Arc::clone(&control),
+        };
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let synchronization = controller.synchronize_once();
+        let cancelled = control
+            .activity
+            .lock()
+            .map(|activity| activity.cancellation_requested)
+            .unwrap_or(true);
+        if cancelled {
+            let _ = controller.deactivate();
+            if controller.activate().is_ok() {
+                control.replace_runtime_handles(controller);
+            } else {
+                control.clear_runtime_handles();
+            }
+            return Err(direct_hns_not_ready(
+                "direct Bitcoin synchronization was stopped",
+            ));
+        }
+        let (receipt, snapshot) = synchronization
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin synchronization failed"))?;
+        let bundle = wallet_bitcoin_bundle(&json!({
+            "snapshot": snapshot,
+            "sequence": receipt.sequence,
+            "checkpointHeight": receipt.checkpoint.height,
+            "connectedPeerCount": receipt.connected_peer_count,
+            "requiredPeerCount": receipt.required_peer_count,
+        }))?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_sync_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Wakes an active Kyoto cycle immediately through its out-of-lock shutdown
+/// handle. The controller is reconstructed from its durable journal before
+/// the synchronization call returns.
+pub extern "C" fn hns_browser_wallet_cancel_bitcoin_sync(
+    wallet: HnsBrowserWalletHandle,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        {
+            let mut activity = control
+                .activity
+                .lock()
+                .map_err(|_| FfiFailure::internal())?;
+            if !activity.request_cancellation() {
+                return Err(direct_hns_not_ready(
+                    "direct Bitcoin synchronization is not active",
+                ));
+            }
+        }
+        let shutdown = control
+            .shutdown
+            .lock()
+            .ok()
+            .and_then(|current| current.as_ref().cloned());
+        if shutdown.is_some_and(|handle| handle.request_shutdown().is_ok()) {
+            Ok(())
+        } else {
+            if let Ok(mut activity) = control.activity.lock() {
+                activity.cancellation_requested = false;
+            }
+            Err(direct_hns_not_ready(
+                "direct Bitcoin synchronization cannot be stopped",
+            ))
+        }
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Returns only non-sensitive connection/chain progress without taking the
+/// Bitcoin controller mutex.
+///
+/// # Safety
+/// `out_progress_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_bitcoin_sync_progress(
+    wallet: HnsBrowserWalletHandle,
+    out_progress_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_progress_bundle)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_progress_bundle, HnsBrowserBuffer::empty()) };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let progress = control
+            .progress
+            .lock()
+            .map_err(|_| FfiFailure::internal())?
+            .as_ref()
+            .map(|handle| handle.snapshot())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin progress is unavailable"))?;
+        let bundle = wallet_bitcoin_bundle(&progress)?;
+        let output = allocate_output(&bundle.0, false)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_progress_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Prepares a direct Bitcoin send without signing or network submission.
+///
+/// # Safety
+/// All input slices must remain readable and `out_approval_bundle` writable.
+pub unsafe extern "C" fn hns_browser_wallet_prepare_bitcoin_send(
+    wallet: HnsBrowserWalletHandle,
+    destination: HnsBrowserSlice,
+    amount_sats: HnsBrowserSlice,
+    maximum_fee_sats: HnsBrowserSlice,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        // SAFETY: This export carries all readable-slice contracts.
+        let destination = unsafe { wallet_bitcoin_address(destination) }?;
+        let amount_sats = unsafe { wallet_nonzero_sats(amount_sats) }?;
+        let maximum_fee_sats = unsafe { wallet_nonzero_sats(maximum_fee_sats) }?;
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct Bitcoin synchronization is active")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let approval = controller
+            .prepare_send(&destination, amount_sats, maximum_fee_sats)
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin send preparation failed"))?;
+        let bundle = wallet_bitcoin_bundle(&approval)?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Consumes one displayed direct Bitcoin approval exactly once.
+///
+/// # Safety
+/// `action_token` must remain readable and `out_receipt_bundle` writable.
+pub unsafe extern "C" fn hns_browser_wallet_approve_bitcoin_send(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_receipt_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_receipt_bundle)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_receipt_bundle, HnsBrowserBuffer::empty()) };
+        // SAFETY: This export carries the readable-slice contract.
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct Bitcoin synchronization is active")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let receipt = controller
+            .approve_send(&token)
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin send approval failed"))?;
+        let bundle = wallet_bitcoin_bundle(&receipt)?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_receipt_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Rejects and consumes one displayed direct Bitcoin approval.
+///
+/// # Safety
+/// `action_token` must remain readable for its declared length.
+pub unsafe extern "C" fn hns_browser_wallet_reject_bitcoin_send(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        // SAFETY: This export carries the readable-slice contract.
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct Bitcoin synchronization is active")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        controller
+            .reject_send(&token)
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin send rejection failed"))
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Unlocks the controller with one borrowed 32-byte platform-unwrapped key.
 ///
 /// # Safety
@@ -4093,6 +4653,20 @@ pub unsafe extern "C" fn hns_browser_wallet_unlock(
         // Listener availability is operational rather than wallet authority;
         // a local bind denial must not relock or discard the HNS controller.
         let _ = entry.controller.start_direct_denuo_listener();
+        drop(entry);
+        let bitcoin_control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = bitcoin_control
+            .controller
+            .lock()
+            .map_err(|_| FfiFailure::internal())?;
+        if let Some(bitcoin) = slot.as_mut() {
+            if bitcoin.activate().is_ok() {
+                bitcoin_control.replace_runtime_handles(bitcoin);
+            } else {
+                let _ = bitcoin.deactivate();
+                bitcoin_control.clear_runtime_handles();
+            }
+        }
         Ok(())
     })
 }
@@ -4100,6 +4674,20 @@ pub unsafe extern "C" fn hns_browser_wallet_unlock(
 #[unsafe(no_mangle)]
 pub extern "C" fn hns_browser_wallet_lock(wallet: HnsBrowserWalletHandle) -> HnsBrowserResult {
     ffi_call(|| {
+        let bitcoin_control = wallet_bitcoin_control_entry(wallet)?;
+        bitcoin_control.request_shutdown();
+        {
+            let mut slot = bitcoin_control
+                .controller
+                .lock()
+                .map_err(|_| FfiFailure::internal())?;
+            if let Some(bitcoin) = slot.as_mut() {
+                bitcoin
+                    .deactivate()
+                    .map_err(|_| wallet_runtime_failure("unable to stop direct Bitcoin wallet"))?;
+            }
+        }
+        bitcoin_control.clear_runtime_handles();
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
@@ -4152,7 +4740,7 @@ pub extern "C" fn hns_browser_wallet_destroy(wallet: HnsBrowserWalletHandle) -> 
         // Removal prevents new lookups. A caller that cloned the Arc before removal
         // either finishes first while we wait on this mutex, or observes `active =
         // false` after we acquire it; teardown therefore completes before return.
-        let entry = {
+        let (entry, bitcoin_control) = {
             let mut registry = handle_registry()
                 .lock()
                 .map_err(|_| FfiFailure::internal())?;
@@ -4163,8 +4751,19 @@ pub extern "C" fn hns_browser_wallet_destroy(wallet: HnsBrowserWalletHandle) -> 
                 )
             })?;
             registry.wallet_hns_sync_controls.remove(&wallet);
-            entry
+            let bitcoin_control = registry
+                .wallet_bitcoin_controls
+                .remove(&wallet)
+                .ok_or_else(FfiFailure::internal)?;
+            (entry, bitcoin_control)
         };
+        bitcoin_control.request_shutdown();
+        if let Ok(mut bitcoin) = bitcoin_control.controller.lock() {
+            if let Some(controller) = bitcoin.as_mut() {
+                let _ = controller.deactivate();
+            }
+            bitcoin.take();
+        }
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         entry.active = false;
         drop(entry.pending_recovery_phrase.take());
@@ -4707,6 +5306,15 @@ mod tests {
             "hns_browser_wallet_synchronize_hns_reads",
             "hns_browser_wallet_hns_sync_progress",
             "hns_browser_wallet_cancel_hns_sync",
+            "hns_browser_wallet_has_bitcoin_value",
+            "hns_browser_wallet_bitcoin_snapshot",
+            "hns_browser_wallet_next_bitcoin_receive_address",
+            "hns_browser_wallet_synchronize_bitcoin",
+            "hns_browser_wallet_cancel_bitcoin_sync",
+            "hns_browser_wallet_bitcoin_sync_progress",
+            "hns_browser_wallet_prepare_bitcoin_send",
+            "hns_browser_wallet_approve_bitcoin_send",
+            "hns_browser_wallet_reject_bitcoin_send",
             "hns_browser_wallet_import_hns_name_exact_text",
             "hns_browser_wallet_prepare_hns_send",
             "hns_browser_wallet_approve_hns_send",
@@ -5911,5 +6519,56 @@ mod tests {
         assert_eq!(hns_browser_proxy_destroy(proxy), HNS_BROWSER_RESULT_OK);
         assert_eq!(hns_browser_runtime_destroy(runtime), HNS_BROWSER_RESULT_OK);
         cleanup_dir(&data_dir);
+    }
+
+    #[test]
+    fn bitcoin_boundary_is_bounded_canonical_and_immediately_cancellable() {
+        let mut activity = WalletBitcoinSyncActivityState::default();
+        assert!(activity.begin());
+        assert!(!activity.begin());
+        assert!(activity.request_cancellation());
+        assert!(activity.cancellation_requested);
+        activity.finish();
+        assert!(!activity.active);
+        assert!(!activity.cancellation_requested);
+        assert!(!activity.request_cancellation());
+
+        let database = Path::new("/private/app/NativeWallet/mainnet/wallet.sqlite3");
+        assert_eq!(
+            ios_wallet_bitcoin_data_dir(database),
+            PathBuf::from("/private/app/NativeWallet/mainnet/wallet.bitcoin-kyoto")
+        );
+
+        // SAFETY: Static test inputs remain readable for each bounded parse.
+        assert_eq!(
+            unsafe { wallet_nonzero_sats(ffi_slice(b"1")) }.ok(),
+            Some(1)
+        );
+        // SAFETY: Static test inputs remain readable for each bounded parse.
+        assert!(unsafe { wallet_nonzero_sats(ffi_slice(b"01")) }.is_err());
+        // SAFETY: Static test inputs remain readable for each bounded parse.
+        assert!(unsafe { wallet_nonzero_sats(ffi_slice(b"0")) }.is_err());
+        // SAFETY: Static test inputs remain readable for each bounded parse.
+        assert_eq!(
+            unsafe { wallet_bitcoin_address(ffi_slice(b"bc1qexample123")) }
+                .ok()
+                .as_deref(),
+            Some("bc1qexample123")
+        );
+
+        let bundle = match wallet_bitcoin_bundle(&json!({
+            "network": "mainnet",
+            "receiveAddress": "bc1qexample123",
+        })) {
+            Ok(bundle) => bundle,
+            Err(_) => panic!("bounded Bitcoin bundle"),
+        };
+        assert_eq!(&bundle.0[..4], b"HNBW");
+        assert_eq!(bundle.0[4], 1);
+        assert_eq!(&bundle.0[5..8], &[0, 0, 0]);
+        assert_eq!(
+            u32::from_be_bytes([bundle.0[8], bundle.0[9], bundle.0[10], bundle.0[11]]) as usize,
+            bundle.0.len() - WALLET_JSON_BUNDLE_HEADER_BYTES
+        );
     }
 }

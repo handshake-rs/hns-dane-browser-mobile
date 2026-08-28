@@ -326,6 +326,43 @@ HnsBrowserResult hns_browser_wallet_hns_sync_progress(
 HnsBrowserResult hns_browser_wallet_cancel_hns_sync(
     HnsBrowserWalletHandle wallet);
 /*
+ * Wallet-owned direct Bitcoin boundary. HNBW-v1 outputs contain bounded,
+ * native-validated JSON for the durable snapshot, BIP84 receive address,
+ * synchronization result/progress, or exact send review/receipt. Bitcoin has
+ * an independent controller mutex and out-of-lock stop signal, so one Kyoto
+ * compact-filter cycle does not seize the HNS controller.
+ */
+HnsBrowserResult hns_browser_wallet_has_bitcoin_value(
+    HnsBrowserWalletHandle wallet,
+    uint8_t *out_enabled);
+HnsBrowserResult hns_browser_wallet_bitcoin_snapshot(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_snapshot_bundle);
+HnsBrowserResult hns_browser_wallet_next_bitcoin_receive_address(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_receive_bundle);
+HnsBrowserResult hns_browser_wallet_synchronize_bitcoin(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_sync_bundle);
+HnsBrowserResult hns_browser_wallet_cancel_bitcoin_sync(
+    HnsBrowserWalletHandle wallet);
+HnsBrowserResult hns_browser_wallet_bitcoin_sync_progress(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_progress_bundle);
+HnsBrowserResult hns_browser_wallet_prepare_bitcoin_send(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice destination,
+    HnsBrowserSlice amount_sats,
+    HnsBrowserSlice maximum_fee_sats,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_bitcoin_send(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_receipt_bundle);
+HnsBrowserResult hns_browser_wallet_reject_bitcoin_send(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
+/*
  * Imports exact UTF-8 name text only through the synchronized HNS-read
  * controller, without trimming, lowercasing, IDNA, Unicode normalization, or
  * trailing-dot edits. The input must contain 1..63 UTF-8 bytes. On success,
