@@ -1627,13 +1627,10 @@ fn android_next_bitcoin_receive_address(
     bundle
 }
 
-fn android_synchronize_bitcoin(controller: &mut MobileBitcoinValueController) -> Option<Vec<u8>> {
-    let (receipt, snapshot) = controller
-        .synchronize_once()
-        .map_err(|error| {
-            android_log_error(&format!("wallet Bitcoin synchronization failed: {error}"));
-        })
-        .ok()?;
+fn android_synchronize_bitcoin(
+    controller: &mut MobileBitcoinValueController,
+) -> Result<Vec<u8>, MobileWalletError> {
+    let (receipt, snapshot) = controller.synchronize_once()?;
     let mut json = serde_json::to_vec(&json!({
         "snapshot": snapshot,
         "sequence": receipt.sequence,
@@ -1641,10 +1638,11 @@ fn android_synchronize_bitcoin(controller: &mut MobileBitcoinValueController) ->
         "connectedPeerCount": receipt.connected_peer_count,
         "requiredPeerCount": receipt.required_peer_count,
     }))
-    .ok()?;
-    let bundle = bitcoin_json_bundle(json.as_slice());
+    .map_err(|_| MobileWalletError::InvalidBitcoinAction)?;
+    let bundle =
+        bitcoin_json_bundle(json.as_slice()).ok_or(MobileWalletError::InvalidBitcoinAction)?;
     json.fill(0);
-    bundle
+    Ok(bundle)
 }
 
 fn android_prepare_bitcoin_send(
@@ -1700,6 +1698,7 @@ struct AndroidWalletRecord {
     // lock/destroy can wake the cycle before waiting to retire wallet state.
     bitcoin_shutdown: Mutex<Option<hns_wallet_mobile::MobileBitcoinShutdownHandle>>,
     bitcoin_sync_progress: Mutex<Option<hns_wallet_mobile::MobileBitcoinSyncProgressHandle>>,
+    bitcoin_sync_activity: Mutex<AndroidBitcoinSyncActivityState>,
     hns_reads_installable: bool,
     bitcoin_data_dir: PathBuf,
 }
@@ -1712,6 +1711,48 @@ struct AndroidHnsSyncActivityState {
 
 struct AndroidHnsSyncActivity {
     record: Arc<AndroidWalletRecord>,
+}
+
+#[derive(Default)]
+struct AndroidBitcoinSyncActivityState {
+    active: bool,
+    cancellation_requested: bool,
+}
+
+impl AndroidBitcoinSyncActivityState {
+    fn begin(&mut self) -> bool {
+        if self.active {
+            return false;
+        }
+        self.active = true;
+        self.cancellation_requested = false;
+        true
+    }
+
+    fn request_cancellation(&mut self) -> bool {
+        if !self.active {
+            return false;
+        }
+        self.cancellation_requested = true;
+        true
+    }
+
+    fn finish(&mut self) {
+        self.cancellation_requested = false;
+        self.active = false;
+    }
+}
+
+struct AndroidBitcoinSyncActivity {
+    record: Arc<AndroidWalletRecord>,
+}
+
+impl Drop for AndroidBitcoinSyncActivity {
+    fn drop(&mut self) {
+        if let Ok(mut activity) = self.record.bitcoin_sync_activity.lock() {
+            activity.finish();
+        }
+    }
 }
 
 impl Drop for AndroidHnsSyncActivity {
@@ -1743,6 +1784,7 @@ impl AndroidWalletRecord {
             hns_sync_activity: Mutex::new(AndroidHnsSyncActivityState::default()),
             bitcoin_shutdown: Mutex::new(None),
             bitcoin_sync_progress: Mutex::new(None),
+            bitcoin_sync_activity: Mutex::new(AndroidBitcoinSyncActivityState::default()),
             hns_reads_installable,
             bitcoin_data_dir,
         }
@@ -1846,6 +1888,46 @@ impl AndroidWalletRecord {
         {
             let _ = handle.request_shutdown();
         }
+    }
+
+    fn begin_bitcoin_synchronization_if_active(&self) -> bool {
+        if !self.active.load(Ordering::Acquire) {
+            return false;
+        }
+        let Ok(mut activity) = self.bitcoin_sync_activity.lock() else {
+            return false;
+        };
+        self.active.load(Ordering::Acquire) && activity.begin()
+    }
+
+    fn request_bitcoin_sync_cancellation_if_active(&self) -> bool {
+        let Ok(mut activity) = self.bitcoin_sync_activity.lock() else {
+            return false;
+        };
+        if !self.active.load(Ordering::Acquire) || !activity.request_cancellation() {
+            return false;
+        }
+        drop(activity);
+        let handle = self
+            .bitcoin_shutdown
+            .lock()
+            .ok()
+            .and_then(|current| current.as_ref().cloned());
+        let requested = handle.is_some_and(|handle| handle.request_shutdown().is_ok());
+        if !requested
+            && let Ok(mut activity) = self.bitcoin_sync_activity.lock()
+            && activity.active
+        {
+            activity.cancellation_requested = false;
+        }
+        requested
+    }
+
+    fn bitcoin_sync_cancellation_requested(&self) -> bool {
+        self.bitcoin_sync_activity
+            .lock()
+            .map(|activity| activity.cancellation_requested)
+            .unwrap_or(true)
     }
 
     fn replace_bitcoin_sync_progress(
@@ -4921,8 +5003,36 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
+        record.begin_bitcoin_synchronization_if_active().then_some(())?;
+        let _activity = AndroidBitcoinSyncActivity {
+            record: record.clone(),
+        };
         let mut bitcoin = record.bitcoin_try_if_active()?;
-        let mut bundle = android_synchronize_bitcoin(bitcoin.as_mut()?)?;
+        let bitcoin = bitcoin.as_mut()?;
+        let synchronization = android_synchronize_bitcoin(bitcoin);
+        if record.bitcoin_sync_cancellation_requested() {
+            // Kyoto update futures are deliberately not dropped in place.
+            // The out-of-lock stop signal wakes the active call, after which
+            // reconstructing from the encrypted journal restores a clean
+            // supervisor at the last durable checkpoint.
+            let _ = bitcoin.deactivate();
+            if let Err(error) = bitcoin.activate() {
+                android_log_error(&format!(
+                    "wallet Bitcoin synchronization stopped but direct runtime recovery failed: {error}"
+                ));
+                record.replace_bitcoin_shutdown(None);
+                record.replace_bitcoin_sync_progress(None);
+            } else {
+                record.replace_bitcoin_shutdown(bitcoin.shutdown_handle());
+                record.replace_bitcoin_sync_progress(bitcoin.sync_progress_handle());
+            }
+            return None;
+        }
+        let mut bundle = synchronization
+            .map_err(|error| {
+                android_log_error(&format!("wallet Bitcoin synchronization failed: {error}"));
+            })
+            .ok()?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -4930,6 +5040,20 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .ok()
     .flatten()
     .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeStopBitcoinSynchronization(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        wallet_from_handle(handle)
+            .is_some_and(|record| record.request_bitcoin_sync_cancellation_if_active())
+    }))
+    .unwrap_or(false)
+    .into()
 }
 
 #[unsafe(no_mangle)]
@@ -5588,6 +5712,24 @@ mod tests {
 
         drop(bitcoin_sync);
         assert!(try_lock_if_active(&active, &bitcoin_controller).is_some());
+    }
+
+    #[test]
+    fn bitcoin_sync_cancellation_is_active_only_for_one_exact_operation() {
+        let mut activity = AndroidBitcoinSyncActivityState::default();
+
+        assert!(!activity.request_cancellation());
+        assert!(activity.begin());
+        assert!(!activity.begin());
+        assert!(activity.request_cancellation());
+        assert!(activity.cancellation_requested);
+
+        activity.finish();
+        assert!(!activity.active);
+        assert!(!activity.cancellation_requested);
+        assert!(!activity.request_cancellation());
+        assert!(activity.begin());
+        assert!(!activity.cancellation_requested);
     }
 
     #[test]

@@ -187,6 +187,7 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshotEpoch = 0L
     private var walletHnsSyncInProgress = false
     private var walletBitcoinSyncInProgress = false
+    private var bitcoinSyncStopRequested = false
     @Volatile
     private var bitcoinSyncProgressWatcher: AtomicBoolean? = null
     private var walletForegroundSyncServiceActive = false
@@ -1023,6 +1024,16 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showBitcoinDashboard() {
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
+        actions.add(getString(R.string.action_wallet_bitcoin_receive) to ::revealBitcoinReceiveAddress)
+        if (walletBitcoinSyncInProgress) {
+            actions.add(
+                getString(R.string.action_stop_bitcoin_sync) to ::requestBitcoinSyncCancellation,
+            )
+        } else {
+            actions.add(getString(R.string.action_sync_wallet_reads) to ::synchronizeBitcoin)
+        }
+        actions.add(getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm)
         walletLiveDetailDialog(
             title = getString(R.string.wallet_dashboard_bitcoin),
             rows = listOf(
@@ -1030,11 +1041,7 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.row_wallet_bitcoin_balance) to bitcoinBalanceView,
                 getString(R.string.row_wallet_bitcoin_receive) to bitcoinReceiveView,
             ),
-            actions = listOf(
-                getString(R.string.action_wallet_bitcoin_receive) to ::revealBitcoinReceiveAddress,
-                getString(R.string.action_sync_wallet_reads) to ::synchronizeBitcoin,
-                getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm,
-            ),
+            actions = actions,
         )
     }
 
@@ -2002,6 +2009,7 @@ class WalletActivity : ComponentActivity() {
             return
         }
         walletBitcoinSyncInProgress = true
+        bitcoinSyncStopRequested = false
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_syncing)
         startWalletForegroundSyncService("Bitcoin")
         Log.i(TAG, "Starting a bounded direct Bitcoin synchronization round")
@@ -2010,7 +2018,9 @@ class WalletActivity : ComponentActivity() {
         thread(name = "bitcoin-wallet-direct-sync") {
             val synchronization = NativeWalletBridge.synchronizeBitcoin(handle)
             runOnUiThread {
+                val stopped = bitcoinSyncStopRequested
                 walletBitcoinSyncInProgress = false
+                bitcoinSyncStopRequested = false
                 bitcoinSyncProgressWatcher?.set(false)
                 bitcoinSyncProgressWatcher = null
                 finishWalletForegroundSyncIfIdle()
@@ -2018,7 +2028,10 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                     return@runOnUiThread
                 }
-                if (synchronization == null) {
+                if (stopped) {
+                    Log.i(TAG, "Direct Bitcoin synchronization stopped by user request")
+                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_stopped)
+                } else if (synchronization == null) {
                     Log.w(TAG, "Direct Bitcoin synchronization returned no verified snapshot")
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_failed)
                 } else {
@@ -2037,6 +2050,24 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun requestBitcoinSyncCancellation() {
+        if (!walletBitcoinSyncInProgress || bitcoinSyncStopRequested) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_stop_bitcoin_sync_title)
+            .setMessage(R.string.wallet_stop_bitcoin_sync_message)
+            .setNegativeButton(R.string.action_keep_synchronizing, null)
+            .setPositiveButton(R.string.action_stop_sync) { _, _ ->
+                bitcoinSyncStopRequested = true
+                if (NativeWalletBridge.stopBitcoinSynchronization(walletHandle)) {
+                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_stopping)
+                } else {
+                    bitcoinSyncStopRequested = false
+                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_stop_failed)
+                }
+            }
+            .show()
     }
 
     private fun startBitcoinSyncProgressWatcher(

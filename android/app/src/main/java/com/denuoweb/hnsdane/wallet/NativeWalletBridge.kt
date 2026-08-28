@@ -590,6 +590,11 @@ internal object NativeWalletBridge {
             null
         }
 
+    /** Interrupts the active direct Bitcoin synchronization outside its controller lock. */
+    fun stopBitcoinSynchronization(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeStopBitcoinSynchronization(handle) }.getOrDefault(false)
+
     fun bitcoinSyncProgress(handle: Long): NativeBitcoinSyncProgress? =
         if (isValidHandle(handle) && isAvailable) {
             runCatching { nativeBitcoinSyncProgress(handle) }.getOrNull()?.let { bundle ->
@@ -851,6 +856,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeSynchronizeBitcoin(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeStopBitcoinSynchronization(handle: Long): Boolean
 
     @JvmStatic
     private external fun nativePrepareBitcoinSend(

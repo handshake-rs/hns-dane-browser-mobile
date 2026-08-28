@@ -23,6 +23,7 @@
     <string name="action_restore_wallet" translatable="false">Restore</string>
     <string name="action_unlock_wallet" translatable="false">Unlock</string>
     <string name="action_stop_wallet_sync" translatable="false">Stop synchronization</string>
+    <string name="action_stop_bitcoin_sync" translatable="false">Stop Bitcoin synchronization</string>
     <string name="action_keep_synchronizing" translatable="false">Keep synchronizing</string>
     <string name="action_stop_sync" translatable="false">Stop sync</string>
     <string name="action_lock_wallet" translatable="false">Lock</string>
@@ -481,6 +482,11 @@
     <string name="wallet_bitcoin_sync_already_running" translatable="false">Bitcoin synchronization is already running. HNS wallet functions remain available.</string>
     <string name="wallet_bitcoin_sync_operation_busy" translatable="false">Wait for Bitcoin synchronization to finish before starting another Bitcoin operation. HNS wallet functions remain available.</string>
     <string name="wallet_bitcoin_sync_failed" translatable="false">Bitcoin synchronization did not return a verified local snapshot.</string>
+    <string name="wallet_stop_bitcoin_sync_title" translatable="false">Stop Bitcoin synchronization?</string>
+    <string name="wallet_stop_bitcoin_sync_message" translatable="false">Stop the active direct Bitcoin synchronization now? The peer node will be interrupted immediately. An atomic local database operation already executing may finish, and the last completed durable checkpoint will be retained. The direct Bitcoin runtime will restart locally so another wallet operation can begin.</string>
+    <string name="wallet_bitcoin_sync_stopping" translatable="false">Stopping direct Bitcoin synchronization now…</string>
+    <string name="wallet_bitcoin_sync_stopped" translatable="false">Bitcoin synchronization stopped. The last completed durable checkpoint was retained; you can derive a receive address or synchronize again.</string>
+    <string name="wallet_bitcoin_sync_stop_failed" translatable="false">Bitcoin synchronization could not be interrupted because no active native synchronization was found.</string>
     <string name="wallet_bitcoin_synchronized" translatable="false">Verified Bitcoin state at height %1$d with %2$d/%3$d direct peers.</string>
     <string name="wallet_bitcoin_balance_unavailable" translatable="false">No local Bitcoin snapshot yet.</string>
     <string name="wallet_bitcoin_balance" translatable="false">Confirmed: %1$d sats&#10;Trusted pending: %2$d sats&#10;Untrusted pending: %3$d sats&#10;Immature: %4$d sats&#10;Total: %5$d sats</string>
