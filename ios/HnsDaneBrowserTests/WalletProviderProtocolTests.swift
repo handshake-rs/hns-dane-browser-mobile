@@ -315,6 +315,11 @@ final class WalletProviderProtocolTests: XCTestCase {
         XCTAssertFalse(apparentlyReady.allowsApprovalAction)
     }
 
+    func testBusyWalletMessageDoesNotClaimProgressIsVisible() {
+        XCTAssertTrue(walletOperationInProgressMessage.contains("background"))
+        XCTAssertFalse(walletOperationInProgressMessage.lowercased().contains("visible operation"))
+    }
+
     func testAcceptedHnsSendImmediatelyAttemptsWalletRefresh() throws {
         var operations: [String] = []
         let result: WalletHnsPostBroadcastResult<String, String> = try approveAndRefreshHnsWallet(

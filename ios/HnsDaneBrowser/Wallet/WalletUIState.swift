@@ -1,5 +1,9 @@
 import Foundation
 
+let walletOperationInProgressMessage =
+    "The wallet is still completing synchronization or another operation. " +
+    "It may continue in the background. Wait for it to finish, then try again."
+
 enum WalletScreen: CaseIterable {
     case createWallet, restoreWallet, walletLock, hnsWallet, hnsReceive, hnsSend
     case transactionHistory, knownNames, transferName, finalizeName, shakedexListings

@@ -2638,7 +2638,10 @@ final class WalletViewController: UIViewController {
                 : "Another wallet screen owns this network's local wallet storage.")
             return
         }
-        guard !isOperating else { return }
+        guard !isOperating else {
+            showErrorMessage(walletOperationInProgressMessage)
+            return
+        }
         isOperating = true
         refreshButtonStates()
         defer {

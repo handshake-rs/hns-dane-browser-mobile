@@ -544,7 +544,7 @@
     <string name="wallet_direct_denuo_connect_bridge_failed" translatable="false">The direct Denuo connection result could not be verified. The wallet remains usable; inspect the host and peer state before retrying.</string>
     <string name="wallet_direct_denuo_disconnected" translatable="false">The active direct Denuo peer was disconnected. The wallet-owned listener remains available.</string>
     <string name="wallet_direct_denuo_no_peer" translatable="false">No active direct Denuo peer was connected.</string>
-    <string name="wallet_action_busy" translatable="false">The wallet is already working. Wait for the visible operation to finish before trying another action.</string>
+    <string name="wallet_action_busy" translatable="false">The wallet is still completing synchronization or another operation. It may continue in the background. Wait for it to finish, then try again.</string>
     <string name="wallet_name_import_hint" translatable="false">Exact canonical Handshake name</string>
     <string name="wallet_name_import_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet before importing a name.</string>
     <string name="wallet_name_import_recovery_unconfirmed" translatable="false">Confirm the recovery backup before a trusted name backend can be installed.</string>
