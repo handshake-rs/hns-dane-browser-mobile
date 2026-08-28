@@ -43,6 +43,17 @@ enum BrowserHandshakeNetwork: String, CaseIterable, Equatable, Hashable, Sendabl
         case .regtest: "Local regression-test network."
         }
     }
+
+    /// A newly generated seed cannot have earlier wallet activity. Mainnet
+    /// therefore starts at the exact bundled snapshot that the wallet direct
+    /// coordinator independently validates; networks without that snapshot
+    /// retain the conservative genesis fallback.
+    var newWalletBirthdayHeight: UInt64 {
+        switch self {
+        case .mainnet: HeaderSnapshotBootstrapper.snapshotHeight
+        case .testnet, .regtest: 0
+        }
+    }
 }
 
 enum BrowserThemeMode: String, CaseIterable, Equatable, Sendable {

@@ -3,6 +3,16 @@ import XCTest
 @testable import HnsDaneBrowser
 
 final class HeaderSnapshotBootstrapperTests: XCTestCase {
+    func testNewWalletBirthdayUsesOnlyThePinnedMainnetSnapshot() {
+        XCTAssertEqual(
+            BrowserHandshakeNetwork.mainnet.newWalletBirthdayHeight,
+            HeaderSnapshotBootstrapper.snapshotHeight
+        )
+        XCTAssertEqual(HeaderSnapshotBootstrapper.snapshotHeight, 300_000)
+        XCTAssertEqual(BrowserHandshakeNetwork.testnet.newWalletBirthdayHeight, 0)
+        XCTAssertEqual(BrowserHandshakeNetwork.regtest.newWalletBirthdayHeight, 0)
+    }
+
     func testExactSnapshotInstallsOnceAndMarksSuccess() throws {
         let suite = "HeaderSnapshotBootstrapperTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

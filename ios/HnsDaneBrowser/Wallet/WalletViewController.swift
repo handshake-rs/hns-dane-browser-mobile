@@ -1728,42 +1728,39 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func createWallet() {
-        presentBirthdayPrompt(title: "Create wallet") { [weak self] birthdayHeight in
-            self?.performWalletOperation {
-                guard let self else { return }
-                guard try self.canStartNewWallet() else { return }
-                let path = try self.walletDatabasePath()
-                var key = try Self.randomDatabaseKey()
-                var keyAdopted = false
-                defer {
-                    if !keyAdopted { WalletSecretBytes.wipe(&key) }
-                }
+        performWalletOperation {
+            guard try self.canStartNewWallet() else { return }
+            let path = try self.walletDatabasePath()
+            var key = try Self.randomDatabaseKey()
+            var keyAdopted = false
+            defer {
+                if !keyAdopted { WalletSecretBytes.wipe(&key) }
+            }
 
-                let controller = try key.withUnsafeBytes { databaseKey in
-                    try RustNativeWallet.create(
-                        databasePath: path,
-                        databaseKey: databaseKey,
-                        network: self.network,
-                        birthdayHeight: birthdayHeight
-                    )
-                }
-                do {
-                    let secret = try controller.takeRecoveryPhrase()
-                    let display = try secret.displayText()
-                    self.wallet = controller
-                    self.walletAuthorityGeneration &+= 1
-                    self.walletWasReopenedFromDurableStorage = false
-                    self.unconfirmedDatabaseKey = key
-                    keyAdopted = true
-                    self.recoverySecret = secret
-                    self.recoveryTextView.text = display
-                    self.recoveryTitle.isHidden = false
-                    self.recoveryTextView.isHidden = false
-                } catch {
-                    controller.close()
-                    try? Self.deleteWalletFiles(databasePath: path)
-                    throw error
-                }
+            let controller = try key.withUnsafeBytes { databaseKey in
+                try RustNativeWallet.create(
+                    databasePath: path,
+                    databaseKey: databaseKey,
+                    network: self.network,
+                    birthdayHeight: self.network.newWalletBirthdayHeight
+                )
+            }
+            do {
+                let secret = try controller.takeRecoveryPhrase()
+                let display = try secret.displayText()
+                self.wallet = controller
+                self.walletAuthorityGeneration &+= 1
+                self.walletWasReopenedFromDurableStorage = false
+                self.unconfirmedDatabaseKey = key
+                keyAdopted = true
+                self.recoverySecret = secret
+                self.recoveryTextView.text = display
+                self.recoveryTitle.isHidden = false
+                self.recoveryTextView.isHidden = false
+            } catch {
+                controller.close()
+                try? Self.deleteWalletFiles(databasePath: path)
+                throw error
             }
         }
     }
@@ -3036,32 +3033,6 @@ final class WalletViewController: UIViewController {
         if dismiss {
             alert?.dismiss(animated: false)
         }
-    }
-
-    private func presentBirthdayPrompt(
-        title: String,
-        completion: @escaping (UInt64) -> Void
-    ) {
-        let alert = UIAlertController(
-            title: title,
-            message: "Enter an honest earliest block height. Use 0 to scan from genesis.",
-            preferredStyle: .alert
-        )
-        alert.addTextField { field in
-            field.text = "0"
-            field.keyboardType = .numberPad
-            field.accessibilityIdentifier = "wallet.create.birthday"
-        }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Create", style: .default) { [weak self, weak alert] _ in
-            guard let text = alert?.textFields?.first?.text,
-                  let birthday = UInt64(text) else {
-                self?.showErrorMessage("Enter a valid birthday height.")
-                return
-            }
-            completion(birthday)
-        })
-        present(alert, animated: true)
     }
 
     private func walletDatabasePath() throws -> String {

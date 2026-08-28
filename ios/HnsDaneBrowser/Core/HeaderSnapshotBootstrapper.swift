@@ -94,6 +94,7 @@ struct ZlibHeaderSnapshotDecompressor: HeaderSnapshotDecompressing {
 }
 
 final class HeaderSnapshotBootstrapper {
+    static let snapshotHeight: UInt64 = 300_000
     static let expectedUncompressedBytes: UInt64 = 70_800_287
     static let installedMarkerKey = "browser.headerSnapshot.mainnet.height300000.v1"
 

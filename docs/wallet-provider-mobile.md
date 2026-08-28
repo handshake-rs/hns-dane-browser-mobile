@@ -152,6 +152,12 @@ not a cosmetic per-name hint: using a height after the wallet's earliest
 activity can intentionally hide that earlier activity, and the UI therefore
 directs uncertain users to retain block 0.
 
+New-wallet creation does not ask the user to invent a birthday. Android and
+iOS automatically persist the independently validated bundled snapshot height
+for mainnet creation and retain block 0 for testnet/regtest, where no equivalent
+bundled snapshot is installed. Restore remains the only flow with a
+user-supplied birthday because an existing seed can have historical activity.
+
 iOS uses `RustNativeWallet`, the stable Apple C ABI, a native
 `WalletViewController`, and `WalletKeychainStore`. The create-only 32-byte
 database key is stored as a ThisDeviceOnly Keychain item requiring user
