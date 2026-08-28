@@ -144,6 +144,14 @@ services so those processes cannot read the secret. This is an explicit
 usability tradeoff: users who require an accessibility service cannot complete
 the Android restore flow in this source slice.
 
+Android wallet restoration also accepts an optional HNS birthday block. A
+blank field maps exactly to block 0. A supplied value must be a whole unsigned
+32-bit block height and is persisted as the restored account's scan birthday,
+so subsequent watch-set rescans skip blocks before it. This is account-scoped,
+not a cosmetic per-name hint: using a height after the wallet's earliest
+activity can intentionally hide that earlier activity, and the UI therefore
+directs uncertain users to retain block 0.
+
 iOS uses `RustNativeWallet`, the stable Apple C ABI, a native
 `WalletViewController`, and `WalletKeychainStore`. The create-only 32-byte
 database key is stored as a ThisDeviceOnly Keychain item requiring user

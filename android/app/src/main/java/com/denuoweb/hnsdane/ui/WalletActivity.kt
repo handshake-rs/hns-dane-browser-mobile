@@ -51,6 +51,7 @@ import com.denuoweb.hnsdane.wallet.NativeWalletHnsSynchronization
 import com.denuoweb.hnsdane.wallet.NativeWalletName
 import com.denuoweb.hnsdane.wallet.NativeWalletPaymentReceiveTarget
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
+import com.denuoweb.hnsdane.wallet.MAX_HNS_BIRTHDAY_HEIGHT
 import com.denuoweb.hnsdane.wallet.ProcessWalletControllerRetirementFailures
 import com.denuoweb.hnsdane.wallet.ProcessWalletStorageOwnership
 import com.denuoweb.hnsdane.wallet.WALLET_DATABASE_FILE_NAME
@@ -78,6 +79,7 @@ import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
 import com.denuoweb.hnsdane.wallet.hnsBalanceProjection
 import com.denuoweb.hnsdane.wallet.hnsReceiveTargets
 import com.denuoweb.hnsdane.wallet.parsePositiveHnsToBaseUnits
+import com.denuoweb.hnsdane.wallet.parseWalletRestoreBirthday
 import com.denuoweb.hnsdane.wallet.walletDeleteConfirmationMatches
 import com.denuoweb.hnsdane.wallet.walletDatabaseArtifacts
 import com.denuoweb.hnsdane.wallet.walletDashboardMode
@@ -653,21 +655,44 @@ class WalletActivity : ComponentActivity() {
     } ?: getString(R.string.wallet_dashboard_no_synced_activity)
 
     private fun showRestoreWalletDialog() {
-        val input = sensitiveRestoreInput()
-        restoreInput = input
+        val phraseInput = sensitiveRestoreInput()
+        val birthdayInput = restoreBirthdayInput()
+        restoreInput = phraseInput
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(20), uiDp(4), uiDp(20), 0)
+            addView(phraseInput)
+            addView(birthdayInput)
+            addView(TextView(this@WalletActivity).apply {
+                text = getString(R.string.wallet_restore_birthday_explanation)
+                textSize = 13f
+                setTextColor(themeColors().secondaryText)
+                setPadding(0, uiDp(8), 0, 0)
+            })
+        }
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.row_wallet_restore)
             .setMessage(R.string.wallet_dashboard_restore_dialog_summary)
-            .setView(input)
+            .setView(form)
             .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_restore_wallet) { _, _ ->
-                val phrase = takeRestoreInput(input)
-                if (restoreInput === input) restoreInput = null
-                restoreWallet(phrase)
-            }
+            .setPositiveButton(R.string.action_restore_wallet, null)
             .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val birthday = parseWalletRestoreBirthday(birthdayInput.text)
+                if (birthday == null) {
+                    birthdayInput.error = getString(R.string.wallet_restore_birthday_invalid)
+                    return@setOnClickListener
+                }
+                birthdayInput.error = null
+                val phrase = takeRestoreInput(phraseInput)
+                if (restoreInput === phraseInput) restoreInput = null
+                dialog.dismiss()
+                restoreWallet(phrase, birthday)
+            }
+        }
         dialog.setOnDismissListener {
-            if (restoreInput === input) clearRestoreInput()
+            if (restoreInput === phraseInput) clearRestoreInput()
         }
         dialog.show()
     }
@@ -1184,9 +1209,14 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun restoreWallet(phrase: CharArray?) {
+    private fun restoreWallet(phrase: CharArray?, birthdayHeight: Long) {
         if (phrase == null) {
             Toast.makeText(this, R.string.wallet_restore_phrase_required, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (birthdayHeight !in 0..MAX_HNS_BIRTHDAY_HEIGHT) {
+            phrase.fill('\u0000')
+            Toast.makeText(this, R.string.wallet_restore_birthday_invalid, Toast.LENGTH_SHORT).show()
             return
         }
         val lease = currentStorageLease() ?: run {
@@ -1210,7 +1240,7 @@ class WalletActivity : ComponentActivity() {
                 path,
                 databaseKey.copyOf(),
                 network,
-                SAFE_FULL_RESCAN_BIRTHDAY,
+                birthdayHeight,
                 phrase,
             )
             runOnUiThread {
@@ -4576,6 +4606,18 @@ class WalletActivity : ComponentActivity() {
         setOnLongClickListener { true }
         customSelectionActionModeCallback = DisabledActionMode
         customInsertionActionModeCallback = DisabledActionMode
+    }
+
+    private fun restoreBirthdayInput(): EditText = EditText(this).apply {
+        hint = getString(R.string.wallet_restore_birthday_hint)
+        inputType = InputType.TYPE_CLASS_NUMBER
+        imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        filters = arrayOf(InputFilter.LengthFilter(10))
+        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        setAutofillHints(null)
+        setSingleLine(true)
+        isSaveEnabled = false
+        freezesText = false
     }
 
     private fun exactNameImportInput(): EditText = EditText(this).apply {

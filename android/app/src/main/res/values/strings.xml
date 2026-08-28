@@ -291,7 +291,7 @@
     <string name="row_wallet_create" translatable="false">Create wallet</string>
     <string name="row_wallet_create_summary" translatable="false">Create one native HNS account and save its one-time recovery phrase offline.</string>
     <string name="row_wallet_restore" translatable="false">Restore wallet</string>
-    <string name="row_wallet_restore_summary" translatable="false">Restore exactly 24 English words with a safe full-history birthday.</string>
+    <string name="row_wallet_restore_summary" translatable="false">Restore exactly 24 English words with an optional HNS birthday block.</string>
     <string name="row_wallet_recovery_confirm" translatable="false">Confirm offline backup</string>
     <string name="row_wallet_recovery_confirm_summary" translatable="false">The wallet key is not retained until you confirm the one-time recovery display is saved.</string>
     <string name="row_wallet_unlock" translatable="false">Unlock</string>
@@ -346,6 +346,9 @@
     <string name="row_wallet_pair_direct_denuo_summary" translatable="false">Connect to an exact peer-shared IPv4:port or [IPv6]:port endpoint. A successful connection replaces the active direct peer; no marketplace relay or hostname lookup is used.</string>
 
     <string name="wallet_restore_phrase_hint" translatable="false">24-word recovery phrase</string>
+    <string name="wallet_restore_birthday_hint" translatable="false">HNS birthday block (optional; default 0)</string>
+    <string name="wallet_restore_birthday_explanation" translatable="false">The wallet skips activity before this block during future rescans. Use 0 if uncertain; a height that is too recent can hide older wallet activity.</string>
+    <string name="wallet_restore_birthday_invalid" translatable="false">Enter a whole block height from 0 through 4294967295, or leave it blank for block 0.</string>
     <string name="wallet_restore_phrase_required" translatable="false">Enter the complete 24-word recovery phrase.</string>
     <string name="wallet_already_exists" translatable="false">A wallet already exists on this device.</string>
     <string name="wallet_status_starting" translatable="false">Starting native wallet controller…</string>
@@ -580,7 +583,7 @@
     <string name="wallet_dashboard_get_started" translatable="false">Get started</string>
     <string name="wallet_dashboard_create_summary" translatable="false">Create a self-custodied Handshake wallet</string>
     <string name="wallet_dashboard_restore_summary" translatable="false">Restore a 24-word wallet</string>
-    <string name="wallet_dashboard_restore_dialog_summary" translatable="false">Enter the complete 24-word recovery phrase.</string>
+    <string name="wallet_dashboard_restore_dialog_summary" translatable="false">Enter the complete 24-word recovery phrase and, if known, the earliest HNS block that can contain wallet activity.</string>
     <string name="wallet_dashboard_recovery_phrase" translatable="false">RECOVERY PHRASE</string>
     <string name="wallet_dashboard_recovery_summary" translatable="false">Write these words down offline. The wallet is not retained until you confirm.</string>
     <string name="wallet_dashboard_locked" translatable="false">● LOCKED · %1$s</string>
