@@ -26,6 +26,9 @@
     <string name="action_saved_wallet_recovery" translatable="false">I saved it</string>
     <string name="action_sync_wallet_reads" translatable="false">Synchronize</string>
     <string name="action_import_wallet_name" translatable="false">Import name</string>
+    <string name="action_import_wallet_names_file" translatable="false">Import names from file</string>
+    <string name="action_load_more_wallet_names" translatable="false">Load next names</string>
+    <string name="action_previous_wallet_names" translatable="false">Load previous names</string>
     <string name="action_continue_wallet_deletion" translatable="false">Continue</string>
     <string name="action_prepare_wallet_send" translatable="false">Review send</string>
     <string name="action_wallet_bitcoin_receive" translatable="false">New address</string>
@@ -550,6 +553,14 @@
     <string name="wallet_name_import_failed" translatable="false">Name import failed closed. Reopen and unlock the wallet before retrying.</string>
     <string name="wallet_name_import_success" translatable="false">Imported and refreshed:\n%1$s</string>
     <string name="wallet_name_import_success_refresh_failed" translatable="false">The import result could not be confirmed in the required fresh wallet rows. The wallet was locked and no imported row was published.</string>
+    <string name="wallet_name_bulk_import_reading" translatable="false">Reading the bounded name file…</string>
+    <string name="wallet_name_bulk_import_invalid_file" translatable="false">The file must contain 1–10,000 unique exact names, either one per line or as a JSON string array.</string>
+    <string name="wallet_name_bulk_import_importing" translatable="false">Authenticating and atomically importing %1$d exact names before one wallet refresh…</string>
+    <string name="wallet_name_bulk_import_success" translatable="false">Imported and authenticated %1$d names. The wallet refreshed once.</string>
+    <string name="wallet_name_bulk_import_catching_up" translatable="false">Imported %1$d names atomically. Name indexing is catching up; the previously verified balance remains available.</string>
+    <string name="wallet_name_bulk_import_refresh_pending" translatable="false">Imported %1$d names atomically. A fresh name projection is pending; the previously verified balance remains available.</string>
+    <string name="wallet_name_page_failed" translatable="false">The next authenticated name page is unavailable.</string>
+    <string name="wallet_name_page_position" translatable="false">Showing names %1$d–%2$d of %3$d.</string>
     <string name="wallet_status_importing_name" translatable="false">Importing exact Handshake name…</string>
     <string name="wallet_account_identity" translatable="false">%1$s\nModule: %2$s\nAccount: %3$s</string>
     <string name="wallet_recovery_confirm_title" translatable="false">Recovery phrase saved?</string>

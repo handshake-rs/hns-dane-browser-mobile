@@ -14,6 +14,8 @@ internal data class NativeWalletReadSnapshot(
     val height: Long,
     val transactions: List<NativeWalletTransaction>,
     val trackedNames: List<NativeWalletName>,
+    val trackedNameCount: Int = trackedNames.size,
+    val trackedNamesComplete: Boolean = true,
 ) {
     companion object {
         fun parse(bundle: ByteArray): NativeWalletReadSnapshot? =
@@ -264,7 +266,11 @@ private object NativeWalletReadSnapshotParser {
         require(magic.indices.all { index -> bundle[index] == magic[index] })
         val header = ByteBuffer.wrap(bundle, 4, HEADER_BYTES - 4).order(ByteOrder.BIG_ENDIAN)
         val version = header.get().toInt() and 0xff
-        require(version == LEGACY_VERSION || version == NAME_RECEIVE_VERSION)
+        require(
+            version == LEGACY_VERSION ||
+                version == NAME_RECEIVE_VERSION ||
+                version == PAGINATED_NAMES_VERSION
+        )
         require(header.get().toInt() and 0xff == READ_ONLY_HNS_FLAG)
         require(header.short.toInt() == 0)
         val jsonLength = header.int
@@ -299,6 +305,17 @@ private object NativeWalletReadSnapshotParser {
                 "moduleStatus",
             )
 
+            PAGINATED_NAMES_VERSION -> value.requireExactKeys(
+                "balance",
+                "receiveTarget",
+                "nameReceiveTarget",
+                "transactionHistory",
+                "knownNames",
+                "knownNameCount",
+                "knownNamesComplete",
+                "moduleStatus",
+            )
+
             else -> throw IllegalArgumentException("unsupported HNWR version")
         }
         val balance = value.getJSONObject("balance").apply {
@@ -309,7 +326,7 @@ private object NativeWalletReadSnapshotParser {
 
         val (paymentReceiveTarget, paymentAccount) =
             parsePaymentReceiveTarget(value.getJSONObject("receiveTarget"))
-        val nameReceiveTarget = if (version == NAME_RECEIVE_VERSION) {
+        val nameReceiveTarget = if (version >= NAME_RECEIVE_VERSION) {
             val (target, account) =
                 parseNameReceiveTarget(value.getJSONObject("nameReceiveTarget"))
             require(account.contentEquals(paymentAccount))
@@ -340,7 +357,7 @@ private object NativeWalletReadSnapshotParser {
             List(array.length()) { index -> parseTransaction(array.getJSONObject(index)) }
         }
         val names = value.getJSONArray("knownNames").let { array ->
-            require(array.length() <= MAX_READ_ITEMS)
+            require(array.length() <= MAX_NAME_PAGE_ITEMS)
             List(array.length()) { index ->
                 NativeWalletNameParser.parse(array.getJSONObject(index))
             }
@@ -348,6 +365,18 @@ private object NativeWalletReadSnapshotParser {
         require(transactions.map(NativeWalletTransaction::txid).toSet().size == transactions.size)
         require(names.map(NativeWalletName::name).toSet().size == names.size)
         require(names.map(NativeWalletName::nameHash).toSet().size == names.size)
+        val trackedNameCount = if (version == PAGINATED_NAMES_VERSION) {
+            exactUnsignedLong(value.get("knownNameCount"), MAX_READ_ITEMS.toLong()).toInt()
+        } else {
+            names.size
+        }
+        val trackedNamesComplete = if (version == PAGINATED_NAMES_VERSION) {
+            value.getBoolean("knownNamesComplete")
+        } else {
+            true
+        }
+        require(trackedNameCount >= names.size)
+        require(trackedNamesComplete == (trackedNameCount == names.size))
 
         return NativeWalletReadSnapshot(
             balanceBaseUnits = balanceBaseUnits,
@@ -356,6 +385,8 @@ private object NativeWalletReadSnapshotParser {
             height = targetHeight,
             transactions = transactions,
             trackedNames = names,
+            trackedNameCount = trackedNameCount,
+            trackedNamesComplete = trackedNamesComplete,
         )
     }
 
@@ -481,10 +512,12 @@ private object NativeWalletReadSnapshotParser {
 
     private const val LEGACY_VERSION = 1
     private const val NAME_RECEIVE_VERSION = 2
+    private const val PAGINATED_NAMES_VERSION = 3
     private const val READ_ONLY_HNS_FLAG = 1
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 4 * 1024 * 1024
     private const val MAX_READ_ITEMS = 10_000
+    private const val MAX_NAME_PAGE_ITEMS = 64
     private const val MAX_RECEIVE_CHARACTERS = 512
     private const val ACCOUNT_ID_BYTES = 16
     private const val TRANSACTION_ID_BYTES = 32

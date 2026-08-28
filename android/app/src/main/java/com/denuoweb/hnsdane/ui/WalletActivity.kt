@@ -9,6 +9,7 @@ import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.text.Editable
@@ -28,6 +29,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import com.denuoweb.hnsdane.HnsDaneApplication
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.net.HeaderSnapshotInstaller
@@ -71,7 +73,6 @@ import com.denuoweb.hnsdane.wallet.closeWalletControllerForDeletion
 import com.denuoweb.hnsdane.wallet.deleteConfirmedWalletStorage
 import com.denuoweb.hnsdane.wallet.deleteWalletDatabaseArtifacts
 import com.denuoweb.hnsdane.wallet.exactWalletNameUtf8
-import com.denuoweb.hnsdane.wallet.walletNameImportRefreshMatches
 import com.denuoweb.hnsdane.wallet.displayAmount
 import com.denuoweb.hnsdane.wallet.formatHnsBaseUnits
 import com.denuoweb.hnsdane.wallet.hnsBalanceProjection
@@ -92,10 +93,12 @@ import com.denuoweb.hnsdane.wallet.walletTransactionStatusLabel
 import com.denuoweb.hnsdane.wallet.walletSetupMayInspectStorage
 import com.denuoweb.hnsdane.wallet.walletStorageNamespace
 import java.io.File
+import java.io.ByteArrayOutputStream
 import java.security.SecureRandom
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
+import org.json.JSONArray
 import kotlin.concurrent.thread
 import kotlin.math.ceil
 
@@ -165,6 +168,13 @@ class WalletActivity : ComponentActivity() {
     private var valueApprovalDialog: AlertDialog? = null
     private var pendingValueApproval: NativeHnsValueApproval? = null
     private var latestReadSnapshot: NativeWalletReadSnapshot? = null
+    private var loadedTrackedNames: List<NativeWalletName> = emptyList()
+    private var trackedNamePageOffset: Int = 0
+    private val bulkNameFilePicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) importWalletNamesFromFile(uri)
+    }
     // This is wallet-local public output. It exists only while this exact
     // native controller stays unlocked and never substitutes for a synced
     // balance, history, name, or spend projection.
@@ -783,17 +793,126 @@ class WalletActivity : ComponentActivity() {
     )
 
     private fun showNamesDashboard() {
+        val snapshot = latestReadSnapshot
+        val actions = buildList {
+            add(getString(R.string.action_import_wallet_name) to ::showNameImportDialog)
+            add(getString(R.string.action_import_wallet_names_file) to ::showBulkNameFilePicker)
+            if (snapshot != null && trackedNamePageOffset > 0) {
+                add(getString(R.string.action_previous_wallet_names) to ::loadPreviousWalletNamePage)
+            }
+            if (
+                snapshot != null &&
+                trackedNamePageOffset + loadedTrackedNames.size < snapshot.trackedNameCount
+            ) {
+                add(getString(R.string.action_load_more_wallet_names) to ::loadNextWalletNamePage)
+            }
+            add(getString(R.string.wallet_dashboard_name_actions) to ::showNameActionMenu)
+        }
         walletDetailDialog(
             title = getString(R.string.wallet_dashboard_names),
             rows = listOf(
                 getString(R.string.row_wallet_read_names) to trackedNamesView.text.toString(),
                 getString(R.string.row_wallet_value_action_status) to valueActionStatusView.text.toString(),
             ),
-            actions = listOf(
-                getString(R.string.action_import_wallet_name) to ::showNameImportDialog,
-                getString(R.string.wallet_dashboard_name_actions) to ::showNameActionMenu,
-            ),
+            actions = actions,
         )
+    }
+
+    private fun showBulkNameFilePicker() {
+        bulkNameFilePicker.launch(arrayOf("text/plain", "application/json", "text/csv"))
+    }
+
+    private fun importWalletNamesFromFile(uri: Uri) {
+        nameImportStatusView.text = getString(R.string.wallet_name_bulk_import_reading)
+        thread(name = "hns-wallet-name-file-read") {
+            val names = runCatching {
+                val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    try {
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            require(output.size() + count <= MAX_BULK_NAME_FILE_BYTES)
+                            output.write(buffer, 0, count)
+                        }
+                        output.toByteArray()
+                    } finally {
+                        buffer.fill(0)
+                    }
+                } ?: throw IllegalArgumentException("name file is unavailable")
+                try {
+                    val text = bytes.toString(Charsets.UTF_8)
+                    require(text.toByteArray(Charsets.UTF_8).contentEquals(bytes))
+                    parseBulkWalletNames(text)
+                } finally {
+                    bytes.fill(0)
+                }
+            }.getOrNull()
+            runOnUiThread {
+                if (names == null) {
+                    nameImportStatusView.text = getString(R.string.wallet_name_bulk_import_invalid_file)
+                } else {
+                    importWalletNames(names)
+                }
+            }
+        }
+    }
+
+    private fun parseBulkWalletNames(text: String): List<String> {
+        val names = if (text.startsWith("[")) {
+            val array = JSONArray(text)
+            List(array.length()) { index -> array.getString(index) }
+        } else {
+            text.lineSequence().toList()
+        }
+        require(names.isNotEmpty() && names.size <= MAX_BULK_NAME_IMPORTS)
+        require(names.toSet().size == names.size)
+        require(names.all(::isExactWalletNameText))
+        return names
+    }
+
+    private fun isExactWalletNameText(name: String): Boolean {
+        val bytes = exactWalletNameUtf8(name) ?: return false
+        return try {
+            bytes.toString(Charsets.UTF_8) == name
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
+    private fun loadNextWalletNamePage() {
+        loadWalletNamePage(trackedNamePageOffset + loadedTrackedNames.size)
+    }
+
+    private fun loadPreviousWalletNamePage() {
+        loadWalletNamePage((trackedNamePageOffset - MAX_VISIBLE_READ_ITEMS).coerceAtLeast(0))
+    }
+
+    private fun loadWalletNamePage(offset: Int) {
+        val snapshot = latestReadSnapshot ?: return
+        val handle = walletHandle
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        if (offset !in 0 until snapshot.trackedNameCount) return
+        thread(name = "hns-wallet-name-page") {
+            val page = NativeWalletBridge.hnsNamePage(handle, offset, MAX_VISIBLE_READ_ITEMS)
+            runOnUiThread {
+                if (
+                    page == null || page.offset != offset || page.total != snapshot.trackedNameCount ||
+                    page.names.isEmpty() ||
+                    handle != walletHandle || epoch != lifecycleEpoch ||
+                    authorityGeneration != walletAuthorityGeneration
+                ) {
+                    Toast.makeText(this, R.string.wallet_name_page_failed, Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                trackedNamePageOffset = page.offset
+                loadedTrackedNames = page.names
+                renderLoadedTrackedNames(snapshot.trackedNameCount)
+                showNamesDashboard()
+            }
+        }
     }
 
     private fun showNameImportDialog() {
@@ -3206,18 +3325,37 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun importWalletName(exactUtf8: ByteArray?) {
+        val name = exactUtf8?.let { bytes ->
+            try {
+                bytes.toString(Charsets.UTF_8).takeIf { text ->
+                    text.toByteArray(Charsets.UTF_8).contentEquals(bytes)
+                }
+            } finally {
+                bytes.fill(0)
+            }
+        }
+        if (name == null) {
+            nameImportStatusView.text = getString(R.string.wallet_name_import_invalid)
+            return
+        }
+        importWalletNames(listOf(name))
+    }
+
+    private fun importWalletNames(names: List<String>) {
         val lease = currentStorageLease() ?: run {
-            exactUtf8?.fill(0)
             return
         }
         val initial = walletNameImportState(lease)
         val expected = initial.readState.authority
         if (expected == null || !walletNameImportMayBegin(expected, initial)) {
-            exactUtf8?.fill(0)
             nameImportStatusView.text = getString(R.string.wallet_name_import_unavailable)
             return
         }
-        if (exactUtf8 == null) {
+        if (
+            names.isEmpty() || names.size > MAX_BULK_NAME_IMPORTS ||
+            names.toSet().size != names.size ||
+            names.any { !isExactWalletNameText(it) }
+        ) {
             nameImportStatusView.text = getString(R.string.wallet_name_import_invalid)
             return
         }
@@ -3229,26 +3367,19 @@ class WalletActivity : ComponentActivity() {
                 resetReads = false,
             )
         ) {
-            exactUtf8.fill(0)
             return
         }
-        nameImportStatusView.text = getString(R.string.wallet_name_import_importing)
+        nameImportStatusView.text = getString(R.string.wallet_name_bulk_import_importing, names.size)
         val epoch = lifecycleEpoch
         val handle = expected.walletHandle
-        thread(name = "hns-wallet-name-import") {
-            val imported = NativeWalletBridge.importHnsNameExactText(handle, exactUtf8)
-            val snapshot = if (imported != null) {
-                synchronizeHnsSnapshotWithRollbackFloor(handle)?.takeIf { refreshed ->
-                    walletNameImportRefreshMatches(imported, refreshed)
-                }
-            } else {
-                null
-            }
-            if (imported != null && snapshot == null) {
-                // The import may already be durable. A missing or mismatched
-                // refresh poisons the session instead of publishing ambiguity.
-                NativeWalletBridge.lock(handle)
-            }
+        thread(name = "hns-wallet-name-bulk-import") {
+            val importedCount = NativeWalletBridge.importHnsNamesExactText(handle, names)
+            // Exactly one synchronized refresh follows the complete atomic
+            // import. Catch-up retains the previous balance and schedules its
+            // normal bounded continuation instead of poisoning the session.
+            val synchronization = if (importedCount == names.size) {
+                synchronizeHnsReadsWithRollbackFloor(handle)
+            } else null
             runOnUiThread {
                 val current = walletNameImportState(lease)
                 val mayPublish = walletNameImportMayPublish(
@@ -3263,21 +3394,38 @@ class WalletActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 when {
-                    imported == null -> {
+                    importedCount != names.size -> {
                         refreshControllerState()
                         nameImportStatusView.text =
                             getString(R.string.wallet_name_import_failed)
                     }
-                    snapshot == null -> {
-                        refreshControllerState()
-                        resetReadProjection(R.string.wallet_reads_sync_failed)
+                    synchronization?.snapshot != null -> {
+                        refreshControllerState(resetReads = false)
+                        renderReadSnapshot(synchronization.snapshot)
                         nameImportStatusView.text =
-                            getString(R.string.wallet_name_import_success_refresh_failed)
+                            getString(R.string.wallet_name_bulk_import_success, importedCount)
+                    }
+                    synchronization?.catchup != null -> {
+                        refreshControllerState(resetReads = false)
+                        renderReadCatchup(synchronization.catchup)
+                        nameImportStatusView.text = getString(
+                            R.string.wallet_name_bulk_import_catching_up,
+                            importedCount,
+                        )
+                        scheduleHnsCatchupRetry(
+                            lease,
+                            handle,
+                            epoch,
+                            expected.authorityGeneration,
+                        )
                     }
                     else -> {
                         refreshControllerState(resetReads = false)
-                        renderReadSnapshot(snapshot)
-                        renderImportedName(imported)
+                        retainReadProjectionAfterRefreshFailure()
+                        nameImportStatusView.text = getString(
+                            R.string.wallet_name_bulk_import_refresh_pending,
+                            importedCount,
+                        )
                     }
                 }
             }
@@ -3905,6 +4053,8 @@ class WalletActivity : ComponentActivity() {
     private fun resetReadProjection(status: Int) {
         walletHnsJourney.clearVerifiedSnapshot()
         latestReadSnapshot = null
+        loadedTrackedNames = emptyList()
+        trackedNamePageOffset = 0
         latestReadSnapshotHandle = INVALID_HANDLE
         latestReadSnapshotAuthorityGeneration = 0L
         latestReadSnapshotEpoch = 0L
@@ -4183,6 +4333,8 @@ class WalletActivity : ComponentActivity() {
         WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
         walletHnsJourney.verifiedSnapshotObserved()
         latestReadSnapshot = snapshot
+        loadedTrackedNames = snapshot.trackedNames.take(MAX_VISIBLE_READ_ITEMS)
+        trackedNamePageOffset = 0
         localPaymentReceiveTarget = snapshot.paymentReceiveTarget
         latestReadSnapshotHandle = walletHandle
         latestReadSnapshotAuthorityGeneration = walletAuthorityGeneration
@@ -4237,13 +4389,7 @@ class WalletActivity : ComponentActivity() {
             }
             appendRemainingCount(entries, snapshot.transactions.size - visibleTransactions.size)
         }
-        val visibleNames = snapshot.trackedNames.take(MAX_VISIBLE_READ_ITEMS)
-        trackedNamesView.text = if (visibleNames.isEmpty()) {
-            getString(R.string.wallet_reads_names_empty)
-        } else {
-            val entries = visibleNames.joinToString("\n\n", transform = ::walletNameSummary)
-            appendRemainingCount(entries, snapshot.trackedNames.size - visibleNames.size)
-        }
+        renderLoadedTrackedNames(snapshot.trackedNameCount)
         sendStatusView.text = if (NativeWalletBridge.hasHnsValue(walletHandle)) {
             getString(R.string.wallet_send_ready, snapshot.height)
         } else {
@@ -4263,6 +4409,20 @@ class WalletActivity : ComponentActivity() {
         renderWalletDashboard()
     }
 
+    private fun renderLoadedTrackedNames(total: Int) {
+        trackedNamesView.text = if (loadedTrackedNames.isEmpty()) {
+            getString(R.string.wallet_reads_names_empty)
+        } else {
+            val entries = loadedTrackedNames.joinToString("\n\n", transform = ::walletNameSummary)
+            entries + "\n\n" + getString(
+                R.string.wallet_name_page_position,
+                trackedNamePageOffset + 1,
+                trackedNamePageOffset + loadedTrackedNames.size,
+                total,
+            )
+        }
+    }
+
     private fun renderLocalPaymentReceiveTarget(target: NativeWalletPaymentReceiveTarget) {
         localPaymentReceiveTarget = target
         paymentReceiveView.text = localPaymentReceiveText(target)
@@ -4274,13 +4434,6 @@ class WalletActivity : ComponentActivity() {
             target.display,
             target.derivationIndex,
         )
-
-    private fun renderImportedName(name: NativeWalletName) {
-        nameImportStatusView.text = getString(
-            R.string.wallet_name_import_success,
-            walletNameSummary(name),
-        )
-    }
 
     private fun walletNameSummary(name: NativeWalletName): String {
         val state = listOfNotNull(
@@ -4535,6 +4688,8 @@ class WalletActivity : ComponentActivity() {
         const val MAX_RECOVERY_CHARACTERS = 256
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
+        const val MAX_BULK_NAME_IMPORTS = 10_000
+        const val MAX_BULK_NAME_FILE_BYTES = 1024 * 1024
         const val MAX_SEND_RECIPIENT_BYTES = 512
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L

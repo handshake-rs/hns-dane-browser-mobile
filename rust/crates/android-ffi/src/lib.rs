@@ -67,10 +67,17 @@ const WALLET_ACCOUNT_BUNDLE_MAGIC: &[u8; 4] = b"HNWA";
 const WALLET_ACCOUNT_BUNDLE_VERSION: u8 = 1;
 const MAX_WALLET_ACCOUNT_LABEL_BYTES: usize = 128;
 const WALLET_READ_BUNDLE_MAGIC: &[u8; 4] = b"HNWR";
-const WALLET_READ_BUNDLE_VERSION: u8 = 2;
+const WALLET_READ_BUNDLE_VERSION: u8 = 3;
 const WALLET_READ_BUNDLE_FLAGS: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
+const WALLET_NAME_PAGE_BUNDLE_MAGIC: &[u8; 4] = b"HNWP";
+const WALLET_NAME_PAGE_BUNDLE_VERSION: u8 = 1;
+const WALLET_NAME_PAGE_BUNDLE_FLAGS: u8 = 0;
+const WALLET_NAME_PAGE_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_NAME_PAGE_JSON_BYTES: usize = 64 * 1024;
+const MAX_ANDROID_WALLET_BULK_NAMES: usize = 10_000;
+const MAX_ANDROID_WALLET_BULK_NAMES_JSON_BYTES: usize = 1024 * 1024;
 /// Result envelope for one bounded HNS reconciliation. Unlike HNWR, this can
 /// carry authenticated catch-up progress without claiming that a partial scan
 /// is a fund-ready wallet snapshot.
@@ -1009,10 +1016,20 @@ impl AndroidWalletController {
                     return direct_hns_catchup_progress(coordinator)
                         .map(AndroidHnsSynchronization::CatchingUp);
                 }
+                // Install the complete bounded wallet restoration frontier
+                // before the first activity block is inspected. Waiting for
+                // snapshot finalization to discover a missing trailing script
+                // forces an avoidable second historical scan.
+                let now_unix = HnsReadSystemClock.now_unix()?;
+                if coordinator
+                    .extend_wallet_restore_watch_set(now_unix)
+                    .map_err(MobileWalletError::DirectHns)?
+                {
+                    android_log_wallet_scan_metrics("wallet_hns_scan stage=watch_set_preexpanded");
+                }
                 // A wallet becomes fund-ready only after its exact local watch
                 // set has reached the locally agreed header tip. The direct
                 // peer coordinator independently verifies every block view.
-                let now_unix = HnsReadSystemClock.now_unix()?;
                 for _scan_round in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
                     publish_direct_hns_live_progress(
                         live_progress,
@@ -1242,6 +1259,68 @@ impl AndroidWalletController {
         if bundle.is_none() {
             let _ = self.lock();
         }
+        bundle
+    }
+
+    fn import_hns_names_exact_text(&mut self, names: &[String]) -> Option<usize> {
+        if names.is_empty() || names.len() > MAX_ANDROID_WALLET_BULK_NAMES {
+            return None;
+        }
+        let mut exact = HashSet::with_capacity(names.len());
+        if names.iter().any(|name| {
+            name.is_empty()
+                || name.len() > MAX_ANDROID_WALLET_NAME_BYTES
+                || !exact.insert(name.as_str())
+        }) {
+            return None;
+        }
+        let refs = names.iter().map(String::as_str).collect::<Vec<_>>();
+        let imported = match self {
+            Self::Reads(controller) => controller.import_names_exact_text(&refs),
+            Self::Value(controller) => controller.import_names_exact_text(&refs),
+            Self::DirectValue {
+                coordinator,
+                controller,
+                ..
+            } => (|| {
+                let now_unix = HnsReadSystemClock.now_unix()?;
+                coordinator.connect_available(now_unix)?;
+                for name in names {
+                    coordinator.synchronize_name_proof_exact_text(name, now_unix)?;
+                }
+                controller.import_names_exact_text(&refs)
+            })(),
+            Self::Lifecycle(_) | Self::Failed => return None,
+        };
+        match imported {
+            Ok(count) if count == names.len() => Some(count),
+            Ok(_) => {
+                android_log_error("wallet HNS bulk name import returned an inexact count");
+                let _ = self.lock();
+                None
+            }
+            Err(error) if wallet_name_import_is_invalid(&error) => None,
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet HNS bulk name import failed closed: {error}"
+                ));
+                let _ = self.lock();
+                None
+            }
+        }
+    }
+
+    fn hns_name_page(&self, offset: usize, limit: usize) -> Option<Vec<u8>> {
+        let page = match self {
+            Self::Reads(controller) => controller.known_name_page(offset, limit),
+            Self::Value(controller) => controller.known_name_page(offset, limit),
+            Self::DirectValue { controller, .. } => controller.known_name_page(offset, limit),
+            Self::Lifecycle(_) | Self::Failed => return None,
+        }
+        .ok()?;
+        let mut json = serde_json::to_vec(&page).ok()?;
+        let bundle = wallet_name_page_bundle(&json);
+        json.fill(0);
         bundle
     }
 
@@ -2363,6 +2442,17 @@ fn wallet_read_bundle(json: &[u8]) -> Option<Vec<u8>> {
     bundle.extend_from_slice(&json_length.to_be_bytes());
     bundle.extend_from_slice(json);
     (bundle.len() == WALLET_READ_BUNDLE_HEADER_BYTES + json.len()).then_some(bundle)
+}
+
+fn wallet_name_page_bundle(json: &[u8]) -> Option<Vec<u8>> {
+    wallet_json_bundle(
+        json,
+        WALLET_NAME_PAGE_BUNDLE_MAGIC,
+        WALLET_NAME_PAGE_BUNDLE_VERSION,
+        WALLET_NAME_PAGE_BUNDLE_FLAGS,
+        WALLET_NAME_PAGE_BUNDLE_HEADER_BYTES,
+        MAX_WALLET_NAME_PAGE_JSON_BYTES,
+    )
 }
 
 fn android_direct_hns_peer_config(network: HnsNetwork) -> HnsDirectPeerConfig {
@@ -4885,6 +4975,56 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             // its exact minimized projection poisons this controller.
             let _ = controller.lock();
         }
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeImportHnsNamesExactText(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    exact_names_json: JByteArray<'_>,
+) -> jint {
+    catch_unwind(AssertUnwindSafe(|| {
+        let mut json = android_wallet_consumed_bytes(
+            &mut env,
+            &exact_names_json,
+            MAX_ANDROID_WALLET_BULK_NAMES_JSON_BYTES,
+        )?;
+        let names = serde_json::from_slice::<Vec<String>>(&json).ok();
+        json.fill(0);
+        let names = names?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        controller
+            .import_hns_names_exact_text(&names)
+            .and_then(|count| jint::try_from(count).ok())
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeHnsNamePage(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    offset: jint,
+    limit: jint,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let offset = usize::try_from(offset).ok()?;
+        let limit = usize::try_from(limit).ok()?;
+        let record = wallet_from_handle(handle)?;
+        let controller = record.controller_if_active()?;
+        let mut bundle = controller.hns_name_page(offset, limit)?;
+        let array = env.byte_array_from_slice(&bundle).ok();
+        bundle.fill(0);
         array.map(JByteArray::into_raw)
     }))
     .ok()

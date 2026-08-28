@@ -3,6 +3,7 @@ package com.denuoweb.hnsdane.wallet
 import com.denuoweb.hnsdane.net.NativeBridge
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import org.json.JSONArray
 
 /**
  * Narrow Android binding for the lifecycle, synchronized-read, and guarded
@@ -283,6 +284,46 @@ internal object NativeWalletBridge {
     } finally {
         exactUtf8.fill(0)
     }
+
+    /** Imports one bounded exact-name batch; native performs one atomic commit and no refresh. */
+    fun importHnsNamesExactText(handle: Long, exactNames: List<String>): Int {
+        if (
+            !isAvailable || !isValidHandle(handle) ||
+            exactNames.isEmpty() || exactNames.size > MAX_BULK_HNS_NAMES ||
+            exactNames.toSet().size != exactNames.size ||
+            exactNames.any { name ->
+                val encoded = name.toByteArray(Charsets.UTF_8)
+                encoded.size !in 1..MAX_HNS_NAME_BYTES ||
+                    encoded.toString(Charsets.UTF_8) != name
+            }
+        ) {
+            return 0
+        }
+        val encoded = JSONArray(exactNames).toString().toByteArray(Charsets.UTF_8)
+        return try {
+            if (encoded.size > MAX_BULK_HNS_NAMES_JSON_BYTES) 0 else
+                runCatching { nativeImportHnsNamesExactText(handle, encoded) }.getOrDefault(0)
+        } finally {
+            encoded.fill(0)
+        }
+    }
+
+    /** Reads a page retained by the last authenticated synchronization without another sync. */
+    fun hnsNamePage(handle: Long, offset: Int, limit: Int = HNS_NAME_PAGE_SIZE): NativeWalletNamePage? =
+        if (
+            isAvailable && isValidHandle(handle) && offset >= 0 &&
+            limit in 1..HNS_NAME_PAGE_SIZE
+        ) {
+            runCatching { nativeHnsNamePage(handle, offset, limit) }.getOrNull()?.let { bundle ->
+                try {
+                    NativeWalletNamePage.parse(bundle)
+                } finally {
+                    bundle.fill(0)
+                }
+            }
+        } else {
+            null
+        }
 
     internal fun parseAndWipeHnsReadBundle(bundle: ByteArray): NativeWalletReadSnapshot? = try {
         NativeWalletReadSnapshot.parse(bundle)
@@ -836,6 +877,12 @@ internal object NativeWalletBridge {
     ): ByteArray?
 
     @JvmStatic
+    private external fun nativeImportHnsNamesExactText(handle: Long, exactNamesJson: ByteArray): Int
+
+    @JvmStatic
+    private external fun nativeHnsNamePage(handle: Long, offset: Int, limit: Int): ByteArray?
+
+    @JvmStatic
     private external fun nativePrepareHnsSend(
         handle: Long,
         recipientUtf8: ByteArray,
@@ -895,6 +942,9 @@ internal object NativeWalletBridge {
     private const val MAX_RECOVERY_CHARACTERS = 256
     private const val MAX_ACCOUNT_LABEL_BYTES = 128
     private const val MAX_HNS_NAME_BYTES = 63
+    private const val MAX_BULK_HNS_NAMES = 10_000
+    private const val MAX_BULK_HNS_NAMES_JSON_BYTES = 1024 * 1024
+    private const val HNS_NAME_PAGE_SIZE = 64
     private const val MAX_HNS_RECIPIENT_BYTES = 512
     private const val MAX_BASE_UNITS_ASCII_BYTES = 39
     private const val STATUS_BUNDLE_BYTES = 24

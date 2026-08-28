@@ -187,13 +187,19 @@ The Rust JNI and Apple C ABI compose
 is reopened. Configuration accepts one nonzero IPv4 loopback port plus a bounded
 mutable authorization value; remote host, URL, and proxy inputs do not exist.
 The authorization buffer is consumed and wiped. A successful synchronization
-returns one bounded HNWR-v2 envelope carrying strict JSON for balance, distinct
+returns one bounded read envelope carrying strict JSON for balance, distinct
 ordinary-payment and name-transfer receive targets, transaction history, known
-names, and coherent tip-bound module status. Android and iOS preserve HNWR-v1
-as its exact historical five-field shape and require exactly six fields for v2;
-they reject cross-version shapes, malformed headers, unknown fields, unequal or
-zero target accounts, conflated targets, duplicate identities, noncanonical
-values, inconsistent heights, and oversized output before UI publication.
+names, and coherent tip-bound module status. Android HNWR-v3 carries only the
+first authenticated name page plus `knownNameCount` and
+`knownNamesComplete`; subsequent HNWP-v1 pages contain at most 64 names and are
+read from the controller's retained authenticated result without synchronizing
+again. The Android UI renders only 20 names per page. It can therefore retain
+and page thousands of discovered names without serializing or rendering the
+whole collection in one snapshot. iOS remains on HNWR-v2 in this tranche.
+Both platforms preserve HNWR-v1 as its exact historical five-field shape and
+reject cross-version shapes, malformed headers, unknown fields, unequal or zero
+target accounts, conflated targets, duplicate identities, noncanonical values,
+inconsistent heights, and oversized output before UI publication.
 
 Neither application silently reuses the browser's ordinary authenticated proxy
 as wallet authority. A pruned node with wallet indexing and
@@ -228,13 +234,25 @@ direct proof-backed path does not.
 
 ## Trusted-native exact-text name import
 
-The Android JNI and Apple C ABI now expose one native-only name import through
-the same `MobileHnsReadController`. Kotlin and Swift pass the exact UTF-8 text
+The Android JNI exposes a bounded native-only bulk name import and the Apple C
+ABI retains the single-name form through the same `MobileHnsReadController`.
+Kotlin accepts either one name or a file containing 1–10,000 unique names as
+exact lines or a JSON string array. Kotlin and Swift pass the exact UTF-8 text
 without trimming, lowercasing, IDNA, Unicode normalization, or trailing-dot
 editing. Their text controls explicitly disable capitalization, correction,
 spell checking, suggestions, and smart punctuation. Canonical validation is the
 pinned `hns-covenants` grammar: 1 through 63 lowercase ASCII letters or digits,
 with `-` and `_` only internally and the five reserved names rejected.
+
+Android acquires and verifies every requested direct name proof before making
+one atomic account/name-store commit. It then performs exactly one synchronized
+refresh for the complete import, never one refresh per name. Before historical
+wallet activity scanning, the direct coordinator idempotently expands the
+restoration watch set to its required derivation frontier once. A newly
+expanded wallet therefore has at most one historical scan. If only the name
+projection is still catching up, Android keeps the prior verified balance and
+marks the name result incomplete instead of clearing the complete read
+projection.
 
 The private success result is `HNWI` version 1: a closed envelope with a 12-byte
 header, zero flags and reserved bytes, a big-endian JSON length, and a
@@ -246,15 +264,22 @@ size/version/flag/reserved-byte mismatches, non-object framing, and a returned
 name whose bytes differ from the submitted text. HNWI is absent from provider,
 JavaScript, approval, value, HNSA, and HNSR surfaces.
 
-Import and the mandatory post-success HNWR-v2 synchronization run away from the
+Import and the mandatory post-success synchronization run away from the
 UI thread. Publication requires the exact live storage lease, read generation,
 controller identity, authority generation, and visible owner. A lifecycle or
 replacement completion is discarded. Invalid canonical text performs no node
 work and leaves the unlocked controller usable. Backend, evidence, projection,
-serialization, allocation, or refresh faults lock and fail closed at the Rust
-boundary as well as in platform defense-in-depth. A successful import publishes
-the minimized summary only after fresh HNWR-v2 rows contain the same exact name
-bytes and name hash.
+serialization, or allocation faults lock and fail closed at the Rust boundary
+as well as in platform defense-in-depth. A post-commit refresh that reports
+bounded catch-up is not treated as an import failure and does not erase the
+previous verified balance.
+
+The repository also includes `tools/hns_bulk_name_actions.py` for checkpointed
+bulk TRANSFER and FINALIZE operation against an authenticated HSD wallet HTTP
+listener. It bounds input to 10,000 exact names, passes HSD's pre-broadcast
+`maxFee` (and optional `hardFee`) controls on every transaction, atomically
+checkpoints each request, and requires explicit reconciliation after an
+ambiguous network failure before it can resume.
 
 Neither product shell provisions the required backend or credential. The
 control is therefore clearly disabled/unavailable in the candidate until that

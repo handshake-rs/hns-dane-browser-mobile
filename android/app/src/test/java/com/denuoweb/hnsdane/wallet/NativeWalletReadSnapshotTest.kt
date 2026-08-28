@@ -13,6 +13,33 @@ import org.junit.Test
 
 class NativeWalletReadSnapshotTest {
     @Test
+    fun paginatedV3RetainsBalanceWithAnIncompleteFirstNamePage() {
+        val value = snapshot()
+            .put("knownNameCount", 2_448)
+            .put("knownNamesComplete", false)
+        val parsed = NativeWalletReadSnapshot.parse(bundle(value, version = 3))
+        assertEquals("1234567", parsed?.balanceBaseUnits)
+        assertEquals(2_448, parsed?.trackedNameCount)
+        assertEquals(1, parsed?.trackedNames?.size)
+        assertEquals(false, parsed?.trackedNamesComplete)
+    }
+
+    @Test
+    fun paginatedV3RequiresCoherentCountAndCompleteness() {
+        fun reject(count: Int, complete: Boolean) {
+            val value = snapshot()
+                .put("knownNameCount", count)
+                .put("knownNamesComplete", complete)
+            assertNull(NativeWalletReadSnapshot.parse(bundle(value, version = 3)))
+        }
+
+        reject(0, false)
+        reject(1, false)
+        reject(2, true)
+        reject(10_001, false)
+    }
+
+    @Test
     fun exactV2TipBoundHnsProjectionParsesDistinctReceiveTargets() {
         val parsed = NativeWalletReadSnapshot.parse(bundle(snapshot(), version = 2))
         assertEquals("1234567", parsed?.balanceBaseUnits)
