@@ -156,7 +156,11 @@ const MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
 ];
 const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
-const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
+// Match the direct coordinator's single atomic filtered-block request window.
+// Cancellation is checked between these calls, so a Stop request can prevent
+// every not-yet-started batch instead of allowing the old 2,000-block call to
+// begin another internally committed batch.
+const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 64;
 const WALLET_HNS_SYNC_CONNECTING: u8 = 1;
 const WALLET_HNS_SYNC_HEADERS: u8 = 2;
 const WALLET_HNS_SYNC_SCANNING: u8 = 3;
@@ -4028,8 +4032,9 @@ pub unsafe extern "C" fn hns_browser_wallet_hns_sync_progress(
 }
 
 #[unsafe(no_mangle)]
-/// Requests cancellation without waiting for the wallet controller mutex.
-/// The synchronized operation stops at its next safe network/scan boundary.
+/// Records cancellation immediately without waiting for the wallet controller
+/// mutex. The active atomic peer/database call unwinds to its last durable
+/// result, and no subsequent synchronization batch is started.
 pub extern "C" fn hns_browser_wallet_cancel_hns_sync(
     wallet: HnsBrowserWalletHandle,
 ) -> HnsBrowserResult {

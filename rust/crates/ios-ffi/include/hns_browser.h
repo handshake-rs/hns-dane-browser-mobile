@@ -318,9 +318,10 @@ HnsBrowserResult hns_browser_wallet_hns_sync_progress(
     HnsBrowserWalletHandle wallet,
     HnsBrowserWalletHnsSyncProgress *out_progress);
 /*
- * Requests that the active synchronized read stop at its next safe boundary.
- * This call never waits for the wallet controller mutex. Returns NOT_READY if
- * no synchronized read is active.
+ * Records an immediate stop request without waiting for the wallet controller
+ * mutex. No additional synchronization batch is started; an already-running
+ * atomic peer/database call unwinds to its last durable result. Returns
+ * NOT_READY if no synchronized read is active.
  */
 HnsBrowserResult hns_browser_wallet_cancel_hns_sync(
     HnsBrowserWalletHandle wallet);

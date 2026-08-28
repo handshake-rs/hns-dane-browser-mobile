@@ -2283,7 +2283,7 @@ final class WalletViewController: UIViewController {
         let alert = UIAlertController(
             title: "Stop synchronization?",
             message: """
-            The active HNS synchronization will stop at its next safe checkpoint. No wallet data will be deleted.
+            Stop the active HNS synchronization now? No additional synchronization batch will start. An atomic peer or database operation already in progress will unwind without discarding the last completed durable checkpoint. No wallet data will be deleted.
 
             After the old controller releases protected storage, the normal wallet controls will return automatically. You can unlock, synchronize again, or delete the wallet normally.
             """,
@@ -3255,11 +3255,11 @@ final class WalletViewController: UIViewController {
                 readStatusLabel.text = "Finalizing the verified HNS wallet snapshot at height \(progress.verifiedHeaderHeight)."
             }
         case .cancelling(let progress):
-            statusLabel.text = "Stopping the existing HNS synchronization at its next safe checkpoint."
+            statusLabel.text = "Stopping the existing HNS synchronization now."
             accountLabel.text = "Account controls return after synchronization protection finishes."
             readStatusLabel.text = progress.map {
                 "Last verified header height \($0.verifiedHeaderHeight); wallet scan height \($0.scannedHeight ?? $0.birthdayHeight) of \($0.targetHeight)."
-            } ?? "Waiting for the active native synchronization boundary…"
+            } ?? "No additional synchronization batch will start; the active atomic call is unwinding."
         case .terminal(let progress):
             statusLabel.text = "HNS synchronization finished. Wallet protection is releasing."
             accountLabel.text = "Account controls will return automatically."

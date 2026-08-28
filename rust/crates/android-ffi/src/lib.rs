@@ -154,7 +154,11 @@ const DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC: usize = 5;
 /// Each direct scan call verifies at most 2,000 wallet-filtered blocks. Keep
 /// first-run catch-up self-contained without allowing an unbounded JNI call.
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
-const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 2_000;
+// Match the direct coordinator's single atomic filtered-block request window.
+// Cancellation is checked between these calls, so a Stop request can prevent
+// every not-yet-started batch instead of allowing the old 2,000-block call to
+// begin another internally committed batch.
+const DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK: u32 = 64;
 /// This stable trusted-native diagnostic is emitted only when the wallet
 /// scanner discovers a trailing restoration script that was outside the
 /// direct index's exact filter. The index must be extended and re-scanned;
@@ -5134,7 +5138,9 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .unwrap_or(std::ptr::null_mut())
 }
 
-/// Requests cancellation without acquiring the wallet controller mutex.
+/// Records cancellation immediately without acquiring the wallet controller
+/// mutex. The active atomic peer/database call unwinds to its last durable
+/// result, and no subsequent synchronization batch is started.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeCancelHnsSynchronization(
     _env: JNIEnv<'_>,

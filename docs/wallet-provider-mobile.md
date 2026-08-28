@@ -241,8 +241,10 @@ controller's storage or presenting it as a restart. Terminal progress revokes
 late callbacks, and the replacement screen retries storage acquisition until
 retirement releases the old lease. The same process operation owns a
 single-use, cancellation-only capability: a replacement screen can request
-that synchronization stop at its next safe network or scan boundary without
-taking the controller mutex. The screen waits for retirement to release
+that synchronization stop immediately without taking the controller mutex.
+No additional synchronization batch starts; an already-running atomic peer or
+database call unwinds while retaining the last completed durable checkpoint.
+The screen waits for retirement to release
 storage and then restores the ordinary wallet controls. Deletion remains a
 separate action and cannot overlap the synchronizing controller; after normal
 device authentication reopens the wallet, the established identity-bound and

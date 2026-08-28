@@ -303,9 +303,9 @@
     <string name="row_wallet_lock_summary" translatable="false">End the current native wallet session.</string>
     <string name="row_wallet_delete" translatable="false">Delete confirmed wallet</string>
     <string name="row_wallet_delete_summary" translatable="false">Unlock the confirmed wallet, verify its exact network and account, then complete two destructive confirmations. Only this network namespace is removed.</string>
-    <string name="wallet_stop_sync_summary" translatable="false">Stop the current read-only operation at its next safe checkpoint and return to normal wallet controls.</string>
+    <string name="wallet_stop_sync_summary" translatable="false">Stop the current read-only operation now, retain its last completed checkpoint, and return to normal wallet controls.</string>
     <string name="wallet_stop_sync_title" translatable="false">Stop synchronization?</string>
-    <string name="wallet_stop_sync_message" translatable="false">The active HNS synchronization will stop at its next safe checkpoint. No wallet data will be deleted. After the old controller releases protected storage, the normal wallet controls return automatically; you can unlock, synchronize again, or delete the wallet normally.</string>
+    <string name="wallet_stop_sync_message" translatable="false">Stop the active HNS synchronization now? No additional synchronization batch will start. An atomic peer or database operation already in progress will unwind without discarding the last completed durable checkpoint. No wallet data will be deleted. Normal wallet controls return after the controller releases protected storage.</string>
     <string name="row_wallet_read_module" translatable="false">Module status</string>
     <string name="row_wallet_read_balance" translatable="false">Confirmed spendable balance</string>
     <string name="row_wallet_read_receive" translatable="false">Payment receive address</string>
@@ -367,7 +367,7 @@
     <string name="wallet_status_deleting" translatable="false">Deleting the confirmed native wallet…</string>
     <string name="wallet_status_syncing_reads" translatable="false">Synchronizing read-only HNS wallet…</string>
     <string name="wallet_status_stopping_sync" translatable="false">Stopping HNS synchronization…</string>
-    <string name="wallet_reads_stopping_at_safe_checkpoint" translatable="false">The active native synchronization will stop at its next safe network or scan checkpoint. Protected storage remains owned until controller retirement completes.</string>
+    <string name="wallet_reads_stopping_at_safe_checkpoint" translatable="false">The stop request is active. No additional synchronization batch will start; the last completed durable checkpoint is retained. Protected storage remains owned only while the active atomic call unwinds.</string>
     <string name="wallet_status_preparing_send" translatable="false">Preparing exact HNS send…</string>
     <string name="wallet_status_broadcasting_send" translatable="false">Broadcasting approved HNS transaction…</string>
     <string name="wallet_status_preparing_value_action" translatable="false">Preparing native HNS value action…</string>
