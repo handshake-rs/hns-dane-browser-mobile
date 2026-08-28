@@ -38,13 +38,14 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
     let untrustedPendingSats: UInt64
     let immatureSats: UInt64
     let totalSats: UInt64
+    let birthdayHeight: UInt32
     let synchronizedHeight: UInt64
     let connectedPeerCount: UInt8
     let requiredPeerCount: UInt8
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case network, receiveAddress, confirmedSats, trustedPendingSats
-        case untrustedPendingSats, immatureSats, totalSats, synchronizedHeight
+        case untrustedPendingSats, immatureSats, totalSats, birthdayHeight, synchronizedHeight
         case connectedPeerCount, requiredPeerCount
     }
 
@@ -57,6 +58,7 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
         untrustedPendingSats = try container.decode(UInt64.self, forKey: .untrustedPendingSats)
         immatureSats = try container.decode(UInt64.self, forKey: .immatureSats)
         totalSats = try container.decode(UInt64.self, forKey: .totalSats)
+        birthdayHeight = try container.decode(UInt32.self, forKey: .birthdayHeight)
         synchronizedHeight = try container.decode(UInt64.self, forKey: .synchronizedHeight)
         connectedPeerCount = try container.decode(UInt8.self, forKey: .connectedPeerCount)
         requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
@@ -1853,6 +1855,24 @@ final class RustNativeWallet: @unchecked Sendable {
     func bitcoinSnapshot() throws -> NativeBitcoinWalletSnapshot {
         try decodeBitcoinBundle(operation: "wallet Bitcoin snapshot") { handle, output in
             hns_browser_wallet_bitcoin_snapshot(handle, output)
+        }
+    }
+
+    func setBitcoinBirthdayHeight(
+        earliestTransactionHeight: UInt32
+    ) throws -> NativeBitcoinWalletSnapshot {
+        guard earliestTransactionHeight > 0 else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "Bitcoin birthday height must be nonzero"
+            )
+        }
+        return try decodeBitcoinBundle(operation: "wallet Bitcoin birthday reset") {
+            handle, output in
+            hns_browser_wallet_set_bitcoin_birthday_height(
+                handle,
+                earliestTransactionHeight,
+                output
+            )
         }
     }
 

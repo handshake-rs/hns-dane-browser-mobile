@@ -338,6 +338,10 @@ HnsBrowserResult hns_browser_wallet_has_bitcoin_value(
 HnsBrowserResult hns_browser_wallet_bitcoin_snapshot(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_snapshot_bundle);
+HnsBrowserResult hns_browser_wallet_set_bitcoin_birthday_height(
+    HnsBrowserWalletHandle wallet,
+    uint32_t earliest_transaction_height,
+    HnsBrowserBuffer *out_snapshot_bundle);
 HnsBrowserResult hns_browser_wallet_next_bitcoin_receive_address(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_receive_bundle);

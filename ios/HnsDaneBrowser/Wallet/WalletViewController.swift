@@ -52,6 +52,7 @@ final class WalletViewController: UIViewController {
     private var hnsSyncPresentationTimer: Timer?
     private var bitcoinSyncInProgress = false
     private var bitcoinSyncStopRequested = false
+    private var bitcoinBirthdayResetInProgress = false
     private var bitcoinSyncTimer: Timer?
     private var bitcoinSnapshot: NativeBitcoinWalletSnapshot?
     private var bitcoinValueAvailable = false
@@ -84,6 +85,7 @@ final class WalletViewController: UIViewController {
     private let bitcoinReceiveButton = UIButton(type: .system)
     private let bitcoinSyncButton = UIButton(type: .system)
     private let bitcoinSendButton = UIButton(type: .system)
+    private let bitcoinBirthdayButton = UIButton(type: .system)
     private let dashboardStack = UIStackView()
 
     init(network: BrowserHandshakeNetwork) {
@@ -255,6 +257,11 @@ final class WalletViewController: UIViewController {
             bitcoinSendButton,
             title: "Send Bitcoin",
             action: #selector(showBitcoinSendForm)
+        )
+        configureButton(
+            bitcoinBirthdayButton,
+            title: "Set Bitcoin birthday",
+            action: #selector(showBitcoinBirthdayForm)
         )
         configureButton(
             importNameButton,
@@ -444,6 +451,7 @@ final class WalletViewController: UIViewController {
                 bitcoinBalanceLabel,
                 bitcoinReceiveLabel,
                 dashboardButtonRow([bitcoinReceiveButton, bitcoinSendButton, bitcoinSyncButton]),
+                bitcoinBirthdayButton,
             ],
             accent: .systemOrange
         ))
@@ -612,7 +620,8 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func nextBitcoinReceiveAddress() {
-        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress else { return }
+        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
+              !bitcoinBirthdayResetInProgress else { return }
         bitcoinReceiveButton.isEnabled = false
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result { try wallet.nextBitcoinReceiveAddress() }
@@ -648,6 +657,59 @@ final class WalletViewController: UIViewController {
         present(alert, animated: true)
     }
 
+    @objc private func showBitcoinBirthdayForm() {
+        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
+              !bitcoinBirthdayResetInProgress else { return }
+        let alert = UIAlertController(
+            title: "Set Bitcoin birthday height",
+            message: "Enter the earliest Bitcoin block that could contain activity for this wallet. The native wallet verifies the preceding block against its locally validated best-header chain so the entered block is included. This explicitly replaces an incomplete older scan.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "Earliest possible transaction block"
+            field.keyboardType = .numberPad
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Apply", style: .destructive) {
+            [weak self, weak alert, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let text = alert?.textFields?.first?.text,
+                  let height = UInt32(text), height > 0 else {
+                self?.showErrorMessage("Enter a nonzero Bitcoin block height.")
+                return
+            }
+            self.setBitcoinBirthdayHeight(height, wallet: wallet)
+        })
+        present(alert, animated: true)
+    }
+
+    private func setBitcoinBirthdayHeight(
+        _ height: UInt32,
+        wallet: RustNativeWallet
+    ) {
+        bitcoinBirthdayResetInProgress = true
+        bitcoinStatusLabel.text = "Validating Bitcoin birthday height \(height) against the direct peer header chain…"
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result {
+                try wallet.setBitcoinBirthdayHeight(earliestTransactionHeight: height)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                self.bitcoinBirthdayResetInProgress = false
+                switch outcome {
+                case .success(let snapshot):
+                    self.renderBitcoinSnapshot(snapshot)
+                    self.bitcoinStatusLabel.text = "Bitcoin birthday set to block \(snapshot.birthdayHeight). The next synchronization starts from its validated predecessor."
+                case .failure(let error):
+                    self.bitcoinStatusLabel.text = "Bitcoin birthday was not changed. Use a height above the current durable scan and no higher than the validated Bitcoin tip."
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
     @objc private func toggleBitcoinSynchronization() {
         if bitcoinSyncInProgress {
             stopBitcoinSynchronization()
@@ -657,7 +719,8 @@ final class WalletViewController: UIViewController {
     }
 
     private func startBitcoinSynchronization() {
-        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress else { return }
+        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
+              !bitcoinBirthdayResetInProgress else { return }
         bitcoinSyncInProgress = true
         bitcoinSyncStopRequested = false
         bitcoinStatusLabel.text = "Connecting to direct Bitcoin peers…"
@@ -732,7 +795,8 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func showBitcoinSendForm() {
-        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress else { return }
+        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
+              !bitcoinBirthdayResetInProgress else { return }
         let alert = UIAlertController(
             title: "Send Bitcoin",
             message: "Enter a native Bitcoin address, amount in satoshis, and an absolute fee cap. The native wallet will show the exact selected fee before signing.",
@@ -826,7 +890,10 @@ final class WalletViewController: UIViewController {
     private func renderBitcoinSnapshot(_ snapshot: NativeBitcoinWalletSnapshot) {
         bitcoinSnapshot = snapshot
         bitcoinBalanceLabel.text = "Confirmed: \(snapshot.confirmedSats) sats · pending: \(snapshot.trustedPendingSats + snapshot.untrustedPendingSats) sats · total: \(snapshot.totalSats) sats"
-        bitcoinReceiveLabel.text = "BIP84 receive\n\(snapshot.receiveAddress)"
+        let birthday = snapshot.birthdayHeight == 0
+            ? "full scan from genesis"
+            : "birthday block \(snapshot.birthdayHeight)"
+        bitcoinReceiveLabel.text = "BIP84 receive\n\(snapshot.receiveAddress)\n\(birthday)"
     }
 
     @objc private func showHnsSendForm() {
@@ -2838,6 +2905,7 @@ final class WalletViewController: UIViewController {
         bitcoinSyncTimer = nil
         bitcoinSyncInProgress = false
         bitcoinSyncStopRequested = false
+        bitcoinBirthdayResetInProgress = false
         bitcoinValueAvailable = false
         bitcoinSnapshot = nil
         try? wallet?.lock()
@@ -3183,7 +3251,8 @@ final class WalletViewController: UIViewController {
         restoreButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasWallet && !persistentWalletExists && !isOperating
         openButton.isEnabled = ownsStorage && protectedStorageIsAvailable && !hasIncompleteWallet && (hasWallet || persistentWalletExists) && !isOperating
         lockButton.isEnabled = ownsStorage && protectedStorageIsAvailable && hasWallet &&
-            !hasIncompleteWallet && !isOperating && !bitcoinSyncInProgress
+            !hasIncompleteWallet && !isOperating && !bitcoinSyncInProgress &&
+            !bitcoinBirthdayResetInProgress
         confirmRecoveryButton.isEnabled = ownsStorage && hasIncompleteWallet && recoverySecret != nil && !isOperating
         refreshButton.isEnabled = ownsStorage &&
             (hasWallet || encryptedOrphanCleanupPending) &&
@@ -3191,12 +3260,15 @@ final class WalletViewController: UIViewController {
             !isOperating
         synchronizeButton.isEnabled = ownsStorage && hasWallet && !hasIncompleteWallet && synchronizedReadsAvailable && !isOperating
         bitcoinReceiveButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
-            bitcoinValueAvailable && !bitcoinSyncInProgress
+            bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         bitcoinSendButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
-            bitcoinValueAvailable && !bitcoinSyncInProgress
+            bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         bitcoinSyncButton.isEnabled = bitcoinSyncInProgress
             ? !bitcoinSyncStopRequested
-            : ownsStorage && hasWallet && walletIsUnlocked && bitcoinValueAvailable
+            : ownsStorage && hasWallet && walletIsUnlocked && bitcoinValueAvailable &&
+                !bitcoinBirthdayResetInProgress
+        bitcoinBirthdayButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
+            bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         let importState = currentWalletNameImportState()
         importNameButton.isEnabled = importState.authority.map {
             walletNameImportMayStart(expected: $0, current: importState)
@@ -3229,7 +3301,8 @@ final class WalletViewController: UIViewController {
             viewIfLoaded?.window != nil &&
             !retirementInFlight &&
             !isOperating &&
-            !bitcoinSyncInProgress)
+            !bitcoinSyncInProgress &&
+            !bitcoinBirthdayResetInProgress)
         renderWalletDashboard()
     }
 

@@ -4340,6 +4340,57 @@ pub unsafe extern "C" fn hns_browser_wallet_bitcoin_snapshot(
 }
 
 #[unsafe(no_mangle)]
+/// Explicitly resets an incomplete Bitcoin recovery scan to the validated
+/// predecessor of `earliest_transaction_height`.
+///
+/// # Safety
+/// `out_snapshot_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_set_bitcoin_birthday_height(
+    wallet: HnsBrowserWalletHandle,
+    earliest_transaction_height: u32,
+    out_snapshot_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_snapshot_bundle)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_snapshot_bundle, HnsBrowserBuffer::empty()) };
+        if earliest_transaction_height == 0 {
+            return Err(FfiFailure::invalid(
+                "Bitcoin birthday height must be nonzero",
+            ));
+        }
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        if control
+            .activity
+            .lock()
+            .map_err(|_| FfiFailure::internal())?
+            .active
+        {
+            return Err(direct_hns_not_ready(
+                "stop Bitcoin synchronization before changing its birthday",
+            ));
+        }
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let snapshot = controller
+            .set_birthday_height(earliest_transaction_height)
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin birthday reset failed"))?;
+        control.replace_runtime_handles(controller);
+        let bundle = wallet_bitcoin_bundle(&snapshot)?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_snapshot_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Reveals and persists one locally derived BIP84 receive address.
 ///
 /// # Safety
@@ -5308,6 +5359,7 @@ mod tests {
             "hns_browser_wallet_cancel_hns_sync",
             "hns_browser_wallet_has_bitcoin_value",
             "hns_browser_wallet_bitcoin_snapshot",
+            "hns_browser_wallet_set_bitcoin_birthday_height",
             "hns_browser_wallet_next_bitcoin_receive_address",
             "hns_browser_wallet_synchronize_bitcoin",
             "hns_browser_wallet_cancel_bitcoin_sync",

@@ -36,6 +36,8 @@
     <string name="action_continue_wallet_deletion" translatable="false">Continue</string>
     <string name="action_prepare_wallet_send" translatable="false">Review send</string>
     <string name="action_wallet_bitcoin_receive" translatable="false">New address</string>
+    <string name="action_wallet_bitcoin_birthday" translatable="false">Set birthday height</string>
+    <string name="action_apply" translatable="false">Apply</string>
     <string name="action_reject" translatable="false">Reject</string>
     <string name="action_broadcast_hns" translatable="false">Approve and broadcast</string>
     <string name="action_prepare" translatable="false">Review</string>
@@ -489,10 +491,17 @@
     <string name="wallet_bitcoin_sync_stop_failed" translatable="false">Bitcoin synchronization could not be interrupted because no active native synchronization was found.</string>
     <string name="wallet_bitcoin_synchronized" translatable="false">Verified Bitcoin state at height %1$d with %2$d/%3$d direct peers.</string>
     <string name="wallet_bitcoin_balance_unavailable" translatable="false">No local Bitcoin snapshot yet.</string>
-    <string name="wallet_bitcoin_balance" translatable="false">Confirmed: %1$d sats&#10;Trusted pending: %2$d sats&#10;Untrusted pending: %3$d sats&#10;Immature: %4$d sats&#10;Total: %5$d sats</string>
+    <string name="wallet_bitcoin_balance" translatable="false">Confirmed: %1$d sats&#10;Trusted pending: %2$d sats&#10;Untrusted pending: %3$d sats&#10;Immature: %4$d sats&#10;Total: %5$d sats&#10;Birthday block: %6$d&#10;Durable scan height: %7$d</string>
     <string name="wallet_bitcoin_receive_unavailable" translatable="false">Unlock the direct wallet to derive a local Bitcoin receive address.</string>
     <string name="wallet_bitcoin_receive" translatable="false">%1$s</string>
     <string name="wallet_bitcoin_receive_failed" translatable="false">A new Bitcoin receive address could not be derived and persisted locally.</string>
+    <string name="wallet_bitcoin_birthday_title" translatable="false">Set Bitcoin birthday height</string>
+    <string name="wallet_bitcoin_birthday_hint" translatable="false">Earliest possible Bitcoin transaction block</string>
+    <string name="wallet_bitcoin_birthday_message" translatable="false">Enter the earliest Bitcoin block that could contain activity for this wallet. The native wallet verifies the preceding block against its locally validated best-header chain so the entered block is included. This explicitly replaces an incomplete older scan; it cannot skip a height the durable scan already passed.</string>
+    <string name="wallet_bitcoin_birthday_setting" translatable="false">Validating Bitcoin birthday height %1$d against the direct peer header chain…</string>
+    <string name="wallet_status_setting_bitcoin_birthday" translatable="false">Setting the direct Bitcoin wallet birthday…</string>
+    <string name="wallet_bitcoin_birthday_set" translatable="false">Bitcoin birthday set to block %1$d. The next synchronization starts from its validated predecessor.</string>
+    <string name="wallet_bitcoin_birthday_failed" translatable="false">Bitcoin birthday was not changed. Use a height above the current durable scan and no higher than the validated Bitcoin tip.</string>
     <string name="wallet_bitcoin_send_destination_hint" translatable="false">Exact Bitcoin recipient address</string>
     <string name="wallet_bitcoin_send_amount_hint" translatable="false">Amount in satoshis</string>
     <string name="wallet_bitcoin_send_fee_hint" translatable="false">Maximum fee in satoshis</string>

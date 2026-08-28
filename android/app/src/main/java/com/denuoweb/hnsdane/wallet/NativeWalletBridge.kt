@@ -562,6 +562,31 @@ internal object NativeWalletBridge {
             null
         }
 
+    /**
+     * Resets an incomplete recovery scan to the locally validated predecessor
+     * of the earliest block that may contain wallet activity.
+     */
+    fun setBitcoinBirthdayHeight(
+        handle: Long,
+        earliestTransactionHeight: Long,
+    ): NativeBitcoinWalletSnapshot? =
+        if (
+            isValidHandle(handle) && isAvailable &&
+            earliestTransactionHeight in 1..Int.MAX_VALUE.toLong()
+        ) {
+            runCatching {
+                nativeSetBitcoinBirthdayHeight(handle, earliestTransactionHeight.toInt())
+            }.getOrNull()?.let { bundle ->
+                try {
+                    NativeBitcoinWalletBundle.snapshot(bundle)
+                } finally {
+                    bundle.fill(0)
+                }
+            }
+        } else {
+            null
+        }
+
     /** Reveal and persist one locally derived BIP84 receive address. */
     fun nextBitcoinReceiveAddress(handle: Long): NativeBitcoinReceiveAddress? =
         if (isValidHandle(handle) && isAvailable) {
@@ -850,6 +875,12 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeBitcoinSnapshot(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeSetBitcoinBirthdayHeight(
+        handle: Long,
+        earliestTransactionHeight: Int,
+    ): ByteArray?
 
     @JvmStatic
     private external fun nativeNextBitcoinReceiveAddress(handle: Long): ByteArray?

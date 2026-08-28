@@ -17,6 +17,7 @@ internal data class NativeBitcoinWalletSnapshot(
     val untrustedPendingSats: Long,
     val immatureSats: Long,
     val totalSats: Long,
+    val birthdayHeight: Long,
     val synchronizedHeight: Long,
     val connectedPeerCount: Int,
     val requiredPeerCount: Int,
@@ -202,7 +203,7 @@ internal object NativeBitcoinWalletBundle {
             !hasExactKeys(json, setOf(
                 "network", "receiveAddress", "confirmedSats", "trustedPendingSats",
                 "untrustedPendingSats", "immatureSats", "totalSats", "synchronizedHeight",
-                "connectedPeerCount", "requiredPeerCount",
+                "birthdayHeight", "connectedPeerCount", "requiredPeerCount",
             ))
         ) return null
         val network = json.optString("network", "")
@@ -222,6 +223,7 @@ internal object NativeBitcoinWalletBundle {
             untrusted,
             immature,
             total,
+            nonnegativeLong(json, "birthdayHeight") ?: return null,
             nonnegativeLong(json, "synchronizedHeight") ?: return null,
             peerCount(json, "connectedPeerCount") ?: return null,
             peerCount(json, "requiredPeerCount") ?: return null,

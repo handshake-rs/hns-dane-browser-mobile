@@ -4977,6 +4977,44 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeSetBitcoinBirthdayHeight(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    earliest_transaction_height: jint,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let height = u32::try_from(earliest_transaction_height).ok()?;
+        if height == 0 {
+            return None;
+        }
+        let record = wallet_from_handle(handle)?;
+        if record.bitcoin_sync_activity.lock().ok()?.active {
+            return None;
+        }
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        let controller = bitcoin.as_mut()?;
+        let snapshot = controller
+            .set_birthday_height(height)
+            .map_err(|error| {
+                android_log_error(&format!("wallet Bitcoin birthday reset failed: {error}"));
+            })
+            .ok()?;
+        record.replace_bitcoin_shutdown(controller.shutdown_handle());
+        record.replace_bitcoin_sync_progress(controller.sync_progress_handle());
+        let mut json = serde_json::to_vec(&snapshot).ok()?;
+        let mut bundle = bitcoin_json_bundle(json.as_slice())?;
+        json.fill(0);
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeNextBitcoinReceiveAddress(
     env: JNIEnv<'_>,
     _class: JClass<'_>,

@@ -188,6 +188,7 @@ class WalletActivity : ComponentActivity() {
     private var walletHnsSyncInProgress = false
     private var walletBitcoinSyncInProgress = false
     private var bitcoinSyncStopRequested = false
+    private var bitcoinBirthdayResetInProgress = false
     @Volatile
     private var bitcoinSyncProgressWatcher: AtomicBoolean? = null
     private var walletForegroundSyncServiceActive = false
@@ -1032,6 +1033,11 @@ class WalletActivity : ComponentActivity() {
             )
         } else {
             actions.add(getString(R.string.action_sync_wallet_reads) to ::synchronizeBitcoin)
+        }
+        if (!walletBitcoinSyncInProgress && !bitcoinBirthdayResetInProgress) {
+            actions.add(
+                getString(R.string.action_wallet_bitcoin_birthday) to ::showBitcoinBirthdayForm,
+            )
         }
         actions.add(getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm)
         walletLiveDetailDialog(
@@ -1965,7 +1971,10 @@ class WalletActivity : ComponentActivity() {
     private fun revealBitcoinReceiveAddress() {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
-        if (!walletBitcoinOperationMayStart(walletBitcoinSyncInProgress)) {
+        if (!walletBitcoinOperationMayStart(
+                walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress,
+            )
+        ) {
             bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
             return
         }
@@ -1996,7 +2005,10 @@ class WalletActivity : ComponentActivity() {
     private fun synchronizeBitcoin() {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
-        if (!walletBitcoinOperationMayStart(walletBitcoinSyncInProgress)) {
+        if (!walletBitcoinOperationMayStart(
+                walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress,
+            )
+        ) {
             bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_already_running)
             return
         }
@@ -2205,8 +2217,77 @@ class WalletActivity : ComponentActivity() {
             snapshot.untrustedPendingSats,
             snapshot.immatureSats,
             snapshot.totalSats,
+            snapshot.birthdayHeight,
+            snapshot.synchronizedHeight,
         )
         bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive, snapshot.receiveAddress)
+    }
+
+    private fun showBitcoinBirthdayForm() {
+        if (walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
+            return
+        }
+        val input = EditText(this).apply {
+            hint = getString(R.string.wallet_bitcoin_birthday_hint)
+            inputType = InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(InputFilter.LengthFilter(10))
+            setSingleLine(true)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_bitcoin_birthday_title)
+            .setMessage(R.string.wallet_bitcoin_birthday_message)
+            .setView(input)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_apply) { _, _ ->
+                val height = input.text?.toString()?.toLongOrNull()
+                    ?.takeIf { it in 1..Int.MAX_VALUE.toLong() }
+                wipeEditable(input.text)
+                if (height == null) {
+                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_failed)
+                } else {
+                    setBitcoinBirthdayHeight(height)
+                }
+            }
+            .show()
+    }
+
+    private fun setBitcoinBirthdayHeight(height: Long) {
+        val lease = currentStorageLease() ?: return
+        val handle = walletHandle
+        if (
+            handle == INVALID_HANDLE || walletBitcoinSyncInProgress ||
+            bitcoinBirthdayResetInProgress || !NativeWalletBridge.hasBitcoinValue(handle)
+        ) return
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_setting_bitcoin_birthday),
+                resetReads = false,
+            )
+        ) return
+        bitcoinBirthdayResetInProgress = true
+        bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_setting, height)
+        val epoch = lifecycleEpoch
+        thread(name = "bitcoin-wallet-birthday") {
+            val snapshot = NativeWalletBridge.setBitcoinBirthdayHeight(handle, height)
+            runOnUiThread {
+                bitcoinBirthdayResetInProgress = false
+                if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                busy = false
+                if (snapshot == null) {
+                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_failed)
+                } else {
+                    renderBitcoinSnapshot(snapshot)
+                    bitcoinStatusView.text = getString(
+                        R.string.wallet_bitcoin_birthday_set,
+                        snapshot.birthdayHeight,
+                    )
+                }
+            }
+        }
     }
 
     private data class WalletActionInput(
@@ -2276,7 +2357,10 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showBitcoinSendForm() {
-        if (!walletBitcoinOperationMayStart(walletBitcoinSyncInProgress)) {
+        if (!walletBitcoinOperationMayStart(
+                walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress,
+            )
+        ) {
             bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
             return
         }
@@ -2301,7 +2385,10 @@ class WalletActivity : ComponentActivity() {
     private fun prepareBitcoinSend(destination: String, amountSats: Long, maximumFeeSats: Long) {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
-        if (!walletBitcoinOperationMayStart(walletBitcoinSyncInProgress)) {
+        if (!walletBitcoinOperationMayStart(
+                walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress,
+            )
+        ) {
             bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
             return
         }
