@@ -12,6 +12,7 @@ static_assert(std::is_standard_layout_v<HnsBrowserBuffer>);
 static_assert(sizeof(HnsBrowserRuntimeHandle) == sizeof(std::uint64_t));
 static_assert(sizeof(HnsBrowserProxyHandle) == sizeof(std::uint64_t));
 static_assert(sizeof(HnsBrowserWalletHandle) == sizeof(std::uint64_t));
+static_assert(sizeof(HnsBrowserWalletHnsSyncProgress) == 40u);
 
 int main() {
     auto *abiVersion = &hns_browser_abi_version;
@@ -27,6 +28,7 @@ int main() {
     auto *walletConfigureReads = &hns_browser_wallet_configure_hns_reads;
     auto *walletHasReads = &hns_browser_wallet_has_hns_reads;
     auto *walletSynchronizeReads = &hns_browser_wallet_synchronize_hns_reads;
+    auto *walletSyncProgress = &hns_browser_wallet_hns_sync_progress;
     auto *walletImportName = &hns_browser_wallet_import_hns_name_exact_text;
     auto *walletUnlock = &hns_browser_wallet_unlock;
     auto *walletLock = &hns_browser_wallet_lock;
@@ -45,6 +47,7 @@ int main() {
     (void)walletConfigureReads;
     (void)walletHasReads;
     (void)walletSynchronizeReads;
+    (void)walletSyncProgress;
     (void)walletImportName;
     (void)walletUnlock;
     (void)walletLock;

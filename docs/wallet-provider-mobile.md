@@ -233,7 +233,18 @@ lifecycle callbacks immediately detach UI authority and transfer the controller
 with its exact storage lease to one serial retirement queue; that lease is
 released only after native lock/destruction and any incomplete-wallet file
 deletion finish. Foreground reentry waits for that handoff and stale read
-completion cannot publish. Earlier source
+completion cannot publish. While a direct synchronization is still live, its
+Rust C ABI mailbox exposes only its coarse stage and verified header, wallet
+scan, birthday, and target heights. A process-owned Swift cache lets a
+replacement wallet screen observe that operation without acquiring the old
+controller's storage or presenting it as a restart. Terminal progress revokes
+late callbacks, and the replacement screen retries storage acquisition until
+retirement releases the old lease. iOS has no unrestricted equivalent of
+Android's long-running data-sync foreground service: actual process suspension
+can pause both networking and UI polling. On process resume, the worker
+continues and the screen reconnects to its process-owned progress; after
+termination, the next operation resumes from the durable direct-HNS checkpoint
+and monotonic floor journal. Earlier source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed its exact Apple
 app/simulator CI in `31807520618`. Exact current application source
 `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete manually

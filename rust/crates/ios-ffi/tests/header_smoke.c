@@ -10,6 +10,8 @@ _Static_assert(HNS_BROWSER_WALLET_NAME_IMPORT_BUNDLE_VERSION == 1u,
 _Static_assert(sizeof(HnsBrowserRuntimeHandle) == sizeof(uint64_t), "runtime handle width");
 _Static_assert(sizeof(HnsBrowserProxyHandle) == sizeof(uint64_t), "proxy handle width");
 _Static_assert(sizeof(HnsBrowserWalletHandle) == sizeof(uint64_t), "wallet handle width");
+_Static_assert(sizeof(HnsBrowserWalletHnsSyncProgress) == 40u,
+               "wallet progress ABI width");
 _Static_assert(offsetof(HnsBrowserBuffer, allocation_id) > offsetof(HnsBrowserBuffer, len),
                "buffer field order");
 
@@ -48,6 +50,9 @@ static void typecheck_api(void) {
     HnsBrowserResult (*wallet_synchronize_reads)(HnsBrowserWalletHandle,
                                                   HnsBrowserBuffer *) =
         hns_browser_wallet_synchronize_hns_reads;
+    HnsBrowserResult (*wallet_sync_progress)(
+        HnsBrowserWalletHandle, HnsBrowserWalletHnsSyncProgress *) =
+        hns_browser_wallet_hns_sync_progress;
     HnsBrowserResult (*wallet_import_name)(HnsBrowserWalletHandle,
                                            HnsBrowserSlice,
                                            HnsBrowserBuffer *) =
@@ -73,6 +78,7 @@ static void typecheck_api(void) {
     (void)wallet_configure_reads;
     (void)wallet_has_reads;
     (void)wallet_synchronize_reads;
+    (void)wallet_sync_progress;
     (void)wallet_import_name;
     (void)wallet_unlock;
     (void)wallet_lock;

@@ -49,6 +49,7 @@ final class WalletViewController: UIViewController {
     private var directDenuoServiceTimer: Timer?
     private var directDenuoServiceInFlight = false
     private var directDenuoStatusSnapshot: NativeDirectDenuoStatus?
+    private var hnsSyncPresentationTimer: Timer?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -133,17 +134,20 @@ final class WalletViewController: UIViewController {
            !UIScreen.main.isCaptured {
             walletLifecycleSuspended = false
         }
+        startHnsSyncPresentationWatcher()
         resumeWalletLifecycle()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         walletAuthorityRequested = false
+        stopHnsSyncPresentationWatcher()
         protectWalletLifecycle()
         super.viewWillDisappear(animated)
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        hnsSyncPresentationTimer?.invalidate()
         directDenuoServiceTimer?.invalidate()
         pendingHnsSendApproval?.actionToken.discard()
         pendingHnsSendApproval = nil
@@ -1975,6 +1979,7 @@ final class WalletViewController: UIViewController {
                     self.clearReadProjection()
                     self.showErrorMessage(detail)
                 }
+                WalletHnsSyncPresentationCache.clear(networkID: keychain.networkID)
                 self.refreshButtonStates()
             }
         }
@@ -1990,7 +1995,24 @@ final class WalletViewController: UIViewController {
         wallet: RustNativeWallet,
         keychain: WalletKeychainStore
     ) throws -> NativeHnsReadSnapshot {
-        try withDirectHnsFloorJournal(wallet: wallet, keychain: keychain) {
+        let presentationLease = WalletHnsSyncPresentationCache.begin(
+            networkID: keychain.networkID
+        )
+        let progressPoller = WalletHnsSyncProgressPoller(
+            wallet: wallet,
+            lease: presentationLease
+        )
+        defer {
+            if let finalProgress = try? wallet.hnsSynchronizationProgress() {
+                WalletHnsSyncPresentationCache.publish(
+                    finalProgress,
+                    lease: presentationLease
+                )
+            }
+            progressPoller.stop()
+            WalletHnsSyncPresentationCache.finish(lease: presentationLease)
+        }
+        return try withDirectHnsFloorJournal(wallet: wallet, keychain: keychain) {
             try wallet.synchronizeHnsReads()
         }
     }
@@ -2662,6 +2684,10 @@ final class WalletViewController: UIViewController {
         shakedexAvailable = false
         updateDirectDenuoServiceTimer()
         guard storageLease != nil else {
+            if renderProcessOwnedHnsSyncPresentation() {
+                refreshButtonStates()
+                return
+            }
             if let path = resolvedDatabasePath,
                WalletStorageLeaseRegistry.isBlockedAfterRetirementFailure(path: path) {
                 statusLabel.text = "Native wallet retirement could not be verified. Restart the app before using this network's wallet again."
@@ -2923,6 +2949,10 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func suspendWalletLifecycle() {
+        // Do not request unrestricted background execution. If iOS suspends
+        // this process, the native worker and its public poller pause with it;
+        // the durable direct-HNS checkpoint and floor journal let foreground
+        // reactivation continue safely from the last committed height.
         walletLifecycleSuspended = true
         protectWalletLifecycle()
     }
@@ -3066,16 +3096,84 @@ final class WalletViewController: UIViewController {
     private func acquireStorageLease() {
         guard storageLease == nil,
               !retirementInFlight,
-              walletLifecycleMayAcquireStorage else {
+              walletLifecycleMayAcquireStorage,
+              walletHnsSyncLifecycleDisposition(
+                  presentation: WalletHnsSyncPresentationCache.latest(
+                      networkID: network.rawValue
+                  ),
+                  viewIsVisible: walletAuthorityRequested && viewIfLoaded?.window != nil,
+                  sceneIsActive: UIApplication.shared.applicationState == .active
+              ) == .acquireStorage else {
             return
         }
         do {
             let path = try walletDatabasePath()
             storageLease = WalletStorageLeaseRegistry.acquire(path: path)
             protectedStorageIsAvailable = storageLease != nil
+            if storageLease != nil {
+                WalletHnsSyncPresentationCache.clear(networkID: network.rawValue)
+            }
         } catch {
             protectedStorageIsAvailable = false
         }
+    }
+
+    private func startHnsSyncPresentationWatcher() {
+        stopHnsSyncPresentationWatcher()
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.walletAuthorityRequested,
+                      self.viewIfLoaded?.window != nil else { return }
+                self.resumeWalletLifecycle()
+            }
+        }
+        hnsSyncPresentationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func stopHnsSyncPresentationWatcher() {
+        hnsSyncPresentationTimer?.invalidate()
+        hnsSyncPresentationTimer = nil
+    }
+
+    @discardableResult
+    private func renderProcessOwnedHnsSyncPresentation() -> Bool {
+        guard let presentation = WalletHnsSyncPresentationCache.latest(
+            networkID: network.rawValue
+        ) else { return false }
+        switch presentation {
+        case .preparing:
+            statusLabel.text = "Keeping the existing HNS synchronization connected."
+            accountLabel.text = "Account controls return after synchronization protection finishes."
+            readStatusLabel.text = "Preparing direct HNS synchronization…"
+        case .live(let progress):
+            statusLabel.text = "Keeping the existing HNS synchronization connected."
+            accountLabel.text = "Account controls return after synchronization protection finishes."
+            let scanned = progress.scannedHeight ?? progress.birthdayHeight
+            switch progress.stage {
+            case .connecting:
+                readStatusLabel.text = "Connecting verified HNS peers. Verified headers are currently at height \(progress.verifiedHeaderHeight)."
+            case .headers:
+                readStatusLabel.text = "Verifying HNS header agreement at height \(progress.verifiedHeaderHeight)."
+            case .scanning:
+                readStatusLabel.text = "Verified headers are currently at height \(progress.verifiedHeaderHeight). Scanning wallet activity at height \(scanned) of \(progress.targetHeight) from birthday height \(progress.birthdayHeight)."
+            case .finalizing:
+                readStatusLabel.text = "Finalizing the verified HNS wallet snapshot at height \(progress.verifiedHeaderHeight)."
+            }
+        case .terminal(let progress):
+            statusLabel.text = "HNS synchronization finished. Wallet protection is releasing."
+            accountLabel.text = "Account controls will return automatically."
+            readStatusLabel.text = progress.map {
+                "The synchronized HNS operation reached verified height \($0.verifiedHeaderHeight)."
+            } ?? "The synchronized HNS operation finished."
+        }
+        synchronizedReadsAvailable = false
+        directHnsValueAvailable = false
+        shakedexAvailable = false
+        receiveTargets = nil
+        clearReadProjection()
+        return true
     }
 
     private func invalidateReadOperation() {

@@ -1861,6 +1861,123 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
+    func testWalletHnsPresentationRejectsLateProgressAndFencesReplacementOwnership() throws {
+        let networkID = "cache-test-\(UUID().uuidString)"
+        defer { WalletHnsSyncPresentationCache.clear(networkID: networkID) }
+        let lease = WalletHnsSyncPresentationCache.begin(networkID: networkID)
+        let first = WalletHnsSyncProgress(
+            stage: .scanning,
+            verifiedHeaderHeight: 100,
+            birthdayHeight: 0,
+            scannedHeight: 20,
+            targetHeight: 100
+        )
+        let late = WalletHnsSyncProgress(
+            stage: .scanning,
+            verifiedHeaderHeight: 100,
+            birthdayHeight: 0,
+            scannedHeight: 40,
+            targetHeight: 100
+        )
+
+        XCTAssertEqual(
+            walletHnsSyncLifecycleDisposition(
+                presentation: WalletHnsSyncPresentationCache.latest(networkID: networkID),
+                viewIsVisible: true,
+                sceneIsActive: true
+            ),
+            .observeLiveProgress,
+            "a replacement screen must not claim storage before the first native update"
+        )
+        WalletHnsSyncPresentationCache.publish(first, lease: lease)
+        XCTAssertEqual(
+            WalletHnsSyncPresentationCache.latest(networkID: networkID),
+            .live(first)
+        )
+        WalletHnsSyncPresentationCache.finish(lease: lease)
+        WalletHnsSyncPresentationCache.publish(late, lease: lease)
+        XCTAssertEqual(
+            WalletHnsSyncPresentationCache.latest(networkID: networkID),
+            .terminal(first),
+            "a late poll callback must not resurrect or advance a terminal writer"
+        )
+        XCTAssertEqual(
+            walletHnsSyncLifecycleDisposition(
+                presentation: WalletHnsSyncPresentationCache.latest(networkID: networkID),
+                viewIsVisible: true,
+                sceneIsActive: true
+            ),
+            .acquireStorage
+        )
+    }
+
+    @MainActor
+    func testWalletHnsLifecyclePausesForViewAndSceneThenReconnectsToProgress() {
+        let progress = WalletHnsSyncProgress(
+            stage: .headers,
+            verifiedHeaderHeight: 75,
+            birthdayHeight: 10,
+            scannedHeight: 30,
+            targetHeight: 75
+        )
+        for (viewIsVisible, sceneIsActive) in [(false, true), (true, false), (false, false)] {
+            XCTAssertEqual(
+                walletHnsSyncLifecycleDisposition(
+                    presentation: .live(progress),
+                    viewIsVisible: viewIsVisible,
+                    sceneIsActive: sceneIsActive
+                ),
+                .waitForForegroundOrRetirement
+            )
+        }
+        XCTAssertEqual(
+            walletHnsSyncLifecycleDisposition(
+                presentation: .live(progress),
+                viewIsVisible: true,
+                sceneIsActive: true
+            ),
+            .observeLiveProgress,
+            "scene reactivation must reconnect the visible replacement to process progress"
+        )
+    }
+
+    @MainActor
+    func testWalletHnsTerminalPresentationWaitsForControllerRetirementLease() async throws {
+        let networkID = "retirement-test-\(UUID().uuidString)"
+        defer { WalletHnsSyncPresentationCache.clear(networkID: networkID) }
+        let presentationLease = WalletHnsSyncPresentationCache.begin(networkID: networkID)
+        WalletHnsSyncPresentationCache.finish(lease: presentationLease)
+        XCTAssertEqual(
+            walletHnsSyncLifecycleDisposition(
+                presentation: WalletHnsSyncPresentationCache.latest(networkID: networkID),
+                viewIsVisible: true,
+                sceneIsActive: true
+            ),
+            .acquireStorage
+        )
+
+        let path = "/private/test-wallet-hns-handoff-\(UUID().uuidString)/wallet.sqlite3"
+        let oldLease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        let retirementCompleted = expectation(description: "old controller retirement completed")
+        let plan = WalletRetirementPlan(
+            lockController: {},
+            destroyController: {},
+            deleteIncompleteWallet: {},
+            releaseStorageLease: { WalletStorageLeaseRegistry.release(oldLease) }
+        )
+        XCTAssertNil(
+            WalletStorageLeaseRegistry.acquire(path: path),
+            "terminal presentation alone must not bypass the retiring controller's lease"
+        )
+        WalletRetirementQueue.shared.enqueue(plan) {
+            retirementCompleted.fulfill()
+        }
+        await fulfillment(of: [retirementCompleted], timeout: 10)
+        let replacement = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))
+        WalletStorageLeaseRegistry.release(replacement)
+    }
+
+    @MainActor
     func testWalletRetirementQueueReturnsAndCompletesOnMainAfterOffMainWork() async throws {
         let path = "/private/test-wallet-retirement-queue-\(UUID().uuidString)/wallet.sqlite3"
         let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))

@@ -10,6 +10,7 @@ final class WalletKeychainStore {
     /// an older chain-authority floor along with it.
     private let directHnsFloorService = "com.denuoweb.hnsdane.wallet.direct-hns-floor.v1"
     private let account: String
+    let networkID: String
     private let keyBytes = 32
     private let directHnsFloorBytes = 36
 
@@ -21,6 +22,7 @@ final class WalletKeychainStore {
     private static let directHnsFloorLock = NSLock()
 
     init(network: BrowserHandshakeNetwork) {
+        networkID = network.rawValue
         account = "primary.\(network.rawValue)"
     }
 

@@ -23,6 +23,12 @@ typedef uint32_t HnsBrowserResult;
 #define HNS_BROWSER_RESULT_PANIC 8u
 #define HNS_BROWSER_RESULT_NOT_READY 9u
 
+typedef uint8_t HnsBrowserWalletHnsSyncStage;
+#define HNS_BROWSER_WALLET_HNS_SYNC_CONNECTING 1u
+#define HNS_BROWSER_WALLET_HNS_SYNC_HEADERS 2u
+#define HNS_BROWSER_WALLET_HNS_SYNC_SCANNING 3u
+#define HNS_BROWSER_WALLET_HNS_SYNC_FINALIZING 4u
+
 typedef uint32_t HnsBrowserNetwork;
 #define HNS_BROWSER_NETWORK_MAINNET 0u
 #define HNS_BROWSER_NETWORK_TESTNET 1u
@@ -62,6 +68,18 @@ typedef uint32_t HnsBrowserSecurityPath;
 typedef uint64_t HnsBrowserRuntimeHandle;
 typedef uint64_t HnsBrowserProxyHandle;
 typedef uint64_t HnsBrowserWalletHandle;
+
+/* Public operational metadata only; this contains no wallet-derived values. */
+typedef struct HnsBrowserWalletHnsSyncProgress {
+    uint32_t struct_size;
+    HnsBrowserWalletHnsSyncStage stage;
+    uint8_t has_scanned_height;
+    uint16_t reserved0;
+    uint64_t verified_header_height;
+    uint64_t birthday_height;
+    uint64_t scanned_height;
+    uint64_t target_height;
+} HnsBrowserWalletHnsSyncProgress;
 
 /* A borrowed byte slice. A null pointer is valid only when len is zero. */
 typedef struct HnsBrowserSlice {
@@ -289,6 +307,16 @@ HnsBrowserResult hns_browser_wallet_local_hns_receive_target(
 HnsBrowserResult hns_browser_wallet_synchronize_hns_reads(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_snapshot_bundle);
+/*
+ * Reads the active direct synchronizer's public progress mailbox without
+ * waiting for the wallet controller mutex. Returns NOT_READY before the first
+ * update. The caller stops polling after its synchronization call returns. No
+ * balance, history, address, name, transaction, account, peer endpoint, or
+ * credential is exposed.
+ */
+HnsBrowserResult hns_browser_wallet_hns_sync_progress(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserWalletHnsSyncProgress *out_progress);
 /*
  * Imports exact UTF-8 name text only through the synchronized HNS-read
  * controller, without trimming, lowercasing, IDNA, Unicode normalization, or

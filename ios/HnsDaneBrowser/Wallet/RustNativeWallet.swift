@@ -1879,6 +1879,43 @@ final class RustNativeWallet: @unchecked Sendable {
         return try NativeHnsReadSnapshot.decode(bundle: bundle)
     }
 
+    /// Reads only the native synchronizer's public progress mailbox. This call
+    /// never waits for or projects private wallet state.
+    func hnsSynchronizationProgress() throws -> WalletHnsSyncProgress? {
+        var native = HnsBrowserWalletHnsSyncProgress()
+        let result = hns_browser_wallet_hns_sync_progress(try liveHandle(), &native)
+        if result == HNS_BROWSER_RESULT_NOT_READY {
+            return nil
+        }
+        try NativeWalletBridge.check(result, operation: "wallet HNS synchronization progress")
+        guard native.struct_size == UInt32(MemoryLayout<HnsBrowserWalletHnsSyncProgress>.size),
+              native.has_scanned_height <= 1,
+              native.reserved0 == 0,
+              let stage = WalletHnsSyncStage(rawValue: native.stage),
+              native.birthday_height <= native.target_height,
+              native.verified_header_height == native.target_height else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "wallet HNS synchronization progress is incoherent"
+            )
+        }
+        let scannedHeight = native.has_scanned_height == 1
+            ? native.scanned_height
+            : nil
+        if let scannedHeight,
+           !(native.birthday_height...native.target_height).contains(scannedHeight) {
+            throw NativeWalletBridgeError.invalidOutput(
+                "wallet HNS scanned height is outside its verified range"
+            )
+        }
+        return WalletHnsSyncProgress(
+            stage: stage,
+            verifiedHeaderHeight: native.verified_header_height,
+            birthdayHeight: native.birthday_height,
+            scannedHeight: scannedHeight,
+            targetHeight: native.target_height
+        )
+    }
+
     /// Passes the exact mutable UTF-8 bytes without trimming, case conversion,
     /// IDNA, Unicode normalization, or trailing-dot editing, then wipes them.
     func importHnsNameExactText(
