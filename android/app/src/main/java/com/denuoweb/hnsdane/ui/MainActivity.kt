@@ -20,6 +20,7 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.RenderProcessGoneDetail
@@ -114,6 +115,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var securityStatusIcon: ImageButton
     private var securityStatusText: String = ""
     private lateinit var hamburgerButton: TextView
+    private var hamburgerPopup: PopupWindow? = null
     private lateinit var syncProgressBar: ProgressBar
     private lateinit var syncProgressStats: TextView
     private lateinit var syncGateNotice: TextView
@@ -464,6 +466,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        hamburgerPopup?.dismiss()
+        hamburgerPopup = null
         activityStopped = true
         proxyNavigationSubmittedGeneration = null
         gatewayInterceptionEnabled = false
@@ -492,6 +496,7 @@ class MainActivity : ComponentActivity() {
         disableServiceWorkerInterception()
         if (::webView.isInitialized) {
             webView.stopLoading()
+            (webView.parent as? ViewGroup)?.removeView(webView)
             webView.destroy()
         }
         syncStatusExecutor.shutdownNow()
@@ -680,7 +685,9 @@ class MainActivity : ComponentActivity() {
         }
 
     private fun showHamburgerMenu() {
+        hamburgerPopup?.dismiss()
         val popup = PopupWindow(this)
+        hamburgerPopup = popup
         val colors = themeColors()
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -729,6 +736,9 @@ class MainActivity : ComponentActivity() {
             isOutsideTouchable = true
             setBackgroundDrawable(hamburgerPopupBackground(colors))
             elevation = dp(8).toFloat()
+            setOnDismissListener {
+                if (hamburgerPopup === this) hamburgerPopup = null
+            }
         }
         popup.showAsDropDown(
             hamburgerButton,

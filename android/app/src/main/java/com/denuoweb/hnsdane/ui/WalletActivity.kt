@@ -63,6 +63,7 @@ import com.denuoweb.hnsdane.wallet.WalletHnsJourney
 import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentation
 import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentationCache
 import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentationLease
+import com.denuoweb.hnsdane.wallet.walletHnsPresentationMayAcquireStorage
 import com.denuoweb.hnsdane.wallet.WalletNameImportState
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
@@ -320,6 +321,24 @@ class WalletActivity : ComponentActivity() {
         restoreCachedHnsSyncPresentation()
         renderWalletDashboard()
         startCachedHnsSyncPresentationWatcher()
+        beginStorageOwnershipSessionIfReady()
+    }
+
+    /**
+     * A task removed from Recents destroys its WalletActivity even though the
+     * user-started foreground scan is intentionally still running. A newly
+     * launched task must observe that public scan presentation without first
+     * creating a newer storage owner: owner creation revokes the old activity
+     * and would detach its native progress mailbox while the scan continues.
+     */
+    private fun beginStorageOwnershipSessionIfReady() {
+        if (
+            !foreground || storageOwner != null || walletHandle != INVALID_HANDLE ||
+                isFinishing || isDestroyed ||
+                !walletHnsPresentationMayAcquireStorage(
+                    WalletHnsLiveSyncPresentationCache.latest(walletNetwork.id),
+                )
+        ) return
         lateinit var owner: WalletStorageOwnershipGate.Owner
         owner = ProcessWalletStorageOwnership.newOwner(walletStoragePath) {
             runOnUiThread { revokeStorageOwnership(owner) }
@@ -4267,7 +4286,7 @@ class WalletActivity : ComponentActivity() {
                 var lastPresentation: WalletHnsLiveSyncPresentation? = null
                 while (watcher.get()) {
                     val presentation = WalletHnsLiveSyncPresentationCache.latest(walletNetwork.id)
-                    if (presentation != null && presentation != lastPresentation) {
+                    if (presentation != lastPresentation) {
                         lastPresentation = presentation
                         runOnUiThread {
                             if (
@@ -4278,6 +4297,7 @@ class WalletActivity : ComponentActivity() {
                             ) {
                                 restoreCachedHnsSyncPresentation()
                                 renderWalletDashboard()
+                                beginStorageOwnershipSessionIfReady()
                             }
                         }
                     }

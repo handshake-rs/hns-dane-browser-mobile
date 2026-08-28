@@ -80,3 +80,8 @@ internal object WalletHnsLiveSyncPresentationCache {
         var acceptsLiveProgress: Boolean = true,
     )
 }
+
+/** A live writer still owns the wallet controller and storage lease. */
+internal fun walletHnsPresentationMayAcquireStorage(
+    presentation: WalletHnsLiveSyncPresentation?,
+): Boolean = presentation !is WalletHnsLiveSyncPresentation.Live

@@ -1,10 +1,27 @@
 package com.denuoweb.hnsdane.wallet
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WalletHnsLiveSyncPresentationCacheTest {
+    @Test
+    fun replacementActivityWaitsForLiveWriterBeforeAcquiringStorage() {
+        assertFalse(
+            walletHnsPresentationMayAcquireStorage(
+                WalletHnsLiveSyncPresentation.Live(liveProgress(scannedHeight = 10L)),
+            ),
+        )
+        assertTrue(
+            walletHnsPresentationMayAcquireStorage(
+                WalletHnsLiveSyncPresentation.Catchup(catchupProgress(scannedHeight = 20L)),
+            ),
+        )
+        assertTrue(walletHnsPresentationMayAcquireStorage(null))
+    }
+
     @Test
     fun terminalCatchupCannotBeOverwrittenByALateLivePoll() {
         val network = "cache-race-test"
