@@ -186,6 +186,11 @@ internal object NativeWalletBridge {
             null
         }
 
+    /** Requests a stop without waiting for the native wallet controller mutex. */
+    fun cancelHnsSynchronization(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeCancelHnsSynchronization(handle) }.getOrDefault(false)
+
     /**
      * Derive the current ordinary HNS payment address from the unlocked local
      * wallet. This makes no peer or node request and is intentionally not a
@@ -866,6 +871,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeHnsLiveSynchronizationProgress(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeCancelHnsSynchronization(handle: Long): Boolean
 
     @JvmStatic
     private external fun nativeLocalHnsReceiveTarget(handle: Long): ByteArray?

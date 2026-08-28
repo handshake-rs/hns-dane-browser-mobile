@@ -1205,10 +1205,34 @@ struct HandleRegistry {
     runtimes: HashMap<HnsBrowserRuntimeHandle, Arc<RuntimeEntry>>,
     proxies: HashMap<HnsBrowserProxyHandle, Arc<ProxyEntry>>,
     wallets: HashMap<HnsBrowserWalletHandle, Arc<Mutex<WalletEntry>>>,
-    wallet_hns_sync_progress:
-        HashMap<HnsBrowserWalletHandle, Arc<Mutex<Option<HnsBrowserWalletHnsSyncProgress>>>>,
+    wallet_hns_sync_controls: HashMap<HnsBrowserWalletHandle, Arc<WalletHnsSyncControl>>,
     starting_proxy_runtimes: HashSet<HnsBrowserRuntimeHandle>,
     starting_wallets: usize,
+}
+
+#[derive(Default)]
+struct WalletHnsSyncControl {
+    progress: Mutex<Option<HnsBrowserWalletHnsSyncProgress>>,
+    activity: Mutex<WalletHnsSyncActivityState>,
+}
+
+#[derive(Default)]
+struct WalletHnsSyncActivityState {
+    active: bool,
+    cancellation_requested: bool,
+}
+
+struct WalletHnsSyncActivity {
+    control: Arc<WalletHnsSyncControl>,
+}
+
+impl Drop for WalletHnsSyncActivity {
+    fn drop(&mut self) {
+        if let Ok(mut activity) = self.control.activity.lock() {
+            activity.cancellation_requested = false;
+            activity.active = false;
+        }
+    }
 }
 
 static HANDLES: OnceLock<Mutex<HandleRegistry>> = OnceLock::new();
@@ -1283,9 +1307,9 @@ fn wallet_entry(handle: HnsBrowserWalletHandle) -> Result<Arc<Mutex<WalletEntry>
         })
 }
 
-fn wallet_hns_sync_progress_entry(
+fn wallet_hns_sync_control_entry(
     handle: HnsBrowserWalletHandle,
-) -> Result<Arc<Mutex<Option<HnsBrowserWalletHnsSyncProgress>>>, FfiFailure> {
+) -> Result<Arc<WalletHnsSyncControl>, FfiFailure> {
     if handle == 0 {
         return Err(FfiFailure::new(
             HNS_BROWSER_RESULT_NOT_FOUND,
@@ -1295,7 +1319,7 @@ fn wallet_hns_sync_progress_entry(
     handle_registry()
         .lock()
         .map_err(|_| FfiFailure::internal())?
-        .wallet_hns_sync_progress
+        .wallet_hns_sync_controls
         .get(&handle)
         .cloned()
         .ok_or_else(|| {
@@ -1344,8 +1368,8 @@ fn insert_wallet(
     reservation.active = false;
     registry.wallets.insert(handle, Arc::new(Mutex::new(entry)));
     registry
-        .wallet_hns_sync_progress
-        .insert(handle, Arc::new(Mutex::new(None)));
+        .wallet_hns_sync_controls
+        .insert(handle, Arc::new(WalletHnsSyncControl::default()));
     Ok(handle)
 }
 
@@ -1709,15 +1733,30 @@ fn direct_hns_public_progress(
 }
 
 fn publish_direct_hns_public_progress(
-    mailbox: &Mutex<Option<HnsBrowserWalletHnsSyncProgress>>,
+    control: &WalletHnsSyncControl,
     stage: u8,
     coordinator: &HnsDirectPeerCoordinator,
 ) {
     let Ok(progress) = direct_hns_public_progress(stage, coordinator) else {
         return;
     };
-    if let Ok(mut current) = mailbox.lock() {
+    if let Ok(mut current) = control.progress.lock() {
         *current = Some(progress);
+    }
+}
+
+fn ensure_wallet_hns_sync_not_cancelled(control: &WalletHnsSyncControl) -> Result<(), FfiFailure> {
+    if control
+        .activity
+        .lock()
+        .map_err(|_| FfiFailure::internal())?
+        .cancellation_requested
+    {
+        Err(direct_hns_not_ready(
+            "direct HNS synchronization was stopped by the wallet screen",
+        ))
+    } else {
+        Ok(())
     }
 }
 
@@ -1728,22 +1767,25 @@ fn publish_direct_hns_public_progress(
 fn synchronize_wallet_owned_direct_hns(
     coordinator: &mut HnsDirectPeerCoordinator,
     controller: &mut MobileHnsValueController<EmbeddedHnsBackend>,
-    live_progress: &Mutex<Option<HnsBrowserWalletHnsSyncProgress>>,
+    sync_control: &WalletHnsSyncControl,
 ) -> Result<MobileHnsReadSnapshot, FfiFailure> {
     for _ in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
-        publish_direct_hns_public_progress(live_progress, WALLET_HNS_SYNC_CONNECTING, coordinator);
+        ensure_wallet_hns_sync_not_cancelled(sync_control)?;
+        publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_CONNECTING, coordinator);
         let now_unix = HnsReadSystemClock
             .now_unix()
             .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
         coordinator
             .connect_available(now_unix)
             .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
-        publish_direct_hns_public_progress(live_progress, WALLET_HNS_SYNC_HEADERS, coordinator);
+        ensure_wallet_hns_sync_not_cancelled(sync_control)?;
+        publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_HEADERS, coordinator);
         match coordinator
             .synchronize_headers_once(now_unix)
             .map_err(|_| direct_hns_not_ready("direct HNS header agreement is unavailable"))?
         {
             hns_wallet_mobile::HnsHeaderRoundProgress::Committed(round) => {
+                ensure_wallet_hns_sync_not_cancelled(sync_control)?;
                 if round.accepted.is_empty() {
                     break;
                 }
@@ -1768,18 +1810,20 @@ fn synchronize_wallet_owned_direct_hns(
         .now_unix()
         .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
     for _ in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
-        publish_direct_hns_public_progress(live_progress, WALLET_HNS_SYNC_SCANNING, coordinator);
+        ensure_wallet_hns_sync_not_cancelled(sync_control)?;
+        publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_SCANNING, coordinator);
         let progress_coordinator = coordinator.clone();
         let progress = coordinator
             .scan_wallet_blocks_with_progress(DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK, now_unix, |_| {
                 publish_direct_hns_public_progress(
-                    live_progress,
+                    sync_control,
                     WALLET_HNS_SYNC_SCANNING,
                     &progress_coordinator,
                 );
             })
             .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is unavailable"))?;
-        publish_direct_hns_public_progress(live_progress, WALLET_HNS_SYNC_SCANNING, coordinator);
+        ensure_wallet_hns_sync_not_cancelled(sync_control)?;
+        publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_SCANNING, coordinator);
         if progress.blocks_applied == 0 {
             break;
         }
@@ -1793,13 +1837,16 @@ fn synchronize_wallet_owned_direct_hns(
             "direct HNS headers are still catching up",
         ));
     }
-    publish_direct_hns_public_progress(live_progress, WALLET_HNS_SYNC_FINALIZING, coordinator);
+    ensure_wallet_hns_sync_not_cancelled(sync_control)?;
+    publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_FINALIZING, coordinator);
     coordinator
         .refresh_mempool(now_unix)
         .map_err(|_| direct_hns_not_ready("direct HNS mempool refresh is unavailable"))?;
+    ensure_wallet_hns_sync_not_cancelled(sync_control)?;
     let mut snapshot = controller
         .synchronize()
         .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is still catching up"))?;
+    ensure_wallet_hns_sync_not_cancelled(sync_control)?;
     if controller
         .rebroadcast_dropped_hns_sends()
         .map_err(|_| direct_hns_not_ready("dropped HNS send resubmission is unavailable"))?
@@ -3891,8 +3938,24 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
         require_output(out_snapshot_bundle)?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_snapshot_bundle, HnsBrowserBuffer::empty()) };
-        let live_progress = wallet_hns_sync_progress_entry(wallet)?;
-        if let Ok(mut current) = live_progress.lock() {
+        let sync_control = wallet_hns_sync_control_entry(wallet)?;
+        {
+            let mut activity = sync_control
+                .activity
+                .lock()
+                .map_err(|_| FfiFailure::internal())?;
+            if activity.active {
+                return Err(direct_hns_not_ready(
+                    "direct HNS synchronization is already active",
+                ));
+            }
+            activity.active = true;
+            activity.cancellation_requested = false;
+        }
+        let _sync_activity = WalletHnsSyncActivity {
+            control: Arc::clone(&sync_control),
+        };
+        if let Ok(mut current) = sync_control.progress.lock() {
             *current = None;
         } else {
             return Err(FfiFailure::internal());
@@ -3900,6 +3963,7 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
+        ensure_wallet_hns_sync_not_cancelled(sync_control.as_ref())?;
         let snapshot = match &mut entry.controller {
             NativeWalletController::HnsReads(controller) => controller
                 .synchronize()
@@ -3908,11 +3972,9 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
                 coordinator,
                 controller,
                 ..
-            } => synchronize_wallet_owned_direct_hns(
-                coordinator,
-                controller,
-                live_progress.as_ref(),
-            )?,
+            } => {
+                synchronize_wallet_owned_direct_hns(coordinator, controller, sync_control.as_ref())?
+            }
             NativeWalletController::Lifecycle(_) => {
                 return Err(FfiFailure::new(
                     HNS_BROWSER_RESULT_NOT_READY,
@@ -3925,6 +3987,7 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
                 ));
             }
         };
+        ensure_wallet_hns_sync_not_cancelled(sync_control.as_ref())?;
         let bundle = wallet_read_bundle(&snapshot)?;
         let output = allocate_output(&bundle.0, true)?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
@@ -3947,8 +4010,11 @@ pub unsafe extern "C" fn hns_browser_wallet_hns_sync_progress(
         require_output(out_progress)?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_progress, HnsBrowserWalletHnsSyncProgress::empty()) };
-        let mailbox = wallet_hns_sync_progress_entry(wallet)?;
-        let progress = *mailbox.lock().map_err(|_| FfiFailure::internal())?;
+        let control = wallet_hns_sync_control_entry(wallet)?;
+        let progress = *control
+            .progress
+            .lock()
+            .map_err(|_| FfiFailure::internal())?;
         let progress = progress.ok_or_else(|| {
             FfiFailure::new(
                 HNS_BROWSER_RESULT_NOT_READY,
@@ -3957,6 +4023,29 @@ pub unsafe extern "C" fn hns_browser_wallet_hns_sync_progress(
         })?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_progress, progress) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Requests cancellation without waiting for the wallet controller mutex.
+/// The synchronized operation stops at its next safe network/scan boundary.
+pub extern "C" fn hns_browser_wallet_cancel_hns_sync(
+    wallet: HnsBrowserWalletHandle,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let control = wallet_hns_sync_control_entry(wallet)?;
+        let mut activity = control
+            .activity
+            .lock()
+            .map_err(|_| FfiFailure::internal())?;
+        if !activity.active {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "wallet HNS synchronization is not active",
+            ));
+        }
+        activity.cancellation_requested = true;
         Ok(())
     })
 }
@@ -4056,7 +4145,7 @@ pub extern "C" fn hns_browser_wallet_destroy(wallet: HnsBrowserWalletHandle) -> 
                     "wallet handle is invalid or stale",
                 )
             })?;
-            registry.wallet_hns_sync_progress.remove(&wallet);
+            registry.wallet_hns_sync_controls.remove(&wallet);
             entry
         };
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
@@ -4600,6 +4689,7 @@ mod tests {
             "hns_browser_wallet_local_hns_receive_target",
             "hns_browser_wallet_synchronize_hns_reads",
             "hns_browser_wallet_hns_sync_progress",
+            "hns_browser_wallet_cancel_hns_sync",
             "hns_browser_wallet_import_hns_name_exact_text",
             "hns_browser_wallet_prepare_hns_send",
             "hns_browser_wallet_approve_hns_send",
@@ -5119,11 +5209,12 @@ mod tests {
             scanned_height: 25,
             target_height: 100,
         };
-        let mailbox = wallet_hns_sync_progress_entry(wallet)
-            .unwrap_or_else(|_| panic!("wallet progress mailbox"));
-        *mailbox.lock().expect("wallet progress lock") = Some(published);
+        let sync_control = wallet_hns_sync_control_entry(wallet)
+            .unwrap_or_else(|_| panic!("wallet synchronization control"));
+        *sync_control.progress.lock().expect("wallet progress lock") = Some(published);
         let wallet_record = wallet_entry(wallet).unwrap_or_else(|_| panic!("wallet record"));
         let _controller_guard = wallet_record.lock().expect("wallet controller lock");
+        sync_control.activity.lock().expect("sync activity").active = true;
         // SAFETY: Output is writable. Holding the controller mutex proves the
         // public mailbox surface does not wait on private wallet state.
         assert_eq!(
@@ -5131,8 +5222,27 @@ mod tests {
             HNS_BROWSER_RESULT_OK
         );
         assert_eq!(progress, published);
+        // Cancellation uses the same public control object and must likewise
+        // remain available while synchronization owns the controller mutex.
+        assert_eq!(
+            hns_browser_wallet_cancel_hns_sync(wallet),
+            HNS_BROWSER_RESULT_OK
+        );
+        assert!(
+            sync_control
+                .activity
+                .lock()
+                .expect("sync activity")
+                .cancellation_requested
+        );
+        sync_control.activity.lock().expect("sync activity").active = false;
         drop(_controller_guard);
-        *mailbox.lock().expect("wallet progress lock") = None;
+        *sync_control.progress.lock().expect("wallet progress lock") = None;
+        sync_control
+            .activity
+            .lock()
+            .expect("sync activity")
+            .cancellation_requested = false;
 
         let mut snapshot = HnsBrowserBuffer::empty();
         // SAFETY: Output points to one writable buffer descriptor.
@@ -5189,6 +5299,10 @@ mod tests {
         // SAFETY: Output is writable; the stale handle must not retain a mailbox.
         assert_eq!(
             unsafe { hns_browser_wallet_hns_sync_progress(wallet, &mut progress) },
+            HNS_BROWSER_RESULT_NOT_FOUND
+        );
+        assert_eq!(
+            hns_browser_wallet_cancel_hns_sync(wallet),
             HNS_BROWSER_RESULT_NOT_FOUND
         );
         wallet = 0;

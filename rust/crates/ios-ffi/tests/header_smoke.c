@@ -53,6 +53,8 @@ static void typecheck_api(void) {
     HnsBrowserResult (*wallet_sync_progress)(
         HnsBrowserWalletHandle, HnsBrowserWalletHnsSyncProgress *) =
         hns_browser_wallet_hns_sync_progress;
+    HnsBrowserResult (*wallet_cancel_sync)(HnsBrowserWalletHandle) =
+        hns_browser_wallet_cancel_hns_sync;
     HnsBrowserResult (*wallet_import_name)(HnsBrowserWalletHandle,
                                            HnsBrowserSlice,
                                            HnsBrowserBuffer *) =
@@ -79,6 +81,7 @@ static void typecheck_api(void) {
     (void)wallet_has_reads;
     (void)wallet_synchronize_reads;
     (void)wallet_sync_progress;
+    (void)wallet_cancel_sync;
     (void)wallet_import_name;
     (void)wallet_unlock;
     (void)wallet_lock;

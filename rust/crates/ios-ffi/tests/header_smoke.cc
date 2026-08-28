@@ -29,6 +29,7 @@ int main() {
     auto *walletHasReads = &hns_browser_wallet_has_hns_reads;
     auto *walletSynchronizeReads = &hns_browser_wallet_synchronize_hns_reads;
     auto *walletSyncProgress = &hns_browser_wallet_hns_sync_progress;
+    auto *walletCancelSync = &hns_browser_wallet_cancel_hns_sync;
     auto *walletImportName = &hns_browser_wallet_import_hns_name_exact_text;
     auto *walletUnlock = &hns_browser_wallet_unlock;
     auto *walletLock = &hns_browser_wallet_lock;
@@ -48,6 +49,7 @@ int main() {
     (void)walletHasReads;
     (void)walletSynchronizeReads;
     (void)walletSyncProgress;
+    (void)walletCancelSync;
     (void)walletImportName;
     (void)walletUnlock;
     (void)walletLock;

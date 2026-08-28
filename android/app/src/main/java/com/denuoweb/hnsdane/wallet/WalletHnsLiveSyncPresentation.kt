@@ -1,5 +1,7 @@
 package com.denuoweb.hnsdane.wallet
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 /**
  * Process-local display state for a sync that can outlive a WalletActivity
  * instance. The durable source of truth remains the encrypted native wallet;
@@ -9,25 +11,39 @@ package com.denuoweb.hnsdane.wallet
  * after a later terminal result has cleared the display state.
  */
 internal sealed interface WalletHnsLiveSyncPresentation {
+    data object Preparing : WalletHnsLiveSyncPresentation
+
     data class Live(val progress: NativeWalletHnsLiveSyncProgress) :
         WalletHnsLiveSyncPresentation
 
     data class Catchup(val progress: NativeWalletHnsCatchupProgress) :
         WalletHnsLiveSyncPresentation
+
+    data class Cancelling(val progress: NativeWalletHnsLiveSyncProgress?) :
+        WalletHnsLiveSyncPresentation
 }
 
 internal class WalletHnsLiveSyncPresentationLease internal constructor(
     internal val networkId: String,
+    internal val cancellationRequested: AtomicBoolean = AtomicBoolean(false),
 )
 
 internal object WalletHnsLiveSyncPresentationCache {
     private val lock = Any()
     private val entries = mutableMapOf<String, Entry>()
+    private val automaticSyncPausedNetworks = mutableSetOf<String>()
 
     /** Starts a new public synchronization presentation and revokes older writers. */
-    fun begin(networkId: String): WalletHnsLiveSyncPresentationLease = synchronized(lock) {
+    fun begin(
+        networkId: String,
+        requestCancellation: (() -> Unit)? = null,
+    ): WalletHnsLiveSyncPresentationLease = synchronized(lock) {
         WalletHnsLiveSyncPresentationLease(networkId).also { lease ->
-            entries[networkId] = Entry(lease = lease)
+            entries[networkId] = Entry(
+                lease = lease,
+                presentation = WalletHnsLiveSyncPresentation.Preparing,
+                requestCancellation = requestCancellation,
+            )
         }
     }
 
@@ -38,7 +54,14 @@ internal object WalletHnsLiveSyncPresentationCache {
         synchronized(lock) {
             entries[lease.networkId]
                 ?.takeIf { entry -> entry.lease === lease && entry.acceptsLiveProgress }
-                ?.let { entry -> entry.presentation = WalletHnsLiveSyncPresentation.Live(progress) }
+                ?.let { entry ->
+                    entry.lastProgress = progress
+                    entry.presentation = if (entry.presentation is WalletHnsLiveSyncPresentation.Cancelling) {
+                        WalletHnsLiveSyncPresentation.Cancelling(progress)
+                    } else {
+                        WalletHnsLiveSyncPresentation.Live(progress)
+                    }
+                }
         }
     }
 
@@ -52,6 +75,7 @@ internal object WalletHnsLiveSyncPresentationCache {
                 ?.takeIf { entry -> entry.lease === lease }
                 ?.let { entry ->
                     entry.presentation = WalletHnsLiveSyncPresentation.Catchup(progress)
+                    entry.requestCancellation = null
                     entry.acceptsLiveProgress = false
                 }
         }
@@ -59,6 +83,29 @@ internal object WalletHnsLiveSyncPresentationCache {
 
     fun latest(networkId: String): WalletHnsLiveSyncPresentation? =
         synchronized(lock) { entries[networkId]?.presentation }
+
+    fun canRequestCancellation(networkId: String): Boolean = synchronized(lock) {
+        entries[networkId]?.let { entry ->
+            entry.requestCancellation != null &&
+                (entry.presentation == null ||
+                    entry.presentation is WalletHnsLiveSyncPresentation.Preparing ||
+                    entry.presentation is WalletHnsLiveSyncPresentation.Live)
+        } == true
+    }
+
+    fun requestCancellation(networkId: String): Boolean {
+        val request = synchronized(lock) {
+            val entry = entries[networkId] ?: return@synchronized null
+            val cancellation = entry.requestCancellation ?: return@synchronized null
+            entry.lease.cancellationRequested.set(true)
+            entry.presentation = WalletHnsLiveSyncPresentation.Cancelling(entry.lastProgress)
+            entry.requestCancellation = null
+            automaticSyncPausedNetworks.add(networkId)
+            cancellation
+        }
+        request?.invoke()
+        return request != null
+    }
 
     /** Removes one terminal writer and prevents all of its future publications. */
     fun clear(lease: WalletHnsLiveSyncPresentationLease) {
@@ -74,9 +121,18 @@ internal object WalletHnsLiveSyncPresentationCache {
         synchronized(lock) { entries.remove(networkId) }
     }
 
+    fun automaticSyncIsPaused(networkId: String): Boolean =
+        synchronized(lock) { networkId in automaticSyncPausedNetworks }
+
+    fun resumeAutomaticSync(networkId: String) {
+        synchronized(lock) { automaticSyncPausedNetworks.remove(networkId) }
+    }
+
     private data class Entry(
         val lease: WalletHnsLiveSyncPresentationLease,
         var presentation: WalletHnsLiveSyncPresentation? = null,
+        var lastProgress: NativeWalletHnsLiveSyncProgress? = null,
+        var requestCancellation: (() -> Unit)? = null,
         var acceptsLiveProgress: Boolean = true,
     )
 }
@@ -85,3 +141,5 @@ internal object WalletHnsLiveSyncPresentationCache {
 internal fun walletHnsPresentationMayAcquireStorage(
     presentation: WalletHnsLiveSyncPresentation?,
 ): Boolean = presentation !is WalletHnsLiveSyncPresentation.Live
+    && presentation !is WalletHnsLiveSyncPresentation.Preparing
+    && presentation !is WalletHnsLiveSyncPresentation.Cancelling

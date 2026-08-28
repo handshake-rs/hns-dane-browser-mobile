@@ -318,6 +318,13 @@ HnsBrowserResult hns_browser_wallet_hns_sync_progress(
     HnsBrowserWalletHandle wallet,
     HnsBrowserWalletHnsSyncProgress *out_progress);
 /*
+ * Requests that the active synchronized read stop at its next safe boundary.
+ * This call never waits for the wallet controller mutex. Returns NOT_READY if
+ * no synchronized read is active.
+ */
+HnsBrowserResult hns_browser_wallet_cancel_hns_sync(
+    HnsBrowserWalletHandle wallet);
+/*
  * Imports exact UTF-8 name text only through the synchronized HNS-read
  * controller, without trimming, lowercasing, IDNA, Unicode normalization, or
  * trailing-dot edits. The input must contain 1..63 UTF-8 bytes. On success,

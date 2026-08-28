@@ -911,10 +911,11 @@ impl AndroidWalletController {
         }
     }
 
-    fn synchronize_hns_reads(
-        &mut self,
-        live_progress: &Mutex<Option<AndroidHnsLiveSyncProgress>>,
-    ) -> Option<Vec<u8>> {
+    fn synchronize_hns_reads(&mut self, sync_record: &AndroidWalletRecord) -> Option<Vec<u8>> {
+        if sync_record.hns_sync_cancellation_requested() {
+            return None;
+        }
+        let live_progress = &sync_record.hns_live_sync_progress;
         let synchronization = match self {
             Self::Reads(controller) => controller
                 .synchronize()
@@ -933,6 +934,7 @@ impl AndroidWalletController {
                 // recovery wallet needs more work.
                 let mut header_agreement_recoveries = 0usize;
                 for round_index in 0..DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC {
+                    ensure_android_hns_sync_not_cancelled(sync_record)?;
                     // Header response failures disconnect only their own
                     // transport sessions. Refill the independent direct-peer
                     // pool before each new round so one peer that served a
@@ -949,6 +951,7 @@ impl AndroidWalletController {
                     if let Err(error) = coordinator.connect_available(now_unix) {
                         return direct_hns_transport_catchup(coordinator, "connection", error);
                     }
+                    ensure_android_hns_sync_not_cancelled(sync_record)?;
                     publish_direct_hns_live_progress(
                         live_progress,
                         WALLET_HNS_LIVE_PROGRESS_HEADERS,
@@ -987,6 +990,7 @@ impl AndroidWalletController {
                     };
                     match progress {
                         hns_wallet_mobile::HnsHeaderRoundProgress::Committed(round) => {
+                            ensure_android_hns_sync_not_cancelled(sync_record)?;
                             publish_direct_hns_live_progress(
                                 live_progress,
                                 WALLET_HNS_LIVE_PROGRESS_HEADERS,
@@ -1031,6 +1035,7 @@ impl AndroidWalletController {
                 // set has reached the locally agreed header tip. The direct
                 // peer coordinator independently verifies every block view.
                 for _scan_round in 0..DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC {
+                    ensure_android_hns_sync_not_cancelled(sync_record)?;
                     publish_direct_hns_live_progress(
                         live_progress,
                         WALLET_HNS_LIVE_PROGRESS_SCANNING,
@@ -1079,6 +1084,7 @@ impl AndroidWalletController {
                             );
                         }
                     };
+                    ensure_android_hns_sync_not_cancelled(sync_record)?;
                     publish_direct_hns_live_progress(
                         live_progress,
                         WALLET_HNS_LIVE_PROGRESS_SCANNING,
@@ -1101,10 +1107,12 @@ impl AndroidWalletController {
                     header_agreement_recoveries,
                     coordinator,
                 );
+                ensure_android_hns_sync_not_cancelled(sync_record)?;
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_start");
                 if let Err(error) = coordinator.refresh_mempool(now_unix) {
                     return direct_hns_transport_catchup(coordinator, "mempool refresh", error);
                 }
+                ensure_android_hns_sync_not_cancelled(sync_record)?;
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_complete");
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_start");
                 let mut snapshot = match controller.synchronize() {
@@ -1127,6 +1135,7 @@ impl AndroidWalletController {
                     }
                     Err(error) => return Err(error),
                 };
+                ensure_android_hns_sync_not_cancelled(sync_record)?;
                 let rebroadcasted = controller.rebroadcast_dropped_hns_sends()?;
                 if rebroadcasted > 0 {
                     android_log_wallet_scan_metrics(&format!(
@@ -1166,6 +1175,9 @@ impl AndroidWalletController {
                 return None;
             }
         };
+        if sync_record.hns_sync_cancellation_requested() {
+            return None;
+        }
         match synchronization {
             AndroidHnsSynchronization::Ready(snapshot) => {
                 let mut json = serde_json::to_vec(&snapshot).ok()?;
@@ -1678,6 +1690,7 @@ struct AndroidWalletRecord {
     // bounded direct-peer synchronization. It contains only public progress
     // metadata and intentionally never shares wallet read projections.
     hns_live_sync_progress: Mutex<Option<AndroidHnsLiveSyncProgress>>,
+    hns_sync_activity: Mutex<AndroidHnsSyncActivityState>,
     // Kyoto synchronization owns `bitcoin_controller` for a bounded cycle.
     // Keep its authority-free stop signal outside both controller mutexes so
     // lock/destroy can wake the cycle before waiting to retire wallet state.
@@ -1685,6 +1698,25 @@ struct AndroidWalletRecord {
     bitcoin_sync_progress: Mutex<Option<hns_wallet_mobile::MobileBitcoinSyncProgressHandle>>,
     hns_reads_installable: bool,
     bitcoin_data_dir: PathBuf,
+}
+
+#[derive(Default)]
+struct AndroidHnsSyncActivityState {
+    active: bool,
+    cancellation_requested: bool,
+}
+
+struct AndroidHnsSyncActivity {
+    record: Arc<AndroidWalletRecord>,
+}
+
+impl Drop for AndroidHnsSyncActivity {
+    fn drop(&mut self) {
+        if let Ok(mut activity) = self.record.hns_sync_activity.lock() {
+            activity.cancellation_requested = false;
+            activity.active = false;
+        }
+    }
 }
 
 impl AndroidWalletRecord {
@@ -1704,6 +1736,7 @@ impl AndroidWalletRecord {
             bitcoin_controller: Mutex::new(None),
             pending_recovery: Mutex::new(recovery),
             hns_live_sync_progress: Mutex::new(None),
+            hns_sync_activity: Mutex::new(AndroidHnsSyncActivityState::default()),
             bitcoin_shutdown: Mutex::new(None),
             bitcoin_sync_progress: Mutex::new(None),
             hns_reads_installable,
@@ -1755,6 +1788,39 @@ impl AndroidWalletRecord {
     fn hns_live_sync_progress_if_active(&self) -> Option<AndroidHnsLiveSyncProgress> {
         let progress = lock_if_active(&self.active, &self.hns_live_sync_progress)?;
         *progress
+    }
+
+    fn begin_hns_synchronization_if_active(&self) -> bool {
+        if !self.active.load(Ordering::Acquire) {
+            return false;
+        }
+        let Ok(mut activity) = self.hns_sync_activity.lock() else {
+            return false;
+        };
+        if !self.active.load(Ordering::Acquire) || activity.active {
+            return false;
+        }
+        activity.active = true;
+        activity.cancellation_requested = false;
+        true
+    }
+
+    fn request_hns_sync_cancellation_if_active(&self) -> bool {
+        let Ok(mut activity) = self.hns_sync_activity.lock() else {
+            return false;
+        };
+        if !self.active.load(Ordering::Acquire) || !activity.active {
+            return false;
+        }
+        activity.cancellation_requested = true;
+        true
+    }
+
+    fn hns_sync_cancellation_requested(&self) -> bool {
+        self.hns_sync_activity
+            .lock()
+            .map(|activity| activity.cancellation_requested)
+            .unwrap_or(true)
     }
 
     fn deactivate(&self) {
@@ -2559,6 +2625,16 @@ fn publish_direct_hns_live_progress(
             header_retries,
             catchup,
         });
+    }
+}
+
+fn ensure_android_hns_sync_not_cancelled(
+    record: &AndroidWalletRecord,
+) -> Result<(), MobileWalletError> {
+    if record.hns_sync_cancellation_requested() {
+        Err(MobileWalletError::ControllerFailed)
+    } else {
+        Ok(())
     }
 }
 
@@ -5040,11 +5116,15 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
         let record = wallet_from_handle(handle)?;
+        record.begin_hns_synchronization_if_active().then_some(())?;
+        let _sync_activity = AndroidHnsSyncActivity {
+            record: Arc::clone(&record),
+        };
         record
             .clear_hns_live_sync_progress_if_active()
             .then_some(())?;
         let mut controller = record.controller_if_active()?;
-        let mut bundle = controller.synchronize_hns_reads(&record.hns_live_sync_progress)?;
+        let mut bundle = controller.synchronize_hns_reads(record.as_ref())?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -5052,6 +5132,21 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .ok()
     .flatten()
     .unwrap_or(std::ptr::null_mut())
+}
+
+/// Requests cancellation without acquiring the wallet controller mutex.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeCancelHnsSynchronization(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        wallet_from_handle(handle)
+            .is_some_and(|record| record.request_hns_sync_cancellation_if_active())
+    }))
+    .unwrap_or(false)
+    .into()
 }
 
 /// Returns the newest public progress emitted by a direct HNS synchronizer.

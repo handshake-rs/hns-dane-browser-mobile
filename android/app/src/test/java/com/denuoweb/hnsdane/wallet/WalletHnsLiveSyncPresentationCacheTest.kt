@@ -11,7 +11,17 @@ class WalletHnsLiveSyncPresentationCacheTest {
     fun replacementActivityWaitsForLiveWriterBeforeAcquiringStorage() {
         assertFalse(
             walletHnsPresentationMayAcquireStorage(
+                WalletHnsLiveSyncPresentation.Preparing,
+            ),
+        )
+        assertFalse(
+            walletHnsPresentationMayAcquireStorage(
                 WalletHnsLiveSyncPresentation.Live(liveProgress(scannedHeight = 10L)),
+            ),
+        )
+        assertFalse(
+            walletHnsPresentationMayAcquireStorage(
+                WalletHnsLiveSyncPresentation.Cancelling(liveProgress(scannedHeight = 10L)),
             ),
         )
         assertTrue(
@@ -20,6 +30,37 @@ class WalletHnsLiveSyncPresentationCacheTest {
             ),
         )
         assertTrue(walletHnsPresentationMayAcquireStorage(null))
+    }
+
+    @Test
+    fun cancellationCapabilityIsSingleUseAndKeepsStorageFenced() {
+        val network = "cache-cancellation-test"
+        var cancellationRequests = 0
+        val lease = WalletHnsLiveSyncPresentationCache.begin(network) {
+            cancellationRequests += 1
+        }
+        val live = liveProgress(scannedHeight = 25L)
+        WalletHnsLiveSyncPresentationCache.publishLive(lease, live)
+
+        assertTrue(WalletHnsLiveSyncPresentationCache.canRequestCancellation(network))
+        assertTrue(WalletHnsLiveSyncPresentationCache.requestCancellation(network))
+        assertEquals(1, cancellationRequests)
+        assertTrue(lease.cancellationRequested.get())
+        assertTrue(WalletHnsLiveSyncPresentationCache.automaticSyncIsPaused(network))
+        assertEquals(
+            WalletHnsLiveSyncPresentation.Cancelling(live),
+            WalletHnsLiveSyncPresentationCache.latest(network),
+        )
+        assertFalse(
+            walletHnsPresentationMayAcquireStorage(
+                WalletHnsLiveSyncPresentationCache.latest(network),
+            ),
+        )
+        assertFalse(WalletHnsLiveSyncPresentationCache.requestCancellation(network))
+        assertEquals(1, cancellationRequests)
+        WalletHnsLiveSyncPresentationCache.resumeAutomaticSync(network)
+        assertFalse(WalletHnsLiveSyncPresentationCache.automaticSyncIsPaused(network))
+        WalletHnsLiveSyncPresentationCache.clear(network)
     }
 
     @Test

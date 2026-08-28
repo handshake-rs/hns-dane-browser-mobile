@@ -239,8 +239,16 @@ scan, birthday, and target heights. A process-owned Swift cache lets a
 replacement wallet screen observe that operation without acquiring the old
 controller's storage or presenting it as a restart. Terminal progress revokes
 late callbacks, and the replacement screen retries storage acquisition until
-retirement releases the old lease. iOS has no unrestricted equivalent of
-Android's long-running data-sync foreground service: actual process suspension
+retirement releases the old lease. The same process operation owns a
+single-use, cancellation-only capability: a replacement screen can request
+that synchronization stop at its next safe network or scan boundary without
+taking the controller mutex. The screen waits for retirement to release
+storage and then restores the ordinary wallet controls. Deletion remains a
+separate action and cannot overlap the synchronizing controller; after normal
+device authentication reopens the wallet, the established identity-bound and
+typed irreversible-deletion confirmations are available again. iOS has no
+unrestricted equivalent of Android's long-running data-sync foreground
+service: actual process suspension
 can pause both networking and UI polling. On process resume, the worker
 continues and the screen reconnects to its process-owned progress; after
 termination, the next operation resumes from the durable direct-HNS checkpoint

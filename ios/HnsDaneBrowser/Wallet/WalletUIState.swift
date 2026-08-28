@@ -67,14 +67,29 @@ struct WalletHnsSyncProgress: Equatable, Sendable {
 enum WalletHnsSyncPresentation: Equatable, Sendable {
     case preparing
     case live(WalletHnsSyncProgress)
+    case cancelling(WalletHnsSyncProgress?)
     case terminal(WalletHnsSyncProgress?)
 }
 
 final class WalletHnsSyncPresentationLease: @unchecked Sendable {
     fileprivate let networkID: String
+    private let cancellationLock = NSLock()
+    private var cancellationRequested = false
 
     fileprivate init(networkID: String) {
         self.networkID = networkID
+    }
+
+    fileprivate func markCancellationRequested() {
+        cancellationLock.lock()
+        cancellationRequested = true
+        cancellationLock.unlock()
+    }
+
+    var wasCancellationRequested: Bool {
+        cancellationLock.lock()
+        defer { cancellationLock.unlock() }
+        return cancellationRequested
     }
 }
 
@@ -82,6 +97,8 @@ private final class WalletHnsSyncPresentationState: @unchecked Sendable {
     struct Entry {
         let lease: WalletHnsSyncPresentationLease
         var presentation: WalletHnsSyncPresentation?
+        var lastProgress: WalletHnsSyncProgress? = nil
+        var requestCancellation: (@Sendable () -> Void)?
         var acceptsLiveProgress = true
     }
 
@@ -94,10 +111,17 @@ private final class WalletHnsSyncPresentationState: @unchecked Sendable {
 enum WalletHnsSyncPresentationCache {
     private static let state = WalletHnsSyncPresentationState()
 
-    static func begin(networkID: String) -> WalletHnsSyncPresentationLease {
+    static func begin(
+        networkID: String,
+        requestCancellation: (@Sendable () -> Void)? = nil
+    ) -> WalletHnsSyncPresentationLease {
         let lease = WalletHnsSyncPresentationLease(networkID: networkID)
         state.lock.lock()
-        state.entries[networkID] = .init(lease: lease, presentation: .preparing)
+        state.entries[networkID] = .init(
+            lease: lease,
+            presentation: .preparing,
+            requestCancellation: requestCancellation
+        )
         state.lock.unlock()
         return lease
     }
@@ -111,7 +135,12 @@ enum WalletHnsSyncPresentationCache {
         guard var entry = state.entries[lease.networkID],
               entry.lease === lease,
               entry.acceptsLiveProgress else { return }
-        entry.presentation = .live(progress)
+        entry.lastProgress = progress
+        if case .cancelling = entry.presentation {
+            entry.presentation = .cancelling(progress)
+        } else {
+            entry.presentation = .live(progress)
+        }
         state.entries[lease.networkID] = entry
     }
 
@@ -120,15 +149,45 @@ enum WalletHnsSyncPresentationCache {
         defer { state.lock.unlock() }
         guard var entry = state.entries[lease.networkID],
               entry.lease === lease else { return }
-        let lastProgress: WalletHnsSyncProgress?
-        if case .live(let progress) = entry.presentation {
-            lastProgress = progress
-        } else {
-            lastProgress = nil
-        }
-        entry.presentation = .terminal(lastProgress)
+        entry.presentation = .terminal(entry.lastProgress)
+        entry.requestCancellation = nil
         entry.acceptsLiveProgress = false
         state.entries[lease.networkID] = entry
+    }
+
+    static func canRequestCancellation(networkID: String) -> Bool {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        guard let entry = state.entries[networkID],
+              entry.requestCancellation != nil else { return false }
+        switch entry.presentation {
+        case .preparing, .live: return true
+        case .cancelling, .terminal, nil: return false
+        }
+    }
+
+    @discardableResult
+    static func requestCancellation(networkID: String) -> Bool {
+        let request: (@Sendable () -> Void)?
+        state.lock.lock()
+        if var entry = state.entries[networkID],
+           let cancellation = entry.requestCancellation {
+            switch entry.presentation {
+            case .preparing, .live:
+                entry.lease.markCancellationRequested()
+                entry.presentation = .cancelling(entry.lastProgress)
+                entry.requestCancellation = nil
+                state.entries[networkID] = entry
+                request = cancellation
+            case .cancelling, .terminal, nil:
+                request = nil
+            }
+        } else {
+            request = nil
+        }
+        state.lock.unlock()
+        request?()
+        return request != nil
     }
 
     static func latest(networkID: String) -> WalletHnsSyncPresentation? {
@@ -150,7 +209,7 @@ func walletHnsPresentationMayAcquireStorage(
 ) -> Bool {
     guard let presentation else { return true }
     switch presentation {
-    case .preparing, .live: return false
+    case .preparing, .live, .cancelling: return false
     case .terminal: return true
     }
 }

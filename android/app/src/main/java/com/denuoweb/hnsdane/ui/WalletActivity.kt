@@ -485,6 +485,14 @@ class WalletActivity : ComponentActivity() {
         // returning to Wallet never looks like a reset, but keep every action
         // disabled until this activity holds the replacement controller.
         renderUnlockedWalletDashboard(actionsAvailable = false)
+        if (WalletHnsLiveSyncPresentationCache.canRequestCancellation(walletNetwork.id)) {
+            dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_wallet)) {
+                addSettingsRow(actionRow(
+                    title = getString(R.string.action_stop_wallet_sync),
+                    summary = getString(R.string.wallet_stop_sync_summary),
+                ) { requestHnsSyncCancellation() })
+            })
+        }
     }
 
     private fun hasRetainedHnsSyncPresentation(): Boolean =
@@ -808,6 +816,20 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showWalletDetails() {
+        if (WalletHnsLiveSyncPresentationCache.canRequestCancellation(walletNetwork.id)) {
+            walletDetailDialog(
+                title = getString(R.string.wallet_dashboard_wallet),
+                rows = listOf(
+                    getString(R.string.row_wallet_status) to statusView.text.toString(),
+                    getString(R.string.row_wallet_account) to accountView.text.toString(),
+                ),
+                actions = listOf(
+                    getString(R.string.action_stop_wallet_sync) to
+                        ::requestHnsSyncCancellation,
+                ),
+            )
+            return
+        }
         val unlocked = NativeWalletBridge.status(walletHandle)?.locked == false
         val actions = mutableListOf<Pair<String, () -> Unit>>().apply {
             add(
@@ -1432,7 +1454,10 @@ class WalletActivity : ComponentActivity() {
                     // has explicitly unlocked it, take one bounded, verified
                     // snapshot so the confirmed available balance is visible
                     // without requiring a separate, unexplained refresh.
-                    if (NativeWalletBridge.hasHnsReads(handle)) {
+                    if (
+                        !WalletHnsLiveSyncPresentationCache.automaticSyncIsPaused(walletNetwork.id) &&
+                            NativeWalletBridge.hasHnsReads(handle)
+                    ) {
                         synchronizeWalletReads()
                     }
                 }
@@ -1543,6 +1568,19 @@ class WalletActivity : ComponentActivity() {
             if (walletDeletionDialog === dialog) walletDeletionDialog = null
         }
         dialog.show()
+    }
+
+    private fun requestHnsSyncCancellation() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_stop_sync_title)
+            .setMessage(R.string.wallet_stop_sync_message)
+            .setNegativeButton(R.string.action_keep_synchronizing, null)
+            .setPositiveButton(R.string.action_stop_sync) { _, _ ->
+                WalletHnsLiveSyncPresentationCache.requestCancellation(walletNetwork.id)
+                restoreCachedHnsSyncPresentation()
+                renderWalletDashboard()
+            }
+            .show()
     }
 
     private fun showTypedWalletDeletionConfirmation(
@@ -1754,6 +1792,7 @@ class WalletActivity : ComponentActivity() {
             resetReadProjection(R.string.wallet_reads_unavailable)
             return
         }
+        WalletHnsLiveSyncPresentationCache.resumeAutomaticSync(walletNetwork.id)
         hnsCatchupRetry?.set(false)
         hnsCatchupRetry = null
         // A refresh must not erase the last authenticated projection before
@@ -1767,7 +1806,12 @@ class WalletActivity : ComponentActivity() {
             )
         ) return
         invalidateReadSnapshotAuthority()
-        val presentationLease = WalletHnsLiveSyncPresentationCache.begin(walletNetwork.id)
+        val presentationLease = WalletHnsLiveSyncPresentationCache.begin(
+            walletNetwork.id,
+            requestCancellation = {
+                NativeWalletBridge.cancelHnsSynchronization(handle)
+            },
+        )
         walletHnsSyncInProgress = true
         startWalletForegroundSyncService("HNS")
         Log.i(TAG, "Starting a bounded direct HNS synchronization round")
@@ -1788,7 +1832,9 @@ class WalletActivity : ComponentActivity() {
                     R.string.wallet_reads_unavailable
                 else -> null
             }
-            val synchronization = if (preflightFailure == null) {
+            val synchronization = if (
+                preflightFailure == null && !presentationLease.cancellationRequested.get()
+            ) {
                 synchronizeHnsReadsWithRollbackFloor(handle)
             } else {
                 null
@@ -4075,6 +4121,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showNoWallet() {
+        WalletHnsLiveSyncPresentationCache.resumeAutomaticSync(walletNetwork.id)
         durableWalletStoragePresent = false
         walletOpenDeferredUntilDeviceUnlock = false
         statusView.text = if (NativeWalletBridge.isAvailable) {
@@ -4314,8 +4361,16 @@ class WalletActivity : ComponentActivity() {
 
     private fun restoreCachedHnsSyncPresentation() {
         when (val presentation = WalletHnsLiveSyncPresentationCache.latest(walletNetwork.id)) {
+            WalletHnsLiveSyncPresentation.Preparing -> {
+                statusView.text = getString(R.string.wallet_status_sync_handoff)
+                readStatusView.text = getString(R.string.wallet_reads_syncing)
+            }
             is WalletHnsLiveSyncPresentation.Live -> renderLiveHnsSyncProgress(presentation.progress)
             is WalletHnsLiveSyncPresentation.Catchup -> renderCachedHnsCatchup(presentation.progress)
+            is WalletHnsLiveSyncPresentation.Cancelling -> {
+                statusView.text = getString(R.string.wallet_status_stopping_sync)
+                readStatusView.text = getString(R.string.wallet_reads_stopping_at_safe_checkpoint)
+            }
             null -> Unit
         }
     }

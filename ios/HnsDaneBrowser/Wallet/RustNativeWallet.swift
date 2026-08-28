@@ -1916,6 +1916,13 @@ final class RustNativeWallet: @unchecked Sendable {
         )
     }
 
+    /// Requests cancellation through the native synchronization-control
+    /// mailbox without waiting for private wallet/controller ownership.
+    func cancelHnsSynchronization() throws {
+        let result = hns_browser_wallet_cancel_hns_sync(try liveHandle())
+        try NativeWalletBridge.check(result, operation: "wallet HNS synchronization cancellation")
+    }
+
     /// Passes the exact mutable UTF-8 bytes without trimming, case conversion,
     /// IDNA, Unicode normalization, or trailing-dot editing, then wipes them.
     func importHnsNameExactText(

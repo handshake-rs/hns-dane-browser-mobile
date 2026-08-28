@@ -279,7 +279,10 @@ final class WalletViewController: UIViewController {
             view.removeFromSuperview()
         }
 
-        if unconfirmedDatabaseKey != nil {
+        if storageLease == nil,
+           WalletHnsSyncPresentationCache.latest(networkID: network.rawValue) != nil {
+            renderSynchronizingWalletDashboard()
+        } else if unconfirmedDatabaseKey != nil {
             renderRecoveryDashboard()
         } else if wallet == nil && !persistentWalletExists && storageLease != nil &&
             protectedStorageIsAvailable && walletLifecycleMayAcquireStorage {
@@ -289,6 +292,18 @@ final class WalletViewController: UIViewController {
         } else {
             renderLockedWalletDashboard()
         }
+    }
+
+    private func renderSynchronizingWalletDashboard() {
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "● SYNCHRONIZING · \(network.title)",
+            body: [statusLabel, accountLabel, readStatusLabel],
+            accent: .systemOrange
+        ))
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "Wallet management",
+            body: [deleteButton]
+        ))
     }
 
     private func renderNoWalletDashboard() {
@@ -1713,7 +1728,17 @@ final class WalletViewController: UIViewController {
             message: "\(statusLabel.text ?? "Status unavailable.")\n\n\(accountLabel.text ?? "Account unavailable.")",
             preferredStyle: .alert
         )
-        if walletIsUnlocked {
+        let canStopSynchronization = WalletHnsSyncPresentationCache.canRequestCancellation(
+            networkID: network.rawValue
+        )
+        if canStopSynchronization {
+            alert.addAction(UIAlertAction(
+                title: "Stop synchronization",
+                style: .destructive
+            ) { [weak self] _ in
+                self?.requestHnsSynchronizationCancellation()
+            })
+        } else if walletIsUnlocked {
             alert.addAction(UIAlertAction(title: "Lock", style: .default) { [weak self] _ in
                 self?.lockWallet()
             })
@@ -1722,7 +1747,7 @@ final class WalletViewController: UIViewController {
                 self?.openOrUnlockWallet()
             })
         }
-        if deleteButton.isEnabled {
+        if deleteButton.isEnabled && !canStopSynchronization {
             alert.addAction(UIAlertAction(title: "Delete wallet", style: .destructive) { [weak self] _ in
                 self?.requestConfirmedWalletDeletion()
             })
@@ -1952,6 +1977,8 @@ final class WalletViewController: UIViewController {
                         keychain: keychain
                     )
                 )
+            } catch let error as WalletProviderError where error.code == "walletSynchronizationCancelled" {
+                outcome = .cancelled
             } catch {
                 outcome = .failure(error.localizedDescription)
             }
@@ -1974,6 +2001,8 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let snapshot):
                     self.publish(snapshot)
+                case .cancelled:
+                    self.readStatusLabel.text = "HNS synchronization stopped. Existing synchronized balances remain available."
                 case .failure(let detail):
                     self.readStatusLabel.text = "HNS synchronization did not finish. The direct wallet was locked; unlock before retrying."
                     self.clearReadProjection()
@@ -1995,25 +2024,41 @@ final class WalletViewController: UIViewController {
         wallet: RustNativeWallet,
         keychain: WalletKeychainStore
     ) throws -> NativeHnsReadSnapshot {
-        let presentationLease = WalletHnsSyncPresentationCache.begin(
-            networkID: keychain.networkID
-        )
-        let progressPoller = WalletHnsSyncProgressPoller(
-            wallet: wallet,
-            lease: presentationLease
-        )
-        defer {
-            if let finalProgress = try? wallet.hnsSynchronizationProgress() {
-                WalletHnsSyncPresentationCache.publish(
-                    finalProgress,
-                    lease: presentationLease
+        return try withDirectHnsFloorJournal(wallet: wallet, keychain: keychain) {
+            let presentationLease = WalletHnsSyncPresentationCache.begin(
+                networkID: keychain.networkID,
+                requestCancellation: { [wallet] in
+                    try? wallet.cancelHnsSynchronization()
+                }
+            )
+            let progressPoller = WalletHnsSyncProgressPoller(
+                wallet: wallet,
+                lease: presentationLease
+            )
+            defer {
+                if let finalProgress = try? wallet.hnsSynchronizationProgress() {
+                    WalletHnsSyncPresentationCache.publish(
+                        finalProgress,
+                        lease: presentationLease
+                    )
+                }
+                progressPoller.stop()
+                WalletHnsSyncPresentationCache.finish(lease: presentationLease)
+            }
+            guard !presentationLease.wasCancellationRequested else {
+                throw WalletProviderError(
+                    code: "walletSynchronizationCancelled",
+                    message: "HNS synchronization stopped before its native scan began"
                 )
             }
-            progressPoller.stop()
-            WalletHnsSyncPresentationCache.finish(lease: presentationLease)
-        }
-        return try withDirectHnsFloorJournal(wallet: wallet, keychain: keychain) {
-            try wallet.synchronizeHnsReads()
+            do {
+                return try wallet.synchronizeHnsReads()
+            } catch where presentationLease.wasCancellationRequested {
+                throw WalletProviderError(
+                    code: "walletSynchronizationCancelled",
+                    message: "HNS synchronization stopped at a safe native checkpoint"
+                )
+            }
         }
     }
 
@@ -2207,6 +2252,12 @@ final class WalletViewController: UIViewController {
 
     @objc private func requestConfirmedWalletDeletion() {
         guard presentedViewController == nil else { return }
+        if WalletHnsSyncPresentationCache.canRequestCancellation(
+            networkID: network.rawValue
+        ) {
+            requestHnsSynchronizationCancellation()
+            return
+        }
         do {
             let authority = try currentConfirmedDeletionAuthority()
             let alert = UIAlertController(
@@ -2226,6 +2277,30 @@ final class WalletViewController: UIViewController {
         } catch {
             showError(error)
         }
+    }
+
+    private func requestHnsSynchronizationCancellation() {
+        let alert = UIAlertController(
+            title: "Stop synchronization?",
+            message: """
+            The active HNS synchronization will stop at its next safe checkpoint. No wallet data will be deleted.
+
+            After the old controller releases protected storage, the normal wallet controls will return automatically. You can unlock, synchronize again, or delete the wallet normally.
+            """,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Keep synchronizing", style: .cancel))
+        alert.addAction(UIAlertAction(
+            title: "Stop sync",
+            style: .destructive
+        ) { [weak self] _ in
+            guard let self else { return }
+            WalletHnsSyncPresentationCache.requestCancellation(
+                networkID: self.network.rawValue
+            )
+            self.refreshState()
+        })
+        present(alert, animated: true)
     }
 
     private func presentTypedDeletionConfirmation(
@@ -2828,7 +2903,25 @@ final class WalletViewController: UIViewController {
         importNameButton.isEnabled = importState.authority.map {
             walletNameImportMayStart(expected: $0, current: importState)
         } ?? false
-        deleteButton.isEnabled = ownsStorage &&
+        let canStopSynchronization = WalletHnsSyncPresentationCache.canRequestCancellation(
+            networkID: network.rawValue
+        )
+        let syncPresentation = WalletHnsSyncPresentationCache.latest(
+            networkID: network.rawValue
+        )
+        switch syncPresentation {
+        case .preparing where canStopSynchronization:
+            deleteButton.configuration?.title = "Stop synchronization"
+        case .live(_) where canStopSynchronization:
+            deleteButton.configuration?.title = "Stop synchronization"
+        case .cancelling:
+            deleteButton.configuration?.title = "Stopping synchronization…"
+        case .terminal:
+            deleteButton.configuration?.title = "Waiting for wallet protection…"
+        default:
+            deleteButton.configuration?.title = "Delete confirmed wallet"
+        }
+        deleteButton.isEnabled = canStopSynchronization || (ownsStorage &&
             protectedStorageIsAvailable &&
             hasWallet &&
             !hasIncompleteWallet &&
@@ -2837,7 +2930,7 @@ final class WalletViewController: UIViewController {
             walletLifecycleMayAcquireStorage &&
             viewIfLoaded?.window != nil &&
             !retirementInFlight &&
-            !isOperating
+            !isOperating)
         renderWalletDashboard()
     }
 
@@ -3161,6 +3254,12 @@ final class WalletViewController: UIViewController {
             case .finalizing:
                 readStatusLabel.text = "Finalizing the verified HNS wallet snapshot at height \(progress.verifiedHeaderHeight)."
             }
+        case .cancelling(let progress):
+            statusLabel.text = "Stopping the existing HNS synchronization at its next safe checkpoint."
+            accountLabel.text = "Account controls return after synchronization protection finishes."
+            readStatusLabel.text = progress.map {
+                "Last verified header height \($0.verifiedHeaderHeight); wallet scan height \($0.scannedHeight ?? $0.birthdayHeight) of \($0.targetHeight)."
+            } ?? "Waiting for the active native synchronization boundary…"
         case .terminal(let progress):
             statusLabel.text = "HNS synchronization finished. Wallet protection is releasing."
             accountLabel.text = "Account controls will return automatically."
@@ -3466,6 +3565,7 @@ enum WalletHnsBalancePresenter {
 
 private enum WalletHnsReadOutcome: Sendable {
     case success(NativeHnsReadSnapshot)
+    case cancelled
     case failure(String)
 }
 

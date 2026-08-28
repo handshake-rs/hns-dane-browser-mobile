@@ -32,6 +32,23 @@ private final class WalletBootstrapAttemptCounts: @unchecked Sendable {
     }
 }
 
+private final class WalletSyncCancellationProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func record() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+
+    var recordedCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+}
+
 private final class ReentrantWalletReadBootstrapSource: WalletReadBootstrapSource {
     private let configuration: NativeHnsReadConfiguration
     private let onTake: () -> Void
@@ -1864,7 +1881,11 @@ final class BrowserRuntimeControlTests: XCTestCase {
     func testWalletHnsPresentationRejectsLateProgressAndFencesReplacementOwnership() throws {
         let networkID = "cache-test-\(UUID().uuidString)"
         defer { WalletHnsSyncPresentationCache.clear(networkID: networkID) }
-        let lease = WalletHnsSyncPresentationCache.begin(networkID: networkID)
+        let cancellation = WalletSyncCancellationProbe()
+        let lease = WalletHnsSyncPresentationCache.begin(
+            networkID: networkID,
+            requestCancellation: { cancellation.record() }
+        )
         let first = WalletHnsSyncProgress(
             stage: .scanning,
             verifiedHeaderHeight: 100,
@@ -1893,6 +1914,28 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(
             WalletHnsSyncPresentationCache.latest(networkID: networkID),
             .live(first)
+        )
+        XCTAssertTrue(
+            WalletHnsSyncPresentationCache.requestCancellation(networkID: networkID)
+        )
+        XCTAssertEqual(cancellation.recordedCount, 1)
+        XCTAssertTrue(lease.wasCancellationRequested)
+        XCTAssertEqual(
+            WalletHnsSyncPresentationCache.latest(networkID: networkID),
+            .cancelling(first)
+        )
+        XCTAssertEqual(
+            walletHnsSyncLifecycleDisposition(
+                presentation: WalletHnsSyncPresentationCache.latest(networkID: networkID),
+                viewIsVisible: true,
+                sceneIsActive: true
+            ),
+            .observeLiveProgress,
+            "cancellation must not release replacement storage ownership early"
+        )
+        XCTAssertFalse(
+            WalletHnsSyncPresentationCache.requestCancellation(networkID: networkID),
+            "the cancellation capability must be consumed exactly once"
         )
         WalletHnsSyncPresentationCache.finish(lease: lease)
         WalletHnsSyncPresentationCache.publish(late, lease: lease)
