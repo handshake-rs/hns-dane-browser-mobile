@@ -1070,6 +1070,13 @@ impl NativeWalletController {
         Ok(())
     }
 
+    fn reserved_bitcoin_for_direct_offers(&self) -> Result<u64, MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Ok(0);
+        };
+        denuo_sessions.reserved_bitcoin_sats(HnsReadSystemClock.now_unix()?)
+    }
+
     fn disconnect_direct_denuo_peer(&mut self) -> bool {
         let Self::DirectHnsValue { denuo_peer, .. } = self else {
             return false;
@@ -4800,6 +4807,15 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_bitcoin_send(
         let destination = unsafe { wallet_bitcoin_address(destination) }?;
         let amount_sats = unsafe { wallet_nonzero_sats(amount_sats) }?;
         let maximum_fee_sats = unsafe { wallet_nonzero_sats(maximum_fee_sats) }?;
+        let reserved_offer_sats = {
+            let entry = wallet_entry(wallet)?;
+            let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .reserved_bitcoin_for_direct_offers()
+                .map_err(|_| wallet_runtime_failure("direct-offer reservation read failed"))?
+        };
         let control = wallet_bitcoin_control_entry(wallet)?;
         let mut slot = control.controller.try_lock().map_err(|error| match error {
             TryLockError::WouldBlock => {
@@ -4811,6 +4827,19 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_bitcoin_send(
             .as_mut()
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let confirmed_sats = controller
+            .snapshot()
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin snapshot failed"))?
+            .confirmed_sats;
+        if amount_sats
+            .checked_add(maximum_fee_sats)
+            .and_then(|send| send.checked_add(reserved_offer_sats))
+            .is_none_or(|total| total > confirmed_sats)
+        {
+            return Err(FfiFailure::invalid(
+                "Bitcoin send would consume an active direct-offer reservation",
+            ));
+        }
         let approval = controller
             .prepare_send(&destination, amount_sats, maximum_fee_sats)
             .map_err(|_| wallet_runtime_failure("direct Bitcoin send preparation failed"))?;

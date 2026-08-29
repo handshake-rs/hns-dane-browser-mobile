@@ -827,6 +827,15 @@ impl AndroidWalletController {
         })
     }
 
+    fn reserved_bitcoin_for_direct_offers(&self) -> Option<u64> {
+        let Self::DirectValue { denuo_sessions, .. } = self else {
+            return Some(0);
+        };
+        denuo_sessions
+            .reserved_bitcoin_sats(HnsReadSystemClock.now_unix().ok()?)
+            .ok()
+    }
+
     /// Retry the wallet-owned listener while retaining every other controller
     /// state. A successful existing listener is left untouched; a failed bind
     /// is never treated as a wallet, chain, or board-authority failure.
@@ -1748,7 +1757,16 @@ fn android_prepare_bitcoin_send(
     destination: &str,
     amount_sats: u64,
     maximum_fee_sats: u64,
+    reserved_offer_sats: u64,
 ) -> Option<Vec<u8>> {
+    let confirmed_sats = controller.snapshot().ok()?.confirmed_sats;
+    if amount_sats
+        .checked_add(maximum_fee_sats)
+        .and_then(|send| send.checked_add(reserved_offer_sats))
+        .is_none_or(|total| total > confirmed_sats)
+    {
+        return None;
+    }
     let approval = controller
         .prepare_send(destination, amount_sats, maximum_fee_sats)
         .map_err(|error| {
@@ -5372,12 +5390,17 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let amount_sats = canonical_nonzero_sats(amount_sats)?;
         let maximum_fee_sats = canonical_nonzero_sats(maximum_fee_sats)?;
         let record = wallet_from_handle(handle)?;
+        let reserved_offer_sats = {
+            let controller = record.controller_if_active()?;
+            controller.reserved_bitcoin_for_direct_offers()?
+        };
         let mut bitcoin = record.bitcoin_try_if_active()?;
         let mut bundle = android_prepare_bitcoin_send(
             bitcoin.as_mut()?,
             destination.take().as_str(),
             amount_sats,
             maximum_fee_sats,
+            reserved_offer_sats,
         )?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
