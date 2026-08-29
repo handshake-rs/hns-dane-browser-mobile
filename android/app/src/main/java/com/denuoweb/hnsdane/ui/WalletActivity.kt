@@ -30,6 +30,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import com.denuoweb.hnsdane.BuildConfig
 import com.denuoweb.hnsdane.HnsDaneApplication
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.net.HeaderSnapshotInstaller
@@ -209,7 +210,13 @@ class WalletActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         savedInstanceState?.clear()
         super.onCreate(null)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // Production wallets must not leak recovery material, addresses, or
+        // balances through screenshots and screen recording. Debug builds are
+        // intentionally capturable so their UI and synchronization behavior
+        // can be documented and diagnosed on a development device.
+        if (!BuildConfig.DEBUG) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
         window.decorView.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
         walletNetwork = HnsResolutionPreferences.handshakeNetwork(this)
         val storageNamespace = walletStorageNamespace(walletNetwork.id)
