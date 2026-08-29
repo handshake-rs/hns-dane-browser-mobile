@@ -2,6 +2,7 @@ package com.denuoweb.hnsdane.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BitcoinSyncProgressTest {
@@ -17,6 +18,12 @@ class BitcoinSyncProgressTest {
         assertEquals(true, walletBackgroundSynchronizationMayRetain(false, true, true))
         assertEquals(false, walletBackgroundSynchronizationMayRetain(false, true, false))
         assertEquals(false, walletBackgroundSynchronizationMayRetain(false, false, true))
+    }
+
+    @Test
+    fun app_switch_retention_is_useful_but_bounded() {
+        assertTrue(WALLET_APP_SWITCH_RETENTION_MILLIS >= 15_000L)
+        assertTrue(WALLET_APP_SWITCH_RETENTION_MILLIS <= 60_000L)
     }
 
     @Test

@@ -258,11 +258,10 @@ class WalletActivity : ComponentActivity() {
         setSettingsScreen(getString(R.string.screen_wallet)) {
             addView(dashboardContent)
         }
-        // Wallet synchronization is deliberately scoped to the app being
-        // visible, rather than an Android foreground service. Back returns
-        // to the browser by reordering Main above this Activity, leaving the
-        // active Wallet session in the same foreground app task. Settings can
-        // still reorder this exact WalletActivity when the user returns.
+        // Back returns to the browser by reordering Main above this Activity.
+        // A user-started read-only synchronization may continue under the
+        // visible foreground service, while an idle controller is retained
+        // only for the short app-switch grace period below.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 startActivity(
@@ -4094,9 +4093,17 @@ class WalletActivity : ComponentActivity() {
     }
 
     /**
-     * The Application lifecycle counter is updated immediately after this
-     * Activity's onStop. Wait only long enough to observe that update, then
-     * keep the retained controller solely when another app screen is visible.
+     * Keep an already-open controller across a brief app switch. The old
+     * 250-ms lifecycle-only delay retired it almost immediately, so returning
+     * from another app rebuilt the controller and peer state and presented a
+     * normal freshness check like a new wallet synchronization. The token is
+     * cancelled by onStart; if the user stays away, the unlocked controller
+     * and its storage lease are still retired after this bounded grace period.
+     *
+     * A user-started HNS synchronization is different: its foreground service
+     * retains the controller for the entire bounded scan/catch-up chain. If it
+     * finishes while backgrounded, finishWalletForegroundSyncIfIdle starts
+     * this same grace period instead of tearing the controller down at once.
      */
     private fun scheduleWalletRetirementIfApplicationBackgrounds() {
         walletBackgroundRetirement?.set(false)
@@ -4104,7 +4111,7 @@ class WalletActivity : ComponentActivity() {
         walletBackgroundRetirement = retirement
         thread(name = "hns-wallet-background-retirement") {
             try {
-                Thread.sleep(WALLET_BACKGROUND_RETIREMENT_GRACE_MILLIS)
+                Thread.sleep(WALLET_APP_SWITCH_RETENTION_MILLIS)
             } catch (_: InterruptedException) {
                 retirement.set(false)
             }
@@ -5010,12 +5017,17 @@ class WalletActivity : ComponentActivity() {
         const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L
         const val HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS = 3
         const val HNS_POST_BROADCAST_VERIFICATION_INTERVAL_MILLIS = 1_000L
-        const val WALLET_BACKGROUND_RETIREMENT_GRACE_MILLIS = 250L
         const val DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC = 32
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
         const val NUL_CHARACTER = "\u0000"
     }
 }
+
+/**
+ * Long enough for an ordinary app switch without retaining unlocked wallet
+ * authority indefinitely when Shakescape remains in the background.
+ */
+internal const val WALLET_APP_SWITCH_RETENTION_MILLIS = 30_000L
 
 internal fun estimateBitcoinSyncRemainingMillis(
     completedWork: Long,
