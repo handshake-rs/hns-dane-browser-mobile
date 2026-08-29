@@ -501,7 +501,9 @@
     <string name="wallet_bitcoin_birthday_setting" translatable="false">Validating Bitcoin birthday height %1$d against the direct peer header chain…</string>
     <string name="wallet_status_setting_bitcoin_birthday" translatable="false">Setting the direct Bitcoin wallet birthday…</string>
     <string name="wallet_bitcoin_birthday_set" translatable="false">Bitcoin birthday set to block %1$d. The next synchronization starts from its validated predecessor.</string>
-    <string name="wallet_bitcoin_birthday_failed" translatable="false">Bitcoin birthday was not changed. Use a height above the current durable scan and no higher than the validated Bitcoin tip.</string>
+    <string name="wallet_bitcoin_birthday_invalid_height" translatable="false">Enter a whole block height from 1 through 2147483647.</string>
+    <string name="wallet_bitcoin_birthday_unavailable" translatable="false">Unlock the direct Bitcoin wallet and wait for its current operation to finish before setting the birthday height.</string>
+    <string name="wallet_bitcoin_birthday_failed" translatable="false">Bitcoin birthday was not changed. Use a height above the current durable scan and no higher than the validated Bitcoin tip. If direct peer headers are not ready yet, synchronize and retry.</string>
     <string name="wallet_bitcoin_send_destination_hint" translatable="false">Exact Bitcoin recipient address</string>
     <string name="wallet_bitcoin_send_amount_hint" translatable="false">Amount in satoshis</string>
     <string name="wallet_bitcoin_send_fee_hint" translatable="false">Maximum fee in satoshis</string>

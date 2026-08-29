@@ -1034,7 +1034,7 @@ class WalletActivity : ComponentActivity() {
         } else {
             actions.add(getString(R.string.action_sync_wallet_reads) to ::synchronizeBitcoin)
         }
-        if (!walletBitcoinSyncInProgress && !bitcoinBirthdayResetInProgress) {
+        if (bitcoinBirthdayMayStart()) {
             actions.add(
                 getString(R.string.action_wallet_bitcoin_birthday) to ::showBitcoinBirthdayForm,
             )
@@ -2228,45 +2228,78 @@ class WalletActivity : ComponentActivity() {
             bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_operation_busy)
             return
         }
+        if (busy) {
+            showWalletBusyFeedback()
+            return
+        }
+        if (!bitcoinBirthdayMayStart()) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_unavailable)
+            return
+        }
         val input = EditText(this).apply {
             hint = getString(R.string.wallet_bitcoin_birthday_hint)
             inputType = InputType.TYPE_CLASS_NUMBER
             filters = arrayOf(InputFilter.LengthFilter(10))
             setSingleLine(true)
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.wallet_bitcoin_birthday_title)
             .setMessage(R.string.wallet_bitcoin_birthday_message)
             .setView(input)
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_apply) { _, _ ->
+            .setNegativeButton(R.string.action_cancel) { _, _ -> wipeEditable(input.text) }
+            .setPositiveButton(R.string.action_apply, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val height = input.text?.toString()?.toLongOrNull()
                     ?.takeIf { it in 1..Int.MAX_VALUE.toLong() }
-                wipeEditable(input.text)
                 if (height == null) {
-                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_failed)
-                } else {
-                    setBitcoinBirthdayHeight(height)
+                    input.error = getString(R.string.wallet_bitcoin_birthday_invalid_height)
+                    return@setOnClickListener
                 }
+                wipeEditable(input.text)
+                dialog.dismiss()
+                setBitcoinBirthdayHeight(height)
             }
-            .show()
+        }
+        dialog.setOnDismissListener { wipeEditable(input.text) }
+        dialog.show()
+    }
+
+    private fun bitcoinBirthdayMayStart(): Boolean {
+        if (
+            busy || walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress ||
+            currentStorageLease() == null || walletHandle == INVALID_HANDLE
+        ) return false
+        return NativeWalletBridge.status(walletHandle)?.locked == false &&
+            NativeWalletBridge.hasBitcoinValue(walletHandle)
     }
 
     private fun setBitcoinBirthdayHeight(height: Long) {
-        val lease = currentStorageLease() ?: return
+        val lease = currentStorageLease() ?: run {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_unavailable)
+            return
+        }
         val handle = walletHandle
         if (
             handle == INVALID_HANDLE || walletBitcoinSyncInProgress ||
             bitcoinBirthdayResetInProgress || !NativeWalletBridge.hasBitcoinValue(handle)
-        ) return
+        ) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_unavailable)
+            return
+        }
         if (!beginOperation(
                 lease,
                 getString(R.string.wallet_status_setting_bitcoin_birthday),
                 resetReads = false,
             )
-        ) return
+        ) {
+            bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_unavailable)
+            return
+        }
         bitcoinBirthdayResetInProgress = true
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_setting, height)
+        Log.i(TAG, "Starting bounded direct Bitcoin birthday validation")
         val epoch = lifecycleEpoch
         thread(name = "bitcoin-wallet-birthday") {
             val snapshot = NativeWalletBridge.setBitcoinBirthdayHeight(handle, height)
@@ -2278,8 +2311,10 @@ class WalletActivity : ComponentActivity() {
                 }
                 busy = false
                 if (snapshot == null) {
+                    Log.w(TAG, "Direct Bitcoin birthday validation did not complete")
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_birthday_failed)
                 } else {
+                    Log.i(TAG, "Direct Bitcoin birthday validation completed")
                     renderBitcoinSnapshot(snapshot)
                     bitcoinStatusView.text = getString(
                         R.string.wallet_bitcoin_birthday_set,
