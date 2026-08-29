@@ -171,6 +171,68 @@ struct NativeBitcoinSendApproval {
     let expiresAtUnix: UInt64
 }
 
+struct NativeBtcForHnsOfferApproval {
+    let actionToken: NativeHnsSendActionToken
+    let btcAmountSats: UInt64
+    let hnsAmountDollarydoos: UInt64
+    let bitcoinFeeReserveSats: UInt64
+    let totalBitcoinCommitmentSats: UInt64
+    let offerExpiresAtUnix: UInt64
+    let approvalExpiresAtUnix: UInt64
+    let connectedPeerRequiredForAnnouncement: Bool
+}
+
+struct NativeBtcForHnsOfferSummary: Decodable, Equatable, Sendable {
+    let offerId: String
+    let sessionId: String
+    let btcAmountSats: UInt64
+    let hnsAmountDollarydoos: UInt64
+    let bitcoinFeeReserveSats: UInt64
+    let createdAtUnix: UInt64
+    let expiresAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case offerId, sessionId, btcAmountSats, hnsAmountDollarydoos
+        case bitcoinFeeReserveSats, createdAtUnix, expiresAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        offerId = try container.decode(String.self, forKey: .offerId)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        btcAmountSats = try container.decode(UInt64.self, forKey: .btcAmountSats)
+        hnsAmountDollarydoos = try container.decode(UInt64.self, forKey: .hnsAmountDollarydoos)
+        bitcoinFeeReserveSats = try container.decode(UInt64.self, forKey: .bitcoinFeeReserveSats)
+        createdAtUnix = try container.decode(UInt64.self, forKey: .createdAtUnix)
+        expiresAtUnix = try container.decode(UInt64.self, forKey: .expiresAtUnix)
+        let validHash: (String) -> Bool = { value in
+            value.utf8.count == 64 && value.utf8.allSatisfy {
+                (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                    (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+            }
+        }
+        guard validHash(offerId), validHash(sessionId), btcAmountSats > 0,
+              hnsAmountDollarydoos > 0, bitcoinFeeReserveSats > 0,
+              createdAtUnix > 0, expiresAtUnix > createdAtUnix else {
+            throw NativeWalletBridgeError.invalidOutput("invalid BTC-for-HNS offer summary")
+        }
+    }
+}
+
+private struct NativeBtcForHnsOfferList: Decodable {
+    let offers: [NativeBtcForHnsOfferSummary]
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case offers }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        offers = try container.decode([NativeBtcForHnsOfferSummary].self, forKey: .offers)
+        guard offers.count <= 1_024 else {
+            throw NativeWalletBridgeError.invalidOutput("too many local BTC-for-HNS offers")
+        }
+    }
+}
+
 struct NativeBitcoinSendReceipt: Decodable, Equatable, Sendable {
     let txid: String
     let wtxid: String
@@ -1204,6 +1266,67 @@ private struct NativeBitcoinSendApprovalPayload: Decodable {
     }
 }
 
+private struct NativeBtcForHnsOfferApprovalPayload: Decodable {
+    let actionToken: String
+    let btcAmountSats: UInt64
+    let hnsAmountDollarydoos: UInt64
+    let bitcoinFeeReserveSats: UInt64
+    let totalBitcoinCommitmentSats: UInt64
+    let offerExpiresAtUnix: UInt64
+    let approvalExpiresAtUnix: UInt64
+    let connectedPeerRequiredForAnnouncement: Bool
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case actionToken, btcAmountSats, hnsAmountDollarydoos, bitcoinFeeReserveSats
+        case totalBitcoinCommitmentSats, offerExpiresAtUnix, approvalExpiresAtUnix
+        case connectedPeerRequiredForAnnouncement
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        actionToken = try container.decode(String.self, forKey: .actionToken)
+        btcAmountSats = try container.decode(UInt64.self, forKey: .btcAmountSats)
+        hnsAmountDollarydoos = try container.decode(UInt64.self, forKey: .hnsAmountDollarydoos)
+        bitcoinFeeReserveSats = try container.decode(UInt64.self, forKey: .bitcoinFeeReserveSats)
+        totalBitcoinCommitmentSats = try container.decode(UInt64.self, forKey: .totalBitcoinCommitmentSats)
+        offerExpiresAtUnix = try container.decode(UInt64.self, forKey: .offerExpiresAtUnix)
+        approvalExpiresAtUnix = try container.decode(UInt64.self, forKey: .approvalExpiresAtUnix)
+        connectedPeerRequiredForAnnouncement = try container.decode(
+            Bool.self, forKey: .connectedPeerRequiredForAnnouncement
+        )
+        guard btcAmountSats > 0, hnsAmountDollarydoos > 0, bitcoinFeeReserveSats > 0,
+              btcAmountSats <= UInt64.max - bitcoinFeeReserveSats,
+              btcAmountSats + bitcoinFeeReserveSats == totalBitcoinCommitmentSats,
+              offerExpiresAtUnix > 0, approvalExpiresAtUnix > 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid BTC-for-HNS offer approval")
+        }
+    }
+}
+
+private extension NativeBtcForHnsOfferApproval {
+    static func decode(bundle: [UInt8]) throws -> Self {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let decoded = try JSONDecoder().decode(NativeBtcForHnsOfferApprovalPayload.self, from: payload)
+        var token = Array(decoded.actionToken.utf8)
+        guard let actionToken = NativeHnsSendActionToken(takingASCII: &token) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid BTC-for-HNS action token")
+        }
+        return Self(
+            actionToken: actionToken,
+            btcAmountSats: decoded.btcAmountSats,
+            hnsAmountDollarydoos: decoded.hnsAmountDollarydoos,
+            bitcoinFeeReserveSats: decoded.bitcoinFeeReserveSats,
+            totalBitcoinCommitmentSats: decoded.totalBitcoinCommitmentSats,
+            offerExpiresAtUnix: decoded.offerExpiresAtUnix,
+            approvalExpiresAtUnix: decoded.approvalExpiresAtUnix,
+            connectedPeerRequiredForAnnouncement: decoded.connectedPeerRequiredForAnnouncement
+        )
+    }
+}
+
 private extension NativeBitcoinSendApproval {
     static func decode(bundle: [UInt8]) throws -> NativeBitcoinSendApproval {
         var payload = try NativeHnsValueBundle.payload(
@@ -1979,6 +2102,79 @@ final class RustNativeWallet: @unchecked Sendable {
             }
             try NativeWalletBridge.check(result, operation: "wallet Bitcoin send rejection")
         }
+    }
+
+    func prepareBtcForHnsOffer(
+        btcAmountSats: UInt64,
+        hnsAmountDollarydoos: UInt64,
+        bitcoinFeeReserveSats: UInt64,
+        listingLifetimeSeconds: UInt64
+    ) throws -> NativeBtcForHnsOfferApproval {
+        var output = HnsBrowserBuffer()
+        let result = hns_browser_wallet_prepare_btc_for_hns_offer(
+            try liveHandle(),
+            btcAmountSats,
+            hnsAmountDollarydoos,
+            bitcoinFeeReserveSats,
+            listingLifetimeSeconds,
+            &output
+        )
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "BTC-for-HNS offer preparation")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        return try NativeBtcForHnsOfferApproval.decode(bundle: bundle)
+    }
+
+    func approveBtcForHnsOffer(
+        _ actionToken: NativeHnsSendActionToken
+    ) throws -> NativeBtcForHnsOfferSummary {
+        try actionToken.consume { token in
+            var output = HnsBrowserBuffer()
+            let result = try token.withUnsafeBufferPointer { bytes in
+                hns_browser_wallet_approve_btc_for_hns_offer(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count)),
+                    &output
+                )
+            }
+            defer { NativeWalletBridge.free(output) }
+            try NativeWalletBridge.check(result, operation: "BTC-for-HNS offer publication")
+            return try decodeBitcoinOutput(output, as: NativeBtcForHnsOfferSummary.self)
+        }
+    }
+
+    func rejectBtcForHnsOffer(_ actionToken: NativeHnsSendActionToken) throws {
+        try actionToken.consume { token in
+            let result = try token.withUnsafeBufferPointer { bytes in
+                hns_browser_wallet_reject_btc_for_hns_offer(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
+                )
+            }
+            try NativeWalletBridge.check(result, operation: "BTC-for-HNS offer rejection")
+        }
+    }
+
+    func localBtcForHnsOffers() throws -> [NativeBtcForHnsOfferSummary] {
+        let result: NativeBtcForHnsOfferList = try decodeBitcoinBundle(
+            operation: "local BTC-for-HNS offers"
+        ) { handle, output in
+            hns_browser_wallet_local_btc_for_hns_offers(handle, output)
+        }
+        return result.offers
+    }
+
+    func cancelBtcForHnsOffer(offerId: String) throws {
+        var offer = Array(offerId.utf8)
+        defer { WalletSecretBytes.wipe(&offer) }
+        let result = try offer.withUnsafeBufferPointer { bytes in
+            hns_browser_wallet_cancel_btc_for_hns_offer(
+                try liveHandle(),
+                HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
+            )
+        }
+        try NativeWalletBridge.check(result, operation: "BTC-for-HNS offer cancellation")
     }
 
     func directHnsRollbackFloor() throws -> [UInt8] {

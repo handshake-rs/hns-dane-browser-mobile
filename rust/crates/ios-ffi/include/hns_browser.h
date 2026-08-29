@@ -439,6 +439,32 @@ HnsBrowserResult hns_browser_wallet_disconnect_direct_denuo(
 HnsBrowserResult hns_browser_wallet_service_direct_denuo(
     HnsBrowserWalletHandle wallet,
     uint8_t *out_serviced);
+/*
+ * Native UIKit-only exact BTC-for-HNS maker workflow. Preparation signs
+ * nothing. Approval durably signs and announces fixed terms but broadcasts no
+ * Bitcoin funding transaction. HNBW-v1 JSON outputs contain only display and
+ * public offer/session identifiers.
+ */
+HnsBrowserResult hns_browser_wallet_prepare_btc_for_hns_offer(
+    HnsBrowserWalletHandle wallet,
+    uint64_t btc_amount_sats,
+    uint64_t hns_amount_dollarydoos,
+    uint64_t bitcoin_fee_reserve_sats,
+    uint64_t listing_lifetime_seconds,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_btc_for_hns_offer(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_summary_bundle);
+HnsBrowserResult hns_browser_wallet_reject_btc_for_hns_offer(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
+HnsBrowserResult hns_browser_wallet_local_btc_for_hns_offers(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_offers_bundle);
+HnsBrowserResult hns_browser_wallet_cancel_btc_for_hns_offer(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice offer_id);
 HnsBrowserResult hns_browser_wallet_unlock(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice database_key);

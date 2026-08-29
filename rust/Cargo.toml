@@ -86,3 +86,12 @@ panic = "abort"
 [profile.ios-release]
 inherits = "release"
 panic = "unwind"
+
+# The mobile workspace and wallet core are developed and audited together in
+# this source checkout. Release pins above remain immutable provenance; these
+# path patches make the adjacent reviewed checkout authoritative for local
+# native builds before that revision is published upstream.
+[patch."https://github.com/handshake-rs/hns-wallet-rs.git"]
+hns-wallet-ffi = { path = "../../hns-wallet-rs/crates/hns-wallet-ffi" }
+hns-wallet-mobile = { path = "../../hns-wallet-rs/crates/hns-wallet-mobile" }
+hns-wallet-types = { path = "../../hns-wallet-rs/crates/hns-wallet-types" }

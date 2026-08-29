@@ -643,6 +643,29 @@
     <string name="wallet_dashboard_send_form_notice" translatable="false">A fresh verified wallet snapshot is required before the transaction is prepared.</string>
     <string name="wallet_dashboard_name_actions" translatable="false">Name actions</string>
     <string name="wallet_dashboard_send_bitcoin" translatable="false">Send Bitcoin</string>
+    <string name="wallet_swap_sell_btc" translatable="false">Sell BTC for HNS</string>
+    <string name="wallet_swap_btc_amount_hint" translatable="false">BTC offered (sats)</string>
+    <string name="wallet_swap_hns_amount_hint" translatable="false">HNS requested</string>
+    <string name="wallet_swap_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats)</string>
+    <string name="wallet_swap_lifetime_hours_hint" translatable="false">Listing lifetime (hours, 1–168)</string>
+    <string name="wallet_swap_preparing" translatable="false">Preparing exact BTC-for-HNS listing…</string>
+    <string name="wallet_swap_prepare_failed" translatable="false">The listing was not prepared. Confirmed BTC must cover active listings, this principal, and its fee reserve.</string>
+    <string name="wallet_swap_approval_title" translatable="false">Publish BTC-for-HNS offer?</string>
+    <string name="wallet_swap_approval_message" translatable="false">Offer %1$d sats for exactly %2$s HNS. Keep %3$d sats outside the principal as the Bitcoin fee reserve. Total Bitcoin commitment: %4$d sats. Listing expires %5$s. Publishing signs and shares fixed terms; it does not broadcast a Bitcoin funding transaction. Settlement still requires a connected direct-Denuo peer and a separately approved atomic-swap session.</string>
+    <string name="wallet_swap_publish" translatable="false">Publish offer</string>
+    <string name="wallet_swap_publishing" translatable="false">Signing and publishing the exact offer…</string>
+    <string name="wallet_swap_publish_failed" translatable="false">The offer was not published. Wallet and peer state may have changed; review active listings before retrying.</string>
+    <string name="wallet_swap_published" translatable="false">BTC-for-HNS offer %1$s… is active. It will be announced when a direct-Denuo peer is connected.</string>
+    <string name="wallet_swap_active_offers" translatable="false">Active BTC-for-HNS offers</string>
+    <string name="wallet_swap_loading_offers" translatable="false">Loading authenticated local BTC-for-HNS offers…</string>
+    <string name="wallet_swap_list_failed" translatable="false">Active BTC-for-HNS offers could not be authenticated.</string>
+    <string name="wallet_swap_no_active_offers" translatable="false">There are no active local BTC-for-HNS offers.</string>
+    <string name="wallet_swap_cancel_title" translatable="false">Cancel this offer?</string>
+    <string name="wallet_swap_cancel_message" translatable="false">Withdraw the signed offer of %1$d sats for %2$s HNS? Offer ID: %3$s. Cancellation releases its local balance reservation and is announced to the connected direct-Denuo peer. It does not cancel a swap session that has already accepted and frozen these terms.</string>
+    <string name="wallet_swap_cancel_offer" translatable="false">Cancel offer</string>
+    <string name="wallet_swap_cancelling" translatable="false">Signing direct-offer cancellation…</string>
+    <string name="wallet_swap_cancelled" translatable="false">The BTC-for-HNS offer was cancelled and its local reservation was released.</string>
+    <string name="wallet_swap_cancel_failed" translatable="false">The offer was not cancelled. It may have expired or entered a swap session.</string>
 
     <plurals name="wallet_dashboard_tracked_names" translatable="false">
         <item quantity="one">%d tracked name</item>

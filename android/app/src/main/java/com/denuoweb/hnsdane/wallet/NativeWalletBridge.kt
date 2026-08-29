@@ -258,6 +258,72 @@ internal object NativeWalletBridge {
             null
         }
 
+    fun prepareBtcForHnsOffer(
+        handle: Long,
+        btcAmountSats: Long,
+        hnsAmountDollarydoos: Long,
+        bitcoinFeeReserveSats: Long,
+        listingLifetimeSeconds: Long,
+    ): NativeBtcForHnsOfferApproval? {
+        if (
+            !isValidHandle(handle) || !isAvailable || btcAmountSats <= 0L ||
+            hnsAmountDollarydoos <= 0L || bitcoinFeeReserveSats <= 0L ||
+            listingLifetimeSeconds <= 0L
+        ) return null
+        val bundle = runCatching {
+            nativePrepareBtcForHnsOffer(
+                handle,
+                btcAmountSats,
+                hnsAmountDollarydoos,
+                bitcoinFeeReserveSats,
+                listingLifetimeSeconds,
+            )
+        }.getOrNull() ?: return null
+        return try {
+            NativeBitcoinWalletBundle.btcForHnsApproval(bundle)
+        } finally {
+            bundle.fill(0)
+        }
+    }
+
+    fun approveBtcForHnsOffer(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): NativeBtcForHnsOfferSummary? = actionToken.consume { tokenAscii ->
+        if (!isValidHandle(handle) || !isAvailable) return@consume null
+        val bundle = runCatching { nativeApproveBtcForHnsOffer(handle, tokenAscii) }.getOrNull()
+            ?: return@consume null
+        try {
+            NativeBitcoinWalletBundle.btcForHnsSummary(bundle)
+        } finally {
+            bundle.fill(0)
+        }
+    }
+
+    fun rejectBtcForHnsOffer(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
+        actionToken.consume { tokenAscii ->
+            isValidHandle(handle) && isAvailable &&
+                runCatching { nativeRejectBtcForHnsOffer(handle, tokenAscii) }.getOrDefault(false)
+        } ?: false
+
+    fun localBtcForHnsOffers(handle: Long): List<NativeBtcForHnsOfferSummary>? =
+        if (isValidHandle(handle) && isAvailable) {
+            val bundle = runCatching { nativeLocalBtcForHnsOffers(handle) }.getOrNull()
+                ?: return null
+            try {
+                NativeBitcoinWalletBundle.btcForHnsOffers(bundle)
+            } finally {
+                bundle.fill(0)
+            }
+        } else {
+            null
+        }
+
+    fun cancelBtcForHnsOffer(handle: Long, offerId: String): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            offerId.length == 64 && offerId.all { it in '0'..'9' || it in 'a'..'f' } &&
+            runCatching { nativeCancelBtcForHnsOffer(handle, offerId) }.getOrDefault(false)
+
     /** Consumes one exact UTF-8 name for the trusted native read controller only. */
     fun importHnsNameExactText(handle: Long, exactUtf8: ByteArray): NativeWalletName? = try {
         if (
@@ -863,6 +929,33 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeConnectWalletOwnedDirectDenuo(handle: Long, endpoint: String): ByteArray?
+
+    @JvmStatic
+    private external fun nativePrepareBtcForHnsOffer(
+        handle: Long,
+        btcAmountSats: Long,
+        hnsAmountDollarydoos: Long,
+        bitcoinFeeReserveSats: Long,
+        listingLifetimeSeconds: Long,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveBtcForHnsOffer(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRejectBtcForHnsOffer(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativeLocalBtcForHnsOffers(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeCancelBtcForHnsOffer(handle: Long, offerId: String): Boolean
 
     @JvmStatic
     private external fun nativeHasHnsReads(handle: Long): Boolean

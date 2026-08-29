@@ -66,6 +66,29 @@ internal data class NativeBitcoinSendReceipt(
     val submittedAtUnix: Long?,
 )
 
+internal data class NativeBtcForHnsOfferApproval(
+    val actionToken: NativeHnsValueActionToken,
+    val btcAmountSats: Long,
+    val hnsAmountDollarydoos: Long,
+    val bitcoinFeeReserveSats: Long,
+    val totalBitcoinCommitmentSats: Long,
+    val offerExpiresAtUnix: Long,
+    val approvalExpiresAtUnix: Long,
+    val connectedPeerRequiredForAnnouncement: Boolean,
+) : AutoCloseable {
+    override fun close() = actionToken.close()
+}
+
+internal data class NativeBtcForHnsOfferSummary(
+    val offerId: String,
+    val sessionId: String,
+    val btcAmountSats: Long,
+    val hnsAmountDollarydoos: Long,
+    val bitcoinFeeReserveSats: Long,
+    val createdAtUnix: Long,
+    val expiresAtUnix: Long,
+)
+
 internal object NativeBitcoinWalletBundle {
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 16 * 1024
@@ -176,6 +199,68 @@ internal object NativeBitcoinWalletBundle {
         val submitted = if (json.isNull("submittedAtUnix")) null else positiveLong(json, "submittedAtUnix")
             ?: return@parse null
         NativeBitcoinSendReceipt(txid, wtxid, attempts, submitted)
+    }
+
+    fun btcForHnsApproval(bundle: ByteArray): NativeBtcForHnsOfferApproval? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf(
+            "actionToken", "btcAmountSats", "hnsAmountDollarydoos", "bitcoinFeeReserveSats",
+            "totalBitcoinCommitmentSats", "offerExpiresAtUnix", "approvalExpiresAtUnix",
+            "connectedPeerRequiredForAnnouncement",
+        ))) return@parse null
+        val tokenBytes = json.optString("actionToken", "").toByteArray(Charsets.US_ASCII)
+        val token = NativeHnsValueActionToken.takeOwnership(tokenBytes) ?: return@parse null
+        val btc = positiveLong(json, "btcAmountSats")
+        val hns = positiveLong(json, "hnsAmountDollarydoos")
+        val reserve = positiveLong(json, "bitcoinFeeReserveSats")
+        val total = positiveLong(json, "totalBitcoinCommitmentSats")
+        val offerExpiry = positiveLong(json, "offerExpiresAtUnix")
+        val approvalExpiry = positiveLong(json, "approvalExpiresAtUnix")
+        val peerRequired = json.opt("connectedPeerRequiredForAnnouncement") as? Boolean
+        if (
+            btc == null || hns == null || reserve == null || total == null ||
+            offerExpiry == null || approvalExpiry == null || peerRequired == null ||
+            btc > Long.MAX_VALUE - reserve || btc + reserve != total
+        ) {
+            token.close()
+            return@parse null
+        }
+        NativeBtcForHnsOfferApproval(
+            token, btc, hns, reserve, total, offerExpiry, approvalExpiry, peerRequired,
+        )
+    }
+
+    fun btcForHnsSummary(bundle: ByteArray): NativeBtcForHnsOfferSummary? = parse(bundle) {
+        parseBtcForHnsSummary(it)
+    }
+
+    fun btcForHnsOffers(bundle: ByteArray): List<NativeBtcForHnsOfferSummary>? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf("offers"))) return@parse null
+        val array = json.optJSONArray("offers") ?: return@parse null
+        if (array.length() > 1_024) return@parse null
+        buildList(array.length()) {
+            for (index in 0 until array.length()) {
+                add(parseBtcForHnsSummary(array.optJSONObject(index) ?: return@parse null)
+                    ?: return@parse null)
+            }
+        }
+    }
+
+    private fun parseBtcForHnsSummary(json: JSONObject): NativeBtcForHnsOfferSummary? {
+        if (!hasExactKeys(json, setOf(
+            "offerId", "sessionId", "btcAmountSats", "hnsAmountDollarydoos",
+            "bitcoinFeeReserveSats", "createdAtUnix", "expiresAtUnix",
+        ))) return null
+        val created = positiveLong(json, "createdAtUnix") ?: return null
+        val expires = positiveLong(json, "expiresAtUnix")?.takeIf { it > created } ?: return null
+        return NativeBtcForHnsOfferSummary(
+            hexHash(json.optString("offerId", "")) ?: return null,
+            hexHash(json.optString("sessionId", "")) ?: return null,
+            positiveLong(json, "btcAmountSats") ?: return null,
+            positiveLong(json, "hnsAmountDollarydoos") ?: return null,
+            positiveLong(json, "bitcoinFeeReserveSats") ?: return null,
+            created,
+            expires,
+        )
     }
 
     private inline fun <T> parse(bundle: ByteArray, project: (JSONObject) -> T?): T? {

@@ -58,6 +58,8 @@ final class WalletViewController: UIViewController {
     private var bitcoinValueAvailable = false
     private weak var bitcoinSendApprovalAlert: UIAlertController?
     private var pendingBitcoinSendApproval: NativeBitcoinSendApproval?
+    private weak var btcForHnsOfferApprovalAlert: UIAlertController?
+    private var pendingBtcForHnsOfferApproval: NativeBtcForHnsOfferApproval?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -86,6 +88,8 @@ final class WalletViewController: UIViewController {
     private let bitcoinSyncButton = UIButton(type: .system)
     private let bitcoinSendButton = UIButton(type: .system)
     private let bitcoinBirthdayButton = UIButton(type: .system)
+    private let bitcoinSellForHnsButton = UIButton(type: .system)
+    private let bitcoinOffersButton = UIButton(type: .system)
     private let dashboardStack = UIStackView()
 
     init(network: BrowserHandshakeNetwork) {
@@ -170,6 +174,8 @@ final class WalletViewController: UIViewController {
         pendingHnsValueApproval = nil
         pendingBitcoinSendApproval?.actionToken.discard()
         pendingBitcoinSendApproval = nil
+        pendingBtcForHnsOfferApproval?.actionToken.discard()
+        pendingBtcForHnsOfferApproval = nil
         bitcoinSyncTimer?.invalidate()
         recoverySecret?.clear()
         let currentWallet = wallet
@@ -262,6 +268,16 @@ final class WalletViewController: UIViewController {
             bitcoinBirthdayButton,
             title: "Set Bitcoin recovery birthday",
             action: #selector(showBitcoinBirthdayForm)
+        )
+        configureButton(
+            bitcoinSellForHnsButton,
+            title: "Sell BTC for HNS",
+            action: #selector(showBtcForHnsOfferForm)
+        )
+        configureButton(
+            bitcoinOffersButton,
+            title: "Active BTC-for-HNS offers",
+            action: #selector(showActiveBtcForHnsOffers)
         )
         bitcoinBirthdayButton.isHidden = true
         configureButton(
@@ -452,6 +468,8 @@ final class WalletViewController: UIViewController {
                 bitcoinBalanceLabel,
                 bitcoinReceiveLabel,
                 dashboardButtonRow([bitcoinReceiveButton, bitcoinSendButton, bitcoinSyncButton]),
+                bitcoinSellForHnsButton,
+                bitcoinOffersButton,
                 bitcoinBirthdayButton,
             ],
             accent: .systemOrange
@@ -883,6 +901,205 @@ final class WalletViewController: UIViewController {
                         self.bitcoinStatusLabel.text = "Bitcoin transaction broadcast: \(receipt.txid)"
                         if let snapshot = try? wallet.bitcoinSnapshot() { self.renderBitcoinSnapshot(snapshot) }
                     case .failure(let error): self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    @objc private func showBtcForHnsOfferForm() {
+        guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
+              !bitcoinBirthdayResetInProgress, !isOperating else { return }
+        let alert = UIAlertController(
+            title: "Sell BTC for HNS",
+            message: "Create one exact, indivisible direct-board offer. Confirmed Bitcoin must cover the principal, active offers, and the separate fee reserve.",
+            preferredStyle: .alert
+        )
+        for (placeholder, keyboard, value) in [
+            ("BTC offered (sats)", UIKeyboardType.numberPad, nil),
+            ("HNS requested", UIKeyboardType.decimalPad, nil),
+            ("Bitcoin fee reserve (sats)", UIKeyboardType.numberPad, nil),
+            ("Listing lifetime (hours, 1–168)", UIKeyboardType.numberPad, "24"),
+        ] {
+            alert.addTextField { field in
+                field.placeholder = placeholder
+                field.keyboardType = keyboard
+                field.text = value
+            }
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Review offer", style: .default) {
+            [weak self, weak alert, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let fields = alert?.textFields, fields.count == 4,
+                  let btc = UInt64(fields[0].text ?? ""), btc > 0,
+                  let hnsText = Self.positiveHnsBaseUnits(fields[1].text ?? ""),
+                  let hns = UInt64(hnsText), hns > 0,
+                  let reserve = UInt64(fields[2].text ?? ""), reserve > 0,
+                  let hours = UInt64(fields[3].text ?? ""), (1...168).contains(hours),
+                  hours <= UInt64.max / 3_600 else {
+                self?.showErrorMessage("Enter positive BTC sats, HNS with at most six decimals, a positive fee reserve, and 1–168 hours.")
+                return
+            }
+            fields.forEach { $0.text = nil }
+            self.isOperating = true
+            self.bitcoinStatusLabel.text = "Preparing exact BTC-for-HNS listing…"
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result {
+                    try wallet.prepareBtcForHnsOffer(
+                        btcAmountSats: btc,
+                        hnsAmountDollarydoos: hns,
+                        bitcoinFeeReserveSats: reserve,
+                        listingLifetimeSeconds: hours * 3_600
+                    )
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let approval):
+                        self.presentBtcForHnsOfferApproval(approval, wallet: wallet)
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The listing was not prepared. Confirmed BTC must cover active listings, this principal, and its fee reserve."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func presentBtcForHnsOfferApproval(
+        _ approval: NativeBtcForHnsOfferApproval,
+        wallet: RustNativeWallet
+    ) {
+        pendingBtcForHnsOfferApproval?.actionToken.discard()
+        pendingBtcForHnsOfferApproval = approval
+        let hns = WalletReadPresenter.formatHnsBaseUnits(String(approval.hnsAmountDollarydoos))
+        let expiry = DateFormatter.localizedString(
+            from: Date(timeIntervalSince1970: TimeInterval(approval.offerExpiresAtUnix)),
+            dateStyle: .medium,
+            timeStyle: .medium
+        )
+        let message = """
+        Offer: \(approval.btcAmountSats) sats
+        Receive exactly: \(hns) HNS
+        Bitcoin fee reserve: \(approval.bitcoinFeeReserveSats) sats
+        Total Bitcoin commitment: \(approval.totalBitcoinCommitmentSats) sats
+        Listing expires: \(expiry)
+
+        Publishing signs and shares fixed terms. It does not broadcast a Bitcoin funding transaction. Settlement requires a connected direct-Denuo peer and a separately approved atomic-swap session.
+        """
+        let alert = UIAlertController(
+            title: "Publish BTC-for-HNS offer?", message: message, preferredStyle: .alert
+        )
+        btcForHnsOfferApprovalAlert = alert
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingBtcForHnsOfferApproval else { return }
+            self.pendingBtcForHnsOfferApproval = nil
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? wallet.rejectBtcForHnsOffer(pending.actionToken)
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Publish offer", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingBtcForHnsOfferApproval else { return }
+            self.pendingBtcForHnsOfferApproval = nil
+            self.isOperating = true
+            self.bitcoinStatusLabel.text = "Signing and publishing the exact offer…"
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.approveBtcForHnsOffer(pending.actionToken) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let summary):
+                        self.bitcoinStatusLabel.text = "BTC-for-HNS offer \(summary.offerId.prefix(12))… is active and will be announced to a connected direct-Denuo peer."
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The BTC-for-HNS offer was not published."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    @objc private func showActiveBtcForHnsOffers() {
+        guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
+        bitcoinStatusLabel.text = "Loading authenticated local BTC-for-HNS offers…"
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result { try wallet.localBtcForHnsOffers() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                switch outcome {
+                case .success(let offers) where offers.isEmpty:
+                    self.bitcoinStatusLabel.text = "There are no active local BTC-for-HNS offers."
+                case .success(let offers):
+                    let alert = UIAlertController(
+                        title: "Active BTC-for-HNS offers",
+                        message: "Choose an offer to review cancellation.",
+                        preferredStyle: .alert
+                    )
+                    for offer in offers {
+                        let hns = WalletReadPresenter.formatHnsBaseUnits(
+                            String(offer.hnsAmountDollarydoos)
+                        )
+                        alert.addAction(UIAlertAction(
+                            title: "\(offer.btcAmountSats) sats → \(hns) HNS · \(offer.offerId.prefix(12))…",
+                            style: .default
+                        ) { [weak self, weak wallet] _ in
+                            guard let self, let wallet, self.wallet === wallet else { return }
+                            self.confirmCancelBtcForHnsOffer(offer, wallet: wallet)
+                        })
+                    }
+                    alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+                    self.present(alert, animated: true)
+                case .failure(let error):
+                    self.bitcoinStatusLabel.text = "Active BTC-for-HNS offers could not be authenticated."
+                    self.showError(error)
+                }
+            }
+        }
+    }
+
+    private func confirmCancelBtcForHnsOffer(
+        _ offer: NativeBtcForHnsOfferSummary,
+        wallet: RustNativeWallet
+    ) {
+        let hns = WalletReadPresenter.formatHnsBaseUnits(String(offer.hnsAmountDollarydoos))
+        let alert = UIAlertController(
+            title: "Cancel this offer?",
+            message: "Withdraw the signed offer of \(offer.btcAmountSats) sats for \(hns) HNS?\n\nOffer ID: \(offer.offerId)\n\nCancellation releases its local balance reservation and is announced to the connected direct-Denuo peer. It does not cancel a swap session that has already accepted and frozen these terms.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Keep offer", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel offer", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            self.isOperating = true
+            self.bitcoinStatusLabel.text = "Signing direct-offer cancellation…"
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.cancelBtcForHnsOffer(offerId: offer.offerId) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success:
+                        self.bitcoinStatusLabel.text = "The BTC-for-HNS offer was cancelled and its local reservation was released."
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The offer was not cancelled. It may have expired or entered a swap session."
+                        self.showError(error)
                     }
                     self.refreshButtonStates()
                 }
@@ -3278,6 +3495,11 @@ final class WalletViewController: UIViewController {
             bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         bitcoinSendButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
             bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
+        bitcoinSellForHnsButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
+            bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress &&
+            !isOperating
+        bitcoinOffersButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
+            bitcoinValueAvailable && !bitcoinSyncInProgress && !isOperating
         bitcoinSyncButton.isEnabled = bitcoinSyncInProgress
             ? !bitcoinSyncStopRequested
             : ownsStorage && hasWallet && walletIsUnlocked && bitcoinValueAvailable &&

@@ -729,6 +729,104 @@ impl AndroidWalletController {
         wallet_direct_denuo_status_bundle(unlocked, listener_port, peer_endpoint)
     }
 
+    fn prepare_btc_for_hns_offer(
+        &mut self,
+        confirmed_sats: u64,
+        btc_amount_sats: u64,
+        hns_amount_dollarydoos: u64,
+        bitcoin_fee_reserve_sats: u64,
+        listing_lifetime_seconds: u64,
+    ) -> Option<Vec<u8>> {
+        let Self::DirectValue { denuo_sessions, .. } = self else {
+            return None;
+        };
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
+        let approval = denuo_sessions
+            .prepare_btc_for_hns_offer(
+                confirmed_sats,
+                btc_amount_sats,
+                hns_amount_dollarydoos,
+                bitcoin_fee_reserve_sats,
+                listing_lifetime_seconds,
+                now_unix,
+            )
+            .ok()?;
+        let mut json = serde_json::to_vec(&approval).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    fn approve_btc_for_hns_offer(&mut self, action_token: &str) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            denuo_sessions,
+            denuo_peer,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
+        let summary = denuo_sessions
+            .approve_btc_for_hns_offer(action_token, now_unix)
+            .ok()?;
+        if let Some(peer) = denuo_peer.as_mut() {
+            denuo_sessions
+                .announce_direct_offer_inventory(peer, now_unix)
+                .ok()?;
+        }
+        let mut json = serde_json::to_vec(&summary).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    fn reject_btc_for_hns_offer(&mut self, action_token: &str) -> bool {
+        let Self::DirectValue { denuo_sessions, .. } = self else {
+            return false;
+        };
+        denuo_sessions
+            .reject_btc_for_hns_offer(action_token)
+            .is_ok()
+    }
+
+    fn local_btc_for_hns_offers(&self) -> Option<Vec<u8>> {
+        let Self::DirectValue { denuo_sessions, .. } = self else {
+            return None;
+        };
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
+        let offers = denuo_sessions.local_btc_for_hns_offers(now_unix).ok()?;
+        let mut json = serde_json::to_vec(&serde_json::json!({ "offers": offers })).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    fn cancel_btc_for_hns_offer(&mut self, offer_id: &str) -> bool {
+        let Self::DirectValue {
+            denuo_sessions,
+            denuo_peer,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
+            return false;
+        };
+        if denuo_sessions
+            .cancel_local_btc_for_hns_offer(offer_id, now_unix)
+            .is_err()
+        {
+            return false;
+        }
+        denuo_peer.as_mut().is_none_or(|peer| {
+            denuo_sessions
+                .announce_direct_offer_cancellation(peer, offer_id)
+                .is_ok()
+        })
+    }
+
     /// Retry the wallet-owned listener while retaining every other controller
     /// state. A successful existing listener is left untouched; a failed bind
     /// is never treated as a wallet, chain, or board-authority failure.
@@ -4896,6 +4994,147 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .ok()
     .flatten()
     .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareBtcForHnsOffer(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    btc_amount_sats: jlong,
+    hns_amount_dollarydoos: jlong,
+    bitcoin_fee_reserve_sats: jlong,
+    listing_lifetime_seconds: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let btc_amount_sats = u64::try_from(btc_amount_sats).ok()?;
+        let hns_amount_dollarydoos = u64::try_from(hns_amount_dollarydoos).ok()?;
+        let bitcoin_fee_reserve_sats = u64::try_from(bitcoin_fee_reserve_sats).ok()?;
+        let listing_lifetime_seconds = u64::try_from(listing_lifetime_seconds).ok()?;
+        let record = wallet_from_handle(handle)?;
+        let confirmed_sats = {
+            let bitcoin = record.bitcoin_if_active()?;
+            bitcoin.as_ref()?.snapshot().ok()?.confirmed_sats
+        };
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.prepare_btc_for_hns_offer(
+            confirmed_sats,
+            btc_amount_sats,
+            hns_amount_dollarydoos,
+            bitcoin_fee_reserve_sats,
+            listing_lifetime_seconds,
+        )?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveBtcForHnsOffer(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?;
+        let token = canonical_action_token(token)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.approve_btc_for_hns_offer(token.0.as_str())?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectBtcForHnsOffer(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        );
+        let Some(token) = token.and_then(canonical_action_token) else {
+            return false;
+        };
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.reject_btc_for_hns_offer(token.0.as_str())
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeLocalBtcForHnsOffers(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let controller = record.controller_if_active()?;
+        let mut bundle = controller.local_btc_for_hns_offers()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeCancelBtcForHnsOffer(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    offer_id: JString<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Ok(offer_id) = env.get_string(&offer_id) else {
+            return false;
+        };
+        let offer_id = offer_id.to_string_lossy();
+        if offer_id.len() != 64
+            || !offer_id
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return false;
+        }
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.cancel_btc_for_hns_offer(&offer_id)
+    }))
+    .unwrap_or(false)
+    .into()
 }
 
 #[unsafe(no_mangle)]
