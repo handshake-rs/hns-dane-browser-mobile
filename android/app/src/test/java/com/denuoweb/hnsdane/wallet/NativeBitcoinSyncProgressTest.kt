@@ -10,7 +10,7 @@ class NativeBitcoinSyncProgressTest {
     @Test
     fun parses_the_validated_birthday_height_in_a_snapshot() {
         val snapshot = NativeBitcoinWalletBundle.snapshot(bundle(
-            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3}""",
+            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3}""",
         ))
         requireNotNull(snapshot)
         assertEquals(855000L, snapshot.birthdayHeight)
@@ -20,7 +20,14 @@ class NativeBitcoinSyncProgressTest {
     @Test
     fun rejects_a_snapshot_that_omits_the_birthday_height() {
         assertNull(NativeBitcoinWalletBundle.snapshot(bundle(
-            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3}""",
+            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3}""",
+        )))
+    }
+
+    @Test
+    fun rejects_an_unknown_birthday_lifecycle_state() {
+        assertNull(NativeBitcoinWalletBundle.snapshot(bundle(
+            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":0,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":0,"birthdayHeight":0,"birthdayState":"peerGuessed","synchronizedHeight":0,"connectedPeerCount":0,"requiredPeerCount":3}""",
         )))
     }
 

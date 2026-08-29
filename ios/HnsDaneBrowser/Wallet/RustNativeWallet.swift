@@ -39,13 +39,15 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
     let immatureSats: UInt64
     let totalSats: UInt64
     let birthdayHeight: UInt32
+    let birthdayState: String
     let synchronizedHeight: UInt64
     let connectedPeerCount: UInt8
     let requiredPeerCount: UInt8
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case network, receiveAddress, confirmedSats, trustedPendingSats
-        case untrustedPendingSats, immatureSats, totalSats, birthdayHeight, synchronizedHeight
+        case untrustedPendingSats, immatureSats, totalSats, birthdayHeight, birthdayState
+        case synchronizedHeight
         case connectedPeerCount, requiredPeerCount
     }
 
@@ -59,6 +61,7 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
         immatureSats = try container.decode(UInt64.self, forKey: .immatureSats)
         totalSats = try container.decode(UInt64.self, forKey: .totalSats)
         birthdayHeight = try container.decode(UInt32.self, forKey: .birthdayHeight)
+        birthdayState = try container.decode(String.self, forKey: .birthdayState)
         synchronizedHeight = try container.decode(UInt64.self, forKey: .synchronizedHeight)
         connectedPeerCount = try container.decode(UInt8.self, forKey: .connectedPeerCount)
         requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
@@ -69,6 +72,8 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
               Self.validAddress(receiveAddress),
               !subtotal.overflow, !subtotal2.overflow, !expected.overflow,
               expected.partialValue == totalSats,
+              ["awaitingCreationTip", "recoveryUnknown", "recoveryPendingValidation", "validated"]
+                .contains(birthdayState),
               connectedPeerCount <= 8, requiredPeerCount <= 8 else {
             throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin snapshot")
         }

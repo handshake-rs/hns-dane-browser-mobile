@@ -260,9 +260,10 @@ final class WalletViewController: UIViewController {
         )
         configureButton(
             bitcoinBirthdayButton,
-            title: "Set Bitcoin birthday",
+            title: "Set Bitcoin recovery birthday",
             action: #selector(showBitcoinBirthdayForm)
         )
+        bitcoinBirthdayButton.isHidden = true
         configureButton(
             importNameButton,
             title: "Track exact HNS name",
@@ -659,10 +660,13 @@ final class WalletViewController: UIViewController {
 
     @objc private func showBitcoinBirthdayForm() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
-              !bitcoinBirthdayResetInProgress else { return }
+              !bitcoinBirthdayResetInProgress,
+              let bitcoinSnapshot,
+              ["recoveryUnknown", "recoveryPendingValidation"]
+                .contains(bitcoinSnapshot.birthdayState) else { return }
         let alert = UIAlertController(
-            title: "Set Bitcoin birthday height",
-            message: "Enter the earliest Bitcoin block that could contain activity for this wallet. The native wallet verifies the preceding block against its locally validated best-header chain so the entered block is included. This explicitly replaces an incomplete older scan.",
+            title: "Set Bitcoin recovery birthday",
+            message: "For a restored wallet, enter the earliest Bitcoin block that could contain activity. The request is stored now; the next Bitcoin synchronization validates its predecessor and begins recovery from the entered block. The HNS birthday is unrelated.",
             preferredStyle: .alert
         )
         alert.addTextField { field in
@@ -688,7 +692,7 @@ final class WalletViewController: UIViewController {
         wallet: RustNativeWallet
     ) {
         bitcoinBirthdayResetInProgress = true
-        bitcoinStatusLabel.text = "Validating Bitcoin birthday height \(height) against the direct peer header chain…"
+        bitcoinStatusLabel.text = "Saving Bitcoin recovery birthday height \(height) for validation during synchronization…"
         refreshButtonStates()
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
             let outcome = Result {
@@ -700,9 +704,9 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let snapshot):
                     self.renderBitcoinSnapshot(snapshot)
-                    self.bitcoinStatusLabel.text = "Bitcoin birthday set to block \(snapshot.birthdayHeight). The next synchronization starts from its validated predecessor."
+                    self.bitcoinStatusLabel.text = "Bitcoin recovery birthday block \(snapshot.birthdayHeight) is pending validation. Synchronize Bitcoin to authenticate it and begin recovery."
                 case .failure(let error):
-                    self.bitcoinStatusLabel.text = "Bitcoin birthday was not changed. Use a height above the current durable scan and no higher than the validated Bitcoin tip."
+                    self.bitcoinStatusLabel.text = "The Bitcoin recovery birthday was not saved. This is available only for an incomplete restored-wallet recovery."
                     self.showError(error)
                 }
                 self.refreshButtonStates()
@@ -890,9 +894,19 @@ final class WalletViewController: UIViewController {
     private func renderBitcoinSnapshot(_ snapshot: NativeBitcoinWalletSnapshot) {
         bitcoinSnapshot = snapshot
         bitcoinBalanceLabel.text = "Confirmed: \(snapshot.confirmedSats) sats · pending: \(snapshot.trustedPendingSats + snapshot.untrustedPendingSats) sats · total: \(snapshot.totalSats) sats"
-        let birthday = snapshot.birthdayHeight == 0
-            ? "full scan from genesis"
-            : "birthday block \(snapshot.birthdayHeight)"
+        let birthday: String
+        switch snapshot.birthdayState {
+        case "awaitingCreationTip":
+            birthday = "automatic creation tip pending"
+        case "recoveryUnknown":
+            birthday = "recovery height unknown; full historical scan if synchronized"
+        case "recoveryPendingValidation":
+            birthday = "recovery block \(snapshot.birthdayHeight), pending validation"
+        default:
+            birthday = "validated birthday block \(snapshot.birthdayHeight)"
+        }
+        bitcoinBirthdayButton.isHidden = !["recoveryUnknown", "recoveryPendingValidation"]
+            .contains(snapshot.birthdayState)
         bitcoinReceiveLabel.text = "BIP84 receive\n\(snapshot.receiveAddress)\n\(birthday)"
     }
 
@@ -2908,6 +2922,7 @@ final class WalletViewController: UIViewController {
         bitcoinBirthdayResetInProgress = false
         bitcoinValueAvailable = false
         bitcoinSnapshot = nil
+        bitcoinBirthdayButton.isHidden = true
         try? wallet?.lock()
         wallet?.close()
         wallet = controller
@@ -3267,8 +3282,12 @@ final class WalletViewController: UIViewController {
             ? !bitcoinSyncStopRequested
             : ownsStorage && hasWallet && walletIsUnlocked && bitcoinValueAvailable &&
                 !bitcoinBirthdayResetInProgress
+        let bitcoinRecoveryBirthdayAvailable = bitcoinSnapshot.map {
+            ["recoveryUnknown", "recoveryPendingValidation"].contains($0.birthdayState)
+        } ?? false
         bitcoinBirthdayButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
-            bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
+            bitcoinValueAvailable && bitcoinRecoveryBirthdayAvailable &&
+            !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress
         let importState = currentWalletNameImportState()
         importNameButton.isEnabled = importState.authority.map {
             walletNameImportMayStart(expected: $0, current: importState)

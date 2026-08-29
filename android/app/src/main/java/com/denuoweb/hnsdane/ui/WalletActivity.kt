@@ -187,6 +187,7 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshotEpoch = 0L
     private var walletHnsSyncInProgress = false
     private var walletBitcoinSyncInProgress = false
+    private var bitcoinSnapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot? = null
     private var bitcoinSyncStopRequested = false
     private var bitcoinBirthdayResetInProgress = false
     @Volatile
@@ -2174,9 +2175,17 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun resetBitcoinProjection() {
+        bitcoinSnapshot = null
         bitcoinBalanceView.text = getString(R.string.wallet_bitcoin_balance_unavailable)
         bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive_unavailable)
         val status = NativeWalletBridge.status(walletHandle)
+        if (status?.locked == false && NativeWalletBridge.hasBitcoinValue(walletHandle)) {
+            NativeWalletBridge.bitcoinSnapshot(walletHandle)?.let { snapshot ->
+                renderBitcoinSnapshot(snapshot)
+                bitcoinStatusView.text = getString(R.string.wallet_bitcoin_ready)
+                return
+            }
+        }
         bitcoinStatusView.text = when {
             status?.locked == true -> getString(R.string.wallet_bitcoin_locked)
             NativeWalletBridge.hasBitcoinValue(walletHandle) -> getString(R.string.wallet_bitcoin_ready)
@@ -2210,6 +2219,16 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun renderBitcoinSnapshot(snapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot) {
+        bitcoinSnapshot = snapshot
+        val birthday = when (snapshot.birthdayState) {
+            "awaitingCreationTip" -> getString(R.string.wallet_bitcoin_birthday_creation_pending)
+            "recoveryUnknown" -> getString(R.string.wallet_bitcoin_birthday_recovery_unknown)
+            "recoveryPendingValidation" -> getString(
+                R.string.wallet_bitcoin_birthday_recovery_pending,
+                snapshot.birthdayHeight,
+            )
+            else -> getString(R.string.wallet_bitcoin_birthday_validated, snapshot.birthdayHeight)
+        }
         bitcoinBalanceView.text = getString(
             R.string.wallet_bitcoin_balance,
             snapshot.confirmedSats,
@@ -2217,7 +2236,7 @@ class WalletActivity : ComponentActivity() {
             snapshot.untrustedPendingSats,
             snapshot.immatureSats,
             snapshot.totalSats,
-            snapshot.birthdayHeight,
+            birthday,
             snapshot.synchronizedHeight,
         )
         bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive, snapshot.receiveAddress)
@@ -2271,7 +2290,9 @@ class WalletActivity : ComponentActivity() {
             busy || walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress ||
             currentStorageLease() == null || walletHandle == INVALID_HANDLE
         ) return false
-        return NativeWalletBridge.status(walletHandle)?.locked == false &&
+        val birthdayState = bitcoinSnapshot?.birthdayState ?: return false
+        return birthdayState in setOf("recoveryUnknown", "recoveryPendingValidation") &&
+            NativeWalletBridge.status(walletHandle)?.locked == false &&
             NativeWalletBridge.hasBitcoinValue(walletHandle)
     }
 
