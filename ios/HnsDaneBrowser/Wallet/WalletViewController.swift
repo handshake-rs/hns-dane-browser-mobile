@@ -1100,15 +1100,18 @@ final class WalletViewController: UIViewController {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
-                case .success(let executions) where executions.isEmpty:
-                    self.bitcoinStatusLabel.text = "There are no accepted atomic swap executions."
-                case .success(let executions):
+                case .success(let status) where status.executions.isEmpty:
+                    self.bitcoinStatusLabel.text = "There are no accepted atomic swap executions.\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))"
+                case .success(let status):
+                    self.bitcoinStatusLabel.text = self.bitcoinBroadcastRecoveryText(
+                        status.bitcoinBroadcastRecovery
+                    )
                     let alert = UIAlertController(
                         title: "Atomic swap executions",
-                        message: "Statuses advance only from independently verified chain evidence.",
+                        message: "Statuses advance only from independently verified chain evidence.\n\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))",
                         preferredStyle: .alert
                     )
-                    for execution in executions {
+                    for execution in status.executions {
                         alert.addAction(UIAlertAction(
                             title: "\(execution.state.replacingOccurrences(of: "_", with: " ")) · \(execution.sessionId.prefix(12))…",
                             style: .default
@@ -1125,6 +1128,18 @@ final class WalletViewController: UIViewController {
                 }
             }
         }
+    }
+
+    private func bitcoinBroadcastRecoveryText(
+        _ recovery: NativeBitcoinBroadcastRecovery?
+    ) -> String {
+        guard let recovery else {
+            return "Bitcoin broadcast recovery status is temporarily unavailable while the Bitcoin controller is busy or inactive."
+        }
+        guard recovery.totalApproved > 0 else {
+            return "No approved Bitcoin transaction is awaiting durable broadcast recovery."
+        }
+        return "Durable Bitcoin broadcasts — waiting for submission: \(recovery.unobservedPrepared); submission outcome pending: \(recovery.unobservedSubmissionStarted); submitted and awaiting wallet observation: \(recovery.unobservedSubmitted); observed: \(recovery.observed); highest attempt count: \(recovery.highestAttemptCount); last durable change: Unix \(recovery.lastChangedAtUnix ?? 0). Exact signed bytes remain private and automatic recovery never creates a replacement transaction."
     }
 
     private func showDenuoExecution(

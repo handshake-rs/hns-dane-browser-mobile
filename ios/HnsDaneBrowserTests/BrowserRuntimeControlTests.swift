@@ -4041,6 +4041,28 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(hnsReceipt.acceptedAtUnix, 2300)
         XCTAssertEqual(hnsReceipt.attemptCount, nil)
 
+        let recoveryJSON = """
+        {"executions":[],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":2400}}
+        """
+        let status = try JSONDecoder().decode(
+            NativeDenuoExecutionStatus.self, from: Data(recoveryJSON.utf8)
+        )
+        XCTAssertEqual(status.bitcoinBroadcastRecovery?.totalApproved, 3)
+        XCTAssertEqual(status.bitcoinBroadcastRecovery?.unobservedSubmissionStarted, 1)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            NativeDenuoExecutionStatus.self,
+            from: Data("""
+            {"executions":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":2400}}
+            """.utf8)
+        ))
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            NativeDenuoExecutionStatus.self,
+            from: Data("""
+            {"executions":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}
+            """.utf8)
+        ))
+
         XCTAssertThrowsError(try NativeSwapSettlementApproval.decode(
             bundle: hnsValueBundle(
                 magic: "HNBW",

@@ -802,12 +802,19 @@ impl AndroidWalletController {
         bundle
     }
 
-    fn denuo_executions(&self) -> Option<Vec<u8>> {
+    fn denuo_executions(
+        &self,
+        bitcoin_broadcast_recovery: Option<hns_wallet_mobile::BitcoinBroadcastRecoverySummary>,
+    ) -> Option<Vec<u8>> {
         let Self::DirectValue { denuo_sessions, .. } = self else {
             return None;
         };
         let executions = denuo_sessions.durable_executions().ok()?;
-        let mut json = serde_json::to_vec(&serde_json::json!({ "executions": executions })).ok()?;
+        let mut json = serde_json::to_vec(&serde_json::json!({
+            "executions": executions,
+            "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
+        }))
+        .ok()?;
         let bundle = bitcoin_json_bundle(json.as_slice());
         json.fill(0);
         bundle
@@ -5530,6 +5537,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 }
             }
         }
+        let bitcoin_broadcast_recovery = record.bitcoin_try_if_active().and_then(|bitcoin| {
+            bitcoin
+                .as_ref()
+                .and_then(|bitcoin| bitcoin.approved_broadcast_recovery().ok())
+        });
         let mut controller = record.controller_if_active()?;
         if !controller.reconcile_verified_hns_funding() {
             return None;
@@ -5537,7 +5549,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         if !controller.reconcile_verified_hns_spends() {
             return None;
         }
-        let mut bundle = controller.denuo_executions()?;
+        let mut bundle = controller.denuo_executions(bitcoin_broadcast_recovery)?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)

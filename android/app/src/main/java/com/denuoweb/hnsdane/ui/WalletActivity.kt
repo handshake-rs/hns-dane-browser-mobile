@@ -2516,25 +2516,44 @@ class WalletActivity : ComponentActivity() {
         if (handle == INVALID_HANDLE || busy) return
         bitcoinStatusView.text = getString(R.string.wallet_swap_loading_executions)
         thread(name = "denuo-execution-list") {
-            val executions = NativeWalletBridge.denuoExecutions(handle)
+            val status = NativeWalletBridge.denuoExecutions(handle)
             runOnUiThread {
                 if (walletHandle != handle) return@runOnUiThread
-                if (executions == null) {
+                if (status == null) {
                     bitcoinStatusView.text = getString(R.string.wallet_swap_execution_list_failed)
-                } else if (executions.isEmpty()) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_no_executions)
+                } else if (status.executions.isEmpty()) {
+                    bitcoinStatusView.text = getString(R.string.wallet_swap_no_executions) +
+                        "\n" + bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
                 } else {
-                    val labels = executions.map {
+                    bitcoinStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
+                    val labels = status.executions.map {
                         "${it.state.replace('_', ' ')} · ${it.offeredAmount} ${it.offeredAsset.uppercase()} → ${it.receivedAmount} ${it.receivedAsset.uppercase()} · ${it.sessionId.take(12)}…"
                     }.toTypedArray()
                     AlertDialog.Builder(this)
                         .setTitle(R.string.wallet_swap_executions)
-                        .setItems(labels) { _, index -> showDenuoExecution(executions[index]) }
+                        .setMessage(bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))
+                        .setItems(labels) { _, index -> showDenuoExecution(status.executions[index]) }
                         .setNegativeButton(R.string.action_cancel, null)
                         .show()
                 }
             }
         }
+    }
+
+    private fun bitcoinBroadcastRecoveryText(
+        recovery: com.denuoweb.hnsdane.wallet.NativeBitcoinBroadcastRecovery?,
+    ): String = when {
+        recovery == null -> getString(R.string.wallet_swap_recovery_unavailable)
+        recovery.totalApproved == 0L -> getString(R.string.wallet_swap_recovery_none)
+        else -> getString(
+            R.string.wallet_swap_recovery_detail,
+            recovery.unobservedPrepared,
+            recovery.unobservedSubmissionStarted,
+            recovery.unobservedSubmitted,
+            recovery.observed,
+            recovery.highestAttemptCount,
+            recovery.lastChangedAtUnix ?: 0L,
+        )
     }
 
     private fun showDenuoExecution(execution: NativeDenuoExecutionSummary) {

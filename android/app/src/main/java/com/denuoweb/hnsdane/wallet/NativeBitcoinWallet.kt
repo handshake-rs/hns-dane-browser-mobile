@@ -172,6 +172,21 @@ internal data class NativeDenuoExecutionSummary(
     val failureReason: String?,
 )
 
+internal data class NativeBitcoinBroadcastRecovery(
+    val totalApproved: Long,
+    val unobservedPrepared: Long,
+    val unobservedSubmissionStarted: Long,
+    val unobservedSubmitted: Long,
+    val observed: Long,
+    val highestAttemptCount: Int,
+    val lastChangedAtUnix: Long?,
+)
+
+internal data class NativeDenuoExecutionStatus(
+    val executions: List<NativeDenuoExecutionSummary>,
+    val bitcoinBroadcastRecovery: NativeBitcoinBroadcastRecovery?,
+)
+
 internal object NativeBitcoinWalletBundle {
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 16 * 1024
@@ -470,15 +485,46 @@ internal object NativeBitcoinWalletBundle {
         }
     }
 
-    fun denuoExecutions(bundle: ByteArray): List<NativeDenuoExecutionSummary>? = parse(bundle) { json ->
-        if (!hasExactKeys(json, setOf("executions"))) return@parse null
+    fun denuoExecutions(bundle: ByteArray): NativeDenuoExecutionStatus? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf("executions", "bitcoinBroadcastRecovery"))) return@parse null
         val array = json.optJSONArray("executions") ?: return@parse null
         if (array.length() > 1_024) return@parse null
-        buildList(array.length()) {
+        val executions = buildList(array.length()) {
             for (index in 0 until array.length()) {
                 add(parseDenuoExecution(array.optJSONObject(index) ?: return@parse null) ?: return@parse null)
             }
         }
+        val recovery = if (json.isNull("bitcoinBroadcastRecovery")) null else {
+            parseBroadcastRecovery(
+                json.optJSONObject("bitcoinBroadcastRecovery") ?: return@parse null
+            ) ?: return@parse null
+        }
+        NativeDenuoExecutionStatus(executions, recovery)
+    }
+
+    private fun parseBroadcastRecovery(json: JSONObject): NativeBitcoinBroadcastRecovery? {
+        if (!hasExactKeys(json, setOf(
+            "totalApproved", "unobservedPrepared", "unobservedSubmissionStarted",
+            "unobservedSubmitted", "observed", "highestAttemptCount", "lastChangedAtUnix",
+        ))) return null
+        val total = nonnegativeLong(json, "totalApproved")?.takeIf { it <= 4_096 } ?: return null
+        val prepared = nonnegativeLong(json, "unobservedPrepared") ?: return null
+        val started = nonnegativeLong(json, "unobservedSubmissionStarted") ?: return null
+        val submitted = nonnegativeLong(json, "unobservedSubmitted") ?: return null
+        val observed = nonnegativeLong(json, "observed") ?: return null
+        if (listOf(prepared, started, submitted, observed).any { it > 4_096 } ||
+            prepared + started + submitted + observed != total
+        ) return null
+        val attempts = nonnegativeLong(json, "highestAttemptCount")
+            ?.takeIf { it <= 16 }?.toInt() ?: return null
+        val changed = if (json.isNull("lastChangedAtUnix")) null else
+            positiveLong(json, "lastChangedAtUnix") ?: return null
+        if ((total == 0L && (changed != null || attempts != 0)) ||
+            (total > 0L && changed == null)
+        ) return null
+        return NativeBitcoinBroadcastRecovery(
+            total, prepared, started, submitted, observed, attempts, changed,
+        )
     }
 
     private fun parseBtcForHnsSummary(json: JSONObject): NativeBtcForHnsOfferSummary? {

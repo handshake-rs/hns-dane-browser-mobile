@@ -154,16 +154,24 @@ class NativeBitcoinSyncProgressTest {
     @Test
     fun parses_a_bounded_durable_swap_execution_projection() {
         val sessionId = "66".repeat(32)
-        val executions = NativeBitcoinWalletBundle.denuoExecutions(bundle(
-            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}]}""",
+        val status = NativeBitcoinWalletBundle.denuoExecutions(bundle(
+            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"first_funded","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":1250}}""",
         ))
-        requireNotNull(executions)
-        assertEquals(1, executions.size)
-        assertEquals("first_funded", executions.single().state)
-        assertEquals(true, executions.single().firstFundingConfirmed)
+        requireNotNull(status)
+        assertEquals(1, status.executions.size)
+        assertEquals("first_funded", status.executions.single().state)
+        assertEquals(true, status.executions.single().firstFundingConfirmed)
+        assertEquals(1L, status.bitcoinBroadcastRecovery?.unobservedPrepared)
+        assertEquals(2, status.bitcoinBroadcastRecovery?.highestAttemptCount)
 
         assertNull(NativeBitcoinWalletBundle.denuoExecutions(bundle(
-            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"peer_says_done","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}]}""",
+            """{"executions":[{"sessionId":"$sessionId","revision":7,"state":"peer_says_done","firstChain":"bitcoin","secondChain":"handshake","offeredAsset":"btc","offeredAmount":10000,"receivedAsset":"hns","receivedAmount":2000000,"firstRefundAtUnix":2000,"secondRefundAtUnix":1500,"firstFundingConfirmed":true,"secondFundingConfirmed":false,"firstRedemptionConfirmed":false,"secondRedemptionConfirmed":false,"refundConfirmed":false,"lastVerifiedAtUnix":1200,"failureReason":null}],"bitcoinBroadcastRecovery":null}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.denuoExecutions(bundle(
+            """{"executions":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":1250}}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.denuoExecutions(bundle(
+            """{"executions":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}""",
         )))
     }
 

@@ -319,7 +319,7 @@ internal object NativeWalletBridge {
             null
         }
 
-    fun denuoExecutions(handle: Long): List<NativeDenuoExecutionSummary>? =
+    fun denuoExecutions(handle: Long): NativeDenuoExecutionStatus? =
         if (isValidHandle(handle) && isAvailable) {
             val bundle = runCatching { nativeDenuoExecutions(handle) }.getOrNull()
                 ?: return null

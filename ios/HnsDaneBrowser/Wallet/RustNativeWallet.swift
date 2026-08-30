@@ -399,13 +399,62 @@ struct NativeDenuoExecutionSummary: Decodable, Equatable, Sendable {
     }
 }
 
-private struct NativeDenuoExecutionList: Decodable {
+struct NativeBitcoinBroadcastRecovery: Decodable, Equatable, Sendable {
+    let totalApproved: UInt32
+    let unobservedPrepared: UInt32
+    let unobservedSubmissionStarted: UInt32
+    let unobservedSubmitted: UInt32
+    let observed: UInt32
+    let highestAttemptCount: UInt16
+    let lastChangedAtUnix: UInt64?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case totalApproved, unobservedPrepared, unobservedSubmissionStarted
+        case unobservedSubmitted, observed, highestAttemptCount, lastChangedAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        totalApproved = try value.decode(UInt32.self, forKey: .totalApproved)
+        unobservedPrepared = try value.decode(UInt32.self, forKey: .unobservedPrepared)
+        unobservedSubmissionStarted = try value.decode(
+            UInt32.self, forKey: .unobservedSubmissionStarted
+        )
+        unobservedSubmitted = try value.decode(UInt32.self, forKey: .unobservedSubmitted)
+        observed = try value.decode(UInt32.self, forKey: .observed)
+        highestAttemptCount = try value.decode(UInt16.self, forKey: .highestAttemptCount)
+        lastChangedAtUnix = try value.decodeIfPresent(UInt64.self, forKey: .lastChangedAtUnix)
+        let counts = [unobservedPrepared, unobservedSubmissionStarted, unobservedSubmitted, observed]
+        let lifecycleIsValid: Bool
+        if totalApproved == 0 {
+            lifecycleIsValid = lastChangedAtUnix == nil && highestAttemptCount == 0
+        } else {
+            lifecycleIsValid = lastChangedAtUnix.map { $0 > 0 } == true
+        }
+        guard totalApproved <= 4_096,
+              counts.allSatisfy({ $0 <= 4_096 }),
+              counts.reduce(UInt32(0), +) == totalApproved,
+              highestAttemptCount <= 16,
+              lifecycleIsValid else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin broadcast recovery status")
+        }
+    }
+}
+
+struct NativeDenuoExecutionStatus: Decodable, Equatable, Sendable {
     let executions: [NativeDenuoExecutionSummary]
-    private enum CodingKeys: String, CodingKey, CaseIterable { case executions }
+    let bitcoinBroadcastRecovery: NativeBitcoinBroadcastRecovery?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case executions, bitcoinBroadcastRecovery
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
         executions = try container.decode([NativeDenuoExecutionSummary].self, forKey: .executions)
+        bitcoinBroadcastRecovery = try container.decodeIfPresent(
+            NativeBitcoinBroadcastRecovery.self, forKey: .bitcoinBroadcastRecovery
+        )
         guard executions.count <= 1_024 else {
             throw NativeWalletBridgeError.invalidOutput("too many durable Denuo executions")
         }
@@ -2840,13 +2889,12 @@ final class RustNativeWallet: @unchecked Sendable {
         return result.offers
     }
 
-    func denuoExecutions() throws -> [NativeDenuoExecutionSummary] {
-        let result: NativeDenuoExecutionList = try decodeBitcoinBundle(
+    func denuoExecutions() throws -> NativeDenuoExecutionStatus {
+        try decodeBitcoinBundle(
             operation: "durable Denuo executions"
         ) { handle, output in
             hns_browser_wallet_denuo_executions(handle, output)
         }
-        return result.executions
     }
 
     func cancelBtcForHnsOffer(offerId: String) throws {

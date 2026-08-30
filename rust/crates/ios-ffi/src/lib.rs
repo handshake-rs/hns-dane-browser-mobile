@@ -4478,7 +4478,20 @@ pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
             .controller
             .denuo_executions()
             .map_err(|_| wallet_runtime_failure("Denuo execution listing failed"))?;
-        let bundle = wallet_bitcoin_bundle(&json!({ "executions": executions }))?;
+        drop(entry);
+        let bitcoin_broadcast_recovery =
+            wallet_bitcoin_control_entry(wallet)
+                .ok()
+                .and_then(|control| match control.controller.try_lock() {
+                    Ok(slot) => slot
+                        .as_ref()
+                        .and_then(|bitcoin| bitcoin.approved_broadcast_recovery().ok()),
+                    Err(_) => None,
+                });
+        let bundle = wallet_bitcoin_bundle(&json!({
+            "executions": executions,
+            "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
+        }))?;
         let output = allocate_output(&bundle.0, true)?;
         unsafe { write_output(out_executions_bundle, output) };
         Ok(())

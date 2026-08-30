@@ -672,6 +672,9 @@
     <string name="wallet_swap_no_executions" translatable="false">There are no accepted atomic swap executions.</string>
     <string name="wallet_swap_execution_title" translatable="false">Atomic swap status</string>
     <string name="wallet_swap_execution_detail" translatable="false">Session: %1$s\nState: %2$s\nFunding order: %3$s, then %4$s\nFirst funding confirmed: %5$s\nSecond funding confirmed: %6$s\n\nOnly locally verified chain evidence advances this status.</string>
+    <string name="wallet_swap_recovery_unavailable" translatable="false">Bitcoin broadcast recovery status is temporarily unavailable while the Bitcoin controller is busy or inactive.</string>
+    <string name="wallet_swap_recovery_none" translatable="false">No approved Bitcoin transaction is awaiting durable broadcast recovery.</string>
+    <string name="wallet_swap_recovery_detail" translatable="false">Durable Bitcoin broadcasts — waiting for submission: %1$d; submission outcome pending: %2$d; submitted and awaiting wallet observation: %3$d; observed: %4$d; highest attempt count: %5$d; last durable change: Unix %6$d. Exact signed bytes remain private and automatic recovery never creates a replacement transaction.</string>
     <string name="wallet_swap_fund_bitcoin" translatable="false">Prepare Bitcoin funding</string>
     <string name="wallet_swap_funding_fee_hint" translatable="false">Maximum Bitcoin funding fee (sats)</string>
     <string name="wallet_swap_funding_preparing" translatable="false">Preparing exact session-bound Bitcoin HTLC funding…</string>
