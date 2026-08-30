@@ -25,12 +25,12 @@ use hns_wallet_mobile::{
     HnsDirectDenuoMessage, HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator,
     HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock,
     MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig,
-    MobileBitcoinValueController, MobileDatabaseKey, MobileDenuoSessionController,
-    MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot, MobileHnsValueController,
-    MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
-    MobileWalletController, MobileWalletError,
+    MobileBitcoinValueController, MobileDatabaseKey, MobileDenuoBitcoinFundingPermit,
+    MobileDenuoSessionController, MobileHnsNameSummary, MobileHnsReadController,
+    MobileHnsReadSnapshot, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
+    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
 };
-use hns_wallet_types::BaseUnits;
+use hns_wallet_types::{BaseUnits, SessionId};
 use serde_json::{Value, json};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -1053,6 +1053,92 @@ impl NativeWalletController {
         denuo_sessions.local_btc_for_hns_offers(HnsReadSystemClock.now_unix()?)
     }
 
+    fn denuo_executions(
+        &self,
+    ) -> Result<Vec<hns_wallet_mobile::MobileDenuoExecutionSummary>, MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        denuo_sessions.durable_executions()
+    }
+
+    fn pending_first_bitcoin_funding_sessions(&self) -> Result<Vec<SessionId>, MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        denuo_sessions.pending_first_bitcoin_funding_sessions()
+    }
+
+    fn apply_verified_bitcoin_funding(
+        &mut self,
+        session_id: SessionId,
+        lock: hns_wallet_mobile::VerifiedBitcoinLock,
+    ) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        denuo_sessions
+            .apply_local_verified_bitcoin_funding(session_id, lock, HnsReadSystemClock.now_unix()?)
+            .map(|_| ())
+    }
+
+    fn prepare_hns_for_btc_funding(
+        &mut self,
+        session_id: SessionId,
+        maximum_fee_dollarydoos: u64,
+    ) -> Result<hns_wallet_mobile::MobileDenuoHnsFundingApproval, MobileWalletError> {
+        let Self::DirectHnsValue {
+            controller,
+            denuo_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        let permit = denuo_sessions
+            .authorize_local_hns_second_funding(session_id, HnsReadSystemClock.now_unix()?)?;
+        controller.prepare_denuo_hns_funding(permit, maximum_fee_dollarydoos)
+    }
+
+    fn approve_hns_for_btc_funding(
+        &mut self,
+        action_token: &str,
+    ) -> Result<hns_wallet_mobile::MobileDenuoHnsFundingReceipt, MobileWalletError> {
+        let Self::DirectHnsValue { controller, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        controller.approve_denuo_hns_funding(action_token)
+    }
+
+    fn reject_hns_for_btc_funding(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue { controller, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        controller.reject_denuo_hns_funding(action_token)
+    }
+
+    fn reconcile_verified_hns_funding(&mut self) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            controller,
+            denuo_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        for permit in denuo_sessions.pending_second_hns_funding_verifications()? {
+            let session_id = permit.session_id();
+            if let Some(lock) = controller.verified_denuo_hns_funding(permit)? {
+                denuo_sessions.apply_local_verified_hns_funding(
+                    session_id,
+                    lock,
+                    HnsReadSystemClock.now_unix()?,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     fn cancel_btc_for_hns_offer(&mut self, offer_id: &str) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue {
             denuo_sessions,
@@ -1075,6 +1161,16 @@ impl NativeWalletController {
             return Ok(0);
         };
         denuo_sessions.reserved_bitcoin_sats(HnsReadSystemClock.now_unix()?)
+    }
+
+    fn authorize_btc_for_hns_first_funding(
+        &mut self,
+        session_id: SessionId,
+    ) -> Result<MobileDenuoBitcoinFundingPermit, MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        denuo_sessions.authorize_local_btc_first_funding(session_id, HnsReadSystemClock.now_unix()?)
     }
 
     fn disconnect_direct_denuo_peer(&mut self) -> bool {
@@ -2153,6 +2249,30 @@ unsafe fn wallet_action_token(slice: HnsBrowserSlice) -> Result<String, FfiFailu
         bytes.fill(0);
         FfiFailure::invalid("wallet action token is invalid")
     })
+}
+
+unsafe fn wallet_session_id(slice: HnsBrowserSlice) -> Result<SessionId, FfiFailure> {
+    // Session IDs and action tokens share the same canonical nonzero
+    // lowercase-hex representation, but are converted immediately into the
+    // typed protocol identity before crossing a wallet authority boundary.
+    let mut encoded = unsafe { wallet_action_token(slice) }?.into_bytes();
+    let mut decoded = [0_u8; 32];
+    for (index, pair) in encoded.chunks_exact(2).enumerate() {
+        let nibble = |byte: u8| match byte {
+            b'0'..=b'9' => Some(byte - b'0'),
+            b'a'..=b'f' => Some(byte - b'a' + 10),
+            _ => None,
+        };
+        let Some((high, low)) = nibble(pair[0]).zip(nibble(pair[1])) else {
+            encoded.fill(0);
+            return Err(FfiFailure::invalid(
+                "wallet swap session identifier is invalid",
+            ));
+        };
+        decoded[index] = (high << 4) | low;
+    }
+    encoded.fill(0);
+    Ok(SessionId::new(decoded))
 }
 
 unsafe fn wallet_bitcoin_address(slice: HnsBrowserSlice) -> Result<String, FfiFailure> {
@@ -4060,6 +4180,82 @@ pub unsafe extern "C" fn hns_browser_wallet_local_btc_for_hns_offers(
 }
 
 #[unsafe(no_mangle)]
+/// Returns a bounded non-sensitive projection of every durable accepted swap
+/// execution, including recovery state that outlived its board listing.
+///
+/// # Safety
+/// `out_executions_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
+    wallet: HnsBrowserWalletHandle,
+    out_executions_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_executions_bundle)?;
+        unsafe { write_output(out_executions_bundle, HnsBrowserBuffer::empty()) };
+        let candidates = {
+            let entry = wallet_entry(wallet)?;
+            let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .pending_first_bitcoin_funding_sessions()
+                .map_err(|_| wallet_runtime_failure("Denuo execution recovery failed"))?
+        };
+        let verified = if candidates.is_empty() {
+            Vec::new()
+        } else {
+            let control = wallet_bitcoin_control_entry(wallet)?;
+            match control.controller.try_lock() {
+                Ok(slot) => slot.as_ref().map_or_else(Vec::new, |bitcoin| {
+                    candidates
+                        .into_iter()
+                        .filter_map(|session_id| {
+                            bitcoin
+                                .verified_denuo_htlc_funding(session_id)
+                                .ok()
+                                .flatten()
+                                .map(|lock| (session_id, lock))
+                        })
+                        .collect()
+                }),
+                Err(TryLockError::WouldBlock) => Vec::new(),
+                Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
+            }
+        };
+        if !verified.is_empty() {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            for (session_id, lock) in verified {
+                entry
+                    .controller
+                    .apply_verified_bitcoin_funding(session_id, lock)
+                    .map_err(|_| wallet_runtime_failure("Bitcoin funding recovery failed"))?;
+            }
+        }
+        {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            // A temporarily unavailable HNS read must not hide the durable
+            // execution projection. It simply cannot advance it this refresh.
+            let _ = entry.controller.reconcile_verified_hns_funding();
+        }
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let executions = entry
+            .controller
+            .denuo_executions()
+            .map_err(|_| wallet_runtime_failure("Denuo execution listing failed"))?;
+        let bundle = wallet_bitcoin_bundle(&json!({ "executions": executions }))?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_executions_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// # Safety
 /// `offer_id` must remain readable for its declared length.
 pub unsafe extern "C" fn hns_browser_wallet_cancel_btc_for_hns_offer(
@@ -4848,6 +5044,184 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_bitcoin_send(
         // SAFETY: Null was rejected above.
         unsafe { write_output(out_approval_bundle, output) };
         Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Prepares the exact first-chain Bitcoin HTLC committed by a fully accepted
+/// Denuo session. The HNS/session controller is released before the Bitcoin
+/// controller is acquired, so no cross-chain mutex is held while signing or
+/// querying the direct Bitcoin runtime.
+///
+/// # Safety
+/// Input slices must remain readable and `out_approval_bundle` writable.
+pub unsafe extern "C" fn hns_browser_wallet_prepare_btc_for_hns_funding(
+    wallet: HnsBrowserWalletHandle,
+    session_id: HnsBrowserSlice,
+    maximum_fee_sats: HnsBrowserSlice,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        let session_id = unsafe { wallet_session_id(session_id) }?;
+        let maximum_fee_sats = unsafe { wallet_nonzero_sats(maximum_fee_sats) }?;
+        let permit = {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .authorize_btc_for_hns_first_funding(session_id)
+                .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding is not authorized"))?
+        };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let approval = controller
+            .prepare_denuo_htlc_funding(permit, maximum_fee_sats)
+            .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding preparation failed"))?;
+        let bundle = wallet_bitcoin_bundle(&approval)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Consumes one displayed BTC HTLC funding approval. The returned submission
+/// receipt is not chain confirmation; confirmation remains watch-derived.
+///
+/// # Safety
+/// `action_token` must remain readable and `out_receipt_bundle` writable.
+pub unsafe extern "C" fn hns_browser_wallet_approve_btc_for_hns_funding(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_receipt_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_receipt_bundle)?;
+        unsafe { write_output(out_receipt_bundle, HnsBrowserBuffer::empty()) };
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let receipt = controller
+            .approve_denuo_htlc_funding(&token)
+            .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding approval failed"))?;
+        let bundle = wallet_bitcoin_bundle(&receipt)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_receipt_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Rejects one pending BTC HTLC funding approval without broadcasting it.
+///
+/// # Safety
+/// `action_token` must remain readable for its declared length.
+pub unsafe extern "C" fn hns_browser_wallet_reject_btc_for_hns_funding(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        slot.as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
+            .reject_denuo_htlc_funding(&token)
+            .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding rejection failed"))
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// Input slices must remain readable and `out_approval_bundle` writable.
+pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_for_btc_funding(
+    wallet: HnsBrowserWalletHandle,
+    session_id: HnsBrowserSlice,
+    maximum_fee: HnsBrowserSlice,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        let session_id = unsafe { wallet_session_id(session_id) }?;
+        let maximum_fee = unsafe { wallet_nonzero_sats(maximum_fee) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let approval = entry
+            .controller
+            .prepare_hns_for_btc_funding(session_id, maximum_fee)
+            .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding preparation failed"))?;
+        let bundle = wallet_bitcoin_bundle(&approval)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `action_token` must remain readable and `out_receipt_bundle` writable.
+pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_funding(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_receipt_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_receipt_bundle)?;
+        unsafe { write_output(out_receipt_bundle, HnsBrowserBuffer::empty()) };
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let receipt = entry
+            .controller
+            .approve_hns_for_btc_funding(&token)
+            .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding approval failed"))?;
+        let bundle = wallet_bitcoin_bundle(&receipt)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_receipt_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `action_token` must remain readable for its declared length.
+pub unsafe extern "C" fn hns_browser_wallet_reject_hns_for_btc_funding(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .reject_hns_for_btc_funding(&token)
+            .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding rejection failed"))
     })
 }
 

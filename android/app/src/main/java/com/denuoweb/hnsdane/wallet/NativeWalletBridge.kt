@@ -319,6 +319,19 @@ internal object NativeWalletBridge {
             null
         }
 
+    fun denuoExecutions(handle: Long): List<NativeDenuoExecutionSummary>? =
+        if (isValidHandle(handle) && isAvailable) {
+            val bundle = runCatching { nativeDenuoExecutions(handle) }.getOrNull()
+                ?: return null
+            try {
+                NativeBitcoinWalletBundle.denuoExecutions(bundle)
+            } finally {
+                bundle.fill(0)
+            }
+        } else {
+            null
+        }
+
     fun cancelBtcForHnsOffer(handle: Long, offerId: String): Boolean =
         isValidHandle(handle) && isAvailable &&
             offerId.length == 64 && offerId.all { it in '0'..'9' || it in 'a'..'f' } &&
@@ -754,6 +767,96 @@ internal object NativeWalletBridge {
                 runCatching { nativeRejectBitcoinSend(handle, tokenAscii) }.getOrDefault(false)
         } ?: false
 
+    fun prepareBtcForHnsFunding(
+        handle: Long,
+        sessionId: String,
+        maximumFeeSats: Long,
+    ): NativeBitcoinHtlcFundingApproval? {
+        if (!isValidHandle(handle) || !isAvailable || !isCanonicalHash(sessionId) || maximumFeeSats <= 0L) {
+            return null
+        }
+        val sessionAscii = sessionId.toByteArray(Charsets.US_ASCII)
+        val feeAscii = maximumFeeSats.toString().toByteArray(Charsets.US_ASCII)
+        return try {
+            val bundle = runCatching {
+                nativePrepareBtcForHnsFunding(handle, sessionAscii, feeAscii)
+            }.getOrNull() ?: return null
+            try {
+                NativeBitcoinWalletBundle.htlcFundingApproval(bundle)
+            } finally {
+                bundle.fill(0)
+            }
+        } finally {
+            sessionAscii.fill(0)
+            feeAscii.fill(0)
+        }
+    }
+
+    fun approveBtcForHnsFunding(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): NativeBitcoinHtlcFundingReceipt? = actionToken.consume { tokenAscii ->
+        if (!isValidHandle(handle) || !isAvailable) return@consume null
+        val bundle = runCatching { nativeApproveBtcForHnsFunding(handle, tokenAscii) }.getOrNull()
+            ?: return@consume null
+        try {
+            NativeBitcoinWalletBundle.htlcFundingReceipt(bundle)
+        } finally {
+            bundle.fill(0)
+        }
+    }
+
+    fun rejectBtcForHnsFunding(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
+        actionToken.consume { tokenAscii ->
+            isValidHandle(handle) && isAvailable &&
+                runCatching { nativeRejectBtcForHnsFunding(handle, tokenAscii) }.getOrDefault(false)
+        } ?: false
+
+    fun prepareHnsForBtcFunding(
+        handle: Long,
+        sessionId: String,
+        maximumFeeDollarydoos: Long,
+    ): NativeHnsHtlcFundingApproval? {
+        if (!isValidHandle(handle) || !isAvailable || !isCanonicalHash(sessionId) || maximumFeeDollarydoos <= 0L) {
+            return null
+        }
+        val sessionAscii = sessionId.toByteArray(Charsets.US_ASCII)
+        val feeAscii = maximumFeeDollarydoos.toString().toByteArray(Charsets.US_ASCII)
+        return try {
+            val bundle = runCatching {
+                nativePrepareHnsForBtcFunding(handle, sessionAscii, feeAscii)
+            }.getOrNull() ?: return null
+            try {
+                NativeBitcoinWalletBundle.hnsHtlcFundingApproval(bundle)
+            } finally {
+                bundle.fill(0)
+            }
+        } finally {
+            sessionAscii.fill(0)
+            feeAscii.fill(0)
+        }
+    }
+
+    fun approveHnsForBtcFunding(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): NativeHnsHtlcFundingReceipt? = actionToken.consume { tokenAscii ->
+        if (!isValidHandle(handle) || !isAvailable) return@consume null
+        val bundle = runCatching { nativeApproveHnsForBtcFunding(handle, tokenAscii) }.getOrNull()
+            ?: return@consume null
+        try {
+            NativeBitcoinWalletBundle.hnsHtlcFundingReceipt(bundle)
+        } finally {
+            bundle.fill(0)
+        }
+    }
+
+    fun rejectHnsForBtcFunding(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
+        actionToken.consume { tokenAscii ->
+            isValidHandle(handle) && isAvailable &&
+                runCatching { nativeRejectHnsForBtcFunding(handle, tokenAscii) }.getOrDefault(false)
+        } ?: false
+
     fun takeRecovery(handle: Long): CharArray? =
         if (isValidHandle(handle) && isAvailable) {
             runCatching { nativeTakeRecovery(handle) }.getOrNull()
@@ -860,6 +963,11 @@ internal object NativeWalletBridge {
     private fun validNetwork(network: Int): Boolean =
         network == NETWORK_MAINNET || network == NETWORK_TESTNET || network == NETWORK_REGTEST
 
+    private fun isCanonicalHash(value: String): Boolean =
+        value.length == 64 &&
+            value.any { it != '0' } &&
+            value.all { it in '0'..'9' || it in 'a'..'f' }
+
     private fun isValidHandle(handle: Long): Boolean = handle > INVALID_HANDLE
 
     @JvmStatic
@@ -955,6 +1063,9 @@ internal object NativeWalletBridge {
     private external fun nativeLocalBtcForHnsOffers(handle: Long): ByteArray?
 
     @JvmStatic
+    private external fun nativeDenuoExecutions(handle: Long): ByteArray?
+
+    @JvmStatic
     private external fun nativeCancelBtcForHnsOffer(handle: Long, offerId: String): Boolean
 
     @JvmStatic
@@ -997,6 +1108,44 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeRejectBitcoinSend(handle: Long, actionTokenAscii: ByteArray): Boolean
+
+    @JvmStatic
+    private external fun nativePrepareBtcForHnsFunding(
+        handle: Long,
+        sessionIdAscii: ByteArray,
+        maximumFeeSatsAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveBtcForHnsFunding(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRejectBtcForHnsFunding(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativePrepareHnsForBtcFunding(
+        handle: Long,
+        sessionIdAscii: ByteArray,
+        maximumFeeAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveHnsForBtcFunding(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRejectHnsForBtcFunding(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): Boolean
 
     @JvmStatic
     private external fun nativeSynchronizeHnsReads(handle: Long): ByteArray?

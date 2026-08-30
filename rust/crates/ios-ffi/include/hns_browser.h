@@ -366,6 +366,36 @@ HnsBrowserResult hns_browser_wallet_approve_bitcoin_send(
 HnsBrowserResult hns_browser_wallet_reject_bitcoin_send(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice action_token);
+HnsBrowserResult hns_browser_wallet_prepare_btc_for_hns_funding(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice session_id,
+    HnsBrowserSlice maximum_fee_sats,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_btc_for_hns_funding(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_receipt_bundle);
+HnsBrowserResult hns_browser_wallet_reject_btc_for_hns_funding(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
+/*
+ * Prepares, approves, or rejects the second-chain native HNS HTLC funding
+ * transaction for a locally authenticated BTC-for-HNS execution. Preparation
+ * returns a private HNBW-v1 review bundle. Approval broadcasts only the exact
+ * persisted transaction covered by its one-shot token.
+ */
+HnsBrowserResult hns_browser_wallet_prepare_hns_for_btc_funding(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice session_id,
+    HnsBrowserSlice maximum_fee,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_hns_for_btc_funding(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_receipt_bundle);
+HnsBrowserResult hns_browser_wallet_reject_hns_for_btc_funding(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
 /*
  * Imports exact UTF-8 name text only through the synchronized HNS-read
  * controller, without trimming, lowercasing, IDNA, Unicode normalization, or
@@ -462,6 +492,9 @@ HnsBrowserResult hns_browser_wallet_reject_btc_for_hns_offer(
 HnsBrowserResult hns_browser_wallet_local_btc_for_hns_offers(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_offers_bundle);
+HnsBrowserResult hns_browser_wallet_denuo_executions(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_executions_bundle);
 HnsBrowserResult hns_browser_wallet_cancel_btc_for_hns_offer(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice offer_id);

@@ -60,6 +60,10 @@ final class WalletViewController: UIViewController {
     private var pendingBitcoinSendApproval: NativeBitcoinSendApproval?
     private weak var btcForHnsOfferApprovalAlert: UIAlertController?
     private var pendingBtcForHnsOfferApproval: NativeBtcForHnsOfferApproval?
+    private weak var btcForHnsFundingApprovalAlert: UIAlertController?
+    private var pendingBtcForHnsFundingApproval: NativeBitcoinHtlcFundingApproval?
+    private weak var hnsForBtcFundingApprovalAlert: UIAlertController?
+    private var pendingHnsForBtcFundingApproval: NativeHnsHtlcFundingApproval?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -90,6 +94,7 @@ final class WalletViewController: UIViewController {
     private let bitcoinBirthdayButton = UIButton(type: .system)
     private let bitcoinSellForHnsButton = UIButton(type: .system)
     private let bitcoinOffersButton = UIButton(type: .system)
+    private let bitcoinExecutionsButton = UIButton(type: .system)
     private let dashboardStack = UIStackView()
 
     init(network: BrowserHandshakeNetwork) {
@@ -176,6 +181,10 @@ final class WalletViewController: UIViewController {
         pendingBitcoinSendApproval = nil
         pendingBtcForHnsOfferApproval?.actionToken.discard()
         pendingBtcForHnsOfferApproval = nil
+        pendingBtcForHnsFundingApproval?.actionToken.discard()
+        pendingBtcForHnsFundingApproval = nil
+        pendingHnsForBtcFundingApproval?.actionToken.discard()
+        pendingHnsForBtcFundingApproval = nil
         bitcoinSyncTimer?.invalidate()
         recoverySecret?.clear()
         let currentWallet = wallet
@@ -278,6 +287,11 @@ final class WalletViewController: UIViewController {
             bitcoinOffersButton,
             title: "Active BTC-for-HNS offers",
             action: #selector(showActiveBtcForHnsOffers)
+        )
+        configureButton(
+            bitcoinExecutionsButton,
+            title: "Atomic swap executions",
+            action: #selector(showDenuoExecutions)
         )
         bitcoinBirthdayButton.isHidden = true
         configureButton(
@@ -470,6 +484,7 @@ final class WalletViewController: UIViewController {
                 dashboardButtonRow([bitcoinReceiveButton, bitcoinSendButton, bitcoinSyncButton]),
                 bitcoinSellForHnsButton,
                 bitcoinOffersButton,
+                bitcoinExecutionsButton,
                 bitcoinBirthdayButton,
             ],
             accent: .systemOrange
@@ -1070,6 +1085,277 @@ final class WalletViewController: UIViewController {
                 }
             }
         }
+    }
+
+    @objc private func showDenuoExecutions() {
+        guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
+        bitcoinStatusLabel.text = "Loading durable atomic swap state…"
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result { try wallet.denuoExecutions() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                switch outcome {
+                case .success(let executions) where executions.isEmpty:
+                    self.bitcoinStatusLabel.text = "There are no accepted atomic swap executions."
+                case .success(let executions):
+                    let alert = UIAlertController(
+                        title: "Atomic swap executions",
+                        message: "Statuses advance only from independently verified chain evidence.",
+                        preferredStyle: .alert
+                    )
+                    for execution in executions {
+                        alert.addAction(UIAlertAction(
+                            title: "\(execution.state.replacingOccurrences(of: "_", with: " ")) · \(execution.sessionId.prefix(12))…",
+                            style: .default
+                        ) { [weak self, weak wallet] _ in
+                            guard let self, let wallet, self.wallet === wallet else { return }
+                            self.showDenuoExecution(execution, wallet: wallet)
+                        })
+                    }
+                    alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+                    self.present(alert, animated: true)
+                case .failure(let error):
+                    self.bitcoinStatusLabel.text = "Durable atomic swap state could not be authenticated."
+                    self.showError(error)
+                }
+            }
+        }
+    }
+
+    private func showDenuoExecution(
+        _ execution: NativeDenuoExecutionSummary, wallet: RustNativeWallet
+    ) {
+        let message = """
+        Session: \(execution.sessionId)
+        State: \(execution.state.replacingOccurrences(of: "_", with: " "))
+        Funding order: \(execution.firstChain), then \(execution.secondChain)
+        First funding confirmed: \(execution.firstFundingConfirmed)
+        Second funding confirmed: \(execution.secondFundingConfirmed)
+
+        Only locally verified chain evidence advances this status.
+        """
+        let alert = UIAlertController(title: "Atomic swap status", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        if execution.state == "first_funding_pending" && execution.firstChain == "bitcoin" {
+            alert.addAction(UIAlertAction(title: "Prepare Bitcoin funding", style: .destructive) {
+                [weak self, weak wallet] _ in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showBtcForHnsFundingFee(execution, wallet: wallet)
+            })
+        }
+        if execution.state == "second_funding_pending" && execution.secondChain == "handshake" {
+            alert.addAction(UIAlertAction(title: "Prepare HNS funding", style: .destructive) {
+                [weak self, weak wallet] _ in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showHnsForBtcFundingFee(execution, wallet: wallet)
+            })
+        }
+        present(alert, animated: true)
+    }
+
+    private func showHnsForBtcFundingFee(
+        _ execution: NativeDenuoExecutionSummary, wallet: RustNativeWallet
+    ) {
+        let alert = UIAlertController(
+            title: "Prepare HNS funding",
+            message: "Enter a maximum HNS fee within the reserve signed into this accepted session.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "Maximum funding fee (dollarydoos)"
+            field.keyboardType = .numberPad
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Review transaction", style: .default) {
+            [weak self, weak alert, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
+                self?.showErrorMessage("Enter a positive maximum HNS fee in dollarydoos.")
+                return
+            }
+            alert?.textFields?.first?.text = nil
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                var session = Array(execution.sessionId.utf8)
+                var maximumFee = Array(String(fee).utf8)
+                let outcome = Result {
+                    try wallet.prepareHnsForBtcFunding(
+                        sessionId: &session, maximumFeeDollarydoos: &maximumFee
+                    )
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let approval):
+                        self.presentHnsForBtcFundingApproval(approval, wallet: wallet)
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "HNS HTLC funding was not prepared."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func presentHnsForBtcFundingApproval(
+        _ approval: NativeHnsHtlcFundingApproval, wallet: RustNativeWallet
+    ) {
+        pendingHnsForBtcFundingApproval?.actionToken.discard()
+        pendingHnsForBtcFundingApproval = approval
+        let amount = WalletReadPresenter.formatHnsBaseUnits(String(approval.amountDollarydoos))
+        let fee = WalletReadPresenter.formatHnsBaseUnits(String(approval.feeDollarydoos))
+        let maximumFee = WalletReadPresenter.formatHnsBaseUnits(
+            String(approval.maximumFeeDollarydoos)
+        )
+        let message = """
+        Lock: \(amount) HNS
+        Network fee: \(fee) HNS (maximum \(maximumFee) HNS)
+        Transaction: \(approval.transactionId)
+        Session: \(approval.sessionId)
+
+        Broadcast is irreversible. Submission is not confirmation; the swap advances only after the authenticated HNS reader confirms this exact lock.
+        """
+        let alert = UIAlertController(
+            title: "Broadcast HNS HTLC funding?", message: message, preferredStyle: .alert
+        )
+        hnsForBtcFundingApprovalAlert = alert
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingHnsForBtcFundingApproval else { return }
+            self.pendingHnsForBtcFundingApproval = nil
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? wallet.rejectHnsForBtcFunding(pending.actionToken)
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Broadcast funding", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingHnsForBtcFundingApproval else { return }
+            self.pendingHnsForBtcFundingApproval = nil
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.approveHnsForBtcFunding(pending.actionToken) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let receipt):
+                        self.bitcoinStatusLabel.text = "HNS HTLC funding \(receipt.transactionId.prefix(12))… submitted; waiting for authenticated confirmation."
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The HNS HTLC funding transaction was not submitted."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func showBtcForHnsFundingFee(
+        _ execution: NativeDenuoExecutionSummary, wallet: RustNativeWallet
+    ) {
+        let alert = UIAlertController(
+            title: "Prepare Bitcoin funding",
+            message: "Enter a maximum fee within the reserve signed into this accepted session.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "Maximum funding fee (sats)"
+            field.keyboardType = .numberPad
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Review transaction", style: .default) {
+            [weak self, weak alert, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
+                self?.showErrorMessage("Enter a positive maximum Bitcoin fee in satoshis.")
+                return
+            }
+            alert?.textFields?.first?.text = nil
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                var session = Array(execution.sessionId.utf8)
+                var maximumFee = Array(String(fee).utf8)
+                let outcome = Result {
+                    try wallet.prepareBtcForHnsFunding(
+                        sessionId: &session, maximumFeeSats: &maximumFee
+                    )
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let approval):
+                        self.presentBtcForHnsFundingApproval(approval, wallet: wallet)
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "Bitcoin HTLC funding was not prepared."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func presentBtcForHnsFundingApproval(
+        _ approval: NativeBitcoinHtlcFundingApproval, wallet: RustNativeWallet
+    ) {
+        pendingBtcForHnsFundingApproval?.actionToken.discard()
+        pendingBtcForHnsFundingApproval = approval
+        let message = """
+        Lock: \(approval.amountSats) sats
+        Network fee: \(approval.feeSats) sats (maximum \(approval.maximumFeeSats))
+        Transaction: \(approval.txid)
+        Session: \(approval.sessionId)
+
+        Broadcast is irreversible. Submission is not confirmation; the swap advances only after the local Bitcoin verifier confirms the exact lock.
+        """
+        let alert = UIAlertController(
+            title: "Broadcast Bitcoin HTLC funding?", message: message, preferredStyle: .alert
+        )
+        btcForHnsFundingApprovalAlert = alert
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingBtcForHnsFundingApproval else { return }
+            self.pendingBtcForHnsFundingApproval = nil
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? wallet.rejectBtcForHnsFunding(pending.actionToken)
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Broadcast funding", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingBtcForHnsFundingApproval else { return }
+            self.pendingBtcForHnsFundingApproval = nil
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.approveBtcForHnsFunding(pending.actionToken) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let receipt):
+                        self.bitcoinStatusLabel.text = "Bitcoin HTLC funding \(receipt.txid.prefix(12))… submitted; waiting for independent local confirmation."
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The Bitcoin HTLC funding transaction was not submitted."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
     }
 
     private func confirmCancelBtcForHnsOffer(
@@ -3132,6 +3418,15 @@ final class WalletViewController: UIViewController {
         pendingBitcoinSendApproval?.actionToken.discard()
         pendingBitcoinSendApproval = nil
         bitcoinSendApprovalAlert?.dismiss(animated: false)
+        pendingBtcForHnsOfferApproval?.actionToken.discard()
+        pendingBtcForHnsOfferApproval = nil
+        btcForHnsOfferApprovalAlert?.dismiss(animated: false)
+        pendingBtcForHnsFundingApproval?.actionToken.discard()
+        pendingBtcForHnsFundingApproval = nil
+        btcForHnsFundingApprovalAlert?.dismiss(animated: false)
+        pendingHnsForBtcFundingApproval?.actionToken.discard()
+        pendingHnsForBtcFundingApproval = nil
+        hnsForBtcFundingApprovalAlert?.dismiss(animated: false)
         bitcoinSyncTimer?.invalidate()
         bitcoinSyncTimer = nil
         bitcoinSyncInProgress = false
@@ -3499,6 +3794,8 @@ final class WalletViewController: UIViewController {
             bitcoinValueAvailable && !bitcoinSyncInProgress && !bitcoinBirthdayResetInProgress &&
             !isOperating
         bitcoinOffersButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
+            bitcoinValueAvailable && !bitcoinSyncInProgress && !isOperating
+        bitcoinExecutionsButton.isEnabled = ownsStorage && hasWallet && walletIsUnlocked &&
             bitcoinValueAvailable && !bitcoinSyncInProgress && !isOperating
         bitcoinSyncButton.isEnabled = bitcoinSyncInProgress
             ? !bitcoinSyncStopRequested

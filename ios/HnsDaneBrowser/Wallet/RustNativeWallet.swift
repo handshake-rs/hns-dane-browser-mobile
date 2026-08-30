@@ -171,6 +171,80 @@ struct NativeBitcoinSendApproval {
     let expiresAtUnix: UInt64
 }
 
+struct NativeBitcoinHtlcFundingApproval {
+    let actionToken: NativeHnsSendActionToken
+    let sessionId: String
+    let txid: String
+    let amountSats: UInt64
+    let feeSats: UInt64
+    let maximumFeeSats: UInt64
+    let refundAtUnix: UInt64
+    let expiresAtUnix: UInt64
+}
+
+struct NativeBitcoinHtlcFundingReceipt: Decodable, Equatable, Sendable {
+    let sessionId: String
+    let txid: String
+    let attemptCount: UInt8
+    let submittedAtUnix: UInt64?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case sessionId, txid, attemptCount, submittedAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        txid = try container.decode(String.self, forKey: .txid)
+        attemptCount = try container.decode(UInt8.self, forKey: .attemptCount)
+        submittedAtUnix = try container.decodeIfPresent(UInt64.self, forKey: .submittedAtUnix)
+        guard Self.validHash(sessionId), Self.validHash(txid),
+              (1...16).contains(attemptCount), submittedAtUnix.map { $0 > 0 } ?? true else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin HTLC funding receipt")
+        }
+    }
+
+    fileprivate static func validHash(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.contains { $0 != UInt8(ascii: "0") } &&
+            value.utf8.allSatisfy {
+                (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                    (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+            }
+    }
+}
+
+struct NativeHnsHtlcFundingApproval {
+    let actionToken: NativeHnsSendActionToken
+    let sessionId: String
+    let transactionId: String
+    let amountDollarydoos: UInt64
+    let feeDollarydoos: UInt64
+    let maximumFeeDollarydoos: UInt64
+    let refundAtUnix: UInt64
+    let expiresAtUnix: UInt64
+}
+
+struct NativeHnsHtlcFundingReceipt: Decodable, Equatable, Sendable {
+    let sessionId: String
+    let transactionId: String
+    let acceptedAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case sessionId, transactionId, acceptedAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        transactionId = try container.decode(String.self, forKey: .transactionId)
+        acceptedAtUnix = try container.decode(UInt64.self, forKey: .acceptedAtUnix)
+        guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId),
+              NativeBitcoinHtlcFundingReceipt.validHash(transactionId), acceptedAtUnix > 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS HTLC funding receipt")
+        }
+    }
+}
+
 struct NativeBtcForHnsOfferApproval {
     let actionToken: NativeHnsSendActionToken
     let btcAmountSats: UInt64
@@ -229,6 +303,85 @@ private struct NativeBtcForHnsOfferList: Decodable {
         offers = try container.decode([NativeBtcForHnsOfferSummary].self, forKey: .offers)
         guard offers.count <= 1_024 else {
             throw NativeWalletBridgeError.invalidOutput("too many local BTC-for-HNS offers")
+        }
+    }
+}
+
+struct NativeDenuoExecutionSummary: Decodable, Equatable, Sendable {
+    let sessionId: String
+    let revision: UInt64
+    let state: String
+    let firstChain: String
+    let secondChain: String
+    let offeredAsset: String
+    let offeredAmount: UInt64
+    let receivedAsset: String
+    let receivedAmount: UInt64
+    let firstRefundAtUnix: UInt64
+    let secondRefundAtUnix: UInt64
+    let firstFundingConfirmed: Bool
+    let secondFundingConfirmed: Bool
+    let firstRedemptionConfirmed: Bool
+    let secondRedemptionConfirmed: Bool
+    let refundConfirmed: Bool
+    let lastVerifiedAtUnix: UInt64
+    let failureReason: String?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case sessionId, revision, state, firstChain, secondChain, offeredAsset, offeredAmount
+        case receivedAsset, receivedAmount, firstRefundAtUnix, secondRefundAtUnix
+        case firstFundingConfirmed, secondFundingConfirmed, firstRedemptionConfirmed
+        case secondRedemptionConfirmed, refundConfirmed, lastVerifiedAtUnix, failureReason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        revision = try container.decode(UInt64.self, forKey: .revision)
+        state = try container.decode(String.self, forKey: .state)
+        firstChain = try container.decode(String.self, forKey: .firstChain)
+        secondChain = try container.decode(String.self, forKey: .secondChain)
+        offeredAsset = try container.decode(String.self, forKey: .offeredAsset)
+        offeredAmount = try container.decode(UInt64.self, forKey: .offeredAmount)
+        receivedAsset = try container.decode(String.self, forKey: .receivedAsset)
+        receivedAmount = try container.decode(UInt64.self, forKey: .receivedAmount)
+        firstRefundAtUnix = try container.decode(UInt64.self, forKey: .firstRefundAtUnix)
+        secondRefundAtUnix = try container.decode(UInt64.self, forKey: .secondRefundAtUnix)
+        firstFundingConfirmed = try container.decode(Bool.self, forKey: .firstFundingConfirmed)
+        secondFundingConfirmed = try container.decode(Bool.self, forKey: .secondFundingConfirmed)
+        firstRedemptionConfirmed = try container.decode(Bool.self, forKey: .firstRedemptionConfirmed)
+        secondRedemptionConfirmed = try container.decode(Bool.self, forKey: .secondRedemptionConfirmed)
+        refundConfirmed = try container.decode(Bool.self, forKey: .refundConfirmed)
+        lastVerifiedAtUnix = try container.decode(UInt64.self, forKey: .lastVerifiedAtUnix)
+        failureReason = try container.decodeIfPresent(String.self, forKey: .failureReason)
+        let validStates: Set<String> = [
+            "offer_published", "offer_take_received", "offer_reserved", "terms_frozen",
+            "refunds_prepared", "first_funding_pending", "first_funded",
+            "second_funding_pending", "both_funded", "first_redeemed", "secret_observed",
+            "second_redeemed", "completed", "refund_eligible", "refund_broadcast",
+            "refunded", "failed",
+        ]
+        guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId), revision > 0,
+              validStates.contains(state), ["bitcoin", "handshake"].contains(firstChain),
+              ["bitcoin", "handshake"].contains(secondChain), firstChain != secondChain,
+              ["btc", "hns"].contains(offeredAsset), ["btc", "hns"].contains(receivedAsset),
+              offeredAsset != receivedAsset, offeredAmount > 0, receivedAmount > 0,
+              firstRefundAtUnix > secondRefundAtUnix, lastVerifiedAtUnix > 0,
+              failureReason.map { !$0.isEmpty && $0.count <= 256 } ?? true else {
+            throw NativeWalletBridgeError.invalidOutput("invalid durable Denuo execution")
+        }
+    }
+}
+
+private struct NativeDenuoExecutionList: Decodable {
+    let executions: [NativeDenuoExecutionSummary]
+    private enum CodingKeys: String, CodingKey, CaseIterable { case executions }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        executions = try container.decode([NativeDenuoExecutionSummary].self, forKey: .executions)
+        guard executions.count <= 1_024 else {
+            throw NativeWalletBridgeError.invalidOutput("too many durable Denuo executions")
         }
     }
 }
@@ -1266,6 +1419,120 @@ private struct NativeBitcoinSendApprovalPayload: Decodable {
     }
 }
 
+private struct NativeBitcoinHtlcFundingApprovalPayload: Decodable {
+    let actionToken: String
+    let sessionId: String
+    let txid: String
+    let amountSats: UInt64
+    let feeSats: UInt64
+    let maximumFeeSats: UInt64
+    let refundAtUnix: UInt64
+    let expiresAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case actionToken, sessionId, txid, amountSats, feeSats, maximumFeeSats
+        case refundAtUnix, expiresAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        actionToken = try container.decode(String.self, forKey: .actionToken)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        txid = try container.decode(String.self, forKey: .txid)
+        amountSats = try container.decode(UInt64.self, forKey: .amountSats)
+        feeSats = try container.decode(UInt64.self, forKey: .feeSats)
+        maximumFeeSats = try container.decode(UInt64.self, forKey: .maximumFeeSats)
+        refundAtUnix = try container.decode(UInt64.self, forKey: .refundAtUnix)
+        expiresAtUnix = try container.decode(UInt64.self, forKey: .expiresAtUnix)
+        guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId),
+              NativeBitcoinHtlcFundingReceipt.validHash(txid), amountSats > 0, feeSats > 0,
+              maximumFeeSats > 0, feeSats <= maximumFeeSats, expiresAtUnix > 0,
+              refundAtUnix > expiresAtUnix else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin HTLC funding approval")
+        }
+    }
+}
+
+private extension NativeBitcoinHtlcFundingApproval {
+    static func decode(bundle: [UInt8]) throws -> Self {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let decoded = try JSONDecoder().decode(
+            NativeBitcoinHtlcFundingApprovalPayload.self, from: payload
+        )
+        var token = Array(decoded.actionToken.utf8)
+        guard let actionToken = NativeHnsSendActionToken(takingASCII: &token) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin HTLC action token")
+        }
+        return Self(
+            actionToken: actionToken, sessionId: decoded.sessionId, txid: decoded.txid,
+            amountSats: decoded.amountSats, feeSats: decoded.feeSats,
+            maximumFeeSats: decoded.maximumFeeSats, refundAtUnix: decoded.refundAtUnix,
+            expiresAtUnix: decoded.expiresAtUnix
+        )
+    }
+}
+
+private struct NativeHnsHtlcFundingApprovalPayload: Decodable {
+    let actionToken: String
+    let sessionId: String
+    let transactionId: String
+    let amountDollarydoos: UInt64
+    let feeDollarydoos: UInt64
+    let maximumFeeDollarydoos: UInt64
+    let refundAtUnix: UInt64
+    let expiresAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case actionToken, sessionId, transactionId, amountDollarydoos, feeDollarydoos
+        case maximumFeeDollarydoos, refundAtUnix, expiresAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        actionToken = try container.decode(String.self, forKey: .actionToken)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        transactionId = try container.decode(String.self, forKey: .transactionId)
+        amountDollarydoos = try container.decode(UInt64.self, forKey: .amountDollarydoos)
+        feeDollarydoos = try container.decode(UInt64.self, forKey: .feeDollarydoos)
+        maximumFeeDollarydoos = try container.decode(UInt64.self, forKey: .maximumFeeDollarydoos)
+        refundAtUnix = try container.decode(UInt64.self, forKey: .refundAtUnix)
+        expiresAtUnix = try container.decode(UInt64.self, forKey: .expiresAtUnix)
+        guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId),
+              NativeBitcoinHtlcFundingReceipt.validHash(transactionId),
+              amountDollarydoos > 0, feeDollarydoos > 0, maximumFeeDollarydoos > 0,
+              feeDollarydoos <= maximumFeeDollarydoos, expiresAtUnix > 0,
+              refundAtUnix > expiresAtUnix else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS HTLC funding approval")
+        }
+    }
+}
+
+private extension NativeHnsHtlcFundingApproval {
+    static func decode(bundle: [UInt8]) throws -> Self {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let decoded = try JSONDecoder().decode(
+            NativeHnsHtlcFundingApprovalPayload.self, from: payload
+        )
+        var token = Array(decoded.actionToken.utf8)
+        guard let actionToken = NativeHnsSendActionToken(takingASCII: &token) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS HTLC action token")
+        }
+        return Self(
+            actionToken: actionToken, sessionId: decoded.sessionId,
+            transactionId: decoded.transactionId, amountDollarydoos: decoded.amountDollarydoos,
+            feeDollarydoos: decoded.feeDollarydoos,
+            maximumFeeDollarydoos: decoded.maximumFeeDollarydoos,
+            refundAtUnix: decoded.refundAtUnix, expiresAtUnix: decoded.expiresAtUnix
+        )
+    }
+}
+
 private struct NativeBtcForHnsOfferApprovalPayload: Decodable {
     let actionToken: String
     let btcAmountSats: UInt64
@@ -2104,6 +2371,118 @@ final class RustNativeWallet: @unchecked Sendable {
         }
     }
 
+    func prepareBtcForHnsFunding(
+        sessionId: inout [UInt8], maximumFeeSats: inout [UInt8]
+    ) throws -> NativeBitcoinHtlcFundingApproval {
+        defer {
+            WalletSecretBytes.wipe(&sessionId)
+            WalletSecretBytes.wipe(&maximumFeeSats)
+        }
+        var output = HnsBrowserBuffer()
+        let currentHandle = try liveHandle()
+        let result = sessionId.withUnsafeBufferPointer { session in
+            maximumFeeSats.withUnsafeBufferPointer { fee in
+                hns_browser_wallet_prepare_btc_for_hns_funding(
+                    currentHandle,
+                    HnsBrowserSlice(ptr: session.baseAddress, len: UInt64(session.count)),
+                    HnsBrowserSlice(ptr: fee.baseAddress, len: UInt64(fee.count)),
+                    &output
+                )
+            }
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "BTC-for-HNS funding preparation")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        return try NativeBitcoinHtlcFundingApproval.decode(bundle: bundle)
+    }
+
+    func approveBtcForHnsFunding(
+        _ actionToken: NativeHnsSendActionToken
+    ) throws -> NativeBitcoinHtlcFundingReceipt {
+        try actionToken.consume { token in
+            var output = HnsBrowserBuffer()
+            let result = try token.withUnsafeBufferPointer { bytes in
+                hns_browser_wallet_approve_btc_for_hns_funding(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count)),
+                    &output
+                )
+            }
+            defer { NativeWalletBridge.free(output) }
+            try NativeWalletBridge.check(result, operation: "BTC-for-HNS funding approval")
+            return try decodeBitcoinOutput(output, as: NativeBitcoinHtlcFundingReceipt.self)
+        }
+    }
+
+    func rejectBtcForHnsFunding(_ actionToken: NativeHnsSendActionToken) throws {
+        try actionToken.consume { token in
+            let result = try token.withUnsafeBufferPointer { bytes in
+                hns_browser_wallet_reject_btc_for_hns_funding(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
+                )
+            }
+            try NativeWalletBridge.check(result, operation: "BTC-for-HNS funding rejection")
+        }
+    }
+
+    func prepareHnsForBtcFunding(
+        sessionId: inout [UInt8], maximumFeeDollarydoos: inout [UInt8]
+    ) throws -> NativeHnsHtlcFundingApproval {
+        defer {
+            WalletSecretBytes.wipe(&sessionId)
+            WalletSecretBytes.wipe(&maximumFeeDollarydoos)
+        }
+        var output = HnsBrowserBuffer()
+        let currentHandle = try liveHandle()
+        let result = sessionId.withUnsafeBufferPointer { session in
+            maximumFeeDollarydoos.withUnsafeBufferPointer { fee in
+                hns_browser_wallet_prepare_hns_for_btc_funding(
+                    currentHandle,
+                    HnsBrowserSlice(ptr: session.baseAddress, len: UInt64(session.count)),
+                    HnsBrowserSlice(ptr: fee.baseAddress, len: UInt64(fee.count)),
+                    &output
+                )
+            }
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "HNS-for-BTC funding preparation")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        return try NativeHnsHtlcFundingApproval.decode(bundle: bundle)
+    }
+
+    func approveHnsForBtcFunding(
+        _ actionToken: NativeHnsSendActionToken
+    ) throws -> NativeHnsHtlcFundingReceipt {
+        try actionToken.consume { token in
+            var output = HnsBrowserBuffer()
+            let result = try token.withUnsafeBufferPointer { bytes in
+                hns_browser_wallet_approve_hns_for_btc_funding(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count)),
+                    &output
+                )
+            }
+            defer { NativeWalletBridge.free(output) }
+            try NativeWalletBridge.check(result, operation: "HNS-for-BTC funding approval")
+            return try decodeBitcoinOutput(output, as: NativeHnsHtlcFundingReceipt.self)
+        }
+    }
+
+    func rejectHnsForBtcFunding(_ actionToken: NativeHnsSendActionToken) throws {
+        try actionToken.consume { token in
+            let result = try token.withUnsafeBufferPointer { bytes in
+                hns_browser_wallet_reject_hns_for_btc_funding(
+                    try liveHandle(),
+                    HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
+                )
+            }
+            try NativeWalletBridge.check(result, operation: "HNS-for-BTC funding rejection")
+        }
+    }
+
     func prepareBtcForHnsOffer(
         btcAmountSats: UInt64,
         hnsAmountDollarydoos: UInt64,
@@ -2163,6 +2542,15 @@ final class RustNativeWallet: @unchecked Sendable {
             hns_browser_wallet_local_btc_for_hns_offers(handle, output)
         }
         return result.offers
+    }
+
+    func denuoExecutions() throws -> [NativeDenuoExecutionSummary] {
+        let result: NativeDenuoExecutionList = try decodeBitcoinBundle(
+            operation: "durable Denuo executions"
+        ) { handle, output in
+            hns_browser_wallet_denuo_executions(handle, output)
+        }
+        return result.executions
     }
 
     func cancelBtcForHnsOffer(offerId: String) throws {

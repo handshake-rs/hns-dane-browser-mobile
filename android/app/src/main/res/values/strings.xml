@@ -666,6 +666,30 @@
     <string name="wallet_swap_cancelling" translatable="false">Signing direct-offer cancellation…</string>
     <string name="wallet_swap_cancelled" translatable="false">The BTC-for-HNS offer was cancelled and its local reservation was released.</string>
     <string name="wallet_swap_cancel_failed" translatable="false">The offer was not cancelled. It may have expired or entered a swap session.</string>
+    <string name="wallet_swap_executions" translatable="false">Atomic swap executions</string>
+    <string name="wallet_swap_loading_executions" translatable="false">Loading durable atomic swap state…</string>
+    <string name="wallet_swap_execution_list_failed" translatable="false">Durable atomic swap state could not be authenticated.</string>
+    <string name="wallet_swap_no_executions" translatable="false">There are no accepted atomic swap executions.</string>
+    <string name="wallet_swap_execution_title" translatable="false">Atomic swap status</string>
+    <string name="wallet_swap_execution_detail" translatable="false">Session: %1$s\nState: %2$s\nFunding order: %3$s, then %4$s\nFirst funding confirmed: %5$s\nSecond funding confirmed: %6$s\n\nOnly locally verified chain evidence advances this status.</string>
+    <string name="wallet_swap_fund_bitcoin" translatable="false">Prepare Bitcoin funding</string>
+    <string name="wallet_swap_funding_fee_hint" translatable="false">Maximum Bitcoin funding fee (sats)</string>
+    <string name="wallet_swap_funding_preparing" translatable="false">Preparing exact session-bound Bitcoin HTLC funding…</string>
+    <string name="wallet_swap_funding_prepare_failed" translatable="false">Bitcoin HTLC funding was not prepared. Confirm the accepted session, current chain state, and signed fee reserve.</string>
+    <string name="wallet_swap_funding_approval_title" translatable="false">Broadcast Bitcoin HTLC funding?</string>
+    <string name="wallet_swap_funding_approval_message" translatable="false">Lock %1$d sats in the session HTLC. Network fee: %2$d sats (maximum %3$d).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. This submission receipt is not confirmation; the swap advances only after the local Bitcoin verifier confirms the exact lock.</string>
+    <string name="wallet_swap_broadcast_funding" translatable="false">Broadcast funding</string>
+    <string name="wallet_swap_funding_broadcast_failed" translatable="false">The Bitcoin HTLC funding transaction was not submitted.</string>
+    <string name="wallet_swap_funding_submitted" translatable="false">Bitcoin HTLC funding %1$s… was submitted. Waiting for independent local confirmation.</string>
+    <string name="wallet_swap_fund_hns" translatable="false">Prepare HNS funding</string>
+    <string name="wallet_swap_hns_funding_fee_hint" translatable="false">Maximum HNS funding fee (dollarydoos)</string>
+    <string name="wallet_swap_hns_funding_preparing" translatable="false">Preparing the exact session-bound Handshake HTLC…</string>
+    <string name="wallet_swap_hns_funding_prepare_failed" translatable="false">Handshake HTLC funding was not prepared. The Bitcoin lock must first be independently confirmed and the fee must remain within the signed reserve.</string>
+    <string name="wallet_swap_hns_funding_approval_title" translatable="false">Broadcast Handshake HTLC funding?</string>
+    <string name="wallet_swap_hns_funding_approval_message" translatable="false">Lock %1$s HNS. Network fee: %2$s HNS (maximum %3$s).\n\nTransaction: %4$s\nSession: %5$s\n\nBroadcast is irreversible. Submission is not confirmation; the swap advances only after the local Handshake verifier confirms the exact lock.</string>
+    <string name="wallet_swap_broadcast_hns_funding" translatable="false">Broadcast HNS funding</string>
+    <string name="wallet_swap_hns_funding_broadcast_failed" translatable="false">The Handshake HTLC funding transaction was not submitted.</string>
+    <string name="wallet_swap_hns_funding_submitted" translatable="false">Handshake HTLC funding %1$s… was submitted. Waiting for independent local confirmation.</string>
 
     <plurals name="wallet_dashboard_tracked_names" translatable="false">
         <item quantity="one">%d tracked name</item>

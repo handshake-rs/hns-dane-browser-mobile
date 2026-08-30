@@ -1628,6 +1628,7 @@ dependencies = [
  "hns-primitives",
  "hns-swap",
  "hns-wallet-bitcoin-kyoto",
+ "hns-wallet-chain-api",
  "hns-wallet-ffi",
  "hns-wallet-hns",
  "hns-wallet-host",
@@ -1663,6 +1664,7 @@ version = "0.1.1"
 dependencies = [
  "getrandom 0.3.4",
  "hns-marketplace-protocol",
+ "hns-swap",
  "hns-wallet-chain-api",
  "hns-wallet-ffi",
  "hns-wallet-hns",

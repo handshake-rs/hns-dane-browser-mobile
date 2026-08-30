@@ -66,6 +66,45 @@ internal data class NativeBitcoinSendReceipt(
     val submittedAtUnix: Long?,
 )
 
+internal data class NativeBitcoinHtlcFundingApproval(
+    val actionToken: NativeHnsValueActionToken,
+    val sessionId: String,
+    val txid: String,
+    val amountSats: Long,
+    val feeSats: Long,
+    val maximumFeeSats: Long,
+    val refundAtUnix: Long,
+    val expiresAtUnix: Long,
+) : AutoCloseable {
+    override fun close() = actionToken.close()
+}
+
+internal data class NativeBitcoinHtlcFundingReceipt(
+    val sessionId: String,
+    val txid: String,
+    val attemptCount: Int,
+    val submittedAtUnix: Long?,
+)
+
+internal data class NativeHnsHtlcFundingApproval(
+    val actionToken: NativeHnsValueActionToken,
+    val sessionId: String,
+    val transactionId: String,
+    val amountDollarydoos: Long,
+    val feeDollarydoos: Long,
+    val maximumFeeDollarydoos: Long,
+    val refundAtUnix: Long,
+    val expiresAtUnix: Long,
+) : AutoCloseable {
+    override fun close() = actionToken.close()
+}
+
+internal data class NativeHnsHtlcFundingReceipt(
+    val sessionId: String,
+    val transactionId: String,
+    val acceptedAtUnix: Long,
+)
+
 internal data class NativeBtcForHnsOfferApproval(
     val actionToken: NativeHnsValueActionToken,
     val btcAmountSats: Long,
@@ -87,6 +126,27 @@ internal data class NativeBtcForHnsOfferSummary(
     val bitcoinFeeReserveSats: Long,
     val createdAtUnix: Long,
     val expiresAtUnix: Long,
+)
+
+internal data class NativeDenuoExecutionSummary(
+    val sessionId: String,
+    val revision: Long,
+    val state: String,
+    val firstChain: String,
+    val secondChain: String,
+    val offeredAsset: String,
+    val offeredAmount: Long,
+    val receivedAsset: String,
+    val receivedAmount: Long,
+    val firstRefundAtUnix: Long,
+    val secondRefundAtUnix: Long,
+    val firstFundingConfirmed: Boolean,
+    val secondFundingConfirmed: Boolean,
+    val firstRedemptionConfirmed: Boolean,
+    val secondRedemptionConfirmed: Boolean,
+    val refundConfirmed: Boolean,
+    val lastVerifiedAtUnix: Long,
+    val failureReason: String?,
 )
 
 internal object NativeBitcoinWalletBundle {
@@ -201,6 +261,83 @@ internal object NativeBitcoinWalletBundle {
         NativeBitcoinSendReceipt(txid, wtxid, attempts, submitted)
     }
 
+    fun htlcFundingApproval(bundle: ByteArray): NativeBitcoinHtlcFundingApproval? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf(
+            "actionToken", "sessionId", "txid", "amountSats", "feeSats",
+            "maximumFeeSats", "refundAtUnix", "expiresAtUnix",
+        ))) return@parse null
+        val tokenBytes = json.optString("actionToken", "").toByteArray(Charsets.US_ASCII)
+        val token = NativeHnsValueActionToken.takeOwnership(tokenBytes) ?: return@parse null
+        val sessionId = hexHash(json.optString("sessionId", ""))
+        val txid = hexHash(json.optString("txid", ""))
+        val amount = positiveLong(json, "amountSats")
+        val fee = positiveLong(json, "feeSats")
+        val maximumFee = positiveLong(json, "maximumFeeSats")
+        val refundAt = positiveLong(json, "refundAtUnix")
+        val expiresAt = positiveLong(json, "expiresAtUnix")
+        if (
+            sessionId == null || txid == null || amount == null || fee == null ||
+            maximumFee == null || refundAt == null || expiresAt == null ||
+            fee > maximumFee || expiresAt >= refundAt
+        ) {
+            token.close()
+            return@parse null
+        }
+        NativeBitcoinHtlcFundingApproval(
+            token, sessionId, txid, amount, fee, maximumFee, refundAt, expiresAt,
+        )
+    }
+
+    fun htlcFundingReceipt(bundle: ByteArray): NativeBitcoinHtlcFundingReceipt? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf("sessionId", "txid", "attemptCount", "submittedAtUnix"))) {
+            return@parse null
+        }
+        val sessionId = hexHash(json.optString("sessionId", "")) ?: return@parse null
+        val txid = hexHash(json.optString("txid", "")) ?: return@parse null
+        val attempts = json.optInt("attemptCount", -1).takeIf { it in 1..16 } ?: return@parse null
+        val submitted = if (json.isNull("submittedAtUnix")) null else
+            positiveLong(json, "submittedAtUnix") ?: return@parse null
+        NativeBitcoinHtlcFundingReceipt(sessionId, txid, attempts, submitted)
+    }
+
+    fun hnsHtlcFundingApproval(bundle: ByteArray): NativeHnsHtlcFundingApproval? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf(
+            "actionToken", "sessionId", "transactionId", "amountDollarydoos",
+            "feeDollarydoos", "maximumFeeDollarydoos", "refundAtUnix", "expiresAtUnix",
+        ))) return@parse null
+        val token = NativeHnsValueActionToken.takeOwnership(
+            json.optString("actionToken", "").toByteArray(Charsets.US_ASCII),
+        ) ?: return@parse null
+        val session = hexHash(json.optString("sessionId", ""))
+        val transaction = hexHash(json.optString("transactionId", ""))
+        val amount = positiveLong(json, "amountDollarydoos")
+        val fee = positiveLong(json, "feeDollarydoos")
+        val maximumFee = positiveLong(json, "maximumFeeDollarydoos")
+        val refund = positiveLong(json, "refundAtUnix")
+        val expires = positiveLong(json, "expiresAtUnix")
+        if (session == null || transaction == null || amount == null || fee == null ||
+            maximumFee == null || refund == null || expires == null || fee > maximumFee ||
+            expires >= refund
+        ) {
+            token.close()
+            return@parse null
+        }
+        NativeHnsHtlcFundingApproval(
+            token, session, transaction, amount, fee, maximumFee, refund, expires,
+        )
+    }
+
+    fun hnsHtlcFundingReceipt(bundle: ByteArray): NativeHnsHtlcFundingReceipt? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf("sessionId", "transactionId", "acceptedAtUnix"))) {
+            return@parse null
+        }
+        NativeHnsHtlcFundingReceipt(
+            hexHash(json.optString("sessionId", "")) ?: return@parse null,
+            hexHash(json.optString("transactionId", "")) ?: return@parse null,
+            positiveLong(json, "acceptedAtUnix") ?: return@parse null,
+        )
+    }
+
     fun btcForHnsApproval(bundle: ByteArray): NativeBtcForHnsOfferApproval? = parse(bundle) { json ->
         if (!hasExactKeys(json, setOf(
             "actionToken", "btcAmountSats", "hnsAmountDollarydoos", "bitcoinFeeReserveSats",
@@ -245,6 +382,17 @@ internal object NativeBitcoinWalletBundle {
         }
     }
 
+    fun denuoExecutions(bundle: ByteArray): List<NativeDenuoExecutionSummary>? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf("executions"))) return@parse null
+        val array = json.optJSONArray("executions") ?: return@parse null
+        if (array.length() > 1_024) return@parse null
+        buildList(array.length()) {
+            for (index in 0 until array.length()) {
+                add(parseDenuoExecution(array.optJSONObject(index) ?: return@parse null) ?: return@parse null)
+            }
+        }
+    }
+
     private fun parseBtcForHnsSummary(json: JSONObject): NativeBtcForHnsOfferSummary? {
         if (!hasExactKeys(json, setOf(
             "offerId", "sessionId", "btcAmountSats", "hnsAmountDollarydoos",
@@ -260,6 +408,54 @@ internal object NativeBitcoinWalletBundle {
             positiveLong(json, "bitcoinFeeReserveSats") ?: return null,
             created,
             expires,
+        )
+    }
+
+    private fun parseDenuoExecution(json: JSONObject): NativeDenuoExecutionSummary? {
+        if (!hasExactKeys(json, setOf(
+            "sessionId", "revision", "state", "firstChain", "secondChain",
+            "offeredAsset", "offeredAmount", "receivedAsset", "receivedAmount",
+            "firstRefundAtUnix", "secondRefundAtUnix", "firstFundingConfirmed",
+            "secondFundingConfirmed", "firstRedemptionConfirmed", "secondRedemptionConfirmed",
+            "refundConfirmed", "lastVerifiedAtUnix", "failureReason",
+        ))) return null
+        val state = json.optString("state", "").takeIf { it in DENUO_EXECUTION_STATES }
+            ?: return null
+        val firstChain = json.optString("firstChain", "").takeIf { it in DENUO_CHAINS }
+            ?: return null
+        val secondChain = json.optString("secondChain", "").takeIf { it in DENUO_CHAINS }
+            ?: return null
+        val offeredAsset = json.optString("offeredAsset", "").takeIf { it in DENUO_ASSETS }
+            ?: return null
+        val receivedAsset = json.optString("receivedAsset", "").takeIf { it in DENUO_ASSETS }
+            ?: return null
+        val firstRefund = positiveLong(json, "firstRefundAtUnix") ?: return null
+        val secondRefund = positiveLong(json, "secondRefundAtUnix") ?: return null
+        val failure = if (json.isNull("failureReason")) null else
+            json.optString("failureReason", "").takeIf { it.isNotEmpty() && it.length <= 256 }
+                ?: return null
+        if (firstChain == secondChain || offeredAsset == receivedAsset || firstRefund <= secondRefund) {
+            return null
+        }
+        return NativeDenuoExecutionSummary(
+            sessionId = hexHash(json.optString("sessionId", "")) ?: return null,
+            revision = positiveLong(json, "revision") ?: return null,
+            state = state,
+            firstChain = firstChain,
+            secondChain = secondChain,
+            offeredAsset = offeredAsset,
+            offeredAmount = positiveLong(json, "offeredAmount") ?: return null,
+            receivedAsset = receivedAsset,
+            receivedAmount = positiveLong(json, "receivedAmount") ?: return null,
+            firstRefundAtUnix = firstRefund,
+            secondRefundAtUnix = secondRefund,
+            firstFundingConfirmed = exactBoolean(json, "firstFundingConfirmed") ?: return null,
+            secondFundingConfirmed = exactBoolean(json, "secondFundingConfirmed") ?: return null,
+            firstRedemptionConfirmed = exactBoolean(json, "firstRedemptionConfirmed") ?: return null,
+            secondRedemptionConfirmed = exactBoolean(json, "secondRedemptionConfirmed") ?: return null,
+            refundConfirmed = exactBoolean(json, "refundConfirmed") ?: return null,
+            lastVerifiedAtUnix = positiveLong(json, "lastVerifiedAtUnix") ?: return null,
+            failureReason = failure,
         )
     }
 
@@ -326,7 +522,10 @@ internal object NativeBitcoinWalletBundle {
         value.takeIf { it.isNotBlank() && it.length <= 128 && it.all(Char::isLetterOrDigit) }
 
     private fun hexHash(value: String): String? =
-        value.takeIf { it.length == 64 && it.all { character -> character in '0'..'9' || character in 'a'..'f' } }
+        value.takeIf {
+            it.length == 64 && it.any { character -> character != '0' } &&
+                it.all { character -> character in '0'..'9' || character in 'a'..'f' }
+        }
 
     private fun nonnegativeLong(json: JSONObject, key: String): Long? =
         json.optLong(key, -1L).takeIf { it >= 0L }
@@ -337,10 +536,21 @@ internal object NativeBitcoinWalletBundle {
     private fun peerCount(json: JSONObject, key: String): Int? =
         json.optInt(key, -1).takeIf { it in 0..8 }
 
+    private fun exactBoolean(json: JSONObject, key: String): Boolean? = json.opt(key) as? Boolean
+
     private fun hasExactKeys(json: JSONObject, expected: Set<String>): Boolean {
         val actual = HashSet<String>()
         val keys = json.keys()
         while (keys.hasNext()) actual.add(keys.next())
         return actual == expected
     }
+
+    private val DENUO_CHAINS = setOf("bitcoin", "handshake")
+    private val DENUO_ASSETS = setOf("btc", "hns")
+    private val DENUO_EXECUTION_STATES = setOf(
+        "offer_published", "offer_take_received", "offer_reserved", "terms_frozen",
+        "refunds_prepared", "first_funding_pending", "first_funded", "second_funding_pending",
+        "both_funded", "first_redeemed", "secret_observed", "second_redeemed", "completed",
+        "refund_eligible", "refund_broadcast", "refunded", "failed",
+    )
 }
