@@ -26,9 +26,10 @@ use hns_wallet_mobile::{
     HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock,
     MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig,
     MobileBitcoinValueController, MobileDatabaseKey, MobileDenuoBitcoinFundingPermit,
-    MobileDenuoSessionController, MobileHnsNameSummary, MobileHnsReadController,
-    MobileHnsReadSnapshot, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
-    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
+    MobileDenuoBitcoinWatchPermit, MobileDenuoSessionController, MobileHnsNameSummary,
+    MobileHnsReadController, MobileHnsReadSnapshot, MobileHnsValueController, MobileHnsValueIntent,
+    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController,
+    MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use serde_json::{Value, json};
@@ -1171,6 +1172,37 @@ impl NativeWalletController {
             return Err(MobileWalletError::ControllerFailed);
         };
         denuo_sessions.authorize_local_btc_first_funding(session_id, HnsReadSystemClock.now_unix()?)
+    }
+
+    fn next_counterparty_bitcoin_watch(
+        &mut self,
+    ) -> Result<Option<MobileDenuoBitcoinWatchPermit>, MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Ok(None);
+        };
+        denuo_sessions.next_counterparty_bitcoin_watch(HnsReadSystemClock.now_unix()?)
+    }
+
+    fn complete_counterparty_bitcoin_watch(
+        &mut self,
+        permit: MobileDenuoBitcoinWatchPermit,
+    ) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            denuo_sessions,
+            denuo_peer,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        let peer = denuo_peer
+            .as_mut()
+            .ok_or(MobileWalletError::ControllerFailed)?;
+        denuo_sessions.complete_counterparty_bitcoin_watch(
+            permit,
+            peer,
+            HnsReadSystemClock.now_unix()?,
+        )
     }
 
     fn disconnect_direct_denuo_peer(&mut self) -> bool {
@@ -4051,10 +4083,46 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_denuo(
 ) -> HnsBrowserResult {
     ffi_call(|| {
         require_output(out_serviced)?;
-        let entry = wallet_entry(wallet)?;
-        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
-        ensure_wallet_active(&entry)?;
-        let serviced = u8::from(entry.controller.service_direct_denuo_once());
+        let (serviced, permit) = {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            let serviced = entry.controller.service_direct_denuo_once();
+            let permit = entry
+                .controller
+                .next_counterparty_bitcoin_watch()
+                .ok()
+                .flatten();
+            (serviced, permit)
+        };
+        let completed = if let Some(permit) = permit {
+            let registered = {
+                let control = wallet_bitcoin_control_entry(wallet)?;
+                match control.controller.try_lock() {
+                    Ok(mut slot) => slot.as_mut().is_some_and(|bitcoin| {
+                        bitcoin
+                            .register_counterparty_denuo_htlc_watch(&permit)
+                            .is_ok()
+                    }),
+                    Err(TryLockError::WouldBlock) => false,
+                    Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
+                }
+            };
+            if registered {
+                let entry = wallet_entry(wallet)?;
+                let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+                ensure_wallet_active(&entry)?;
+                entry
+                    .controller
+                    .complete_counterparty_bitcoin_watch(permit)
+                    .is_ok()
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        let serviced = u8::from(serviced || completed);
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_serviced, serviced) };
         Ok(())

@@ -15,9 +15,9 @@ use hns_wallet_mobile::{
     HnsDirectPeerError, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
     HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES,
     MobileBitcoinDirectConfig, MobileBitcoinValueController, MobileDatabaseKey,
-    MobileDenuoBitcoinFundingPermit, MobileDenuoSessionController, MobileHnsReadController,
-    MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
-    MobileShakedexQuery, MobileWalletController, MobileWalletError,
+    MobileDenuoBitcoinFundingPermit, MobileDenuoBitcoinWatchPermit, MobileDenuoSessionController,
+    MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
+    MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use jni::JNIEnv;
@@ -857,6 +857,37 @@ impl AndroidWalletController {
         denuo_sessions
             .authorize_local_btc_first_funding(session_id, HnsReadSystemClock.now_unix().ok()?)
             .ok()
+    }
+
+    fn next_counterparty_bitcoin_watch(
+        &mut self,
+    ) -> Result<Option<MobileDenuoBitcoinWatchPermit>, MobileWalletError> {
+        let Self::DirectValue { denuo_sessions, .. } = self else {
+            return Ok(None);
+        };
+        denuo_sessions.next_counterparty_bitcoin_watch(HnsReadSystemClock.now_unix()?)
+    }
+
+    fn complete_counterparty_bitcoin_watch(
+        &mut self,
+        permit: MobileDenuoBitcoinWatchPermit,
+    ) -> Result<(), MobileWalletError> {
+        let Self::DirectValue {
+            denuo_sessions,
+            denuo_peer,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        let peer = denuo_peer
+            .as_mut()
+            .ok_or(MobileWalletError::ControllerFailed)?;
+        denuo_sessions.complete_counterparty_bitcoin_watch(
+            permit,
+            peer,
+            HnsReadSystemClock.now_unix()?,
+        )
     }
 
     fn pending_first_bitcoin_funding_sessions(&self) -> Option<Vec<SessionId>> {
@@ -5059,7 +5090,30 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
-        controller.service_direct_denuo_once()
+        let serviced = controller.service_direct_denuo_once();
+        let permit = controller.next_counterparty_bitcoin_watch().ok().flatten();
+        drop(controller);
+        let Some(permit) = permit else {
+            return serviced;
+        };
+        let registered = record
+            .bitcoin_try_if_active()
+            .and_then(|mut slot| {
+                slot.as_mut().map(|bitcoin| {
+                    bitcoin
+                        .register_counterparty_denuo_htlc_watch(&permit)
+                        .is_ok()
+                })
+            })
+            .unwrap_or(false);
+        if !registered {
+            return serviced;
+        }
+        record.controller_if_active().is_some_and(|mut controller| {
+            controller
+                .complete_counterparty_bitcoin_watch(permit)
+                .is_ok()
+        }) || serviced
     }))
     .unwrap_or(false)
     .into()
