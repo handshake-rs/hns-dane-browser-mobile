@@ -5543,12 +5543,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 .and_then(|bitcoin| bitcoin.approved_broadcast_recovery().ok())
         });
         let mut controller = record.controller_if_active()?;
-        if !controller.reconcile_verified_hns_funding() {
-            return None;
-        }
-        if !controller.reconcile_verified_hns_spends() {
-            return None;
-        }
+        // A temporarily unavailable HNS verification read cannot advance the
+        // execution this refresh, but it must not hide already-authenticated
+        // durable execution or Bitcoin broadcast-recovery state.
+        let _ = controller.reconcile_verified_hns_funding();
+        let _ = controller.reconcile_verified_hns_spends();
         let mut bundle = controller.denuo_executions(bitcoin_broadcast_recovery)?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
