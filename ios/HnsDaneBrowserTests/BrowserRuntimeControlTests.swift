@@ -3983,6 +3983,92 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertThrowsError(try NativeDirectDenuoBundle.connect(badReserved))
         XCTAssertThrowsError(try NativeDirectDenuoBundle.connect(status))
     }
+
+    func testNativeSwapSettlementBundlesAreExactFeeBoundAndChainTyped() throws {
+        let token = String(repeating: "a", count: 64)
+        let session = String(repeating: "1", count: 64)
+        let bitcoinTransaction = String(repeating: "2", count: 64)
+        let hnsTransaction = String(repeating: "3", count: 64)
+
+        let bitcoinApproval = try NativeSwapSettlementApproval.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"actionToken":"\(token)","sessionId":"\(session)","action":"redeem","txid":"\(bitcoinTransaction)","inputAmountSats":10000,"outputAmountSats":9500,"feeSats":500,"maximumFeeSats":600,"expiresAtUnix":2000}
+                """
+            ),
+            bitcoin: true
+        )
+        XCTAssertEqual(bitcoinApproval.action, .redeem)
+        XCTAssertEqual(bitcoinApproval.transactionId, bitcoinTransaction)
+        XCTAssertEqual(bitcoinApproval.fee, 500)
+        bitcoinApproval.actionToken.discard()
+
+        let hnsApproval = try NativeSwapSettlementApproval.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"actionToken":"\(token)","sessionId":"\(session)","action":"refund","transactionId":"\(hnsTransaction)","inputAmountDollarydoos":2000000,"outputAmountDollarydoos":1999000,"feeDollarydoos":1000,"maximumFeeDollarydoos":1200,"expiresAtUnix":2100}
+                """
+            ),
+            bitcoin: false
+        )
+        XCTAssertEqual(hnsApproval.action, .refund)
+        XCTAssertEqual(hnsApproval.transactionId, hnsTransaction)
+        hnsApproval.actionToken.discard()
+
+        let bitcoinReceipt = try NativeSwapSettlementReceipt.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"sessionId":"\(session)","action":"redeem","txid":"\(bitcoinTransaction)","attemptCount":2,"submittedAtUnix":2200}
+                """
+            ),
+            bitcoin: true
+        )
+        XCTAssertEqual(bitcoinReceipt.attemptCount, 2)
+        XCTAssertEqual(bitcoinReceipt.acceptedAtUnix, nil)
+
+        let hnsReceipt = try NativeSwapSettlementReceipt.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"sessionId":"\(session)","action":"refund","transactionId":"\(hnsTransaction)","acceptedAtUnix":2300}
+                """
+            ),
+            bitcoin: false
+        )
+        XCTAssertEqual(hnsReceipt.acceptedAtUnix, 2300)
+        XCTAssertEqual(hnsReceipt.attemptCount, nil)
+
+        XCTAssertThrowsError(try NativeSwapSettlementApproval.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"actionToken":"\(token)","sessionId":"\(session)","action":"redeem","txid":"\(bitcoinTransaction)","inputAmountSats":10000,"outputAmountSats":9501,"feeSats":500,"maximumFeeSats":600,"expiresAtUnix":2000}
+                """
+            ),
+            bitcoin: true
+        ))
+        XCTAssertThrowsError(try NativeSwapSettlementReceipt.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"sessionId":"\(session)","action":"redeem","txid":"\(bitcoinTransaction)","attemptCount":17,"submittedAtUnix":2200}
+                """
+            ),
+            bitcoin: true
+        ))
+        XCTAssertThrowsError(try NativeSwapSettlementReceipt.decode(
+            bundle: hnsValueBundle(
+                magic: "HNBW",
+                json: """
+                {"sessionId":"\(session)","action":"refund","transactionId":"\(hnsTransaction)","acceptedAtUnix":2300,"peer":"untrusted"}
+                """
+            ),
+            bitcoin: false
+        ))
+    }
 }
 
 @MainActor

@@ -1619,7 +1619,7 @@ private struct NativeHnsSwapSettlementApprovalPayload: Decodable {
     }
 }
 
-private extension NativeSwapSettlementApproval {
+extension NativeSwapSettlementApproval {
     static func decode(bundle: [UInt8], bitcoin: Bool) throws -> Self {
         var payload = try NativeHnsValueBundle.payload(
             bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
@@ -1716,7 +1716,7 @@ private struct NativeHnsSwapSettlementReceiptPayload: Decodable {
     }
 }
 
-private extension NativeSwapSettlementReceipt {
+extension NativeSwapSettlementReceipt {
     static func decode(bundle: [UInt8], bitcoin: Bool) throws -> Self {
         var payload = try NativeHnsValueBundle.payload(
             bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
