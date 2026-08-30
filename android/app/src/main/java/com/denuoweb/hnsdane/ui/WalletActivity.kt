@@ -46,6 +46,7 @@ import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeDenuoExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeHnsHtlcFundingApproval
+import com.denuoweb.hnsdane.wallet.NativeSwapSettlementApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
 import com.denuoweb.hnsdane.wallet.NativeWalletDirectDenuoConnectResult
 import com.denuoweb.hnsdane.wallet.directDenuoControls
@@ -2572,8 +2573,127 @@ class WalletActivity : ComponentActivity() {
                     else prepareHnsForBtcFunding(execution, fee)
                 }
             }
+        } else if (execution.state in setOf("both_funded", "first_redeemed", "secret_observed")) {
+            builder.setPositiveButton(R.string.wallet_swap_settlement_actions) { _, _ ->
+                showSwapSettlementActions(execution)
+            }
         }
         builder.show()
+    }
+
+    private fun showSwapSettlementActions(execution: NativeDenuoExecutionSummary) {
+        val actions = arrayOf(
+            getString(R.string.wallet_swap_redeem_hns),
+            getString(R.string.wallet_swap_redeem_bitcoin),
+            getString(R.string.wallet_swap_refund_hns),
+            getString(R.string.wallet_swap_refund_bitcoin),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_swap_settlement_actions)
+            .setItems(actions) { _, index ->
+                val bitcoin = index == 1 || index == 3
+                val action = if (index < 2) "redeem" else "refund"
+                showWalletActionForm(
+                    R.string.wallet_swap_settlement_fee_title,
+                    listOf(WalletActionInput(
+                        if (bitcoin) R.string.wallet_swap_settlement_btc_fee_hint
+                        else R.string.wallet_swap_settlement_hns_fee_hint,
+                        numeric = true,
+                    )),
+                ) { values ->
+                    val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
+                    if (fee == null) {
+                        bitcoinStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
+                    } else {
+                        prepareSwapSettlement(execution, action, bitcoin, fee)
+                    }
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun prepareSwapSettlement(
+        execution: NativeDenuoExecutionSummary,
+        action: String,
+        bitcoin: Boolean,
+        maximumFee: Long,
+    ) {
+        val lease = currentStorageLease() ?: return
+        val handle = walletHandle
+        if (!beginOperation(lease, getString(R.string.wallet_swap_settlement_preparing), resetReads = false)) return
+        val epoch = lifecycleEpoch
+        thread(name = "denuo-swap-settlement-prepare") {
+            val approval = NativeWalletBridge.prepareSwapSettlement(
+                handle, execution.sessionId, action, maximumFee, bitcoin,
+            )
+            runOnUiThread {
+                if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
+                    approval?.let {
+                        NativeWalletBridge.rejectSwapSettlement(handle, it.actionToken, bitcoin)
+                        it.close()
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                } else if (approval == null) {
+                    busy = false
+                    bitcoinStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
+                    releaseStorageLeaseAfterOperation(lease)
+                } else {
+                    showSwapSettlementApproval(approval, bitcoin, lease, epoch)
+                }
+            }
+        }
+    }
+
+    private fun showSwapSettlementApproval(
+        approval: NativeSwapSettlementApproval,
+        bitcoin: Boolean,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+    ) {
+        var settled = false
+        fun reject() {
+            if (settled) return
+            settled = true
+            thread(name = "denuo-swap-settlement-reject") {
+                NativeWalletBridge.rejectSwapSettlement(walletHandle, approval.actionToken, bitcoin)
+                runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
+            }
+        }
+        val unit = if (bitcoin) "sats" else "dollarydoos"
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.wallet_swap_settlement_approval_title, approval.action))
+            .setMessage(getString(
+                R.string.wallet_swap_settlement_approval_message,
+                approval.inputAmount, unit, approval.outputAmount, approval.fee,
+                approval.maximumFee, approval.transactionId, approval.sessionId,
+            ))
+            .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
+            .setPositiveButton(R.string.wallet_swap_broadcast_settlement) { _, _ ->
+                if (settled) return@setPositiveButton
+                settled = true
+                thread(name = "denuo-swap-settlement-broadcast") {
+                    val receipt = NativeWalletBridge.approveSwapSettlement(
+                        walletHandle, approval.actionToken, bitcoin,
+                    )
+                    runOnUiThread {
+                        if (operationIsCurrent(epoch, lease)) {
+                            busy = false
+                            bitcoinStatusView.text = if (receipt == null) {
+                                getString(R.string.wallet_swap_settlement_broadcast_failed)
+                            } else {
+                                getString(
+                                    R.string.wallet_swap_settlement_submitted,
+                                    receipt.action, receipt.transactionId.take(12),
+                                )
+                            }
+                        }
+                        releaseStorageLeaseAfterOperation(lease)
+                    }
+                }
+            }
+            .setOnCancelListener { reject() }
+            .show()
     }
 
     private fun prepareBtcForHnsFunding(execution: NativeDenuoExecutionSummary, maximumFeeSats: Long) {

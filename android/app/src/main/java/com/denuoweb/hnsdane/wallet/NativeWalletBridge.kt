@@ -857,6 +857,65 @@ internal object NativeWalletBridge {
                 runCatching { nativeRejectHnsForBtcFunding(handle, tokenAscii) }.getOrDefault(false)
         } ?: false
 
+    fun prepareSwapSettlement(
+        handle: Long,
+        sessionId: String,
+        action: String,
+        maximumFee: Long,
+        bitcoin: Boolean,
+    ): NativeSwapSettlementApproval? {
+        if (!isValidHandle(handle) || !isAvailable || !isCanonicalHash(sessionId) ||
+            action !in setOf("redeem", "refund") || maximumFee <= 0L
+        ) return null
+        val sessionAscii = sessionId.toByteArray(Charsets.US_ASCII)
+        val feeAscii = maximumFee.toString().toByteArray(Charsets.US_ASCII)
+        return try {
+            val bundle = runCatching {
+                if (bitcoin) nativePrepareBitcoinSwapSettlement(
+                    handle, sessionAscii, action == "redeem", feeAscii,
+                ) else nativePrepareHnsSwapSettlement(
+                    handle, sessionAscii, action == "redeem", feeAscii,
+                )
+            }.getOrNull() ?: return null
+            try {
+                NativeBitcoinWalletBundle.swapSettlementApproval(bundle, bitcoin)
+            } finally {
+                bundle.fill(0)
+            }
+        } finally {
+            sessionAscii.fill(0)
+            feeAscii.fill(0)
+        }
+    }
+
+    fun approveSwapSettlement(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+        bitcoin: Boolean,
+    ): NativeSwapSettlementReceipt? = actionToken.consume { tokenAscii ->
+        if (!isValidHandle(handle) || !isAvailable) return@consume null
+        val bundle = runCatching {
+            if (bitcoin) nativeApproveBitcoinSwapSettlement(handle, tokenAscii)
+            else nativeApproveHnsSwapSettlement(handle, tokenAscii)
+        }.getOrNull() ?: return@consume null
+        try {
+            NativeBitcoinWalletBundle.swapSettlementReceipt(bundle, bitcoin)
+        } finally {
+            bundle.fill(0)
+        }
+    }
+
+    fun rejectSwapSettlement(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+        bitcoin: Boolean,
+    ): Boolean = actionToken.consume { tokenAscii ->
+        isValidHandle(handle) && isAvailable && runCatching {
+            if (bitcoin) nativeRejectBitcoinSwapSettlement(handle, tokenAscii)
+            else nativeRejectHnsSwapSettlement(handle, tokenAscii)
+        }.getOrDefault(false)
+    } ?: false
+
     fun takeRecovery(handle: Long): CharArray? =
         if (isValidHandle(handle) && isAvailable) {
             runCatching { nativeTakeRecovery(handle) }.getOrNull()
@@ -1143,6 +1202,46 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeRejectHnsForBtcFunding(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativePrepareBitcoinSwapSettlement(
+        handle: Long,
+        sessionIdAscii: ByteArray,
+        redeem: Boolean,
+        maximumFeeAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveBitcoinSwapSettlement(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRejectBitcoinSwapSettlement(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativePrepareHnsSwapSettlement(
+        handle: Long,
+        sessionIdAscii: ByteArray,
+        redeem: Boolean,
+        maximumFeeAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveHnsSwapSettlement(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRejectHnsSwapSettlement(
         handle: Long,
         actionTokenAscii: ByteArray,
     ): Boolean

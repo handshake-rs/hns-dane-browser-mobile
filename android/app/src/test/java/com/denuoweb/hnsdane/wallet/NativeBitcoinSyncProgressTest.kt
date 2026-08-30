@@ -167,6 +167,43 @@ class NativeBitcoinSyncProgressTest {
         )))
     }
 
+    @Test
+    fun parses_only_exact_fee_capped_swap_settlement_outputs() {
+        val session = "12".repeat(32)
+        val transaction = "34".repeat(32)
+        val token = "56".repeat(32)
+        val bitcoin = NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
+            """{"actionToken":"$token","sessionId":"$session","action":"redeem","txid":"$transaction","inputAmountSats":10000,"outputAmountSats":9600,"feeSats":400,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
+        ), bitcoin = true)
+        requireNotNull(bitcoin)
+        assertEquals("redeem", bitcoin.action)
+        assertEquals(9_600L, bitcoin.outputAmount)
+        bitcoin.close()
+
+        val hns = NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
+            """{"actionToken":"$token","sessionId":"$session","action":"refund","transactionId":"$transaction","inputAmountDollarydoos":2000000,"outputAmountDollarydoos":1996000,"feeDollarydoos":4000,"maximumFeeDollarydoos":5000,"expiresAtUnix":1700000000}""",
+        ), bitcoin = false)
+        requireNotNull(hns)
+        assertEquals("refund", hns.action)
+        hns.close()
+
+        assertNull(NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
+            """{"actionToken":"$token","sessionId":"$session","action":"redeem","txid":"$transaction","inputAmountSats":10000,"outputAmountSats":9601,"feeSats":400,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
+        ), bitcoin = true))
+        assertNull(NativeBitcoinWalletBundle.swapSettlementApproval(bundle(
+            """{"actionToken":"$token","sessionId":"$session","action":"steal","txid":"$transaction","inputAmountSats":10000,"outputAmountSats":9600,"feeSats":400,"maximumFeeSats":500,"expiresAtUnix":1700000000}""",
+        ), bitcoin = true))
+
+        val receipt = NativeBitcoinWalletBundle.swapSettlementReceipt(bundle(
+            """{"sessionId":"$session","action":"redeem","txid":"$transaction","attemptCount":2,"submittedAtUnix":1700000001}""",
+        ), bitcoin = true)
+        requireNotNull(receipt)
+        assertEquals(2, receipt.attemptCount)
+        assertNull(NativeBitcoinWalletBundle.swapSettlementReceipt(bundle(
+            """{"sessionId":"$session","action":"redeem","txid":"$transaction","attemptCount":0,"submittedAtUnix":1700000001}""",
+        ), bitcoin = true))
+    }
+
     private fun bundle(json: String): ByteArray {
         val encoded = json.toByteArray(Charsets.UTF_8)
         return ByteBuffer.allocate(12 + encoded.size).order(ByteOrder.BIG_ENDIAN).apply {

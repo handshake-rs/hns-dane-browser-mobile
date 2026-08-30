@@ -682,6 +682,21 @@
     <string name="wallet_swap_funding_broadcast_failed" translatable="false">The Bitcoin HTLC funding transaction was not submitted.</string>
     <string name="wallet_swap_funding_submitted" translatable="false">Bitcoin HTLC funding %1$s… was submitted. Waiting for independent local confirmation.</string>
     <string name="wallet_swap_fund_hns" translatable="false">Prepare HNS funding</string>
+    <string name="wallet_swap_settlement_actions" translatable="false">Redeem or refund</string>
+    <string name="wallet_swap_redeem_hns" translatable="false">Redeem received HNS</string>
+    <string name="wallet_swap_redeem_bitcoin" translatable="false">Redeem received Bitcoin</string>
+    <string name="wallet_swap_refund_hns" translatable="false">Refund locked HNS (after timeout)</string>
+    <string name="wallet_swap_refund_bitcoin" translatable="false">Refund locked Bitcoin (after timeout)</string>
+    <string name="wallet_swap_settlement_fee_title" translatable="false">Maximum settlement fee</string>
+    <string name="wallet_swap_settlement_btc_fee_hint" translatable="false">Maximum Bitcoin fee (sats)</string>
+    <string name="wallet_swap_settlement_hns_fee_hint" translatable="false">Maximum HNS fee (dollarydoos)</string>
+    <string name="wallet_swap_settlement_preparing" translatable="false">Preparing the exact locally verified swap settlement…</string>
+    <string name="wallet_swap_settlement_prepare_failed" translatable="false">That swap action is not currently authorized. Confirm your role, verified funding, observed secret, timeout maturity, synchronization state, and fee cap.</string>
+    <string name="wallet_swap_settlement_approval_title" translatable="false">Broadcast swap %1$s?</string>
+    <string name="wallet_swap_settlement_approval_message" translatable="false">Spend %1$d %2$s from the verified HTLC and return %3$d after a %4$d fee (maximum %5$d).\n\nTransaction: %6$s\nSession: %7$s\n\nBroadcast is irreversible. The swap advances only after local chain verification, not from this submission receipt.</string>
+    <string name="wallet_swap_broadcast_settlement" translatable="false">Broadcast settlement</string>
+    <string name="wallet_swap_settlement_broadcast_failed" translatable="false">The prepared settlement remains unconfirmed; check synchronization and durable transaction status before making another attempt.</string>
+    <string name="wallet_swap_settlement_submitted" translatable="false">Swap %1$s %2$s… was submitted. Waiting for independent local confirmation.</string>
     <string name="wallet_swap_hns_funding_fee_hint" translatable="false">Maximum HNS funding fee (dollarydoos)</string>
     <string name="wallet_swap_hns_funding_preparing" translatable="false">Preparing the exact session-bound Handshake HTLC…</string>
     <string name="wallet_swap_hns_funding_prepare_failed" translatable="false">Handshake HTLC funding was not prepared. The Bitcoin lock must first be independently confirmed and the fee must remain within the signed reserve.</string>

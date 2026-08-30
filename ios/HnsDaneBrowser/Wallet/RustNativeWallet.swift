@@ -245,6 +245,32 @@ struct NativeHnsHtlcFundingReceipt: Decodable, Equatable, Sendable {
     }
 }
 
+enum NativeSwapSettlementAction: String, Decodable, Equatable, Sendable {
+    case redeem
+    case refund
+}
+
+struct NativeSwapSettlementApproval {
+    let actionToken: NativeHnsSendActionToken
+    let sessionId: String
+    let action: NativeSwapSettlementAction
+    let transactionId: String
+    let inputAmount: UInt64
+    let outputAmount: UInt64
+    let fee: UInt64
+    let maximumFee: UInt64
+    let expiresAtUnix: UInt64
+}
+
+struct NativeSwapSettlementReceipt: Equatable, Sendable {
+    let sessionId: String
+    let action: NativeSwapSettlementAction
+    let transactionId: String
+    let acceptedAtUnix: UInt64?
+    let attemptCount: UInt8?
+    let submittedAtUnix: UInt64?
+}
+
 struct NativeBtcForHnsOfferApproval {
     let actionToken: NativeHnsSendActionToken
     let btcAmountSats: UInt64
@@ -1533,6 +1559,201 @@ private extension NativeHnsHtlcFundingApproval {
     }
 }
 
+private struct NativeBitcoinSwapSettlementApprovalPayload: Decodable {
+    let actionToken: String
+    let sessionId: String
+    let action: NativeSwapSettlementAction
+    let txid: String
+    let inputAmountSats: UInt64
+    let outputAmountSats: UInt64
+    let feeSats: UInt64
+    let maximumFeeSats: UInt64
+    let expiresAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case actionToken, sessionId, action, txid, inputAmountSats, outputAmountSats
+        case feeSats, maximumFeeSats, expiresAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        actionToken = try value.decode(String.self, forKey: .actionToken)
+        sessionId = try value.decode(String.self, forKey: .sessionId)
+        action = try value.decode(NativeSwapSettlementAction.self, forKey: .action)
+        txid = try value.decode(String.self, forKey: .txid)
+        inputAmountSats = try value.decode(UInt64.self, forKey: .inputAmountSats)
+        outputAmountSats = try value.decode(UInt64.self, forKey: .outputAmountSats)
+        feeSats = try value.decode(UInt64.self, forKey: .feeSats)
+        maximumFeeSats = try value.decode(UInt64.self, forKey: .maximumFeeSats)
+        expiresAtUnix = try value.decode(UInt64.self, forKey: .expiresAtUnix)
+    }
+}
+
+private struct NativeHnsSwapSettlementApprovalPayload: Decodable {
+    let actionToken: String
+    let sessionId: String
+    let action: NativeSwapSettlementAction
+    let transactionId: String
+    let inputAmountDollarydoos: UInt64
+    let outputAmountDollarydoos: UInt64
+    let feeDollarydoos: UInt64
+    let maximumFeeDollarydoos: UInt64
+    let expiresAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case actionToken, sessionId, action, transactionId, inputAmountDollarydoos
+        case outputAmountDollarydoos, feeDollarydoos, maximumFeeDollarydoos, expiresAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        actionToken = try value.decode(String.self, forKey: .actionToken)
+        sessionId = try value.decode(String.self, forKey: .sessionId)
+        action = try value.decode(NativeSwapSettlementAction.self, forKey: .action)
+        transactionId = try value.decode(String.self, forKey: .transactionId)
+        inputAmountDollarydoos = try value.decode(UInt64.self, forKey: .inputAmountDollarydoos)
+        outputAmountDollarydoos = try value.decode(UInt64.self, forKey: .outputAmountDollarydoos)
+        feeDollarydoos = try value.decode(UInt64.self, forKey: .feeDollarydoos)
+        maximumFeeDollarydoos = try value.decode(UInt64.self, forKey: .maximumFeeDollarydoos)
+        expiresAtUnix = try value.decode(UInt64.self, forKey: .expiresAtUnix)
+    }
+}
+
+private extension NativeSwapSettlementApproval {
+    static func decode(bundle: [UInt8], bitcoin: Bool) throws -> Self {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        let tokenString: String
+        let sessionId: String
+        let action: NativeSwapSettlementAction
+        let transactionId: String
+        let inputAmount: UInt64
+        let outputAmount: UInt64
+        let fee: UInt64
+        let maximumFee: UInt64
+        let expiresAtUnix: UInt64
+        if bitcoin {
+            let value = try JSONDecoder().decode(
+                NativeBitcoinSwapSettlementApprovalPayload.self, from: payload
+            )
+            (tokenString, sessionId, action, transactionId) = (
+                value.actionToken, value.sessionId, value.action, value.txid
+            )
+            (inputAmount, outputAmount, fee, maximumFee, expiresAtUnix) = (
+                value.inputAmountSats, value.outputAmountSats, value.feeSats,
+                value.maximumFeeSats, value.expiresAtUnix
+            )
+        } else {
+            let value = try JSONDecoder().decode(
+                NativeHnsSwapSettlementApprovalPayload.self, from: payload
+            )
+            (tokenString, sessionId, action, transactionId) = (
+                value.actionToken, value.sessionId, value.action, value.transactionId
+            )
+            (inputAmount, outputAmount, fee, maximumFee, expiresAtUnix) = (
+                value.inputAmountDollarydoos, value.outputAmountDollarydoos,
+                value.feeDollarydoos, value.maximumFeeDollarydoos, value.expiresAtUnix
+            )
+        }
+        guard NativeBitcoinHtlcFundingReceipt.validHash(sessionId),
+              NativeBitcoinHtlcFundingReceipt.validHash(transactionId), inputAmount > 0,
+              outputAmount > 0, fee > 0, fee <= maximumFee, fee < inputAmount,
+              inputAmount - fee == outputAmount, expiresAtUnix > 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid swap settlement approval")
+        }
+        var token = Array(tokenString.utf8)
+        guard let actionToken = NativeHnsSendActionToken(takingASCII: &token) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid swap settlement action token")
+        }
+        return Self(
+            actionToken: actionToken, sessionId: sessionId, action: action,
+            transactionId: transactionId, inputAmount: inputAmount,
+            outputAmount: outputAmount, fee: fee, maximumFee: maximumFee,
+            expiresAtUnix: expiresAtUnix
+        )
+    }
+}
+
+private struct NativeBitcoinSwapSettlementReceiptPayload: Decodable {
+    let sessionId: String
+    let action: NativeSwapSettlementAction
+    let txid: String
+    let attemptCount: UInt8
+    let submittedAtUnix: UInt64?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case sessionId, action, txid, attemptCount, submittedAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        sessionId = try value.decode(String.self, forKey: .sessionId)
+        action = try value.decode(NativeSwapSettlementAction.self, forKey: .action)
+        txid = try value.decode(String.self, forKey: .txid)
+        attemptCount = try value.decode(UInt8.self, forKey: .attemptCount)
+        submittedAtUnix = try value.decodeIfPresent(UInt64.self, forKey: .submittedAtUnix)
+    }
+}
+
+private struct NativeHnsSwapSettlementReceiptPayload: Decodable {
+    let sessionId: String
+    let action: NativeSwapSettlementAction
+    let transactionId: String
+    let acceptedAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case sessionId, action, transactionId, acceptedAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        sessionId = try value.decode(String.self, forKey: .sessionId)
+        action = try value.decode(NativeSwapSettlementAction.self, forKey: .action)
+        transactionId = try value.decode(String.self, forKey: .transactionId)
+        acceptedAtUnix = try value.decode(UInt64.self, forKey: .acceptedAtUnix)
+    }
+}
+
+private extension NativeSwapSettlementReceipt {
+    static func decode(bundle: [UInt8], bitcoin: Bool) throws -> Self {
+        var payload = try NativeHnsValueBundle.payload(
+            bundle, magic: Array("HNBW".utf8), maximumJSONBytes: 16 * 1_024
+        )
+        defer { payload.resetBytes(in: payload.startIndex..<payload.endIndex) }
+        if bitcoin {
+            let value = try JSONDecoder().decode(
+                NativeBitcoinSwapSettlementReceiptPayload.self, from: payload
+            )
+            guard NativeBitcoinHtlcFundingReceipt.validHash(value.sessionId),
+                  NativeBitcoinHtlcFundingReceipt.validHash(value.txid),
+                  (1...16).contains(value.attemptCount),
+                  value.submittedAtUnix.map { $0 > 0 } ?? true else {
+                throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin settlement receipt")
+            }
+            return Self(
+                sessionId: value.sessionId, action: value.action, transactionId: value.txid,
+                acceptedAtUnix: nil, attemptCount: value.attemptCount,
+                submittedAtUnix: value.submittedAtUnix
+            )
+        }
+        let value = try JSONDecoder().decode(
+            NativeHnsSwapSettlementReceiptPayload.self, from: payload
+        )
+        guard NativeBitcoinHtlcFundingReceipt.validHash(value.sessionId),
+              NativeBitcoinHtlcFundingReceipt.validHash(value.transactionId),
+              value.acceptedAtUnix > 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS settlement receipt")
+        }
+        return Self(
+            sessionId: value.sessionId, action: value.action,
+            transactionId: value.transactionId, acceptedAtUnix: value.acceptedAtUnix,
+            attemptCount: nil, submittedAtUnix: nil
+        )
+    }
+}
+
 private struct NativeBtcForHnsOfferApprovalPayload: Decodable {
     let actionToken: String
     let btcAmountSats: UInt64
@@ -2480,6 +2701,81 @@ final class RustNativeWallet: @unchecked Sendable {
                 )
             }
             try NativeWalletBridge.check(result, operation: "HNS-for-BTC funding rejection")
+        }
+    }
+
+    func prepareSwapSettlement(
+        sessionId: inout [UInt8], maximumFee: inout [UInt8],
+        action: NativeSwapSettlementAction, bitcoin: Bool
+    ) throws -> NativeSwapSettlementApproval {
+        defer {
+            WalletSecretBytes.wipe(&sessionId)
+            WalletSecretBytes.wipe(&maximumFee)
+        }
+        var output = HnsBrowserBuffer()
+        let currentHandle = try liveHandle()
+        let result = sessionId.withUnsafeBufferPointer { session in
+            maximumFee.withUnsafeBufferPointer { fee in
+                let sessionSlice = HnsBrowserSlice(
+                    ptr: session.baseAddress, len: UInt64(session.count)
+                )
+                let feeSlice = HnsBrowserSlice(ptr: fee.baseAddress, len: UInt64(fee.count))
+                if bitcoin {
+                    hns_browser_wallet_prepare_bitcoin_swap_settlement(
+                        currentHandle, sessionSlice, action == .redeem, feeSlice, &output
+                    )
+                } else {
+                    hns_browser_wallet_prepare_hns_swap_settlement(
+                        currentHandle, sessionSlice, action == .redeem, feeSlice, &output
+                    )
+                }
+            }
+        }
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "swap settlement preparation")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        return try NativeSwapSettlementApproval.decode(bundle: bundle, bitcoin: bitcoin)
+    }
+
+    func approveSwapSettlement(
+        _ actionToken: NativeHnsSendActionToken, bitcoin: Bool
+    ) throws -> NativeSwapSettlementReceipt {
+        try actionToken.consume { token in
+            var output = HnsBrowserBuffer()
+            let result = try token.withUnsafeBufferPointer { bytes in
+                let slice = HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
+                if bitcoin {
+                    hns_browser_wallet_approve_bitcoin_swap_settlement(
+                        try liveHandle(), slice, &output
+                    )
+                } else {
+                    hns_browser_wallet_approve_hns_swap_settlement(
+                        try liveHandle(), slice, &output
+                    )
+                }
+            }
+            defer { NativeWalletBridge.free(output) }
+            try NativeWalletBridge.check(result, operation: "swap settlement approval")
+            var bundle = try NativeWalletBridge.bytes(copying: output)
+            defer { WalletSecretBytes.wipe(&bundle) }
+            return try NativeSwapSettlementReceipt.decode(bundle: bundle, bitcoin: bitcoin)
+        }
+    }
+
+    func rejectSwapSettlement(
+        _ actionToken: NativeHnsSendActionToken, bitcoin: Bool
+    ) throws {
+        try actionToken.consume { token in
+            let result = try token.withUnsafeBufferPointer { bytes in
+                let slice = HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
+                if bitcoin {
+                    hns_browser_wallet_reject_bitcoin_swap_settlement(try liveHandle(), slice)
+                } else {
+                    hns_browser_wallet_reject_hns_swap_settlement(try liveHandle(), slice)
+                }
+            }
+            try NativeWalletBridge.check(result, operation: "swap settlement rejection")
         }
     }
 

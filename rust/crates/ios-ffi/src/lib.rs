@@ -1070,6 +1070,21 @@ impl NativeWalletController {
         denuo_sessions.pending_first_bitcoin_funding_sessions()
     }
 
+    fn authorize_bitcoin_swap_settlement(
+        &self,
+        session_id: SessionId,
+        redeem: bool,
+    ) -> Result<hns_wallet_mobile::MobileDenuoBitcoinSettlementPermit, MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        if redeem {
+            denuo_sessions.authorize_local_bitcoin_redeem(session_id)
+        } else {
+            denuo_sessions.authorize_local_bitcoin_refund(session_id)
+        }
+    }
+
     fn apply_verified_bitcoin_funding(
         &mut self,
         session_id: SessionId,
@@ -1116,6 +1131,48 @@ impl NativeWalletController {
             return Err(MobileWalletError::ControllerFailed);
         };
         controller.reject_denuo_hns_funding(action_token)
+    }
+
+    fn prepare_hns_swap_settlement(
+        &mut self,
+        session_id: SessionId,
+        action: hns_wallet_mobile::MobileDenuoSettlementAction,
+        maximum_fee_dollarydoos: u64,
+    ) -> Result<hns_wallet_mobile::MobileDenuoHnsSettlementApproval, MobileWalletError> {
+        let Self::DirectHnsValue {
+            controller,
+            denuo_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        let permit = match action {
+            hns_wallet_mobile::MobileDenuoSettlementAction::Redeem => {
+                denuo_sessions.authorize_local_hns_redeem(session_id)?
+            }
+            hns_wallet_mobile::MobileDenuoSettlementAction::Refund => {
+                denuo_sessions.authorize_local_hns_refund(session_id)?
+            }
+        };
+        controller.prepare_denuo_hns_settlement(permit, maximum_fee_dollarydoos)
+    }
+
+    fn approve_hns_swap_settlement(
+        &mut self,
+        action_token: &str,
+    ) -> Result<hns_wallet_mobile::MobileDenuoHnsSettlementReceipt, MobileWalletError> {
+        let Self::DirectHnsValue { controller, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        controller.approve_denuo_hns_settlement(action_token)
+    }
+
+    fn reject_hns_swap_settlement(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue { controller, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        controller.reject_denuo_hns_settlement(action_token)
     }
 
     fn reconcile_verified_hns_funding(&mut self) -> Result<(), MobileWalletError> {
@@ -1252,6 +1309,15 @@ impl NativeWalletController {
             return false;
         };
         denuo_peer.take().is_some()
+    }
+
+    fn resume_approved_hns_settlements(&self) -> bool {
+        let Self::DirectHnsValue { controller, .. } = self else {
+            return false;
+        };
+        controller
+            .resume_approved_denuo_hns_settlements()
+            .is_ok_and(|count| count != 0)
     }
 
     fn service_direct_denuo_once(&mut self) -> bool {
@@ -4125,17 +4191,29 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_denuo(
 ) -> HnsBrowserResult {
     ffi_call(|| {
         require_output(out_serviced)?;
-        let (serviced, permit) = {
+        let (serviced, resumed_hns, permit) = {
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
             let serviced = entry.controller.service_direct_denuo_once();
+            let resumed_hns = entry.controller.resume_approved_hns_settlements();
             let permit = entry
                 .controller
                 .next_counterparty_bitcoin_watch()
                 .ok()
                 .flatten();
-            (serviced, permit)
+            (serviced, resumed_hns, permit)
+        };
+        let resumed = {
+            let control = wallet_bitcoin_control_entry(wallet)?;
+            match control.controller.try_lock() {
+                Ok(slot) => slot
+                    .as_ref()
+                    .and_then(|bitcoin| bitcoin.resume_approved_broadcasts().ok())
+                    .is_some_and(|count| count != 0),
+                Err(TryLockError::WouldBlock) => false,
+                Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
+            }
         };
         let completed = if let Some(permit) = permit {
             let registered = {
@@ -4164,7 +4242,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_denuo(
         } else {
             false
         };
-        let serviced = u8::from(serviced || completed);
+        let serviced = u8::from(serviced || completed || resumed || resumed_hns);
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_serviced, serviced) };
         Ok(())
@@ -5374,6 +5452,180 @@ pub unsafe extern "C" fn hns_browser_wallet_reject_hns_for_btc_funding(
             .controller
             .reject_hns_for_btc_funding(&token)
             .map_err(|_| wallet_runtime_failure("HNS-for-BTC funding rejection failed"))
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// Input slices must remain readable and `out_approval_bundle` writable.
+pub unsafe extern "C" fn hns_browser_wallet_prepare_bitcoin_swap_settlement(
+    wallet: HnsBrowserWalletHandle,
+    session_id: HnsBrowserSlice,
+    redeem: bool,
+    maximum_fee: HnsBrowserSlice,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        let session_id = unsafe { wallet_session_id(session_id) }?;
+        let maximum_fee = unsafe { wallet_nonzero_sats(maximum_fee) }?;
+        let permit = {
+            let entry = wallet_entry(wallet)?;
+            let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .authorize_bitcoin_swap_settlement(session_id, redeem)
+                .map_err(|_| wallet_runtime_failure("Bitcoin swap settlement is not authorized"))?
+        };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let approval = controller
+            .prepare_denuo_htlc_settlement(permit, maximum_fee)
+            .map_err(|_| wallet_runtime_failure("Bitcoin swap settlement preparation failed"))?;
+        let bundle = wallet_bitcoin_bundle(&approval)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `action_token` must remain readable and output writable.
+pub unsafe extern "C" fn hns_browser_wallet_approve_bitcoin_swap_settlement(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_receipt_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_receipt_bundle)?;
+        unsafe { write_output(out_receipt_bundle, HnsBrowserBuffer::empty()) };
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let receipt = slot
+            .as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
+            .approve_denuo_htlc_settlement(&token)
+            .map_err(|_| wallet_runtime_failure("Bitcoin swap settlement approval failed"))?;
+        let bundle = wallet_bitcoin_bundle(&receipt)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_receipt_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `action_token` must remain readable.
+pub unsafe extern "C" fn hns_browser_wallet_reject_bitcoin_swap_settlement(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let mut slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        slot.as_mut()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
+            .reject_denuo_htlc_settlement(&token)
+            .map_err(|_| wallet_runtime_failure("Bitcoin swap settlement rejection failed"))
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// Input slices must remain readable and output writable.
+pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_swap_settlement(
+    wallet: HnsBrowserWalletHandle,
+    session_id: HnsBrowserSlice,
+    redeem: bool,
+    maximum_fee: HnsBrowserSlice,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        let session_id = unsafe { wallet_session_id(session_id) }?;
+        let maximum_fee = unsafe { wallet_nonzero_sats(maximum_fee) }?;
+        let action = if redeem {
+            hns_wallet_mobile::MobileDenuoSettlementAction::Redeem
+        } else {
+            hns_wallet_mobile::MobileDenuoSettlementAction::Refund
+        };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let approval = entry
+            .controller
+            .prepare_hns_swap_settlement(session_id, action, maximum_fee)
+            .map_err(|_| wallet_runtime_failure("HNS swap settlement preparation failed"))?;
+        let bundle = wallet_bitcoin_bundle(&approval)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `action_token` must remain readable and output writable.
+pub unsafe extern "C" fn hns_browser_wallet_approve_hns_swap_settlement(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_receipt_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_receipt_bundle)?;
+        unsafe { write_output(out_receipt_bundle, HnsBrowserBuffer::empty()) };
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let receipt = entry
+            .controller
+            .approve_hns_swap_settlement(&token)
+            .map_err(|_| wallet_runtime_failure("HNS swap settlement approval failed"))?;
+        let bundle = wallet_bitcoin_bundle(&receipt)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_receipt_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `action_token` must remain readable.
+pub unsafe extern "C" fn hns_browser_wallet_reject_hns_swap_settlement(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .reject_hns_swap_settlement(&token)
+            .map_err(|_| wallet_runtime_failure("HNS swap settlement rejection failed"))
     })
 }
 

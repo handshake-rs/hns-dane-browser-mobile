@@ -64,6 +64,9 @@ final class WalletViewController: UIViewController {
     private var pendingBtcForHnsFundingApproval: NativeBitcoinHtlcFundingApproval?
     private weak var hnsForBtcFundingApprovalAlert: UIAlertController?
     private var pendingHnsForBtcFundingApproval: NativeHnsHtlcFundingApproval?
+    private weak var swapSettlementApprovalAlert: UIAlertController?
+    private var pendingSwapSettlementApproval: NativeSwapSettlementApproval?
+    private var pendingSwapSettlementIsBitcoin = false
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -185,6 +188,8 @@ final class WalletViewController: UIViewController {
         pendingBtcForHnsFundingApproval = nil
         pendingHnsForBtcFundingApproval?.actionToken.discard()
         pendingHnsForBtcFundingApproval = nil
+        pendingSwapSettlementApproval?.actionToken.discard()
+        pendingSwapSettlementApproval = nil
         bitcoinSyncTimer?.invalidate()
         recoverySecret?.clear()
         let currentWallet = wallet
@@ -1150,6 +1155,159 @@ final class WalletViewController: UIViewController {
                 self.showHnsForBtcFundingFee(execution, wallet: wallet)
             })
         }
+        if ["both_funded", "first_redeemed", "secret_observed"].contains(execution.state) {
+            alert.addAction(UIAlertAction(title: "Redeem or refund", style: .default) {
+                [weak self, weak wallet] _ in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showSwapSettlementActions(execution, wallet: wallet)
+            })
+        }
+        present(alert, animated: true)
+    }
+
+    private func showSwapSettlementActions(
+        _ execution: NativeDenuoExecutionSummary, wallet: RustNativeWallet
+    ) {
+        let alert = UIAlertController(
+            title: "Redeem or refund",
+            message: "Only the action authorized for this wallet role and verified chain state can be prepared. Refunds remain unavailable until their signed timeout is mature.",
+            preferredStyle: .actionSheet
+        )
+        for (title, action, bitcoin) in [
+            ("Redeem received HNS", NativeSwapSettlementAction.redeem, false),
+            ("Redeem received Bitcoin", .redeem, true),
+            ("Refund locked HNS", .refund, false),
+            ("Refund locked Bitcoin", .refund, true),
+        ] {
+            alert.addAction(UIAlertAction(title: title, style: action == .refund ? .destructive : .default) {
+                [weak self, weak wallet] _ in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.showSwapSettlementFee(
+                    execution, action: action, bitcoin: bitcoin, wallet: wallet
+                )
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func showSwapSettlementFee(
+        _ execution: NativeDenuoExecutionSummary,
+        action: NativeSwapSettlementAction,
+        bitcoin: Bool,
+        wallet: RustNativeWallet
+    ) {
+        let unit = bitcoin ? "sats" : "dollarydoos"
+        let alert = UIAlertController(
+            title: "Maximum settlement fee",
+            message: "Enter the maximum (bitcoin ? "Bitcoin" : "HNS") fee in (unit).",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "Maximum fee ((unit))"
+            field.keyboardType = .numberPad
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Review transaction", style: .default) {
+            [weak self, weak alert, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let fee = UInt64(alert?.textFields?.first?.text ?? ""), fee > 0 else {
+                self?.showErrorMessage("Enter a positive maximum settlement fee.")
+                return
+            }
+            alert?.textFields?.first?.text = nil
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                var session = Array(execution.sessionId.utf8)
+                var maximumFee = Array(String(fee).utf8)
+                let outcome = Result {
+                    try wallet.prepareSwapSettlement(
+                        sessionId: &session, maximumFee: &maximumFee,
+                        action: action, bitcoin: bitcoin
+                    )
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let approval):
+                        self.presentSwapSettlementApproval(
+                            approval, bitcoin: bitcoin, wallet: wallet
+                        )
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "That swap action is not currently authorized. Check role, verified funding, secret observation, timeout maturity, synchronization, and fee cap."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func presentSwapSettlementApproval(
+        _ approval: NativeSwapSettlementApproval,
+        bitcoin: Bool,
+        wallet: RustNativeWallet
+    ) {
+        pendingSwapSettlementApproval?.actionToken.discard()
+        pendingSwapSettlementApproval = approval
+        pendingSwapSettlementIsBitcoin = bitcoin
+        let unit = bitcoin ? "sats" : "dollarydoos"
+        let message = """
+        Spend: \(approval.inputAmount) \(unit)
+        Return: \(approval.outputAmount) \(unit)
+        Network fee: \(approval.fee) \(unit) (maximum \(approval.maximumFee))
+        Transaction: \(approval.transactionId)
+        Session: \(approval.sessionId)
+
+        Broadcast is irreversible. The swap advances only after independent local chain verification, not from this submission receipt.
+        """
+        let alert = UIAlertController(
+            title: "Broadcast swap \(approval.action.rawValue)?",
+            message: message,
+            preferredStyle: .alert
+        )
+        swapSettlementApprovalAlert = alert
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingSwapSettlementApproval else { return }
+            let isBitcoin = self.pendingSwapSettlementIsBitcoin
+            self.pendingSwapSettlementApproval = nil
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? wallet.rejectSwapSettlement(pending.actionToken, bitcoin: isBitcoin)
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Broadcast settlement", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingSwapSettlementApproval else { return }
+            let isBitcoin = self.pendingSwapSettlementIsBitcoin
+            self.pendingSwapSettlementApproval = nil
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result {
+                    try wallet.approveSwapSettlement(
+                        pending.actionToken, bitcoin: isBitcoin
+                    )
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let receipt):
+                        self.bitcoinStatusLabel.text = "Swap \(receipt.action.rawValue) \(receipt.transactionId.prefix(12))… submitted; waiting for independent local confirmation."
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "Settlement submission did not complete. Check durable transaction status before retrying."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
         present(alert, animated: true)
     }
 
@@ -3426,6 +3584,10 @@ final class WalletViewController: UIViewController {
         btcForHnsFundingApprovalAlert?.dismiss(animated: false)
         pendingHnsForBtcFundingApproval?.actionToken.discard()
         pendingHnsForBtcFundingApproval = nil
+        swapSettlementApprovalAlert?.dismiss(animated: false)
+        swapSettlementApprovalAlert = nil
+        pendingSwapSettlementApproval?.actionToken.discard()
+        pendingSwapSettlementApproval = nil
         hnsForBtcFundingApprovalAlert?.dismiss(animated: false)
         bitcoinSyncTimer?.invalidate()
         bitcoinSyncTimer = nil

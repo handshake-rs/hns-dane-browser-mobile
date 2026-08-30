@@ -105,6 +105,29 @@ internal data class NativeHnsHtlcFundingReceipt(
     val acceptedAtUnix: Long,
 )
 
+internal data class NativeSwapSettlementApproval(
+    val actionToken: NativeHnsValueActionToken,
+    val sessionId: String,
+    val action: String,
+    val transactionId: String,
+    val inputAmount: Long,
+    val outputAmount: Long,
+    val fee: Long,
+    val maximumFee: Long,
+    val expiresAtUnix: Long,
+) : AutoCloseable {
+    override fun close() = actionToken.close()
+}
+
+internal data class NativeSwapSettlementReceipt(
+    val sessionId: String,
+    val action: String,
+    val transactionId: String,
+    val acceptedAtUnix: Long?,
+    val attemptCount: Int?,
+    val submittedAtUnix: Long?,
+)
+
 internal data class NativeBtcForHnsOfferApproval(
     val actionToken: NativeHnsValueActionToken,
     val btcAmountSats: Long,
@@ -336,6 +359,71 @@ internal object NativeBitcoinWalletBundle {
             hexHash(json.optString("transactionId", "")) ?: return@parse null,
             positiveLong(json, "acceptedAtUnix") ?: return@parse null,
         )
+    }
+
+    fun swapSettlementApproval(
+        bundle: ByteArray,
+        bitcoin: Boolean,
+    ): NativeSwapSettlementApproval? = parse(bundle) { json ->
+        val transactionKey = if (bitcoin) "txid" else "transactionId"
+        val inputKey = if (bitcoin) "inputAmountSats" else "inputAmountDollarydoos"
+        val outputKey = if (bitcoin) "outputAmountSats" else "outputAmountDollarydoos"
+        val feeKey = if (bitcoin) "feeSats" else "feeDollarydoos"
+        val maximumFeeKey = if (bitcoin) "maximumFeeSats" else "maximumFeeDollarydoos"
+        if (!hasExactKeys(json, setOf(
+            "actionToken", "sessionId", "action", transactionKey, inputKey, outputKey,
+            feeKey, maximumFeeKey, "expiresAtUnix",
+        ))) return@parse null
+        val token = NativeHnsValueActionToken.takeOwnership(
+            json.optString("actionToken", "").toByteArray(Charsets.US_ASCII),
+        ) ?: return@parse null
+        val session = hexHash(json.optString("sessionId", ""))
+        val transaction = hexHash(json.optString(transactionKey, ""))
+        val action = json.optString("action", "").takeIf { it == "redeem" || it == "refund" }
+        val input = positiveLong(json, inputKey)
+        val output = positiveLong(json, outputKey)
+        val fee = positiveLong(json, feeKey)
+        val maximumFee = positiveLong(json, maximumFeeKey)
+        val expires = positiveLong(json, "expiresAtUnix")
+        if (session == null || transaction == null || action == null || input == null ||
+            output == null || fee == null || maximumFee == null || expires == null ||
+            fee > maximumFee || fee >= input || input - fee != output
+        ) {
+            token.close()
+            return@parse null
+        }
+        NativeSwapSettlementApproval(
+            token, session, action, transaction, input, output, fee, maximumFee, expires,
+        )
+    }
+
+    fun swapSettlementReceipt(
+        bundle: ByteArray,
+        bitcoin: Boolean,
+    ): NativeSwapSettlementReceipt? = parse(bundle) { json ->
+        val transactionKey = if (bitcoin) "txid" else "transactionId"
+        val expected = if (bitcoin) {
+            setOf("sessionId", "action", transactionKey, "attemptCount", "submittedAtUnix")
+        } else {
+            setOf("sessionId", "action", transactionKey, "acceptedAtUnix")
+        }
+        if (!hasExactKeys(json, expected)) return@parse null
+        val session = hexHash(json.optString("sessionId", "")) ?: return@parse null
+        val transaction = hexHash(json.optString(transactionKey, "")) ?: return@parse null
+        val action = json.optString("action", "").takeIf { it == "redeem" || it == "refund" }
+            ?: return@parse null
+        if (bitcoin) {
+            val attempts = json.optInt("attemptCount", -1).takeIf { it in 1..16 }
+                ?: return@parse null
+            val submitted = if (json.isNull("submittedAtUnix")) null else
+                positiveLong(json, "submittedAtUnix") ?: return@parse null
+            NativeSwapSettlementReceipt(session, action, transaction, null, attempts, submitted)
+        } else {
+            NativeSwapSettlementReceipt(
+                session, action, transaction, positiveLong(json, "acceptedAtUnix") ?: return@parse null,
+                null, null,
+            )
+        }
     }
 
     fun btcForHnsApproval(bundle: ByteArray): NativeBtcForHnsOfferApproval? = parse(bundle) { json ->

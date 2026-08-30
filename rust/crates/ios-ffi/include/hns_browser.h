@@ -1,6 +1,7 @@
 #ifndef HNS_BROWSER_H
 #define HNS_BROWSER_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -394,6 +395,32 @@ HnsBrowserResult hns_browser_wallet_approve_hns_for_btc_funding(
     HnsBrowserSlice action_token,
     HnsBrowserBuffer *out_receipt_bundle);
 HnsBrowserResult hns_browser_wallet_reject_hns_for_btc_funding(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
+HnsBrowserResult hns_browser_wallet_prepare_bitcoin_swap_settlement(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice session_id,
+    bool redeem,
+    HnsBrowserSlice maximum_fee,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_bitcoin_swap_settlement(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_receipt_bundle);
+HnsBrowserResult hns_browser_wallet_reject_bitcoin_swap_settlement(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
+HnsBrowserResult hns_browser_wallet_prepare_hns_swap_settlement(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice session_id,
+    bool redeem,
+    HnsBrowserSlice maximum_fee,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_hns_swap_settlement(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_receipt_bundle);
+HnsBrowserResult hns_browser_wallet_reject_hns_swap_settlement(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice action_token);
 /*

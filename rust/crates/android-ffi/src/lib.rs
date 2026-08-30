@@ -859,6 +859,25 @@ impl AndroidWalletController {
             .ok()
     }
 
+    fn authorize_bitcoin_swap_settlement(
+        &self,
+        session_id: SessionId,
+        redeem: bool,
+    ) -> Option<hns_wallet_mobile::MobileDenuoBitcoinSettlementPermit> {
+        let Self::DirectValue { denuo_sessions, .. } = self else {
+            return None;
+        };
+        if redeem {
+            denuo_sessions
+                .authorize_local_bitcoin_redeem(session_id)
+                .ok()
+        } else {
+            denuo_sessions
+                .authorize_local_bitcoin_refund(session_id)
+                .ok()
+        }
+    }
+
     fn next_counterparty_bitcoin_watch(
         &mut self,
     ) -> Result<Option<MobileDenuoBitcoinWatchPermit>, MobileWalletError> {
@@ -955,6 +974,55 @@ impl AndroidWalletController {
             return false;
         };
         controller.reject_denuo_hns_funding(action_token).is_ok()
+    }
+
+    fn prepare_hns_swap_settlement(
+        &mut self,
+        session_id: SessionId,
+        action: hns_wallet_mobile::MobileDenuoSettlementAction,
+        maximum_fee_dollarydoos: u64,
+    ) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            controller,
+            denuo_sessions,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let permit = match action {
+            hns_wallet_mobile::MobileDenuoSettlementAction::Redeem => {
+                denuo_sessions.authorize_local_hns_redeem(session_id).ok()?
+            }
+            hns_wallet_mobile::MobileDenuoSettlementAction::Refund => {
+                denuo_sessions.authorize_local_hns_refund(session_id).ok()?
+            }
+        };
+        let approval = controller
+            .prepare_denuo_hns_settlement(permit, maximum_fee_dollarydoos)
+            .ok()?;
+        let mut json = serde_json::to_vec(&approval).ok()?;
+        let bundle = bitcoin_json_bundle(&json);
+        json.fill(0);
+        bundle
+    }
+
+    fn approve_hns_swap_settlement(&mut self, action_token: &str) -> Option<Vec<u8>> {
+        let Self::DirectValue { controller, .. } = self else {
+            return None;
+        };
+        let receipt = controller.approve_denuo_hns_settlement(action_token).ok()?;
+        let mut json = serde_json::to_vec(&receipt).ok()?;
+        let bundle = bitcoin_json_bundle(&json);
+        json.fill(0);
+        bundle
+    }
+
+    fn reject_hns_swap_settlement(&mut self, action_token: &str) -> bool {
+        let Self::DirectValue { controller, .. } = self else {
+            return false;
+        };
+        controller.reject_denuo_hns_settlement(action_token).is_ok()
     }
 
     fn reconcile_verified_hns_funding(&mut self) -> bool {
@@ -1057,6 +1125,15 @@ impl AndroidWalletController {
             return false;
         };
         denuo_peer.take().is_some()
+    }
+
+    fn resume_approved_hns_settlements(&self) -> bool {
+        let Self::DirectValue { controller, .. } = self else {
+            return false;
+        };
+        controller
+            .resume_approved_denuo_hns_settlements()
+            .is_ok_and(|count| count != 0)
     }
 
     /// Service exactly one accepted direct board peer event. This is called by
@@ -5144,10 +5221,18 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return false;
         };
         let serviced = controller.service_direct_denuo_once();
+        let resumed_hns = controller.resume_approved_hns_settlements();
         let permit = controller.next_counterparty_bitcoin_watch().ok().flatten();
         drop(controller);
+        let resumed = record
+            .bitcoin_try_if_active()
+            .and_then(|slot| {
+                slot.as_ref()
+                    .and_then(|bitcoin| bitcoin.resume_approved_broadcasts().ok())
+            })
+            .is_some_and(|count| count != 0);
         let Some(permit) = permit else {
-            return serviced;
+            return serviced || resumed || resumed_hns;
         };
         let registered = record
             .bitcoin_try_if_active()
@@ -5160,13 +5245,15 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             })
             .unwrap_or(false);
         if !registered {
-            return serviced;
+            return serviced || resumed || resumed_hns;
         }
         record.controller_if_active().is_some_and(|mut controller| {
             controller
                 .complete_counterparty_bitcoin_watch(permit)
                 .is_ok()
         }) || serviced
+            || resumed
+            || resumed_hns
     }))
     .unwrap_or(false)
     .into()
@@ -5971,6 +6058,188 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let record = wallet_from_handle(handle)?;
         let mut controller = record.controller_if_active()?;
         Some(controller.reject_hns_for_btc_funding(token.0.as_str()))
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareBitcoinSwapSettlement(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    session_id_ascii: JByteArray<'_>,
+    redeem: jboolean,
+    maximum_fee_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let session = android_wallet_consumed_bytes(
+            &mut env,
+            &session_id_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?;
+        let session_id = canonical_session_id(canonical_action_token(session)?.0.as_str())?;
+        let fee = android_wallet_consumed_bytes(&mut env, &maximum_fee_ascii, 20)?;
+        let maximum_fee = canonical_nonzero_sats(fee)?;
+        let record = wallet_from_handle(handle)?;
+        let permit = {
+            let controller = record.controller_if_active()?;
+            controller.authorize_bitcoin_swap_settlement(session_id, redeem != 0)?
+        };
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        let approval = bitcoin
+            .as_mut()?
+            .prepare_denuo_htlc_settlement(permit, maximum_fee)
+            .ok()?;
+        let mut json = serde_json::to_vec(&approval).ok()?;
+        let mut bundle = bitcoin_json_bundle(&json)?;
+        json.fill(0);
+        let array = env.byte_array_from_slice(&bundle).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveBitcoinSwapSettlement(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = canonical_action_token(android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?)?;
+        let record = wallet_from_handle(handle)?;
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        let receipt = bitcoin
+            .as_mut()?
+            .approve_denuo_htlc_settlement(token.0.as_str())
+            .ok()?;
+        let mut json = serde_json::to_vec(&receipt).ok()?;
+        let mut bundle = bitcoin_json_bundle(&json)?;
+        json.fill(0);
+        let array = env.byte_array_from_slice(&bundle).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectBitcoinSwapSettlement(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = canonical_action_token(android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?)?;
+        let record = wallet_from_handle(handle)?;
+        let mut bitcoin = record.bitcoin_try_if_active()?;
+        Some(
+            bitcoin
+                .as_mut()?
+                .reject_denuo_htlc_settlement(token.0.as_str())
+                .is_ok(),
+        )
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareHnsSwapSettlement(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    session_id_ascii: JByteArray<'_>,
+    redeem: jboolean,
+    maximum_fee_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let session = android_wallet_consumed_bytes(
+            &mut env,
+            &session_id_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?;
+        let session_id = canonical_session_id(canonical_action_token(session)?.0.as_str())?;
+        let fee = android_wallet_consumed_bytes(&mut env, &maximum_fee_ascii, 20)?;
+        let maximum_fee = canonical_nonzero_sats(fee)?;
+        let action = if redeem != 0 {
+            hns_wallet_mobile::MobileDenuoSettlementAction::Redeem
+        } else {
+            hns_wallet_mobile::MobileDenuoSettlementAction::Refund
+        };
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.prepare_hns_swap_settlement(session_id, action, maximum_fee)?;
+        let array = env.byte_array_from_slice(&bundle).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveHnsSwapSettlement(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = canonical_action_token(android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.approve_hns_swap_settlement(token.0.as_str())?;
+        let array = env.byte_array_from_slice(&bundle).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectHnsSwapSettlement(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = canonical_action_token(android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        Some(controller.reject_hns_swap_settlement(token.0.as_str()))
     }))
     .ok()
     .flatten()
