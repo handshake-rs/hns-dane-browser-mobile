@@ -1338,9 +1338,7 @@ dependencies = [
 
 [[package]]
 name = "hns-marketplace-protocol"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b546ce71fb9fe5136ccf96eb54c70a46c87bf1576a7c1d36e46ee844754dbe5"
+version = "0.4.0"
 dependencies = [
  "blake2",
  "hns-encoding",

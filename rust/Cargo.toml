@@ -95,3 +95,8 @@ panic = "unwind"
 hns-wallet-ffi = { path = "../../hns-wallet-rs/crates/hns-wallet-ffi" }
 hns-wallet-mobile = { path = "../../hns-wallet-rs/crates/hns-wallet-mobile" }
 hns-wallet-types = { path = "../../hns-wallet-rs/crates/hns-wallet-types" }
+
+[patch.crates-io]
+# The adjacent marketplace protocol is part of the same reviewed atomic-swap
+# change as the wallet core path patches above.
+hns-marketplace-protocol = { path = "../../hns-rs/crates/hns-marketplace-protocol" }
