@@ -1140,6 +1140,48 @@ impl NativeWalletController {
         Ok(())
     }
 
+    fn reconcile_verified_hns_spends(&mut self) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            controller,
+            denuo_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        for permit in denuo_sessions.pending_hns_spend_verifications()? {
+            let session_id = permit.session_id();
+            if let Some(spend) = controller.verified_denuo_hns_spend(permit)? {
+                denuo_sessions.apply_local_verified_hns_spend(
+                    session_id,
+                    spend,
+                    HnsReadSystemClock.now_unix()?,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn pending_bitcoin_spend_sessions(&self) -> Result<Vec<SessionId>, MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        denuo_sessions.pending_bitcoin_spend_sessions()
+    }
+
+    fn apply_verified_bitcoin_spend(
+        &mut self,
+        session_id: SessionId,
+        spend: hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation,
+    ) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        denuo_sessions
+            .apply_local_verified_bitcoin_spend(session_id, spend, HnsReadSystemClock.now_unix()?)
+            .map(|_| ())
+    }
+
     fn cancel_btc_for_hns_offer(&mut self, offer_id: &str) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue {
             denuo_sessions,
@@ -4301,6 +4343,47 @@ pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
                     .map_err(|_| wallet_runtime_failure("Bitcoin funding recovery failed"))?;
             }
         }
+        let spend_candidates = {
+            let entry = wallet_entry(wallet)?;
+            let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            entry
+                .controller
+                .pending_bitcoin_spend_sessions()
+                .map_err(|_| wallet_runtime_failure("Bitcoin spend recovery failed"))?
+        };
+        let verified_spends = if spend_candidates.is_empty() {
+            Vec::new()
+        } else {
+            let control = wallet_bitcoin_control_entry(wallet)?;
+            match control.controller.try_lock() {
+                Ok(slot) => slot.as_ref().map_or_else(Vec::new, |bitcoin| {
+                    spend_candidates
+                        .into_iter()
+                        .filter_map(|session_id| {
+                            bitcoin
+                                .verified_denuo_htlc_spend(session_id)
+                                .ok()
+                                .flatten()
+                                .map(|spend| (session_id, spend))
+                        })
+                        .collect()
+                }),
+                Err(TryLockError::WouldBlock) => Vec::new(),
+                Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
+            }
+        };
+        if !verified_spends.is_empty() {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            for (session_id, spend) in verified_spends {
+                entry
+                    .controller
+                    .apply_verified_bitcoin_spend(session_id, spend)
+                    .map_err(|_| wallet_runtime_failure("Bitcoin spend recovery failed"))?;
+            }
+        }
         {
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
@@ -4308,6 +4391,7 @@ pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
             // A temporarily unavailable HNS read must not hide the durable
             // execution projection. It simply cannot advance it this refresh.
             let _ = entry.controller.reconcile_verified_hns_funding();
+            let _ = entry.controller.reconcile_verified_hns_spends();
         }
         let entry = wallet_entry(wallet)?;
         let entry = entry.lock().map_err(|_| FfiFailure::internal())?;

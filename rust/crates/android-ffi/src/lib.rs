@@ -989,6 +989,59 @@ impl AndroidWalletController {
         true
     }
 
+    fn reconcile_verified_hns_spends(&mut self) -> bool {
+        let Self::DirectValue {
+            controller,
+            denuo_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Ok(permits) = denuo_sessions.pending_hns_spend_verifications() else {
+            return false;
+        };
+        for permit in permits {
+            let session_id = permit.session_id();
+            if let Ok(Some(spend)) = controller.verified_denuo_hns_spend(permit)
+                && denuo_sessions
+                    .apply_local_verified_hns_spend(
+                        session_id,
+                        spend,
+                        HnsReadSystemClock.now_unix().unwrap_or(0),
+                    )
+                    .is_err()
+            {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn pending_bitcoin_spend_sessions(&self) -> Option<Vec<SessionId>> {
+        let Self::DirectValue { denuo_sessions, .. } = self else {
+            return None;
+        };
+        denuo_sessions.pending_bitcoin_spend_sessions().ok()
+    }
+
+    fn apply_verified_bitcoin_spend(
+        &mut self,
+        session_id: SessionId,
+        spend: hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation,
+    ) -> bool {
+        let Self::DirectValue { denuo_sessions, .. } = self else {
+            return false;
+        };
+        denuo_sessions
+            .apply_local_verified_bitcoin_spend(
+                session_id,
+                spend,
+                HnsReadSystemClock.now_unix().unwrap_or(0),
+            )
+            .is_ok()
+    }
+
     /// Retry the wallet-owned listener while retaining every other controller
     /// state. A successful existing listener is left untouched; a failed bind
     /// is never treated as a wallet, chain, or board-authority failure.
@@ -5361,8 +5414,40 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 }
             }
         }
+        let spend_candidates = {
+            let controller = record.controller_if_active()?;
+            controller.pending_bitcoin_spend_sessions()?
+        };
+        let verified_spends = record
+            .bitcoin_try_if_active()
+            .and_then(|bitcoin| {
+                bitcoin.as_ref().map(|bitcoin| {
+                    spend_candidates
+                        .into_iter()
+                        .filter_map(|session_id| {
+                            bitcoin
+                                .verified_denuo_htlc_spend(session_id)
+                                .ok()
+                                .flatten()
+                                .map(|spend| (session_id, spend))
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .unwrap_or_default();
+        if !verified_spends.is_empty() {
+            let mut controller = record.controller_if_active()?;
+            for (session_id, spend) in verified_spends {
+                if !controller.apply_verified_bitcoin_spend(session_id, spend) {
+                    return None;
+                }
+            }
+        }
         let mut controller = record.controller_if_active()?;
         if !controller.reconcile_verified_hns_funding() {
+            return None;
+        }
+        if !controller.reconcile_verified_hns_spends() {
             return None;
         }
         let mut bundle = controller.denuo_executions()?;
