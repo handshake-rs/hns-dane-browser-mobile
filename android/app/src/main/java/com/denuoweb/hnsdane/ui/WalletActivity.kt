@@ -41,6 +41,7 @@ import com.denuoweb.hnsdane.wallet.NativeHnsValueApproval
 import com.denuoweb.hnsdane.wallet.NativeHnsValueApprovalKind
 import com.denuoweb.hnsdane.wallet.NativeHnsValueIntent
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSendApproval
+import com.denuoweb.hnsdane.wallet.NativeBitcoinSendPreparationFailure
 import com.denuoweb.hnsdane.wallet.NativeBitcoinHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
@@ -2363,6 +2364,7 @@ class WalletActivity : ComponentActivity() {
     private data class WalletActionInput(
         val hint: Int,
         val numeric: Boolean = false,
+        val decimal: Boolean = true,
         val initial: String = "",
     )
 
@@ -2399,7 +2401,9 @@ class WalletActivity : ComponentActivity() {
             EditText(this).apply {
                 hint = getString(field.hint)
                 inputType = if (field.numeric) {
-                    InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                    InputType.TYPE_CLASS_NUMBER or (
+                        if (field.decimal) InputType.TYPE_NUMBER_FLAG_DECIMAL else 0
+                    )
                 } else {
                     InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
                 }
@@ -2438,14 +2442,26 @@ class WalletActivity : ComponentActivity() {
             R.string.row_wallet_bitcoin_send,
             listOf(
                 WalletActionInput(R.string.wallet_bitcoin_send_destination_hint),
-                WalletActionInput(R.string.wallet_bitcoin_send_amount_hint, numeric = true),
-                WalletActionInput(R.string.wallet_bitcoin_send_fee_hint, numeric = true),
+                WalletActionInput(
+                    R.string.wallet_bitcoin_send_amount_hint,
+                    numeric = true,
+                    decimal = false,
+                ),
+                WalletActionInput(
+                    R.string.wallet_bitcoin_send_fee_hint,
+                    numeric = true,
+                    decimal = false,
+                ),
             ),
         ) { values ->
-            val amountSats = values[1].toLongOrNull()?.takeIf { it > 0L }
+            val amountSats = values[1].toLongOrNull()
             val maximumFeeSats = values[2].toLongOrNull()?.takeIf { it > 0L }
             if (amountSats == null || maximumFeeSats == null) {
                 bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_prepare_failed)
+                return@showWalletActionForm
+            }
+            if (amountSats < NativeWalletBridge.MINIMUM_BITCOIN_SEND_SATS) {
+                bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_amount_minimum)
                 return@showWalletActionForm
             }
             prepareBitcoinSend(values[0], amountSats, maximumFeeSats)
@@ -3016,9 +3032,10 @@ class WalletActivity : ComponentActivity() {
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_preparing)
         val epoch = lifecycleEpoch
         thread(name = "bitcoin-wallet-send-prepare") {
-            val approval = NativeWalletBridge.prepareBitcoinSend(
+            val preparation = NativeWalletBridge.prepareBitcoinSend(
                 handle, destination, amountSats, maximumFeeSats,
             )
+            val approval = preparation.approval
             val exact = approval?.takeIf {
                 it.destination == destination && it.amountSats == amountSats &&
                     it.maximumFeeSats == maximumFeeSats && it.feeSats <= maximumFeeSats
@@ -3039,13 +3056,36 @@ class WalletActivity : ComponentActivity() {
                 }
                 if (exact == null) {
                     busy = false
-                    bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_prepare_failed)
+                    bitcoinStatusView.text = bitcoinSendPreparationFailureMessage(preparation.failure)
                 } else {
                     showBitcoinSendApproval(exact, lease, epoch)
                 }
             }
         }
     }
+
+    private fun bitcoinSendPreparationFailureMessage(
+        failure: NativeBitcoinSendPreparationFailure?,
+    ): String = getString(
+        when (failure) {
+            NativeBitcoinSendPreparationFailure.AmountBelowMinimum ->
+                R.string.wallet_bitcoin_send_amount_minimum
+            NativeBitcoinSendPreparationFailure.InsufficientConfirmedFunds ->
+                R.string.wallet_bitcoin_send_insufficient_confirmed
+            NativeBitcoinSendPreparationFailure.InvalidDestination ->
+                R.string.wallet_bitcoin_send_invalid_destination
+            NativeBitcoinSendPreparationFailure.FeeCapTooLow ->
+                R.string.wallet_bitcoin_send_fee_cap_too_low
+            NativeBitcoinSendPreparationFailure.ActionPending ->
+                R.string.wallet_bitcoin_send_action_pending
+            NativeBitcoinSendPreparationFailure.WalletUnavailable ->
+                R.string.wallet_bitcoin_send_unavailable
+            NativeBitcoinSendPreparationFailure.InvalidRequest ->
+                R.string.wallet_bitcoin_send_invalid_request
+            NativeBitcoinSendPreparationFailure.Retry, null ->
+                R.string.wallet_bitcoin_send_prepare_failed
+        },
+    )
 
     private fun showBitcoinSendApproval(
         approval: NativeBitcoinSendApproval,

@@ -509,11 +509,17 @@
     <string name="wallet_bitcoin_birthday_unavailable" translatable="false">Unlock the direct Bitcoin wallet and wait for its current operation to finish before setting the birthday height.</string>
     <string name="wallet_bitcoin_birthday_failed" translatable="false">The Bitcoin recovery birthday was not saved. This action is available only for a restored wallet whose recovery scan has not already passed the requested height.</string>
     <string name="wallet_bitcoin_send_destination_hint" translatable="false">Exact Bitcoin recipient address</string>
-    <string name="wallet_bitcoin_send_amount_hint" translatable="false">Amount in satoshis</string>
+    <string name="wallet_bitcoin_send_amount_hint" translatable="false">Amount in satoshis (minimum 1,000)</string>
     <string name="wallet_bitcoin_send_fee_hint" translatable="false">Maximum fee in satoshis</string>
     <string name="wallet_bitcoin_send_unavailable" translatable="false">Unlock and synchronize the direct Bitcoin wallet before preparing a send.</string>
     <string name="wallet_bitcoin_send_preparing" translatable="false">Preparing the exact Bitcoin transaction through the direct peer fee policy…</string>
-    <string name="wallet_bitcoin_send_prepare_failed" translatable="false">The Bitcoin send could not be prepared from the direct wallet state.</string>
+    <string name="wallet_bitcoin_send_prepare_failed" translatable="false">The Bitcoin send could not be prepared. Synchronize the Bitcoin wallet and try again.</string>
+    <string name="wallet_bitcoin_send_amount_minimum" translatable="false">Enter at least 1,000 satoshis. Smaller Bitcoin outputs are not supported.</string>
+    <string name="wallet_bitcoin_send_insufficient_confirmed" translatable="false">Your confirmed Bitcoin balance does not cover the amount, maximum fee, and funds reserved for active offers. Reduce the amount or fee cap, or wait for funds to confirm.</string>
+    <string name="wallet_bitcoin_send_invalid_destination" translatable="false">Enter a valid Bitcoin recipient address for this wallet’s network.</string>
+    <string name="wallet_bitcoin_send_fee_cap_too_low" translatable="false">The current direct-peer fee is above your maximum fee. Increase the fee cap and review the transaction again.</string>
+    <string name="wallet_bitcoin_send_action_pending" translatable="false">A Bitcoin transaction is already awaiting review or broadcast. Finish it or reopen and synchronize before preparing another.</string>
+    <string name="wallet_bitcoin_send_invalid_request" translatable="false">Enter a whole-satoshi amount of at least 1,000 and a positive maximum fee.</string>
     <string name="wallet_bitcoin_send_approval_title" translatable="false">Approve this Bitcoin transaction?</string>
     <string name="wallet_bitcoin_send_approval_message" translatable="false">Recipient:&#10;%1$s&#10;&#10;Amount:&#10;%2$d sats&#10;&#10;Fee:&#10;%3$d sats&#10;&#10;Approved maximum:&#10;%4$d sats&#10;&#10;Approval expires:&#10;%5$s&#10;&#10;Only this exact one-time native transaction can be broadcast.</string>
     <string name="wallet_bitcoin_send_broadcasting" translatable="false">Broadcasting the exact approved Bitcoin transaction through direct Kyoto peers…</string>

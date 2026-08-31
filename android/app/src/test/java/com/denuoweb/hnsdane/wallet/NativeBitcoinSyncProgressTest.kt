@@ -57,6 +57,33 @@ class NativeBitcoinSyncProgressTest {
     }
 
     @Test
+    fun parses_only_bounded_actionable_bitcoin_send_preparation_results() {
+        assertEquals(1_000L, NativeWalletBridge.MINIMUM_BITCOIN_SEND_SATS)
+
+        val rejected = NativeBitcoinWalletBundle.sendPreparation(bundle(
+            """{"outcome":"rejected","reason":"amount_below_minimum"}""",
+        ))
+        requireNotNull(rejected)
+        assertNull(rejected.approval)
+        assertEquals(NativeBitcoinSendPreparationFailure.AmountBelowMinimum, rejected.failure)
+
+        val approved = NativeBitcoinWalletBundle.sendPreparation(bundle(
+            """{"outcome":"approved","approval":{"actionToken":"${"ab".repeat(32)}","destination":"bc1qexample","amountSats":1000,"feeSats":200,"maximumFeeSats":300,"expiresAtUnix":2000}}""",
+        ))
+        requireNotNull(approved)
+        assertEquals(1_000L, approved.approval?.amountSats)
+        assertNull(approved.failure)
+        approved.approval?.close()
+
+        assertNull(NativeBitcoinWalletBundle.sendPreparation(bundle(
+            """{"outcome":"rejected","reason":"wallet_dump"}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.sendPreparation(bundle(
+            """{"outcome":"rejected","reason":"retry","detail":"untrusted"}""",
+        )))
+    }
+
+    @Test
     fun parses_exact_btc_for_hns_approval_and_active_offer() {
         val approval = NativeBitcoinWalletBundle.btcForHnsApproval(bundle(
             """{"actionToken":"${"ab".repeat(32)}","btcAmountSats":9000,"hnsAmountDollarydoos":2000000,"bitcoinFeeReserveSats":1000,"totalBitcoinCommitmentSats":10000,"offerExpiresAtUnix":2000,"approvalExpiresAtUnix":1100,"connectedPeerRequiredForAnnouncement":true}""",

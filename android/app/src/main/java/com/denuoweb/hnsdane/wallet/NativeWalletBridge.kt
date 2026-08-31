@@ -18,6 +18,8 @@ internal object NativeWalletBridge {
     const val NETWORK_MAINNET = 1
     const val NETWORK_TESTNET = 2
     const val NETWORK_REGTEST = 3
+    /** Product minimum, deliberately above the relay dust floor for supported outputs. */
+    const val MINIMUM_BITCOIN_SEND_SATS = 1_000L
 
     val isAvailable: Boolean
         get() = NativeBridge.isLoaded
@@ -718,30 +720,48 @@ internal object NativeWalletBridge {
         destination: String,
         amountSats: Long,
         maximumFeeSats: Long,
-    ): NativeBitcoinSendApproval? {
+    ): NativeBitcoinSendPreparation {
         if (
             !isValidHandle(handle) || !isAvailable || destination.length !in 1..128 ||
-            amountSats <= 0L || maximumFeeSats <= 0L
-        ) return null
+            maximumFeeSats <= 0L
+        ) return NativeBitcoinSendPreparation(
+            approval = null,
+            failure = NativeBitcoinSendPreparationFailure.WalletUnavailable,
+        )
+        if (amountSats < MINIMUM_BITCOIN_SEND_SATS) {
+            return NativeBitcoinSendPreparation(
+                approval = null,
+                failure = NativeBitcoinSendPreparationFailure.AmountBelowMinimum,
+            )
+        }
         val destinationUtf8 = destination.toByteArray(Charsets.US_ASCII)
         val amountAscii = amountSats.toString().toByteArray(Charsets.US_ASCII)
         val feeAscii = maximumFeeSats.toString().toByteArray(Charsets.US_ASCII)
         return try {
             val bundle = runCatching {
                 nativePrepareBitcoinSend(handle, destinationUtf8, amountAscii, feeAscii)
-            }.getOrNull() ?: return null
-            val approval = try {
-                NativeBitcoinWalletBundle.sendApproval(bundle)
+            }.getOrNull() ?: return nativeBitcoinPreparationFailureAfterBridgeFault(handle)
+            val preparation = try {
+                NativeBitcoinWalletBundle.sendPreparation(bundle)
             } finally {
                 bundle.fill(0)
             }
-            if (approval == null) lock(handle)
-            approval
+            preparation ?: nativeBitcoinPreparationFailureAfterBridgeFault(handle)
         } finally {
             destinationUtf8.fill(0)
             amountAscii.fill(0)
             feeAscii.fill(0)
         }
+    }
+
+    private fun nativeBitcoinPreparationFailureAfterBridgeFault(
+        handle: Long,
+    ): NativeBitcoinSendPreparation {
+        lock(handle)
+        return NativeBitcoinSendPreparation(
+            approval = null,
+            failure = NativeBitcoinSendPreparationFailure.Retry,
+        )
     }
 
     /** Consumes the displayed direct Bitcoin approval exactly once. */

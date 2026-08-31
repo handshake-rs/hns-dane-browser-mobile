@@ -112,6 +112,9 @@ const WALLET_BITCOIN_BUNDLE_VERSION: u8 = 1;
 const WALLET_BITCOIN_BUNDLE_FLAGS: u8 = 0;
 const WALLET_BITCOIN_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_BITCOIN_JSON_BYTES: usize = 16 * 1024;
+/// Product floor: it is deliberately above the relay dust threshold of every
+/// standard output type that the direct BIP84 wallet can send to.
+const MINIMUM_ANDROID_BITCOIN_SEND_SATS: u64 = 1_000;
 const MAX_ANDROID_WALLET_NAME_BYTES: usize = 63;
 const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
 const MAX_ANDROID_SHAKESCAPE_ENDPOINT_BYTES: usize = 128;
@@ -2118,31 +2121,123 @@ fn android_synchronize_bitcoin(
     Ok(bundle)
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AndroidBitcoinSendPreparationFailure {
+    AmountBelowMinimum,
+    InsufficientConfirmedFunds,
+    InvalidDestination,
+    FeeCapTooLow,
+    ActionPending,
+    WalletUnavailable,
+    InvalidRequest,
+    Retry,
+}
+
+impl AndroidBitcoinSendPreparationFailure {
+    const fn code(self) -> &'static str {
+        match self {
+            Self::AmountBelowMinimum => "amount_below_minimum",
+            Self::InsufficientConfirmedFunds => "insufficient_confirmed_funds",
+            Self::InvalidDestination => "invalid_destination",
+            Self::FeeCapTooLow => "fee_cap_too_low",
+            Self::ActionPending => "action_pending",
+            Self::WalletUnavailable => "wallet_unavailable",
+            Self::InvalidRequest => "invalid_request",
+            Self::Retry => "retry",
+        }
+    }
+}
+
+fn android_bitcoin_send_preparation_failure(
+    error: &MobileWalletError,
+) -> AndroidBitcoinSendPreparationFailure {
+    match error {
+        MobileWalletError::BitcoinActionPending => {
+            AndroidBitcoinSendPreparationFailure::ActionPending
+        }
+        MobileWalletError::BitcoinRuntimeInactive
+        | MobileWalletError::BitcoinRuntimeUnavailable
+        | MobileWalletError::ControllerFailed => {
+            AndroidBitcoinSendPreparationFailure::WalletUnavailable
+        }
+        MobileWalletError::InvalidBitcoinAction => {
+            AndroidBitcoinSendPreparationFailure::InvalidRequest
+        }
+        _ => android_bitcoin_wallet_error_failure(error.to_string().as_str()),
+    }
+}
+
+fn android_bitcoin_wallet_error_failure(detail: &str) -> AndroidBitcoinSendPreparationFailure {
+    if detail.contains("Output below the dust limit") || detail.contains("HTLC output is dust") {
+        AndroidBitcoinSendPreparationFailure::AmountBelowMinimum
+    } else if detail.contains("insufficient funds") {
+        AndroidBitcoinSendPreparationFailure::InsufficientConfirmedFunds
+    } else if detail.contains("invalid destination")
+        || detail.contains("address or wallet network mismatch")
+    {
+        AndroidBitcoinSendPreparationFailure::InvalidDestination
+    } else if detail.contains("fee exceeds approved maximum")
+        || detail.contains("invalid or excessive fee")
+    {
+        AndroidBitcoinSendPreparationFailure::FeeCapTooLow
+    } else {
+        AndroidBitcoinSendPreparationFailure::Retry
+    }
+}
+
+fn android_bitcoin_send_preparation_rejection_bundle(
+    reason: AndroidBitcoinSendPreparationFailure,
+) -> Option<Vec<u8>> {
+    let mut json = serde_json::to_vec(&json!({
+        "outcome": "rejected",
+        "reason": reason.code(),
+    }))
+    .ok()?;
+    let bundle = bitcoin_json_bundle(json.as_slice());
+    json.fill(0);
+    bundle
+}
+
 fn android_prepare_bitcoin_send(
     controller: &mut MobileBitcoinValueController,
     destination: &str,
     amount_sats: u64,
     maximum_fee_sats: u64,
     reserved_offer_sats: u64,
-) -> Option<Vec<u8>> {
-    let confirmed_sats = controller.snapshot().ok()?.confirmed_sats;
+) -> Result<Vec<u8>, AndroidBitcoinSendPreparationFailure> {
+    if amount_sats < MINIMUM_ANDROID_BITCOIN_SEND_SATS {
+        return Err(AndroidBitcoinSendPreparationFailure::AmountBelowMinimum);
+    }
+    let confirmed_sats = controller
+        .snapshot()
+        .map_err(|error| {
+            android_log_error(&format!(
+                "wallet Bitcoin send balance check failed: {error}"
+            ));
+            android_bitcoin_send_preparation_failure(&error)
+        })?
+        .confirmed_sats;
     if amount_sats
         .checked_add(maximum_fee_sats)
         .and_then(|send| send.checked_add(reserved_offer_sats))
         .is_none_or(|total| total > confirmed_sats)
     {
-        return None;
+        return Err(AndroidBitcoinSendPreparationFailure::InsufficientConfirmedFunds);
     }
     let approval = controller
         .prepare_send(destination, amount_sats, maximum_fee_sats)
         .map_err(|error| {
             android_log_error(&format!("wallet Bitcoin send preparation failed: {error}"));
-        })
-        .ok()?;
-    let mut json = serde_json::to_vec(&approval).ok()?;
+            android_bitcoin_send_preparation_failure(&error)
+        })?;
+    let mut json = serde_json::to_vec(&json!({
+        "outcome": "approved",
+        "approval": approval,
+    }))
+    .map_err(|_| AndroidBitcoinSendPreparationFailure::Retry)?;
     let bundle = bitcoin_json_bundle(json.as_slice());
     json.fill(0);
-    bundle
+    bundle.ok_or(AndroidBitcoinSendPreparationFailure::Retry)
 }
 
 fn android_approve_bitcoin_send(
@@ -5906,26 +6001,51 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     maximum_fee_sats_ascii: JByteArray<'_>,
 ) -> jbyteArray {
     catch_unwind(AssertUnwindSafe(|| {
-        let destination = android_wallet_consumed_bytes(&mut env, &destination_utf8, 128)?;
-        let amount_sats = android_wallet_consumed_bytes(&mut env, &amount_sats_ascii, 20)?;
-        let maximum_fee_sats =
-            android_wallet_consumed_bytes(&mut env, &maximum_fee_sats_ascii, 20)?;
-        let mut destination = bounded_visible_ascii(destination, 128)?;
-        let amount_sats = canonical_nonzero_sats(amount_sats)?;
-        let maximum_fee_sats = canonical_nonzero_sats(maximum_fee_sats)?;
-        let record = wallet_from_handle(handle)?;
-        let reserved_offer_sats = {
-            let controller = record.controller_if_active()?;
-            controller.reserved_bitcoin_for_direct_offers()?
+        let prepared = (|| -> Result<Vec<u8>, AndroidBitcoinSendPreparationFailure> {
+            let destination = android_wallet_consumed_bytes(&mut env, &destination_utf8, 128)
+                .ok_or(AndroidBitcoinSendPreparationFailure::InvalidRequest)?;
+            let amount_sats = android_wallet_consumed_bytes(&mut env, &amount_sats_ascii, 20)
+                .ok_or(AndroidBitcoinSendPreparationFailure::InvalidRequest)?;
+            let maximum_fee_sats =
+                android_wallet_consumed_bytes(&mut env, &maximum_fee_sats_ascii, 20)
+                    .ok_or(AndroidBitcoinSendPreparationFailure::InvalidRequest)?;
+            let mut destination = bounded_visible_ascii(destination, 128)
+                .ok_or(AndroidBitcoinSendPreparationFailure::InvalidRequest)?;
+            let amount_sats = canonical_nonzero_sats(amount_sats)
+                .ok_or(AndroidBitcoinSendPreparationFailure::InvalidRequest)?;
+            let maximum_fee_sats = canonical_nonzero_sats(maximum_fee_sats)
+                .ok_or(AndroidBitcoinSendPreparationFailure::InvalidRequest)?;
+            if amount_sats < MINIMUM_ANDROID_BITCOIN_SEND_SATS {
+                return Err(AndroidBitcoinSendPreparationFailure::AmountBelowMinimum);
+            }
+            let record = wallet_from_handle(handle)
+                .ok_or(AndroidBitcoinSendPreparationFailure::WalletUnavailable)?;
+            let reserved_offer_sats = {
+                let controller = record
+                    .controller_if_active()
+                    .ok_or(AndroidBitcoinSendPreparationFailure::WalletUnavailable)?;
+                controller
+                    .reserved_bitcoin_for_direct_offers()
+                    .ok_or(AndroidBitcoinSendPreparationFailure::Retry)?
+            };
+            let mut bitcoin = record
+                .bitcoin_try_if_active()
+                .ok_or(AndroidBitcoinSendPreparationFailure::WalletUnavailable)?;
+            let bitcoin = bitcoin
+                .as_mut()
+                .ok_or(AndroidBitcoinSendPreparationFailure::WalletUnavailable)?;
+            android_prepare_bitcoin_send(
+                bitcoin,
+                destination.take().as_str(),
+                amount_sats,
+                maximum_fee_sats,
+                reserved_offer_sats,
+            )
+        })();
+        let mut bundle = match prepared {
+            Ok(bundle) => bundle,
+            Err(reason) => android_bitcoin_send_preparation_rejection_bundle(reason)?,
         };
-        let mut bitcoin = record.bitcoin_try_if_active()?;
-        let mut bundle = android_prepare_bitcoin_send(
-            bitcoin.as_mut()?,
-            destination.take().as_str(),
-            amount_sats,
-            maximum_fee_sats,
-            reserved_offer_sats,
-        )?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -7316,6 +7436,46 @@ mod tests {
         for invalid in ["ab", uppercase_token.as_str()] {
             assert!(canonical_action_token(invalid.as_bytes().to_vec()).is_none());
         }
+    }
+
+    #[test]
+    fn bitcoin_send_rejections_are_bounded_actionable_and_use_the_product_floor() {
+        assert_eq!(MINIMUM_ANDROID_BITCOIN_SEND_SATS, 1_000);
+        assert_eq!(
+            android_bitcoin_wallet_error_failure(
+                "Bitcoin wallet error: Output below the dust limit: 0"
+            ),
+            AndroidBitcoinSendPreparationFailure::AmountBelowMinimum
+        );
+        assert_eq!(
+            android_bitcoin_wallet_error_failure("Bitcoin wallet error: insufficient funds"),
+            AndroidBitcoinSendPreparationFailure::InsufficientConfirmedFunds
+        );
+        assert_eq!(
+            android_bitcoin_wallet_error_failure("Bitcoin wallet error: invalid destination"),
+            AndroidBitcoinSendPreparationFailure::InvalidDestination
+        );
+        assert_eq!(
+            android_bitcoin_wallet_error_failure(
+                "Bitcoin wallet error: fee exceeds approved maximum"
+            ),
+            AndroidBitcoinSendPreparationFailure::FeeCapTooLow
+        );
+        assert_eq!(
+            android_bitcoin_send_preparation_failure(&MobileWalletError::BitcoinActionPending),
+            AndroidBitcoinSendPreparationFailure::ActionPending
+        );
+
+        let bundle = android_bitcoin_send_preparation_rejection_bundle(
+            AndroidBitcoinSendPreparationFailure::AmountBelowMinimum,
+        )
+        .expect("bounded rejection bundle");
+        assert_eq!(&bundle[..4], WALLET_BITCOIN_BUNDLE_MAGIC);
+        assert_eq!(bundle[4], WALLET_BITCOIN_BUNDLE_VERSION);
+        let value: Value = serde_json::from_slice(&bundle[WALLET_BITCOIN_BUNDLE_HEADER_BYTES..])
+            .expect("rejection JSON");
+        assert_eq!(value["outcome"], "rejected");
+        assert_eq!(value["reason"], "amount_below_minimum");
     }
 
     #[test]

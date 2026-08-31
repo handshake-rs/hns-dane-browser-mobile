@@ -59,6 +59,32 @@ internal data class NativeBitcoinSendApproval(
     override fun close() = actionToken.close()
 }
 
+/**
+ * Public, bounded reasons why a Bitcoin send could not be prepared. These are
+ * intentionally actionable categories rather than native error text, which
+ * may contain volatile implementation details and must not become UI API.
+ */
+internal enum class NativeBitcoinSendPreparationFailure {
+    AmountBelowMinimum,
+    InsufficientConfirmedFunds,
+    InvalidDestination,
+    FeeCapTooLow,
+    ActionPending,
+    WalletUnavailable,
+    InvalidRequest,
+    Retry,
+}
+
+/** The exact result of a Bitcoin send preparation attempt. */
+internal data class NativeBitcoinSendPreparation(
+    val approval: NativeBitcoinSendApproval?,
+    val failure: NativeBitcoinSendPreparationFailure?,
+) {
+    init {
+        require((approval == null) != (failure == null))
+    }
+}
+
 internal data class NativeBitcoinSendReceipt(
     val txid: String,
     val wtxid: String,
@@ -269,14 +295,41 @@ internal object NativeBitcoinWalletBundle {
         )
     }
 
-    fun sendApproval(bundle: ByteArray): NativeBitcoinSendApproval? = parse(bundle) { json ->
+    fun sendPreparation(bundle: ByteArray): NativeBitcoinSendPreparation? = parse(bundle) { json ->
+        when (json.optString("outcome", "")) {
+            "approved" -> {
+                if (!hasExactKeys(json, setOf("outcome", "approval"))) return@parse null
+                val approval = parseSendApproval(json.optJSONObject("approval") ?: return@parse null)
+                    ?: return@parse null
+                NativeBitcoinSendPreparation(approval, null)
+            }
+            "rejected" -> {
+                if (!hasExactKeys(json, setOf("outcome", "reason"))) return@parse null
+                val failure = when (json.optString("reason", "")) {
+                    "amount_below_minimum" -> NativeBitcoinSendPreparationFailure.AmountBelowMinimum
+                    "insufficient_confirmed_funds" -> NativeBitcoinSendPreparationFailure.InsufficientConfirmedFunds
+                    "invalid_destination" -> NativeBitcoinSendPreparationFailure.InvalidDestination
+                    "fee_cap_too_low" -> NativeBitcoinSendPreparationFailure.FeeCapTooLow
+                    "action_pending" -> NativeBitcoinSendPreparationFailure.ActionPending
+                    "wallet_unavailable" -> NativeBitcoinSendPreparationFailure.WalletUnavailable
+                    "invalid_request" -> NativeBitcoinSendPreparationFailure.InvalidRequest
+                    "retry" -> NativeBitcoinSendPreparationFailure.Retry
+                    else -> return@parse null
+                }
+                NativeBitcoinSendPreparation(null, failure)
+            }
+            else -> null
+        }
+    }
+
+    private fun parseSendApproval(json: JSONObject): NativeBitcoinSendApproval? {
         if (
             !hasExactKeys(json, setOf(
                 "actionToken", "destination", "amountSats", "feeSats", "maximumFeeSats", "expiresAtUnix",
             ))
-        ) return@parse null
+        ) return null
         val token = json.optString("actionToken", "").toByteArray(Charsets.US_ASCII)
-        val actionToken = NativeHnsValueActionToken.takeOwnership(token) ?: return@parse null
+        val actionToken = NativeHnsValueActionToken.takeOwnership(token) ?: return null
         val destination = address(json.optString("destination", ""))
         val amount = positiveLong(json, "amountSats")
         val fee = positiveLong(json, "feeSats")
@@ -284,9 +337,9 @@ internal object NativeBitcoinWalletBundle {
         val expires = positiveLong(json, "expiresAtUnix")
         if (destination == null || amount == null || fee == null || maximumFee == null || expires == null || fee > maximumFee) {
             actionToken.close()
-            return@parse null
+            return null
         }
-        NativeBitcoinSendApproval(actionToken, destination, amount, fee, maximumFee, expires)
+        return NativeBitcoinSendApproval(actionToken, destination, amount, fee, maximumFee, expires)
     }
 
     fun sendReceipt(bundle: ByteArray): NativeBitcoinSendReceipt? = parse(bundle) { json ->
