@@ -1,6 +1,5 @@
 package com.denuoweb.hnsdane.ui
 
-import com.denuoweb.hnsdane.BuildConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -19,10 +18,8 @@ class HnsResolutionPreferencesTest {
 
     @Test
     fun buildDefaultsMatchSelectedApplicationVariant() {
-        val relayTestBuild = BuildConfig.APPLICATION_ID.endsWith(".relaytest")
-
         assertEquals(
-            if (relayTestBuild) HandshakeNetwork.Regtest else HandshakeNetwork.Mainnet,
+            HandshakeNetwork.Mainnet,
             HnsResolutionPreferences.buildDefaultHandshakeNetwork(),
         )
         assertTrue(HnsResolutionPreferences.buildDefaultStrictHnsMode())
