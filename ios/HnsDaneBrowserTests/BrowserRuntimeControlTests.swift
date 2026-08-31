@@ -3953,13 +3953,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ))
     }
 
-    func testNativeDirectDenuoBundlesRejectTransportShapeDrift() throws {
+    func testNativeDirectShakescapeBundlesRejectTransportShapeDrift() throws {
         let endpoint = Array("198.51.100.7:12038".utf8)
         var status = Array("HNDS".utf8) + [1, 0b111, 0, 0, 0x2f, 0x06]
         status += [UInt8(endpoint.count >> 8), UInt8(endpoint.count & 0xff)] + endpoint
         XCTAssertEqual(
-            try NativeDirectDenuoBundle.status(status),
-            NativeDirectDenuoStatus(
+            try NativeDirectShakescapeBundle.status(status),
+            NativeDirectShakescapeStatus(
                 unlocked: true,
                 listenerPort: 12_038,
                 peerEndpoint: "198.51.100.7:12038"
@@ -3969,19 +3969,19 @@ final class BrowserRuntimeControlTests: XCTestCase {
         var connected = Array("HNDC".utf8) + [1, 1, 0, 0]
         connected += [UInt8(endpoint.count >> 8), UInt8(endpoint.count & 0xff), 0, 0] + endpoint
         XCTAssertEqual(
-            try NativeDirectDenuoBundle.connect(connected),
-            NativeDirectDenuoConnectResult(
+            try NativeDirectShakescapeBundle.connect(connected),
+            NativeDirectShakescapeConnectResult(
                 outcome: .connected,
                 peerEndpoint: "198.51.100.7:12038"
             )
         )
         var unknownFlags = status
         unknownFlags[5] = 0x80
-        XCTAssertThrowsError(try NativeDirectDenuoBundle.status(unknownFlags))
+        XCTAssertThrowsError(try NativeDirectShakescapeBundle.status(unknownFlags))
         var badReserved = connected
         badReserved[11] = 1
-        XCTAssertThrowsError(try NativeDirectDenuoBundle.connect(badReserved))
-        XCTAssertThrowsError(try NativeDirectDenuoBundle.connect(status))
+        XCTAssertThrowsError(try NativeDirectShakescapeBundle.connect(badReserved))
+        XCTAssertThrowsError(try NativeDirectShakescapeBundle.connect(status))
     }
 
     func testNativeSwapSettlementBundlesAreExactFeeBoundAndChainTyped() throws {
@@ -4045,19 +4045,19 @@ final class BrowserRuntimeControlTests: XCTestCase {
         {"executions":[],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":2400}}
         """
         let status = try JSONDecoder().decode(
-            NativeDenuoExecutionStatus.self, from: Data(recoveryJSON.utf8)
+            NativeShakescapeExecutionStatus.self, from: Data(recoveryJSON.utf8)
         )
         XCTAssertEqual(status.bitcoinBroadcastRecovery?.totalApproved, 3)
         XCTAssertEqual(status.bitcoinBroadcastRecovery?.unobservedSubmissionStarted, 1)
 
         XCTAssertThrowsError(try JSONDecoder().decode(
-            NativeDenuoExecutionStatus.self,
+            NativeShakescapeExecutionStatus.self,
             from: Data("""
             {"executions":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":2400}}
             """.utf8)
         ))
         XCTAssertThrowsError(try JSONDecoder().decode(
-            NativeDenuoExecutionStatus.self,
+            NativeShakescapeExecutionStatus.self,
             from: Data("""
             {"executions":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}
             """.utf8)

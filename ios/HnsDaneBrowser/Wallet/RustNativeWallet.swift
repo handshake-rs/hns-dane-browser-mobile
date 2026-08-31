@@ -333,7 +333,7 @@ private struct NativeBtcForHnsOfferList: Decodable {
     }
 }
 
-struct NativeDenuoExecutionSummary: Decodable, Equatable, Sendable {
+struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
     let sessionId: String
     let revision: UInt64
     let state: String
@@ -394,7 +394,7 @@ struct NativeDenuoExecutionSummary: Decodable, Equatable, Sendable {
               offeredAsset != receivedAsset, offeredAmount > 0, receivedAmount > 0,
               firstRefundAtUnix > secondRefundAtUnix, lastVerifiedAtUnix > 0,
               failureReason.map { !$0.isEmpty && $0.count <= 256 } ?? true else {
-            throw NativeWalletBridgeError.invalidOutput("invalid durable Denuo execution")
+            throw NativeWalletBridgeError.invalidOutput("invalid durable Shakescape execution")
         }
     }
 }
@@ -441,8 +441,8 @@ struct NativeBitcoinBroadcastRecovery: Decodable, Equatable, Sendable {
     }
 }
 
-struct NativeDenuoExecutionStatus: Decodable, Equatable, Sendable {
-    let executions: [NativeDenuoExecutionSummary]
+struct NativeShakescapeExecutionStatus: Decodable, Equatable, Sendable {
+    let executions: [NativeShakescapeExecutionSummary]
     let bitcoinBroadcastRecovery: NativeBitcoinBroadcastRecovery?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
@@ -451,12 +451,12 @@ struct NativeDenuoExecutionStatus: Decodable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
-        executions = try container.decode([NativeDenuoExecutionSummary].self, forKey: .executions)
+        executions = try container.decode([NativeShakescapeExecutionSummary].self, forKey: .executions)
         bitcoinBroadcastRecovery = try container.decodeIfPresent(
             NativeBitcoinBroadcastRecovery.self, forKey: .bitcoinBroadcastRecovery
         )
         guard executions.count <= 1_024 else {
-            throw NativeWalletBridgeError.invalidOutput("too many durable Denuo executions")
+            throw NativeWalletBridgeError.invalidOutput("too many durable Shakescape executions")
         }
     }
 }
@@ -1356,13 +1356,13 @@ struct NativeShakedexQueryResult: Sendable {
     let displayJSON: String
 }
 
-struct NativeDirectDenuoStatus: Equatable, Sendable {
+struct NativeDirectShakescapeStatus: Equatable, Sendable {
     let unlocked: Bool
     let listenerPort: UInt16?
     let peerEndpoint: String?
 }
 
-struct NativeDirectDenuoConnectResult: Equatable, Sendable {
+struct NativeDirectShakescapeConnectResult: Equatable, Sendable {
     enum Outcome: UInt8, Equatable, Sendable {
         case connected = 1
         case replaced = 2
@@ -1376,11 +1376,11 @@ struct NativeDirectDenuoConnectResult: Equatable, Sendable {
     let peerEndpoint: String?
 }
 
-enum NativeDirectDenuoBundle {
+enum NativeDirectShakescapeBundle {
     private static let headerBytes = 12
     private static let maximumEndpointBytes = 128
 
-    static func status(_ bundle: [UInt8]) throws -> NativeDirectDenuoStatus {
+    static func status(_ bundle: [UInt8]) throws -> NativeDirectShakescapeStatus {
         let endpoint = try validated(bundle, magic: Array("HNDS".utf8), lengthOffset: 10)
         let flags = bundle[5]
         guard flags & ~UInt8(0b111) == 0 else { throw invalid() }
@@ -1391,20 +1391,20 @@ enum NativeDirectDenuoBundle {
         guard unlocked || (!listening && !paired),
               (port != 0) == listening,
               (!endpoint.isEmpty) == paired else { throw invalid() }
-        return NativeDirectDenuoStatus(
+        return NativeDirectShakescapeStatus(
             unlocked: unlocked,
             listenerPort: listening ? port : nil,
             peerEndpoint: paired ? endpoint : nil
         )
     }
 
-    static func connect(_ bundle: [UInt8]) throws -> NativeDirectDenuoConnectResult {
+    static func connect(_ bundle: [UInt8]) throws -> NativeDirectShakescapeConnectResult {
         let endpoint = try validated(bundle, magic: Array("HNDC".utf8), lengthOffset: 8)
-        guard let outcome = NativeDirectDenuoConnectResult.Outcome(rawValue: bundle[5]),
+        guard let outcome = NativeDirectShakescapeConnectResult.Outcome(rawValue: bundle[5]),
               (bundle[10] == 0 && bundle[11] == 0) else { throw invalid() }
         let success = outcome == .connected || outcome == .replaced
         guard success == !endpoint.isEmpty else { throw invalid() }
-        return NativeDirectDenuoConnectResult(
+        return NativeDirectShakescapeConnectResult(
             outcome: outcome,
             peerEndpoint: success ? endpoint : nil
         )
@@ -1431,7 +1431,7 @@ enum NativeDirectDenuoBundle {
     }
 
     private static func invalid() -> NativeWalletBridgeError {
-        .invalidOutput("invalid direct Denuo transport bundle")
+        .invalidOutput("invalid direct Shakescape transport bundle")
     }
 }
 
@@ -2889,11 +2889,11 @@ final class RustNativeWallet: @unchecked Sendable {
         return result.offers
     }
 
-    func denuoExecutions() throws -> NativeDenuoExecutionStatus {
+    func shakescapeExecutions() throws -> NativeShakescapeExecutionStatus {
         try decodeBitcoinBundle(
-            operation: "durable Denuo executions"
+            operation: "durable Shakescape executions"
         ) { handle, output in
-            hns_browser_wallet_denuo_executions(handle, output)
+            hns_browser_wallet_shakescape_executions(handle, output)
         }
     }
 
@@ -3033,58 +3033,58 @@ final class RustNativeWallet: @unchecked Sendable {
         }
     }
 
-    func directDenuoStatus() throws -> NativeDirectDenuoStatus {
+    func directShakescapeStatus() throws -> NativeDirectShakescapeStatus {
         var output = HnsBrowserBuffer()
-        let result = hns_browser_wallet_direct_denuo_status(try liveHandle(), &output)
+        let result = hns_browser_wallet_direct_shakescape_status(try liveHandle(), &output)
         defer { NativeWalletBridge.free(output) }
-        try NativeWalletBridge.check(result, operation: "wallet direct Denuo status")
+        try NativeWalletBridge.check(result, operation: "wallet direct Shakescape status")
         var bundle = try NativeWalletBridge.bytes(copying: output)
         defer { WalletSecretBytes.wipe(&bundle) }
-        return try NativeDirectDenuoBundle.status(bundle)
+        return try NativeDirectShakescapeBundle.status(bundle)
     }
 
-    func retryDirectDenuoListener() throws {
+    func retryDirectShakescapeListener() throws {
         try NativeWalletBridge.check(
-            hns_browser_wallet_retry_direct_denuo_listener(try liveHandle()),
-            operation: "wallet direct Denuo listener retry"
+            hns_browser_wallet_retry_direct_shakescape_listener(try liveHandle()),
+            operation: "wallet direct Shakescape listener retry"
         )
     }
 
-    func connectDirectDenuo(endpoint: String) throws -> NativeDirectDenuoConnectResult {
+    func connectDirectShakescape(endpoint: String) throws -> NativeDirectShakescapeConnectResult {
         var output = HnsBrowserBuffer()
         let currentHandle = try liveHandle()
         let result = NativeWalletBridge.withUTF8Slice(endpoint) { endpoint in
-            hns_browser_wallet_connect_direct_denuo(
+            hns_browser_wallet_connect_direct_shakescape(
                 currentHandle, endpoint, &output
             )
         }
         defer { NativeWalletBridge.free(output) }
-        try NativeWalletBridge.check(result, operation: "wallet direct Denuo connection")
+        try NativeWalletBridge.check(result, operation: "wallet direct Shakescape connection")
         var bundle = try NativeWalletBridge.bytes(copying: output)
         defer { WalletSecretBytes.wipe(&bundle) }
-        return try NativeDirectDenuoBundle.connect(bundle)
+        return try NativeDirectShakescapeBundle.connect(bundle)
     }
 
-    func disconnectDirectDenuo() throws -> Bool {
+    func disconnectDirectShakescape() throws -> Bool {
         var disconnected: UInt8 = 0
         try NativeWalletBridge.check(
-            hns_browser_wallet_disconnect_direct_denuo(try liveHandle(), &disconnected),
-            operation: "wallet direct Denuo disconnect"
+            hns_browser_wallet_disconnect_direct_shakescape(try liveHandle(), &disconnected),
+            operation: "wallet direct Shakescape disconnect"
         )
         guard disconnected <= 1 else {
-            throw NativeWalletBridgeError.invalidOutput("direct Denuo disconnect is not boolean")
+            throw NativeWalletBridgeError.invalidOutput("direct Shakescape disconnect is not boolean")
         }
         return disconnected == 1
     }
 
-    func serviceDirectDenuo() throws -> Bool {
+    func serviceDirectShakescape() throws -> Bool {
         var serviced: UInt8 = 0
         try NativeWalletBridge.check(
-            hns_browser_wallet_service_direct_denuo(try liveHandle(), &serviced),
-            operation: "wallet direct Denuo service"
+            hns_browser_wallet_service_direct_shakescape(try liveHandle(), &serviced),
+            operation: "wallet direct Shakescape service"
         )
         guard serviced <= 1 else {
-            throw NativeWalletBridgeError.invalidOutput("direct Denuo service result is not boolean")
+            throw NativeWalletBridgeError.invalidOutput("direct Shakescape service result is not boolean")
         }
         return serviced == 1
     }

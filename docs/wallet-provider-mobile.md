@@ -3,7 +3,7 @@
 This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the published
-  `hns-wallet-mobile 0.1.1` controller; and
+  `hns-wallet-mobile 0.2.0` controller; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
@@ -77,7 +77,7 @@ Both platform shells now link a narrow native controller for:
 The direct path publishes wallet state only after verified peer agreement and
 keeps partial catch-up distinct from a spendable snapshot. It does not require
 the older scoped-loopback credential/indexed backend. Android and iOS also
-expose a wallet-owned direct-Denuo listener, explicit IP-literal pairing,
+expose a wallet-owned Shakescape V1 listener, explicit IP-literal pairing,
 bounded peer servicing, replacement, and disconnect. iOS declares the local
 network purpose required by the platform and services the transport only while
 the protected foreground wallet owns authority. Exact-text name import uses

@@ -13,7 +13,7 @@ into the app.
 | Android app | `1.0.0` / code `52` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.0` / build `61` | `ios/project.yml` |
-| Native wallet controller | published `hns-wallet-mobile 0.1.1` | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
+| Native wallet controller | published `hns-wallet-mobile 0.2.0` | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.3.1` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
@@ -118,7 +118,7 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses published wallet `0.1.1`, HNS `0.3.1`,
+- The mobile dependency sequence uses published wallet `0.2.0`, HNS `0.3.1`,
   engine, and browser-adapter `0.2.2` crates. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).
   Earlier run `31807520618` qualified only HNWR-v2 source

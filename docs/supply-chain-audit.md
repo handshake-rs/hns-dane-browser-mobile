@@ -5,7 +5,7 @@ Last audited: 2026-08-23
 Current candidate source coordinates Android `1.0.0` / code `52`, the embedded
 non-publishable Rust workspace `1.0.0`, and iOS `1.0.0` / build `61`. It uses
 the published `hns-rs 0.3.1`, public `hns-dane-engine 0.2.2`, and
-`hns-wallet-rs 0.1.1` cohort, including published browser adapters at
+`hns-wallet-rs 0.2.0` cohort, including published browser adapters at
 `0.2.2`. Lockfiles retain registry checksums and no HNS ecosystem Git source,
 as documented in [released-dependency-cohort.md](released-dependency-cohort.md).
 
@@ -74,7 +74,7 @@ been built or submitted.
 - Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Published HNS, engine, browser-adapter, and wallet packages carry Cargo checksums. Git ecosystem inputs, patches, and restored local engine paths are denied.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
 - Gradle 9.6.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
-- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. `scripts/verify_cargo_git_policy.py` enforces direct crates.io pins for the `0.3.1` / `0.2.2` / `0.1.1` published cohort, the required `hns-browser-gateway` and `hns-namespace-resolution` `0.2.3` stateless-DANE patches, and their checksums. The temporary HNS and local light-P2P patch bridges are removed. The standalone facade is excluded because its current public DANE/DNSSEC dependencies would add OpenSSL to Android and Apple target closures. Focused policy tests reject Git inputs, moving requirements, alternate sources, patches, restored local engine crates, stale engine paths, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
+- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. `scripts/verify_cargo_git_policy.py` enforces direct crates.io pins for the `0.3.1` / exact `0.2.x`–`0.3.x` / `0.2.0` published cohort, including the clean-break `hns-browser-observability` and `hns-resolution-policy` `0.3.0` releases, and their checksums. The temporary patch bridges are removed. Focused policy tests reject Git inputs, moving requirements, alternate sources, patches, restored local engine crates, stale engine paths, or mismatched locked versions. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
 - Android JNI release builds reject unknown profiles, compiler/linker/profile overrides, and unexpected cargo-ndk/NDK versions; use `--locked`; force the release profile; require both ABI outputs; and restrict cleanup to `android/app/build`. Path-prefix maps remove checkout, home, Cargo, Rustup, and NDK paths while retaining line-table debug information for AGP. Gradle pins AGP to NDK `28.2.13676358`, treats the NDK location and `source.properties` as incremental inputs, and includes Rust `.txt` data files such as the ICANN TLD snapshot.
 - The required Android job now enables KVM and runs the focused fresh-runtime
   regression plus paired HNS/ICANN Proof Details activity instrumentation on a
@@ -172,7 +172,7 @@ been built or submitted.
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes only the verified APK,
   not the Play AAB or unchanged iOS build.
 - Current source consumes the released `0.3.1` HNS, `0.2.2` engine and
-  browser-adapter, and `0.1.1` wallet registry cohort with Cargo checksums.
+  browser-adapter, and `0.2.0` wallet registry cohort with Cargo checksums.
   No HNS ecosystem Git input, local engine path, or patch is admitted. The
   standalone facade is not a mobile input.
   [released-dependency-cohort.md](released-dependency-cohort.md) records the

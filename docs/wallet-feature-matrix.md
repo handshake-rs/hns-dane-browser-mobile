@@ -21,9 +21,9 @@ Website JavaScript has no access to any operation below.
 | Track exact HNS name | Direct proof sync followed by canonical import; loopback compatibility path remains | Direct proof sync followed by canonical import; loopback compatibility path remains | Exact UTF-8/canonical-name validation, verified name proof, bounded HNWI result, and stale-authority suppression | Credentialed direct device exercise on both platforms |
 | Transfer and finalize name | Fresh sync, native review, reject/approve/result refresh | Fresh sync, native review, reject/approve/result refresh | Closed schema-three disclosures and value-result decoders cover exact name, address, covenant and fee fields | Regtest or controlled-device end-to-end transaction exercises |
 | Create, cancel, and recover fixed-price offer | Native action forms and approvals | Native action forms and approvals | Shared Shakedex workflow authority, one-shot approvals, bounded results | End-to-end offer lifecycle with two controlled peers |
-| List offers and get session | Direct-Denuo query controls | Direct-Denuo query controls | Closed query/result bundles and bounded board replication | Two-device network exercise, including restart and replacement |
+| List offers and get session | Shakescape V1 query controls | Shakescape V1 query controls | Closed query/result bundles and bounded board replication | Two-device network exercise, including restart and replacement |
 | Accept offer and finalize purchase | Native action forms and approvals | Native action forms and approvals | Shared purchase workflow, exact local disclosures, bounded results | Complete controlled two-wallet purchase exercise |
-| Direct-Denuo listener, pair, retry, service, replace, disconnect | Wallet-owned foreground worker | Wallet-owned protected-foreground timer | Exact IP-literal endpoints, bounded transport bundles, replacement/disconnect tests; no marketplace relay authority | Android/iPhone local-network and lifecycle interruption exercise |
+| Shakescape V1 listener, pair, retry, service, replace, disconnect | Wallet-owned foreground worker | Wallet-owned protected-foreground timer | Exact IP-literal endpoints, bounded transport bundles, replacement/disconnect tests; no marketplace relay authority | Android/iPhone local-network and lifecycle interruption exercise |
 
 ## Current send qualification
 

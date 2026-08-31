@@ -40,11 +40,11 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.0")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet, "=0.1.1")
+        self.assertEqual(wallet, "=0.2.0")
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            'name = "hns-wallet-mobile"\nversion = "0.1.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+            'name = "hns-wallet-mobile"\nversion = "0.2.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         self.assertIn(

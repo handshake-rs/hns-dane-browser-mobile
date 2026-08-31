@@ -3,33 +3,33 @@ package com.denuoweb.hnsdane.wallet
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** Operational state for a direct Denuo listener and its one active peer. */
-internal data class NativeWalletDirectDenuoStatus(
+/** Operational state for a direct Shakescape listener and its one active peer. */
+internal data class NativeWalletDirectShakescapeStatus(
     val unlocked: Boolean,
     val listenerPort: Int?,
     val peerEndpoint: String?,
 ) {
     companion object {
-        fun parse(bundle: ByteArray): NativeWalletDirectDenuoStatus? =
-            NativeWalletDirectDenuoParser.parseStatus(bundle)
+        fun parse(bundle: ByteArray): NativeWalletDirectShakescapeStatus? =
+            NativeWalletDirectShakescapeParser.parseStatus(bundle)
     }
 }
 
 /** Exact conditional transport controls shown by the native Shakedex dashboard. */
-internal data class NativeWalletDirectDenuoControls(
+internal data class NativeWalletDirectShakescapeControls(
     val retryListener: Boolean,
     val disconnectPeer: Boolean,
 )
 
-internal fun directDenuoControls(
-    status: NativeWalletDirectDenuoStatus?,
-): NativeWalletDirectDenuoControls = NativeWalletDirectDenuoControls(
+internal fun directShakescapeControls(
+    status: NativeWalletDirectShakescapeStatus?,
+): NativeWalletDirectShakescapeControls = NativeWalletDirectShakescapeControls(
     retryListener = status?.listenerPort == null,
     disconnectPeer = status?.peerEndpoint != null,
 )
 
-/** Exact result of a user-requested direct Denuo connection attempt. */
-internal data class NativeWalletDirectDenuoConnectResult(
+/** Exact result of a user-requested direct Shakescape connection attempt. */
+internal data class NativeWalletDirectShakescapeConnectResult(
     val outcome: Outcome,
     val peerEndpoint: String?,
 ) {
@@ -43,12 +43,12 @@ internal data class NativeWalletDirectDenuoConnectResult(
     }
 
     companion object {
-        fun parse(bundle: ByteArray): NativeWalletDirectDenuoConnectResult? =
-            NativeWalletDirectDenuoParser.parseConnect(bundle)
+        fun parse(bundle: ByteArray): NativeWalletDirectShakescapeConnectResult? =
+            NativeWalletDirectShakescapeParser.parseConnect(bundle)
     }
 }
 
-private object NativeWalletDirectDenuoParser {
+private object NativeWalletDirectShakescapeParser {
     private val statusMagic = byteArrayOf(
         'H'.code.toByte(),
         'N'.code.toByte(),
@@ -62,7 +62,7 @@ private object NativeWalletDirectDenuoParser {
         'C'.code.toByte(),
     )
 
-    fun parseStatus(bundle: ByteArray): NativeWalletDirectDenuoStatus? = runCatching {
+    fun parseStatus(bundle: ByteArray): NativeWalletDirectShakescapeStatus? = runCatching {
         require(bundle.size in HEADER_BYTES..(HEADER_BYTES + MAX_ENDPOINT_BYTES))
         require(statusMagic.indices.all { index -> bundle[index] == statusMagic[index] })
         val input = ByteBuffer.wrap(bundle, 4, HEADER_BYTES - 4).order(ByteOrder.BIG_ENDIAN)
@@ -79,36 +79,36 @@ private object NativeWalletDirectDenuoParser {
         require(unlocked || (!listening && !paired))
         require((port != 0) == listening)
         require((endpointLength != 0) == paired)
-        NativeWalletDirectDenuoStatus(
+        NativeWalletDirectShakescapeStatus(
             unlocked = unlocked,
             listenerPort = port.takeIf { listening },
             peerEndpoint = endpoint(bundle, endpointLength).takeIf { paired },
         )
     }.getOrNull()
 
-    fun parseConnect(bundle: ByteArray): NativeWalletDirectDenuoConnectResult? = runCatching {
+    fun parseConnect(bundle: ByteArray): NativeWalletDirectShakescapeConnectResult? = runCatching {
         require(bundle.size in HEADER_BYTES..(HEADER_BYTES + MAX_ENDPOINT_BYTES))
         require(connectMagic.indices.all { index -> bundle[index] == connectMagic[index] })
         val input = ByteBuffer.wrap(bundle, 4, HEADER_BYTES - 4).order(ByteOrder.BIG_ENDIAN)
         require(input.get().toInt() and 0xff == VERSION)
         val outcome = when (input.get().toInt() and 0xff) {
-            CONNECTED -> NativeWalletDirectDenuoConnectResult.Outcome.Connected
-            REPLACED -> NativeWalletDirectDenuoConnectResult.Outcome.Replaced
-            UNAVAILABLE -> NativeWalletDirectDenuoConnectResult.Outcome.Unavailable
-            LOCKED -> NativeWalletDirectDenuoConnectResult.Outcome.Locked
-            CONNECTION_FAILED -> NativeWalletDirectDenuoConnectResult.Outcome.ConnectionFailed
-            EXCHANGE_FAILED -> NativeWalletDirectDenuoConnectResult.Outcome.ExchangeFailed
-            else -> throw IllegalArgumentException("unknown direct Denuo connection outcome")
+            CONNECTED -> NativeWalletDirectShakescapeConnectResult.Outcome.Connected
+            REPLACED -> NativeWalletDirectShakescapeConnectResult.Outcome.Replaced
+            UNAVAILABLE -> NativeWalletDirectShakescapeConnectResult.Outcome.Unavailable
+            LOCKED -> NativeWalletDirectShakescapeConnectResult.Outcome.Locked
+            CONNECTION_FAILED -> NativeWalletDirectShakescapeConnectResult.Outcome.ConnectionFailed
+            EXCHANGE_FAILED -> NativeWalletDirectShakescapeConnectResult.Outcome.ExchangeFailed
+            else -> throw IllegalArgumentException("unknown direct Shakescape connection outcome")
         }
         require(input.short.toInt() == 0)
         val endpointLength = input.short.toInt() and 0xffff
         require(input.short.toInt() == 0)
         require(bundle.size == HEADER_BYTES + endpointLength)
         val endpoint = endpoint(bundle, endpointLength)
-        val success = outcome == NativeWalletDirectDenuoConnectResult.Outcome.Connected ||
-            outcome == NativeWalletDirectDenuoConnectResult.Outcome.Replaced
+        val success = outcome == NativeWalletDirectShakescapeConnectResult.Outcome.Connected ||
+            outcome == NativeWalletDirectShakescapeConnectResult.Outcome.Replaced
         require(success == endpoint.isNotEmpty())
-        NativeWalletDirectDenuoConnectResult(
+        NativeWalletDirectShakescapeConnectResult(
             outcome = outcome,
             peerEndpoint = endpoint.takeIf { success },
         )

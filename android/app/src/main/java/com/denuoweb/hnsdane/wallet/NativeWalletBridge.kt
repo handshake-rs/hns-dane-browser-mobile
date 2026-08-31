@@ -106,7 +106,7 @@ internal object NativeWalletBridge {
     ): Boolean = consumeDatabaseKey(databaseKey) { key ->
         configuration.consumeForValue(
             currentAuthority,
-        ) { loopbackPort, authorization, denuoPolicyJson ->
+        ) { loopbackPort, authorization, shakescapePolicyJson ->
             isValidHandle(currentAuthority.walletHandle) &&
                 isAvailable &&
                 runCatching {
@@ -115,7 +115,7 @@ internal object NativeWalletBridge {
                         key,
                         loopbackPort,
                         authorization,
-                        denuoPolicyJson,
+                        shakescapePolicyJson,
                     )
                 }.getOrDefault(false)
         }
@@ -217,43 +217,43 @@ internal object NativeWalletBridge {
 
     /**
      * Services at most one message from the unlocked wallet's own direct
-     * Denuo listener. This never contacts a relay or changes chain authority.
+     * Shakescape listener. This never contacts a relay or changes chain authority.
      */
-    fun serviceWalletOwnedDirectDenuo(handle: Long): Boolean =
+    fun serviceWalletOwnedDirectShakescape(handle: Long): Boolean =
         isValidHandle(handle) && isAvailable &&
-            runCatching { nativeServiceWalletOwnedDirectDenuo(handle) }.getOrDefault(false)
+            runCatching { nativeServiceWalletOwnedDirectShakescape(handle) }.getOrDefault(false)
 
     /**
      * Opens one exact user-paired direct board socket. The native boundary
      * accepts only IPv4:port or [IPv6]:port and never resolves a hostname.
      */
-    /** Current listener and active direct-peer transport state, if direct Denuo is installed. */
-    fun walletOwnedDirectDenuoStatus(handle: Long): NativeWalletDirectDenuoStatus? =
+    /** Current listener and active direct-peer transport state, if direct Shakescape is installed. */
+    fun walletOwnedDirectShakescapeStatus(handle: Long): NativeWalletDirectShakescapeStatus? =
         if (isValidHandle(handle) && isAvailable) {
-            val bundle = runCatching { nativeWalletOwnedDirectDenuoStatus(handle) }.getOrNull()
+            val bundle = runCatching { nativeWalletOwnedDirectShakescapeStatus(handle) }.getOrNull()
                 ?: return null
-            parseAndWipeWalletOwnedDirectDenuoStatusBundle(bundle)
+            parseAndWipeWalletOwnedDirectShakescapeStatusBundle(bundle)
         } else {
             null
         }
 
-    /** Retry the local direct-Denuo listener without changing wallet authority. */
-    fun retryWalletOwnedDirectDenuoListener(handle: Long): Boolean =
+    /** Retry the local direct-Shakescape listener without changing wallet authority. */
+    fun retryWalletOwnedDirectShakescapeListener(handle: Long): Boolean =
         isValidHandle(handle) && isAvailable &&
-            runCatching { nativeRetryWalletOwnedDirectDenuoListener(handle) }.getOrDefault(false)
+            runCatching { nativeRetryWalletOwnedDirectShakescapeListener(handle) }.getOrDefault(false)
 
-    /** Disconnect only the active direct-Denuo peer transport. */
-    fun disconnectWalletOwnedDirectDenuo(handle: Long): Boolean =
+    /** Disconnect only the active direct-Shakescape peer transport. */
+    fun disconnectWalletOwnedDirectShakescape(handle: Long): Boolean =
         isValidHandle(handle) && isAvailable &&
-            runCatching { nativeDisconnectWalletOwnedDirectDenuo(handle) }.getOrDefault(false)
+            runCatching { nativeDisconnectWalletOwnedDirectShakescape(handle) }.getOrDefault(false)
 
-    fun connectWalletOwnedDirectDenuo(
+    fun connectWalletOwnedDirectShakescape(
         handle: Long,
         endpoint: String,
-    ): NativeWalletDirectDenuoConnectResult? =
+    ): NativeWalletDirectShakescapeConnectResult? =
         if (isValidHandle(handle) && isAvailable) {
-            runCatching { nativeConnectWalletOwnedDirectDenuo(handle, endpoint) }.getOrNull()
-                ?.let(::parseAndWipeWalletOwnedDirectDenuoConnectBundle)
+            runCatching { nativeConnectWalletOwnedDirectShakescape(handle, endpoint) }.getOrNull()
+                ?.let(::parseAndWipeWalletOwnedDirectShakescapeConnectBundle)
         } else {
             null
         }
@@ -319,12 +319,12 @@ internal object NativeWalletBridge {
             null
         }
 
-    fun denuoExecutions(handle: Long): NativeDenuoExecutionStatus? =
+    fun shakescapeExecutions(handle: Long): NativeShakescapeExecutionStatus? =
         if (isValidHandle(handle) && isAvailable) {
-            val bundle = runCatching { nativeDenuoExecutions(handle) }.getOrNull()
+            val bundle = runCatching { nativeShakescapeExecutions(handle) }.getOrNull()
                 ?: return null
             try {
-                NativeBitcoinWalletBundle.denuoExecutions(bundle)
+                NativeBitcoinWalletBundle.shakescapeExecutions(bundle)
             } finally {
                 bundle.fill(0)
             }
@@ -431,18 +431,18 @@ internal object NativeWalletBridge {
         bundle.fill(0)
     }
 
-    internal fun parseAndWipeWalletOwnedDirectDenuoStatusBundle(
+    internal fun parseAndWipeWalletOwnedDirectShakescapeStatusBundle(
         bundle: ByteArray,
-    ): NativeWalletDirectDenuoStatus? = try {
-        NativeWalletDirectDenuoStatus.parse(bundle)
+    ): NativeWalletDirectShakescapeStatus? = try {
+        NativeWalletDirectShakescapeStatus.parse(bundle)
     } finally {
         bundle.fill(0)
     }
 
-    internal fun parseAndWipeWalletOwnedDirectDenuoConnectBundle(
+    internal fun parseAndWipeWalletOwnedDirectShakescapeConnectBundle(
         bundle: ByteArray,
-    ): NativeWalletDirectDenuoConnectResult? = try {
-        NativeWalletDirectDenuoConnectResult.parse(bundle)
+    ): NativeWalletDirectShakescapeConnectResult? = try {
+        NativeWalletDirectShakescapeConnectResult.parse(bundle)
     } finally {
         bundle.fill(0)
     }
@@ -1068,7 +1068,7 @@ internal object NativeWalletBridge {
         databaseKey: ByteArray,
         loopbackPort: Int,
         authorization: CharArray,
-        denuoPolicyJson: ByteArray,
+        shakescapePolicyJson: ByteArray,
     ): Boolean
 
     @JvmStatic
@@ -1083,19 +1083,19 @@ internal object NativeWalletBridge {
     private external fun nativeDirectHnsRollbackFloor(handle: Long): ByteArray?
 
     @JvmStatic
-    private external fun nativeServiceWalletOwnedDirectDenuo(handle: Long): Boolean
+    private external fun nativeServiceWalletOwnedDirectShakescape(handle: Long): Boolean
 
     @JvmStatic
-    private external fun nativeWalletOwnedDirectDenuoStatus(handle: Long): ByteArray?
+    private external fun nativeWalletOwnedDirectShakescapeStatus(handle: Long): ByteArray?
 
     @JvmStatic
-    private external fun nativeRetryWalletOwnedDirectDenuoListener(handle: Long): Boolean
+    private external fun nativeRetryWalletOwnedDirectShakescapeListener(handle: Long): Boolean
 
     @JvmStatic
-    private external fun nativeDisconnectWalletOwnedDirectDenuo(handle: Long): Boolean
+    private external fun nativeDisconnectWalletOwnedDirectShakescape(handle: Long): Boolean
 
     @JvmStatic
-    private external fun nativeConnectWalletOwnedDirectDenuo(handle: Long, endpoint: String): ByteArray?
+    private external fun nativeConnectWalletOwnedDirectShakescape(handle: Long, endpoint: String): ByteArray?
 
     @JvmStatic
     private external fun nativePrepareBtcForHnsOffer(
@@ -1122,7 +1122,7 @@ internal object NativeWalletBridge {
     private external fun nativeLocalBtcForHnsOffers(handle: Long): ByteArray?
 
     @JvmStatic
-    private external fun nativeDenuoExecutions(handle: Long): ByteArray?
+    private external fun nativeShakescapeExecutions(handle: Long): ByteArray?
 
     @JvmStatic
     private external fun nativeCancelBtcForHnsOffer(handle: Long, offerId: String): Boolean

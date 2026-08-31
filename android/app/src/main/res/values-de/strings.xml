@@ -159,7 +159,7 @@
     <string name="row_resolver_trace_summary">Überprüfen Sie die Lösungsschritte für einen Namen.</string>
     <string name="row_resync_headers_from_peers">Header von Peers neu synchronisieren</string>
     <string name="row_reset_homepage">Startseite zurücksetzen</string>
-    <string name="row_reset_homepage_summary">Stellen Sie die Standard-Denuo-Web-Homepage wieder her.</string>
+    <string name="row_reset_homepage_summary">Stellen Sie die Standard-Shakescape-Web-Homepage wieder her.</string>
     <string name="row_rust_core">Rostkern</string>
     <string name="row_rust_diagnostics">Rostdiagnose</string>
     <string name="row_saved_pages">Gespeicherte Seiten</string>
@@ -243,7 +243,7 @@
     <string name="settings_homepage_saved">Homepage gespeichert</string>
     <string name="settings_homepage_current_unsupported">Die aktuelle Seite ist keine unterstützte Homepage-URL</string>
     <string name="settings_homepage_reset_title">Startseite zurücksetzen?</string>
-    <string name="settings_homepage_reset_message">Dadurch wird die standardmäßige Denuo-Web-Startseite wiederhergestellt.</string>
+    <string name="settings_homepage_reset_message">Dadurch wird die standardmäßige Shakescape-Web-Startseite wiederhergestellt.</string>
     <string name="settings_homepage_reset">Homepage zurückgesetzt</string>
     <string name="settings_resolver_cache_clear_title">Resolver-Cache leeren?</string>
     <string name="settings_resolver_cache_clear_message">Die App behält die synchronisierten %1$s-Header und -Peers bei, zwischengespeicherte HNS-Ressourcenwerte für dieses Netzwerk werden jedoch entfernt.</string>

@@ -11,10 +11,12 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
-HNS_VERSION, ENGINE_VERSION, WALLET_VERSION = "0.3.1", "0.2.2", "0.1.1"
+HNS_VERSION, SHAKESCAPE_VERSION, ENGINE_VERSION, WALLET_VERSION = "0.3.1", "0.4.0", "0.2.2", "0.2.0"
 ENGINE_PATCH_VERSIONS = {
+    "hns-browser-observability": "0.3.0",
     "hns-browser-gateway": "0.2.3",
     "hns-namespace-resolution": "0.2.3",
+    "hns-resolution-policy": "0.3.0",
 }
 
 HNS_REGISTRY = frozenset("""hns-chat-protocol hns-covenants hns-dns-relay-protocol hns-encoding hns-header-consensus hns-hnsr-protocol hns-hrm hns-marketplace-protocol hns-mining hns-odoh-protocol hns-p2p-experimental hns-p2p-wire hns-primitives hns-rollback-journal hns-script hns-service-authority hns-swap hns-transaction hns-urkel-proof""".split())
@@ -22,6 +24,8 @@ ENGINE_REGISTRY = frozenset("""hns-browser-chain hns-browser-dane hns-browser-dn
 WALLET_REGISTRY = frozenset("""hns-wallet-bitcoin-kyoto hns-wallet-chain-api hns-wallet-ethereum hns-wallet-ffi hns-wallet-hns hns-wallet-host hns-wallet-market hns-wallet-mobile hns-wallet-provider hns-wallet-service hns-wallet-shakedex hns-wallet-store hns-wallet-testkit hns-wallet-types""".split())
 REGISTRY_VERSIONS = {
     **{name: HNS_VERSION for name in HNS_REGISTRY},
+    "hns-marketplace-protocol": SHAKESCAPE_VERSION,
+    "hns-p2p-experimental": SHAKESCAPE_VERSION,
     **{name: ENGINE_PATCH_VERSIONS.get(name, ENGINE_VERSION) for name in ENGINE_REGISTRY},
     **{name: WALLET_VERSION for name in WALLET_REGISTRY},
 }
@@ -36,9 +40,11 @@ ENGINE_REGISTRY_PACKAGE_NAMES = {
 }
 ROOT_REGISTRY_DEPENDENCIES = {
     "hns-header-consensus": HNS_VERSION, "hns-light-sync": ENGINE_VERSION,
-    "hns-cache": ENGINE_VERSION, "hns-browser-observability": ENGINE_VERSION,
+    "hns-cache": ENGINE_VERSION,
+    "hns-browser-observability": ENGINE_PATCH_VERSIONS["hns-browser-observability"],
     "hns-browser-runtime": ENGINE_VERSION, "hns-icann-dane": ENGINE_VERSION,
-    "hns-namespace-resolution": ENGINE_PATCH_VERSIONS["hns-namespace-resolution"], "hns-resolution-policy": ENGINE_VERSION,
+    "hns-namespace-resolution": ENGINE_PATCH_VERSIONS["hns-namespace-resolution"],
+    "hns-resolution-policy": ENGINE_PATCH_VERSIONS["hns-resolution-policy"],
     "hns-wallet-ffi": WALLET_VERSION, "hns-wallet-mobile": WALLET_VERSION,
     "hns-wallet-types": WALLET_VERSION,
     **{alias: ENGINE_PATCH_VERSIONS.get(package, ENGINE_VERSION) for alias, package in ENGINE_REGISTRY_PACKAGE_NAMES.items()},
@@ -115,7 +121,7 @@ def main() -> int:
     try: verify_repository()
     except (CargoSourcePolicyError, OSError, subprocess.CalledProcessError, tomllib.TOMLDecodeError) as error:
         print(f"Cargo source policy failed: {error}", file=sys.stderr); return 1
-    print("Cargo source policy pins published hns-rs 0.3.1, hns-dane-engine 0.2.2 plus the required gateway and namespace-resolution 0.2.3 patches, and hns-wallet-rs 0.1.1 from crates.io with no Git ecosystem inputs.")
+    print("Cargo source policy pins published hns-rs 0.3.1/Shakescape 0.4.0, the exact hns-dane-engine 0.2.x/0.3.x graph, and hns-wallet-rs 0.2.0 from crates.io with no Git ecosystem inputs.")
     return 0
 
 if __name__ == "__main__": raise SystemExit(main())

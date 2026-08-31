@@ -163,7 +163,7 @@
 - Prepared the `1.0.0` platform release identity: Android code `52` and iOS
   build `61` align embedded Rust at `1.0.0`. The current dependency cohort
   uses published HNS `0.3.1`, engine and browser-adapter `0.2.2`, and wallet
-  `0.1.1` crates with no Git ecosystem input. Exact HNWR-v2 code-bearing source
+  `0.2.0` crates with no Git ecosystem input. Exact HNWR-v2 code-bearing source
   `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI `31807520618`,
   both associated CodeQL runs, and the Rust, Android, and complete Apple gates.
 - Completed current exact-name-import source qualification: exact application
@@ -175,7 +175,7 @@
   artifacts, installed-product evidence, credentialed read/import execution,
   screenshots, store readback, upload/submission, and the physical-iPhone matrix
   remain pending.
-- Updated release dependency sequence: mobile pins published wallet `0.1.1`,
+- Updated release dependency sequence: mobile pins published wallet `0.2.0`,
   HNS `0.3.1`, and public engine `0.2.2` crates with lockfile checksums.
   [released-dependency-cohort.md](released-dependency-cohort.md) records their
   source tags and the tested registry-only adapter policy.
@@ -203,8 +203,7 @@
   rollback-resistant subject-wide persistence, register an application profile,
   and add endpoint/profile, transport, and lifecycle adapters. The Kotlin/Swift
   shape checks are not HRM verification and may not substitute for that broker.
-- Read-backend provisioning, credentialed exact-name import qualification,
-  website provider installation, approvals, sending/value movement,
-  settlement, Shakedex/Denuo, and P2P
-  marketplace controls remain separate later milestones and stay disabled until
-  their runtime and installed-product gates pass.
+- Credentialed installed-device qualification, website-provider installation,
+  and production release evidence for approvals, value movement, settlement,
+  and the Shakescape Swap Board remain separate release milestones even though
+  the native runtime and controls are present.

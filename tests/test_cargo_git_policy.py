@@ -12,6 +12,7 @@ from verify_cargo_git_policy import (  # noqa: E402
     ENGINE_VERSION,
     ENGINE_PATCH_VERSIONS,
     HNS_VERSION,
+    SHAKESCAPE_VERSION,
     ENGINE_REGISTRY,
     ROOT_REGISTRY_DEPENDENCIES,
     WALLET_VERSION,
@@ -23,17 +24,22 @@ from verify_cargo_git_policy import (  # noqa: E402
 class CargoSourcePolicyTests(unittest.TestCase):
     def test_release_versions_and_registry_cohort_are_explicit(self) -> None:
         self.assertEqual(HNS_VERSION, "0.3.1")
+        self.assertEqual(SHAKESCAPE_VERSION, "0.4.0")
         self.assertEqual(ENGINE_VERSION, "0.2.2")
         self.assertEqual(ENGINE_PATCH_VERSIONS, {
+            "hns-browser-observability": "0.3.0",
             "hns-browser-gateway": "0.2.3",
             "hns-namespace-resolution": "0.2.3",
+            "hns-resolution-policy": "0.3.0",
         })
-        self.assertEqual(WALLET_VERSION, "0.1.1")
+        self.assertEqual(WALLET_VERSION, "0.2.0")
         self.assertIn("hns-wallet-mobile", ROOT_REGISTRY_DEPENDENCIES)
         self.assertIn("hns-browser-chain", ENGINE_REGISTRY)
         self.assertIn("hns-chain", ROOT_REGISTRY_DEPENDENCIES)
         self.assertEqual(ROOT_REGISTRY_DEPENDENCIES["hns-gateway"], "0.2.3")
+        self.assertEqual(ROOT_REGISTRY_DEPENDENCIES["hns-browser-observability"], "0.3.0")
         self.assertEqual(ROOT_REGISTRY_DEPENDENCIES["hns-namespace-resolution"], "0.2.3")
+        self.assertEqual(ROOT_REGISTRY_DEPENDENCIES["hns-resolution-policy"], "0.3.0")
 
     def test_rejects_source_patch_in_minimal_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

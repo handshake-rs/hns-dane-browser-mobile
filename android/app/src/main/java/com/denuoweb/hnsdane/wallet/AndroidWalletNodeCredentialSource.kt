@@ -24,7 +24,7 @@ import javax.crypto.spec.GCMParameterSpec
  * app-private no-backup wallet directory (for example through `adb run-as`).
  * The source opens that record with `O_NOFOLLOW`, authenticates its inode,
  * owner, mode, link count, network, and grammar, unlinks the same inode, then
- * wraps the authorization and exact public Denuo acceptance policy with a
+ * wraps the authorization and exact public Shakescape acceptance policy with a
  * distinct Android Keystore key. Plaintext is never accepted from preferences,
  * an Intent, a URI, or a WebView.
  */
@@ -64,7 +64,7 @@ internal class AndroidWalletNodeCredentialSource(
                     authority = authority,
                     loopbackPort = credential.loopbackPort,
                     authorization = credential.takeAuthorization(),
-                    denuoPolicyJson = credential.takeDenuoPolicyJson(),
+                    shakescapePolicyJson = credential.takeShakescapePolicyJson(),
                 )
             }
         }
@@ -272,20 +272,20 @@ internal class AndroidWalletNodeCredentialSource(
 internal class ProvisionedNodeCredential private constructor(
     val loopbackPort: Int,
     private var authorization: CharArray?,
-    private var denuoPolicyJson: ByteArray?,
+    private var shakescapePolicyJson: ByteArray?,
 ) : AutoCloseable {
     fun takeAuthorization(): CharArray = authorization?.also { authorization = null }
         ?: CharArray(0)
 
-    fun takeDenuoPolicyJson(): ByteArray = denuoPolicyJson?.also { denuoPolicyJson = null }
+    fun takeShakescapePolicyJson(): ByteArray = shakescapePolicyJson?.also { shakescapePolicyJson = null }
         ?: ByteArray(0)
 
     fun encryptedPayload(): ByteArray {
         val authorization = authorization ?: return ByteArray(0)
-        val policy = denuoPolicyJson ?: return ByteArray(0)
+        val policy = shakescapePolicyJson ?: return ByteArray(0)
         if (
             authorization.isEmpty() || authorization.size > MAX_AUTHORIZATION_BYTES ||
-            !validDenuoPolicy(policy)
+            !validShakescapePolicy(policy)
         ) return ByteArray(0)
         return ByteBuffer.allocate(PAYLOAD_HEADER_BYTES + authorization.size + policy.size)
             .order(ByteOrder.BIG_ENDIAN)
@@ -303,19 +303,19 @@ internal class ProvisionedNodeCredential private constructor(
     override fun close() {
         authorization?.fill('\u0000')
         authorization = null
-        denuoPolicyJson?.fill(0)
-        denuoPolicyJson = null
+        shakescapePolicyJson?.fill(0)
+        shakescapePolicyJson = null
     }
 
     override fun toString(): String =
         "ProvisionedNodeCredential(loopbackPort=<redacted>, authorization=<redacted>, " +
-            "denuoPolicy=<redacted>)"
+            "shakescapePolicy=<redacted>)"
 
     companion object {
         fun takeAscii(
             port: Int,
             ascii: ByteArray,
-            denuoPolicyJson: ByteArray,
+            shakescapePolicyJson: ByteArray,
         ): ProvisionedNodeCredential? {
             var characters: CharArray? = null
             var policy: ByteArray? = null
@@ -326,7 +326,7 @@ internal class ProvisionedNodeCredential private constructor(
                     ascii.first() == ' '.code.toByte() ||
                     ascii.last() == ' '.code.toByte() ||
                     ascii.any { it.toInt() and 0xff !in 0x20..0x7e } ||
-                    !validDenuoPolicy(denuoPolicyJson)
+                    !validShakescapePolicy(shakescapePolicyJson)
                 ) {
                     null
                 } else {
@@ -334,7 +334,7 @@ internal class ProvisionedNodeCredential private constructor(
                         (ascii[index].toInt() and 0xff).toChar()
                     }
                     characters = owned
-                    val ownedPolicy = denuoPolicyJson.copyOf()
+                    val ownedPolicy = shakescapePolicyJson.copyOf()
                     policy = ownedPolicy
                     ProvisionedNodeCredential(port, owned, ownedPolicy).also {
                         characters = null
@@ -343,7 +343,7 @@ internal class ProvisionedNodeCredential private constructor(
                 }
             } finally {
                 ascii.fill(0)
-                denuoPolicyJson.fill(0)
+                shakescapePolicyJson.fill(0)
                 characters?.fill('\u0000')
                 policy?.fill(0)
             }
@@ -359,7 +359,7 @@ internal class ProvisionedNodeCredential private constructor(
             val policyLength = buffer.int
             if (
                 authorizationLength !in 1..MAX_AUTHORIZATION_BYTES ||
-                policyLength !in 2..MAX_DENUO_POLICY_BYTES ||
+                policyLength !in 2..MAX_SHAKESCAPE_POLICY_BYTES ||
                 buffer.remaining() != authorizationLength + policyLength
             ) return null
             val ascii = ByteArray(authorizationLength)
@@ -369,8 +369,8 @@ internal class ProvisionedNodeCredential private constructor(
             return takeAscii(port, ascii, policy)
         }
 
-        private fun validDenuoPolicy(policy: ByteArray): Boolean =
-            policy.size in 2..MAX_DENUO_POLICY_BYTES &&
+        private fun validShakescapePolicy(policy: ByteArray): Boolean =
+            policy.size in 2..MAX_SHAKESCAPE_POLICY_BYTES &&
                 policy.first() == '{'.code.toByte() &&
                 policy.last() == '}'.code.toByte() &&
                 policy.none { byte ->
@@ -379,7 +379,7 @@ internal class ProvisionedNodeCredential private constructor(
                 }
 
         private const val MAX_AUTHORIZATION_BYTES = 4_096
-        private const val MAX_DENUO_POLICY_BYTES = 16 * 1024
+        private const val MAX_SHAKESCAPE_POLICY_BYTES = 16 * 1024
         private const val PAYLOAD_HEADER_BYTES = 11
         private const val PAYLOAD_VERSION: Byte = 1
         private val PAYLOAD_MAGIC = byteArrayOf(
@@ -399,7 +399,7 @@ internal fun parseWalletNodeBootstrap(
     val prefix = "HNS_NODE_RPC_V2\nnetwork=".toByteArray(Charsets.US_ASCII)
     val portPrefix = "\nport=".toByteArray(Charsets.US_ASCII)
     val authorizationPrefix = "\nauthorization=".toByteArray(Charsets.US_ASCII)
-    val policyPrefix = "\ndenuo_policy_base64=".toByteArray(Charsets.US_ASCII)
+    val policyPrefix = "\nshakescape_policy_base64=".toByteArray(Charsets.US_ASCII)
     if (!contents.startsWith(prefix) || contents.lastOrNull() != '\n'.code.toByte()) return null
     val networkStart = prefix.size
     val portMarker = contents.indexOf(portPrefix, networkStart)

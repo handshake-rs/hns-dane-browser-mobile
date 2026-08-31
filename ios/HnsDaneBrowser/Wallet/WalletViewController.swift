@@ -46,9 +46,9 @@ final class WalletViewController: UIViewController {
     private var pendingHnsSendApproval: NativeHnsSendApproval?
     private weak var hnsValueApprovalAlert: UIAlertController?
     private var pendingHnsValueApproval: NativeHnsValueApproval?
-    private var directDenuoServiceTimer: Timer?
-    private var directDenuoServiceInFlight = false
-    private var directDenuoStatusSnapshot: NativeDirectDenuoStatus?
+    private var directShakescapeServiceTimer: Timer?
+    private var directShakescapeServiceInFlight = false
+    private var directShakescapeStatusSnapshot: NativeDirectShakescapeStatus?
     private var hnsSyncPresentationTimer: Timer?
     private var bitcoinSyncInProgress = false
     private var bitcoinSyncStopRequested = false
@@ -175,7 +175,7 @@ final class WalletViewController: UIViewController {
     deinit {
         NotificationCenter.default.removeObserver(self)
         hnsSyncPresentationTimer?.invalidate()
-        directDenuoServiceTimer?.invalidate()
+        directShakescapeServiceTimer?.invalidate()
         pendingHnsSendApproval?.actionToken.discard()
         pendingHnsSendApproval = nil
         pendingHnsValueApproval?.actionToken.discard()
@@ -296,7 +296,7 @@ final class WalletViewController: UIViewController {
         configureButton(
             bitcoinExecutionsButton,
             title: "Atomic swap executions",
-            action: #selector(showDenuoExecutions)
+            action: #selector(showShakescapeExecutions)
         )
         bitcoinBirthdayButton.isHidden = true
         configureButton(
@@ -1012,7 +1012,7 @@ final class WalletViewController: UIViewController {
         Total Bitcoin commitment: \(approval.totalBitcoinCommitmentSats) sats
         Listing expires: \(expiry)
 
-        Publishing signs and shares fixed terms. It does not broadcast a Bitcoin funding transaction. Settlement requires a connected direct-Denuo peer and a separately approved atomic-swap session.
+        Publishing signs and shares fixed terms. It does not broadcast a Bitcoin funding transaction. Settlement requires a connected swap peer and a separately approved atomic-swap session.
         """
         let alert = UIAlertController(
             title: "Publish BTC-for-HNS offer?", message: message, preferredStyle: .alert
@@ -1042,7 +1042,7 @@ final class WalletViewController: UIViewController {
                     self.isOperating = false
                     switch outcome {
                     case .success(let summary):
-                        self.bitcoinStatusLabel.text = "BTC-for-HNS offer \(summary.offerId.prefix(12))… is active and will be announced to a connected direct-Denuo peer."
+                        self.bitcoinStatusLabel.text = "BTC-for-HNS offer \(summary.offerId.prefix(12))… is active and will be announced to a connected swap peer."
                     case .failure(let error):
                         self.bitcoinStatusLabel.text = "The BTC-for-HNS offer was not published."
                         self.showError(error)
@@ -1092,11 +1092,11 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    @objc private func showDenuoExecutions() {
+    @objc private func showShakescapeExecutions() {
         guard let wallet, walletIsUnlocked, bitcoinValueAvailable, !isOperating else { return }
         bitcoinStatusLabel.text = "Loading durable atomic swap state…"
         DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-            let outcome = Result { try wallet.denuoExecutions() }
+            let outcome = Result { try wallet.shakescapeExecutions() }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
@@ -1117,7 +1117,7 @@ final class WalletViewController: UIViewController {
                             style: .default
                         ) { [weak self, weak wallet] _ in
                             guard let self, let wallet, self.wallet === wallet else { return }
-                            self.showDenuoExecution(execution, wallet: wallet)
+                            self.showShakescapeExecution(execution, wallet: wallet)
                         })
                     }
                     alert.addAction(UIAlertAction(title: "Done", style: .cancel))
@@ -1142,8 +1142,8 @@ final class WalletViewController: UIViewController {
         return "Durable Bitcoin broadcasts — waiting for submission: \(recovery.unobservedPrepared); submission outcome pending: \(recovery.unobservedSubmissionStarted); submitted and awaiting wallet observation: \(recovery.unobservedSubmitted); observed: \(recovery.observed); highest attempt count: \(recovery.highestAttemptCount); last durable change: Unix \(recovery.lastChangedAtUnix ?? 0). Exact signed bytes remain private and automatic recovery never creates a replacement transaction."
     }
 
-    private func showDenuoExecution(
-        _ execution: NativeDenuoExecutionSummary, wallet: RustNativeWallet
+    private func showShakescapeExecution(
+        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         let message = """
         Session: \(execution.sessionId)
@@ -1181,7 +1181,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showSwapSettlementActions(
-        _ execution: NativeDenuoExecutionSummary, wallet: RustNativeWallet
+        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
             title: "Redeem or refund",
@@ -1207,7 +1207,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showSwapSettlementFee(
-        _ execution: NativeDenuoExecutionSummary,
+        _ execution: NativeShakescapeExecutionSummary,
         action: NativeSwapSettlementAction,
         bitcoin: Bool,
         wallet: RustNativeWallet
@@ -1327,7 +1327,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showHnsForBtcFundingFee(
-        _ execution: NativeDenuoExecutionSummary, wallet: RustNativeWallet
+        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
             title: "Prepare HNS funding",
@@ -1432,7 +1432,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showBtcForHnsFundingFee(
-        _ execution: NativeDenuoExecutionSummary, wallet: RustNativeWallet
+        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
             title: "Prepare Bitcoin funding",
@@ -1538,7 +1538,7 @@ final class WalletViewController: UIViewController {
         let hns = WalletReadPresenter.formatHnsBaseUnits(String(offer.hnsAmountDollarydoos))
         let alert = UIAlertController(
             title: "Cancel this offer?",
-            message: "Withdraw the signed offer of \(offer.btcAmountSats) sats for \(hns) HNS?\n\nOffer ID: \(offer.offerId)\n\nCancellation releases its local balance reservation and is announced to the connected direct-Denuo peer. It does not cancel a swap session that has already accepted and frozen these terms.",
+            message: "Withdraw the signed offer of \(offer.btcAmountSats) sats for \(hns) HNS?\n\nOffer ID: \(offer.offerId)\n\nCancellation releases its local balance reservation and is announced to the connected swap peer. It does not cancel a swap session that has already accepted and frozen these terms.",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "Keep offer", style: .cancel))
@@ -2024,16 +2024,16 @@ final class WalletViewController: UIViewController {
 
     private func showShakedexDashboard() {
         guard presentedViewController == nil else { return }
-        let denuoStatus = shakedexActionMayStart ? directDenuoStatusSnapshot : nil
+        let shakescapeStatus = shakedexActionMayStart ? directShakescapeStatusSnapshot : nil
         let transportLine: String
-        if let denuoStatus {
-            let listener = denuoStatus.listenerPort.map { "listening on \($0)" }
+        if let shakescapeStatus {
+            let listener = shakescapeStatus.listenerPort.map { "listening on \($0)" }
                 ?? "listener unavailable"
-            let peer = denuoStatus.peerEndpoint.map { "paired with \($0)" }
+            let peer = shakescapeStatus.peerEndpoint.map { "paired with \($0)" }
                 ?? "no paired peer"
             transportLine = "\(listener); \(peer)."
         } else {
-            transportLine = "Direct-Denuo transport unavailable while locked or unsynchronized."
+            transportLine = "P2P swap connection unavailable while locked or unsynchronized."
         }
         let alert = UIAlertController(
             title: "Shakedex",
@@ -2056,16 +2056,16 @@ final class WalletViewController: UIViewController {
                 self?.afterWalletMenuDismissal { [weak self] in self?.showFinalizePurchaseForm() }
             })
             alert.addAction(UIAlertAction(title: "Pair direct peer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showPairDirectDenuoForm() }
+                self?.afterWalletMenuDismissal { [weak self] in self?.showPairDirectShakescapeForm() }
             })
-            if denuoStatus?.listenerPort == nil {
+            if shakescapeStatus?.listenerPort == nil {
                 alert.addAction(UIAlertAction(title: "Retry listener", style: .default) { [weak self] _ in
-                    self?.retryDirectDenuoListener()
+                    self?.retryDirectShakescapeListener()
                 })
             }
-            if denuoStatus?.peerEndpoint != nil {
+            if shakescapeStatus?.peerEndpoint != nil {
                 alert.addAction(UIAlertAction(title: "Disconnect peer", style: .destructive) { [weak self] _ in
-                    self?.disconnectDirectDenuoPeer()
+                    self?.disconnectDirectShakescapePeer()
                 })
             }
         }
@@ -2305,19 +2305,19 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func showPairDirectDenuoForm() {
+    private func showPairDirectShakescapeForm() {
         collectHnsValueForm(
-            title: "Pair direct Denuo peer",
+            title: "Pair swap peer",
             fields: [.init(label: "IP-literal endpoint", placeholder: "192.0.2.1:12038")]
         ) { [weak self] values in
             guard let self, let endpoint = values.first else { return }
-            self.connectDirectDenuoPeer(endpoint)
+            self.connectDirectShakescapePeer(endpoint)
         }
     }
 
-    private func connectDirectDenuoPeer(_ endpoint: String) {
-        runDirectDenuoOperation(status: "Pairing the explicit direct-Denuo endpoint…") {
-            try $0.connectDirectDenuo(endpoint: endpoint)
+    private func connectDirectShakescapePeer(_ endpoint: String) {
+        runDirectShakescapeOperation(status: "Pairing the explicit P2P swap endpoint…") {
+            try $0.connectDirectShakescape(endpoint: endpoint)
         } completion: { [weak self] result in
             guard let self else { return }
             switch result {
@@ -2325,60 +2325,60 @@ final class WalletViewController: UIViewController {
                 switch connection.outcome {
                 case .connected:
                     self.readStatusLabel.text =
-                        "Direct-Denuo peer connected at \(connection.peerEndpoint ?? "unknown endpoint")."
+                        "Swap peer connected at \(connection.peerEndpoint ?? "unknown endpoint")."
                 case .replaced:
                     self.readStatusLabel.text =
-                        "Direct-Denuo peer replaced with \(connection.peerEndpoint ?? "unknown endpoint")."
+                        "Swap peer replaced with \(connection.peerEndpoint ?? "unknown endpoint")."
                 case .unavailable:
-                    self.readStatusLabel.text = "Direct-Denuo transport is unavailable."
+                    self.readStatusLabel.text = "P2P swap connection is unavailable."
                 case .locked:
-                    self.readStatusLabel.text = "Unlock the wallet before pairing a direct-Denuo peer."
+                    self.readStatusLabel.text = "Unlock the wallet before pairing a swap peer."
                 case .connectionFailed:
-                    self.readStatusLabel.text = "The explicit direct-Denuo endpoint could not be reached."
+                    self.readStatusLabel.text = "The explicit P2P swap endpoint could not be reached."
                 case .exchangeFailed:
-                    self.readStatusLabel.text = "The peer connected but rejected the bounded Denuo exchange."
+                    self.readStatusLabel.text = "The peer connected but rejected the bounded P2P swap exchange."
                 }
             case .failure(let error):
-                self.readStatusLabel.text = "Direct-Denuo pairing failed without changing wallet or chain state."
+                self.readStatusLabel.text = "P2P swap pairing failed without changing wallet or chain state."
                 self.showError(error)
             }
         }
     }
 
-    private func retryDirectDenuoListener() {
-        runDirectDenuoOperation(status: "Retrying the wallet-owned direct-Denuo listener…") {
-            try $0.retryDirectDenuoListener()
+    private func retryDirectShakescapeListener() {
+        runDirectShakescapeOperation(status: "Retrying the wallet-owned P2P swap listener…") {
+            try $0.retryDirectShakescapeListener()
             return true
         } completion: { [weak self] result in
             guard let self else { return }
             switch result {
             case .success:
-                self.readStatusLabel.text = "The wallet-owned direct-Denuo listener is ready."
+                self.readStatusLabel.text = "The wallet-owned P2P swap listener is ready."
             case .failure(let error):
-                self.readStatusLabel.text = "The direct-Denuo listener remains unavailable; the HNS wallet is unchanged."
+                self.readStatusLabel.text = "The P2P swap listener remains unavailable; the HNS wallet is unchanged."
                 self.showError(error)
             }
         }
     }
 
-    private func disconnectDirectDenuoPeer() {
-        runDirectDenuoOperation(status: "Disconnecting the direct-Denuo peer…") {
-            try $0.disconnectDirectDenuo()
+    private func disconnectDirectShakescapePeer() {
+        runDirectShakescapeOperation(status: "Disconnecting the swap peer…") {
+            try $0.disconnectDirectShakescape()
         } completion: { [weak self] result in
             guard let self else { return }
             switch result {
             case .success(let disconnected):
                 self.readStatusLabel.text = disconnected
-                    ? "Direct-Denuo peer disconnected."
-                    : "No direct-Denuo peer was connected."
+                    ? "Swap peer disconnected."
+                    : "No swap peer was connected."
             case .failure(let error):
-                self.readStatusLabel.text = "Direct-Denuo disconnect could not be verified."
+                self.readStatusLabel.text = "The swap-peer disconnect could not be verified."
                 self.showError(error)
             }
         }
     }
 
-    private func runDirectDenuoOperation<ResultValue>(
+    private func runDirectShakescapeOperation<ResultValue>(
         status: String,
         operation: @escaping (RustNativeWallet) throws -> ResultValue,
         completion: @escaping (Result<ResultValue, Error>) -> Void
@@ -2419,39 +2419,39 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func updateDirectDenuoServiceTimer() {
+    private func updateDirectShakescapeServiceTimer() {
         let shouldRun = walletAuthorityRequested && shakedexAvailable && walletIsUnlocked
         if !shouldRun {
-            directDenuoServiceTimer?.invalidate()
-            directDenuoServiceTimer = nil
-            directDenuoStatusSnapshot = nil
+            directShakescapeServiceTimer?.invalidate()
+            directShakescapeServiceTimer = nil
+            directShakescapeStatusSnapshot = nil
             return
         }
-        guard directDenuoServiceTimer == nil else { return }
-        directDenuoServiceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
-            [weak self] _ in self?.serviceDirectDenuoOnce()
+        guard directShakescapeServiceTimer == nil else { return }
+        directShakescapeServiceTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
+            [weak self] _ in self?.serviceDirectShakescapeOnce()
         }
     }
 
-    private func serviceDirectDenuoOnce() {
-        guard !directDenuoServiceInFlight,
+    private func serviceDirectShakescapeOnce() {
+        guard !directShakescapeServiceInFlight,
               !isOperating,
               shakedexAvailable,
               walletAuthorityRequested,
               let wallet else { return }
-        directDenuoServiceInFlight = true
+        directShakescapeServiceInFlight = true
         let identity = ObjectIdentifier(wallet)
         let authority = walletAuthorityGeneration
         DispatchQueue.global(qos: .utility).async {
-            _ = try? wallet.serviceDirectDenuo()
-            let status = try? wallet.directDenuoStatus()
+            _ = try? wallet.serviceDirectShakescape()
+            let status = try? wallet.directShakescapeStatus()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.directDenuoServiceInFlight = false
+                self.directShakescapeServiceInFlight = false
                 guard self.walletAuthorityRequested,
                       self.walletAuthorityGeneration == authority,
                       self.wallet.map({ ObjectIdentifier($0) }) == identity else { return }
-                self.directDenuoStatusSnapshot = status
+                self.directShakescapeStatusSnapshot = status
             }
         }
     }
@@ -3807,7 +3807,7 @@ final class WalletViewController: UIViewController {
         walletIsUnlocked = false
         directHnsValueAvailable = false
         shakedexAvailable = false
-        updateDirectDenuoServiceTimer()
+        updateDirectShakescapeServiceTimer()
         guard storageLease != nil else {
             if renderProcessOwnedHnsSyncPresentation() {
                 refreshButtonStates()
@@ -3886,7 +3886,7 @@ final class WalletViewController: UIViewController {
             directHnsValueAvailable = hasHnsValue && !status.locked
             bitcoinValueAvailable = hasBitcoinValue && !status.locked
             shakedexAvailable = status.shakedexEnabled && !status.locked
-            updateDirectDenuoServiceTimer()
+            updateDirectShakescapeServiceTimer()
             if status.locked {
                 accountLabel.text = "Account: unlock to view the local HNS account identity."
                 setReadAvailability(false, message: hasHnsReads
@@ -3930,7 +3930,7 @@ final class WalletViewController: UIViewController {
             directHnsValueAvailable = false
             if !bitcoinSyncInProgress { bitcoinValueAvailable = false }
             shakedexAvailable = false
-            updateDirectDenuoServiceTimer()
+            updateDirectShakescapeServiceTimer()
             statusLabel.text = "Status unavailable."
             accountLabel.text = "Account unavailable."
             setReadAvailability(false, message: "Read-only synchronization status is unavailable.")
@@ -4110,8 +4110,8 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func protectWalletLifecycle() {
-        directDenuoServiceTimer?.invalidate()
-        directDenuoServiceTimer = nil
+        directShakescapeServiceTimer?.invalidate()
+        directShakescapeServiceTimer = nil
         clearWalletNameImportPrompt(dismiss: true)
         dismissPendingHnsSendApproval(rejectNatively: true)
         dismissPendingHnsValueApproval(rejectNatively: true)

@@ -200,7 +200,7 @@ class WalletReadBootstrapTest {
     }
 
     @Test
-    fun valueConfigurationConsumesAuthorizationAndExactDenuoPolicyTogether() {
+    fun valueConfigurationConsumesAuthorizationAndExactShakescapePolicyTogether() {
         val authority = authority()
         val callerAuthorization = "Bearer value-fixture".toCharArray()
         val callerPolicy = "{\"network_magic\":1}".toByteArray(Charsets.US_ASCII)

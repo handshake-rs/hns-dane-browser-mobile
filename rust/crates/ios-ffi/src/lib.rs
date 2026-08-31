@@ -21,15 +21,15 @@ use hns_mobile_platform_runtime::{
 };
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
-    EmbeddedHnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectDenuoListener,
-    HnsDirectDenuoMessage, HnsDirectDenuoPeer, HnsDirectPeerConfig, HnsDirectPeerCoordinator,
-    HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock,
-    MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig,
-    MobileBitcoinValueController, MobileDatabaseKey, MobileDenuoBitcoinFundingPermit,
-    MobileDenuoBitcoinWatchPermit, MobileDenuoSessionController, MobileHnsNameSummary,
-    MobileHnsReadController, MobileHnsReadSnapshot, MobileHnsValueController, MobileHnsValueIntent,
-    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery, MobileWalletController,
-    MobileWalletError,
+    EmbeddedHnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
+    HnsDirectPeerCoordinator, HnsDirectShakescapeListener, HnsDirectShakescapeMessage,
+    HnsDirectShakescapePeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
+    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES,
+    MobileBitcoinDirectConfig, MobileBitcoinValueController, MobileDatabaseKey,
+    MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot, MobileHnsValueController,
+    MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
+    MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
+    MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use serde_json::{Value, json};
@@ -138,20 +138,20 @@ const MAX_WALLET_BASE_UNITS_BYTES: usize = 39;
 const MAX_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
 const MAX_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
 const MAX_WALLET_SHAKEDEX_RESULT_JSON_BYTES: usize = 256 * 1024;
-const MAX_WALLET_DENUO_ENDPOINT_BYTES: usize = 128;
-const WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
-const WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC: &[u8; 4] = b"HNDC";
-const WALLET_DIRECT_DENUO_BUNDLE_VERSION: u8 = 1;
-const WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES: usize = 12;
-const WALLET_DIRECT_DENUO_STATUS_UNLOCKED: u8 = 1;
-const WALLET_DIRECT_DENUO_STATUS_LISTENING: u8 = 1 << 1;
-const WALLET_DIRECT_DENUO_STATUS_PAIRED: u8 = 1 << 2;
-const WALLET_DIRECT_DENUO_CONNECT_CONNECTED: u8 = 1;
-const WALLET_DIRECT_DENUO_CONNECT_REPLACED: u8 = 2;
-const WALLET_DIRECT_DENUO_CONNECT_UNAVAILABLE: u8 = 3;
-const WALLET_DIRECT_DENUO_CONNECT_LOCKED: u8 = 4;
-const WALLET_DIRECT_DENUO_CONNECT_FAILED: u8 = 5;
-const WALLET_DIRECT_DENUO_CONNECT_EXCHANGE_FAILED: u8 = 6;
+const MAX_WALLET_SHAKESCAPE_ENDPOINT_BYTES: usize = 128;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
+const WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_MAGIC: &[u8; 4] = b"HNDC";
+const WALLET_DIRECT_SHAKESCAPE_BUNDLE_VERSION: u8 = 1;
+const WALLET_DIRECT_SHAKESCAPE_BUNDLE_HEADER_BYTES: usize = 12;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_UNLOCKED: u8 = 1;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_LISTENING: u8 = 1 << 1;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_PAIRED: u8 = 1 << 2;
+const WALLET_DIRECT_SHAKESCAPE_CONNECT_CONNECTED: u8 = 1;
+const WALLET_DIRECT_SHAKESCAPE_CONNECT_REPLACED: u8 = 2;
+const WALLET_DIRECT_SHAKESCAPE_CONNECT_UNAVAILABLE: u8 = 3;
+const WALLET_DIRECT_SHAKESCAPE_CONNECT_LOCKED: u8 = 4;
+const WALLET_DIRECT_SHAKESCAPE_CONNECT_FAILED: u8 = 5;
+const WALLET_DIRECT_SHAKESCAPE_CONNECT_EXCHANGE_FAILED: u8 = 6;
 const WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const HNS_LIGHT_FLOOR_BYTES: usize = 36;
 const MAINNET_GENESIS_BOOTSTRAP_MAGIC: &[u8; 11] = b"HNSHDRSNAP1";
@@ -172,8 +172,8 @@ const WALLET_HNS_SYNC_CONNECTING: u8 = 1;
 const WALLET_HNS_SYNC_HEADERS: u8 = 2;
 const WALLET_HNS_SYNC_SCANNING: u8 = 3;
 const WALLET_HNS_SYNC_FINALIZING: u8 = 4;
-const IOS_DIRECT_DENUO_LISTEN_PORT: u16 = 12_038;
-const IOS_DIRECT_DENUO_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
+const IOS_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
+const IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
 const WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -774,15 +774,15 @@ enum NativeWalletController {
     DirectHnsValue {
         coordinator: HnsDirectPeerCoordinator,
         controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
-        denuo_sessions: MobileDenuoSessionController,
-        denuo_listener: Option<HnsDirectDenuoListener>,
-        denuo_peer: Option<HnsDirectDenuoPeer>,
+        shakescape_sessions: MobileShakescapeSessionController,
+        shakescape_listener: Option<HnsDirectShakescapeListener>,
+        shakescape_peer: Option<HnsDirectShakescapePeer>,
     },
     Failed,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum IosDirectDenuoConnectOutcome {
+enum IosDirectShakescapeConnectOutcome {
     Connected,
     Replaced,
     Unavailable,
@@ -792,8 +792,8 @@ enum IosDirectDenuoConnectOutcome {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct IosDirectDenuoConnectResult {
-    outcome: IosDirectDenuoConnectOutcome,
+struct IosDirectShakescapeConnectResult {
+    outcome: IosDirectShakescapeConnectOutcome,
     peer_endpoint: Option<SocketAddr>,
 }
 
@@ -833,16 +833,16 @@ impl NativeWalletController {
             Self::DirectHnsValue {
                 coordinator,
                 controller,
-                denuo_sessions,
-                denuo_listener,
-                denuo_peer,
+                shakescape_sessions,
+                shakescape_listener,
+                shakescape_peer,
             } => {
                 *self = Self::DirectHnsValue {
                     coordinator,
                     controller,
-                    denuo_sessions,
-                    denuo_listener,
-                    denuo_peer,
+                    shakescape_sessions,
+                    shakescape_listener,
+                    shakescape_peer,
                 };
                 Err(MobileWalletError::ControllerFailed)
             }
@@ -918,13 +918,13 @@ impl NativeWalletController {
             bitcoin_data_dir,
         );
         let bitcoin = controller.direct_bitcoin_value_controller(bitcoin_config)?;
-        let denuo_sessions = controller.direct_denuo_session_controller()?;
+        let shakescape_sessions = controller.direct_shakescape_session_controller()?;
         *self = Self::DirectHnsValue {
             coordinator,
             controller: Box::new(controller),
-            denuo_sessions,
-            denuo_listener: None,
-            denuo_peer: None,
+            shakescape_sessions,
+            shakescape_listener: None,
+            shakescape_peer: None,
         };
         Ok(bitcoin)
     }
@@ -937,64 +937,66 @@ impl NativeWalletController {
         matches!(self, Self::DirectHnsValue { .. })
     }
 
-    fn start_direct_denuo_listener(&mut self) -> bool {
+    fn start_direct_shakescape_listener(&mut self) -> bool {
         let Self::DirectHnsValue {
             controller,
-            denuo_listener,
+            shakescape_listener,
             ..
         } = self
         else {
             return true;
         };
-        if denuo_listener.is_some() {
+        if shakescape_listener.is_some() {
             return true;
         }
         if controller.status().map_or(true, |status| status.locked) {
             return false;
         }
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
-        config.connect_timeout = IOS_DIRECT_DENUO_SOCKET_TIMEOUT;
-        match HnsDirectDenuoListener::bind(
+        config.connect_timeout = IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT;
+        match HnsDirectShakescapeListener::bind(
             config,
-            SocketAddr::from((Ipv4Addr::UNSPECIFIED, IOS_DIRECT_DENUO_LISTEN_PORT)),
+            SocketAddr::from((Ipv4Addr::UNSPECIFIED, IOS_DIRECT_SHAKESCAPE_LISTEN_PORT)),
         ) {
             Ok(listener) => {
-                *denuo_listener = Some(listener);
+                *shakescape_listener = Some(listener);
                 true
             }
             Err(_) => false,
         }
     }
 
-    fn clear_direct_denuo_transport(&mut self) {
+    fn clear_direct_shakescape_transport(&mut self) {
         if let Self::DirectHnsValue {
-            denuo_listener,
-            denuo_peer,
+            shakescape_listener,
+            shakescape_peer,
             ..
         } = self
         {
-            denuo_peer.take();
-            denuo_listener.take();
+            shakescape_peer.take();
+            shakescape_listener.take();
         }
     }
 
-    fn direct_denuo_status(&mut self) -> Option<Vec<u8>> {
+    fn direct_shakescape_status(&mut self) -> Option<Vec<u8>> {
         let Self::DirectHnsValue {
             controller,
-            denuo_listener,
-            denuo_peer,
+            shakescape_listener,
+            shakescape_peer,
             ..
         } = self
         else {
             return None;
         };
         let unlocked = !controller.status().ok()?.locked;
-        let listener_port = denuo_listener
+        let listener_port = shakescape_listener
             .as_ref()
             .and_then(|listener| listener.local_addr().ok())
             .map(|address| address.port());
-        let peer_endpoint = denuo_peer.as_ref().map(HnsDirectDenuoPeer::address);
-        wallet_direct_denuo_status_bundle(unlocked, listener_port, peer_endpoint)
+        let peer_endpoint = shakescape_peer
+            .as_ref()
+            .map(HnsDirectShakescapePeer::address);
+        wallet_direct_shakescape_status_bundle(unlocked, listener_port, peer_endpoint)
     }
 
     fn prepare_btc_for_hns_offer(
@@ -1005,10 +1007,14 @@ impl NativeWalletController {
         bitcoin_fee_reserve_sats: u64,
         listing_lifetime_seconds: u64,
     ) -> Result<hns_wallet_mobile::MobileBtcForHnsOfferApproval, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        denuo_sessions.prepare_btc_for_hns_offer(
+        shakescape_sessions.prepare_btc_for_hns_offer(
             confirmed_sats,
             btc_amount_sats,
             hns_amount_dollarydoos,
@@ -1023,65 +1029,85 @@ impl NativeWalletController {
         action_token: &str,
     ) -> Result<hns_wallet_mobile::MobileBtcForHnsOfferSummary, MobileWalletError> {
         let Self::DirectHnsValue {
-            denuo_sessions,
-            denuo_peer,
+            shakescape_sessions,
+            shakescape_peer,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
         let now_unix = HnsReadSystemClock.now_unix()?;
-        let summary = denuo_sessions.approve_btc_for_hns_offer(action_token, now_unix)?;
-        if let Some(peer) = denuo_peer.as_mut() {
-            denuo_sessions.announce_direct_offer_inventory(peer, now_unix)?;
+        let summary = shakescape_sessions.approve_btc_for_hns_offer(action_token, now_unix)?;
+        if let Some(peer) = shakescape_peer.as_mut() {
+            shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)?;
         }
         Ok(summary)
     }
 
     fn reject_btc_for_hns_offer(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        denuo_sessions.reject_btc_for_hns_offer(action_token)
+        shakescape_sessions.reject_btc_for_hns_offer(action_token)
     }
 
     fn local_btc_for_hns_offers(
         &self,
     ) -> Result<Vec<hns_wallet_mobile::MobileBtcForHnsOfferSummary>, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        denuo_sessions.local_btc_for_hns_offers(HnsReadSystemClock.now_unix()?)
+        shakescape_sessions.local_btc_for_hns_offers(HnsReadSystemClock.now_unix()?)
     }
 
-    fn denuo_executions(
+    fn shakescape_executions(
         &self,
-    ) -> Result<Vec<hns_wallet_mobile::MobileDenuoExecutionSummary>, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+    ) -> Result<Vec<hns_wallet_mobile::MobileShakescapeExecutionSummary>, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        denuo_sessions.durable_executions()
+        shakescape_sessions.durable_executions()
     }
 
     fn pending_first_bitcoin_funding_sessions(&self) -> Result<Vec<SessionId>, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        denuo_sessions.pending_first_bitcoin_funding_sessions()
+        shakescape_sessions.pending_first_bitcoin_funding_sessions()
     }
 
     fn authorize_bitcoin_swap_settlement(
         &self,
         session_id: SessionId,
         redeem: bool,
-    ) -> Result<hns_wallet_mobile::MobileDenuoBitcoinSettlementPermit, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+    ) -> Result<hns_wallet_mobile::MobileShakescapeBitcoinSettlementPermit, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
         if redeem {
-            denuo_sessions.authorize_local_bitcoin_redeem(session_id)
+            shakescape_sessions.authorize_local_bitcoin_redeem(session_id)
         } else {
-            denuo_sessions.authorize_local_bitcoin_refund(session_id)
+            shakescape_sessions.authorize_local_bitcoin_refund(session_id)
         }
     }
 
@@ -1090,10 +1116,14 @@ impl NativeWalletController {
         session_id: SessionId,
         lock: hns_wallet_mobile::VerifiedBitcoinLock,
     ) -> Result<(), MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        denuo_sessions
+        shakescape_sessions
             .apply_local_verified_bitcoin_funding(session_id, lock, HnsReadSystemClock.now_unix()?)
             .map(|_| ())
     }
@@ -1102,92 +1132,92 @@ impl NativeWalletController {
         &mut self,
         session_id: SessionId,
         maximum_fee_dollarydoos: u64,
-    ) -> Result<hns_wallet_mobile::MobileDenuoHnsFundingApproval, MobileWalletError> {
+    ) -> Result<hns_wallet_mobile::MobileShakescapeHnsFundingApproval, MobileWalletError> {
         let Self::DirectHnsValue {
             controller,
-            denuo_sessions,
+            shakescape_sessions,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        let permit = denuo_sessions
+        let permit = shakescape_sessions
             .authorize_local_hns_second_funding(session_id, HnsReadSystemClock.now_unix()?)?;
-        controller.prepare_denuo_hns_funding(permit, maximum_fee_dollarydoos)
+        controller.prepare_shakescape_hns_funding(permit, maximum_fee_dollarydoos)
     }
 
     fn approve_hns_for_btc_funding(
         &mut self,
         action_token: &str,
-    ) -> Result<hns_wallet_mobile::MobileDenuoHnsFundingReceipt, MobileWalletError> {
+    ) -> Result<hns_wallet_mobile::MobileShakescapeHnsFundingReceipt, MobileWalletError> {
         let Self::DirectHnsValue { controller, .. } = self else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        controller.approve_denuo_hns_funding(action_token)
+        controller.approve_shakescape_hns_funding(action_token)
     }
 
     fn reject_hns_for_btc_funding(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue { controller, .. } = self else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        controller.reject_denuo_hns_funding(action_token)
+        controller.reject_shakescape_hns_funding(action_token)
     }
 
     fn prepare_hns_swap_settlement(
         &mut self,
         session_id: SessionId,
-        action: hns_wallet_mobile::MobileDenuoSettlementAction,
+        action: hns_wallet_mobile::MobileShakescapeSettlementAction,
         maximum_fee_dollarydoos: u64,
-    ) -> Result<hns_wallet_mobile::MobileDenuoHnsSettlementApproval, MobileWalletError> {
+    ) -> Result<hns_wallet_mobile::MobileShakescapeHnsSettlementApproval, MobileWalletError> {
         let Self::DirectHnsValue {
             controller,
-            denuo_sessions,
+            shakescape_sessions,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
         let permit = match action {
-            hns_wallet_mobile::MobileDenuoSettlementAction::Redeem => {
-                denuo_sessions.authorize_local_hns_redeem(session_id)?
+            hns_wallet_mobile::MobileShakescapeSettlementAction::Redeem => {
+                shakescape_sessions.authorize_local_hns_redeem(session_id)?
             }
-            hns_wallet_mobile::MobileDenuoSettlementAction::Refund => {
-                denuo_sessions.authorize_local_hns_refund(session_id)?
+            hns_wallet_mobile::MobileShakescapeSettlementAction::Refund => {
+                shakescape_sessions.authorize_local_hns_refund(session_id)?
             }
         };
-        controller.prepare_denuo_hns_settlement(permit, maximum_fee_dollarydoos)
+        controller.prepare_shakescape_hns_settlement(permit, maximum_fee_dollarydoos)
     }
 
     fn approve_hns_swap_settlement(
         &mut self,
         action_token: &str,
-    ) -> Result<hns_wallet_mobile::MobileDenuoHnsSettlementReceipt, MobileWalletError> {
+    ) -> Result<hns_wallet_mobile::MobileShakescapeHnsSettlementReceipt, MobileWalletError> {
         let Self::DirectHnsValue { controller, .. } = self else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        controller.approve_denuo_hns_settlement(action_token)
+        controller.approve_shakescape_hns_settlement(action_token)
     }
 
     fn reject_hns_swap_settlement(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue { controller, .. } = self else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        controller.reject_denuo_hns_settlement(action_token)
+        controller.reject_shakescape_hns_settlement(action_token)
     }
 
     fn reconcile_verified_hns_funding(&mut self) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue {
             controller,
-            denuo_sessions,
+            shakescape_sessions,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        for permit in denuo_sessions.pending_second_hns_funding_verifications()? {
+        for permit in shakescape_sessions.pending_second_hns_funding_verifications()? {
             let session_id = permit.session_id();
-            if let Some(lock) = controller.verified_denuo_hns_funding(permit)? {
-                denuo_sessions.apply_local_verified_hns_funding(
+            if let Some(lock) = controller.verified_shakescape_hns_funding(permit)? {
+                shakescape_sessions.apply_local_verified_hns_funding(
                     session_id,
                     lock,
                     HnsReadSystemClock.now_unix()?,
@@ -1200,16 +1230,16 @@ impl NativeWalletController {
     fn reconcile_verified_hns_spends(&mut self) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue {
             controller,
-            denuo_sessions,
+            shakescape_sessions,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        for permit in denuo_sessions.pending_hns_spend_verifications()? {
+        for permit in shakescape_sessions.pending_hns_spend_verifications()? {
             let session_id = permit.session_id();
-            if let Some(spend) = controller.verified_denuo_hns_spend(permit)? {
-                denuo_sessions.apply_local_verified_hns_spend(
+            if let Some(spend) = controller.verified_shakescape_hns_spend(permit)? {
+                shakescape_sessions.apply_local_verified_hns_spend(
                     session_id,
                     spend,
                     HnsReadSystemClock.now_unix()?,
@@ -1220,10 +1250,14 @@ impl NativeWalletController {
     }
 
     fn pending_bitcoin_spend_sessions(&self) -> Result<Vec<SessionId>, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        denuo_sessions.pending_bitcoin_spend_sessions()
+        shakescape_sessions.pending_bitcoin_spend_sessions()
     }
 
     fn apply_verified_bitcoin_spend(
@@ -1231,84 +1265,104 @@ impl NativeWalletController {
         session_id: SessionId,
         spend: hns_wallet_mobile::VerifiedBitcoinHtlcSpendObservation,
     ) -> Result<(), MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        denuo_sessions
+        shakescape_sessions
             .apply_local_verified_bitcoin_spend(session_id, spend, HnsReadSystemClock.now_unix()?)
             .map(|_| ())
     }
 
     fn cancel_btc_for_hns_offer(&mut self, offer_id: &str) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue {
-            denuo_sessions,
-            denuo_peer,
+            shakescape_sessions,
+            shakescape_peer,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
         let now_unix = HnsReadSystemClock.now_unix()?;
-        denuo_sessions.cancel_local_btc_for_hns_offer(offer_id, now_unix)?;
-        if let Some(peer) = denuo_peer.as_mut() {
-            denuo_sessions.announce_direct_offer_cancellation(peer, offer_id)?;
+        shakescape_sessions.cancel_local_btc_for_hns_offer(offer_id, now_unix)?;
+        if let Some(peer) = shakescape_peer.as_mut() {
+            shakescape_sessions.announce_direct_offer_cancellation(peer, offer_id)?;
         }
         Ok(())
     }
 
     fn reserved_bitcoin_for_direct_offers(&self) -> Result<u64, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
             return Ok(0);
         };
-        denuo_sessions.reserved_bitcoin_sats(HnsReadSystemClock.now_unix()?)
+        shakescape_sessions.reserved_bitcoin_sats(HnsReadSystemClock.now_unix()?)
     }
 
     fn authorize_btc_for_hns_first_funding(
         &mut self,
         session_id: SessionId,
-    ) -> Result<MobileDenuoBitcoinFundingPermit, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
-            return Err(MobileWalletError::ControllerFailed);
-        };
-        denuo_sessions.authorize_local_btc_first_funding(session_id, HnsReadSystemClock.now_unix()?)
-    }
-
-    fn next_counterparty_bitcoin_watch(
-        &mut self,
-    ) -> Result<Option<MobileDenuoBitcoinWatchPermit>, MobileWalletError> {
-        let Self::DirectHnsValue { denuo_sessions, .. } = self else {
-            return Ok(None);
-        };
-        denuo_sessions.next_counterparty_bitcoin_watch(HnsReadSystemClock.now_unix()?)
-    }
-
-    fn complete_counterparty_bitcoin_watch(
-        &mut self,
-        permit: MobileDenuoBitcoinWatchPermit,
-    ) -> Result<(), MobileWalletError> {
+    ) -> Result<MobileShakescapeBitcoinFundingPermit, MobileWalletError> {
         let Self::DirectHnsValue {
-            denuo_sessions,
-            denuo_peer,
+            shakescape_sessions,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        let peer = denuo_peer
+        shakescape_sessions
+            .authorize_local_btc_first_funding(session_id, HnsReadSystemClock.now_unix()?)
+    }
+
+    fn next_counterparty_bitcoin_watch(
+        &mut self,
+    ) -> Result<Option<MobileShakescapeBitcoinWatchPermit>, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Ok(None);
+        };
+        shakescape_sessions.next_counterparty_bitcoin_watch(HnsReadSystemClock.now_unix()?)
+    }
+
+    fn complete_counterparty_bitcoin_watch(
+        &mut self,
+        permit: MobileShakescapeBitcoinWatchPermit,
+    ) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        let peer = shakescape_peer
             .as_mut()
             .ok_or(MobileWalletError::ControllerFailed)?;
-        denuo_sessions.complete_counterparty_bitcoin_watch(
+        shakescape_sessions.complete_counterparty_bitcoin_watch(
             permit,
             peer,
             HnsReadSystemClock.now_unix()?,
         )
     }
 
-    fn disconnect_direct_denuo_peer(&mut self) -> bool {
-        let Self::DirectHnsValue { denuo_peer, .. } = self else {
+    fn disconnect_direct_shakescape_peer(&mut self) -> bool {
+        let Self::DirectHnsValue {
+            shakescape_peer, ..
+        } = self
+        else {
             return false;
         };
-        denuo_peer.take().is_some()
+        shakescape_peer.take().is_some()
     }
 
     fn resume_approved_hns_settlements(&self) -> bool {
@@ -1316,17 +1370,17 @@ impl NativeWalletController {
             return false;
         };
         controller
-            .resume_approved_denuo_hns_settlements()
+            .resume_approved_shakescape_hns_settlements()
             .is_ok_and(|count| count != 0)
     }
 
-    fn service_direct_denuo_once(&mut self) -> bool {
+    fn service_direct_shakescape_once(&mut self) -> bool {
         let Self::DirectHnsValue {
             coordinator,
             controller,
-            denuo_sessions,
-            denuo_listener,
-            denuo_peer,
+            shakescape_sessions,
+            shakescape_listener,
+            shakescape_peer,
         } = self
         else {
             return false;
@@ -1334,15 +1388,15 @@ impl NativeWalletController {
         let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
             return false;
         };
-        if let Some(peer) = denuo_peer.as_mut() {
-            let accepted = match peer.receive_denuo_message(now_unix) {
-                Ok(HnsDirectDenuoMessage::NameMarket {
+        if let Some(peer) = shakescape_peer.as_mut() {
+            let accepted = match peer.receive_shakescape_message(now_unix) {
+                Ok(HnsDirectShakescapeMessage::NameMarket {
                     request_id,
                     message,
                 }) => controller
                     .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
                     .is_ok(),
-                Ok(HnsDirectDenuoMessage::CrossChain { envelope }) => denuo_sessions
+                Ok(HnsDirectShakescapeMessage::CrossChain { envelope }) => shakescape_sessions
                     .service_direct_envelope(peer, envelope.as_slice(), now_unix)
                     .is_ok(),
                 Err(_) => false,
@@ -1350,10 +1404,10 @@ impl NativeWalletController {
             if accepted {
                 return true;
             }
-            denuo_peer.take();
+            shakescape_peer.take();
             return false;
         }
-        let Some(listener) = denuo_listener.as_ref() else {
+        let Some(listener) = shakescape_listener.as_ref() else {
             return false;
         };
         let Ok(floor) = coordinator.rollback_floor() else {
@@ -1366,75 +1420,79 @@ impl NativeWalletController {
         if controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
-            .and_then(|_| denuo_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
+            .and_then(|_| shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
             .is_err()
         {
             return false;
         }
-        *denuo_peer = Some(peer);
+        *shakescape_peer = Some(peer);
         true
     }
 
-    fn connect_direct_denuo_peer(&mut self, address: SocketAddr) -> IosDirectDenuoConnectResult {
+    fn connect_direct_shakescape_peer(
+        &mut self,
+        address: SocketAddr,
+    ) -> IosDirectShakescapeConnectResult {
         let Self::DirectHnsValue {
             coordinator,
             controller,
-            denuo_sessions,
-            denuo_peer,
+            shakescape_sessions,
+            shakescape_peer,
             ..
         } = self
         else {
-            return IosDirectDenuoConnectResult {
-                outcome: IosDirectDenuoConnectOutcome::Unavailable,
+            return IosDirectShakescapeConnectResult {
+                outcome: IosDirectShakescapeConnectOutcome::Unavailable,
                 peer_endpoint: None,
             };
         };
         if controller.status().map_or(true, |status| status.locked) {
-            return IosDirectDenuoConnectResult {
-                outcome: IosDirectDenuoConnectOutcome::Locked,
+            return IosDirectShakescapeConnectResult {
+                outcome: IosDirectShakescapeConnectOutcome::Locked,
                 peer_endpoint: None,
             };
         }
         let (Ok(now_unix), Ok(floor)) =
             (HnsReadSystemClock.now_unix(), coordinator.rollback_floor())
         else {
-            return IosDirectDenuoConnectResult {
-                outcome: IosDirectDenuoConnectOutcome::ConnectionFailed,
+            return IosDirectShakescapeConnectResult {
+                outcome: IosDirectShakescapeConnectOutcome::ConnectionFailed,
                 peer_endpoint: None,
             };
         };
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
-        config.connect_timeout = IOS_DIRECT_DENUO_SOCKET_TIMEOUT;
+        config.connect_timeout = IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT;
         config.allow_private_addresses = true;
         config.static_peers.push(address);
-        let mut peer = match HnsDirectDenuoPeer::connect(&config, address, floor.height, now_unix) {
-            Ok(peer) => peer,
-            Err(_) => {
-                return IosDirectDenuoConnectResult {
-                    outcome: IosDirectDenuoConnectOutcome::ConnectionFailed,
-                    peer_endpoint: None,
-                };
-            }
-        };
+        let mut peer =
+            match HnsDirectShakescapePeer::connect(&config, address, floor.height, now_unix) {
+                Ok(peer) => peer,
+                Err(_) => {
+                    return IosDirectShakescapeConnectResult {
+                        outcome: IosDirectShakescapeConnectOutcome::ConnectionFailed,
+                        peer_endpoint: None,
+                    };
+                }
+            };
         if controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
-            .and_then(|_| denuo_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
+            .and_then(|_| shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
             .is_err()
         {
-            return IosDirectDenuoConnectResult {
-                outcome: IosDirectDenuoConnectOutcome::ExchangeFailed,
+            return IosDirectShakescapeConnectResult {
+                outcome: IosDirectShakescapeConnectOutcome::ExchangeFailed,
                 peer_endpoint: None,
             };
         }
-        let outcome = if denuo_peer.is_some() {
-            IosDirectDenuoConnectOutcome::Replaced
+        let outcome = if shakescape_peer.is_some() {
+            IosDirectShakescapeConnectOutcome::Replaced
         } else {
-            IosDirectDenuoConnectOutcome::Connected
+            IosDirectShakescapeConnectOutcome::Connected
         };
         let endpoint = peer.address();
-        *denuo_peer = Some(peer);
-        IosDirectDenuoConnectResult {
+        *shakescape_peer = Some(peer);
+        IosDirectShakescapeConnectResult {
             outcome,
             peer_endpoint: Some(endpoint),
         }
@@ -1450,12 +1508,12 @@ impl NativeWalletController {
             }
             Self::DirectHnsValue {
                 controller,
-                denuo_listener,
-                denuo_peer,
+                shakescape_listener,
+                shakescape_peer,
                 ..
             } => {
-                denuo_peer.take();
-                denuo_listener.take();
+                shakescape_peer.take();
+                shakescape_listener.take();
                 let _ = controller.lock();
             }
             Self::Failed => {}
@@ -2481,20 +2539,22 @@ unsafe fn wallet_shakedex_query(slice: HnsBrowserSlice) -> Result<MobileShakedex
     query.ok_or_else(|| FfiFailure::invalid("wallet Shakedex query is invalid"))
 }
 
-unsafe fn wallet_denuo_endpoint(slice: HnsBrowserSlice) -> Result<SocketAddr, FfiFailure> {
+unsafe fn wallet_shakescape_endpoint(slice: HnsBrowserSlice) -> Result<SocketAddr, FfiFailure> {
     // SAFETY: This helper carries the exported caller's readable-slice contract.
-    let endpoint = unsafe { required_input_str(slice, MAX_WALLET_DENUO_ENDPOINT_BYTES) }?;
+    let endpoint = unsafe { required_input_str(slice, MAX_WALLET_SHAKESCAPE_ENDPOINT_BYTES) }?;
     if endpoint.bytes().any(|byte| !(0x21..=0x7e).contains(&byte)) {
-        return Err(FfiFailure::invalid("direct Denuo endpoint is invalid"));
+        return Err(FfiFailure::invalid("direct Shakescape endpoint is invalid"));
     }
     endpoint
         .parse::<SocketAddr>()
         .ok()
         .filter(|address| address.port() != 0)
-        .ok_or_else(|| FfiFailure::invalid("direct Denuo endpoint must be an IP literal and port"))
+        .ok_or_else(|| {
+            FfiFailure::invalid("direct Shakescape endpoint must be an IP literal and port")
+        })
 }
 
-fn wallet_direct_denuo_status_bundle(
+fn wallet_direct_shakescape_status_bundle(
     unlocked: bool,
     listener_port: Option<u16>,
     peer_endpoint: Option<SocketAddr>,
@@ -2505,42 +2565,52 @@ fn wallet_direct_denuo_status_bundle(
     let endpoint = peer_endpoint
         .map(|value| value.to_string())
         .unwrap_or_default();
-    if endpoint.len() > MAX_WALLET_DENUO_ENDPOINT_BYTES
+    if endpoint.len() > MAX_WALLET_SHAKESCAPE_ENDPOINT_BYTES
         || !endpoint.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
     {
         return None;
     }
     let endpoint_length = u16::try_from(endpoint.len()).ok()?;
     let mut flags = if unlocked {
-        WALLET_DIRECT_DENUO_STATUS_UNLOCKED
+        WALLET_DIRECT_SHAKESCAPE_STATUS_UNLOCKED
     } else {
         0
     };
     if listener_port.is_some() {
-        flags |= WALLET_DIRECT_DENUO_STATUS_LISTENING;
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_LISTENING;
     }
     if !endpoint.is_empty() {
-        flags |= WALLET_DIRECT_DENUO_STATUS_PAIRED;
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_PAIRED;
     }
-    let mut bundle = Vec::with_capacity(WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES + endpoint.len());
-    bundle.extend_from_slice(WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC);
-    bundle.push(WALLET_DIRECT_DENUO_BUNDLE_VERSION);
+    let mut bundle =
+        Vec::with_capacity(WALLET_DIRECT_SHAKESCAPE_BUNDLE_HEADER_BYTES + endpoint.len());
+    bundle.extend_from_slice(WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC);
+    bundle.push(WALLET_DIRECT_SHAKESCAPE_BUNDLE_VERSION);
     bundle.push(flags);
     bundle.extend_from_slice(&[0, 0]);
     bundle.extend_from_slice(&listener_port.unwrap_or(0).to_be_bytes());
     bundle.extend_from_slice(&endpoint_length.to_be_bytes());
     bundle.extend_from_slice(endpoint.as_bytes());
-    (bundle.len() == WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES + endpoint.len()).then_some(bundle)
+    (bundle.len() == WALLET_DIRECT_SHAKESCAPE_BUNDLE_HEADER_BYTES + endpoint.len())
+        .then_some(bundle)
 }
 
-fn wallet_direct_denuo_connect_bundle(result: IosDirectDenuoConnectResult) -> Option<Vec<u8>> {
+fn wallet_direct_shakescape_connect_bundle(
+    result: IosDirectShakescapeConnectResult,
+) -> Option<Vec<u8>> {
     let code = match result.outcome {
-        IosDirectDenuoConnectOutcome::Connected => WALLET_DIRECT_DENUO_CONNECT_CONNECTED,
-        IosDirectDenuoConnectOutcome::Replaced => WALLET_DIRECT_DENUO_CONNECT_REPLACED,
-        IosDirectDenuoConnectOutcome::Unavailable => WALLET_DIRECT_DENUO_CONNECT_UNAVAILABLE,
-        IosDirectDenuoConnectOutcome::Locked => WALLET_DIRECT_DENUO_CONNECT_LOCKED,
-        IosDirectDenuoConnectOutcome::ConnectionFailed => WALLET_DIRECT_DENUO_CONNECT_FAILED,
-        IosDirectDenuoConnectOutcome::ExchangeFailed => WALLET_DIRECT_DENUO_CONNECT_EXCHANGE_FAILED,
+        IosDirectShakescapeConnectOutcome::Connected => WALLET_DIRECT_SHAKESCAPE_CONNECT_CONNECTED,
+        IosDirectShakescapeConnectOutcome::Replaced => WALLET_DIRECT_SHAKESCAPE_CONNECT_REPLACED,
+        IosDirectShakescapeConnectOutcome::Unavailable => {
+            WALLET_DIRECT_SHAKESCAPE_CONNECT_UNAVAILABLE
+        }
+        IosDirectShakescapeConnectOutcome::Locked => WALLET_DIRECT_SHAKESCAPE_CONNECT_LOCKED,
+        IosDirectShakescapeConnectOutcome::ConnectionFailed => {
+            WALLET_DIRECT_SHAKESCAPE_CONNECT_FAILED
+        }
+        IosDirectShakescapeConnectOutcome::ExchangeFailed => {
+            WALLET_DIRECT_SHAKESCAPE_CONNECT_EXCHANGE_FAILED
+        }
     };
     let endpoint = result
         .peer_endpoint
@@ -2548,24 +2618,26 @@ fn wallet_direct_denuo_connect_bundle(result: IosDirectDenuoConnectResult) -> Op
         .unwrap_or_default();
     let success = matches!(
         result.outcome,
-        IosDirectDenuoConnectOutcome::Connected | IosDirectDenuoConnectOutcome::Replaced
+        IosDirectShakescapeConnectOutcome::Connected | IosDirectShakescapeConnectOutcome::Replaced
     );
     if success == endpoint.is_empty()
-        || endpoint.len() > MAX_WALLET_DENUO_ENDPOINT_BYTES
+        || endpoint.len() > MAX_WALLET_SHAKESCAPE_ENDPOINT_BYTES
         || !endpoint.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
     {
         return None;
     }
     let endpoint_length = u16::try_from(endpoint.len()).ok()?;
-    let mut bundle = Vec::with_capacity(WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES + endpoint.len());
-    bundle.extend_from_slice(WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC);
-    bundle.push(WALLET_DIRECT_DENUO_BUNDLE_VERSION);
+    let mut bundle =
+        Vec::with_capacity(WALLET_DIRECT_SHAKESCAPE_BUNDLE_HEADER_BYTES + endpoint.len());
+    bundle.extend_from_slice(WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_MAGIC);
+    bundle.push(WALLET_DIRECT_SHAKESCAPE_BUNDLE_VERSION);
     bundle.push(code);
     bundle.extend_from_slice(&[0, 0]);
     bundle.extend_from_slice(&endpoint_length.to_be_bytes());
     bundle.extend_from_slice(&[0, 0]);
     bundle.extend_from_slice(endpoint.as_bytes());
-    (bundle.len() == WALLET_DIRECT_DENUO_BUNDLE_HEADER_BYTES + endpoint.len()).then_some(bundle)
+    (bundle.len() == WALLET_DIRECT_SHAKESCAPE_BUNDLE_HEADER_BYTES + endpoint.len())
+        .then_some(bundle)
 }
 
 fn wallet_json_bundle(
@@ -4092,7 +4164,7 @@ pub unsafe extern "C" fn hns_browser_wallet_query_shakedex(
 #[unsafe(no_mangle)]
 /// # Safety
 /// `out_status_bundle` must point to one writable owned-buffer value.
-pub unsafe extern "C" fn hns_browser_wallet_direct_denuo_status(
+pub unsafe extern "C" fn hns_browser_wallet_direct_shakescape_status(
     wallet: HnsBrowserWalletHandle,
     out_status_bundle: *mut HnsBrowserBuffer,
 ) -> HnsBrowserResult {
@@ -4103,10 +4175,10 @@ pub unsafe extern "C" fn hns_browser_wallet_direct_denuo_status(
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        let bundle = entry.controller.direct_denuo_status().ok_or_else(|| {
+        let bundle = entry.controller.direct_shakescape_status().ok_or_else(|| {
             FfiFailure::new(
                 HNS_BROWSER_RESULT_NOT_READY,
-                "direct Denuo transport is unavailable",
+                "direct Shakescape transport is unavailable",
             )
         })?;
         let output = allocate_output(&bundle, false)?;
@@ -4117,7 +4189,7 @@ pub unsafe extern "C" fn hns_browser_wallet_direct_denuo_status(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hns_browser_wallet_retry_direct_denuo_listener(
+pub extern "C" fn hns_browser_wallet_retry_direct_shakescape_listener(
     wallet: HnsBrowserWalletHandle,
 ) -> HnsBrowserResult {
     ffi_call(|| {
@@ -4126,12 +4198,12 @@ pub extern "C" fn hns_browser_wallet_retry_direct_denuo_listener(
         ensure_wallet_active(&entry)?;
         entry
             .controller
-            .start_direct_denuo_listener()
+            .start_direct_shakescape_listener()
             .then_some(())
             .ok_or_else(|| {
                 FfiFailure::new(
                     HNS_BROWSER_RESULT_NOT_READY,
-                    "direct Denuo listener is unavailable",
+                    "direct Shakescape listener is unavailable",
                 )
             })
     })
@@ -4140,7 +4212,7 @@ pub extern "C" fn hns_browser_wallet_retry_direct_denuo_listener(
 #[unsafe(no_mangle)]
 /// # Safety
 /// `endpoint` must remain readable and `out_connect_bundle` must be writable.
-pub unsafe extern "C" fn hns_browser_wallet_connect_direct_denuo(
+pub unsafe extern "C" fn hns_browser_wallet_connect_direct_shakescape(
     wallet: HnsBrowserWalletHandle,
     endpoint: HnsBrowserSlice,
     out_connect_bundle: *mut HnsBrowserBuffer,
@@ -4150,12 +4222,13 @@ pub unsafe extern "C" fn hns_browser_wallet_connect_direct_denuo(
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_connect_bundle, HnsBrowserBuffer::empty()) };
         // SAFETY: This export carries the caller's readable-slice contract.
-        let endpoint = unsafe { wallet_denuo_endpoint(endpoint) }?;
+        let endpoint = unsafe { wallet_shakescape_endpoint(endpoint) }?;
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        let result = entry.controller.connect_direct_denuo_peer(endpoint);
-        let bundle = wallet_direct_denuo_connect_bundle(result).ok_or_else(FfiFailure::internal)?;
+        let result = entry.controller.connect_direct_shakescape_peer(endpoint);
+        let bundle =
+            wallet_direct_shakescape_connect_bundle(result).ok_or_else(FfiFailure::internal)?;
         let output = allocate_output(&bundle, false)?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_connect_bundle, output) };
@@ -4166,7 +4239,7 @@ pub unsafe extern "C" fn hns_browser_wallet_connect_direct_denuo(
 #[unsafe(no_mangle)]
 /// # Safety
 /// `out_disconnected` must point to one writable byte.
-pub unsafe extern "C" fn hns_browser_wallet_disconnect_direct_denuo(
+pub unsafe extern "C" fn hns_browser_wallet_disconnect_direct_shakescape(
     wallet: HnsBrowserWalletHandle,
     out_disconnected: *mut u8,
 ) -> HnsBrowserResult {
@@ -4175,7 +4248,7 @@ pub unsafe extern "C" fn hns_browser_wallet_disconnect_direct_denuo(
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        let disconnected = u8::from(entry.controller.disconnect_direct_denuo_peer());
+        let disconnected = u8::from(entry.controller.disconnect_direct_shakescape_peer());
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_disconnected, disconnected) };
         Ok(())
@@ -4185,7 +4258,7 @@ pub unsafe extern "C" fn hns_browser_wallet_disconnect_direct_denuo(
 #[unsafe(no_mangle)]
 /// # Safety
 /// `out_serviced` must point to one writable byte.
-pub unsafe extern "C" fn hns_browser_wallet_service_direct_denuo(
+pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
     wallet: HnsBrowserWalletHandle,
     out_serviced: *mut u8,
 ) -> HnsBrowserResult {
@@ -4195,7 +4268,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_denuo(
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
-            let serviced = entry.controller.service_direct_denuo_once();
+            let serviced = entry.controller.service_direct_shakescape_once();
             let resumed_hns = entry.controller.resume_approved_hns_settlements();
             let permit = entry
                 .controller
@@ -4221,7 +4294,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_denuo(
                 match control.controller.try_lock() {
                     Ok(mut slot) => slot.as_mut().is_some_and(|bitcoin| {
                         bitcoin
-                            .register_counterparty_denuo_htlc_watch(&permit)
+                            .register_counterparty_shakescape_htlc_watch(&permit)
                             .is_ok()
                     }),
                     Err(TryLockError::WouldBlock) => false,
@@ -4373,7 +4446,7 @@ pub unsafe extern "C" fn hns_browser_wallet_local_btc_for_hns_offers(
 ///
 /// # Safety
 /// `out_executions_bundle` must point to one writable owned-buffer value.
-pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
+pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
     wallet: HnsBrowserWalletHandle,
     out_executions_bundle: *mut HnsBrowserBuffer,
 ) -> HnsBrowserResult {
@@ -4387,7 +4460,7 @@ pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
             entry
                 .controller
                 .pending_first_bitcoin_funding_sessions()
-                .map_err(|_| wallet_runtime_failure("Denuo execution recovery failed"))?
+                .map_err(|_| wallet_runtime_failure("Shakescape execution recovery failed"))?
         };
         let verified = if candidates.is_empty() {
             Vec::new()
@@ -4399,7 +4472,7 @@ pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
                         .into_iter()
                         .filter_map(|session_id| {
                             bitcoin
-                                .verified_denuo_htlc_funding(session_id)
+                                .verified_shakescape_htlc_funding(session_id)
                                 .ok()
                                 .flatten()
                                 .map(|lock| (session_id, lock))
@@ -4440,7 +4513,7 @@ pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
                         .into_iter()
                         .filter_map(|session_id| {
                             bitcoin
-                                .verified_denuo_htlc_spend(session_id)
+                                .verified_shakescape_htlc_spend(session_id)
                                 .ok()
                                 .flatten()
                                 .map(|spend| (session_id, spend))
@@ -4476,8 +4549,8 @@ pub unsafe extern "C" fn hns_browser_wallet_denuo_executions(
         ensure_wallet_active(&entry)?;
         let executions = entry
             .controller
-            .denuo_executions()
-            .map_err(|_| wallet_runtime_failure("Denuo execution listing failed"))?;
+            .shakescape_executions()
+            .map_err(|_| wallet_runtime_failure("Shakescape execution listing failed"))?;
         drop(entry);
         let bitcoin_broadcast_recovery =
             wallet_bitcoin_control_entry(wallet)
@@ -5292,7 +5365,7 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_bitcoin_send(
 
 #[unsafe(no_mangle)]
 /// Prepares the exact first-chain Bitcoin HTLC committed by a fully accepted
-/// Denuo session. The HNS/session controller is released before the Bitcoin
+/// Shakescape session. The HNS/session controller is released before the Bitcoin
 /// controller is acquired, so no cross-chain mutex is held while signing or
 /// querying the direct Bitcoin runtime.
 ///
@@ -5328,7 +5401,7 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_btc_for_hns_funding(
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
         let approval = controller
-            .prepare_denuo_htlc_funding(permit, maximum_fee_sats)
+            .prepare_shakescape_htlc_funding(permit, maximum_fee_sats)
             .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding preparation failed"))?;
         let bundle = wallet_bitcoin_bundle(&approval)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -5362,7 +5435,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_btc_for_hns_funding(
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
         let receipt = controller
-            .approve_denuo_htlc_funding(&token)
+            .approve_shakescape_htlc_funding(&token)
             .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding approval failed"))?;
         let bundle = wallet_bitcoin_bundle(&receipt)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -5390,7 +5463,7 @@ pub unsafe extern "C" fn hns_browser_wallet_reject_btc_for_hns_funding(
         slot.as_mut()
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
-            .reject_denuo_htlc_funding(&token)
+            .reject_shakescape_htlc_funding(&token)
             .map_err(|_| wallet_runtime_failure("BTC-for-HNS funding rejection failed"))
     })
 }
@@ -5502,7 +5575,7 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_bitcoin_swap_settlement(
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
         let approval = controller
-            .prepare_denuo_htlc_settlement(permit, maximum_fee)
+            .prepare_shakescape_htlc_settlement(permit, maximum_fee)
             .map_err(|_| wallet_runtime_failure("Bitcoin swap settlement preparation failed"))?;
         let bundle = wallet_bitcoin_bundle(&approval)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -5532,7 +5605,7 @@ pub unsafe extern "C" fn hns_browser_wallet_approve_bitcoin_swap_settlement(
             .as_mut()
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
-            .approve_denuo_htlc_settlement(&token)
+            .approve_shakescape_htlc_settlement(&token)
             .map_err(|_| wallet_runtime_failure("Bitcoin swap settlement approval failed"))?;
         let bundle = wallet_bitcoin_bundle(&receipt)?;
         let output = allocate_output(&bundle.0, true)?;
@@ -5558,7 +5631,7 @@ pub unsafe extern "C" fn hns_browser_wallet_reject_bitcoin_swap_settlement(
         slot.as_mut()
             .filter(|controller| controller.is_active())
             .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
-            .reject_denuo_htlc_settlement(&token)
+            .reject_shakescape_htlc_settlement(&token)
             .map_err(|_| wallet_runtime_failure("Bitcoin swap settlement rejection failed"))
     })
 }
@@ -5579,9 +5652,9 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_swap_settlement(
         let session_id = unsafe { wallet_session_id(session_id) }?;
         let maximum_fee = unsafe { wallet_nonzero_sats(maximum_fee) }?;
         let action = if redeem {
-            hns_wallet_mobile::MobileDenuoSettlementAction::Redeem
+            hns_wallet_mobile::MobileShakescapeSettlementAction::Redeem
         } else {
-            hns_wallet_mobile::MobileDenuoSettlementAction::Refund
+            hns_wallet_mobile::MobileShakescapeSettlementAction::Refund
         };
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
@@ -5734,7 +5807,7 @@ pub unsafe extern "C" fn hns_browser_wallet_unlock(
             .map_err(|_| wallet_runtime_failure("native wallet unlock was rejected"))?;
         // Listener availability is operational rather than wallet authority;
         // a local bind denial must not relock or discard the HNS controller.
-        let _ = entry.controller.start_direct_denuo_listener();
+        let _ = entry.controller.start_direct_shakescape_listener();
         drop(entry);
         let bitcoin_control = wallet_bitcoin_control_entry(wallet)?;
         let mut slot = bitcoin_control
@@ -5773,7 +5846,7 @@ pub extern "C" fn hns_browser_wallet_lock(wallet: HnsBrowserWalletHandle) -> Hns
         let entry = wallet_entry(wallet)?;
         let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
         ensure_wallet_active(&entry)?;
-        entry.controller.clear_direct_denuo_transport();
+        entry.controller.clear_direct_shakescape_transport();
         entry
             .controller
             .with_mut(
@@ -6405,11 +6478,11 @@ mod tests {
             "hns_browser_wallet_prepare_hns_value_action",
             "hns_browser_wallet_approve_hns_value_action_result",
             "hns_browser_wallet_query_shakedex",
-            "hns_browser_wallet_direct_denuo_status",
-            "hns_browser_wallet_retry_direct_denuo_listener",
-            "hns_browser_wallet_connect_direct_denuo",
-            "hns_browser_wallet_disconnect_direct_denuo",
-            "hns_browser_wallet_service_direct_denuo",
+            "hns_browser_wallet_direct_shakescape_status",
+            "hns_browser_wallet_retry_direct_shakescape_listener",
+            "hns_browser_wallet_connect_direct_shakescape",
+            "hns_browser_wallet_disconnect_direct_shakescape",
+            "hns_browser_wallet_service_direct_shakescape",
             "hns_browser_wallet_unlock",
             "hns_browser_wallet_lock",
             "hns_browser_wallet_take_recovery_phrase",
@@ -6738,41 +6811,44 @@ mod tests {
     }
 
     #[test]
-    fn direct_denuo_inputs_and_bundles_are_closed() {
+    fn direct_shakescape_inputs_and_bundles_are_closed() {
         let _guard = test_guard();
         // SAFETY: Each endpoint slice remains readable for the call.
         assert!(matches!(
-            unsafe { wallet_denuo_endpoint(ffi_slice(b"198.51.100.7:12038")) },
+            unsafe { wallet_shakescape_endpoint(ffi_slice(b"198.51.100.7:12038")) },
             Ok(endpoint) if endpoint == "198.51.100.7:12038".parse().expect("socket endpoint")
         ));
         // SAFETY: The IPv6 endpoint remains readable for the call.
-        assert!(unsafe { wallet_denuo_endpoint(ffi_slice(b"[2001:db8::7]:12038")) }.is_ok());
+        assert!(unsafe { wallet_shakescape_endpoint(ffi_slice(b"[2001:db8::7]:12038")) }.is_ok());
         for invalid in [
             b"wallet.example:12038".as_slice(),
             b"198.51.100.7:0".as_slice(),
             b" 198.51.100.7:12038".as_slice(),
         ] {
             // SAFETY: Each invalid endpoint remains readable for the call.
-            assert!(unsafe { wallet_denuo_endpoint(ffi_slice(invalid)) }.is_err());
+            assert!(unsafe { wallet_shakescape_endpoint(ffi_slice(invalid)) }.is_err());
         }
 
         let endpoint = "198.51.100.7:12038".parse().expect("socket endpoint");
-        let status = wallet_direct_denuo_status_bundle(true, Some(12_038), Some(endpoint))
+        let status = wallet_direct_shakescape_status_bundle(true, Some(12_038), Some(endpoint))
             .expect("status bundle");
-        assert_eq!(&status[..4], WALLET_DIRECT_DENUO_STATUS_BUNDLE_MAGIC);
+        assert_eq!(&status[..4], WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC);
         assert_eq!(status[5], 0b111);
         assert_eq!(&status[12..], b"198.51.100.7:12038");
-        let connected = wallet_direct_denuo_connect_bundle(IosDirectDenuoConnectResult {
-            outcome: IosDirectDenuoConnectOutcome::Connected,
+        let connected = wallet_direct_shakescape_connect_bundle(IosDirectShakescapeConnectResult {
+            outcome: IosDirectShakescapeConnectOutcome::Connected,
             peer_endpoint: Some(endpoint),
         })
         .expect("connect bundle");
-        assert_eq!(&connected[..4], WALLET_DIRECT_DENUO_CONNECT_BUNDLE_MAGIC);
-        assert_eq!(connected[5], WALLET_DIRECT_DENUO_CONNECT_CONNECTED);
-        assert!(wallet_direct_denuo_status_bundle(false, Some(12_038), None).is_none());
+        assert_eq!(
+            &connected[..4],
+            WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_MAGIC
+        );
+        assert_eq!(connected[5], WALLET_DIRECT_SHAKESCAPE_CONNECT_CONNECTED);
+        assert!(wallet_direct_shakescape_status_bundle(false, Some(12_038), None).is_none());
         assert!(
-            wallet_direct_denuo_connect_bundle(IosDirectDenuoConnectResult {
-                outcome: IosDirectDenuoConnectOutcome::ConnectionFailed,
+            wallet_direct_shakescape_connect_bundle(IosDirectShakescapeConnectResult {
+                outcome: IosDirectShakescapeConnectOutcome::ConnectionFailed,
                 peer_endpoint: Some(endpoint),
             })
             .is_none()

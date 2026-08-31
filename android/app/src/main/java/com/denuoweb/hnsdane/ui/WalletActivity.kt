@@ -44,12 +44,12 @@ import com.denuoweb.hnsdane.wallet.NativeBitcoinSendApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
-import com.denuoweb.hnsdane.wallet.NativeDenuoExecutionSummary
+import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeHnsHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeSwapSettlementApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
-import com.denuoweb.hnsdane.wallet.NativeWalletDirectDenuoConnectResult
-import com.denuoweb.hnsdane.wallet.directDenuoControls
+import com.denuoweb.hnsdane.wallet.NativeWalletDirectShakescapeConnectResult
+import com.denuoweb.hnsdane.wallet.directShakescapeControls
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
 import com.denuoweb.hnsdane.wallet.NativeWalletHnsCatchupProgress
 import com.denuoweb.hnsdane.wallet.NativeWalletHnsLiveSyncProgress
@@ -136,7 +136,7 @@ class WalletActivity : ComponentActivity() {
     private lateinit var historyView: TextView
     private lateinit var trackedNamesView: TextView
     @Volatile
-    private var directDenuoWorkerHandle: Long = INVALID_HANDLE
+    private var directShakescapeWorkerHandle: Long = INVALID_HANDLE
     private var nameImportInput: EditText? = null
     private lateinit var nameImportStatusView: TextView
     // Send-form inputs belong to one dialog instance. Retaining and reusing a
@@ -151,7 +151,7 @@ class WalletActivity : ComponentActivity() {
     private lateinit var bitcoinReceiveView: TextView
     private lateinit var valueActionStatusView: TextView
     private lateinit var shakedexQueryStatusView: TextView
-    private lateinit var directDenuoStatusView: TextView
+    private lateinit var directShakescapeStatusView: TextView
     private var restoreInput: EditText? = null
     private lateinit var recoveryView: RecoveryPhraseView
     private lateinit var dashboardContent: LinearLayout
@@ -262,7 +262,7 @@ class WalletActivity : ComponentActivity() {
         }
         valueActionStatusView = walletReadSummary(R.string.wallet_value_actions_unavailable)
         shakedexQueryStatusView = walletReadSummary(R.string.wallet_shakedex_queries_unavailable)
-        directDenuoStatusView = walletReadSummary(R.string.wallet_direct_denuo_unavailable)
+        directShakescapeStatusView = walletReadSummary(R.string.wallet_direct_shakescape_unavailable)
         recoveryView = RecoveryPhraseView(this)
         dashboardContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -685,7 +685,7 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun shakedexSummary(): String =
-        if (NativeWalletBridge.walletOwnedDirectDenuoStatus(walletHandle)?.peerEndpoint != null) {
+        if (NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)?.peerEndpoint != null) {
             getString(R.string.wallet_dashboard_connected)
         } else {
             getString(R.string.wallet_dashboard_not_connected)
@@ -1054,7 +1054,7 @@ class WalletActivity : ComponentActivity() {
         actions.add(getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm)
         actions.add(getString(R.string.wallet_swap_sell_btc) to ::showBtcForHnsOfferForm)
         actions.add(getString(R.string.wallet_swap_active_offers) to ::showActiveBtcForHnsOffers)
-        actions.add(getString(R.string.wallet_swap_executions) to ::showDenuoExecutions)
+        actions.add(getString(R.string.wallet_swap_executions) to ::showShakescapeExecutions)
         walletLiveDetailDialog(
             title = getString(R.string.wallet_dashboard_bitcoin),
             rows = listOf(
@@ -1119,32 +1119,32 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showShakedexDashboard() {
-        val transport = NativeWalletBridge.walletOwnedDirectDenuoStatus(walletHandle)
-        val transportControls = directDenuoControls(transport)
+        val transport = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
+        val transportControls = directShakescapeControls(transport)
         val actions = mutableListOf<Pair<String, () -> Unit>>(
             getString(R.string.row_wallet_list_offers) to ::showListOffersForm,
             getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
             getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
-            getString(R.string.row_wallet_pair_direct_denuo) to ::showPairDirectDenuoForm,
+            getString(R.string.row_wallet_pair_direct_shakescape) to ::showPairDirectShakescapeForm,
             getString(R.string.row_wallet_get_session) to ::showGetSessionForm,
         ).apply {
             if (transportControls.retryListener) {
                 add(
-                    getString(R.string.row_wallet_retry_direct_denuo_host) to
-                        ::retryWalletOwnedDirectDenuoListener,
+                    getString(R.string.row_wallet_retry_direct_shakescape_host) to
+                        ::retryWalletOwnedDirectShakescapeListener,
                 )
             }
             if (transportControls.disconnectPeer) {
                 add(
-                    getString(R.string.row_wallet_disconnect_direct_denuo) to
-                        ::disconnectWalletOwnedDirectDenuo,
+                    getString(R.string.row_wallet_disconnect_direct_shakescape) to
+                        ::disconnectWalletOwnedDirectShakescape,
                 )
             }
         }
         walletDetailDialog(
             title = getString(R.string.wallet_dashboard_shakedex),
             rows = listOf(
-                getString(R.string.row_wallet_direct_denuo_host) to directDenuoStatusView.text.toString(),
+                getString(R.string.row_wallet_direct_shakescape_host) to directShakescapeStatusView.text.toString(),
                 getString(R.string.row_wallet_shakedex_status) to shakedexQueryStatusView.text.toString(),
             ),
             actions = actions,
@@ -1476,7 +1476,7 @@ class WalletActivity : ComponentActivity() {
                     refreshControllerState()
                     localReceiveTarget?.let(::renderLocalPaymentReceiveTarget)
                     if (NativeWalletBridge.directHnsRollbackFloor(handle) != null) {
-                        startWalletOwnedDirectDenuoWorker(handle, lease, epoch)
+                        startWalletOwnedDirectShakescapeWorker(handle, lease, epoch)
                     }
                     // A direct controller is installed locked. Once the user
                     // has explicitly unlocked it, take one bounded, verified
@@ -1523,37 +1523,37 @@ class WalletActivity : ComponentActivity() {
      * or controller retirement; this worker remains app-foreground-only and
      * never becomes an Android background wallet service.
      */
-    private fun startWalletOwnedDirectDenuoWorker(
+    private fun startWalletOwnedDirectShakescapeWorker(
         handle: Long,
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
-        if (directDenuoWorkerHandle == handle) return
-        directDenuoWorkerHandle = handle
-        thread(name = "hns-wallet-direct-denuo") {
+        if (directShakescapeWorkerHandle == handle) return
+        directShakescapeWorkerHandle = handle
+        thread(name = "hns-wallet-direct-shakescape") {
             try {
                 var serviceTicks = 0
                 while (
                     walletSessionIsActive() && operationIsCurrent(epoch, lease) && walletHandle == handle &&
                         (NativeWalletBridge.status(handle)?.locked == false)
                 ) {
-                    NativeWalletBridge.serviceWalletOwnedDirectDenuo(handle)
+                    NativeWalletBridge.serviceWalletOwnedDirectShakescape(handle)
                     serviceTicks += 1
-                    if (serviceTicks % DIRECT_DENUO_STATUS_REFRESH_TICKS == 0) {
+                    if (serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0) {
                         runOnUiThread {
                             if (
-                                directDenuoWorkerHandle == handle &&
+                                directShakescapeWorkerHandle == handle &&
                                     operationIsCurrent(epoch, lease) && walletHandle == handle
                             ) {
-                                refreshDirectDenuoStatus()
+                                refreshDirectShakescapeStatus()
                             }
                         }
                     }
-                    Thread.sleep(DIRECT_DENUO_FOREGROUND_TICK_MILLIS)
+                    Thread.sleep(DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS)
                 }
             } finally {
-                if (directDenuoWorkerHandle == handle) {
-                    directDenuoWorkerHandle = INVALID_HANDLE
+                if (directShakescapeWorkerHandle == handle) {
+                    directShakescapeWorkerHandle = INVALID_HANDLE
                 }
             }
         }
@@ -2207,27 +2207,27 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun refreshDirectDenuoStatus() {
-        val status = NativeWalletBridge.walletOwnedDirectDenuoStatus(walletHandle)
-        directDenuoStatusView.text = when {
-            status == null -> getString(R.string.wallet_direct_denuo_unavailable)
-            !status.unlocked -> getString(R.string.wallet_direct_denuo_locked)
+    private fun refreshDirectShakescapeStatus() {
+        val status = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
+        directShakescapeStatusView.text = when {
+            status == null -> getString(R.string.wallet_direct_shakescape_unavailable)
+            !status.unlocked -> getString(R.string.wallet_direct_shakescape_locked)
             status.listenerPort == null -> getString(
-                R.string.wallet_direct_denuo_host_unavailable,
-                DIRECT_DENUO_LISTEN_PORT,
-                status.peerEndpoint ?: getString(R.string.wallet_direct_denuo_peer_none),
+                R.string.wallet_direct_shakescape_host_unavailable,
+                DIRECT_SHAKESCAPE_LISTEN_PORT,
+                status.peerEndpoint ?: getString(R.string.wallet_direct_shakescape_peer_none),
             )
 
             status.peerEndpoint == null -> getString(
-                R.string.wallet_direct_denuo_host_listening,
+                R.string.wallet_direct_shakescape_host_listening,
                 status.listenerPort,
-                getString(R.string.wallet_direct_denuo_peer_none),
+                getString(R.string.wallet_direct_shakescape_peer_none),
             )
 
             else -> getString(
-                R.string.wallet_direct_denuo_host_listening,
+                R.string.wallet_direct_shakescape_host_listening,
                 status.listenerPort,
-                getString(R.string.wallet_direct_denuo_peer_connected, status.peerEndpoint),
+                getString(R.string.wallet_direct_shakescape_peer_connected, status.peerEndpoint),
             )
         }
     }
@@ -2511,12 +2511,12 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun showDenuoExecutions() {
+    private fun showShakescapeExecutions() {
         val handle = walletHandle
         if (handle == INVALID_HANDLE || busy) return
         bitcoinStatusView.text = getString(R.string.wallet_swap_loading_executions)
         thread(name = "denuo-execution-list") {
-            val status = NativeWalletBridge.denuoExecutions(handle)
+            val status = NativeWalletBridge.shakescapeExecutions(handle)
             runOnUiThread {
                 if (walletHandle != handle) return@runOnUiThread
                 if (status == null) {
@@ -2532,7 +2532,7 @@ class WalletActivity : ComponentActivity() {
                     AlertDialog.Builder(this)
                         .setTitle(R.string.wallet_swap_executions)
                         .setMessage(bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))
-                        .setItems(labels) { _, index -> showDenuoExecution(status.executions[index]) }
+                        .setItems(labels) { _, index -> showShakescapeExecution(status.executions[index]) }
                         .setNegativeButton(R.string.action_cancel, null)
                         .show()
                 }
@@ -2556,7 +2556,7 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
-    private fun showDenuoExecution(execution: NativeDenuoExecutionSummary) {
+    private fun showShakescapeExecution(execution: NativeShakescapeExecutionSummary) {
         val message = getString(
             R.string.wallet_swap_execution_detail,
             execution.sessionId,
@@ -2600,7 +2600,7 @@ class WalletActivity : ComponentActivity() {
         builder.show()
     }
 
-    private fun showSwapSettlementActions(execution: NativeDenuoExecutionSummary) {
+    private fun showSwapSettlementActions(execution: NativeShakescapeExecutionSummary) {
         val actions = arrayOf(
             getString(R.string.wallet_swap_redeem_hns),
             getString(R.string.wallet_swap_redeem_bitcoin),
@@ -2633,7 +2633,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareSwapSettlement(
-        execution: NativeDenuoExecutionSummary,
+        execution: NativeShakescapeExecutionSummary,
         action: String,
         bitcoin: Boolean,
         maximumFee: Long,
@@ -2715,7 +2715,7 @@ class WalletActivity : ComponentActivity() {
             .show()
     }
 
-    private fun prepareBtcForHnsFunding(execution: NativeDenuoExecutionSummary, maximumFeeSats: Long) {
+    private fun prepareBtcForHnsFunding(execution: NativeShakescapeExecutionSummary, maximumFeeSats: Long) {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
         if (!beginOperation(lease, getString(R.string.wallet_swap_funding_preparing), resetReads = false)) return
@@ -2785,7 +2785,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareHnsForBtcFunding(
-        execution: NativeDenuoExecutionSummary,
+        execution: NativeShakescapeExecutionSummary,
         maximumFeeDollarydoos: Long,
     ) {
         val lease = currentStorageLease() ?: return
@@ -3234,29 +3234,29 @@ class WalletActivity : ComponentActivity() {
         queryWalletShakedex(NativeShakedexQuery.GetSession(values[0]))
     }
 
-    private fun showPairDirectDenuoForm() = showWalletActionForm(
-        R.string.row_wallet_pair_direct_denuo,
-        listOf(WalletActionInput(R.string.wallet_direct_denuo_endpoint_hint)),
+    private fun showPairDirectShakescapeForm() = showWalletActionForm(
+        R.string.row_wallet_pair_direct_shakescape,
+        listOf(WalletActionInput(R.string.wallet_direct_shakescape_endpoint_hint)),
     ) { values ->
-        connectWalletOwnedDirectDenuo(values[0])
+        connectWalletOwnedDirectShakescape(values[0])
     }
 
-    private fun connectWalletOwnedDirectDenuo(endpoint: String) {
-        val (lease, handle) = directDenuoContext() ?: run {
-            directDenuoStatusView.text = getString(R.string.wallet_direct_denuo_unavailable)
+    private fun connectWalletOwnedDirectShakescape(endpoint: String) {
+        val (lease, handle) = directShakescapeContext() ?: run {
+            directShakescapeStatusView.text = getString(R.string.wallet_direct_shakescape_unavailable)
             return
         }
         if (!beginOperation(
                 lease,
-                getString(R.string.wallet_status_connecting_direct_denuo),
+                getString(R.string.wallet_status_connecting_direct_shakescape),
                 resetReads = false,
             )
         ) return
-        shakedexQueryStatusView.text = getString(R.string.wallet_direct_denuo_connecting)
+        shakedexQueryStatusView.text = getString(R.string.wallet_direct_shakescape_connecting)
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
-        thread(name = "hns-wallet-direct-denuo-connect") {
-            val result = NativeWalletBridge.connectWalletOwnedDirectDenuo(handle, endpoint)
+        thread(name = "hns-wallet-direct-shakescape-connect") {
+            val result = NativeWalletBridge.connectWalletOwnedDirectShakescape(handle, endpoint)
             runOnUiThread {
                 val mayPublish = walletReadMayPublish(
                     expectedEpoch = epoch,
@@ -3274,27 +3274,27 @@ class WalletActivity : ComponentActivity() {
                 }
                 busy = false
                 refreshControllerState(resetReads = false)
-                shakedexQueryStatusView.text = directDenuoConnectionMessage(result)
+                shakedexQueryStatusView.text = directShakescapeConnectionMessage(result)
             }
         }
     }
 
-    private fun retryWalletOwnedDirectDenuoListener() {
-        val (lease, handle) = directDenuoContext() ?: run {
-            directDenuoStatusView.text = getString(R.string.wallet_direct_denuo_unavailable)
+    private fun retryWalletOwnedDirectShakescapeListener() {
+        val (lease, handle) = directShakescapeContext() ?: run {
+            directShakescapeStatusView.text = getString(R.string.wallet_direct_shakescape_unavailable)
             return
         }
         if (!beginOperation(
                 lease,
-                getString(R.string.wallet_status_retrying_direct_denuo),
+                getString(R.string.wallet_status_retrying_direct_shakescape),
                 resetReads = false,
             )
         ) return
-        directDenuoStatusView.text = getString(R.string.wallet_direct_denuo_host_retrying)
+        directShakescapeStatusView.text = getString(R.string.wallet_direct_shakescape_host_retrying)
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
-        thread(name = "hns-wallet-direct-denuo-listener-retry") {
-            val listening = NativeWalletBridge.retryWalletOwnedDirectDenuoListener(handle)
+        thread(name = "hns-wallet-direct-shakescape-listener-retry") {
+            val listening = NativeWalletBridge.retryWalletOwnedDirectShakescapeListener(handle)
             runOnUiThread {
                 if (!walletOperationMayPublish(epoch, lease, handle, authorityGeneration)) {
                     releaseStorageLeaseAfterOperation(lease)
@@ -3303,28 +3303,28 @@ class WalletActivity : ComponentActivity() {
                 busy = false
                 refreshControllerState(resetReads = false)
                 shakedexQueryStatusView.text = getString(
-                    if (listening) R.string.wallet_direct_denuo_host_retry_ready
-                    else R.string.wallet_direct_denuo_host_retry_failed,
+                    if (listening) R.string.wallet_direct_shakescape_host_retry_ready
+                    else R.string.wallet_direct_shakescape_host_retry_failed,
                 )
             }
         }
     }
 
-    private fun disconnectWalletOwnedDirectDenuo() {
-        val (lease, handle) = directDenuoContext() ?: run {
-            directDenuoStatusView.text = getString(R.string.wallet_direct_denuo_unavailable)
+    private fun disconnectWalletOwnedDirectShakescape() {
+        val (lease, handle) = directShakescapeContext() ?: run {
+            directShakescapeStatusView.text = getString(R.string.wallet_direct_shakescape_unavailable)
             return
         }
         if (!beginOperation(
                 lease,
-                getString(R.string.wallet_status_disconnecting_direct_denuo),
+                getString(R.string.wallet_status_disconnecting_direct_shakescape),
                 resetReads = false,
             )
         ) return
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
-        thread(name = "hns-wallet-direct-denuo-disconnect") {
-            val disconnected = NativeWalletBridge.disconnectWalletOwnedDirectDenuo(handle)
+        thread(name = "hns-wallet-direct-shakescape-disconnect") {
+            val disconnected = NativeWalletBridge.disconnectWalletOwnedDirectShakescape(handle)
             runOnUiThread {
                 if (!walletOperationMayPublish(epoch, lease, handle, authorityGeneration)) {
                     releaseStorageLeaseAfterOperation(lease)
@@ -3333,39 +3333,39 @@ class WalletActivity : ComponentActivity() {
                 busy = false
                 refreshControllerState(resetReads = false)
                 shakedexQueryStatusView.text = getString(
-                    if (disconnected) R.string.wallet_direct_denuo_disconnected
-                    else R.string.wallet_direct_denuo_no_peer,
+                    if (disconnected) R.string.wallet_direct_shakescape_disconnected
+                    else R.string.wallet_direct_shakescape_no_peer,
                 )
             }
         }
     }
 
-    private fun directDenuoConnectionMessage(
-        result: NativeWalletDirectDenuoConnectResult?,
+    private fun directShakescapeConnectionMessage(
+        result: NativeWalletDirectShakescapeConnectResult?,
     ): String = when (result?.outcome) {
-        NativeWalletDirectDenuoConnectResult.Outcome.Connected -> getString(
-            R.string.wallet_direct_denuo_connected,
+        NativeWalletDirectShakescapeConnectResult.Outcome.Connected -> getString(
+            R.string.wallet_direct_shakescape_connected,
             result?.peerEndpoint ?: getString(R.string.common_unknown),
         )
 
-        NativeWalletDirectDenuoConnectResult.Outcome.Replaced -> getString(
-            R.string.wallet_direct_denuo_replaced,
+        NativeWalletDirectShakescapeConnectResult.Outcome.Replaced -> getString(
+            R.string.wallet_direct_shakescape_replaced,
             result?.peerEndpoint ?: getString(R.string.common_unknown),
         )
 
-        NativeWalletDirectDenuoConnectResult.Outcome.Unavailable ->
-            getString(R.string.wallet_direct_denuo_connect_unavailable)
+        NativeWalletDirectShakescapeConnectResult.Outcome.Unavailable ->
+            getString(R.string.wallet_direct_shakescape_connect_unavailable)
 
-        NativeWalletDirectDenuoConnectResult.Outcome.Locked ->
-            getString(R.string.wallet_direct_denuo_connect_locked)
+        NativeWalletDirectShakescapeConnectResult.Outcome.Locked ->
+            getString(R.string.wallet_direct_shakescape_connect_locked)
 
-        NativeWalletDirectDenuoConnectResult.Outcome.ConnectionFailed ->
-            getString(R.string.wallet_direct_denuo_connect_failed)
+        NativeWalletDirectShakescapeConnectResult.Outcome.ConnectionFailed ->
+            getString(R.string.wallet_direct_shakescape_connect_failed)
 
-        NativeWalletDirectDenuoConnectResult.Outcome.ExchangeFailed ->
-            getString(R.string.wallet_direct_denuo_exchange_failed)
+        NativeWalletDirectShakescapeConnectResult.Outcome.ExchangeFailed ->
+            getString(R.string.wallet_direct_shakescape_exchange_failed)
 
-        null -> getString(R.string.wallet_direct_denuo_connect_bridge_failed)
+        null -> getString(R.string.wallet_direct_shakescape_connect_bridge_failed)
     }
 
     private fun invalidValueActionInput() {
@@ -3394,14 +3394,14 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun directDenuoContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
+    private fun directShakescapeContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
         val lease = currentStorageLease() ?: return null
         val handle = walletHandle
         val status = NativeWalletBridge.status(handle)
         return (lease to handle).takeIf {
             handle != INVALID_HANDLE && status != null && !status.locked &&
                 unconfirmedDatabaseKey == null &&
-                NativeWalletBridge.walletOwnedDirectDenuoStatus(handle) != null
+                NativeWalletBridge.walletOwnedDirectShakescapeStatus(handle) != null
         }
     }
 
@@ -4269,7 +4269,7 @@ class WalletActivity : ComponentActivity() {
             accountView.text = getString(R.string.wallet_account_unavailable)
             resetReadProjection(R.string.wallet_reads_unavailable)
             resetBitcoinProjection()
-            refreshDirectDenuoStatus()
+            refreshDirectShakescapeStatus()
             renderWalletDashboard()
             return
         }
@@ -4280,7 +4280,7 @@ class WalletActivity : ComponentActivity() {
             accountView.text = getString(R.string.wallet_account_locked)
             resetReadProjection(R.string.wallet_reads_locked)
             resetBitcoinProjection()
-            refreshDirectDenuoStatus()
+            refreshDirectShakescapeStatus()
             renderWalletDashboard()
             return
         }
@@ -4308,7 +4308,7 @@ class WalletActivity : ComponentActivity() {
             }
         }
         if (!walletBitcoinSyncInProgress) resetBitcoinProjection()
-        refreshDirectDenuoStatus()
+        refreshDirectShakescapeStatus()
         renderWalletDashboard()
     }
 
@@ -5570,9 +5570,9 @@ class WalletActivity : ComponentActivity() {
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
         const val DEFAULT_OFFER_PAGE_SIZE = 32
-        const val DIRECT_DENUO_FOREGROUND_TICK_MILLIS = 250L
-        const val DIRECT_DENUO_STATUS_REFRESH_TICKS = 20
-        const val DIRECT_DENUO_LISTEN_PORT = 12_038
+        const val DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS = 250L
+        const val DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS = 20
+        const val DIRECT_SHAKESCAPE_LISTEN_PORT = 12_038
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L
         const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L

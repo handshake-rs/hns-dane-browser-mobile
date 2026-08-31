@@ -151,7 +151,7 @@ internal data class NativeBtcForHnsOfferSummary(
     val expiresAtUnix: Long,
 )
 
-internal data class NativeDenuoExecutionSummary(
+internal data class NativeShakescapeExecutionSummary(
     val sessionId: String,
     val revision: Long,
     val state: String,
@@ -182,8 +182,8 @@ internal data class NativeBitcoinBroadcastRecovery(
     val lastChangedAtUnix: Long?,
 )
 
-internal data class NativeDenuoExecutionStatus(
-    val executions: List<NativeDenuoExecutionSummary>,
+internal data class NativeShakescapeExecutionStatus(
+    val executions: List<NativeShakescapeExecutionSummary>,
     val bitcoinBroadcastRecovery: NativeBitcoinBroadcastRecovery?,
 )
 
@@ -485,13 +485,13 @@ internal object NativeBitcoinWalletBundle {
         }
     }
 
-    fun denuoExecutions(bundle: ByteArray): NativeDenuoExecutionStatus? = parse(bundle) { json ->
+    fun shakescapeExecutions(bundle: ByteArray): NativeShakescapeExecutionStatus? = parse(bundle) { json ->
         if (!hasExactKeys(json, setOf("executions", "bitcoinBroadcastRecovery"))) return@parse null
         val array = json.optJSONArray("executions") ?: return@parse null
         if (array.length() > 1_024) return@parse null
         val executions = buildList(array.length()) {
             for (index in 0 until array.length()) {
-                add(parseDenuoExecution(array.optJSONObject(index) ?: return@parse null) ?: return@parse null)
+                add(parseShakescapeExecution(array.optJSONObject(index) ?: return@parse null) ?: return@parse null)
             }
         }
         val recovery = if (json.isNull("bitcoinBroadcastRecovery")) null else {
@@ -499,7 +499,7 @@ internal object NativeBitcoinWalletBundle {
                 json.optJSONObject("bitcoinBroadcastRecovery") ?: return@parse null
             ) ?: return@parse null
         }
-        NativeDenuoExecutionStatus(executions, recovery)
+        NativeShakescapeExecutionStatus(executions, recovery)
     }
 
     private fun parseBroadcastRecovery(json: JSONObject): NativeBitcoinBroadcastRecovery? {
@@ -545,7 +545,7 @@ internal object NativeBitcoinWalletBundle {
         )
     }
 
-    private fun parseDenuoExecution(json: JSONObject): NativeDenuoExecutionSummary? {
+    private fun parseShakescapeExecution(json: JSONObject): NativeShakescapeExecutionSummary? {
         if (!hasExactKeys(json, setOf(
             "sessionId", "revision", "state", "firstChain", "secondChain",
             "offeredAsset", "offeredAmount", "receivedAsset", "receivedAmount",
@@ -553,15 +553,15 @@ internal object NativeBitcoinWalletBundle {
             "secondFundingConfirmed", "firstRedemptionConfirmed", "secondRedemptionConfirmed",
             "refundConfirmed", "lastVerifiedAtUnix", "failureReason",
         ))) return null
-        val state = json.optString("state", "").takeIf { it in DENUO_EXECUTION_STATES }
+        val state = json.optString("state", "").takeIf { it in SHAKESCAPE_EXECUTION_STATES }
             ?: return null
-        val firstChain = json.optString("firstChain", "").takeIf { it in DENUO_CHAINS }
+        val firstChain = json.optString("firstChain", "").takeIf { it in SHAKESCAPE_CHAINS }
             ?: return null
-        val secondChain = json.optString("secondChain", "").takeIf { it in DENUO_CHAINS }
+        val secondChain = json.optString("secondChain", "").takeIf { it in SHAKESCAPE_CHAINS }
             ?: return null
-        val offeredAsset = json.optString("offeredAsset", "").takeIf { it in DENUO_ASSETS }
+        val offeredAsset = json.optString("offeredAsset", "").takeIf { it in SHAKESCAPE_ASSETS }
             ?: return null
-        val receivedAsset = json.optString("receivedAsset", "").takeIf { it in DENUO_ASSETS }
+        val receivedAsset = json.optString("receivedAsset", "").takeIf { it in SHAKESCAPE_ASSETS }
             ?: return null
         val firstRefund = positiveLong(json, "firstRefundAtUnix") ?: return null
         val secondRefund = positiveLong(json, "secondRefundAtUnix") ?: return null
@@ -571,7 +571,7 @@ internal object NativeBitcoinWalletBundle {
         if (firstChain == secondChain || offeredAsset == receivedAsset || firstRefund <= secondRefund) {
             return null
         }
-        return NativeDenuoExecutionSummary(
+        return NativeShakescapeExecutionSummary(
             sessionId = hexHash(json.optString("sessionId", "")) ?: return null,
             revision = positiveLong(json, "revision") ?: return null,
             state = state,
@@ -679,9 +679,9 @@ internal object NativeBitcoinWalletBundle {
         return actual == expected
     }
 
-    private val DENUO_CHAINS = setOf("bitcoin", "handshake")
-    private val DENUO_ASSETS = setOf("btc", "hns")
-    private val DENUO_EXECUTION_STATES = setOf(
+    private val SHAKESCAPE_CHAINS = setOf("bitcoin", "handshake")
+    private val SHAKESCAPE_ASSETS = setOf("btc", "hns")
+    private val SHAKESCAPE_EXECUTION_STATES = setOf(
         "offer_published", "offer_take_received", "offer_reserved", "terms_frozen",
         "refunds_prepared", "first_funding_pending", "first_funded", "second_funding_pending",
         "both_funded", "first_redeemed", "secret_observed", "second_redeemed", "completed",

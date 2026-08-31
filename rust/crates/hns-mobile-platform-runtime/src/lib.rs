@@ -539,7 +539,7 @@ impl RuntimePolicy {
                 odoh_target: false,
                 market_gossip: false,
             },
-            wire_profile: WireProfile::DenuoV1,
+            wire_profile: WireProfile::ShakescapeV1,
             allow_legacy_regtest_compatibility: false,
         }
     }
@@ -19571,7 +19571,7 @@ mod tests {
                 odoh_target: false,
                 market_gossip: false,
             },
-            wire_profile: WireProfile::DenuoV1,
+            wire_profile: WireProfile::ShakescapeV1,
             allow_legacy_regtest_compatibility: false,
         };
 

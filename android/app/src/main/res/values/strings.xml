@@ -332,7 +332,7 @@
     <string name="row_wallet_finalize_name" translatable="false">Finalize name transfer</string>
     <string name="row_wallet_finalize_name_summary" translatable="false">Finalize a transfer after the on-chain lockup has matured.</string>
     <string name="row_wallet_create_offer" translatable="false">Create fixed-price offer</string>
-    <string name="row_wallet_create_offer_summary" translatable="false">Lock a tracked name and publish an authenticated Shakedex listing through Denuo.</string>
+    <string name="row_wallet_create_offer_summary" translatable="false">Lock a tracked name and publish an authenticated listing to the Swap Board.</string>
     <string name="row_wallet_cancel_offer" translatable="false">Cancel offer</string>
     <string name="row_wallet_cancel_offer_summary" translatable="false">Cancel a published seller session and publish its authenticated cancellation.</string>
     <string name="row_wallet_accept_offer" translatable="false">Accept offer</string>
@@ -343,16 +343,16 @@
     <string name="row_wallet_recover_name_summary" translatable="false">Execute the seller recovery path when its refund conditions are satisfied.</string>
     <string name="row_wallet_shakedex_status" translatable="false">Shakedex query result</string>
     <string name="row_wallet_list_offers" translatable="false">List current offers</string>
-    <string name="row_wallet_list_offers_summary" translatable="false">Read the current authenticated Denuo offer page and copy a listing ID.</string>
+    <string name="row_wallet_list_offers_summary" translatable="false">Read the current authenticated Swap Board offer page and copy a listing ID.</string>
     <string name="row_wallet_get_session" translatable="false">Inspect trade session</string>
     <string name="row_wallet_get_session_summary" translatable="false">Refresh one local seller or buyer workflow by its session ID.</string>
-    <string name="row_wallet_direct_denuo_host" translatable="false">Direct Denuo host and peer</string>
-    <string name="row_wallet_retry_direct_denuo_host" translatable="false">Retry direct Denuo hosting</string>
-    <string name="row_wallet_retry_direct_denuo_host_summary" translatable="false">Retry binding the wallet-owned listener on port 12038. This does not change wallet, chain, or board authority.</string>
-    <string name="row_wallet_disconnect_direct_denuo" translatable="false">Disconnect direct Denuo peer</string>
-    <string name="row_wallet_disconnect_direct_denuo_summary" translatable="false">Drop only the active direct board transport so a different wallet can be paired.</string>
-    <string name="row_wallet_pair_direct_denuo" translatable="false">Pair or replace direct Denuo wallet</string>
-    <string name="row_wallet_pair_direct_denuo_summary" translatable="false">Connect to an exact peer-shared IPv4:port or [IPv6]:port endpoint. A successful connection replaces the active direct peer; no marketplace relay or hostname lookup is used.</string>
+    <string name="row_wallet_direct_shakescape_host" translatable="false">P2P swap host and peer</string>
+    <string name="row_wallet_retry_direct_shakescape_host" translatable="false">Retry P2P swap hosting</string>
+    <string name="row_wallet_retry_direct_shakescape_host_summary" translatable="false">Retry binding the wallet-owned listener on port 12038. This does not change wallet, chain, or board authority.</string>
+    <string name="row_wallet_disconnect_direct_shakescape" translatable="false">Disconnect swap peer</string>
+    <string name="row_wallet_disconnect_direct_shakescape_summary" translatable="false">Drop only the active direct board transport so a different wallet can be paired.</string>
+    <string name="row_wallet_pair_direct_shakescape" translatable="false">Pair or replace swap peer</string>
+    <string name="row_wallet_pair_direct_shakescape_summary" translatable="false">Connect to an exact peer-shared IPv4:port or [IPv6]:port endpoint. A successful connection replaces the active direct peer; no marketplace relay or hostname lookup is used.</string>
 
     <string name="wallet_restore_phrase_hint" translatable="false">24-word recovery phrase</string>
     <string name="wallet_restore_birthday_hint" translatable="false">HNS birthday block (optional; default 0)</string>
@@ -375,9 +375,9 @@
     <string name="wallet_status_broadcasting_send" translatable="false">Broadcasting approved HNS transaction…</string>
     <string name="wallet_status_preparing_value_action" translatable="false">Preparing native HNS value action…</string>
     <string name="wallet_status_querying_shakedex" translatable="false">Querying the authenticated Shakedex board…</string>
-    <string name="wallet_status_connecting_direct_denuo" translatable="false">Connecting direct Denuo peer…</string>
-    <string name="wallet_status_retrying_direct_denuo" translatable="false">Retrying direct Denuo hosting…</string>
-    <string name="wallet_status_disconnecting_direct_denuo" translatable="false">Disconnecting direct Denuo peer…</string>
+    <string name="wallet_status_connecting_direct_shakescape" translatable="false">Connecting swap peer…</string>
+    <string name="wallet_status_retrying_direct_shakescape" translatable="false">Retrying P2P swap hosting…</string>
+    <string name="wallet_status_disconnecting_direct_shakescape" translatable="false">Disconnecting swap peer…</string>
     <string name="wallet_status_not_created" translatable="false">No native wallet exists on this device.</string>
     <string name="wallet_status_native_unavailable" translatable="false">Native wallet core is unavailable.</string>
     <string name="wallet_status_recovery_required" translatable="false">Save the recovery phrase offline, then confirm. Leaving this screen discards the unconfirmed wallet.</string>
@@ -546,7 +546,7 @@
     <string name="wallet_value_actions_result" translatable="false">Action accepted. Fresh native result:&#10;%1$s</string>
     <string name="wallet_value_actions_rejected" translatable="false">Action rejected. No value action was executed.</string>
     <string name="wallet_value_actions_reject_failed" translatable="false">The approval could not be discarded cleanly, so the wallet was locked.</string>
-    <string name="wallet_shakedex_queries_unavailable" translatable="false">The authenticated Denuo/Shakedex board is not configured.</string>
+    <string name="wallet_shakedex_queries_unavailable" translatable="false">The authenticated Swap Board is not configured.</string>
     <string name="wallet_shakedex_queries_locked" translatable="false">Unlock and synchronize before querying Shakedex.</string>
     <string name="wallet_shakedex_queries_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before querying Shakedex.</string>
     <string name="wallet_shakedex_queries_ready" translatable="false">Authenticated Shakedex queries are ready at height %1$d.</string>
@@ -554,26 +554,26 @@
     <string name="wallet_shakedex_queries_loading" translatable="false">Refreshing the authenticated Shakedex board or session…</string>
     <string name="wallet_shakedex_queries_failed" translatable="false">The Shakedex query could not be completed from the current direct peer and wallet state.</string>
     <string name="wallet_shakedex_queries_result" translatable="false">Authenticated Shakedex result:&#10;%1$s</string>
-    <string name="wallet_direct_denuo_endpoint_hint" translatable="false">IPv4:port or [IPv6]:port</string>
-    <string name="wallet_direct_denuo_unavailable" translatable="false">Direct Denuo is unavailable until this wallet-owned direct HNS controller is installed and unlocked.</string>
-    <string name="wallet_direct_denuo_locked" translatable="false">Unlock the wallet to host or pair a direct Denuo peer.</string>
-    <string name="wallet_direct_denuo_host_listening" translatable="false">Listening for direct Denuo peers on port %1$d.&#10;%2$s</string>
-    <string name="wallet_direct_denuo_host_unavailable" translatable="false">Direct Denuo hosting could not bind port %1$d. Retry while the wallet remains unlocked.&#10;%2$s</string>
-    <string name="wallet_direct_denuo_peer_none" translatable="false">No direct Denuo peer is paired.</string>
-    <string name="wallet_direct_denuo_peer_connected" translatable="false">Paired direct Denuo peer: %1$s</string>
-    <string name="wallet_direct_denuo_host_retrying" translatable="false">Retrying the wallet-owned direct Denuo listener…</string>
-    <string name="wallet_direct_denuo_host_retry_ready" translatable="false">Direct Denuo hosting is listening again.</string>
-    <string name="wallet_direct_denuo_host_retry_failed" translatable="false">Direct Denuo hosting is still unavailable. The wallet and verified HNS state are unchanged.</string>
-    <string name="wallet_direct_denuo_connecting" translatable="false">Negotiating a direct wallet-to-wallet Denuo board session…</string>
-    <string name="wallet_direct_denuo_connected" translatable="false">Direct Denuo peer %1$s connected. Board exchange is running locally without a relay.</string>
-    <string name="wallet_direct_denuo_replaced" translatable="false">Replaced the active direct Denuo peer with %1$s. Board exchange is running locally without a relay.</string>
-    <string name="wallet_direct_denuo_connect_unavailable" translatable="false">This wallet controller does not currently provide direct Denuo pairing.</string>
-    <string name="wallet_direct_denuo_connect_locked" translatable="false">The wallet locked before the direct Denuo peer could be paired.</string>
-    <string name="wallet_direct_denuo_connect_failed" translatable="false">The exact direct endpoint was unavailable, incompatible, or rejected. The wallet remains unlocked and usable.</string>
-    <string name="wallet_direct_denuo_exchange_failed" translatable="false">The direct endpoint connected but the initial board exchange was rejected. The active direct peer was not replaced.</string>
-    <string name="wallet_direct_denuo_connect_bridge_failed" translatable="false">The direct Denuo connection result could not be verified. The wallet remains usable; inspect the host and peer state before retrying.</string>
-    <string name="wallet_direct_denuo_disconnected" translatable="false">The active direct Denuo peer was disconnected. The wallet-owned listener remains available.</string>
-    <string name="wallet_direct_denuo_no_peer" translatable="false">No active direct Denuo peer was connected.</string>
+    <string name="wallet_direct_shakescape_endpoint_hint" translatable="false">IPv4:port or [IPv6]:port</string>
+    <string name="wallet_direct_shakescape_unavailable" translatable="false">P2P swap hosting is unavailable until this wallet-owned direct HNS controller is installed and unlocked.</string>
+    <string name="wallet_direct_shakescape_locked" translatable="false">Unlock the wallet to host or pair a swap peer.</string>
+    <string name="wallet_direct_shakescape_host_listening" translatable="false">Listening for swap peers on port %1$d.&#10;%2$s</string>
+    <string name="wallet_direct_shakescape_host_unavailable" translatable="false">P2P swap hosting could not bind port %1$d. Retry while the wallet remains unlocked.&#10;%2$s</string>
+    <string name="wallet_direct_shakescape_peer_none" translatable="false">No swap peer is paired.</string>
+    <string name="wallet_direct_shakescape_peer_connected" translatable="false">Paired swap peer: %1$s</string>
+    <string name="wallet_direct_shakescape_host_retrying" translatable="false">Retrying the wallet-owned P2P swap listener…</string>
+    <string name="wallet_direct_shakescape_host_retry_ready" translatable="false">P2P swap hosting is listening again.</string>
+    <string name="wallet_direct_shakescape_host_retry_failed" translatable="false">P2P swap hosting is still unavailable. The wallet and verified HNS state are unchanged.</string>
+    <string name="wallet_direct_shakescape_connecting" translatable="false">Negotiating a P2P Swap Board session…</string>
+    <string name="wallet_direct_shakescape_connected" translatable="false">Swap peer %1$s connected. Board exchange is running locally without a relay.</string>
+    <string name="wallet_direct_shakescape_replaced" translatable="false">Replaced the active swap peer with %1$s. Board exchange is running locally without a relay.</string>
+    <string name="wallet_direct_shakescape_connect_unavailable" translatable="false">This wallet controller does not currently provide P2P swap pairing.</string>
+    <string name="wallet_direct_shakescape_connect_locked" translatable="false">The wallet locked before the swap peer could be paired.</string>
+    <string name="wallet_direct_shakescape_connect_failed" translatable="false">The exact direct endpoint was unavailable, incompatible, or rejected. The wallet remains unlocked and usable.</string>
+    <string name="wallet_direct_shakescape_exchange_failed" translatable="false">The direct endpoint connected but the initial board exchange was rejected. The active direct peer was not replaced.</string>
+    <string name="wallet_direct_shakescape_connect_bridge_failed" translatable="false">The P2P swap connection result could not be verified. The wallet remains usable; inspect the host and peer state before retrying.</string>
+    <string name="wallet_direct_shakescape_disconnected" translatable="false">The active swap peer was disconnected. The wallet-owned listener remains available.</string>
+    <string name="wallet_direct_shakescape_no_peer" translatable="false">No active swap peer was connected.</string>
     <string name="wallet_action_busy" translatable="false">The wallet is still completing synchronization or another operation. It may continue in the background. Wait for it to finish, then try again.</string>
     <string name="wallet_name_import_hint" translatable="false">Exact canonical Handshake name</string>
     <string name="wallet_name_import_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet before importing a name.</string>
@@ -651,17 +651,17 @@
     <string name="wallet_swap_preparing" translatable="false">Preparing exact BTC-for-HNS listing…</string>
     <string name="wallet_swap_prepare_failed" translatable="false">The listing was not prepared. Confirmed BTC must cover active listings, this principal, and its fee reserve.</string>
     <string name="wallet_swap_approval_title" translatable="false">Publish BTC-for-HNS offer?</string>
-    <string name="wallet_swap_approval_message" translatable="false">Offer %1$d sats for exactly %2$s HNS. Keep %3$d sats outside the principal as the Bitcoin fee reserve. Total Bitcoin commitment: %4$d sats. Listing expires %5$s. Publishing signs and shares fixed terms; it does not broadcast a Bitcoin funding transaction. Settlement still requires a connected direct-Denuo peer and a separately approved atomic-swap session.</string>
+    <string name="wallet_swap_approval_message" translatable="false">Offer %1$d sats for exactly %2$s HNS. Keep %3$d sats outside the principal as the Bitcoin fee reserve. Total Bitcoin commitment: %4$d sats. Listing expires %5$s. Publishing signs and shares fixed terms; it does not broadcast a Bitcoin funding transaction. Settlement still requires a connected swap peer and a separately approved atomic-swap session.</string>
     <string name="wallet_swap_publish" translatable="false">Publish offer</string>
     <string name="wallet_swap_publishing" translatable="false">Signing and publishing the exact offer…</string>
     <string name="wallet_swap_publish_failed" translatable="false">The offer was not published. Wallet and peer state may have changed; review active listings before retrying.</string>
-    <string name="wallet_swap_published" translatable="false">BTC-for-HNS offer %1$s… is active. It will be announced when a direct-Denuo peer is connected.</string>
+    <string name="wallet_swap_published" translatable="false">BTC-for-HNS offer %1$s… is active. It will be announced when a swap peer is connected.</string>
     <string name="wallet_swap_active_offers" translatable="false">Active BTC-for-HNS offers</string>
     <string name="wallet_swap_loading_offers" translatable="false">Loading authenticated local BTC-for-HNS offers…</string>
     <string name="wallet_swap_list_failed" translatable="false">Active BTC-for-HNS offers could not be authenticated.</string>
     <string name="wallet_swap_no_active_offers" translatable="false">There are no active local BTC-for-HNS offers.</string>
     <string name="wallet_swap_cancel_title" translatable="false">Cancel this offer?</string>
-    <string name="wallet_swap_cancel_message" translatable="false">Withdraw the signed offer of %1$d sats for %2$s HNS? Offer ID: %3$s. Cancellation releases its local balance reservation and is announced to the connected direct-Denuo peer. It does not cancel a swap session that has already accepted and frozen these terms.</string>
+    <string name="wallet_swap_cancel_message" translatable="false">Withdraw the signed offer of %1$d sats for %2$s HNS? Offer ID: %3$s. Cancellation releases its local balance reservation and is announced to the connected swap peer. It does not cancel a swap session that has already accepted and frozen these terms.</string>
     <string name="wallet_swap_cancel_offer" translatable="false">Cancel offer</string>
     <string name="wallet_swap_cancelling" translatable="false">Signing direct-offer cancellation…</string>
     <string name="wallet_swap_cancelled" translatable="false">The BTC-for-HNS offer was cancelled and its local reservation was released.</string>
@@ -866,8 +866,8 @@
     <string name="gateway_cleared" translatable="false">Gateway events cleared</string>
 
     <string name="legal_license_summary">Shakescape is source-available under the PolyForm Noncommercial License 1.0.0. Noncommercial use, study, modification, and redistribution are allowed under the license. Commercial use requires separate written permission from Denuo Web, LLC.</string>
-    <string name="legal_user_agreement" translatable="false">This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, DNSSEC/DANE diagnostics, and a device-local HNS wallet. The wallet\'s direct mode can receive and send HNS and manage names through wallet-owned verified Handshake peers; it does not require a loopback node, hosted indexer, or Denuo relay to establish HNS chain or spending authority. While unlocked in the wallet screen, a direct wallet can host or pair an exact Denuo peer endpoint and replicate its locally verified board without a marketplace relay. A connected board peer is transport only, never authority or a settlement receipt. Complete atomic Shakedex settlement, Internet/NAT reachability, and HNSA/HNSR service roles remain under development. HNS resolution, validation, sync, transaction broadcast, name operations, and marketplace workflows can fail, be delayed, require later manual actions, or remain incomplete. Review every native approval, recipient, amount, fee limit, name, listing, and session before approving it. HNS WebPKI fallback is prohibited; recovery DNS answers never bypass local DNSSEC, TLSA, or DANE validation. Website-provider wallet access is not enabled by these native controls. The requester-only P2P DNS relay is separate from HNSR and does not make this device an endpoint or output node. The app is provided without warranty, is not a financial service, and donations are optional and unlock no features.</string>
-    <string name="legal_privacy_summary" translatable="false">Shakescape does not include ads, analytics SDKs, or developer-operated accounts. It stores browsing history, cookies, website data, download records, settings, diagnostics, HNS sync/cache data, a user-configured recovery DoH URL, manually added relay-peer IP endpoints, and a network-scoped encrypted wallet database with an Android Keystore-wrapped database key locally on the device. A newly generated recovery phrase is shown once; save it offline before confirming because the app cannot show or recover it later. If the protected recovery screen closes before confirmation, the app wipes the unconfirmed database-key buffer and deletes the incomplete wallet database. An unlocked confirmed wallet can be deleted after two destructive confirmations showing its exact network and account and requiring DELETE. The app deletes the Keystore wrapping key before encrypted database files; partial cleanup stays blocked for retry. Deletion affects only this device-local wallet and does not delete a recovery phrase or backup saved elsewhere. In direct HNS mode, the native wallet obtains peers from Handshake DNS seeds and peer gossip, verifies headers, relevant blocks, wallet UTXOs, and name proofs locally, and broadcasts approved HNS transactions through its connected peer set. Public addresses, transactions, and name operations can therefore be disclosed to the peers that relay them. A direct Denuo pairing endpoint is explicit and may disclose its IP address, port, timing, and board protocol messages to the paired wallet; listings remain locally validated against HNS state and direct write observations are not peer acceptance receipts. The wallet database, recovery phrase, private keys, database key, and Android Keystore material are not sent to Denuo Web, websites, or any peer. Browser functions separately send requests to websites you visit, HNS peers, DNS seeds, authoritative nameservers, proof-bootstrapped or RFC 9461-discovered authoritative DoH endpoints, the optional HNS P2P relay, validating ICANN DoH, WebView Safe Browsing services when supported by the installed WebView provider, and the non-routable 192.0.2.1 TEST-NET DNS sentinel after delegated DNS failure. A selected DNS relay or recovery operator can observe requested qnames, qtypes, timing, and the connection source address. Relay and recovery answers still undergo local DNSSEC, TLSA, and DANE validation; bogus DNSSEC and stale or missing HNS proofs fail closed. Browser data can be cleared from Settings, and Android system settings can clear all app data.</string>
+    <string name="legal_user_agreement" translatable="false">This is an experimental Handshake-first browser with local HNS proofs, authoritative DNS, DNSSEC/DANE diagnostics, and a device-local HNS wallet. The wallet\'s direct mode can receive and send HNS and manage names through wallet-owned verified Handshake peers; it does not require a loopback node, hosted indexer, or Shakescape relay to establish HNS chain or spending authority. While unlocked in the wallet screen, a direct wallet can host or pair an exact P2P swap endpoint and replicate its locally verified board without a centralized marketplace relay. A connected board peer is transport only, never authority or a settlement receipt. Complete atomic Shakedex settlement, Internet/NAT reachability, and HNSA/HNSR service roles remain under development. HNS resolution, validation, sync, transaction broadcast, name operations, and marketplace workflows can fail, be delayed, require later manual actions, or remain incomplete. Review every native approval, recipient, amount, fee limit, name, listing, and session before approving it. HNS WebPKI fallback is prohibited; recovery DNS answers never bypass local DNSSEC, TLSA, or DANE validation. Website-provider wallet access is not enabled by these native controls. The requester-only P2P DNS relay is separate from HNSR and does not make this device an endpoint or output node. The app is provided without warranty, is not a financial service, and donations are optional and unlock no features.</string>
+    <string name="legal_privacy_summary" translatable="false">Shakescape does not include ads, analytics SDKs, or developer-operated accounts. It stores browsing history, cookies, website data, download records, settings, diagnostics, HNS sync/cache data, a user-configured recovery DoH URL, manually added relay-peer IP endpoints, and a network-scoped encrypted wallet database with an Android Keystore-wrapped database key locally on the device. A newly generated recovery phrase is shown once; save it offline before confirming because the app cannot show or recover it later. If the protected recovery screen closes before confirmation, the app wipes the unconfirmed database-key buffer and deletes the incomplete wallet database. An unlocked confirmed wallet can be deleted after two destructive confirmations showing its exact network and account and requiring DELETE. The app deletes the Keystore wrapping key before encrypted database files; partial cleanup stays blocked for retry. Deletion affects only this device-local wallet and does not delete a recovery phrase or backup saved elsewhere. In direct HNS mode, the native wallet obtains peers from Handshake DNS seeds and peer gossip, verifies headers, relevant blocks, wallet UTXOs, and name proofs locally, and broadcasts approved HNS transactions through its connected peer set. Public addresses, transactions, and name operations can therefore be disclosed to the peers that relay them. A P2P swap pairing endpoint is explicit and may disclose its IP address, port, timing, and board protocol messages to the paired wallet; listings remain locally validated against HNS state and direct write observations are not peer acceptance receipts. The wallet database, recovery phrase, private keys, database key, and Android Keystore material are not sent to Denuo Web, websites, or any peer. Browser functions separately send requests to websites you visit, HNS peers, DNS seeds, authoritative nameservers, proof-bootstrapped or RFC 9461-discovered authoritative DoH endpoints, the optional HNS P2P relay, validating ICANN DoH, WebView Safe Browsing services when supported by the installed WebView provider, and the non-routable 192.0.2.1 TEST-NET DNS sentinel after delegated DNS failure. A selected DNS relay or recovery operator can observe requested qnames, qtypes, timing, and the connection source address. Relay and recovery answers still undergo local DNSSEC, TLSA, and DANE validation; bogus DNSSEC and stale or missing HNS proofs fail closed. Browser data can be cleared from Settings, and Android system settings can clear all app data.</string>
     <string name="legal_license_name" translatable="false">PolyForm Noncommercial 1.0.0</string>
     <string name="legal_copy_privacy_policy_url">privacy policy URL</string>
     <string name="legal_copy_source_code_url">source code URL</string>

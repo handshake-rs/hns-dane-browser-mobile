@@ -159,7 +159,7 @@
     <string name="row_resolver_trace_summary">مراحل وضوح را برای یک نام بررسی کنید.</string>
     <string name="row_resync_headers_from_peers">هدرهای همتا را مجدداً همگام سازی کنید</string>
     <string name="row_reset_homepage">بازنشانی صفحه اصلی</string>
-    <string name="row_reset_homepage_summary">صفحه اصلی وب پیش فرض Denuo را بازیابی کنید.</string>
+    <string name="row_reset_homepage_summary">صفحه اصلی وب پیش فرض Shakescape را بازیابی کنید.</string>
     <string name="row_rust_core">هسته زنگ زده</string>
     <string name="row_rust_diagnostics">تشخیص زنگ زدگی</string>
     <string name="row_saved_pages">صفحات ذخیره شده</string>
@@ -243,7 +243,7 @@
     <string name="settings_homepage_saved">صفحه اصلی ذخیره شد</string>
     <string name="settings_homepage_current_unsupported">صفحه فعلی یک URL صفحه اصلی پشتیبانی نمی شود</string>
     <string name="settings_homepage_reset_title">صفحه اصلی بازنشانی شود؟</string>
-    <string name="settings_homepage_reset_message">این صفحه اصلی وب پیش فرض Denuo را بازیابی می کند.</string>
+    <string name="settings_homepage_reset_message">این صفحه اصلی وب پیش فرض Shakescape را بازیابی می کند.</string>
     <string name="settings_homepage_reset">بازنشانی صفحه اصلی</string>
     <string name="settings_resolver_cache_clear_title">حافظه پنهان حل کننده پاک شود؟</string>
     <string name="settings_resolver_cache_clear_message">این برنامه سرصفحه‌ها و همتایان %1$s را همگام‌سازی می‌کند، اما مقادیر منبع HNS ذخیره‌شده برای این شبکه حذف خواهد شد.</string>

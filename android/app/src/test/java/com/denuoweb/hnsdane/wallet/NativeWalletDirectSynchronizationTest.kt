@@ -9,21 +9,21 @@ import org.junit.Test
 
 class NativeWalletDirectSynchronizationTest {
     @Test
-    fun directDenuoDashboardExposesRecoveryAndDisconnectControlsWhenApplicable() {
+    fun directShakescapeDashboardExposesRecoveryAndDisconnectControlsWhenApplicable() {
         assertEquals(
-            NativeWalletDirectDenuoControls(retryListener = true, disconnectPeer = false),
-            directDenuoControls(null),
+            NativeWalletDirectShakescapeControls(retryListener = true, disconnectPeer = false),
+            directShakescapeControls(null),
         )
         assertEquals(
-            NativeWalletDirectDenuoControls(retryListener = false, disconnectPeer = false),
-            directDenuoControls(
-                NativeWalletDirectDenuoStatus(true, listenerPort = 12_038, peerEndpoint = null),
+            NativeWalletDirectShakescapeControls(retryListener = false, disconnectPeer = false),
+            directShakescapeControls(
+                NativeWalletDirectShakescapeStatus(true, listenerPort = 12_038, peerEndpoint = null),
             ),
         )
         assertEquals(
-            NativeWalletDirectDenuoControls(retryListener = false, disconnectPeer = true),
-            directDenuoControls(
-                NativeWalletDirectDenuoStatus(
+            NativeWalletDirectShakescapeControls(retryListener = false, disconnectPeer = true),
+            directShakescapeControls(
+                NativeWalletDirectShakescapeStatus(
                     true,
                     listenerPort = 12_038,
                     peerEndpoint = "198.51.100.7:12038",
@@ -139,30 +139,30 @@ class NativeWalletDirectSynchronizationTest {
     }
 
     @Test
-    fun directDenuoStatusAndReplacementResultsHaveClosedSchemas() {
-        val statusBundle = directDenuoStatusBundle(
+    fun directShakescapeStatusAndReplacementResultsHaveClosedSchemas() {
+        val statusBundle = directShakescapeStatusBundle(
             flags = 0b111,
             listenerPort = 12_038,
             endpoint = "198.51.100.7:12038",
         )
-        val status = NativeWalletBridge.parseAndWipeWalletOwnedDirectDenuoStatusBundle(statusBundle)
+        val status = NativeWalletBridge.parseAndWipeWalletOwnedDirectShakescapeStatusBundle(statusBundle)
         assertTrue(status?.unlocked == true)
         assertEquals(12_038, status?.listenerPort)
         assertEquals("198.51.100.7:12038", status?.peerEndpoint)
         assertTrue(statusBundle.all { it == 0.toByte() })
 
-        val replacementBundle = directDenuoConnectBundle(
+        val replacementBundle = directShakescapeConnectBundle(
             code = 2,
             endpoint = "[2001:db8::7]:12038",
         )
         val replacement =
-            NativeWalletBridge.parseAndWipeWalletOwnedDirectDenuoConnectBundle(replacementBundle)
-        assertEquals(NativeWalletDirectDenuoConnectResult.Outcome.Replaced, replacement?.outcome)
+            NativeWalletBridge.parseAndWipeWalletOwnedDirectShakescapeConnectBundle(replacementBundle)
+        assertEquals(NativeWalletDirectShakescapeConnectResult.Outcome.Replaced, replacement?.outcome)
         assertEquals("[2001:db8::7]:12038", replacement?.peerEndpoint)
         assertTrue(replacementBundle.all { it == 0.toByte() })
 
-        val invalid = directDenuoConnectBundle(code = 3, endpoint = "unexpected")
-        assertNull(NativeWalletBridge.parseAndWipeWalletOwnedDirectDenuoConnectBundle(invalid))
+        val invalid = directShakescapeConnectBundle(code = 3, endpoint = "unexpected")
+        assertNull(NativeWalletBridge.parseAndWipeWalletOwnedDirectShakescapeConnectBundle(invalid))
         assertTrue(invalid.all { it == 0.toByte() })
     }
 
@@ -209,7 +209,7 @@ class NativeWalletDirectSynchronizationTest {
         putInt(scanTargetHeight)
     }.array()
 
-    private fun directDenuoStatusBundle(
+    private fun directShakescapeStatusBundle(
         flags: Int,
         listenerPort: Int,
         endpoint: String,
@@ -226,7 +226,7 @@ class NativeWalletDirectSynchronizationTest {
         }.array()
     }
 
-    private fun directDenuoConnectBundle(code: Int, endpoint: String): ByteArray {
+    private fun directShakescapeConnectBundle(code: Int, endpoint: String): ByteArray {
         val endpointBytes = endpoint.toByteArray(Charsets.US_ASCII)
         return ByteBuffer.allocate(12 + endpointBytes.size).order(ByteOrder.BIG_ENDIAN).apply {
             put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'D'.code.toByte(), 'C'.code.toByte()))
