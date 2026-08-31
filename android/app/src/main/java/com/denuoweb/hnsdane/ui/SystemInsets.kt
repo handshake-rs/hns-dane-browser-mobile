@@ -1,11 +1,12 @@
 package com.denuoweb.hnsdane.ui
 
-import android.graphics.Insets
 import android.view.View
-import android.view.WindowInsets
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 private val SYSTEM_BAR_INSET_TYPES =
-    WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
 
 internal fun View.applySystemBarPadding() {
     val initialLeft = paddingLeft
@@ -13,7 +14,7 @@ internal fun View.applySystemBarPadding() {
     val initialRight = paddingRight
     val initialBottom = paddingBottom
 
-    setOnApplyWindowInsetsListener { view, insets ->
+    ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
         val bars = insets.getInsets(SYSTEM_BAR_INSET_TYPES)
         view.setPadding(
             initialLeft + bars.left,
@@ -24,12 +25,12 @@ internal fun View.applySystemBarPadding() {
         consumeAppliedSystemBarInsets(insets)
     }
     if (isAttachedToWindow) {
-        requestApplyInsets()
+        ViewCompat.requestApplyInsets(this)
     } else {
         addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) {
                 view.removeOnAttachStateChangeListener(this)
-                view.requestApplyInsets()
+                ViewCompat.requestApplyInsets(view)
             }
 
             override fun onViewDetachedFromWindow(view: View) = Unit
@@ -43,8 +44,8 @@ internal fun View.applySystemBarPadding() {
  * WebView reports CSS safe-area values relative to its already-inset viewport.
  * Preserve IME and all other inset types.
  */
-internal fun consumeAppliedSystemBarInsets(insets: WindowInsets): WindowInsets =
-    WindowInsets.Builder(insets)
+internal fun consumeAppliedSystemBarInsets(insets: WindowInsetsCompat): WindowInsetsCompat =
+    WindowInsetsCompat.Builder(insets)
         .setInsets(SYSTEM_BAR_INSET_TYPES, Insets.NONE)
         .setInsetsIgnoringVisibility(SYSTEM_BAR_INSET_TYPES, Insets.NONE)
         .setDisplayCutout(null)

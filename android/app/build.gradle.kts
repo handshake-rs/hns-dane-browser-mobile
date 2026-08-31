@@ -517,8 +517,8 @@ val androidAbis = providers.gradleProperty("hns.androidAbis").orNull
 require(androidAbis.isNotEmpty() && androidAbis.toSet().size == androidAbis.size) {
     "hns.androidAbis must select unique Android ABIs"
 }
-require(androidAbis.all { it in setOf("arm64-v8a", "x86_64") }) {
-    "hns.androidAbis supports only arm64-v8a and x86_64"
+require(androidAbis.all { it in setOf("armeabi-v7a", "arm64-v8a", "x86_64") }) {
+    "hns.androidAbis supports only armeabi-v7a, arm64-v8a, and x86_64"
 }
 val buildRustAndroid = tasks.register<Exec>("buildRustAndroid") {
     val rootDir = rootProject.layout.projectDirectory.asFile.parentFile
@@ -566,7 +566,7 @@ android {
 
     defaultConfig {
         applicationId = "com.denuoweb.hnsdane"
-        minSdk = 30
+        minSdk = 28
         targetSdk = 37
         versionCode = 52
         versionName = "1.0.0"

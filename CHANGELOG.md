@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Added Android 9 / API 28 and 32-bit `armeabi-v7a` support alongside the
+  existing ARM64 and x86-64 targets. API-28 compatibility retains verified
+  certificate extraction, AndroidX system-inset handling, foreground wallet
+  synchronization, and permission-free app-owned download storage.
 - Added wallet-owned direct HNS synchronization, receive derivation, exact
   send review/reject/approval/broadcast, rollback-floor journaling, and bounded
   native progress reporting without depending on the legacy loopback RPC seam.
@@ -35,6 +39,10 @@ All notable changes to this project will be documented in this file.
 
 ### Qualification
 
+- One API-28 universal debug APK containing `armeabi-v7a` and `arm64-v8a`
+  passed Android lint and unit tests, installed as the same application ID on
+  a Moto G6 and Pixel 9, launched `MainActivity` on both, and produced no
+  fatal exception, JNI load, or `dlopen` error during startup inspection.
 - Rust iOS-FFI unit tests, the exact host static-archive symbol scan, and C11 /
   C++17 header smoke compilation pass locally for this stack. A Swift/Xcode
   build is unavailable on this Linux host. Android debug-APK and installed

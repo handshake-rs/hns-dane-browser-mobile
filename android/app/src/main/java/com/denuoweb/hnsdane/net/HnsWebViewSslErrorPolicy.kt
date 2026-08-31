@@ -1,6 +1,9 @@
 package com.denuoweb.hnsdane.net
 
+import android.net.http.SslCertificate
 import android.net.http.SslError
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.denuoweb.hnsdane.core.BrowserNamespacePolicy
 import com.denuoweb.hnsdane.core.HnsHostPolicy
 import java.net.URI
@@ -16,11 +19,24 @@ object HnsWebViewSslErrorPolicy {
         certificateVerifier: HnsLocalCertificateDerVerifier,
         namespacePolicy: BrowserNamespacePolicy,
     ): Boolean {
-        val certificateDer = runCatching {
-            error.certificate?.getX509Certificate()?.encoded
-        }.getOrNull()
+        val certificateDer = encodedCertificate(error.certificate)
         return canProceed(error.url, certificateDer, certificateVerifier, namespacePolicy)
     }
+
+    private fun encodedCertificate(certificate: SslCertificate?): ByteArray? = runCatching {
+        certificate ?: return null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            encodedCertificateApi29(certificate)
+        } else {
+            // Android 9 exposes the same DER certificate through the stable
+            // save-state bundle used to parcel SslCertificate instances.
+            SslCertificate.saveState(certificate)?.getByteArray("x509-certificate")
+        }
+    }.getOrNull()
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun encodedCertificateApi29(certificate: SslCertificate): ByteArray? =
+        certificate.x509Certificate?.encoded
 
     internal fun canProceed(
         url: String?,
@@ -57,3 +73,6 @@ object HnsWebViewSslErrorPolicy {
         }
     }
 }
+
+internal fun supportsDirectSslCertificateAccess(sdkInt: Int): Boolean =
+    sdkInt >= Build.VERSION_CODES.Q

@@ -9,6 +9,7 @@ dependencies are retained conservatively. Workspace-owned application crates and
 test-only, lint, platform build-tool, fuzz, and snapshot-exporter dependencies are excluded.
 
 Shipped Rust target closure counts:
+  armv7-linux-androideabi: 292 third-party components
   aarch64-linux-android: 293 third-party components
   x86_64-linux-android: 294 third-party components
   aarch64-apple-ios: 281 third-party components
@@ -22,7 +23,7 @@ does not imply endorsement by the component authors.
 
 Generator schema: 3
 Generated input SHA-256:
-  scripts/generate-third-party-notices.py = 443b42c311055d07de081b702c011368ca364b47c8f52e26927075dd8178e0b7
+  scripts/generate-third-party-notices.py = d4cb96f59b9a0add1b4a8adc06798c0e196f5bb4402f6acbf0f15579ba13d14f
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512

@@ -2,6 +2,7 @@ package com.denuoweb.hnsdane
 
 import android.app.Activity
 import android.app.Application
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -268,7 +269,13 @@ private class AppLifecycleCallbacks(
         BrowserThemePreferences.applyTo(activity)
     }
 
-    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+        // API 28 has no pre-created callback. Preserve the compatible theme
+        // application path without applying it twice on API 29 and newer.
+        if (needsActivityCreatedThemeFallback(Build.VERSION.SDK_INT)) {
+            BrowserThemePreferences.applyTo(activity)
+        }
+    }
     override fun onActivityStarted(activity: Activity) {
         foregroundActivities.activityStarted()
     }
@@ -280,6 +287,9 @@ private class AppLifecycleCallbacks(
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
     override fun onActivityDestroyed(activity: Activity) = Unit
 }
+
+internal fun needsActivityCreatedThemeFallback(sdkInt: Int): Boolean =
+    sdkInt < Build.VERSION_CODES.Q
 
 internal class ForegroundActivityCounter(
     private val onForeground: () -> Unit,

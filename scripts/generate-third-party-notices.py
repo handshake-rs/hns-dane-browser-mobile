@@ -44,6 +44,7 @@ INPUT_PATHS = LOCKED_INPUT_PATHS + RUST_MANIFEST_INPUTS
 LICENSE_FILE_PREFIXES = ("LICENSE", "LICENCE", "COPYING", "NOTICE", "COPYRIGHT")
 MAX_NOTICE_FILE_SIZE = 512 * 1024
 RUST_SHIPPING_TARGETS = (
+    ("armv7-linux-androideabi", "android-ffi"),
     ("aarch64-linux-android", "android-ffi"),
     ("x86_64-linux-android", "android-ffi"),
     ("aarch64-apple-ios", "ios-ffi"),

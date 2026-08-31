@@ -27,7 +27,7 @@ fi
 seen_android_abis=" "
 for abi in "${ANDROID_ABIS[@]}"; do
   case "$abi" in
-    arm64-v8a|x86_64) ;;
+    armeabi-v7a|arm64-v8a|x86_64) ;;
     *)
       echo "ERROR: unsupported Android ABI in HNS_RUST_ANDROID_ABIS: $abi" >&2
       exit 2
@@ -109,7 +109,7 @@ for abi in "${ANDROID_ABIS[@]}"; do
   ARGS+=( -t "$abi" )
 done
 ARGS+=(
-  -P 30
+  -P 28
   -o "$OUT_DIR"
   build
   -p android-ffi
@@ -169,8 +169,10 @@ if [[ "$PROFILE" == "release" ]]; then
   export CFLAGS="${release_cflags[*]}"
   export CXXFLAGS="$CFLAGS"
   export CFLAGS_aarch64_linux_android="$CFLAGS"
+  export CFLAGS_armv7_linux_androideabi="$CFLAGS"
   export CFLAGS_x86_64_linux_android="$CFLAGS"
   export CXXFLAGS_aarch64_linux_android="$CXXFLAGS"
+  export CXXFLAGS_armv7_linux_androideabi="$CXXFLAGS"
   export CXXFLAGS_x86_64_linux_android="$CXXFLAGS"
 fi
 

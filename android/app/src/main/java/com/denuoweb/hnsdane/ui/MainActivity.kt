@@ -2,14 +2,15 @@ package com.denuoweb.hnsdane.ui
 
 import android.annotation.SuppressLint
 import android.app.DownloadManager
-import android.content.ContentValues
 import android.content.ActivityNotFoundException
+import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Handler
@@ -46,6 +47,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.webkit.ServiceWorkerControllerCompat
 import androidx.webkit.WebViewAssetLoader
@@ -1634,6 +1636,18 @@ class MainActivity : ComponentActivity() {
         bodyFile: File,
         fileName: String,
         mimeType: String,
+    ): Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        saveScopedHnsDownloadBody(bodyFile, fileName, mimeType)
+    } else {
+        saveAppOwnedHnsDownloadBody(bodyFile, fileName)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    @Throws(IOException::class)
+    private fun saveScopedHnsDownloadBody(
+        bodyFile: File,
+        fileName: String,
+        mimeType: String,
     ): Uri {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
@@ -1657,6 +1671,32 @@ class MainActivity : ComponentActivity() {
             resolver.delete(uri, null, null)
             throw if (error is IOException) error else IOException(error.message ?: "Could not save download.", error)
         }
+    }
+
+    @Throws(IOException::class)
+    private fun saveAppOwnedHnsDownloadBody(bodyFile: File, fileName: String): Uri {
+        val directory = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: File(filesDir, Environment.DIRECTORY_DOWNLOADS)
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw IOException("Could not create the app-owned download directory.")
+        }
+        val stem = fileName.substringBeforeLast('.', fileName)
+        val extension = fileName.substringAfterLast('.', "").let { value ->
+            if (value.isEmpty()) "" else ".$value"
+        }
+        var destination = File(directory, fileName)
+        var discriminator = 1
+        while (destination.exists() && discriminator <= MAX_DOWNLOAD_COLLISION_ATTEMPTS) {
+            destination = File(directory, "$stem ($discriminator)$extension")
+            discriminator += 1
+        }
+        if (destination.exists()) {
+            throw IOException("Could not allocate a unique app-owned download file.")
+        }
+        FileInputStream(bodyFile).use { input ->
+            destination.outputStream().use(input::copyTo)
+        }
+        return Uri.fromFile(destination)
     }
 
     private fun safeDownloadFileName(fileName: String): String {
@@ -1756,6 +1796,7 @@ class MainActivity : ComponentActivity() {
         private const val MENU_POPUP_WIDTH_DP = MENU_ICON_BUTTON_SIZE_DP * 3
         private const val MENU_ROW_HEIGHT_DP = 55
         private const val DARK_MENU_OUTLINE_ALPHA = 72
+        private const val MAX_DOWNLOAD_COLLISION_ATTEMPTS = 10_000
         private const val MAX_DOWNLOAD_FILE_NAME_CHARS = 120
         private const val STATE_MAIN_FRAME_URL = "main_frame_url"
         private const val WHOLE_BROWSER_PROXY_SCOPE = "whole-browser.invalid"
@@ -1817,6 +1858,9 @@ private val EXTERNAL_VIEW_SCHEMES = setOf("mailto", "tel", "sms", "geo")
 
 internal fun canLaunchExternalNavigation(scheme: String?, hasUserGesture: Boolean): Boolean =
     hasUserGesture && scheme?.lowercase(Locale.US) in EXTERNAL_VIEW_SCHEMES
+
+internal fun usesScopedDownloadStorage(sdkInt: Int): Boolean =
+    sdkInt >= Build.VERSION_CODES.Q
 
 internal fun normalizedMainFrameMatchKey(url: String): String {
     val fragmentless = url.trim().substringBefore('#')

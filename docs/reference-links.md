@@ -264,13 +264,14 @@ Configured baseline:
 
 ### Android
 
-- minSdk: 30 (Android 11), the lowest level supported by the current code
-  because `WindowInsets.getInsets` and `WindowInsets.Type` are used directly;
-  search queries use the older explicit-UTF-8 URL-encoder overload
+- minSdk: 28 (Android 9), with AndroidX window-inset compatibility and guarded
+  API-29 paths for typed foreground services, certificate extraction, and
+  scoped Downloads storage; search queries use the older explicit-UTF-8
+  URL-encoder overload
 - compileSdk and targetSdk: 37
-- native NDK API: 30, aligned with the application minSdk
+- native NDK API: 28, aligned with the application minSdk
 - primary architecture: arm64-v8a
-- secondary architectures: x86_64 for emulator, armeabi-v7a only if needed
+- secondary architectures: x86_64 for emulator and armeabi-v7a for 32-bit devices
 
 ### Permissions
 

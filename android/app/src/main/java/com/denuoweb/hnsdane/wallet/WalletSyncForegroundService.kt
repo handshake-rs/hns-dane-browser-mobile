@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -30,11 +31,16 @@ internal class WalletSyncForegroundService : Service() {
         }
 
         ensureNotificationChannel()
-        startForeground(
-            NOTIFICATION_ID,
-            notification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-        )
+        val notification = notification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
         return START_NOT_STICKY
     }
 
@@ -104,3 +110,6 @@ internal class WalletSyncForegroundService : Service() {
         }
     }
 }
+
+internal fun supportsTypedDataSyncForegroundService(sdkInt: Int): Boolean =
+    sdkInt >= Build.VERSION_CODES.Q
