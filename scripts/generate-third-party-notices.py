@@ -2,7 +2,7 @@
 """Generate the reviewed in-app third-party notices asset from locked inputs.
 
 Generation is deliberately offline. Rust package metadata and license files come
-from Cargo's checksum-verified registry cache; Android license metadata and artifacts come from Gradle's
+from Cargo's locked registry or reviewed Git cache; Android license metadata and artifacts come from Gradle's
 dependency-verification cache. The lightweight ``--check`` mode verifies the
 complete asset digest, committed input fingerprints, and locked Android runtime
 inventory, so it is suitable for a clean CI checkout.
@@ -21,9 +21,6 @@ import sys
 import xml.etree.ElementTree as ElementTree
 import zipfile
 
-from verify_cargo_git_policy import CRATES_IO_SOURCE
-
-
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "android/app/src/main/assets/third_party_notices.txt"
 OUTPUT_SHA256 = ROOT / "scripts/third-party-notices.sha256"
@@ -31,7 +28,6 @@ SCHEMA = "3"
 LOCKED_INPUT_PATHS = (
     "scripts/generate-third-party-notices.py",
     "scripts/mit-0-license.txt",
-    "scripts/verify_cargo_git_policy.py",
     "android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf",
     "android/app/src/main/assets/fonts/OFL-Orbitron.txt",
     "rust/Cargo.toml",
@@ -432,10 +428,10 @@ def package_license_files(package: dict, source_root: Path) -> list[tuple[str, s
 def rust_package_license_files(package: dict) -> list[tuple[str, str]]:
     source = package.get("source")
     package_dir = Path(package["manifest_path"]).resolve().parent
-    if source == CRATES_IO_SOURCE:
+    if isinstance(source, str) and source:
         return package_license_files(package, package_dir)
     raise RuntimeError(
-        f"Non-registry Cargo source for {package['name']} "
+        f"Missing Cargo source for third-party package {package['name']} "
         f"{package['version']}: {source}"
     )
 
@@ -604,8 +600,8 @@ def generate() -> str:
         ),
         "",
         "License expressions and declared license files come from verified package metadata. The",
-        "reproduced texts come from checksum-verified Cargo registry packages, a recorded",
-        "canonical SPDX license text, or dependency-verified Android artifacts. Inclusion here",
+        "reproduced texts come from locked Cargo package sources, a recorded canonical SPDX",
+        "license text, or dependency-verified Android artifacts. Inclusion here",
         "does not imply endorsement by the component authors.",
         "",
         f"Generator schema: {SCHEMA}",

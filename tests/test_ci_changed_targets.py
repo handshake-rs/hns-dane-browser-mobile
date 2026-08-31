@@ -151,8 +151,6 @@ class CiChangedTargetsTests(unittest.TestCase):
             "scripts/verify_android_translations.py",
             "scripts/check-runtime-boundaries.sh",
             "scripts/verify-supply-chain.sh",
-            "scripts/verify_cargo_git_policy.py",
-            "tests/test_cargo_git_policy.py",
             "tests/test_ci_changed_targets.py",
         ):
             with self.subTest(path=path):

@@ -30,7 +30,7 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_100_platform_identity_and_reviewed_wallet_pin(self) -> None:
+    def test_100_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.0\"$")
         self.assertRegex(gradle, r"(?m)^\s*versionCode = 52$")
@@ -40,11 +40,16 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.0")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet, "=0.2.0")
+        wallet_commit = "9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f"
+        self.assertEqual(wallet, {
+            "git": "https://github.com/handshake-rs/hns-wallet-rs.git",
+            "rev": wallet_commit,
+            "package": "hns-wallet-mobile",
+        })
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            'name = "hns-wallet-mobile"\nversion = "0.2.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+            'name = "hns-wallet-mobile"\nversion = "0.2.0"\nsource = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f#9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f"',
             lockfile,
         )
         self.assertIn(

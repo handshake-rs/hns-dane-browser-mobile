@@ -16,19 +16,18 @@ Shipped Rust target closure counts:
   x86_64-apple-ios: 282 third-party components
 
 License expressions and declared license files come from verified package metadata. The
-reproduced texts come from checksum-verified Cargo registry packages, a recorded
-canonical SPDX license text, or dependency-verified Android artifacts. Inclusion here
+reproduced texts come from locked Cargo package sources, a recorded canonical SPDX
+license text, or dependency-verified Android artifacts. Inclusion here
 does not imply endorsement by the component authors.
 
 Generator schema: 3
 Generated input SHA-256:
-  scripts/generate-third-party-notices.py = 648547b64ad701cf29b772d707307ac26da7623e8c400a481c54c6a93141c222
+  scripts/generate-third-party-notices.py = 443b42c311055d07de081b702c011368ca364b47c8f52e26927075dd8178e0b7
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
-  scripts/verify_cargo_git_policy.py = 86aec2ad54a35a6aa44000ea32e75f4944b7a58ccc7539acf6566fb1787a1c12
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = b03ade75777abe0104686fdd663c4412c7459baff974026db63abe7f0dbca81d
-  rust/Cargo.lock = 2e685310c18ba39dec33955f0adba282a69cb0b5ad5f4eca4117f1e5dfd0e34e
+  rust/Cargo.toml = 14fcc54a8dd51bab9028389b5a0a5718227121573b5672425ada927a47c58034
+  rust/Cargo.lock = 7e3a35cdefb750b56e9018232594bfebf38871c78ee7febce0385c8f8bf5c1a9
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
