@@ -35,9 +35,9 @@ hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.2
 # During active wallet development, keep the complete wallet closure on one
 # immutable, reviewed hns-wallet-rs commit. The committed lockfile records the
 # canonical repository URL and full revision for all three entry crates.
-hns-wallet-ffi = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f", package = "hns-wallet-ffi" }
-hns-wallet-mobile = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f", package = "hns-wallet-mobile" }
-hns-wallet-types = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f", package = "hns-wallet-types" }
+hns-wallet-ffi = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "bd16ce1d33bc620ccddede8636f411892188d2f4", package = "hns-wallet-ffi" }
+hns-wallet-mobile = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "bd16ce1d33bc620ccddede8636f411892188d2f4", package = "hns-wallet-mobile" }
+hns-wallet-types = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "bd16ce1d33bc620ccddede8636f411892188d2f4", package = "hns-wallet-types" }
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"

@@ -14,7 +14,7 @@ all-crate crates.io promotion.
 | `hns-dane-engine` browser adapters | `0.2.2` | tag commit `3907e2a93eb7b10ee7deb1f179ce67824277c82a` | [browser-adapters-v0.2.2 release](https://github.com/handshake-rs/hns-dane-engine/releases/tag/browser-adapters-v0.2.2); all 11 mobile adapter crates published and checksum/provenance verified |
 | stateless-DANE mobile patch | `0.2.3` | tag commit `142117058690220b066782d8ff0655cf0a2670b3` | [stateless-dane-v0.2.3 release](https://github.com/handshake-rs/hns-dane-engine/releases/tag/stateless-dane-v0.2.3); exact patches for `hns-browser-gateway` and `hns-namespace-resolution`, checksum/provenance verified |
 | Shakescape policy graph | `0.3.0` | source commit `2e06af3` plus release correction `ee22220` | `hns-resolution-policy` and `hns-browser-observability` published with one clean-break policy type graph; `hns-gateway 0.3.0`, `hns-p2p-transport 0.3.1`, and `hns-dane-engine 0.3.0` published for downstream consumers |
-| `hns-wallet-rs` | Git commit `9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f` | `Fix direct name proof watch ordering` | all wallet entry crates and their transitive closure resolve from this one immutable source revision |
+| `hns-wallet-rs` | Git commit `bd16ce1d33bc620ccddede8636f411892188d2f4` | `Refresh direct name proofs before snapshots` | all wallet entry crates and their transitive closure resolve from this one immutable source revision |
 
 ## Mobile graph policy
 

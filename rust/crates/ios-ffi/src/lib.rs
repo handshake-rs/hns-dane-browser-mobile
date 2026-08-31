@@ -2361,6 +2361,10 @@ fn synchronize_wallet_owned_direct_hns(
         .refresh_mempool(now_unix)
         .map_err(|_| direct_hns_not_ready("direct HNS mempool refresh is unavailable"))?;
     ensure_wallet_hns_sync_not_cancelled(sync_control)?;
+    coordinator
+        .synchronize_wallet_name_proofs(now_unix)
+        .map_err(|_| direct_hns_not_ready("direct HNS name proof refresh is unavailable"))?;
+    ensure_wallet_hns_sync_not_cancelled(sync_control)?;
     let mut snapshot = controller
         .synchronize()
         .map_err(|_| direct_hns_not_ready("direct HNS wallet scan is still catching up"))?;

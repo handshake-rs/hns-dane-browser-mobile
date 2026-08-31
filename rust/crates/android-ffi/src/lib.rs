@@ -1594,6 +1594,20 @@ impl AndroidWalletController {
                 }
                 ensure_android_hns_sync_not_cancelled(sync_record)?;
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_complete");
+                let refreshed_name_proofs =
+                    match coordinator.synchronize_wallet_name_proofs(now_unix) {
+                        Ok(count) => count,
+                        Err(error) => {
+                            return direct_hns_transport_catchup(
+                                coordinator,
+                                "wallet name proof refresh",
+                                error,
+                            );
+                        }
+                    };
+                android_log_wallet_scan_metrics(&format!(
+                    "wallet_hns_finalization stage=name_proofs_complete refreshed={refreshed_name_proofs}"
+                ));
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_start");
                 let mut snapshot = match controller.synchronize() {
                     Ok(snapshot) => snapshot,

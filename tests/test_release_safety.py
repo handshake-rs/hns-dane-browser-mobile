@@ -40,7 +40,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.0")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        wallet_commit = "9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f"
+        wallet_commit = "bd16ce1d33bc620ccddede8636f411892188d2f4"
         self.assertEqual(wallet, {
             "git": "https://github.com/handshake-rs/hns-wallet-rs.git",
             "rev": wallet_commit,
@@ -49,7 +49,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            'name = "hns-wallet-mobile"\nversion = "0.2.0"\nsource = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f#9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f"',
+            'name = "hns-wallet-mobile"\nversion = "0.2.0"\nsource = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bd16ce1d33bc620ccddede8636f411892188d2f4#bd16ce1d33bc620ccddede8636f411892188d2f4"',
             lockfile,
         )
         self.assertIn(

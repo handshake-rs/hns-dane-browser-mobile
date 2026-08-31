@@ -4,7 +4,7 @@ This checkout contains two deliberately separate surfaces:
 
 - Android and iOS app-native wallet controls backed by the reviewed
   `hns-wallet-mobile` source at commit
-  `9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f`; and
+  `bd16ce1d33bc620ccddede8636f411892188d2f4`; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 

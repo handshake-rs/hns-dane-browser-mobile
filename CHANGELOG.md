@@ -21,9 +21,9 @@ All notable changes to this project will be documented in this file.
 
 - Switched the native wallet closure from the stale published `0.2.0` cohort
   to exact reviewed `hns-wallet-rs` commit
-  `9ca52ec1ec4ece1a0f0b92984c338e16ff82c01f`, which installs a requested name
-  proof in the exact live watch set before fetching it and avoids the final
-  snapshot failure after name import.
+  `bd16ce1d33bc620ccddede8636f411892188d2f4`, which refreshes all persisted
+  and locally discovered FINALIZE name proofs before the final wallet snapshot
+  without rewinding the authenticated transaction scan.
 - Android now supplies and validates the bundled mainnet bootstrap snapshot on
   every eligible direct-wallet reopen, including when a nonzero rollback floor
   is already journaled, avoiding a false setup failure that could look like a
