@@ -112,9 +112,12 @@ const WALLET_BITCOIN_BUNDLE_VERSION: u8 = 1;
 const WALLET_BITCOIN_BUNDLE_FLAGS: u8 = 0;
 const WALLET_BITCOIN_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_BITCOIN_JSON_BYTES: usize = 16 * 1024;
-/// Product floor: it is deliberately above the relay dust threshold of every
-/// standard output type that the direct BIP84 wallet can send to.
-const MINIMUM_ANDROID_BITCOIN_SEND_SATS: u64 = 1_000;
+/// Product floor for a direct Bitcoin send's user-selected maximum fee.
+///
+/// This is a fee-policy floor, not a payment-amount floor. The transaction
+/// builder remains the authority on whether a particular recipient output is
+/// above dust for its exact script type.
+const MINIMUM_ANDROID_BITCOIN_MAXIMUM_FEE_SATS: u64 = 1_000;
 const MAX_ANDROID_WALLET_NAME_BYTES: usize = 63;
 const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
 const MAX_ANDROID_SHAKESCAPE_ENDPOINT_BYTES: usize = 128;
@@ -2140,6 +2143,7 @@ enum AndroidBitcoinSendPreparationFailure {
     AmountBelowMinimum,
     InsufficientConfirmedFunds,
     InvalidDestination,
+    FeeCapBelowMinimum,
     FeeCapTooLow,
     ActionPending,
     WalletUnavailable,
@@ -2153,6 +2157,7 @@ impl AndroidBitcoinSendPreparationFailure {
             Self::AmountBelowMinimum => "amount_below_minimum",
             Self::InsufficientConfirmedFunds => "insufficient_confirmed_funds",
             Self::InvalidDestination => "invalid_destination",
+            Self::FeeCapBelowMinimum => "fee_cap_below_minimum",
             Self::FeeCapTooLow => "fee_cap_too_low",
             Self::ActionPending => "action_pending",
             Self::WalletUnavailable => "wallet_unavailable",
@@ -2160,6 +2165,10 @@ impl AndroidBitcoinSendPreparationFailure {
             Self::Retry => "retry",
         }
     }
+}
+
+fn bitcoin_maximum_fee_meets_product_floor(maximum_fee_sats: u64) -> bool {
+    maximum_fee_sats >= MINIMUM_ANDROID_BITCOIN_MAXIMUM_FEE_SATS
 }
 
 fn android_bitcoin_send_preparation_failure(
@@ -2219,8 +2228,8 @@ fn android_prepare_bitcoin_send(
     maximum_fee_sats: u64,
     reserved_offer_sats: u64,
 ) -> Result<Vec<u8>, AndroidBitcoinSendPreparationFailure> {
-    if amount_sats < MINIMUM_ANDROID_BITCOIN_SEND_SATS {
-        return Err(AndroidBitcoinSendPreparationFailure::AmountBelowMinimum);
+    if !bitcoin_maximum_fee_meets_product_floor(maximum_fee_sats) {
+        return Err(AndroidBitcoinSendPreparationFailure::FeeCapBelowMinimum);
     }
     let confirmed_sats = controller
         .snapshot()
@@ -6029,8 +6038,8 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 .ok_or(AndroidBitcoinSendPreparationFailure::InvalidRequest)?;
             let maximum_fee_sats = canonical_nonzero_sats(maximum_fee_sats)
                 .ok_or(AndroidBitcoinSendPreparationFailure::InvalidRequest)?;
-            if amount_sats < MINIMUM_ANDROID_BITCOIN_SEND_SATS {
-                return Err(AndroidBitcoinSendPreparationFailure::AmountBelowMinimum);
+            if !bitcoin_maximum_fee_meets_product_floor(maximum_fee_sats) {
+                return Err(AndroidBitcoinSendPreparationFailure::FeeCapBelowMinimum);
             }
             let record = wallet_from_handle(handle)
                 .ok_or(AndroidBitcoinSendPreparationFailure::WalletUnavailable)?;
@@ -7453,8 +7462,10 @@ mod tests {
     }
 
     #[test]
-    fn bitcoin_send_rejections_are_bounded_actionable_and_use_the_product_floor() {
-        assert_eq!(MINIMUM_ANDROID_BITCOIN_SEND_SATS, 1_000);
+    fn bitcoin_send_rejections_are_bounded_actionable_and_floor_the_fee_cap() {
+        assert_eq!(MINIMUM_ANDROID_BITCOIN_MAXIMUM_FEE_SATS, 1_000);
+        assert!(!bitcoin_maximum_fee_meets_product_floor(999));
+        assert!(bitcoin_maximum_fee_meets_product_floor(1_000));
         assert_eq!(
             android_bitcoin_wallet_error_failure(
                 "Bitcoin wallet error: Output below the dust limit: 0"
@@ -7481,7 +7492,7 @@ mod tests {
         );
 
         let bundle = android_bitcoin_send_preparation_rejection_bundle(
-            AndroidBitcoinSendPreparationFailure::AmountBelowMinimum,
+            AndroidBitcoinSendPreparationFailure::FeeCapBelowMinimum,
         )
         .expect("bounded rejection bundle");
         assert_eq!(&bundle[..4], WALLET_BITCOIN_BUNDLE_MAGIC);
@@ -7489,7 +7500,7 @@ mod tests {
         let value: Value = serde_json::from_slice(&bundle[WALLET_BITCOIN_BUNDLE_HEADER_BYTES..])
             .expect("rejection JSON");
         assert_eq!(value["outcome"], "rejected");
-        assert_eq!(value["reason"], "amount_below_minimum");
+        assert_eq!(value["reason"], "fee_cap_below_minimum");
     }
 
     #[test]

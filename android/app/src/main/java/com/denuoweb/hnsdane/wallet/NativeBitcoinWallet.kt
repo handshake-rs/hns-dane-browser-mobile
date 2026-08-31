@@ -68,6 +68,7 @@ internal enum class NativeBitcoinSendPreparationFailure {
     AmountBelowMinimum,
     InsufficientConfirmedFunds,
     InvalidDestination,
+    FeeCapBelowMinimum,
     FeeCapTooLow,
     ActionPending,
     WalletUnavailable,
@@ -309,6 +310,7 @@ internal object NativeBitcoinWalletBundle {
                     "amount_below_minimum" -> NativeBitcoinSendPreparationFailure.AmountBelowMinimum
                     "insufficient_confirmed_funds" -> NativeBitcoinSendPreparationFailure.InsufficientConfirmedFunds
                     "invalid_destination" -> NativeBitcoinSendPreparationFailure.InvalidDestination
+                    "fee_cap_below_minimum" -> NativeBitcoinSendPreparationFailure.FeeCapBelowMinimum
                     "fee_cap_too_low" -> NativeBitcoinSendPreparationFailure.FeeCapTooLow
                     "action_pending" -> NativeBitcoinSendPreparationFailure.ActionPending
                     "wallet_unavailable" -> NativeBitcoinSendPreparationFailure.WalletUnavailable

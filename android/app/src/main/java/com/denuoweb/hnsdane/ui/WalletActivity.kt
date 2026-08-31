@@ -2451,17 +2451,20 @@ class WalletActivity : ComponentActivity() {
                     R.string.wallet_bitcoin_send_fee_hint,
                     numeric = true,
                     decimal = false,
+                    initial = NativeWalletBridge.MINIMUM_BITCOIN_MAXIMUM_FEE_SATS.toString(),
                 ),
             ),
         ) { values ->
-            val amountSats = values[1].toLongOrNull()
-            val maximumFeeSats = values[2].toLongOrNull()?.takeIf { it > 0L }
-            if (amountSats == null || maximumFeeSats == null) {
-                bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_prepare_failed)
+            val amountSats = values[1].toLongOrNull()?.takeIf { it > 0L }
+            val maximumFeeSats = values[2].toLongOrNull()
+            if (amountSats == null) {
+                bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_invalid_request)
                 return@showWalletActionForm
             }
-            if (amountSats < NativeWalletBridge.MINIMUM_BITCOIN_SEND_SATS) {
-                bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_amount_minimum)
+            if (maximumFeeSats == null ||
+                maximumFeeSats < NativeWalletBridge.MINIMUM_BITCOIN_MAXIMUM_FEE_SATS
+            ) {
+                bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_fee_cap_minimum)
                 return@showWalletActionForm
             }
             prepareBitcoinSend(values[0], amountSats, maximumFeeSats)
@@ -3074,6 +3077,8 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_bitcoin_send_insufficient_confirmed
             NativeBitcoinSendPreparationFailure.InvalidDestination ->
                 R.string.wallet_bitcoin_send_invalid_destination
+            NativeBitcoinSendPreparationFailure.FeeCapBelowMinimum ->
+                R.string.wallet_bitcoin_send_fee_cap_minimum
             NativeBitcoinSendPreparationFailure.FeeCapTooLow ->
                 R.string.wallet_bitcoin_send_fee_cap_too_low
             NativeBitcoinSendPreparationFailure.ActionPending ->

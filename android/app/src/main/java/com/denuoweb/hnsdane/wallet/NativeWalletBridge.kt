@@ -18,8 +18,8 @@ internal object NativeWalletBridge {
     const val NETWORK_MAINNET = 1
     const val NETWORK_TESTNET = 2
     const val NETWORK_REGTEST = 3
-    /** Product minimum, deliberately above the relay dust floor for supported outputs. */
-    const val MINIMUM_BITCOIN_SEND_SATS = 1_000L
+    /** Lowest selectable maximum fee for a direct Bitcoin send. */
+    const val MINIMUM_BITCOIN_MAXIMUM_FEE_SATS = 1_000L
 
     val isAvailable: Boolean
         get() = NativeBridge.isLoaded
@@ -728,10 +728,10 @@ internal object NativeWalletBridge {
             approval = null,
             failure = NativeBitcoinSendPreparationFailure.WalletUnavailable,
         )
-        if (amountSats < MINIMUM_BITCOIN_SEND_SATS) {
+        if (maximumFeeSats < MINIMUM_BITCOIN_MAXIMUM_FEE_SATS) {
             return NativeBitcoinSendPreparation(
                 approval = null,
-                failure = NativeBitcoinSendPreparationFailure.AmountBelowMinimum,
+                failure = NativeBitcoinSendPreparationFailure.FeeCapBelowMinimum,
             )
         }
         val destinationUtf8 = destination.toByteArray(Charsets.US_ASCII)

@@ -58,20 +58,20 @@ class NativeBitcoinSyncProgressTest {
 
     @Test
     fun parses_only_bounded_actionable_bitcoin_send_preparation_results() {
-        assertEquals(1_000L, NativeWalletBridge.MINIMUM_BITCOIN_SEND_SATS)
+        assertEquals(1_000L, NativeWalletBridge.MINIMUM_BITCOIN_MAXIMUM_FEE_SATS)
 
         val rejected = NativeBitcoinWalletBundle.sendPreparation(bundle(
-            """{"outcome":"rejected","reason":"amount_below_minimum"}""",
+            """{"outcome":"rejected","reason":"fee_cap_below_minimum"}""",
         ))
         requireNotNull(rejected)
         assertNull(rejected.approval)
-        assertEquals(NativeBitcoinSendPreparationFailure.AmountBelowMinimum, rejected.failure)
+        assertEquals(NativeBitcoinSendPreparationFailure.FeeCapBelowMinimum, rejected.failure)
 
         val approved = NativeBitcoinWalletBundle.sendPreparation(bundle(
-            """{"outcome":"approved","approval":{"actionToken":"${"ab".repeat(32)}","destination":"bc1qexample","amountSats":1000,"feeSats":200,"maximumFeeSats":300,"expiresAtUnix":2000}}""",
+            """{"outcome":"approved","approval":{"actionToken":"${"ab".repeat(32)}","destination":"bc1qexample","amountSats":500,"feeSats":200,"maximumFeeSats":1000,"expiresAtUnix":2000}}""",
         ))
         requireNotNull(approved)
-        assertEquals(1_000L, approved.approval?.amountSats)
+        assertEquals(500L, approved.approval?.amountSats)
         assertNull(approved.failure)
         approved.approval?.close()
 
