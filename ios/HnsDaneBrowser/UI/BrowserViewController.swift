@@ -42,6 +42,7 @@ final class BrowserViewController: UIViewController {
     private var progressObservation: NSKeyValueObservation?
     private var canonicalAddress = ""
     private var pendingExternalAddress: String?
+    private var pendingHandshakePayment: HandshakePaymentRequest?
     private var isForeground = false
     private var isPreparing = false
     private var isLoading = false
@@ -82,6 +83,7 @@ final class BrowserViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        presentPendingHandshakePaymentIfPossible()
 #if DEBUG && targetEnvironment(simulator)
         presentScreenshotProofIfNeeded()
 #endif
@@ -149,6 +151,15 @@ final class BrowserViewController: UIViewController {
 
     func openExternalURL(_ url: URL) {
         guard !isDestroyed else { return }
+        if url.scheme?.lowercased() == "handshake" {
+            guard let request = HandshakePaymentURI.parse(url.absoluteString) else {
+                showError(BrowserCoreError.unsupportedAddress)
+                return
+            }
+            pendingHandshakePayment = request
+            presentPendingHandshakePaymentIfPossible()
+            return
+        }
         guard url.isFileURL == false else {
             showError(BrowserCoreError.unsupportedAddress)
             return
@@ -158,6 +169,20 @@ final class BrowserViewController: UIViewController {
         } else {
             pendingExternalAddress = url.absoluteString
         }
+    }
+
+    private func presentPendingHandshakePaymentIfPossible() {
+        guard viewIfLoaded?.window != nil,
+              presentedViewController == nil,
+              let request = pendingHandshakePayment else { return }
+        pendingHandshakePayment = nil
+        let wallet = WalletViewController(
+            network: process.currentNetwork,
+            paymentRequest: request
+        )
+        let navigation = UINavigationController(rootViewController: wallet)
+        navigation.modalPresentationStyle = .formSheet
+        present(navigation, animated: true)
     }
 
     private func configureUI() {

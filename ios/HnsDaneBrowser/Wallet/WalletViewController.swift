@@ -1,6 +1,8 @@
 import Security
 import UIKit
 import UniformTypeIdentifiers
+@preconcurrency import AVFoundation
+import CoreImage
 
 /// Native wallet-control surface.  Every HNS peer, consensus, block scan,
 /// signing, and broadcast operation remains in the Rust controller; UIKit
@@ -69,6 +71,8 @@ final class WalletViewController: UIViewController {
     private weak var swapSettlementApprovalAlert: UIAlertController?
     private var pendingSwapSettlementApproval: NativeSwapSettlementApproval?
     private var pendingSwapSettlementIsBitcoin = false
+    private var pendingHandshakePayment: HandshakePaymentRequest?
+    private var pendingPaymentPresentationScheduled = false
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -103,9 +107,13 @@ final class WalletViewController: UIViewController {
     private let dashboardStack = UIStackView()
     private let walletRefreshControl = UIRefreshControl()
 
-    init(network: BrowserHandshakeNetwork) {
+    init(
+        network: BrowserHandshakeNetwork,
+        paymentRequest: HandshakePaymentRequest? = nil
+    ) {
         self.network = network
         self.keychain = WalletKeychainStore(network: network)
+        self.pendingHandshakePayment = paymentRequest
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -117,6 +125,13 @@ final class WalletViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Wallet"
+        if pendingHandshakePayment != nil {
+            navigationItem.leftBarButtonItem = UIBarButtonItem(
+                barButtonSystemItem: .done,
+                target: self,
+                action: #selector(dismissExternalWallet)
+            )
+        }
         view.backgroundColor = .systemGroupedBackground
         configureView()
         for name in [
@@ -154,6 +169,10 @@ final class WalletViewController: UIViewController {
             object: nil
         )
         refreshState()
+    }
+
+    @objc private func dismissExternalWallet() {
+        dismiss(animated: true)
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -451,12 +470,22 @@ final class WalletViewController: UIViewController {
             action: #selector(showPaymentReceiveAddress),
             enabled: receiveTargets != nil && directHnsValueAvailable && !isOperating
         )
+        receive.configuration?.image = UIImage(systemName: "qrcode")
+        receive.configuration?.imagePadding = 5
         let send = dashboardButton(
             title: "Send",
             action: #selector(showHnsSendForm),
             accent: .systemIndigo,
             enabled: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating
         )
+        let scan = dashboardButton(
+            title: "",
+            action: #selector(scanHandshakePaymentQr),
+            accent: .systemIndigo,
+            enabled: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating
+        )
+        scan.configuration?.image = UIImage(systemName: "camera.viewfinder")
+        scan.accessibilityLabel = "Scan Handshake payment QR code"
         let sync = dashboardButton(
             title: "Sync",
             action: #selector(synchronizeWalletReads),
@@ -464,7 +493,7 @@ final class WalletViewController: UIViewController {
         )
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "HNS balance",
-            body: [balanceLabel, dashboardButtonRow([receive, send, sync])],
+            body: [balanceLabel, dashboardButtonRow([receive, send, scan, sync])],
             accent: .systemCyan
         ))
 
@@ -489,6 +518,7 @@ final class WalletViewController: UIViewController {
                 action: #selector(showWalletActivity)
             )]
         ))
+        schedulePendingPaymentPresentation()
     }
 
     private func dashboardCard(
@@ -584,27 +614,13 @@ final class WalletViewController: UIViewController {
 
     @objc private func showPaymentReceiveAddress() {
         guard let paymentReceiveAddress = receiveTargets?.paymentAddress else { return }
-        let alert = UIAlertController(
-            title: "Receive HNS",
-            message: "Payment address",
-            preferredStyle: .alert
-        )
-        addFittingAddress(paymentReceiveAddress, label: "HNS payment address", to: alert)
-        alert.addAction(UIAlertAction(title: "Copy payment address", style: .default) { _ in
-            UIPasteboard.general.setItems(
-                [[UTType.plainText.identifier: paymentReceiveAddress]],
-                options: [.localOnly: true]
-            )
-        })
-        if receiveTargets?.nameTransferAddress != nil {
-            alert.addAction(UIAlertAction(title: "Name-transfer address", style: .default) { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.showNameReceiveAddress()
-                }
-            })
+        let viewer = HandshakeReceiveQrViewController(address: paymentReceiveAddress)
+        viewer.onShowNameAddress = { [weak self, weak viewer] in
+            viewer?.dismiss(animated: true) {
+                self?.showNameReceiveAddress()
+            }
         }
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        present(viewer, animated: true)
     }
 
     private func showNameReceiveAddress() {
@@ -1578,6 +1594,10 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func showHnsSendForm() {
+        presentHnsSendForm(prefill: nil)
+    }
+
+    private func presentHnsSendForm(prefill: HandshakePaymentRequest?) {
         guard !isOperating,
               walletIsUnlocked,
               directHnsValueAvailable,
@@ -1603,6 +1623,7 @@ final class WalletViewController: UIViewController {
             field.textContentType = nil
             field.isSecureTextEntry = false
             field.accessibilityIdentifier = "wallet.send.recipient"
+            field.text = prefill?.address
         }
         alert.addTextField { field in
             Self.configureSendField(
@@ -1614,6 +1635,7 @@ final class WalletViewController: UIViewController {
             field.keyboardType = .decimalPad
             field.textContentType = nil
             field.accessibilityIdentifier = "wallet.send.amount"
+            field.text = prefill?.amountHns
         }
         alert.addTextField { field in
             Self.configureSendField(
@@ -1644,6 +1666,45 @@ final class WalletViewController: UIViewController {
         })
         hnsSendFormAlert = alert
         present(alert, animated: true)
+    }
+
+    @objc private func scanHandshakePaymentQr() {
+        guard presentedViewController == nil else { return }
+        let scanner = HandshakeQrScannerViewController()
+        scanner.onResult = { [weak self, weak scanner] value in
+            guard let self else { return }
+            scanner?.dismiss(animated: true) {
+                guard let request = HandshakePaymentURI.parse(value) else {
+                    self.showErrorMessage("That QR code is not a valid Handshake payment URI.")
+                    return
+                }
+                // A full-screen camera may temporarily protect and release the
+                // wallet controller. Reconnect first, then restore the normal
+                // synchronized SEND review surface from this public URI data.
+                self.pendingHandshakePayment = request
+                self.schedulePendingPaymentPresentation()
+            }
+        }
+        present(scanner, animated: true)
+    }
+
+    private func schedulePendingPaymentPresentation() {
+        guard pendingHandshakePayment != nil,
+              !pendingPaymentPresentationScheduled else { return }
+        pendingPaymentPresentationScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pendingPaymentPresentationScheduled = false
+            guard self.presentedViewController == nil,
+                  self.viewIfLoaded?.window != nil,
+                  self.walletIsUnlocked,
+                  self.synchronizedReadsAvailable,
+                  self.directHnsValueAvailable,
+                  !self.isOperating,
+                  let request = self.pendingHandshakePayment else { return }
+            self.pendingHandshakePayment = nil
+            self.presentHnsSendForm(prefill: request)
+        }
     }
 
     private static func configureSendField(
@@ -5320,5 +5381,213 @@ final class WalletRetirementQueue: @unchecked Sendable {
                 completion(outcome)
             }
         }
+    }
+}
+
+struct HandshakePaymentRequest: Equatable, Sendable {
+    let address: String
+    let amountHns: String?
+    let label: String?
+    let message: String?
+}
+
+enum HandshakePaymentURI {
+    static func parse(_ raw: String) -> HandshakePaymentRequest? {
+        guard (1...2_048).contains(raw.count),
+              let url = URL(string: raw),
+              url.scheme?.lowercased() == "handshake",
+              url.host == nil,
+              url.fragment == nil else { return nil }
+        let afterScheme = raw.dropFirst("handshake:".count)
+        let pieces = afterScheme.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
+        let address = String(pieces[0])
+        guard (1...512).contains(address.utf8.count),
+              address.utf8.allSatisfy({ (0x21...0x7e).contains($0) }),
+              !address.contains(where: { "%/?#".contains($0) }) else { return nil }
+
+        var values: [String: String] = [:]
+        if pieces.count == 2, !pieces[1].isEmpty {
+            for field in pieces[1].split(separator: "&", omittingEmptySubsequences: false) {
+                let pair = field.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+                let encodedValue = pair.count == 2 ? String(pair[1]) : ""
+                guard let name = String(pair[0]).removingPercentEncoding,
+                      let value = encodedValue.removingPercentEncoding,
+                      !name.hasPrefix("req-"), values[name] == nil else { return nil }
+                values[name] = value
+            }
+        }
+        if let amount = values["amount"], !validPositiveHnsAmount(amount) { return nil }
+        if values["label", default: ""].count > 256 || values["message", default: ""].count > 256 {
+            return nil
+        }
+        return HandshakePaymentRequest(
+            address: address,
+            amountHns: values["amount"],
+            label: values["label"],
+            message: values["message"]
+        )
+    }
+
+    private static func validPositiveHnsAmount(_ amount: String) -> Bool {
+        let parts = amount.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count <= 2,
+              !parts[0].isEmpty,
+              parts[0].allSatisfy(\.isNumber),
+              parts.count == 1 || ((1...6).contains(parts[1].count) && parts[1].allSatisfy(\.isNumber)) else {
+            return false
+        }
+        return amount.contains(where: { $0 != "0" && $0 != "." })
+    }
+}
+
+@MainActor
+final class HandshakeReceiveQrViewController: UIViewController {
+    var onShowNameAddress: (() -> Void)?
+    private let address: String
+    private var image: UIImage?
+
+    init(address: String) {
+        self.address = address
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .formSheet
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        image = Self.qrImage("handshake:\(address)")
+        let imageView = UIImageView(image: image)
+        imageView.contentMode = .scaleAspectFit
+        imageView.accessibilityLabel = "Handshake payment QR code"
+        let addressLabel = UILabel()
+        addressLabel.text = address
+        addressLabel.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
+        addressLabel.adjustsFontSizeToFitWidth = true
+        addressLabel.minimumScaleFactor = 0.45
+        addressLabel.numberOfLines = 1
+        addressLabel.textAlignment = .center
+        let copy = button("Copy address", #selector(copyAddress))
+        let share = button("Save or share QR code", #selector(shareQr))
+        let name = button("Name-transfer address", #selector(showNameAddress))
+        let done = button("Done", #selector(done))
+        let stack = UIStackView(arrangedSubviews: [imageView, addressLabel, copy, share, name, done])
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 24),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+            imageView.heightAnchor.constraint(equalTo: imageView.widthAnchor),
+        ])
+    }
+
+    private func button(_ title: String, _ action: Selector) -> UIButton {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.filled()
+        configuration.title = title
+        button.configuration = configuration
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return button
+    }
+
+    @objc private func copyAddress() {
+        UIPasteboard.general.setItems([[UTType.plainText.identifier: address]], options: [.localOnly: true])
+    }
+    @objc private func shareQr(_ sender: UIButton) {
+        guard let image else { return }
+        let activity = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+        activity.popoverPresentationController?.sourceView = sender
+        present(activity, animated: true)
+    }
+    @objc private func showNameAddress() { onShowNameAddress?() }
+    @objc private func done() { dismiss(animated: true) }
+
+    private static func qrImage(_ value: String) -> UIImage? {
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(Data(value.utf8), forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 12, y: 12)),
+              let cgImage = CIContext().createCGImage(output, from: output.extent) else { return nil }
+        return UIImage(cgImage: cgImage)
+    }
+}
+
+@MainActor
+final class HandshakeQrScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+    var onResult: ((String) -> Void)?
+    private let session = AVCaptureSession()
+    private var preview: AVCaptureVideoPreviewLayer?
+    private var completed = false
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        let close = UIButton(type: .system)
+        close.setTitle("Cancel", for: .normal)
+        close.addTarget(self, action: #selector(cancel), for: .touchUpInside)
+        close.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(close)
+        NSLayoutConstraint.activate([
+            close.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            close.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+        ])
+        requestCameraAndStart()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        preview?.frame = view.bounds
+    }
+
+    private func requestCameraAndStart() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: configureCapture()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async { if granted { self?.configureCapture() } else { self?.cancel() } }
+            }
+        default: cancel()
+        }
+    }
+
+    private func configureCapture() {
+        guard let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input) else { cancel(); return }
+        session.addInput(input)
+        let output = AVCaptureMetadataOutput()
+        guard session.canAddOutput(output) else { cancel(); return }
+        session.addOutput(output)
+        output.setMetadataObjectsDelegate(self, queue: .main)
+        output.metadataObjectTypes = [.qr]
+        let layer = AVCaptureVideoPreviewLayer(session: session)
+        layer.videoGravity = .resizeAspectFill
+        layer.frame = view.bounds
+        view.layer.insertSublayer(layer, at: 0)
+        preview = layer
+        session.startRunning()
+    }
+
+    func metadataOutput(
+        _ output: AVCaptureMetadataOutput,
+        didOutput metadataObjects: [AVMetadataObject],
+        from connection: AVCaptureConnection
+    ) {
+        guard !completed,
+              let value = (metadataObjects.first as? AVMetadataMachineReadableCodeObject)?.stringValue else { return }
+        completed = true
+        session.stopRunning()
+        onResult?(value)
+    }
+
+    @objc private func cancel() {
+        if session.isRunning { session.stopRunning() }
+        dismiss(animated: true)
     }
 }

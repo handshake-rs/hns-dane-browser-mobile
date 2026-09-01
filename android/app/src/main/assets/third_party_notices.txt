@@ -27,16 +27,16 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = aff852a240ddda5be335b77f71827ac57c257a2257f617fd7c2d5be4ff6a41cd
-  rust/Cargo.lock = f34821e42b79a89b2c8dc3dd579be219e26b77f52ac84c8d2d6ac190013b9bb6
-  android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
-  android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
-  android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d
+  rust/Cargo.toml = 5c375d5dee56277e5e3668e0c9050e5711f066e17878a5f85c135d150eed7e77
+  rust/Cargo.lock = 111d63a4e54ead0a119ad26f0151222a78774c29f079e21a9767d59d5d4e985e
+  android/gradle/libs.versions.toml = e25f060e2f5576dda953dbf2a1f9f9af014b58139c51bf0e28ee4a2aff247157
+  android/app/gradle.lockfile = 2e5e0e404dbc7fead474e763ee4bb0d561d7e3b9da18fc4424942f1d5ef95ffd
+  android/gradle/verification-metadata.xml = 820aff3630df91450b0198f0c9058cd88dbeca8ac73252615322281dd3cf5ca6
   rust/crates/android-ffi/Cargo.toml = c21424bab7e7902d42c297f4b747c31e1b3d8d6bdbd50df15f8143d3455bd1f2
   rust/crates/hns-mobile-platform-runtime/Cargo.toml = d1277558e397275c16506465a68f8680f87ab85cf6d0938962fbfa8e10342309
   rust/crates/ios-ffi/Cargo.toml = 43803888cb9a38bf9aa28544fdaddcc6a658e4ca36edde10befbd2b0bf1fcb6d
 
-ANDROID RUNTIME COMPONENTS (40)
+ANDROID RUNTIME COMPONENTS (42)
   androidx.activity:activity-ktx:1.13.0 | Apache-2.0
   androidx.activity:activity:1.13.0 | Apache-2.0
   androidx.annotation:annotation-experimental:1.4.1 | Apache-2.0
@@ -70,6 +70,8 @@ ANDROID RUNTIME COMPONENTS (40)
   androidx.versionedparcelable:versionedparcelable:1.1.1 | Apache-2.0
   androidx.webkit:webkit:1.16.0 | Apache-2.0
   com.google.guava:listenablefuture:1.0 | Apache-2.0
+  com.google.zxing:core:3.5.4 | Apache-2.0
+  com.journeyapps:zxing-android-embedded:4.3.0 | Apache-2.0
   org.jetbrains.kotlin:kotlin-stdlib:2.2.10 | Apache-2.0
   org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0 | Apache-2.0
   org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.9.0 | Apache-2.0
@@ -3727,6 +3729,8 @@ Applies to:
   - androidx.versionedparcelable:versionedparcelable:1.1.1
   - androidx.webkit:webkit:1.16.0
   - com.google.guava:listenablefuture:1.0
+  - com.google.zxing:core:3.5.4
+  - com.journeyapps:zxing-android-embedded:4.3.0
   - org.jetbrains.kotlin:kotlin-stdlib:2.2.10
   - org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0
   - org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.9.0

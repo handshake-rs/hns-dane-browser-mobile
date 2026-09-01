@@ -7,6 +7,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.net.Uri
@@ -26,6 +28,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -61,6 +64,12 @@ import com.denuoweb.hnsdane.wallet.NativeWalletName
 import com.denuoweb.hnsdane.wallet.NativeWalletPaymentReceiveTarget
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
 import com.denuoweb.hnsdane.wallet.NativeWalletTransaction
+import com.denuoweb.hnsdane.wallet.HandshakePaymentRequest
+import com.denuoweb.hnsdane.wallet.HandshakePaymentUri
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import com.denuoweb.hnsdane.wallet.MAX_HNS_BIRTHDAY_HEIGHT
 import com.denuoweb.hnsdane.wallet.ProcessWalletControllerRetirementFailures
 import com.denuoweb.hnsdane.wallet.ProcessWalletStorageOwnership
@@ -125,6 +134,9 @@ import kotlin.math.ceil
 internal fun walletDirectHnsNeedsGenesisBootstrap(network: HandshakeNetwork): Boolean =
     network == HandshakeNetwork.Mainnet
 
+internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
+    "com.denuoweb.hnsdane.extra.HANDSHAKE_PAYMENT_URI"
+
 /** Dedicated native controller for one complete Handshake wallet and Shakedex account. */
 class WalletActivity : ComponentActivity() {
     private lateinit var keyStore: AndroidWalletKeyStore
@@ -176,6 +188,7 @@ class WalletActivity : ComponentActivity() {
     private var storageOwner: WalletStorageOwnershipGate.Owner? = null
     private var storageLease: WalletStorageOwnershipGate.Lease? = null
     private var walletDeletionDialog: AlertDialog? = null
+    private var sendFormDialog: AlertDialog? = null
     private var sendApprovalDialog: AlertDialog? = null
     private var pendingSendApproval: NativeHnsSendApproval? = null
     private var valueApprovalDialog: AlertDialog? = null
@@ -184,6 +197,37 @@ class WalletActivity : ComponentActivity() {
     private var loadedTrackedNames: List<NativeWalletName> = emptyList()
     private var trackedNamePageOffset: Int = 0
     private var recentActivityPageOffset: Int = 0
+    private var pendingHandshakePayment: HandshakePaymentRequest? = null
+    private var pendingPaymentPresentationScheduled = false
+    private var pendingQrBitmap: Bitmap? = null
+    private val handshakeQrScanner = registerForActivityResult(ScanContract()) { result ->
+        val request = result.contents?.let(HandshakePaymentUri::parse)
+        if (result.contents == null) {
+            return@registerForActivityResult
+        }
+        if (request == null) {
+            Toast.makeText(this, R.string.wallet_qr_invalid, Toast.LENGTH_LONG).show()
+            return@registerForActivityResult
+        }
+        pendingHandshakePayment = request
+        schedulePendingPaymentPresentation()
+    }
+    private val saveQrCode = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png"),
+    ) { uri ->
+        val bitmap = pendingQrBitmap
+        pendingQrBitmap = null
+        if (uri != null && bitmap != null) {
+            runCatching {
+                contentResolver.openOutputStream(uri, "w")?.use { output ->
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+                } ?: error("QR output could not be opened")
+            }.onFailure {
+                Toast.makeText(this, R.string.wallet_qr_save_failed, Toast.LENGTH_SHORT).show()
+            }
+        }
+        bitmap?.recycle()
+    }
     private val bulkNameFilePicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -230,6 +274,7 @@ class WalletActivity : ComponentActivity() {
         }
         window.decorView.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
         walletNetwork = HnsResolutionPreferences.handshakeNetwork(this)
+        consumeHandshakePaymentIntent(intent)
         val storageNamespace = walletStorageNamespace(walletNetwork.id)
         walletDatabaseFile = File(
             File(noBackupFilesDir, storageNamespace.directoryName),
@@ -307,6 +352,45 @@ class WalletActivity : ComponentActivity() {
                 walletOpenDeferredUntilDeviceUnlock = false
                 openExistingWallet()
             }
+        }
+        if (hasFocus) schedulePendingPaymentPresentation()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeHandshakePaymentIntent(intent)
+        schedulePendingPaymentPresentation()
+    }
+
+    private fun consumeHandshakePaymentIntent(intent: Intent) {
+        val raw = intent.getStringExtra(EXTRA_HANDSHAKE_PAYMENT_URI) ?: return
+        intent.removeExtra(EXTRA_HANDSHAKE_PAYMENT_URI)
+        val request = HandshakePaymentUri.parse(raw)
+        if (request == null) {
+            Toast.makeText(this, R.string.wallet_qr_invalid, Toast.LENGTH_LONG).show()
+        } else {
+            pendingHandshakePayment = request
+        }
+    }
+
+    private fun schedulePendingPaymentPresentation() {
+        if (pendingHandshakePayment == null || pendingPaymentPresentationScheduled) return
+        pendingPaymentPresentationScheduled = true
+        window.decorView.post {
+            pendingPaymentPresentationScheduled = false
+            val handle = walletHandle
+            if (
+                !foreground || !window.decorView.hasWindowFocus() || busy || walletHnsSyncInProgress ||
+                handle == INVALID_HANDLE || NativeWalletBridge.status(handle)?.locked != false ||
+                !NativeWalletBridge.hasHnsValue(handle) || !hasCurrentWalletReadSnapshot(handle) ||
+                walletDeletionDialog?.isShowing == true || sendFormDialog?.isShowing == true ||
+                sendApprovalDialog?.isShowing == true ||
+                valueApprovalDialog?.isShowing == true
+            ) return@post
+            val request = pendingHandshakePayment ?: return@post
+            pendingHandshakePayment = null
+            showHnsSendDialog(request)
         }
     }
 
@@ -578,6 +662,7 @@ class WalletActivity : ComponentActivity() {
                 summary = recentActivitySummary(),
             ) { showActivityDetails() }.disabledWhenWalletHandoff(!actionsAvailable))
         })
+        if (actionsAvailable) schedulePendingPaymentPresentation()
     }
 
     private fun walletBalanceCard(actionsAvailable: Boolean = true): LinearLayout =
@@ -607,6 +692,10 @@ class WalletActivity : ComponentActivity() {
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_receive)) {
                     showReceiveWalletDialog()
+                }.apply {
+                    setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_qr_code, 0, 0, 0)
+                    compoundDrawablePadding = uiDp(5)
+                    compoundDrawablesRelative.firstOrNull()?.setTint(themeColors().action)
                 }.disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_send), secondary = true) {
                     showHnsSendDialog()
@@ -739,15 +828,54 @@ class WalletActivity : ComponentActivity() {
         val payment = latestReadSnapshot?.hnsReceiveTargets()?.paymentAddress
             ?: localPaymentReceiveTarget?.display
             ?: ""
-        AlertDialog.Builder(this)
-            .setTitle(R.string.wallet_dashboard_receive)
-            .setView(walletAddressDialogText(payment))
-            .setNegativeButton(R.string.action_cancel, null)
-            .setNeutralButton(R.string.wallet_dashboard_name_transfer) { _, _ -> showNameReceiveDialog() }
-            .setPositiveButton(R.string.wallet_dashboard_copy_address) { _, _ ->
+        if (payment.isBlank()) {
+            Toast.makeText(this, R.string.wallet_dashboard_address_unavailable, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val paymentUri = "handshake:$payment"
+        val qrBitmap = walletQrBitmap(paymentUri)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(24), uiDp(8), uiDp(24), 0)
+            addView(ImageView(this@WalletActivity).apply {
+                setImageBitmap(qrBitmap)
+                contentDescription = getString(R.string.wallet_receive_qr_description)
+                adjustViewBounds = true
+            }, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                uiDp(240),
+            ))
+            addView(walletAddressDialogText(payment).apply { setPadding(0, uiDp(8), 0, uiDp(8)) })
+            addView(dashboardActionButton(getString(R.string.wallet_dashboard_copy_address), secondary = true) {
                 copyWalletAddress(payment, R.string.wallet_dashboard_receive)
-            }
-            .show()
+            })
+            addView(dashboardActionButton(getString(R.string.wallet_save_qr_code), secondary = true) {
+                pendingQrBitmap?.recycle()
+                pendingQrBitmap = walletQrBitmap(paymentUri)
+                saveQrCode.launch("shakescape-hns-receive.png")
+            })
+            addView(dashboardActionButton(getString(R.string.wallet_dashboard_name_transfer), secondary = true) {
+                showNameReceiveDialog()
+            })
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_dashboard_receive)
+            .setView(content)
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.setOnDismissListener { qrBitmap.recycle() }
+        dialog.show()
+    }
+
+    private fun walletQrBitmap(value: String, size: Int = 768): Bitmap {
+        val matrix = QRCodeWriter().encode(value, BarcodeFormat.QR_CODE, size, size)
+        val pixels = IntArray(size * size)
+        for (y in 0 until size) for (x in 0 until size) {
+            pixels[(y * size) + x] = if (matrix[x, y]) Color.BLACK else Color.WHITE
+        }
+        return Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).apply {
+            setPixels(pixels, 0, size, 0, 0, size, size)
+        }
     }
 
     private fun showNameReceiveDialog() {
@@ -797,11 +925,15 @@ class WalletActivity : ComponentActivity() {
         Toast.makeText(this, R.string.common_copied, Toast.LENGTH_SHORT).show()
     }
 
-    private fun showHnsSendDialog() {
+    private fun showHnsSendDialog(prefill: HandshakePaymentRequest? = null) {
         val recipientInput = hnsSendRecipientInput()
         val amountInput = hnsSendAmountInput(R.string.wallet_send_amount_hint)
         val maximumFeeInput = hnsSendAmountInput(R.string.wallet_send_maximum_fee_hint).apply {
             setText(DEFAULT_HNS_MAXIMUM_FEE)
+        }
+        prefill?.let { request ->
+            recipientInput.setText(request.address)
+            request.amountHns?.let(amountInput::setText)
         }
         sendRecipientInput = recipientInput
         sendAmountInput = amountInput
@@ -809,7 +941,15 @@ class WalletActivity : ComponentActivity() {
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(uiDp(20), uiDp(4), uiDp(20), 0)
-            addView(labeledWalletSendInput(R.string.wallet_send_recipient_label, recipientInput))
+            addView(labeledWalletSendInput(R.string.wallet_send_recipient_label, recipientInput).apply {
+                addView(dashboardActionButton(getString(R.string.wallet_scan_payment_qr), secondary = true) {
+                    scanHandshakePaymentQr()
+                }.apply {
+                    setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_camera, 0, 0, 0)
+                    compoundDrawablePadding = uiDp(5)
+                    compoundDrawablesRelative.firstOrNull()?.setTint(themeColors().secondaryAction)
+                })
+            })
             addView(labeledWalletSendInput(R.string.wallet_send_amount_label, amountInput))
             addView(labeledWalletSendInput(R.string.wallet_send_maximum_fee_label, maximumFeeInput))
             addView(TextView(this@WalletActivity).apply {
@@ -829,6 +969,7 @@ class WalletActivity : ComponentActivity() {
             // correct fail-closed rejection into an apparent no-op.
             .setPositiveButton(R.string.action_prepare_wallet_send, null)
             .create()
+        sendFormDialog = dialog
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val request = validatedWalletHnsSendInput(
@@ -842,9 +983,21 @@ class WalletActivity : ComponentActivity() {
             }
         }
         dialog.setOnDismissListener {
+            if (sendFormDialog === dialog) sendFormDialog = null
             if (sendRecipientInput === recipientInput) clearSendInputs()
         }
         dialog.show()
+    }
+
+    private fun scanHandshakePaymentQr() {
+        sendFormDialog?.dismiss()
+        handshakeQrScanner.launch(
+            ScanOptions()
+                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                .setPrompt(getString(R.string.wallet_scan_payment_qr))
+                .setBeepEnabled(false)
+                .setOrientationLocked(false),
+        )
     }
 
     private fun labeledWalletSendInput(labelResource: Int, input: EditText): LinearLayout =

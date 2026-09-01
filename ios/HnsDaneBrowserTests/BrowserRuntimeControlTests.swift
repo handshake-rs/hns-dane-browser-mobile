@@ -70,6 +70,24 @@ private final class ReentrantWalletReadBootstrapSource: WalletReadBootstrapSourc
 }
 
 final class BrowserRuntimeControlTests: XCTestCase {
+    func testHandshakePaymentURIParsesEstablishedFormAndRejectsRequiredExtensions() {
+        let address = "hs1q5997733eq7f4yyk2vq2z8gz3yqyvpz422ypggh"
+        XCTAssertEqual(
+            HandshakePaymentURI.parse(
+                "handshake:\(address)?amount=1.25&label=Coffee%20shop&message=Invoice%207"
+            ),
+            HandshakePaymentRequest(
+                address: address,
+                amountHns: "1.25",
+                label: "Coffee shop",
+                message: "Invoice 7"
+            )
+        )
+        XCTAssertNil(HandshakePaymentURI.parse("handshake:\(address)?amount=1&amount=2"))
+        XCTAssertNil(HandshakePaymentURI.parse("handshake:\(address)?req-unknown=1"))
+        XCTAssertNil(HandshakePaymentURI.parse("handshake://\(address)"))
+    }
+
     private var defaults: UserDefaults!
     private var suiteName: String!
 

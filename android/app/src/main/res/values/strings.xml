@@ -653,6 +653,11 @@
     <string name="wallet_dashboard_name_transfer" translatable="false">Name transfer</string>
     <string name="wallet_dashboard_copy_address" translatable="false">Copy address</string>
     <string name="wallet_dashboard_address_unavailable" translatable="false">A receive address is not available yet</string>
+    <string name="wallet_receive_qr_description" translatable="false">QR code containing this Handshake payment address</string>
+    <string name="wallet_save_qr_code" translatable="false">Save QR code</string>
+    <string name="wallet_scan_payment_qr" translatable="false">Scan payment QR</string>
+    <string name="wallet_qr_invalid" translatable="false">That QR code is not a valid Handshake payment URI</string>
+    <string name="wallet_qr_save_failed" translatable="false">The QR code could not be saved</string>
     <string name="wallet_dashboard_send_form_notice" translatable="false">The maximum fee cap is the most the wallet may pay in network fees; the default is 0.05 HNS. A fresh verified wallet snapshot is required before the transaction is prepared.</string>
     <string name="wallet_dashboard_name_actions" translatable="false">Name actions</string>
     <string name="wallet_dashboard_send_bitcoin" translatable="false">Send Bitcoin</string>

@@ -6,6 +6,17 @@
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Shakescape</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>org.handshake.payment</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>handshake</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -36,6 +47,8 @@
 	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to unlock your local Handshake wallet.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Scan a Handshake payment QR code into the HNS send review form.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connect directly to a Handshake wallet peer you explicitly pair for local Shakedex offer exchange.</string>
 	<key>UIApplicationSceneManifest</key>
