@@ -59,8 +59,8 @@ Applied WebView controls:
 
 The app follows the Android security checklist as a platform baseline:
 
-- Manifest permissions are limited to `INTERNET` and `ACCESS_NETWORK_STATE`. The app does not request notification, foreground-service, contacts, location, SMS, camera, microphone, account, package-visibility, or broad file permissions.
-- Only `LauncherActivity` is exported. The browser, settings, diagnostics, history, downloads, proof/TLSA views, resolver trace, and native `WalletActivity` are explicitly non-exported, and no Android service is declared.
+- Manifest permissions are limited to `INTERNET`, `ACCESS_NETWORK_STATE`, `CAMERA`, and the foreground data-sync permissions. Camera access is used only by the native payment-QR scanner; the app does not request contacts, location, SMS, microphone, account, package-visibility, notification, or broad file permissions.
+- Only `LauncherActivity` is exported. The browser, settings, diagnostics, history, downloads, proof/TLSA views, resolver trace, native `WalletActivity`, and `WalletSyncForegroundService` are explicitly non-exported. The service only keeps a user-started bounded wallet synchronization visible to Android.
 - App backup and device-transfer extraction are disabled for files, databases, shared preferences, root storage, and external app data. Browser history, download records, diagnostics, resolver cache, sync/cache state, and wallet database/key ciphertext remain app-local unless the user explicitly exports or shares data.
 - Normal browsing does not enable `file://` or `content://` WebView access. User-initiated downloads use Android DownloadManager into public Downloads, but the system-visible download description does not include the full URL.
 - Network Security Config denies cleartext by default and allows cleartext only for the loopback gateway. The gateway binds randomized `127.0.0.1` ports only while browser proxy support is needed.

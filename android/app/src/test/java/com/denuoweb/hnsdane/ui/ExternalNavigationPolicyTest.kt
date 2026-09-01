@@ -10,6 +10,11 @@ class ExternalNavigationPolicyTest {
         assertTrue(canLaunchExternalNavigation("mailto", hasUserGesture = true))
         assertTrue(canLaunchExternalNavigation("TEL", hasUserGesture = true))
         assertFalse(canLaunchExternalNavigation("sms", hasUserGesture = false))
+        // A website must not be able to bounce through our exported
+        // handshake: handler and re-enter the wallet, even after a click.
+        // The in-wallet QR scanner remains the explicit payment-URI path.
+        assertFalse(canLaunchExternalNavigation("handshake", hasUserGesture = true))
+        assertFalse(canLaunchExternalNavigation("handshake", hasUserGesture = false))
         assertFalse(canLaunchExternalNavigation("https", hasUserGesture = true))
         assertFalse(canLaunchExternalNavigation(null, hasUserGesture = true))
     }

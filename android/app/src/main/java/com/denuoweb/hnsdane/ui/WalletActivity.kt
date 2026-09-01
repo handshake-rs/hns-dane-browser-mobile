@@ -196,6 +196,11 @@ class WalletActivity : ComponentActivity() {
         }
     private var lifecycleEpoch = 0L
     private var foreground = false
+    // Browsing remote content is a security-boundary transition, not an
+    // ordinary configuration change. Do not leave an idle signing-capable
+    // controller alive behind MainActivity merely for faster Back navigation.
+    // A user-started, visibly notified read-only sync is the only exception.
+    private var browserNavigationRequested = false
     // A confirmed, unlocked direct wallet may keep only a user-initiated,
     // read-only direct-peer scan alive while the user moves between screens or
     // briefly leaves the app. Android keeps that narrow exception visible with
@@ -350,10 +355,11 @@ class WalletActivity : ComponentActivity() {
         }
         // Back returns to the browser by reordering Main above this Activity.
         // A user-started read-only synchronization may continue under the
-        // visible foreground service, while an idle controller is retained
-        // only for the short app-switch grace period below.
+        // visible foreground service, while idle signing authority is retired
+        // before attacker-controlled website content remains visible.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                browserNavigationRequested = true
                 startActivity(
                     Intent(this@WalletActivity, MainActivity::class.java)
                         .putExtra(MainActivity.EXTRA_RETURN_TO_BACKGROUND_AFTER_BROWSER, true)
@@ -443,6 +449,7 @@ class WalletActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         foreground = true
+        browserNavigationRequested = false
         startPendingOutgoingRefreshObserver()
         walletBackgroundRetirement?.set(false)
         walletBackgroundRetirement = null
@@ -5070,6 +5077,13 @@ class WalletActivity : ComponentActivity() {
             return walletForegroundSyncServiceActive &&
                 ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
         }
+        if (!walletIdleSessionMayRetainAcrossScreen(browserNavigationRequested)) {
+            // MainActivity renders attacker-controlled website content. Even
+            // though no wallet WebView bridge is installed, retire idle
+            // signing authority before that content remains visible. This
+            // limits a future WebView/native compromise to a locked wallet.
+            return false
+        }
         return NativeWalletBridge.hasHnsReads(handle) &&
             NativeWalletBridge.status(handle)?.locked == false &&
             ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
@@ -6041,6 +6055,10 @@ class WalletActivity : ComponentActivity() {
  * authority indefinitely when Shakescape remains in the background.
  */
 internal const val WALLET_APP_SWITCH_RETENTION_MILLIS = 30_000L
+
+/** Idle signing authority never survives an explicit Wallet -> Browser transition. */
+internal fun walletIdleSessionMayRetainAcrossScreen(browserNavigationRequested: Boolean): Boolean =
+    !browserNavigationRequested
 
 internal fun walletPendingUnlockMayRun(
     requested: Boolean,
