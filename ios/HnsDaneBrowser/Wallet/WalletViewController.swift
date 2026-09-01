@@ -422,29 +422,10 @@ final class WalletViewController: UIViewController {
             body: [openButton]
         ))
         dashboardStack.addArrangedSubview(tileHeading("Explore"))
-        dashboardStack.addArrangedSubview(dashboardTileRow(
-            dashboardTile(
-                title: "Names",
-                summary: "Unlock to inspect names",
-                action: { [weak self] in self?.showNamesDashboard() }
-            ),
-            dashboardTile(
-                title: "Shakedex",
-                summary: "Unlock and synchronize",
-                action: { [weak self] in self?.showShakedexDashboard() }
-            )
-        ))
-        dashboardStack.addArrangedSubview(dashboardTileRow(
-            dashboardTile(
-                title: "Activity",
-                summary: "Inspect wallet history",
-                action: { [weak self] in self?.showActivityDetails() }
-            ),
-            dashboardTile(
-                title: "Wallet",
-                summary: "Open and unlock",
-                action: { [weak self] in self?.showWalletManagement() }
-            )
+        dashboardStack.addArrangedSubview(dashboardTile(
+            title: "Wallet",
+            summary: "Open and unlock",
+            action: { [weak self] in self?.showWalletManagement() }
         ))
     }
 
@@ -477,24 +458,6 @@ final class WalletViewController: UIViewController {
             accent: .systemCyan
         ))
 
-        bitcoinSyncButton.configuration?.title = bitcoinSyncInProgress
-            ? (bitcoinSyncStopRequested ? "Stopping Bitcoin sync…" : "Stop Bitcoin sync")
-            : "Synchronize Bitcoin"
-        dashboardStack.addArrangedSubview(dashboardCard(
-            title: "Bitcoin wallet",
-            body: [
-                bitcoinStatusLabel,
-                bitcoinBalanceLabel,
-                bitcoinReceiveLabel,
-                dashboardButtonRow([bitcoinReceiveButton, bitcoinSendButton, bitcoinSyncButton]),
-                bitcoinSellForHnsButton,
-                bitcoinOffersButton,
-                bitcoinExecutionsButton,
-                bitcoinBirthdayButton,
-            ],
-            accent: .systemOrange
-        ))
-
         if !synchronizedReadsAvailable {
             dashboardStack.addArrangedSubview(dashboardCard(
                 title: "Sync needed",
@@ -504,31 +467,10 @@ final class WalletViewController: UIViewController {
         }
 
         dashboardStack.addArrangedSubview(tileHeading("Explore"))
-        dashboardStack.addArrangedSubview(dashboardTileRow(
-            dashboardTile(
-                title: "Names",
-                summary: synchronizedReadsAvailable && directHnsValueAvailable
-                    ? "Track, transfer, and manage" : "Sync required",
-                action: { [weak self] in self?.showNamesDashboard() }
-            ),
-            dashboardTile(
-                title: "Shakedex",
-                summary: synchronizedReadsAvailable && directHnsValueAvailable
-                    ? "Offers and purchase steps" : "Sync required",
-                action: { [weak self] in self?.showShakedexDashboard() }
-            )
-        ))
-        dashboardStack.addArrangedSubview(dashboardTileRow(
-            dashboardTile(
-                title: "Activity",
-                summary: "Transactions and synchronized evidence",
-                action: { [weak self] in self?.showActivityDetails() }
-            ),
-            dashboardTile(
-                title: "Wallet",
-                summary: "Security and lifecycle",
-                action: { [weak self] in self?.showWalletManagement() }
-            )
+        dashboardStack.addArrangedSubview(dashboardTile(
+            title: "Wallet",
+            summary: "Security and lifecycle",
+            action: { [weak self] in self?.showWalletManagement() }
         ))
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "Recent activity",

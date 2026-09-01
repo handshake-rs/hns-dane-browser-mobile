@@ -633,26 +633,13 @@ class WalletActivity : ComponentActivity() {
             setTextColor(themeColors().secondaryText)
             setPadding(uiDp(4), uiDp(18), uiDp(4), uiDp(7))
         })
-        dashboardContent.addView(walletTileRow(
-            dashboardTile(
-                title = getString(R.string.wallet_dashboard_names),
-                summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else namesSummary(),
-            ) { showNamesDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
-            dashboardTile(
-                title = getString(R.string.wallet_dashboard_bitcoin),
-                summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else bitcoinSummary(),
-            ) { showBitcoinDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
-        ))
-        dashboardContent.addView(walletTileRow(
-            dashboardTile(
-                title = getString(R.string.wallet_dashboard_shakedex),
-                summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else shakedexSummary(),
-            ) { showShakedexDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
+        dashboardContent.addView(
             dashboardTile(
                 title = getString(R.string.wallet_dashboard_wallet),
-                summary = if (locked) getString(R.string.wallet_dashboard_locked_short) else getString(R.string.wallet_dashboard_unlocked_short),
+                summary = if (locked) getString(R.string.wallet_dashboard_locked_short)
+                else getString(R.string.wallet_dashboard_unlocked_short),
             ) { showWalletDetails() }.disabledWhenWalletHandoff(!actionsAvailable),
-        ))
+        )
     }
 
     private fun <T : View> T.disabledWhenWalletHandoff(disabled: Boolean): T = apply {
