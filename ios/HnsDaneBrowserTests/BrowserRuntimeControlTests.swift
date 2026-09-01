@@ -1393,6 +1393,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
             .resolverTrace,
             .hnsProofDetails,
             .tlsaDANEInspector,
+        ])
+        XCTAssertEqual(BrowserSettingsViewController.rows(in: .diagnostics), [
             .diagnostics,
             .gateway,
         ])

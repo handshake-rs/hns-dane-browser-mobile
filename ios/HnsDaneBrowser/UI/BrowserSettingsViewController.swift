@@ -493,9 +493,9 @@ final class BrowserSettingsViewController: UITableViewController {
                 .resolverTrace,
                 .hnsProofDetails,
                 .tlsaDANEInspector,
-                .diagnostics,
-                .gateway,
             ]
+        case .diagnostics:
+            [.diagnostics, .gateway]
         case .about:
             // Apple requires developer tipping in App Store apps to use In-App Purchase.
             [.build, .legal, .privacyPolicy, .sourceCode]
@@ -527,8 +527,8 @@ final class BrowserSettingsViewController: UITableViewController {
         sections(for: destination).count
     }
 
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        guard let section = section(at: section) else { return 0 }
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection sectionIndex: Int) -> Int {
+        guard let section = section(at: sectionIndex) else { return 0 }
         return displayedRows(in: section).count
     }
 
