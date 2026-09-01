@@ -1276,13 +1276,14 @@ final class WalletViewController: UIViewController {
         wallet: RustNativeWallet
     ) {
         let unit = bitcoin ? "sats" : "dollarydoos"
+        let asset = bitcoin ? "Bitcoin" : "HNS"
         let alert = UIAlertController(
             title: "Maximum settlement fee",
-            message: "Enter the maximum (bitcoin ? "Bitcoin" : "HNS") fee in (unit).",
+            message: "Enter the maximum \(asset) fee in \(unit).",
             preferredStyle: .alert
         )
         alert.addTextField { field in
-            field.placeholder = "Maximum fee ((unit))"
+            field.placeholder = "Maximum fee (\(unit))"
             field.keyboardType = .numberPad
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
