@@ -2764,17 +2764,17 @@ final class RustNativeWallet: @unchecked Sendable {
         var output = HnsBrowserBuffer()
         let currentHandle = try liveHandle()
         let result = sessionId.withUnsafeBufferPointer { session in
-            maximumFee.withUnsafeBufferPointer { fee in
+            return maximumFee.withUnsafeBufferPointer { fee in
                 let sessionSlice = HnsBrowserSlice(
                     ptr: session.baseAddress, len: UInt64(session.count)
                 )
                 let feeSlice = HnsBrowserSlice(ptr: fee.baseAddress, len: UInt64(fee.count))
                 if bitcoin {
-                    hns_browser_wallet_prepare_bitcoin_swap_settlement(
+                    return hns_browser_wallet_prepare_bitcoin_swap_settlement(
                         currentHandle, sessionSlice, action == .redeem, feeSlice, &output
                     )
                 } else {
-                    hns_browser_wallet_prepare_hns_swap_settlement(
+                    return hns_browser_wallet_prepare_hns_swap_settlement(
                         currentHandle, sessionSlice, action == .redeem, feeSlice, &output
                     )
                 }
@@ -2795,11 +2795,11 @@ final class RustNativeWallet: @unchecked Sendable {
             let result = try token.withUnsafeBufferPointer { bytes in
                 let slice = HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
                 if bitcoin {
-                    hns_browser_wallet_approve_bitcoin_swap_settlement(
+                    return hns_browser_wallet_approve_bitcoin_swap_settlement(
                         try liveHandle(), slice, &output
                     )
                 } else {
-                    hns_browser_wallet_approve_hns_swap_settlement(
+                    return hns_browser_wallet_approve_hns_swap_settlement(
                         try liveHandle(), slice, &output
                     )
                 }
@@ -2819,9 +2819,13 @@ final class RustNativeWallet: @unchecked Sendable {
             let result = try token.withUnsafeBufferPointer { bytes in
                 let slice = HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
                 if bitcoin {
-                    hns_browser_wallet_reject_bitcoin_swap_settlement(try liveHandle(), slice)
+                    return hns_browser_wallet_reject_bitcoin_swap_settlement(
+                        try liveHandle(), slice
+                    )
                 } else {
-                    hns_browser_wallet_reject_hns_swap_settlement(try liveHandle(), slice)
+                    return hns_browser_wallet_reject_hns_swap_settlement(
+                        try liveHandle(), slice
+                    )
                 }
             }
             try NativeWalletBridge.check(result, operation: "swap settlement rejection")

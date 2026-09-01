@@ -207,21 +207,20 @@ final class WalletViewController: UIViewController {
            !Self.screenCaptureProtectionActive {
             walletLifecycleSuspended = false
         }
+        startPendingOutgoingRefreshObserver()
         startHnsSyncPresentationWatcher()
         resumeWalletLifecycle()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         walletAuthorityRequested = false
+        stopPendingOutgoingRefreshObserver()
         stopHnsSyncPresentationWatcher()
         protectWalletLifecycle()
         super.viewWillDisappear(animated)
     }
 
     deinit {
-        if let browserSyncObservation {
-            browserProcess?.removeSyncObserver(browserSyncObservation)
-        }
         NotificationCenter.default.removeObserver(self)
         hnsSyncPresentationTimer?.invalidate()
         directShakescapeServiceTimer?.invalidate()
@@ -936,7 +935,7 @@ final class WalletViewController: UIViewController {
                     switch outcome {
                     case .success(let approval): self.presentBitcoinSendApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.refreshControllerState()
+                        self.refreshState()
                         self.showError(error)
                     }
                 }
@@ -981,7 +980,7 @@ final class WalletViewController: UIViewController {
                         self.bitcoinStatusLabel.text = "Bitcoin transaction broadcast: \(receipt.txid)"
                         if let snapshot = try? wallet.bitcoinSnapshot() { self.renderBitcoinSnapshot(snapshot) }
                     case .failure:
-                        self.refreshControllerState()
+                        self.refreshState()
                         self.bitcoinStatusLabel.text = "The Bitcoin transaction is durably pending, but Kyoto was not ready to submit it. Synchronize Bitcoin to retry this same transaction. Do not prepare another send."
                         self.showErrorMessage("The Bitcoin transaction is durably pending. Synchronize Bitcoin to retry this same transaction; do not prepare another send.")
                     }
@@ -3837,6 +3836,12 @@ final class WalletViewController: UIViewController {
         }
     }
 
+    private func stopPendingOutgoingRefreshObserver() {
+        guard let browserSyncObservation else { return }
+        browserProcess?.removeSyncObserver(browserSyncObservation)
+        self.browserSyncObservation = nil
+    }
+
     private func maybeRefreshPendingOutgoingAfterNewBlock() {
         guard let refreshHeight = walletPendingOutgoingRefreshHeight(
             pendingSnapshotHeight: pendingOutgoingSnapshotHeight,
@@ -4720,6 +4725,10 @@ final class WalletViewController: UIViewController {
             }
         } while key.allSatisfy { $0 == 0 }
         return key
+    }
+
+    nonisolated private static func lowerHex(_ bytes: [UInt8]) -> String {
+        bytes.map { String(format: "%02x", $0) }.joined()
     }
 
     private func showError(_ error: Error) {
@@ -5691,7 +5700,10 @@ final class HandshakeReceiveQrViewController: UIViewController {
 }
 
 @MainActor
-final class HandshakeQrScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+final class HandshakeQrScannerViewController:
+    UIViewController,
+    @preconcurrency AVCaptureMetadataOutputObjectsDelegate
+{
     var onResult: ((String) -> Void)?
     private let session = AVCaptureSession()
     private var preview: AVCaptureVideoPreviewLayer?
