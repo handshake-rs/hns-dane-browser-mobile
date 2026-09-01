@@ -149,7 +149,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.0",
-            "60",
+            "61",
             {},
         )
 
@@ -159,14 +159,14 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.0",
-            "60",
+            "61",
         )
         plan = release_client.local_plan(release)
         self.assertEqual(plan["mode"], "plan")
         self.assertEqual(plan["networkRequests"], 0)
         self.assertEqual(plan["mutations"], 0)
         self.assertEqual(plan["version"], "1.0.0")
-        self.assertEqual(plan["build"], "60")
+        self.assertEqual(plan["build"], "61")
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 
@@ -180,7 +180,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-version",
             "1.0.0",
             "--expected-build",
-            "60",
+            "61",
         ]
         with (
             mock.patch.object(sys, "argv", arguments),
@@ -197,7 +197,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.0",
-            "60",
+            "61",
         )
 
     def test_mutations_require_release_specific_confirmation_strings(self):
@@ -244,7 +244,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 self.release.metadata_confirmation,
                 None,
                 False,
-                "REPLACE_SCREENSHOTS_1.0.0_61",
+                "REPLACE_SCREENSHOTS_1.0.0_60",
             )
         with self.assertRaisesRegex(release_client.ReleaseError, "mutating mode"):
             release_client.validate_confirmations(
@@ -297,7 +297,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 automation_commit,
                 artifact_commit,
                 "1.0.0",
-                "60",
+                "61",
                 {},
             )
             release_client.verify_release_automation_diff(release)
@@ -311,7 +311,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 changed_commit,
                 artifact_commit,
                 "1.0.0",
-                "60",
+                "61",
                 {},
             )
             with self.assertRaisesRegex(
@@ -359,7 +359,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
         claims = json.loads(decode(encoded_claims))
         self.assertEqual(claims["aud"], "appstoreconnect-v1")
         self.assertEqual(claims["iat"], 1_700_000_000)
-        self.assertEqual(claims["exp"], 1_700_000_610)
+        self.assertEqual(claims["exp"], 1_700_000_600)
         self.assertEqual(len(decode(encoded_signature)), 64)
 
     def test_private_key_permissions_are_fail_closed(self):
@@ -398,7 +398,7 @@ class SubmissionSafetyTests(unittest.TestCase):
             "b" * 40,
             "b" * 40,
             "1.0.0",
-            "60",
+            "61",
             {},
         )
         return release_client.ReleaseManager(

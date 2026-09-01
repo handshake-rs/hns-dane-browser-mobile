@@ -12,7 +12,7 @@ The committed application identity is:
   rechecked through the public record on 2026-08-09
 - Published iOS build: `0.5.5` (`57`) at source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`
-- Configured release candidate: `1.0.0` (`60`), not uploaded
+- Configured release candidate: `1.0.0` (`61`), not uploaded
 - Device family: iPhone
 
 Candidate build `61` includes a native-only wallet screen for

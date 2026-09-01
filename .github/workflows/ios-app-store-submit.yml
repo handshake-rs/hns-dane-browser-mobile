@@ -179,7 +179,7 @@ jobs:
             --expected-commit "$EXPECTED_COMMIT" \
             --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT" \
             --expected-version 1.0.0 \
-            --expected-build 60 >/dev/null
+            --expected-build 61 >/dev/null
 
       - name: Validate the successful exact-commit upload run
         if: ${{ inputs.mode != 'discover' }}
@@ -294,7 +294,7 @@ jobs:
             --expected-commit "$EXPECTED_COMMIT"
             --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT"
             --expected-version 1.0.0
-            --expected-build 60
+            --expected-build 61
             --review-contact-source-version "$REVIEW_CONTACT_SOURCE_VERSION"
           )
           if [[ "$MODE" != discover ]]; then
