@@ -32,8 +32,8 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 class ReleaseCandidateMetadataTests(unittest.TestCase):
     def test_100_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.0\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 52$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.1\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 53$")
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
