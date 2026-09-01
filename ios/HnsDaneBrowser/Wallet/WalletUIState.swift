@@ -1,5 +1,21 @@
 import Foundation
 
+/// Selects one newly authenticated height for a pending-transaction refresh.
+/// A failed or no-op round cannot spin until strictly newer evidence arrives.
+func walletPendingOutgoingRefreshHeight(
+    pendingSnapshotHeight: UInt64?,
+    observedHeaderHeight: UInt64?,
+    attemptedHeaderHeight: UInt64?
+) -> UInt64? {
+    guard let pendingSnapshotHeight,
+          let observedHeaderHeight,
+          observedHeaderHeight > pendingSnapshotHeight,
+          attemptedHeaderHeight.map({ observedHeaderHeight > $0 }) ?? true else {
+        return nil
+    }
+    return observedHeaderHeight
+}
+
 let walletOperationInProgressMessage =
     "The wallet is still completing synchronization or another operation. " +
     "It may continue in the background. Wait for it to finish, then try again."

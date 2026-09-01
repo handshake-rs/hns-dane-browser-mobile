@@ -712,8 +712,34 @@ final class BrowserRuntimeControlTests: XCTestCase {
             WalletReadPresenter.present(pendingOutgoingSnapshot).balance,
             "12.345678 HNS spendable now\n" +
                 "0.100123 HNS pending outgoing\n" +
-                "Confirmed inputs are reserved until peer or chain evidence settles the pending transaction."
+                "Transaction Pending, please wait."
         )
+
+        XCTAssertNil(walletPendingOutgoingRefreshHeight(
+            pendingSnapshotHeight: nil,
+            observedHeaderHeight: 101,
+            attemptedHeaderHeight: nil
+        ))
+        XCTAssertNil(walletPendingOutgoingRefreshHeight(
+            pendingSnapshotHeight: 100,
+            observedHeaderHeight: 100,
+            attemptedHeaderHeight: nil
+        ))
+        XCTAssertEqual(walletPendingOutgoingRefreshHeight(
+            pendingSnapshotHeight: 100,
+            observedHeaderHeight: 101,
+            attemptedHeaderHeight: nil
+        ), 101)
+        XCTAssertNil(walletPendingOutgoingRefreshHeight(
+            pendingSnapshotHeight: 100,
+            observedHeaderHeight: 101,
+            attemptedHeaderHeight: 101
+        ))
+        XCTAssertEqual(walletPendingOutgoingRefreshHeight(
+            pendingSnapshotHeight: 100,
+            observedHeaderHeight: 102,
+            attemptedHeaderHeight: 101
+        ), 102)
 
         let versionOne = try NativeHnsReadSnapshot.decode(bundle: hnsReadBundle(json: json))
         let versionOnePresentation = WalletReadPresenter.present(versionOne)

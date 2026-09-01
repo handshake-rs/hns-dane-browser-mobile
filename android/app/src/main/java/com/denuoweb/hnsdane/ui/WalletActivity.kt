@@ -39,6 +39,7 @@ import com.denuoweb.hnsdane.BuildConfig
 import com.denuoweb.hnsdane.HnsDaneApplication
 import com.denuoweb.hnsdane.R
 import com.denuoweb.hnsdane.net.HeaderSnapshotInstaller
+import com.denuoweb.hnsdane.net.HnsSyncProgress
 import com.denuoweb.hnsdane.wallet.AndroidWalletKeyStore
 import com.denuoweb.hnsdane.wallet.DirectHnsSynchronizationJournalStart
 import com.denuoweb.hnsdane.wallet.NativeHnsSendApproval
@@ -107,6 +108,7 @@ import com.denuoweb.hnsdane.wallet.walletControllerOperationMayBegin
 import com.denuoweb.hnsdane.wallet.walletDeletionMayProceed
 import com.denuoweb.hnsdane.wallet.walletNameImportMayBegin
 import com.denuoweb.hnsdane.wallet.walletNameImportMayPublish
+import com.denuoweb.hnsdane.wallet.walletPendingOutgoingRefreshHeight
 import com.denuoweb.hnsdane.wallet.walletBackgroundHnsSyncMayRetain
 import com.denuoweb.hnsdane.wallet.walletReadMayPublish
 import com.denuoweb.hnsdane.wallet.walletReadBootstrapMayInstall
@@ -116,6 +118,7 @@ import com.denuoweb.hnsdane.wallet.walletSetupMayInspectStorage
 import com.denuoweb.hnsdane.wallet.walletStorageNamespace
 import java.io.File
 import java.io.ByteArrayOutputStream
+import java.io.Closeable
 import java.security.SecureRandom
 import java.text.DateFormat
 import java.util.Date
@@ -199,6 +202,10 @@ class WalletActivity : ComponentActivity() {
     private var recentActivityPageOffset: Int = 0
     private var pendingHandshakePayment: HandshakePaymentRequest? = null
     private var pendingPaymentPresentationScheduled = false
+    private var browserSyncObservation: Closeable? = null
+    private var pendingOutgoingSnapshotHeight: Long? = null
+    private var pendingOutgoingRefreshAttemptedHeight: Long? = null
+    private var latestObservedBrowserHeaderHeight: Long? = null
     private var pendingQrBitmap: Bitmap? = null
     private val handshakeQrScanner = registerForActivityResult(ScanContract()) { result ->
         val request = result.contents?.let(HandshakePaymentUri::parse)
@@ -397,6 +404,7 @@ class WalletActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         foreground = true
+        startPendingOutgoingRefreshObserver()
         walletBackgroundRetirement?.set(false)
         walletBackgroundRetirement = null
         if (retainingInAppWalletSession && currentStorageLease() != null && walletHandle != INVALID_HANDLE) {
@@ -464,6 +472,8 @@ class WalletActivity : ComponentActivity() {
                 "busy=$busy",
         )
         foreground = false
+        browserSyncObservation?.close()
+        browserSyncObservation = null
         // An Unlock tap may be queued while the durable controller is still
         // reopening. Never carry that user-presence request off this screen.
         walletUnlockRequested = false
@@ -4342,6 +4352,7 @@ class WalletActivity : ComponentActivity() {
         sendStatusView.text = getString(R.string.wallet_send_broadcasting)
         statusView.text = getString(R.string.wallet_status_broadcasting_send)
         val handle = walletHandle
+        val pendingRefreshFloor = latestReadSnapshot?.height
         thread(name = "hns-wallet-send-broadcast") {
             val receipt = NativeWalletBridge.approveHnsValueAction(handle, approval.actionToken)
             approval.close()
@@ -4410,10 +4421,9 @@ class WalletActivity : ComponentActivity() {
                             TAG,
                             "HNS transaction was submitted to peers, but post-broadcast wallet synchronization failed",
                         )
-                        sendStatusView.text = getString(
-                            R.string.wallet_send_submitted_sync_failed,
-                            receipt.txid,
-                        )
+                        sendStatusView.text = getString(R.string.wallet_send_submitted_sync_failed)
+                        pendingOutgoingSnapshotHeight = pendingRefreshFloor
+                        maybeRefreshPendingOutgoingAfterNewBlock()
                     }
                     admissionStatus != null -> {
                         Log.i(TAG, "HNS transaction has verified network admission status=$admissionStatus")
@@ -4430,10 +4440,7 @@ class WalletActivity : ComponentActivity() {
                             "HNS transaction bytes were written to peers but mempool admission was not verified",
                         )
                         renderReadSnapshot(snapshot)
-                        sendStatusView.text = getString(
-                            R.string.wallet_send_admission_unverified,
-                            receipt.txid,
-                        )
+                        sendStatusView.text = getString(R.string.wallet_send_admission_unverified)
                     }
                 }
             }
@@ -5557,6 +5564,12 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshotEpoch = lifecycleEpoch
         readStatusView.text = getString(R.string.wallet_reads_ready, snapshot.height)
         val balance = snapshot.hnsBalanceProjection()
+        if (balance.hasPendingOutgoing) {
+            pendingOutgoingSnapshotHeight = snapshot.height
+        } else {
+            pendingOutgoingSnapshotHeight = null
+            pendingOutgoingRefreshAttemptedHeight = null
+        }
         balanceView.textSize = if (balance.hasPendingOutgoing) 18f else 24f
         balanceView.text = when {
             balance.hasPendingOutgoing -> getString(
@@ -5606,6 +5619,49 @@ class WalletActivity : ComponentActivity() {
             getString(R.string.wallet_shakedex_queries_unavailable)
         }
         renderWalletDashboard()
+        maybeRefreshPendingOutgoingAfterNewBlock()
+    }
+
+    private fun startPendingOutgoingRefreshObserver() {
+        if (browserSyncObservation != null) return
+        val app = application as? HnsDaneApplication ?: return
+        browserSyncObservation = app.observeSync { snapshot ->
+            val progress = HnsSyncProgress.fromJson(snapshot.statusJson)
+            val height = progress.bestHeight
+            if (
+                progress.network != walletNetwork.id ||
+                    !progress.isCurrent ||
+                    height == null
+            ) return@observeSync
+            runOnUiThread {
+                latestObservedBrowserHeaderHeight = maxOf(
+                    latestObservedBrowserHeaderHeight ?: 0L,
+                    height,
+                )
+                maybeRefreshPendingOutgoingAfterNewBlock()
+            }
+        }
+    }
+
+    private fun maybeRefreshPendingOutgoingAfterNewBlock() {
+        val refreshHeight = walletPendingOutgoingRefreshHeight(
+            pendingSnapshotHeight = pendingOutgoingSnapshotHeight,
+            observedHeaderHeight = latestObservedBrowserHeaderHeight,
+            attemptedHeaderHeight = pendingOutgoingRefreshAttemptedHeight,
+        ) ?: return
+        val handle = walletHandle
+        if (
+            !foreground || busy || walletHnsSyncInProgress ||
+                currentStorageLease() == null || handle == INVALID_HANDLE ||
+                NativeWalletBridge.status(handle)?.locked != false ||
+                !NativeWalletBridge.hasHnsReads(handle)
+        ) return
+        pendingOutgoingRefreshAttemptedHeight = refreshHeight
+        Log.i(
+            TAG,
+            "Refreshing pending outgoing transaction after verified Handshake height $refreshHeight",
+        )
+        synchronizeWalletReads()
     }
 
     private fun renderLoadedTrackedNames(total: Int) {

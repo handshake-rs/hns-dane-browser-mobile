@@ -10,6 +10,7 @@ import CoreImage
 @MainActor
 final class WalletViewController: UIViewController {
     private let network: BrowserHandshakeNetwork
+    private weak var browserProcess: BrowserProcess?
     private let keychain: WalletKeychainStore
     private let readBootstrapSource: any WalletReadBootstrapSource =
         UnavailableWalletReadBootstrapSource.shared
@@ -73,6 +74,11 @@ final class WalletViewController: UIViewController {
     private var pendingSwapSettlementIsBitcoin = false
     private var pendingHandshakePayment: HandshakePaymentRequest?
     private var pendingPaymentPresentationScheduled = false
+    private var browserSyncObservation: UUID?
+    private var latestPublishedSnapshotHeight: UInt64?
+    private var pendingOutgoingSnapshotHeight: UInt64?
+    private var pendingOutgoingRefreshAttemptedHeight: UInt64?
+    private var latestObservedBrowserHeaderHeight: UInt64?
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -109,11 +115,13 @@ final class WalletViewController: UIViewController {
 
     init(
         network: BrowserHandshakeNetwork,
-        paymentRequest: HandshakePaymentRequest? = nil
+        paymentRequest: HandshakePaymentRequest? = nil,
+        browserProcess: BrowserProcess? = nil
     ) {
         self.network = network
         self.keychain = WalletKeychainStore(network: network)
         self.pendingHandshakePayment = paymentRequest
+        self.browserProcess = browserProcess
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -169,6 +177,7 @@ final class WalletViewController: UIViewController {
             object: nil
         )
         refreshState()
+        startPendingOutgoingRefreshObserver()
     }
 
     @objc private func dismissExternalWallet() {
@@ -195,6 +204,9 @@ final class WalletViewController: UIViewController {
     }
 
     deinit {
+        if let browserSyncObservation {
+            browserProcess?.removeSyncObserver(browserSyncObservation)
+        }
         NotificationCenter.default.removeObserver(self)
         hnsSyncPresentationTimer?.invalidate()
         directShakescapeServiceTimer?.invalidate()
@@ -1932,6 +1944,7 @@ final class WalletViewController: UIViewController {
         pendingHnsSendApproval = nil
         hnsSendApprovalAlert = nil
         readStatusLabel.text = "Broadcasting the approved HNS send…"
+        let pendingRefreshFloor = latestPublishedSnapshotHeight
         let keychain = keychain
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
             let outcome: Result<WalletHnsPostBroadcastResult<NativeHnsSendReceipt, NativeHnsReadSnapshot>, Error> = Result {
@@ -1973,9 +1986,11 @@ final class WalletViewController: UIViewController {
                        admissionStatus == "mempool" || admissionStatus == "confirmed" {
                         self.readStatusLabel.text = "HNS transaction \(result.receipt.txid) has verified network status: \(admissionStatus). You may close the wallet; confirmation still requires inclusion in a verified block."
                     } else if result.snapshot == nil {
-                        self.readStatusLabel.text = "HNS transaction \(result.receipt.txid) was written to connected peers, but post-broadcast verification failed. Its signed workflow remains saved. Unlock and synchronize before another send; remote mempool admission is not verified."
+                        self.pendingOutgoingSnapshotHeight = pendingRefreshFloor
+                        self.readStatusLabel.text = "Transaction pending. Shakescape could not refresh the wallet immediately and will retry automatically after it detects a new Handshake block."
+                        self.maybeRefreshPendingOutgoingAfterNewBlock()
                     } else {
-                        self.readStatusLabel.text = "HNS transaction \(result.receipt.txid) was written to connected peers, but the refreshed verified snapshot did not prove remote mempool admission. The signed transaction remains saved for exact-byte recovery. Do not prepare another send; keep the wallet open and synchronize again."
+                        self.readStatusLabel.text = "Transaction pending. Shakescape will refresh the wallet automatically after it detects a new Handshake block."
                     }
                 case .failure(let error):
                     self.readStatusLabel.text = "HNS send outcome is ambiguous. The wallet was locked; unlock and synchronize before taking another action."
@@ -3692,6 +3707,14 @@ final class WalletViewController: UIViewController {
 
     private func publish(_ snapshot: NativeHnsReadSnapshot) {
         let presentation = WalletReadPresenter.present(snapshot)
+        let balance = WalletHnsBalancePresenter.present(snapshot)
+        latestPublishedSnapshotHeight = snapshot.moduleStatus.validatedHeight
+        if balance.hasPendingOutgoing {
+            pendingOutgoingSnapshotHeight = snapshot.moduleStatus.validatedHeight
+        } else {
+            pendingOutgoingSnapshotHeight = nil
+            pendingOutgoingRefreshAttemptedHeight = nil
+        }
         recentTransactions = snapshot.transactionHistory
         recentActivityPageOffset = 0
         receiveTargets = WalletReceiveTargets(snapshot: snapshot)
@@ -3701,6 +3724,40 @@ final class WalletViewController: UIViewController {
         nameReceiveLabel.text = presentation.nameReceive
         historyLabel.text = presentation.history
         namesLabel.text = presentation.names
+        maybeRefreshPendingOutgoingAfterNewBlock()
+    }
+
+    private func startPendingOutgoingRefreshObserver() {
+        guard browserSyncObservation == nil, let browserProcess else { return }
+        browserSyncObservation = browserProcess.observeSync { [weak self] summary in
+            guard let self,
+                  summary.network == self.network.rawValue,
+                  summary.hasAuthoritativeCurrentness,
+                  let height = summary.bestHeight else { return }
+            self.latestObservedBrowserHeaderHeight = max(
+                self.latestObservedBrowserHeaderHeight ?? 0,
+                height
+            )
+            self.maybeRefreshPendingOutgoingAfterNewBlock()
+        }
+    }
+
+    private func maybeRefreshPendingOutgoingAfterNewBlock() {
+        guard let refreshHeight = walletPendingOutgoingRefreshHeight(
+            pendingSnapshotHeight: pendingOutgoingSnapshotHeight,
+            observedHeaderHeight: latestObservedBrowserHeaderHeight,
+            attemptedHeaderHeight: pendingOutgoingRefreshAttemptedHeight
+        ),
+        walletAuthorityRequested,
+        viewIfLoaded?.window != nil,
+        storageLease != nil,
+        wallet != nil,
+        walletIsUnlocked,
+        synchronizedReadsAvailable,
+        !isOperating else { return }
+        pendingOutgoingRefreshAttemptedHeight = refreshHeight
+        readStatusLabel.text = "A new Handshake block was detected. Refreshing the pending transaction…"
+        synchronizeWalletReads()
     }
 
     private func clearReadProjection() {
@@ -4696,7 +4753,7 @@ enum WalletReadPresenter {
             balanceText = [
                 "\(formatHnsBaseUnits(balance.spendableBaseUnits)) HNS spendable now",
                 "\(formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)) HNS pending outgoing",
-                "Confirmed inputs are reserved until peer or chain evidence settles the pending transaction.",
+                "Transaction Pending, please wait.",
             ].joined(separator: "\n")
         } else {
             balanceText = "\(formatHnsBaseUnits(balance.spendableBaseUnits)) HNS spendable now"

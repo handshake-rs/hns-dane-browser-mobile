@@ -426,7 +426,7 @@
     <string name="wallet_reads_ready" translatable="false">Handshake wallet state is ready at height %1$d.</string>
     <string name="wallet_reads_balance_unavailable" translatable="false">No synchronized balance is exposed.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS spendable now</string>
-    <string name="wallet_reads_balance_with_pending" translatable="false">%1$s HNS spendable now\n%2$s HNS pending outgoing\nConfirmed inputs are reserved until peer or chain evidence settles the pending transaction.</string>
+    <string name="wallet_reads_balance_with_pending" translatable="false">%1$s HNS spendable now\n%2$s HNS pending outgoing\nTransaction Pending, please wait.</string>
     <string name="wallet_reads_receive_unavailable" translatable="false">No payment receive address is exposed.</string>
     <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d</string>
     <string name="wallet_reads_receive_local" translatable="false">%1$s\nDerivation index %2$d\nReady to receive HNS locally. Synchronize before trusting balance/history or sending.</string>
@@ -472,9 +472,9 @@
     <string name="wallet_send_broadcasting" translatable="false">Broadcasting the exact approved transaction through the wallet-owned peer set…</string>
     <string name="wallet_send_broadcast_ambiguous" translatable="false">No authenticated receipt could be returned. The wallet was locked. Synchronize history before deciding whether to retry; the transaction may already have broadcast.</string>
     <string name="wallet_send_pre_broadcast_syncing" translatable="false">The transaction was not signed or broadcast. Refreshing verified wallet history before a new review…</string>
-    <string name="wallet_send_submitted_sync_failed" translatable="false">Transaction %1$s was written to connected peers, but required post-broadcast verification failed. Its signed workflow remains saved. Reopen, unlock, and synchronize before another send; remote mempool admission is not verified.</string>
+    <string name="wallet_send_submitted_sync_failed" translatable="false">Transaction pending. Shakescape could not refresh the wallet immediately and will retry automatically after it detects a new Handshake block.</string>
     <string name="wallet_send_admission_verified" translatable="false">Transaction %1$s has verified network status: %2$s. You may close the wallet; confirmation still requires inclusion in a verified block.</string>
-    <string name="wallet_send_admission_unverified" translatable="false">Transaction %1$s was written to connected peers, but the refreshed verified snapshot did not prove remote mempool admission. The signed transaction remains saved and visible for exact-byte recovery. Do not prepare another send; keep the wallet open and synchronize again.</string>
+    <string name="wallet_send_admission_unverified" translatable="false">Transaction pending. Shakescape will refresh the wallet automatically after it detects a new Handshake block.</string>
     <string name="wallet_send_rejecting" translatable="false">Discarding the pending native approval…</string>
     <string name="wallet_send_rejected" translatable="false">Send rejected. No transaction was broadcast.</string>
     <string name="wallet_send_reject_failed" translatable="false">The pending approval could not be discarded cleanly, so the wallet was locked.</string>

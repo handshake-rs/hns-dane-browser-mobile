@@ -101,6 +101,21 @@ internal fun NativeWalletReadSnapshot.hnsBalanceProjection(): WalletHnsBalancePr
     )
 }
 
+/**
+ * Selects one new authenticated header height for a pending-transaction
+ * refresh. A failed or no-op wallet round cannot spin at the same height; the
+ * next automatic attempt requires strictly newer browser-chain evidence.
+ */
+internal fun walletPendingOutgoingRefreshHeight(
+    pendingSnapshotHeight: Long?,
+    observedHeaderHeight: Long?,
+    attemptedHeaderHeight: Long?,
+): Long? = observedHeaderHeight?.takeIf { observed ->
+    pendingSnapshotHeight != null &&
+        observed > pendingSnapshotHeight &&
+        (attemptedHeaderHeight == null || observed > attemptedHeaderHeight)
+}
+
 /** Raw native-validated receive values for copy/share controls. */
 internal data class WalletHnsReceiveTargets(
     val paymentAddress: String,

@@ -178,7 +178,8 @@ final class BrowserViewController: UIViewController {
         pendingHandshakePayment = nil
         let wallet = WalletViewController(
             network: process.currentNetwork,
-            paymentRequest: request
+            paymentRequest: request,
+            browserProcess: process
         )
         let navigation = UINavigationController(rootViewController: wallet)
         navigation.modalPresentationStyle = .formSheet
@@ -1589,7 +1590,10 @@ extension BrowserViewController: BrowserSettingsViewControllerDelegate {
             clearBrowsingData(presenter: controller)
         case .showWallet:
             controller.navigationController?.pushViewController(
-                WalletViewController(network: process.currentNetwork),
+                WalletViewController(
+                    network: process.currentNetwork,
+                    browserProcess: process
+                ),
                 animated: true
             )
         case .setTheme(let mode):

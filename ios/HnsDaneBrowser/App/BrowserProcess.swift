@@ -51,6 +51,7 @@ final class BrowserProcess {
     private(set) var currentPolicy: BrowserRuntimePolicy
     private var isForegroundSyncEnabled = false
     private var syncObserver: ((BrowserSyncSummary) -> Void)?
+    private var additionalSyncObservers: [UUID: (BrowserSyncSummary) -> Void] = [:]
     // This is deliberately presentation-only. It lets the UI acknowledge that
     // foreground work has been scheduled before the Rust runtime publishes its
     // authoritative `syncInFlight` status; it must never affect proxy admission.
@@ -339,8 +340,21 @@ final class BrowserProcess {
         syncScheduleGeneration &+= 1
     }
 
+    /// Adds a process-owned, presentation-only observer without replacing the
+    /// browser screen's primary synchronization observer.
+    func observeSync(_ observer: @escaping (BrowserSyncSummary) -> Void) -> UUID {
+        let token = UUID()
+        additionalSyncObservers[token] = observer
+        return token
+    }
+
+    func removeSyncObserver(_ token: UUID) {
+        additionalSyncObservers.removeValue(forKey: token)
+    }
+
     func close() {
         suspendForegroundSync()
+        additionalSyncObservers.removeAll()
         networkSwitchInFlight = false
         networkSwitchGeneration &+= 1
         drainSyncMaintenanceSafePoints(runCallbacks: false)
@@ -466,6 +480,7 @@ final class BrowserProcess {
         }
         if isForegroundSyncEnabled {
             syncObserver?(summary)
+            Array(additionalSyncObservers.values).forEach { $0(summary) }
             let delay = syncSchedulingPolicy.delay(
                 after: summary,
                 consecutiveFailures: consecutiveSyncFailures
