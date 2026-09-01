@@ -40,22 +40,27 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.0")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        wallet_commit = "b529820801b20c3d2956542433cbb046a4ecbe3a"
-        self.assertEqual(wallet, {
-            "git": "https://github.com/handshake-rs/hns-wallet-rs.git",
-            "rev": wallet_commit,
-            "package": "hns-wallet-mobile",
-        })
+        self.assertEqual(wallet, "=0.2.1")
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            f'name = "hns-wallet-mobile"\nversion = "0.2.0"\nsource = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev={wallet_commit}#{wallet_commit}"',
+            'name = "hns-wallet-mobile"\nversion = "0.2.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         self.assertIn(
-            'name = "hns-header-consensus"\nversion = "0.3.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+            'name = "hns-header-consensus"\nversion = "0.4.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
+        for package in (
+            "hns-light-chain",
+            "hns-light-p2p",
+            "hns-light-sync",
+            "hns-light-wallet",
+        ):
+            self.assertIn(
+                f'name = "{package}"\nversion = "0.2.3"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+                lockfile,
+            )
         self.assertNotIn("f83d42363305de04bfa955f864cb1e9136c4d648", lockfile)
         self.assertNotIn("abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2", lockfile)
         self.assertNotIn("2229be849557d58a8eb723bcc03349f0f2df9796", lockfile)

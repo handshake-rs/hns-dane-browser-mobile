@@ -13,11 +13,11 @@ into the app.
 | Android app | `1.0.0` / code `52` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.0` / build `61` | `ios/project.yml` |
-| Native wallet controller | exact Git revision `b529820801b20c3d2956542433cbb046a4ecbe3a` | `rust/Cargo.toml`, commit-bearing `rust/Cargo.lock` |
-| Wallet protocol closure | published `hns-rs 0.3.1` | `rust/Cargo.lock` |
+| Native wallet controller | exact published `0.2.1` registry cohort | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
+| Wallet protocol closure | published `hns-rs 0.4.1` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
-| Public engine contracts | published `hns-dane-engine 0.2.2` crates, with `hns-namespace-resolution 0.2.3` | Cargo manifests and checksum-bearing locks |
+| Public engine contracts | published exact engine crates, with the light-client cohort and `hns-namespace-resolution` at `0.2.3` | Cargo manifests and checksum-bearing locks |
 | Browser engine adapters | published exact `hns-browser-* 0.2.2` packages, with `hns-browser-gateway 0.2.3` | Cargo manifests and all three locks |
 | Standalone engine facade | Not in the mobile graph; upstream mobile-safe dependency boundary required | Cargo manifests and target-filtered metadata |
 | Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
@@ -111,8 +111,9 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses wallet revision `b529820801b20c3d2956542433cbb046a4ecbe3a`,
-  published HNS `0.3.1`, and exact engine/browser-adapter releases. The complete source and checksum
+- The mobile dependency sequence uses the exact published wallet `0.2.1`
+  registry cohort, published HNS `0.4.1`, and
+  exact engine/browser-adapter releases. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).
   Earlier run `31807520618` qualified only HNWR-v2 source
   `986accb7d86d220af63187031e629a9ce69d71e5`. Exact current application source

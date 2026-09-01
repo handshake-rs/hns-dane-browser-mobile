@@ -27,8 +27,8 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = 5c375d5dee56277e5e3668e0c9050e5711f066e17878a5f85c135d150eed7e77
-  rust/Cargo.lock = 111d63a4e54ead0a119ad26f0151222a78774c29f079e21a9767d59d5d4e985e
+  rust/Cargo.toml = 16d195a300d2b4e298ee8866ac17c411079e3a5b76ab0af57503a2935e551c7d
+  rust/Cargo.lock = a031413b87a4f974f2dee871c6150a96cf1a8a964590bceb8768e8129270b2ae
   android/gradle/libs.versions.toml = e25f060e2f5576dda953dbf2a1f9f9af014b58139c51bf0e28ee4a2aff247157
   android/app/gradle.lockfile = 2e5e0e404dbc7fead474e763ee4bb0d561d7e3b9da18fc4424942f1d5ef95ffd
   android/gradle/verification-metadata.xml = 820aff3630df91450b0198f0c9058cd88dbeca8ac73252615322281dd3cf5ca6
@@ -201,38 +201,38 @@ RUST COMPONENTS (294)
   hns-browser-transport 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-urkel 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-cache 0.2.2 | MIT OR Apache-2.0
-  hns-covenants 0.3.1 | MIT OR Apache-2.0
+  hns-covenants 0.4.1 | MIT OR Apache-2.0
   hns-dns-wire 0.2.2 | MIT OR Apache-2.0
-  hns-encoding 0.3.1 | MIT OR Apache-2.0
-  hns-header-consensus 0.3.1 | MIT OR Apache-2.0
+  hns-encoding 0.4.1 | MIT OR Apache-2.0
+  hns-header-consensus 0.4.1 | MIT OR Apache-2.0
   hns-icann-dane 0.2.2 | MIT OR Apache-2.0
-  hns-light-chain 0.2.2 | MIT OR Apache-2.0
-  hns-light-p2p 0.2.2 | MIT OR Apache-2.0
-  hns-light-sync 0.2.2 | MIT OR Apache-2.0
-  hns-light-wallet 0.2.2 | MIT OR Apache-2.0
-  hns-marketplace-protocol 0.4.0 | MIT OR Apache-2.0
-  hns-mining 0.3.1 | MIT OR Apache-2.0
+  hns-light-chain 0.2.3 | MIT OR Apache-2.0
+  hns-light-p2p 0.2.3 | MIT OR Apache-2.0
+  hns-light-sync 0.2.3 | MIT OR Apache-2.0
+  hns-light-wallet 0.2.3 | MIT OR Apache-2.0
+  hns-marketplace-protocol 0.4.1 | MIT OR Apache-2.0
+  hns-mining 0.4.1 | MIT OR Apache-2.0
   hns-namespace-resolution 0.2.3 | MIT OR Apache-2.0
-  hns-p2p-experimental 0.4.0 | MIT OR Apache-2.0
-  hns-p2p-wire 0.3.1 | MIT OR Apache-2.0
-  hns-primitives 0.3.1 | MIT OR Apache-2.0
+  hns-p2p-experimental 0.4.1 | MIT OR Apache-2.0
+  hns-p2p-wire 0.4.1 | MIT OR Apache-2.0
+  hns-primitives 0.4.1 | MIT OR Apache-2.0
   hns-resolution-policy 0.3.0 | MIT OR Apache-2.0
-  hns-script 0.3.1 | MIT OR Apache-2.0
-  hns-swap 0.3.1 | MIT OR Apache-2.0
-  hns-transaction 0.3.1 | MIT OR Apache-2.0
-  hns-urkel-proof 0.3.1 | MIT OR Apache-2.0
-  hns-wallet-bitcoin-kyoto 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-chain-api 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-ffi 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-hns 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-host 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-market 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-mobile 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-provider 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-service 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-shakedex 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-store 0.2.0 | MIT OR Apache-2.0
-  hns-wallet-types 0.2.0 | MIT OR Apache-2.0
+  hns-script 0.4.1 | MIT OR Apache-2.0
+  hns-swap 0.4.1 | MIT OR Apache-2.0
+  hns-transaction 0.4.1 | MIT OR Apache-2.0
+  hns-urkel-proof 0.4.1 | MIT OR Apache-2.0
+  hns-wallet-bitcoin-kyoto 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-chain-api 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-ffi 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-hns 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-host 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-market 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-mobile 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-provider 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-service 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-shakedex 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-store 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-types 0.2.1 | MIT OR Apache-2.0
   http 1.5.0 | MIT OR Apache-2.0
   httparse 1.10.1 | MIT OR Apache-2.0
   icu_collections 2.3.0 | Unicode-3.0
@@ -1635,18 +1635,18 @@ Applies to:
   - Rust crate bip157 0.6.3
   - Rust crate bip324 0.7.0
   - Rust crate bitcoin-address-book 0.1.1
-  - Rust crate hns-covenants 0.3.1
-  - Rust crate hns-encoding 0.3.1
-  - Rust crate hns-header-consensus 0.3.1
-  - Rust crate hns-marketplace-protocol 0.4.0
-  - Rust crate hns-mining 0.3.1
-  - Rust crate hns-p2p-experimental 0.4.0
-  - Rust crate hns-p2p-wire 0.3.1
-  - Rust crate hns-primitives 0.3.1
-  - Rust crate hns-script 0.3.1
-  - Rust crate hns-swap 0.3.1
-  - Rust crate hns-transaction 0.3.1
-  - Rust crate hns-urkel-proof 0.3.1
+  - Rust crate hns-covenants 0.4.1
+  - Rust crate hns-encoding 0.4.1
+  - Rust crate hns-header-consensus 0.4.1
+  - Rust crate hns-marketplace-protocol 0.4.1
+  - Rust crate hns-mining 0.4.1
+  - Rust crate hns-p2p-experimental 0.4.1
+  - Rust crate hns-p2p-wire 0.4.1
+  - Rust crate hns-primitives 0.4.1
+  - Rust crate hns-script 0.4.1
+  - Rust crate hns-swap 0.4.1
+  - Rust crate hns-transaction 0.4.1
+  - Rust crate hns-urkel-proof 0.4.1
   - Rust crate lru-slab 0.1.2
   - Rust crate quinn 0.11.11
   - Rust crate quinn-proto 0.11.17
@@ -2389,18 +2389,30 @@ third-party/chromium/LICENSE.
 ================================================================================
 Notice SHA-256: 3bda2576a860967a471de21180a3a32f2bf2fdd645ea1d0a965a59e54032deb9
 Applies to:
-  - Rust crate hns-wallet-bitcoin-kyoto 0.2.0
-  - Rust crate hns-wallet-chain-api 0.2.0
-  - Rust crate hns-wallet-ffi 0.2.0
-  - Rust crate hns-wallet-hns 0.2.0
-  - Rust crate hns-wallet-host 0.2.0
-  - Rust crate hns-wallet-market 0.2.0
-  - Rust crate hns-wallet-mobile 0.2.0
-  - Rust crate hns-wallet-provider 0.2.0
-  - Rust crate hns-wallet-service 0.2.0
-  - Rust crate hns-wallet-shakedex 0.2.0
-  - Rust crate hns-wallet-store 0.2.0
-  - Rust crate hns-wallet-types 0.2.0
+  - Rust crate hns-covenants 0.4.1
+  - Rust crate hns-encoding 0.4.1
+  - Rust crate hns-header-consensus 0.4.1
+  - Rust crate hns-marketplace-protocol 0.4.1
+  - Rust crate hns-mining 0.4.1
+  - Rust crate hns-p2p-experimental 0.4.1
+  - Rust crate hns-p2p-wire 0.4.1
+  - Rust crate hns-primitives 0.4.1
+  - Rust crate hns-script 0.4.1
+  - Rust crate hns-swap 0.4.1
+  - Rust crate hns-transaction 0.4.1
+  - Rust crate hns-urkel-proof 0.4.1
+  - Rust crate hns-wallet-bitcoin-kyoto 0.2.1
+  - Rust crate hns-wallet-chain-api 0.2.1
+  - Rust crate hns-wallet-ffi 0.2.1
+  - Rust crate hns-wallet-hns 0.2.1
+  - Rust crate hns-wallet-host 0.2.1
+  - Rust crate hns-wallet-market 0.2.1
+  - Rust crate hns-wallet-mobile 0.2.1
+  - Rust crate hns-wallet-provider 0.2.1
+  - Rust crate hns-wallet-service 0.2.1
+  - Rust crate hns-wallet-shakedex 0.2.1
+  - Rust crate hns-wallet-store 0.2.1
+  - Rust crate hns-wallet-types 0.2.1
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -3743,10 +3755,10 @@ Applies to:
   - Rust crate hns-cache 0.2.2
   - Rust crate hns-dns-wire 0.2.2
   - Rust crate hns-icann-dane 0.2.2
-  - Rust crate hns-light-chain 0.2.2
-  - Rust crate hns-light-p2p 0.2.2
-  - Rust crate hns-light-sync 0.2.2
-  - Rust crate hns-light-wallet 0.2.2
+  - Rust crate hns-light-chain 0.2.3
+  - Rust crate hns-light-p2p 0.2.3
+  - Rust crate hns-light-sync 0.2.3
+  - Rust crate hns-light-wallet 0.2.3
   - Rust crate hns-namespace-resolution 0.2.3
   - Rust crate hns-resolution-policy 0.3.0
   - Rust crate num-conv 0.2.2
@@ -5803,18 +5815,18 @@ limitations under the License.
 ================================================================================
 Notice SHA-256: 7ee1222d909b6a4479b5845d6ae89574a8dde1a3832ea04b6952b075a491ec71
 Applies to:
-  - Rust crate hns-wallet-bitcoin-kyoto 0.2.0
-  - Rust crate hns-wallet-chain-api 0.2.0
-  - Rust crate hns-wallet-ffi 0.2.0
-  - Rust crate hns-wallet-hns 0.2.0
-  - Rust crate hns-wallet-host 0.2.0
-  - Rust crate hns-wallet-market 0.2.0
-  - Rust crate hns-wallet-mobile 0.2.0
-  - Rust crate hns-wallet-provider 0.2.0
-  - Rust crate hns-wallet-service 0.2.0
-  - Rust crate hns-wallet-shakedex 0.2.0
-  - Rust crate hns-wallet-store 0.2.0
-  - Rust crate hns-wallet-types 0.2.0
+  - Rust crate hns-wallet-bitcoin-kyoto 0.2.1
+  - Rust crate hns-wallet-chain-api 0.2.1
+  - Rust crate hns-wallet-ffi 0.2.1
+  - Rust crate hns-wallet-hns 0.2.1
+  - Rust crate hns-wallet-host 0.2.1
+  - Rust crate hns-wallet-market 0.2.1
+  - Rust crate hns-wallet-mobile 0.2.1
+  - Rust crate hns-wallet-provider 0.2.1
+  - Rust crate hns-wallet-service 0.2.1
+  - Rust crate hns-wallet-shakedex 0.2.1
+  - Rust crate hns-wallet-store 0.2.1
+  - Rust crate hns-wallet-types 0.2.1
 Source file names:
   - LICENSE-APACHE
 --------------------------------------------------------------------------------
@@ -7381,46 +7393,6 @@ their own copyright notices and license terms:
   has chosen for the collective work, enumerated at the top
   of this file. The only difference is the retention of
   copyright itself, held by the contributor.
-
-================================================================================
-Notice SHA-256: 984637c53b31c216912aaa876374d5bcf69c1cb0cb589a5adcd68bbe7b5bb2da
-Applies to:
-  - Rust crate hns-covenants 0.3.1
-  - Rust crate hns-encoding 0.3.1
-  - Rust crate hns-header-consensus 0.3.1
-  - Rust crate hns-marketplace-protocol 0.4.0
-  - Rust crate hns-mining 0.3.1
-  - Rust crate hns-p2p-experimental 0.4.0
-  - Rust crate hns-p2p-wire 0.3.1
-  - Rust crate hns-primitives 0.3.1
-  - Rust crate hns-script 0.3.1
-  - Rust crate hns-swap 0.3.1
-  - Rust crate hns-transaction 0.3.1
-  - Rust crate hns-urkel-proof 0.3.1
-Source file names:
-  - LICENSE-MIT
---------------------------------------------------------------------------------
-MIT License
-
-Copyright (c) 2026 Denuo contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 ================================================================================
 Notice SHA-256: 98ed0ad9db8a72957b9c45941fe2ed31933a3beacbd193e662df483d0643a13d
@@ -11226,10 +11198,10 @@ Applies to:
   - Rust crate hns-cache 0.2.2
   - Rust crate hns-dns-wire 0.2.2
   - Rust crate hns-icann-dane 0.2.2
-  - Rust crate hns-light-chain 0.2.2
-  - Rust crate hns-light-p2p 0.2.2
-  - Rust crate hns-light-sync 0.2.2
-  - Rust crate hns-light-wallet 0.2.2
+  - Rust crate hns-light-chain 0.2.3
+  - Rust crate hns-light-p2p 0.2.3
+  - Rust crate hns-light-sync 0.2.3
+  - Rust crate hns-light-wallet 0.2.3
   - Rust crate hns-namespace-resolution 0.2.3
   - Rust crate hns-resolution-policy 0.3.0
 Source file names:

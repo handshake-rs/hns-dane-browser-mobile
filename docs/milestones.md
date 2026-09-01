@@ -162,8 +162,9 @@
   value action ran.
 - Prepared the `1.0.0` platform release identity: Android code `52` and iOS
   build `61` align embedded Rust at `1.0.0`. The current dependency cohort
-  uses published HNS `0.3.1`, exact engine/browser-adapter releases, and wallet
-  revision `b529820801b20c3d2956542433cbb046a4ecbe3a`. Exact HNWR-v2 code-bearing source
+  uses published HNS `0.4.1`, exact engine/browser-adapter releases including
+  the light-client `0.2.3` cohort, and the exact published wallet `0.2.1`
+  registry cohort. Exact HNWR-v2 code-bearing source
   `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI `31807520618`,
   both associated CodeQL runs, and the Rust, Android, and complete Apple gates.
 - Completed current exact-name-import source qualification: exact application
@@ -176,8 +177,8 @@
   screenshots, store readback, upload/submission, and the physical-iPhone matrix
   remain pending.
 - Updated release dependency sequence: mobile pins the complete wallet closure
-  to immutable revision `b529820801b20c3d2956542433cbb046a4ecbe3a`, HNS
-  `0.3.1`, and exact public engine crates with lockfile checksums.
+  to exact published `0.2.1`, HNS `0.4.1`, and exact public engine crates with
+  lockfile checksums.
   [released-dependency-cohort.md](released-dependency-cohort.md) records their
   source tags and the tested registry-only adapter policy.
 - Mobile engine source policy is complete: public contracts and browser

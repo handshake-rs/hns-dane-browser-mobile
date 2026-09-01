@@ -43,11 +43,11 @@ reconciliation before submission.
 
 Current source is the `1.0.0` release candidate: Android code `52`, embedded
 non-publishable Rust workspace `1.0.0`, and iOS build `61`. It directly pins
-published `hns-rs 0.3.1`, `hns-dane-engine 0.2.2`, and
-the complete `hns-wallet-rs` closure at reviewed Git commit
-`b529820801b20c3d2956542433cbb046a4ecbe3a`. The browser adapters are
+published `hns-rs 0.4.1`, the `hns-dane-engine` light-client `0.2.3` patch
+cohort, the remaining exact engine/browser-adapter releases, and
+the complete published `hns-wallet-rs 0.2.1` closure. The browser adapters are
 also exact published `0.2.2` packages; the source tags, registry checks, and
-wallet revision are recorded in
+wallet release provenance is recorded in
 [the released dependency cohort](docs/released-dependency-cohort.md).
 Both native shells expose local create, restore, open, status, unlock, lock, and
 one-account identity controls. The current local `main` stack also composes a
@@ -248,8 +248,8 @@ GRADLE="$APK_WORKBENCH/scripts/dev/apkw-gradle.sh"
 ```
 
 Cargo and platform builds consume direct HNS, engine, and browser-adapter
-crates from the released `0.3.1` / `0.2.x`–`0.3.x` registry cohort, plus the
-wallet closure from one reviewed immutable Git revision. See the
+crates from the released `0.4.1` / `0.2.x`–`0.3.x` registry cohort, plus the
+wallet closure from the exact checksum-bearing `0.2.1` registry cohort. See the
 [released dependency cohort](docs/released-dependency-cohort.md) for the
 version and release provenance.
 The umbrella

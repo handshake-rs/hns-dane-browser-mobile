@@ -2,16 +2,16 @@
 
 This checkout contains two deliberately separate surfaces:
 
-- Android and iOS app-native wallet controls backed by the reviewed
-  `hns-wallet-mobile` source at commit
-  `b529820801b20c3d2956542433cbb046a4ecbe3a`; and
+- Android and iOS app-native wallet controls backed by exact published
+  `hns-wallet-mobile 0.2.1`; and
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
-That wallet source consumes published `hns-rs 0.3.1`. The lockfile and generated
+That wallet source consumes published `hns-rs 0.4.1` and the coherent engine
+light-client `0.2.3` patch cohort. The lockfile and generated
 notices bind the complete protocol → wallet chain;
 [released-dependency-cohort.md](released-dependency-cohort.md) records the
-published source tags and exact wallet revision.
+published source tags and registry checksums.
 
 The configured `1.0.0` candidate is Android code `52`, embedded Rust `1.0.0`,
 and iOS build `61`. Historical `0.5.8` application source

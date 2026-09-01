@@ -20,8 +20,8 @@ blake2 = "0.10"
 bytes = "1"
 hex = "0.4"
 getrandom = "0.3"
-hns-header-consensus = "=0.3.1"
-hns-light-sync = "=0.2.2"
+hns-header-consensus = "=0.4.1"
+hns-light-sync = "=0.2.3"
 hns-cache = "=0.2.2"
 hns-chain = { package = "hns-browser-chain", version = "=0.2.2" }
 hns-core = { package = "hns-browser-primitives", version = "=0.2.2" }
@@ -32,12 +32,11 @@ hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.2", default-features = false, features = ["mobile"] }
-# During active wallet development, keep the complete wallet closure on one
-# immutable, reviewed hns-wallet-rs commit. The committed lockfile records the
-# canonical repository URL and full revision for all three entry crates.
-hns-wallet-ffi = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "b529820801b20c3d2956542433cbb046a4ecbe3a", package = "hns-wallet-ffi" }
-hns-wallet-mobile = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "b529820801b20c3d2956542433cbb046a4ecbe3a", package = "hns-wallet-mobile" }
-hns-wallet-types = { git = "https://github.com/handshake-rs/hns-wallet-rs.git", rev = "b529820801b20c3d2956542433cbb046a4ecbe3a", package = "hns-wallet-types" }
+# The release candidate consumes the complete checksum-bearing wallet 0.2.1
+# cohort from crates.io. Keep all direct entry crates on the same exact version.
+hns-wallet-ffi = "=0.2.1"
+hns-wallet-mobile = "=0.2.1"
+hns-wallet-types = "=0.2.1"
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"
