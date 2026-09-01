@@ -658,6 +658,26 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "second · proof height 41\nnot wallet owned · empty · not registered\n\(secondHash)"
         ))
         XCTAssertFalse(fullPresentation.history.contains("more items"))
+
+        let firstActivityPage = WalletReadPresenter.presentTransactionPage(
+            snapshot.transactionHistory,
+            requestedOffset: 0,
+            maximumVisibleItems: 1
+        )
+        XCTAssertEqual(firstActivityPage.offset, 0)
+        XCTAssertFalse(firstActivityPage.hasPrevious)
+        XCTAssertTrue(firstActivityPage.hasNext)
+        XCTAssertTrue(firstActivityPage.text.hasPrefix("Showing activity 1–1 of 2."))
+
+        let secondActivityPage = WalletReadPresenter.presentTransactionPage(
+            snapshot.transactionHistory,
+            requestedOffset: 99,
+            maximumVisibleItems: 1
+        )
+        XCTAssertEqual(secondActivityPage.offset, 1)
+        XCTAssertTrue(secondActivityPage.hasPrevious)
+        XCTAssertFalse(secondActivityPage.hasNext)
+        XCTAssertTrue(secondActivityPage.text.hasPrefix("Showing activity 2–2 of 2."))
         XCTAssertFalse(fullPresentation.names.contains("more items"))
 
         let pendingOutgoingJSON = versionTwoJSON.replacingOccurrences(

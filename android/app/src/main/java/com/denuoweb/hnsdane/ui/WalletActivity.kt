@@ -60,6 +60,7 @@ import com.denuoweb.hnsdane.wallet.NativeWalletHnsSynchronization
 import com.denuoweb.hnsdane.wallet.NativeWalletName
 import com.denuoweb.hnsdane.wallet.NativeWalletPaymentReceiveTarget
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
+import com.denuoweb.hnsdane.wallet.NativeWalletTransaction
 import com.denuoweb.hnsdane.wallet.MAX_HNS_BIRTHDAY_HEIGHT
 import com.denuoweb.hnsdane.wallet.ProcessWalletControllerRetirementFailures
 import com.denuoweb.hnsdane.wallet.ProcessWalletStorageOwnership
@@ -182,6 +183,7 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshot: NativeWalletReadSnapshot? = null
     private var loadedTrackedNames: List<NativeWalletName> = emptyList()
     private var trackedNamePageOffset: Int = 0
+    private var recentActivityPageOffset: Int = 0
     private val bulkNameFilePicker = registerForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -883,10 +885,73 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
-    private fun showActivityDetails() = walletDetailDialog(
-        title = getString(R.string.wallet_dashboard_recent_activity),
-        rows = listOf(getString(R.string.wallet_dashboard_recent_activity) to historyView.text.toString()),
-    )
+    private fun showActivityDetails() {
+        val snapshot = latestReadSnapshot
+        if (snapshot == null) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.wallet_dashboard_recent_activity)
+                .setMessage(historyView.text)
+                .setNegativeButton(R.string.action_cancel, null)
+                .show()
+            return
+        }
+        val transactions = snapshot.transactions
+        recentActivityPageOffset = walletPageOffset(
+            requestedOffset = recentActivityPageOffset,
+            totalItems = transactions.size,
+            pageSize = MAX_VISIBLE_READ_ITEMS,
+        )
+        val page = transactions.drop(recentActivityPageOffset).take(MAX_VISIBLE_READ_ITEMS)
+        val message = if (page.isEmpty()) {
+            getString(R.string.wallet_reads_history_empty)
+        } else {
+            val first = recentActivityPageOffset + 1
+            val last = recentActivityPageOffset + page.size
+            getString(
+                R.string.wallet_activity_page_position,
+                first,
+                last,
+                transactions.size,
+            ) + "\n\n" + formatWalletTransactions(page)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_dashboard_recent_activity)
+            .setMessage(message)
+            .setNegativeButton(R.string.action_cancel, null)
+        if (recentActivityPageOffset > 0) {
+            dialog.setNeutralButton(R.string.action_previous_wallet_activity) { _, _ ->
+                recentActivityPageOffset -= MAX_VISIBLE_READ_ITEMS
+                window.decorView.post(::showActivityDetails)
+            }
+        }
+        if (recentActivityPageOffset + page.size < transactions.size) {
+            dialog.setPositiveButton(R.string.action_next_wallet_activity) { _, _ ->
+                recentActivityPageOffset += MAX_VISIBLE_READ_ITEMS
+                window.decorView.post(::showActivityDetails)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun formatWalletTransactions(transactions: List<NativeWalletTransaction>): String =
+        transactions.joinToString("\n\n") { transaction ->
+            val chainPosition = if (transaction.blockHeight == null) {
+                getString(R.string.wallet_reads_transaction_unconfirmed)
+            } else {
+                getString(
+                    R.string.wallet_reads_transaction_confirmed,
+                    transaction.blockHeight,
+                    transaction.confirmationCount,
+                )
+            }
+            getString(
+                R.string.wallet_reads_transaction,
+                walletTransactionStatusLabel(transaction.status),
+                transaction.displayAmount(),
+                transaction.txid,
+                chainPosition,
+            )
+        }
 
     private fun showNamesDashboard() {
         val snapshot = latestReadSnapshot
@@ -5007,6 +5072,7 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshot = null
         loadedTrackedNames = emptyList()
         trackedNamePageOffset = 0
+        recentActivityPageOffset = 0
         latestReadSnapshotHandle = INVALID_HANDLE
         latestReadSnapshotAuthorityGeneration = 0L
         latestReadSnapshotEpoch = 0L
@@ -5313,6 +5379,7 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshot = snapshot
         loadedTrackedNames = snapshot.trackedNames.take(MAX_VISIBLE_READ_ITEMS)
         trackedNamePageOffset = 0
+        recentActivityPageOffset = 0
         localPaymentReceiveTarget = snapshot.paymentReceiveTarget
         latestReadSnapshotHandle = walletHandle
         latestReadSnapshotAuthorityGeneration = walletAuthorityGeneration
@@ -5347,24 +5414,7 @@ class WalletActivity : ComponentActivity() {
         historyView.text = if (visibleTransactions.isEmpty()) {
             getString(R.string.wallet_reads_history_empty)
         } else {
-            val entries = visibleTransactions.joinToString("\n\n") { transaction ->
-                val chainPosition = if (transaction.blockHeight == null) {
-                    getString(R.string.wallet_reads_transaction_unconfirmed)
-                } else {
-                    getString(
-                        R.string.wallet_reads_transaction_confirmed,
-                        transaction.blockHeight,
-                        transaction.confirmationCount,
-                    )
-                }
-                getString(
-                    R.string.wallet_reads_transaction,
-                    walletTransactionStatusLabel(transaction.status),
-                    transaction.displayAmount(),
-                    transaction.txid,
-                    chainPosition,
-                )
-            }
+            val entries = formatWalletTransactions(visibleTransactions)
             appendRemainingCount(entries, snapshot.transactions.size - visibleTransactions.size)
         }
         renderLoadedTrackedNames(snapshot.trackedNameCount)
@@ -5732,6 +5782,16 @@ internal fun walletPullToSyncMayStart(
     windowHasFocus: Boolean,
     knownDialogVisible: Boolean,
 ): Boolean = windowHasFocus && !knownDialogVisible
+
+internal fun walletPageOffset(
+    requestedOffset: Int,
+    totalItems: Int,
+    pageSize: Int,
+): Int {
+    if (totalItems <= 0 || pageSize <= 0) return 0
+    val lastPageOffset = ((totalItems - 1) / pageSize) * pageSize
+    return requestedOffset.coerceIn(0, lastPageOffset)
+}
 
 internal fun walletBackgroundSynchronizationMayRetain(
     hasActiveReadOnlyHnsSync: Boolean,

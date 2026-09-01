@@ -25,6 +25,8 @@ final class WalletViewController: UIViewController {
     private var shakedexAvailable = false
     private var readGeneration: UInt64 = 0
     private var synchronizedReadsAvailable = false
+    private var recentTransactions: [NativeHnsReadSnapshot.Transaction]?
+    private var recentActivityPageOffset = 0
     /// Native-validated receive targets are retained separately from their
     /// human-readable labels. Pasteboard actions must never copy headings or
     /// derivation metadata as though those bytes were part of an address.
@@ -2729,11 +2731,40 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func showWalletActivity() {
+        guard let recentTransactions else {
+            let alert = UIAlertController(
+                title: "Recent activity",
+                message: historyLabel.text,
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+            present(alert, animated: true)
+            return
+        }
+        let page = WalletReadPresenter.presentTransactionPage(
+            recentTransactions,
+            requestedOffset: recentActivityPageOffset
+        )
+        recentActivityPageOffset = page.offset
         let alert = UIAlertController(
             title: "Recent activity",
-            message: historyLabel.text,
+            message: page.text,
             preferredStyle: .alert
         )
+        if page.hasPrevious {
+            alert.addAction(UIAlertAction(title: "Previous", style: .default) { [weak self] _ in
+                guard let self else { return }
+                self.recentActivityPageOffset -= page.pageSize
+                DispatchQueue.main.async { self.showWalletActivity() }
+            })
+        }
+        if page.hasNext {
+            alert.addAction(UIAlertAction(title: "Next", style: .default) { [weak self] _ in
+                guard let self else { return }
+                self.recentActivityPageOffset += page.pageSize
+                DispatchQueue.main.async { self.showWalletActivity() }
+            })
+        }
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
     }
@@ -3568,6 +3599,8 @@ final class WalletViewController: UIViewController {
 
     private func publish(_ snapshot: NativeHnsReadSnapshot) {
         let presentation = WalletReadPresenter.present(snapshot)
+        recentTransactions = snapshot.transactionHistory
+        recentActivityPageOffset = 0
         receiveTargets = WalletReceiveTargets(snapshot: snapshot)
         readStatusLabel.text = presentation.status
         balanceLabel.text = presentation.balance
@@ -3579,6 +3612,8 @@ final class WalletViewController: UIViewController {
 
     private func clearReadProjection() {
         receiveTargets = nil
+        recentTransactions = nil
+        recentActivityPageOffset = 0
         balanceLabel.text = "Confirmed spendable balance: unavailable."
         paymentReceiveLabel.text = "Payment receive address: unavailable."
         nameReceiveLabel.text = "Name transfer receive address: unavailable."
@@ -4451,6 +4486,14 @@ struct WalletReadPresentation: Equatable, Sendable {
     let names: String
 }
 
+struct WalletTransactionPagePresentation: Equatable, Sendable {
+    let text: String
+    let offset: Int
+    let pageSize: Int
+    let hasPrevious: Bool
+    let hasNext: Bool
+}
+
 /// Raw native-validated receive values used by copy/share controls. This is a
 /// deliberately separate projection from `WalletReadPresentation`, whose
 /// strings are formatted for people and must never be treated as addresses.
@@ -4479,6 +4522,42 @@ struct WalletReceiveTargets: Equatable, Sendable {
 /// This adapter does not infer authority or fetch data; publication remains
 /// gated by the exact wallet identity, storage lease, lifecycle, and generation.
 enum WalletReadPresenter {
+    static func presentTransactionPage(
+        _ transactions: [NativeHnsReadSnapshot.Transaction],
+        requestedOffset: Int,
+        maximumVisibleItems: Int = 20
+    ) -> WalletTransactionPagePresentation {
+        let pageSize = visibleItemLimit(requested: maximumVisibleItems)
+        let lastPageOffset = transactions.isEmpty
+            ? 0
+            : ((transactions.count - 1) / pageSize) * pageSize
+        let offset = min(max(0, requestedOffset), lastPageOffset)
+        let page = transactions.dropFirst(offset).prefix(pageSize)
+        let text: String
+        if page.isEmpty {
+            text = "No wallet transactions were found in the synchronized snapshot."
+        } else {
+            let entries = page.map { transaction in
+                let chainPosition = transaction.blockHeight.map {
+                    "Block \($0) · \(transaction.confirmationCount) confirmations"
+                } ?? "Unconfirmed"
+                return [
+                    "\(transactionStatusLabel(transaction.status)) · \(displayAmount(transaction))",
+                    lowerHex(transaction.txid),
+                    chainPosition,
+                ].joined(separator: "\n")
+            }.joined(separator: "\n\n")
+            text = "Showing activity \(offset + 1)–\(offset + page.count) of \(transactions.count).\n\n\(entries)"
+        }
+        return WalletTransactionPagePresentation(
+            text: text,
+            offset: offset,
+            pageSize: pageSize,
+            hasPrevious: offset > 0,
+            hasNext: offset + page.count < transactions.count
+        )
+    }
+
     static func present(
         _ snapshot: NativeHnsReadSnapshot,
         maximumVisibleItems: Int = 20

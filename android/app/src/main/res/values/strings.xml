@@ -33,6 +33,8 @@
     <string name="action_import_wallet_names_file" translatable="false">Import names from file</string>
     <string name="action_load_more_wallet_names" translatable="false">Load next names</string>
     <string name="action_previous_wallet_names" translatable="false">Load previous names</string>
+    <string name="action_previous_wallet_activity" translatable="false">Previous</string>
+    <string name="action_next_wallet_activity" translatable="false">Next</string>
     <string name="action_continue_wallet_deletion" translatable="false">Continue</string>
     <string name="action_prepare_wallet_send" translatable="false">Review send</string>
     <string name="action_wallet_bitcoin_receive" translatable="false">New address</string>
@@ -601,6 +603,7 @@
     <string name="wallet_name_bulk_import_refresh_pending" translatable="false">Imported %1$d names atomically. A fresh name projection is pending; the previously verified balance remains available.</string>
     <string name="wallet_name_page_failed" translatable="false">The next authenticated name page is unavailable.</string>
     <string name="wallet_name_page_position" translatable="false">Showing names %1$d–%2$d of %3$d.</string>
+    <string name="wallet_activity_page_position" translatable="false">Showing activity %1$d–%2$d of %3$d.</string>
     <string name="wallet_status_importing_name" translatable="false">Importing exact Handshake name…</string>
     <string name="wallet_account_identity" translatable="false">%1$s\nModule: %2$s\nAccount: %3$s</string>
     <string name="wallet_recovery_confirm_title" translatable="false">Recovery phrase saved?</string>
