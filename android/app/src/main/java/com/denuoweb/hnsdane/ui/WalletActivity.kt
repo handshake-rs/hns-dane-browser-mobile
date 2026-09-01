@@ -210,6 +210,7 @@ class WalletActivity : ComponentActivity() {
     private var walletBackgroundRetirement: AtomicBoolean? = null
     private var durableWalletStoragePresent = false
     private var walletOpenDeferredUntilDeviceUnlock = false
+    private var walletUnlockRequested = false
     private val walletHnsJourney = WalletHnsJourney()
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
 
@@ -372,6 +373,9 @@ class WalletActivity : ComponentActivity() {
                 "busy=$busy",
         )
         foreground = false
+        // An Unlock tap may be queued while the durable controller is still
+        // reopening. Never carry that user-presence request off this screen.
+        walletUnlockRequested = false
         cachedHnsSyncPresentationWatcher?.set(false)
         if (retainInAppSession) {
             // Android calls the departing Activity's onStop before it reports
@@ -542,9 +546,7 @@ class WalletActivity : ComponentActivity() {
             addSettingsRow(actionRow(
                 title = getString(R.string.row_wallet_unlock),
                 summary = getString(R.string.wallet_dashboard_unlock_summary),
-            ) {
-                if (walletHandle == INVALID_HANDLE) openExistingWallet() else unlockWallet()
-            })
+            ) { requestWalletUnlock() })
         })
         addWalletTiles(locked = true)
     }
@@ -1206,6 +1208,7 @@ class WalletActivity : ComponentActivity() {
                 if (opened == INVALID_HANDLE) {
                     durableWalletStoragePresent = true
                     walletOpenDeferredUntilDeviceUnlock = !databaseKeyAvailable
+                    if (databaseKeyAvailable) walletUnlockRequested = false
                     statusView.text = getString(
                         if (databaseKeyAvailable) {
                             R.string.wallet_status_open_failed
@@ -1222,9 +1225,39 @@ class WalletActivity : ComponentActivity() {
                     publishWalletController(opened, reopenedDurable = true)
                     attemptReadBootstrap(lease)
                     refreshControllerState()
+                    runPendingWalletUnlockIfReady()
                 }
             }
         }
+    }
+
+    /**
+     * Preserve an explicit Unlock tap made while the durable wallet controller
+     * or its direct-HNS bootstrap is still opening. Previously the visible
+     * Unlock row called [openExistingWallet] a second time and the busy guard
+     * silently discarded the tap, forcing the user to wait and tap again.
+     */
+    private fun requestWalletUnlock() {
+        walletUnlockRequested = true
+        runPendingWalletUnlockIfReady()
+        if (walletHandle == INVALID_HANDLE) {
+            beginStorageOwnershipSessionIfReady()
+            if (!busy && currentStorageLease() != null) openExistingWallet()
+        }
+    }
+
+    private fun runPendingWalletUnlockIfReady() {
+        if (!walletPendingUnlockMayRun(
+                requested = walletUnlockRequested,
+                foreground = foreground,
+                busy = busy,
+                hasLease = currentStorageLease() != null,
+                hasController = walletHandle != INVALID_HANDLE,
+                hasUnconfirmedRecovery = unconfirmedDatabaseKey != null,
+            )
+        ) return
+        walletUnlockRequested = false
+        unlockWallet()
     }
 
     private fun createWallet() {
@@ -4418,6 +4451,7 @@ class WalletActivity : ComponentActivity() {
                     walletHnsJourney.directControllerInstalled()
                 }
                 refreshControllerState()
+                runPendingWalletUnlockIfReady()
             }
         }
     }
@@ -5634,6 +5668,16 @@ class WalletActivity : ComponentActivity() {
  * authority indefinitely when Shakescape remains in the background.
  */
 internal const val WALLET_APP_SWITCH_RETENTION_MILLIS = 30_000L
+
+internal fun walletPendingUnlockMayRun(
+    requested: Boolean,
+    foreground: Boolean,
+    busy: Boolean,
+    hasLease: Boolean,
+    hasController: Boolean,
+    hasUnconfirmedRecovery: Boolean,
+): Boolean =
+    requested && foreground && !busy && hasLease && hasController && !hasUnconfirmedRecovery
 
 internal fun estimateBitcoinSyncRemainingMillis(
     completedWork: Long,
