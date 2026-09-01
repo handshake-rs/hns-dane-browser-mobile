@@ -27,8 +27,8 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = 1cdae39e0f60d0605de86f9c48d45b20acb705636e5b3e4ae8ea4a971afbf5ae
-  rust/Cargo.lock = d8e63a8fa23d1c253114a93f13ba49a3b7e8c88d0464995fbffb1d541fc3d3c2
+  rust/Cargo.toml = aff852a240ddda5be335b77f71827ac57c257a2257f617fd7c2d5be4ff6a41cd
+  rust/Cargo.lock = f34821e42b79a89b2c8dc3dd579be219e26b77f52ac84c8d2d6ac190013b9bb6
   android/gradle/libs.versions.toml = e38501dbbb112b0fa54e67c21f5ecb7d31cd3dfd20e67082cb5be43114c37143
   android/app/gradle.lockfile = 2e96f7d27ebd98115a1940aa4ae02d507da2fc496c74e8c002061731f885e2d9
   android/gradle/verification-metadata.xml = 0d2ebdb69e2c3e741a3ad13e877ebbc0f19700400499d754684b755669350a1d

@@ -23,11 +23,17 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Fixed wallet creation on Android 9 devices whose app sandbox is reached
+  through a root-owned sticky root directory and Android's UID-1000 `/data`
+  boundary, while retaining exact app-private wallet ownership and modes.
 - Switched the native wallet closure from the stale published `0.2.0` cohort
   to exact reviewed `hns-wallet-rs` commit
-  `bd16ce1d33bc620ccddede8636f411892188d2f4`, which refreshes all persisted
-  and locally discovered FINALIZE name proofs before the final wallet snapshot
-  without rewinding the authenticated transaction scan.
+  `ac6a21cd28d6b05ff67b0c8db81e64c59f673ccf`, which refreshes all persisted
+  and locally discovered FINALIZE name proofs before the final wallet snapshot,
+  without rewinding the authenticated transaction scan, and accepts the
+  securely sticky Android 9 sandbox ancestor layout. It also makes controller
+  reacquisition reuse the authenticated product-pinned HNS bootstrap or its
+  verified descendant instead of rejecting that same chain as non-pristine.
 - Android now supplies and validates the bundled mainnet bootstrap snapshot on
   every eligible direct-wallet reopen, including when a nonzero rollback floor
   is already journaled, avoiding a false setup failure that could look like a
