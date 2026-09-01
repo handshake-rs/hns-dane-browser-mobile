@@ -437,7 +437,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
-    func testExactHNSNamePromptDisablesMutationAndHasNoInlineInput() throws {
+    func testExactHNSNamePromptIsNotExposedAndHasNoInlineInput() throws {
         let field = UITextField()
         configureWalletNameImportTextField(field)
         XCTAssertEqual(field.keyboardType, .asciiCapable)
@@ -469,12 +469,10 @@ final class BrowserRuntimeControlTests: XCTestCase {
             }
             return nil
         }
-        let button = descendant(
+        XCTAssertNil(descendant(
             identified: "wallet.import-hns-name",
             in: controller.view
-        ) as? UIButton
-        XCTAssertNotNil(button)
-        XCTAssertFalse(try XCTUnwrap(button).isEnabled)
+        ))
         XCTAssertNil(descendant(
             identified: "wallet.name-import-input",
             in: controller.view
@@ -636,7 +634,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             presentation.status,
             "Synced and ready at height 42. Pending outgoing transactions are reflected in the available balance."
         )
-        XCTAssertEqual(presentation.balance, "12.345678 HNS confirmed and available")
+        XCTAssertEqual(presentation.balance, "12.345678 HNS spendable now")
         XCTAssertEqual(
             presentation.paymentReceive,
             "Payment receive\nrs1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8euwz\nDerivation index 7"
@@ -1269,7 +1267,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(store.load().statelessDANECertificates)
     }
 
-    func testFreshNativeRuntimeAcceptsZeroRevisionForDefaultPolicy() throws {
+    func testFreshNativeRuntimeCommitsAndThenReusesTheAppDefaultPolicyRevision() throws {
         let dataDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("RustBrowserRuntimeTests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(
@@ -1281,7 +1279,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let runtime = try RustBrowserRuntime(dataDirectory.path, network: .regtest)
         defer { runtime.close() }
 
-        XCTAssertEqual(try runtime.updatePolicy(.default), 0)
+        XCTAssertEqual(try runtime.updatePolicy(.default), 1)
+        XCTAssertEqual(try runtime.updatePolicy(.default), 1)
     }
 
     func testRecoveryURLValidationRejectsUnsafeAndSpecialUseEndpoints() {
