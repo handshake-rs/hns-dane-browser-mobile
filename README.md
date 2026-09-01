@@ -10,16 +10,16 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 
 - [Google Play Store](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
-- [GitHub Release v0.5.7](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.7)
+- [GitHub Release v1.0.1](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.1)
 
-Android `0.5.7` / code `48`, with shared Rust engine `0.5.6`, is an Android-only
-compatibility release. It lowers the application and native NDK floor from API
-34 to API 30 while preserving explicit UTF-8 search-query encoding. iOS remains
-unchanged at `0.5.5` / build `57`.
+Android `1.0.1` / code `53`, with embedded Rust `1.0.0`, is an Android-only
+recovery-screen patch. It keeps the one-time recovery phrase visible across
+internal dashboard redraws while retaining secure clearing on screen exit. iOS
+remains independently versioned at `1.0.0` / build `61`.
 
-GitHub Release [`v0.5.7`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.7)
+GitHub Release [`v1.0.1`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.1)
 publishes only the signed Android APK. Google Play production remains on
-`0.5.6` / code `47`; no AAB is part of this GitHub-only compatibility release.
+`0.5.6` / code `47`; no AAB is part of this GitHub-only patch release.
 
 The Apple App Store published iOS `0.5.5` on 2026-07-31; a public-store lookup
 on 2026-08-09 confirms that `0.5.5` is the current version. Apple source
@@ -41,8 +41,8 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 `31485234945`. Store privacy/category answers still require exact-candidate
 reconciliation before submission.
 
-Current source is the `1.0.0` release candidate: Android code `52`, embedded
-non-publishable Rust workspace `1.0.0`, and iOS build `61`. It directly pins
+Current source is the Android `1.0.1` patch candidate at code `53`, with the
+embedded non-publishable Rust workspace at `1.0.0` and iOS at `1.0.0` build `61`. It directly pins
 published `hns-rs 0.4.1`, the `hns-dane-engine` light-client `0.2.3` patch
 cohort, the remaining exact engine/browser-adapter releases, and
 the complete published `hns-wallet-rs 0.2.1` closure. The browser adapters are

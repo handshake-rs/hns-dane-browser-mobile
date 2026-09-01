@@ -23,10 +23,6 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Keep the one-time Android recovery phrase visible across internal dashboard
-  redraws after wallet creation. Only the explicitly marked synchronous
-  reparent retains it; leaving the wallet screen still zeroes the unconfirmed
-  phrase and removes the incomplete wallet.
 - Persist a non-sensitive, account-scoped pending-outgoing recovery marker
   before post-broadcast synchronization on Android and iOS. Reopened wallets
   now present the pending recovery state instead of a generic missing-balance
@@ -79,6 +75,23 @@ All notable changes to this project will be documented in this file.
   build is unavailable on this Linux host. Android debug-APK and installed
   send-review qualification are intentionally deferred until the pending
   device logs are available; no wallet database reset is part of this work.
+
+## 1.0.1 - 2026-09-01
+
+### Fixed
+
+- Released Android `1.0.1` (`versionCode 53`) as an Android-only recovery-screen
+  patch; the embedded Rust workspace and iOS app remain at `1.0.0`.
+- Keep the one-time Android recovery phrase visible across internal dashboard
+  redraws after wallet creation. Only the explicitly marked synchronous
+  reparent retains it; leaving the wallet screen still zeroes the unconfirmed
+  phrase and removes the incomplete wallet.
+
+### Changed
+
+- Updated the Google Play feature graphic from the current Shakescape website
+  branding and changed future Android and iOS HNS screenshot targets from
+  `denuoweb/` to the proof-backed `shakescape/` name.
 
 ## 1.0.0 - 2026-08-20
 

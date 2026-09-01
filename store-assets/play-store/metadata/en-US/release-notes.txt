@@ -1,1 +1,1 @@
-1.0.0 introduces the Shakescape identity and a native device-local HNS wallet with direct peer synchronization, receive addresses and QR codes, guarded sends, recent activity, name import, restoration birthday heights, and protected deletion. It also improves dual-root DNSSEC and DANE presentation, synchronization recovery, unlock progress, and Android 9 compatibility.
+1.0.1 keeps the one-time Android recovery phrase visible while the wallet dashboard redraws after creation. Leaving the wallet screen still securely clears the phrase and removes an unconfirmed wallet.

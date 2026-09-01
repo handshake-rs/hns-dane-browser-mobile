@@ -2,7 +2,7 @@
 
 Last audited: 2026-09-01
 
-Current candidate source coordinates Android `1.0.0` / code `52`, the embedded
+Current candidate source coordinates Android `1.0.1` / code `53`, the embedded
 non-publishable Rust workspace `1.0.0`, and iOS `1.0.0` / build `61`. It uses
 the published `hns-rs 0.4.1`, exact public engine/browser-adapter releases
 (including the coherent light-client `0.2.3` patch cohort), and
@@ -46,8 +46,8 @@ exercise. Documentation-only descendant
 `ce9c09a40117142d3a26ff1196c2dec3f5e06139` passed the complete matrix again in
 manual CI run `31411048376`, including aggregate Required CI. These are retained
 as historical `0.5.8` results. Historical CI debug artifact `9080493058` is not
-a signed store artifact; no upload-signed `1.0.0` APK/AAB or App Store IPA has
-been built or submitted.
+a signed store artifact. A signed `1.0.0` Android APK is retained on its GitHub
+Release; no `1.0.1` Play AAB or App Store IPA has been built or submitted.
 
 ## Configured and Local Gates
 

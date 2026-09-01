@@ -2,7 +2,7 @@
 
 Audit date: 2026-08-20.
 
-This table records the versions configured for the `1.0.0` release candidate.
+This table records the independently versioned current release candidates.
 It is not evidence that signed artifacts were built or published. Android
 runtime dependencies use stable releases; separate build-tool transitive
 dependencies may carry preview labels selected by AGP and are not packaged
@@ -10,7 +10,7 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `1.0.0` / code `52` | `android/app/build.gradle.kts` |
+| Android app | `1.0.1` / code `53` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.0` / build `61` | `ios/project.yml` |
 | Native wallet controller | exact published `0.2.1` registry cohort | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |

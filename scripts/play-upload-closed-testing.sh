@@ -13,9 +13,9 @@ fi
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
 track_name="${PLAY_TRACK:-}"
 release_status="${PLAY_RELEASE_STATUS:-draft}"
-aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.0-play-upload-signed.aab}"
-release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.0}"
-release_notes="${PLAY_RELEASE_NOTES:-1.0.0 introduces the Shakescape identity and a native device-local HNS wallet with direct peer synchronization, receive addresses and QR codes, guarded sends, recent activity, name import, restoration birthday heights, and protected deletion. It also improves dual-root DNSSEC and DANE presentation, synchronization recovery, unlock progress, and Android 9 compatibility.}"
+aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.1-play-upload-signed.aab}"
+release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.1}"
+release_notes="${PLAY_RELEASE_NOTES:-1.0.1 keeps the one-time Android recovery phrase visible while the wallet dashboard redraws after creation. Leaving the wallet screen still securely clears the phrase and removes an unconfirmed wallet.}"
 update_listing="${PLAY_UPDATE_LISTING:-false}"
 listing_language="${PLAY_LISTING_LANGUAGE:-en-US}"
 
