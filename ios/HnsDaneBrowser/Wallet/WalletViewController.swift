@@ -74,6 +74,7 @@ final class WalletViewController: UIViewController {
     private var pendingSwapSettlementIsBitcoin = false
     private var pendingHandshakePayment: HandshakePaymentRequest?
     private var pendingPaymentPresentationScheduled = false
+    private var scannedPaymentShouldResumeAfterUnlock = false
     private var browserSyncObservation: UUID?
     private var latestPublishedSnapshotHeight: UInt64?
     private var pendingOutgoingSnapshotHeight: UInt64?
@@ -112,6 +113,7 @@ final class WalletViewController: UIViewController {
     private let bitcoinExecutionsButton = UIButton(type: .system)
     private let dashboardStack = UIStackView()
     private let walletRefreshControl = UIRefreshControl()
+    private let walletOperationIndicator = UIActivityIndicatorView(style: .medium)
 
     init(
         network: BrowserHandshakeNetwork,
@@ -399,6 +401,12 @@ final class WalletViewController: UIViewController {
             dashboardStack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
+        if isOperating {
+            walletOperationIndicator.accessibilityLabel = statusLabel.text
+            walletOperationIndicator.startAnimating()
+        } else {
+            walletOperationIndicator.stopAnimating()
+        }
 
         if storageLease == nil,
            WalletHnsSyncPresentationCache.latest(networkID: network.rawValue) != nil {
@@ -413,6 +421,11 @@ final class WalletViewController: UIViewController {
         } else {
             renderLockedWalletDashboard()
         }
+        if pendingHandshakePayment != nil { schedulePendingPaymentPresentation() }
+    }
+
+    private func walletStatusBody(_ labels: [UIView]) -> [UIView] {
+        isOperating ? [walletOperationIndicator as UIView] + labels : labels
     }
 
     private func renderSynchronizingWalletDashboard() {
@@ -429,8 +442,8 @@ final class WalletViewController: UIViewController {
 
     private func renderNoWalletDashboard() {
         dashboardStack.addArrangedSubview(dashboardCard(
-            title: "NO WALLET · \(network.title)",
-            body: [statusLabel, accountLabel],
+            title: isOperating ? "● WORKING · \(network.title)" : "NO WALLET · \(network.title)",
+            body: walletStatusBody([statusLabel, accountLabel]),
             accent: .systemPink
         ))
         dashboardStack.addArrangedSubview(dashboardCard(
@@ -441,8 +454,8 @@ final class WalletViewController: UIViewController {
 
     private func renderRecoveryDashboard() {
         dashboardStack.addArrangedSubview(dashboardCard(
-            title: "RECOVERY PHRASE",
-            body: [statusLabel],
+            title: isOperating ? "● WORKING · \(network.title)" : "RECOVERY PHRASE",
+            body: walletStatusBody([statusLabel]),
             accent: .systemPink
         ))
         dashboardStack.addArrangedSubview(dashboardCard(
@@ -454,8 +467,8 @@ final class WalletViewController: UIViewController {
 
     private func renderLockedWalletDashboard() {
         dashboardStack.addArrangedSubview(dashboardCard(
-            title: "● LOCKED · \(network.title)",
-            body: [statusLabel, accountLabel],
+            title: isOperating ? "● WORKING · \(network.title)" : "● LOCKED · \(network.title)",
+            body: walletStatusBody([statusLabel, accountLabel]),
             accent: .systemPink
         ))
         dashboardStack.addArrangedSubview(dashboardCard(
@@ -466,14 +479,15 @@ final class WalletViewController: UIViewController {
         dashboardStack.addArrangedSubview(dashboardTile(
             title: "Wallet",
             summary: "Open and unlock",
+            enabled: !isOperating,
             action: { [weak self] in self?.showWalletManagement() }
         ))
     }
 
     private func renderUnlockedWalletDashboard() {
         dashboardStack.addArrangedSubview(dashboardCard(
-            title: "● UNLOCKED · \(network.title)",
-            body: [statusLabel, accountLabel],
+            title: isOperating ? "● WORKING · \(network.title)" : "● UNLOCKED · \(network.title)",
+            body: walletStatusBody([statusLabel, accountLabel]),
             accent: .systemCyan
         ))
 
@@ -521,13 +535,15 @@ final class WalletViewController: UIViewController {
         dashboardStack.addArrangedSubview(dashboardTile(
             title: "Wallet",
             summary: "Security and lifecycle",
+            enabled: !isOperating,
             action: { [weak self] in self?.showWalletManagement() }
         ))
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "Recent activity",
             body: [historyLabel, dashboardButton(
                 title: "View activity",
-                action: #selector(showWalletActivity)
+                action: #selector(showWalletActivity),
+                enabled: !isOperating
             )]
         ))
         schedulePendingPaymentPresentation()
@@ -581,6 +597,7 @@ final class WalletViewController: UIViewController {
     private func dashboardTile(
         title: String,
         summary: String,
+        enabled: Bool = true,
         action: @escaping () -> Void
     ) -> UIButton {
         var configuration = UIButton.Configuration.tinted()
@@ -594,6 +611,7 @@ final class WalletViewController: UIViewController {
         let button = UIButton(type: .system)
         button.configuration = configuration
         button.contentHorizontalAlignment = .leading
+        button.isEnabled = enabled
         button.addAction(UIAction { _ in action() }, for: .touchUpInside)
         return button
     }
@@ -1694,6 +1712,7 @@ final class WalletViewController: UIViewController {
                 // wallet controller. Reconnect first, then restore the normal
                 // synchronized SEND review surface from this public URI data.
                 self.pendingHandshakePayment = request
+                self.scannedPaymentShouldResumeAfterUnlock = true
                 self.schedulePendingPaymentPresentation()
             }
         }
@@ -1707,15 +1726,30 @@ final class WalletViewController: UIViewController {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.pendingPaymentPresentationScheduled = false
-            guard self.presentedViewController == nil,
-                  self.viewIfLoaded?.window != nil,
-                  self.walletIsUnlocked,
-                  self.synchronizedReadsAvailable,
-                  self.directHnsValueAvailable,
-                  !self.isOperating,
-                  let request = self.pendingHandshakePayment else { return }
-            self.pendingHandshakePayment = nil
-            self.presentHnsSendForm(prefill: request)
+            let continuation = walletPendingPaymentContinuation(
+                hasPendingPayment: self.pendingHandshakePayment != nil,
+                resumeAfterScanner: self.scannedPaymentShouldResumeAfterUnlock,
+                foreground: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil,
+                dialogVisible: self.presentedViewController != nil,
+                busy: self.isOperating,
+                hasController: self.wallet != nil,
+                controllerUnlocked: self.walletIsUnlocked,
+                hasHnsValue: self.directHnsValueAvailable,
+                hasCurrentSnapshot: self.recentTransactions != nil
+            )
+            switch continuation {
+            case .none, .wait:
+                break
+            case .unlock:
+                self.openOrUnlockWallet()
+            case .synchronize:
+                self.synchronizeWalletReads()
+            case .present:
+                guard let request = self.pendingHandshakePayment else { return }
+                self.pendingHandshakePayment = nil
+                self.scannedPaymentShouldResumeAfterUnlock = false
+                self.presentHnsSendForm(prefill: request)
+            }
         }
     }
 
@@ -3022,6 +3056,9 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func openOrUnlockWallet() {
+        statusLabel.text = wallet == nil
+            ? "Opening your wallet… This may take up to a minute on older devices."
+            : "Unlocking your wallet… Please wait."
         performWalletOperation {
             try reconcileIncompleteStorage()
             let path = try walletDatabasePath()
@@ -3034,12 +3071,16 @@ final class WalletViewController: UIViewController {
                     controller = wallet
                 } else {
                     wallet?.close()
+                    self.statusLabel.text = "Opening your wallet… This may take up to a minute on older devices."
+                    self.refreshButtonStates()
                     controller = try RustNativeWallet.open(
                         databasePath: path,
                         databaseKey: key
                     )
                     reopenedFromDurableStorage = true
                 }
+                self.statusLabel.text = "Unlocking your wallet… Please wait."
+                self.refreshButtonStates()
                 try controller.unlock(databaseKey: key)
                 return controller
             }
@@ -3835,7 +3876,8 @@ final class WalletViewController: UIViewController {
         let expectedWalletIdentity = ObjectIdentifier(wallet)
         let expectedAuthorityGeneration = walletAuthorityGeneration
         let expectedLease = authority.lease
-        readStatusLabel.text = "Preparing the direct HNS wallet…"
+        statusLabel.text = "Preparing the direct HNS wallet… Please wait."
+        readStatusLabel.text = "Preparing the direct HNS wallet… Please wait."
         refreshButtonStates()
 
         let keychain = keychain
@@ -4043,8 +4085,9 @@ final class WalletViewController: UIViewController {
             return
         }
         guard let wallet else {
+            openButton.configuration?.title = "Open and unlock"
             statusLabel.text = persistentWalletExists
-                ? "Status: a confirmed wallet is ready to open."
+                ? "Wallet is ready to open and unlock. Tap Open and unlock to continue."
                 : "Status: no wallet has been created."
             accountLabel.text = "Account: unavailable until a wallet is opened."
             setReadAvailability(false, message: "Read-only synchronization unavailable until the wallet is open.")
@@ -4070,8 +4113,9 @@ final class WalletViewController: UIViewController {
                 )
             }
             statusLabel.text = status.locked
-                ? "Status: locked. Unlock before direct HNS synchronization or sending."
+                ? "Wallet is ready to unlock. Tap Unlock to continue."
                 : "Status: unlocked · wallet \(status.activeWallet ?? "unknown")."
+            openButton.configuration?.title = status.locked ? "Unlock" : "Open and unlock"
             walletIsUnlocked = !status.locked
             directHnsValueAvailable = hasHnsValue && !status.locked
             bitcoinValueAvailable = hasBitcoinValue && !status.locked

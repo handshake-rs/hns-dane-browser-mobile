@@ -320,6 +320,41 @@ final class WalletProviderProtocolTests: XCTestCase {
         XCTAssertFalse(walletOperationInProgressMessage.lowercased().contains("visible operation"))
     }
 
+    func testScannedPaymentContinuesThroughUnlockSynchronizationAndPresentation() {
+        XCTAssertEqual(paymentContinuation(hasController: false), .unlock)
+        XCTAssertEqual(paymentContinuation(controllerUnlocked: false), .unlock)
+        XCTAssertEqual(paymentContinuation(hasCurrentSnapshot: false), .synchronize)
+        XCTAssertEqual(paymentContinuation(), .present)
+    }
+
+    func testExternalPaymentAndBusyWalletDoNotImplicitlyUnlock() {
+        XCTAssertEqual(
+            paymentContinuation(resumeAfterScanner: false, controllerUnlocked: false),
+            .wait
+        )
+        XCTAssertEqual(paymentContinuation(busy: true), .wait)
+    }
+
+    private func paymentContinuation(
+        resumeAfterScanner: Bool = true,
+        busy: Bool = false,
+        hasController: Bool = true,
+        controllerUnlocked: Bool = true,
+        hasCurrentSnapshot: Bool = true
+    ) -> WalletPendingPaymentContinuation {
+        walletPendingPaymentContinuation(
+            hasPendingPayment: true,
+            resumeAfterScanner: resumeAfterScanner,
+            foreground: true,
+            dialogVisible: false,
+            busy: busy,
+            hasController: hasController,
+            controllerUnlocked: controllerUnlocked,
+            hasHnsValue: true,
+            hasCurrentSnapshot: hasCurrentSnapshot
+        )
+    }
+
     func testAcceptedHnsSendImmediatelyAttemptsWalletRefresh() throws {
         var operations: [String] = []
         let result: WalletHnsPostBroadcastResult<String, String> = try approveAndRefreshHnsWallet(

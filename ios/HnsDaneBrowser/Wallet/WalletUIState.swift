@@ -16,6 +16,40 @@ func walletPendingOutgoingRefreshHeight(
     return observedHeaderHeight
 }
 
+enum WalletPendingPaymentContinuation: Equatable {
+    case none
+    case wait
+    case unlock
+    case synchronize
+    case present
+}
+
+/// Mirrors Android's camera-payment continuation. Only an in-wallet scan may
+/// carry unlock intent across controller retirement; an external deep link
+/// remains pending until the user explicitly unlocks.
+func walletPendingPaymentContinuation(
+    hasPendingPayment: Bool,
+    resumeAfterScanner: Bool,
+    foreground: Bool,
+    dialogVisible: Bool,
+    busy: Bool,
+    hasController: Bool,
+    controllerUnlocked: Bool,
+    hasHnsValue: Bool,
+    hasCurrentSnapshot: Bool
+) -> WalletPendingPaymentContinuation {
+    guard hasPendingPayment else { return .none }
+    guard foreground, !dialogVisible, !busy else { return .wait }
+    guard hasController, controllerUnlocked else {
+        return resumeAfterScanner ? .unlock : .wait
+    }
+    guard hasHnsValue else { return .wait }
+    guard hasCurrentSnapshot else {
+        return resumeAfterScanner ? .synchronize : .wait
+    }
+    return .present
+}
+
 let walletOperationInProgressMessage =
     "The wallet is still completing synchronization or another operation. " +
     "It may continue in the background. Wait for it to finish, then try again."
