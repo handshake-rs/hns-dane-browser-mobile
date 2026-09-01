@@ -8,6 +8,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.CheckBox
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 
@@ -122,6 +123,7 @@ internal fun Context.statusCard(
     label: String,
     detail: TextView,
     healthy: Boolean = true,
+    inProgress: Boolean = false,
 ): LinearLayout =
     LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
@@ -134,6 +136,14 @@ internal fun Context.statusCard(
             letterSpacing = 0.08f
             setTextColor(if (healthy) themeColors().action else themeColors().secondaryAction)
         })
+        if (inProgress) {
+            addView(ProgressBar(this@statusCard).apply {
+                isIndeterminate = true
+                contentDescription = detail.text
+            }, LinearLayout.LayoutParams(uiDp(28), uiDp(28)).apply {
+                topMargin = uiDp(8)
+            })
+        }
         addView(detail.apply { setPadding(0, uiDp(6), 0, 0) })
     }
 

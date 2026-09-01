@@ -364,10 +364,10 @@
     <string name="wallet_already_exists" translatable="false">A wallet already exists on this device.</string>
     <string name="wallet_status_starting" translatable="false">Starting native wallet controller…</string>
     <string name="wallet_status_sync_handoff" translatable="false">Keeping the existing HNS sync connected…</string>
-    <string name="wallet_status_opening" translatable="false">Opening native wallet…</string>
+    <string name="wallet_status_opening" translatable="false">Opening your wallet… This may take up to a minute on older devices.</string>
     <string name="wallet_status_creating" translatable="false">Creating native wallet…</string>
     <string name="wallet_status_restoring" translatable="false">Restoring native wallet…</string>
-    <string name="wallet_status_unlocking" translatable="false">Unlocking native wallet…</string>
+    <string name="wallet_status_unlocking" translatable="false">Unlocking your wallet… Please wait.</string>
     <string name="wallet_status_locking" translatable="false">Locking native wallet…</string>
     <string name="wallet_status_deleting" translatable="false">Deleting the confirmed native wallet…</string>
     <string name="wallet_status_syncing_reads" translatable="false">Synchronizing read-only HNS wallet…</string>
@@ -630,6 +630,7 @@
     <string name="wallet_dashboard_recovery_phrase" translatable="false">RECOVERY PHRASE</string>
     <string name="wallet_dashboard_recovery_summary" translatable="false">Write these words down offline. The wallet is not retained until you confirm.</string>
     <string name="wallet_dashboard_locked" translatable="false">● LOCKED · %1$s</string>
+    <string name="wallet_dashboard_working" translatable="false">● WORKING · %1$s</string>
     <string name="wallet_dashboard_unlocked" translatable="false">● UNLOCKED · %1$s</string>
     <string name="wallet_dashboard_locked_short" translatable="false">Locked</string>
     <string name="wallet_dashboard_unlocked_short" translatable="false">Unlocked</string>

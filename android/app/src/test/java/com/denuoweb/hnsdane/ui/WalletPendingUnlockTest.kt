@@ -33,6 +33,32 @@ class WalletPendingUnlockTest {
         assertFalse(ready(hasUnconfirmedRecovery = true))
     }
 
+    @Test
+    fun scannedPaymentReopensSynchronizesAndThenPresentsWithoutLosingItsRequest() {
+        assertTrue(
+            paymentContinuation(hasController = false) ==
+                WalletPendingPaymentContinuation.Unlock,
+        )
+        assertTrue(
+            paymentContinuation(controllerUnlocked = false) ==
+                WalletPendingPaymentContinuation.Unlock,
+        )
+        assertTrue(
+            paymentContinuation(hasCurrentSnapshot = false) ==
+                WalletPendingPaymentContinuation.Synchronize,
+        )
+        assertTrue(paymentContinuation() == WalletPendingPaymentContinuation.Present)
+    }
+
+    @Test
+    fun externalPaymentAndBusyWalletDoNotImplicitlyUnlock() {
+        assertTrue(
+            paymentContinuation(resumeAfterScanner = false, controllerUnlocked = false) ==
+                WalletPendingPaymentContinuation.Wait,
+        )
+        assertTrue(paymentContinuation(busy = true) == WalletPendingPaymentContinuation.Wait)
+    }
+
     private fun ready(
         requested: Boolean = true,
         foreground: Boolean = true,
@@ -47,5 +73,24 @@ class WalletPendingUnlockTest {
         hasLease = hasLease,
         hasController = hasController,
         hasUnconfirmedRecovery = hasUnconfirmedRecovery,
+    )
+
+    private fun paymentContinuation(
+        resumeAfterScanner: Boolean = true,
+        busy: Boolean = false,
+        hasController: Boolean = true,
+        controllerUnlocked: Boolean = true,
+        hasCurrentSnapshot: Boolean = true,
+    ): WalletPendingPaymentContinuation = walletPendingPaymentContinuation(
+        hasPendingPayment = true,
+        resumeAfterScanner = resumeAfterScanner,
+        foreground = true,
+        windowHasFocus = true,
+        busy = busy,
+        dialogVisible = false,
+        hasController = hasController,
+        controllerUnlocked = controllerUnlocked,
+        hasHnsValue = true,
+        hasCurrentSnapshot = hasCurrentSnapshot,
     )
 }

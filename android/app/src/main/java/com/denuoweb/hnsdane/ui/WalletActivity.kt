@@ -179,6 +179,21 @@ class WalletActivity : ComponentActivity() {
     private var walletAuthorityGeneration = 0L
     private var walletControllerIsReopenedDurable = false
     private var busy = false
+        set(value) {
+            if (field == value) return
+            field = value
+            // Operation callbacks update their final status text after
+            // clearing this flag. Redraw on the next UI turn so every action
+            // disabled by beginOperation is reliably restored even on error
+            // branches that historically updated only a summary label.
+            if (!value && ::dashboardContent.isInitialized) {
+                dashboardContent.post {
+                    if (!busy && foreground && !isFinishing && !isDestroyed) {
+                        renderWalletDashboard()
+                    }
+                }
+            }
+        }
     private var lifecycleEpoch = 0L
     private var foreground = false
     // A confirmed, unlocked direct wallet may keep only a user-initiated,
@@ -202,6 +217,7 @@ class WalletActivity : ComponentActivity() {
     private var recentActivityPageOffset: Int = 0
     private var pendingHandshakePayment: HandshakePaymentRequest? = null
     private var pendingPaymentPresentationScheduled = false
+    private var scannedPaymentShouldResumeAfterUnlock = false
     private var browserSyncObservation: Closeable? = null
     private var pendingOutgoingSnapshotHeight: Long? = null
     private var pendingOutgoingRefreshAttemptedHeight: Long? = null
@@ -217,6 +233,7 @@ class WalletActivity : ComponentActivity() {
             return@registerForActivityResult
         }
         pendingHandshakePayment = request
+        scannedPaymentShouldResumeAfterUnlock = true
         schedulePendingPaymentPresentation()
     }
     private val saveQrCode = registerForActivityResult(
@@ -387,17 +404,39 @@ class WalletActivity : ComponentActivity() {
         window.decorView.post {
             pendingPaymentPresentationScheduled = false
             val handle = walletHandle
-            if (
-                !foreground || !window.decorView.hasWindowFocus() || busy || walletHnsSyncInProgress ||
-                handle == INVALID_HANDLE || NativeWalletBridge.status(handle)?.locked != false ||
-                !NativeWalletBridge.hasHnsValue(handle) || !hasCurrentWalletReadSnapshot(handle) ||
-                walletDeletionDialog?.isShowing == true || sendFormDialog?.isShowing == true ||
-                sendApprovalDialog?.isShowing == true ||
+            val dialogVisible = walletDeletionDialog?.isShowing == true ||
+                sendFormDialog?.isShowing == true || sendApprovalDialog?.isShowing == true ||
                 valueApprovalDialog?.isShowing == true
-            ) return@post
-            val request = pendingHandshakePayment ?: return@post
-            pendingHandshakePayment = null
-            showHnsSendDialog(request)
+            val controllerUnlocked = if (busy || handle == INVALID_HANDLE) {
+                false
+            } else {
+                NativeWalletBridge.status(handle)?.locked == false
+            }
+            val controllerMayBeInspected = !busy && handle != INVALID_HANDLE
+            when (walletPendingPaymentContinuation(
+                hasPendingPayment = pendingHandshakePayment != null,
+                resumeAfterScanner = scannedPaymentShouldResumeAfterUnlock,
+                foreground = foreground,
+                windowHasFocus = window.decorView.hasWindowFocus(),
+                busy = busy || walletHnsSyncInProgress,
+                dialogVisible = dialogVisible,
+                hasController = handle != INVALID_HANDLE,
+                controllerUnlocked = controllerUnlocked,
+                hasHnsValue = controllerMayBeInspected && NativeWalletBridge.hasHnsValue(handle),
+                hasCurrentSnapshot = controllerMayBeInspected && hasCurrentWalletReadSnapshot(handle),
+            )) {
+                WalletPendingPaymentContinuation.None,
+                WalletPendingPaymentContinuation.Wait -> Unit
+
+                WalletPendingPaymentContinuation.Unlock -> requestWalletUnlock()
+                WalletPendingPaymentContinuation.Synchronize -> synchronizeWalletReads()
+                WalletPendingPaymentContinuation.Present -> {
+                    val request = pendingHandshakePayment ?: return@post
+                    pendingHandshakePayment = null
+                    scannedPaymentShouldResumeAfterUnlock = false
+                    showHnsSendDialog(request)
+                }
+            }
         }
     }
 
@@ -569,8 +608,10 @@ class WalletActivity : ComponentActivity() {
                 renderRetainedHnsSyncHandoffDashboard()
             WalletDashboardMode.NoWallet -> renderNoWalletDashboard()
             WalletDashboardMode.LockedWallet -> renderLockedWalletDashboard()
-            WalletDashboardMode.UnlockedWallet -> renderUnlockedWalletDashboard()
+            WalletDashboardMode.UnlockedWallet ->
+                renderUnlockedWalletDashboard(actionsAvailable = !busy)
         }
+        if (pendingHandshakePayment != null) schedulePendingPaymentPresentation()
     }
 
     private fun renderNoWalletDashboard() {
@@ -578,16 +619,17 @@ class WalletActivity : ComponentActivity() {
             label = getString(R.string.wallet_dashboard_no_wallet),
             detail = statusView,
             healthy = false,
+            inProgress = busy,
         ))
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_get_started)) {
             addSettingsRow(actionRow(
                 title = getString(R.string.row_wallet_create),
                 summary = getString(R.string.wallet_dashboard_create_summary),
-            ) { createWallet() })
+            ) { createWallet() }.disabledWhenWalletHandoff(busy))
             addSettingsRow(navRow(
                 title = getString(R.string.row_wallet_restore),
                 summary = getString(R.string.wallet_dashboard_restore_summary),
-            ) { showRestoreWalletDialog() })
+            ) { showRestoreWalletDialog() }.disabledWhenWalletHandoff(busy))
         })
     }
 
@@ -624,6 +666,7 @@ class WalletActivity : ComponentActivity() {
             label = getString(R.string.wallet_dashboard_recovery_phrase),
             detail = statusView,
             healthy = false,
+            inProgress = busy,
         ))
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_recovery_phrase)) {
             addView(recoveryView, LinearLayout.LayoutParams(
@@ -633,29 +676,34 @@ class WalletActivity : ComponentActivity() {
             addSettingsRow(actionRow(
                 title = getString(R.string.row_wallet_recovery_confirm),
                 summary = getString(R.string.wallet_dashboard_recovery_summary),
-            ) { confirmRecoverySaved() })
+            ) { confirmRecoverySaved() }.disabledWhenWalletHandoff(busy))
         })
     }
 
     private fun renderLockedWalletDashboard() {
         dashboardContent.addView(statusCard(
-            label = getString(R.string.wallet_dashboard_locked, walletNetwork.displayName(this)),
+            label = getString(
+                if (busy) R.string.wallet_dashboard_working else R.string.wallet_dashboard_locked,
+                walletNetwork.displayName(this),
+            ),
             detail = statusView,
             healthy = false,
+            inProgress = busy,
         ))
         dashboardContent.addView(settingsGroup {
             addSettingsRow(actionRow(
                 title = getString(R.string.row_wallet_unlock),
                 summary = getString(R.string.wallet_dashboard_unlock_summary),
-            ) { requestWalletUnlock() })
+            ) { requestWalletUnlock() }.disabledWhenWalletHandoff(busy))
         })
-        addWalletTiles(locked = true)
+        addWalletTiles(locked = true, actionsAvailable = !busy)
     }
 
     private fun renderUnlockedWalletDashboard(actionsAvailable: Boolean = true) {
         dashboardContent.addView(statusCard(
             label = getString(R.string.wallet_dashboard_unlocked, walletNetwork.displayName(this)),
             detail = statusView,
+            inProgress = busy,
         ))
         dashboardContent.addView(walletBalanceCard(actionsAvailable))
         if (latestReadSnapshot == null || walletHnsSyncInProgress) {
@@ -1418,6 +1466,7 @@ class WalletActivity : ComponentActivity() {
         rows: List<Pair<String, String>>,
         actions: List<Pair<String, () -> Unit>> = emptyList(),
     ) {
+        lateinit var dialog: AlertDialog
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
@@ -1430,17 +1479,27 @@ class WalletActivity : ComponentActivity() {
                 })
             }
             actions.forEach { (label, action) ->
-                addView(dashboardActionButton(label, secondary = true, action = action), LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { bottomMargin = uiDp(8) })
+                addView(
+                    dashboardActionButton(label, secondary = true) {
+                        // The operation status belongs to the dashboard. Do
+                        // not leave a stale detail sheet covering its working
+                        // state after an action such as Unlock begins.
+                        dialog.dismiss()
+                        action()
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { bottomMargin = uiDp(8) },
+                )
             }
         }
-        AlertDialog.Builder(this)
+        dialog = AlertDialog.Builder(this)
             .setTitle(title)
             .setView(content)
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
     }
 
     private fun openExistingWallet() {
@@ -5212,6 +5271,7 @@ class WalletActivity : ComponentActivity() {
         busy = true
         statusView.text = status
         if (resetReads) resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
+        renderWalletDashboard()
         return true
     }
 
@@ -5985,6 +6045,49 @@ internal fun walletPendingUnlockMayRun(
     hasUnconfirmedRecovery: Boolean,
 ): Boolean =
     requested && foreground && !busy && hasLease && hasController && !hasUnconfirmedRecovery
+
+internal enum class WalletPendingPaymentContinuation {
+    None,
+    Wait,
+    Unlock,
+    Synchronize,
+    Present,
+}
+
+/**
+ * Keeps a scanned public payment URI alive while the scanner transition
+ * causes the protected wallet controller to reopen. External deep links do
+ * not implicitly unlock; only the in-wallet camera action carries that user
+ * intent across the lifecycle boundary.
+ */
+internal fun walletPendingPaymentContinuation(
+    hasPendingPayment: Boolean,
+    resumeAfterScanner: Boolean,
+    foreground: Boolean,
+    windowHasFocus: Boolean,
+    busy: Boolean,
+    dialogVisible: Boolean,
+    hasController: Boolean,
+    controllerUnlocked: Boolean,
+    hasHnsValue: Boolean,
+    hasCurrentSnapshot: Boolean,
+): WalletPendingPaymentContinuation = when {
+    !hasPendingPayment -> WalletPendingPaymentContinuation.None
+    !foreground || !windowHasFocus || busy || dialogVisible ->
+        WalletPendingPaymentContinuation.Wait
+    !hasController || !controllerUnlocked -> if (resumeAfterScanner) {
+        WalletPendingPaymentContinuation.Unlock
+    } else {
+        WalletPendingPaymentContinuation.Wait
+    }
+    !hasHnsValue -> WalletPendingPaymentContinuation.Wait
+    !hasCurrentSnapshot -> if (resumeAfterScanner) {
+        WalletPendingPaymentContinuation.Synchronize
+    } else {
+        WalletPendingPaymentContinuation.Wait
+    }
+    else -> WalletPendingPaymentContinuation.Present
+}
 
 internal fun estimateBitcoinSyncRemainingMillis(
     completedWork: Long,
