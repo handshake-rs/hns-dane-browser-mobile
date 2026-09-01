@@ -3003,7 +3003,9 @@ final class WalletViewController: UIViewController {
                     databasePath: path,
                     databaseKey: databaseKey,
                     network: self.network,
-                    birthdayHeight: self.network.newWalletBirthdayHeight
+                    birthdayHeight: self.network.newWalletBirthdayHeight(
+                        verifiedHeaderHeight: self.latestObservedBrowserHeaderHeight
+                    )
                 )
             }
             do {

@@ -3,14 +3,32 @@ import XCTest
 @testable import HnsDaneBrowser
 
 final class HeaderSnapshotBootstrapperTests: XCTestCase {
-    func testNewWalletBirthdayUsesOnlyThePinnedMainnetSnapshot() {
+    func testNewWalletBirthdayUsesAuthenticatedCurrentHeight() {
         XCTAssertEqual(
-            BrowserHandshakeNetwork.mainnet.newWalletBirthdayHeight,
+            BrowserHandshakeNetwork.mainnet.newWalletBirthdayHeight(
+                verifiedHeaderHeight: 345_238
+            ),
+            345_238
+        )
+        XCTAssertEqual(
+            BrowserHandshakeNetwork.mainnet.newWalletBirthdayHeight(
+                verifiedHeaderHeight: nil
+            ),
             HeaderSnapshotBootstrapper.snapshotHeight
         )
         XCTAssertEqual(HeaderSnapshotBootstrapper.snapshotHeight, 300_000)
-        XCTAssertEqual(BrowserHandshakeNetwork.testnet.newWalletBirthdayHeight, 0)
-        XCTAssertEqual(BrowserHandshakeNetwork.regtest.newWalletBirthdayHeight, 0)
+        XCTAssertEqual(
+            BrowserHandshakeNetwork.testnet.newWalletBirthdayHeight(verifiedHeaderHeight: 42),
+            42
+        )
+        XCTAssertEqual(
+            BrowserHandshakeNetwork.testnet.newWalletBirthdayHeight(verifiedHeaderHeight: nil),
+            0
+        )
+        XCTAssertEqual(
+            BrowserHandshakeNetwork.regtest.newWalletBirthdayHeight(verifiedHeaderHeight: nil),
+            0
+        )
     }
 
     func testExactSnapshotInstallsOnceAndMarksSuccess() throws {

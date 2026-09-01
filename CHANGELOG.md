@@ -23,6 +23,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Use the process-owned browser's authenticated current HNS height as the
+  birthday for a newly generated Android or iOS wallet. The bundled mainnet
+  height-300,000 checkpoint remains only a safe fallback and header-verification
+  input, rather than forcing every new seed to scan wallet activity from it.
 - Persist a non-sensitive, account-scoped pending-outgoing recovery marker
   before post-broadcast synchronization on Android and iOS. Reopened wallets
   now present the pending recovery state instead of a generic missing-balance

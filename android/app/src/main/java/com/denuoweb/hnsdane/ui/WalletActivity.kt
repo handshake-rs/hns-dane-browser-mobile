@@ -138,6 +138,29 @@ import kotlin.math.ceil
 internal fun walletDirectHnsNeedsGenesisBootstrap(network: HandshakeNetwork): Boolean =
     network == HandshakeNetwork.Mainnet
 
+/**
+ * A newly generated seed cannot have wallet activity before the instant it is
+ * created. Prefer the process-owned browser's authenticated current height so
+ * the independent wallet scans only blocks that could contain activity for
+ * that seed. The bundled mainnet checkpoint remains a fail-safe when no fresh,
+ * authoritative browser height has been observed yet; it is not otherwise the
+ * wallet birthday.
+ */
+internal fun newWalletBirthdayHeight(
+    network: HandshakeNetwork,
+    verifiedHeaderHeight: Long?,
+): Long {
+    val verified = verifiedHeaderHeight?.takeIf { it in 1..MAX_HNS_BIRTHDAY_HEIGHT }
+    return when (network) {
+        HandshakeNetwork.Mainnet -> maxOf(
+            HeaderSnapshotInstaller.SNAPSHOT_HEIGHT,
+            verified ?: HeaderSnapshotInstaller.SNAPSHOT_HEIGHT,
+        )
+        HandshakeNetwork.Testnet, HandshakeNetwork.Regtest ->
+            verified ?: 0L
+    }
+}
+
 internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
     "com.denuoweb.hnsdane.extra.HANDSHAKE_PAYMENT_URI"
 
@@ -1656,12 +1679,16 @@ class WalletActivity : ComponentActivity() {
         val path = walletDatabaseFile.absolutePath
         val network = walletNetworkCode(walletNetwork)
         val databaseKey = randomDatabaseKey()
+        val birthdayHeight = newWalletBirthdayHeight(
+            walletNetwork,
+            latestObservedBrowserHeaderHeight,
+        )
         thread(name = "hns-wallet-create") {
             val created = NativeWalletBridge.create(
                 path,
                 databaseKey.copyOf(),
                 network,
-                newWalletBirthday(walletNetwork),
+                birthdayHeight,
             )
             val recovery = if (created != INVALID_HANDLE) {
                 NativeWalletBridge.takeRecovery(created)
@@ -5989,14 +6016,6 @@ class WalletActivity : ComponentActivity() {
         HandshakeNetwork.Mainnet -> NativeWalletBridge.NETWORK_MAINNET
         HandshakeNetwork.Testnet -> NativeWalletBridge.NETWORK_TESTNET
         HandshakeNetwork.Regtest -> NativeWalletBridge.NETWORK_REGTEST
-    }
-
-    private fun newWalletBirthday(network: HandshakeNetwork): Long = when (network) {
-        // A newly generated seed cannot have a user-intended funding history
-        // before creation. Starting at the reviewed local checkpoint avoids a
-        // network-wide first scan while preserving full direct-peer authority.
-        HandshakeNetwork.Mainnet -> HeaderSnapshotInstaller.SNAPSHOT_HEIGHT
-        HandshakeNetwork.Testnet, HandshakeNetwork.Regtest -> SAFE_FULL_RESCAN_BIRTHDAY
     }
 
     private fun randomDatabaseKey(): ByteArray {

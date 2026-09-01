@@ -44,14 +44,18 @@ enum BrowserHandshakeNetwork: String, CaseIterable, Equatable, Hashable, Sendabl
         }
     }
 
-    /// A newly generated seed cannot have earlier wallet activity. Mainnet
-    /// therefore starts at the exact bundled snapshot that the wallet direct
-    /// coordinator independently validates; networks without that snapshot
-    /// retain the conservative genesis fallback.
-    var newWalletBirthdayHeight: UInt64 {
+    /// A newly generated seed cannot have wallet activity before creation.
+    /// Prefer the process-owned browser's authoritative current height and use
+    /// the bundled mainnet checkpoint only when that evidence is unavailable.
+    func newWalletBirthdayHeight(verifiedHeaderHeight: UInt64?) -> UInt64 {
         switch self {
-        case .mainnet: HeaderSnapshotBootstrapper.snapshotHeight
-        case .testnet, .regtest: 0
+        case .mainnet:
+            max(
+                HeaderSnapshotBootstrapper.snapshotHeight,
+                verifiedHeaderHeight ?? HeaderSnapshotBootstrapper.snapshotHeight
+            )
+        case .testnet, .regtest:
+            verifiedHeaderHeight ?? 0
         }
     }
 }
