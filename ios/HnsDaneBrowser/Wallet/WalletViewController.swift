@@ -99,6 +99,7 @@ final class WalletViewController: UIViewController {
     private let bitcoinOffersButton = UIButton(type: .system)
     private let bitcoinExecutionsButton = UIButton(type: .system)
     private let dashboardStack = UIStackView()
+    private let walletRefreshControl = UIRefreshControl()
 
     init(network: BrowserHandshakeNetwork) {
         self.network = network
@@ -321,6 +322,13 @@ final class WalletViewController: UIViewController {
         let scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.alwaysBounceVertical = true
+        walletRefreshControl.accessibilityLabel = "Synchronize HNS wallet"
+        walletRefreshControl.addTarget(
+            self,
+            action: #selector(pullToSynchronizeWalletReads),
+            for: .valueChanged
+        )
+        scrollView.refreshControl = walletRefreshControl
         view.addSubview(scrollView)
         scrollView.addSubview(dashboardStack)
         NSLayoutConstraint.activate([
@@ -2927,6 +2935,20 @@ final class WalletViewController: UIViewController {
         refreshState()
     }
 
+    @objc private func pullToSynchronizeWalletReads() {
+        guard walletPullToSyncMayStart(
+            hasPresentedViewController: presentedViewController != nil
+        ) else {
+            walletRefreshControl.endRefreshing()
+            return
+        }
+        let operationWasAlreadyInFlight = isOperating
+        synchronizeWalletReads()
+        if operationWasAlreadyInFlight || !isOperating {
+            walletRefreshControl.endRefreshing()
+        }
+    }
+
     @objc private func synchronizeWalletReads() {
         guard let lease = storageLease,
               let wallet,
@@ -2959,6 +2981,7 @@ final class WalletViewController: UIViewController {
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                self.walletRefreshControl.endRefreshing()
                 guard walletReadMayPublish(
                     expectedGeneration: generation,
                     currentGeneration: self.readGeneration,
@@ -4741,6 +4764,10 @@ func walletReadMayPublish(
         expectedAuthorityGeneration > 0 &&
         expectedAuthorityGeneration == currentAuthorityGeneration &&
         viewIsVisible
+}
+
+func walletPullToSyncMayStart(hasPresentedViewController: Bool) -> Bool {
+    !hasPresentedViewController
 }
 
 struct WalletReadBootstrapState: Equatable, Sendable {

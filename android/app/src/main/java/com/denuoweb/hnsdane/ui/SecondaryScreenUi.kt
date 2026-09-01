@@ -22,6 +22,7 @@ internal fun ComponentActivity.setSecondaryScreen(
     title: String,
     onSwipeLeft: (() -> Unit)? = null,
     onSwipeRight: (() -> Unit)? = null,
+    onPullDownAtTop: (() -> Unit)? = null,
     content: LinearLayout.() -> Unit,
 ) {
     val colors = themeColors()
@@ -38,7 +39,7 @@ internal fun ComponentActivity.setSecondaryScreen(
     setContentView(
         ScrollView(this).apply {
             setBackgroundColor(colors.background)
-            installHorizontalSwipeNavigation(onSwipeLeft, onSwipeRight)
+            installScreenGestures(onSwipeLeft, onSwipeRight, onPullDownAtTop)
             addView(root, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -262,21 +263,24 @@ internal fun Context.uiDp(value: Int): Int =
     (value * resources.displayMetrics.density + 0.5f).toInt()
 
 @SuppressLint("ClickableViewAccessibility")
-private fun View.installHorizontalSwipeNavigation(
+private fun ScrollView.installScreenGestures(
     onSwipeLeft: (() -> Unit)?,
     onSwipeRight: (() -> Unit)?,
+    onPullDownAtTop: (() -> Unit)?,
 ) {
-    if (onSwipeLeft == null && onSwipeRight == null) {
+    if (onSwipeLeft == null && onSwipeRight == null && onPullDownAtTop == null) {
         return
     }
 
     var downX = 0f
     var downY = 0f
+    var pullStartedAtTop = false
     setOnTouchListener { _, event ->
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x
                 downY = event.y
+                pullStartedAtTop = scrollY <= 0
             }
             MotionEvent.ACTION_UP -> {
                 val deltaX = event.x - downX
@@ -289,7 +293,18 @@ private fun View.installHorizontalSwipeNavigation(
                     }
                     return@setOnTouchListener true
                 }
+                if (
+                    onPullDownAtTop != null &&
+                    pullStartedAtTop &&
+                    scrollY <= 0 &&
+                    deltaY >= context.uiDp(72) &&
+                    abs(deltaY) > abs(deltaX) * 1.5f
+                ) {
+                    onPullDownAtTop.invoke()
+                    return@setOnTouchListener true
+                }
             }
+            MotionEvent.ACTION_CANCEL -> pullStartedAtTop = false
         }
         false
     }

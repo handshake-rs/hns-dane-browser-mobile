@@ -13,6 +13,19 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
+    fun wallet_pull_to_sync_requires_an_unobscured_window() {
+        assertTrue(walletPullToSyncMayStart(windowHasFocus = true, knownDialogVisible = false))
+        assertEquals(
+            false,
+            walletPullToSyncMayStart(windowHasFocus = false, knownDialogVisible = false),
+        )
+        assertEquals(
+            false,
+            walletPullToSyncMayStart(windowHasFocus = true, knownDialogVisible = true),
+        )
+    }
+
+    @Test
     fun background_retention_requires_a_visible_service_for_either_read_only_sync() {
         assertEquals(true, walletBackgroundSynchronizationMayRetain(true, false, true))
         assertEquals(true, walletBackgroundSynchronizationMayRetain(false, true, true))

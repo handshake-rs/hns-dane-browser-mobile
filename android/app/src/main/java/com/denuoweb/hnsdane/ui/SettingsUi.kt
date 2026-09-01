@@ -20,8 +20,13 @@ import androidx.activity.ComponentActivity
  */
 internal fun ComponentActivity.setSettingsScreen(
     title: String,
+    onPullDownAtTop: (() -> Unit)? = null,
     content: LinearLayout.() -> Unit,
-) = setSecondaryScreen(title = title, content = content)
+) = setSecondaryScreen(
+    title = title,
+    onPullDownAtTop = onPullDownAtTop,
+    content = content,
+)
 
 internal fun Context.settingsGroup(
     title: String? = null,

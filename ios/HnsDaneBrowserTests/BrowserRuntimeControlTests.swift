@@ -2183,6 +2183,11 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ))
     }
 
+    func testWalletPullToSyncRequiresNoPresentedController() {
+        XCTAssertTrue(walletPullToSyncMayStart(hasPresentedViewController: false))
+        XCTAssertFalse(walletPullToSyncMayStart(hasPresentedViewController: true))
+    }
+
     func testExactHNSNameImportRequiresLiveAuthorityAndSuppressesStaleCompletion() throws {
         let path = "/private/test-name-import-\(UUID().uuidString)/NativeWallet/mainnet/wallet.sqlite3"
         let lease = try XCTUnwrap(WalletStorageLeaseRegistry.acquire(path: path))

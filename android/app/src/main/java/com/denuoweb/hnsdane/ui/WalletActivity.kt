@@ -269,7 +269,10 @@ class WalletActivity : ComponentActivity() {
         dashboardContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-        setSettingsScreen(getString(R.string.screen_wallet)) {
+        setSettingsScreen(
+            title = getString(R.string.screen_wallet),
+            onPullDownAtTop = ::pullToSynchronizeWalletReads,
+        ) {
             addView(dashboardContent)
         }
         // Back returns to the browser by reordering Main above this Activity.
@@ -1830,6 +1833,18 @@ class WalletActivity : ComponentActivity() {
     private fun dismissWalletDeletionDialog() {
         walletDeletionDialog?.dismiss()
         walletDeletionDialog = null
+    }
+
+    private fun pullToSynchronizeWalletReads() {
+        val knownDialogVisible = walletDeletionDialog?.isShowing == true ||
+            sendApprovalDialog?.isShowing == true ||
+            valueApprovalDialog?.isShowing == true
+        if (!walletPullToSyncMayStart(
+                windowHasFocus = window.decorView.hasWindowFocus(),
+                knownDialogVisible = knownDialogVisible,
+            )
+        ) return
+        synchronizeWalletReads()
     }
 
     private fun synchronizeWalletReads() {
@@ -5691,6 +5706,11 @@ internal fun estimateBitcoinSyncRemainingMillis(
 
 internal fun walletBitcoinOperationMayStart(bitcoinSyncInProgress: Boolean): Boolean =
     !bitcoinSyncInProgress
+
+internal fun walletPullToSyncMayStart(
+    windowHasFocus: Boolean,
+    knownDialogVisible: Boolean,
+): Boolean = windowHasFocus && !knownDialogVisible
 
 internal fun walletBackgroundSynchronizationMayRetain(
     hasActiveReadOnlyHnsSync: Boolean,
