@@ -30,6 +30,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -1150,9 +1151,42 @@ class WalletActivity : ComponentActivity() {
                 transactions.size,
             ) + "\n\n" + formatWalletTransactions(page)
         }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
+            addView(TextView(this@WalletActivity).apply {
+                text = message
+                textSize = 14f
+                typeface = Typeface.MONOSPACE
+                setTextColor(themeColors().primaryText)
+                setTextIsSelectable(true)
+                setPadding(0, uiDp(8), 0, uiDp(12))
+            })
+            if (page.isNotEmpty()) {
+                addView(dashboardActionButton(
+                    getString(R.string.wallet_dashboard_copy_activity),
+                    secondary = true,
+                ) {
+                    getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                        ClipData.newPlainText(
+                            getString(R.string.wallet_dashboard_recent_activity),
+                            message,
+                        ),
+                    )
+                    Toast.makeText(
+                        this@WalletActivity,
+                        R.string.common_copied,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                })
+            }
+        }
+        val scrollableContent = ScrollView(this).apply {
+            addView(content)
+        }
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.wallet_dashboard_recent_activity)
-            .setMessage(message)
+            .setView(scrollableContent)
             .setNegativeButton(R.string.action_cancel, null)
         if (recentActivityPageOffset > 0) {
             dialog.setNeutralButton(R.string.action_previous_wallet_activity) { _, _ ->
@@ -4713,10 +4747,7 @@ class WalletActivity : ComponentActivity() {
             renderWalletDashboard()
             return
         }
-        statusView.text = getString(
-            R.string.wallet_status_unlocked,
-            status.activeWalletId ?: getString(R.string.common_unknown),
-        )
+        statusView.text = getString(R.string.wallet_status_unlocked)
         val account = NativeWalletBridge.account(walletHandle)
         accountView.text = if (account == null) {
             getString(R.string.wallet_account_unavailable)

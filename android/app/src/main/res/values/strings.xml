@@ -388,7 +388,7 @@
     <string name="wallet_status_recovery_required" translatable="false">Save the recovery phrase offline, then confirm. Leaving this screen discards the unconfirmed wallet.</string>
     <string name="wallet_status_locked" translatable="false">Wallet is ready to unlock. Tap Unlock to continue.</string>
     <string name="wallet_status_device_locked" translatable="false">The existing wallet is locked while Android Keystore is unavailable. Unlock this device, then retry.</string>
-    <string name="wallet_status_unlocked" translatable="false">Unlocked native wallet %1$s</string>
+    <string name="wallet_status_unlocked" translatable="false">Unlocked Shakescape wallet</string>
     <string name="wallet_status_unavailable" translatable="false">Native wallet status is unavailable; the controller failed closed.</string>
     <string name="wallet_status_open_failed" translatable="false">The wallet could not be opened.</string>
     <string name="wallet_status_create_failed" translatable="false">The wallet could not be created; incomplete files were removed.</string>
@@ -652,6 +652,7 @@
     <string name="wallet_dashboard_not_connected" translatable="false">Not connected</string>
     <string name="wallet_dashboard_ready" translatable="false">Ready</string>
     <string name="wallet_dashboard_recent_activity" translatable="false">Recent activity</string>
+    <string name="wallet_dashboard_copy_activity" translatable="false">Copy activity</string>
     <string name="wallet_dashboard_no_synced_activity" translatable="false">No synchronized transaction history</string>
     <string name="wallet_dashboard_receive_message" translatable="false">%1$s</string>
     <string name="wallet_dashboard_name_transfer" translatable="false">Name transfer</string>

@@ -487,7 +487,7 @@ final class WalletViewController: UIViewController {
     private func renderUnlockedWalletDashboard() {
         dashboardStack.addArrangedSubview(dashboardCard(
             title: isOperating ? "● WORKING · \(network.title)" : "● UNLOCKED · \(network.title)",
-            body: walletStatusBody([statusLabel, accountLabel]),
+            body: walletStatusBody([statusLabel]),
             accent: .systemCyan
         ))
 
@@ -2907,6 +2907,12 @@ final class WalletViewController: UIViewController {
                 DispatchQueue.main.async { self.showWalletActivity() }
             })
         }
+        alert.addAction(UIAlertAction(title: "Copy activity", style: .default) { _ in
+            UIPasteboard.general.setItems(
+                [[UTType.plainText.identifier: page.text]],
+                options: [.localOnly: true]
+            )
+        })
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
     }
@@ -4123,7 +4129,7 @@ final class WalletViewController: UIViewController {
             }
             statusLabel.text = status.locked
                 ? "Wallet is ready to unlock. Tap Unlock to continue."
-                : "Status: unlocked · wallet \(status.activeWallet ?? "unknown")."
+                : "Unlocked Shakescape wallet."
             openButton.configuration?.title = status.locked ? "Unlock" : "Open and unlock"
             walletIsUnlocked = !status.locked
             directHnsValueAvailable = hasHnsValue && !status.locked
