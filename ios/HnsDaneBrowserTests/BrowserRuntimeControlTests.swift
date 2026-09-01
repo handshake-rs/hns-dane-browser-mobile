@@ -616,7 +616,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         XCTAssertEqual(
             presentation.status,
-            "Direct Handshake wallet synchronized at height 42. Pending outgoing transactions are reflected in the available balance."
+            "Synced and ready at height 42. Pending outgoing transactions are reflected in the available balance."
         )
         XCTAssertEqual(presentation.balance, "12.345678 HNS confirmed and available")
         XCTAssertEqual(

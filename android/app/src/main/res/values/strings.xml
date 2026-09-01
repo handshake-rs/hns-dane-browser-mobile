@@ -453,7 +453,7 @@
     <string name="wallet_send_syncing_before_review" translatable="false">Synchronizing a fresh verified wallet snapshot before reviewing this send…</string>
     <string name="wallet_send_sync_failed" translatable="false">The wallet could not obtain a verified snapshot, so no send was prepared.</string>
     <string name="wallet_send_catchup_before_review" translatable="false">The wallet is still scanning verified history through %1$d of %2$d. No send was prepared; synchronize again until the confirmed available balance is ready.</string>
-    <string name="wallet_send_ready" translatable="false">Ready to prepare a guarded HNS send from the snapshot at height %1$d.</string>
+    <string name="wallet_send_ready" translatable="false">Synced and ready at height %1$d.</string>
     <string name="wallet_send_invalid" translatable="false">Enter an exact visible HNS address, a positive amount, and a positive maximum fee. HNS amounts support at most 6 decimal places.</string>
     <string name="wallet_send_recipient_invalid" translatable="false">Enter an exact visible HNS payment address without spaces or line breaks.</string>
     <string name="wallet_send_amount_invalid" translatable="false">Enter a positive HNS amount with up to 6 decimal places.</string>

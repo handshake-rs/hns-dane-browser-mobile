@@ -4474,7 +4474,7 @@ enum WalletReadPresenter {
             balanceText = "\(formatHnsBaseUnits(balance.spendableBaseUnits)) HNS spendable now"
         }
         return WalletReadPresentation(
-            status: "Direct Handshake wallet synchronized at height \(snapshot.moduleStatus.validatedHeight). Pending outgoing transactions are reflected in the available balance.",
+            status: "Synced and ready at height \(snapshot.moduleStatus.validatedHeight). Pending outgoing transactions are reflected in the available balance.",
             balance: balanceText,
             paymentReceive: "Payment receive\n\(snapshot.receiveTarget.display)\nDerivation index \(snapshot.receiveTarget.derivationIndex)",
             nameReceive: snapshot.nameReceiveTarget.map {
