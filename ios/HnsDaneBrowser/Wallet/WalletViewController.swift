@@ -581,29 +581,44 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func showPaymentReceiveAddress() {
+        guard let paymentReceiveAddress = receiveTargets?.paymentAddress else { return }
         let alert = UIAlertController(
             title: "Receive HNS",
-            message: [paymentReceiveLabel.text, nameReceiveLabel.text]
-                .compactMap { $0 }
-                .joined(separator: "\n\n"),
+            message: "Payment address",
             preferredStyle: .alert
         )
-        if let paymentReceiveAddress = receiveTargets?.paymentAddress {
-            alert.addAction(UIAlertAction(title: "Copy payment address", style: .default) { _ in
-                UIPasteboard.general.setItems(
-                    [[UTType.plainText.identifier: paymentReceiveAddress]],
-                    options: [.localOnly: true]
-                )
+        addFittingAddress(paymentReceiveAddress, label: "HNS payment address", to: alert)
+        alert.addAction(UIAlertAction(title: "Copy payment address", style: .default) { _ in
+            UIPasteboard.general.setItems(
+                [[UTType.plainText.identifier: paymentReceiveAddress]],
+                options: [.localOnly: true]
+            )
+        })
+        if receiveTargets?.nameTransferAddress != nil {
+            alert.addAction(UIAlertAction(title: "Name-transfer address", style: .default) { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.showNameReceiveAddress()
+                }
             })
         }
-        if let nameReceiveAddress = receiveTargets?.nameTransferAddress {
-            alert.addAction(UIAlertAction(title: "Copy name-transfer address", style: .default) { _ in
-                UIPasteboard.general.setItems(
-                    [[UTType.plainText.identifier: nameReceiveAddress]],
-                    options: [.localOnly: true]
-                )
-            })
-        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func showNameReceiveAddress() {
+        guard let address = receiveTargets?.nameTransferAddress else { return }
+        let alert = UIAlertController(
+            title: "Receive HNS name",
+            message: "Name-transfer address",
+            preferredStyle: .alert
+        )
+        addFittingAddress(address, label: "HNS name-transfer address", to: alert)
+        alert.addAction(UIAlertAction(title: "Copy address", style: .default) { _ in
+            UIPasteboard.general.setItems(
+                [[UTType.plainText.identifier: address]],
+                options: [.localOnly: true]
+            )
+        })
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
     }
@@ -633,9 +648,10 @@ final class WalletViewController: UIViewController {
     private func presentBitcoinReceiveAddress(_ address: String) {
         let alert = UIAlertController(
             title: "Receive Bitcoin",
-            message: address,
+            message: "Bitcoin address",
             preferredStyle: .alert
         )
+        addFittingAddress(address, label: "Bitcoin receive address", to: alert)
         alert.addAction(UIAlertAction(title: "Copy address", style: .default) { _ in
             UIPasteboard.general.setItems(
                 [[UTType.plainText.identifier: address]],
@@ -644,6 +660,23 @@ final class WalletViewController: UIViewController {
         })
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
+    }
+
+    private func addFittingAddress(
+        _ address: String,
+        label: String,
+        to alert: UIAlertController
+    ) {
+        alert.addTextField { field in
+            field.text = address
+            field.font = .monospacedSystemFont(ofSize: 17, weight: .regular)
+            field.adjustsFontSizeToFitWidth = true
+            field.minimumFontSize = 8
+            field.textAlignment = .center
+            field.borderStyle = .none
+            field.isUserInteractionEnabled = false
+            field.accessibilityLabel = label
+        }
     }
 
     @objc private func showBitcoinBirthdayForm() {

@@ -16,7 +16,9 @@ import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.util.Log
+import android.util.TypedValue
 import android.view.ActionMode
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -737,7 +739,7 @@ class WalletActivity : ComponentActivity() {
             ?: ""
         AlertDialog.Builder(this)
             .setTitle(R.string.wallet_dashboard_receive)
-            .setMessage(getString(R.string.wallet_dashboard_receive_message, payment))
+            .setView(walletAddressDialogText(payment))
             .setNegativeButton(R.string.action_cancel, null)
             .setNeutralButton(R.string.wallet_dashboard_name_transfer) { _, _ -> showNameReceiveDialog() }
             .setPositiveButton(R.string.wallet_dashboard_copy_address) { _, _ ->
@@ -750,12 +752,31 @@ class WalletActivity : ComponentActivity() {
         val address = latestReadSnapshot?.hnsReceiveTargets()?.nameTransferAddress.orEmpty()
         AlertDialog.Builder(this)
             .setTitle(R.string.wallet_dashboard_name_transfer)
-            .setMessage(address)
+            .setView(walletAddressDialogText(address))
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.wallet_dashboard_copy_address) { _, _ ->
                 copyWalletAddress(address, R.string.wallet_dashboard_name_transfer)
             }
             .show()
+    }
+
+    private fun walletAddressDialogText(address: String): TextView = TextView(this).apply {
+        text = address
+        gravity = Gravity.CENTER
+        isSingleLine = true
+        maxLines = 1
+        ellipsize = null
+        setHorizontallyScrolling(false)
+        setTextIsSelectable(true)
+        setTextColor(themeColors().primaryText)
+        typeface = Typeface.MONOSPACE
+        setAutoSizeTextTypeUniformWithConfiguration(
+            8,
+            18,
+            1,
+            TypedValue.COMPLEX_UNIT_SP,
+        )
+        setPadding(uiDp(24), uiDp(8), uiDp(24), uiDp(8))
     }
 
     private fun copyWalletAddress(address: String, label: Int) {
