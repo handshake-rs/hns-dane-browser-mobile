@@ -90,7 +90,7 @@ behavior against the exact signed candidate before upload.
 | 64-bit / 16 KiB native code | Code 47 signed gates passed | The code `47` APK/AAB passed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, archive/APK signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
 | Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
 | Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
-| Privacy policy | Current read boundary deployed and read back | `https://denuoweb.com/work/hns-dane-browser/privacy` remains canonical. Version-neutral source `a5539cb063fb4b19fed4dff5400a3bc991acdc4f` covers relay/recovery, wallet lifecycle, and unavailable read rows; Firebase run `31485234945` and HTTP readback passed. Reconcile live Play answers before submission. |
+| Privacy policy | Current read boundary deployed and read back | `https://shakescape.com/privacy/` is canonical. The published policy covers relay/recovery, wallet lifecycle, and unavailable read rows. Reconcile live Play answers before submission. |
 | Data safety form | Live reconciliation required | The current `No data collected / No data shared` posture is consistent with Google's open-web, on-device, and user-initiated-transfer exclusions. Confirm current WebView-provider Safe Browsing guidance before resubmission. |
 | Ads declaration | Ready | Declare “No ads.” Donations do not unlock features. |
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
@@ -230,7 +230,7 @@ resubmission:
 
 Use an active, publicly accessible, non-PDF URL. Current hosted URL:
 
-<https://denuoweb.com/work/hns-dane-browser/privacy>
+<https://shakescape.com/privacy/>
 
 The repository policy adds the candidate's local wallet storage and recovery
 lifecycle to the existing relay requester, dual-root, and configured-recursive

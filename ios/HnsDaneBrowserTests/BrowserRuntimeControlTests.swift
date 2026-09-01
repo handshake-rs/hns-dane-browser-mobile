@@ -1329,6 +1329,10 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     @MainActor
     func testIOSSettingsUseTheSixDestinationHierarchy() {
+        XCTAssertEqual(
+            BrowserSettingsViewController.privacyPolicyURL,
+            "https://shakescape.com/privacy/"
+        )
         XCTAssertEqual(BrowserSettingsViewController.Destination.allCases.map(\.title), [
             "Settings",
             "Browser",

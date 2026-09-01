@@ -80,7 +80,7 @@ marketplaces remain absent or gated off.
 - Package name: `com.denuoweb.hnsdane`
 - App category: Tools
 - Ads declaration: No ads
-- Privacy policy URL: `https://denuoweb.com/work/hns-dane-browser/privacy`
+- Privacy policy URL: `https://shakescape.com/privacy/`
 - Candidate upload artifact (signed, verified, and intentionally untracked):
   `dist/play-store/hns-dane-browser-v1.0.0-play-upload-signed.aab`
 - Foreground service type: none; remove any stale `dataSync` declaration

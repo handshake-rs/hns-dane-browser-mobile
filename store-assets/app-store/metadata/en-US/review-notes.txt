@@ -24,5 +24,5 @@ Network note: some review networks block Handshake peer traffic or direct author
 
 Cleartext HTTP pages are marked insecure. No reviewer-supplied personal data or credentials are needed. The two test URLs above are developer-controlled.
 
-Privacy policy: https://denuoweb.com/work/hns-dane-browser/privacy
+Privacy policy: https://shakescape.com/privacy/
 Source code: https://github.com/handshake-rs/hns-dane-browser-mobile

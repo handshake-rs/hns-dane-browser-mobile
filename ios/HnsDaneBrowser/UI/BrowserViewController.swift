@@ -5,7 +5,7 @@ import WebKit
 @MainActor
 final class BrowserViewController: UIViewController {
     private static let privacyPolicyURL = URL(
-        string: "https://denuoweb.com/work/hns-dane-browser/privacy"
+        string: "https://shakescape.com/privacy/"
     )!
     private static let sourceCodeURL = URL(
         string: "https://github.com/handshake-rs/hns-dane-browser-mobile"
