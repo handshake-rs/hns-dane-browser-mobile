@@ -407,8 +407,8 @@
     <string name="wallet_reads_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet to inspect synchronized HNS reads.</string>
     <string name="wallet_reads_recovery_unconfirmed" translatable="false">Confirm the recovery backup before any wallet read backend can be installed.</string>
     <string name="wallet_reads_locked" translatable="false">Unlock the wallet before synchronizing read-only HNS data.</string>
-    <string name="wallet_reads_ready_to_sync" translatable="false">The HNS module is configured. Synchronize to refresh its tip-bound projection before using funds.</string>
-    <string name="wallet_reads_syncing" translatable="false">Synchronizing one bounded HNS read snapshot…</string>
+    <string name="wallet_reads_ready_to_sync" translatable="false">The HNS wallet is ready. Synchronize to verify its current balance and enable sending.</string>
+    <string name="wallet_reads_syncing" translatable="false">Starting direct-peer HNS verification and wallet scanning…</string>
     <string name="wallet_reads_refresh_failed_retained" translatable="false">Refresh failed. The last verified snapshot remains visible but cannot authorize spending; synchronize again to refresh it.</string>
     <string name="wallet_reads_live_connecting" translatable="false">Finding independent Handshake peers. Verified local height %1$d; this sync continues from that checkpoint.</string>
     <string name="wallet_reads_live_headers" translatable="false">Verifying direct-peer headers • round %1$d of %2$d • verified local height %3$d.</string>
@@ -418,28 +418,29 @@
     <string name="wallet_sync_notification_channel" translatable="false">Wallet synchronization</string>
     <string name="wallet_sync_notification_title" translatable="false">Synchronizing wallet</string>
     <string name="wallet_sync_notification_text" translatable="false">Scanning verified Handshake or Bitcoin wallet activity.</string>
-    <string name="wallet_reads_sync_failed" translatable="false">The synchronized HNS read did not complete. No balance or spend state was exposed; the wallet remains unlocked and can retry direct verification.</string>
-    <string name="wallet_reads_catching_up" translatable="false">Verified HNS wallet catch-up is in progress. No balance or spend state is exposed until it reaches the exact current tip.</string>
-    <string name="wallet_reads_catching_up_headers" translatable="false">Verified header catch-up is still in progress at local height %1$d. Wallet history has scanned through %2$d of %3$d. Synchronize again to continue; no balance or spend state is exposed yet.</string>
-    <string name="wallet_reads_catching_up_before_birthday" translatable="false">Verified headers are at height %1$d and are catching up toward this restored wallet’s birthday height %2$d. Wallet activity scanning has not started; no balance or spend state is exposed yet.</string>
-    <string name="wallet_reads_catching_up_scan" translatable="false">Verified chain headers are current. Wallet history has scanned through %1$d of %2$d. Synchronize again to continue; no balance or spend state is exposed yet.</string>
-    <string name="wallet_reads_catching_up_degraded" translatable="false">Verified header catch-up could not reach a current peer agreement at local height %1$d. No balance or spend state is exposed; synchronize again after direct peers recover.</string>
+    <string name="wallet_reads_sync_failed" translatable="false">HNS synchronization did not complete. Balance and sending remain unavailable; the wallet stays unlocked and can retry direct verification.</string>
+    <string name="wallet_reads_catching_up" translatable="false">HNS synchronization is continuing from its durable checkpoint. Balance and sending become available when verified headers and wallet scanning reach the current tip.</string>
+    <string name="wallet_reads_catching_up_headers" translatable="false">Verified headers are at local height %1$d. Wallet history has scanned through %2$d of %3$d. Synchronization will continue automatically from this checkpoint.</string>
+    <string name="wallet_reads_catching_up_before_birthday" translatable="false">Verified headers are at height %1$d and are catching up toward this restored wallet’s birthday height %2$d. Wallet scanning will begin after the headers reach that height.</string>
+    <string name="wallet_reads_catching_up_scan" translatable="false">Verified chain headers are current. Wallet history has scanned through %1$d of %2$d. Synchronization will continue automatically from this checkpoint.</string>
+    <string name="wallet_reads_catching_up_degraded" translatable="false">Direct peers did not reach current header agreement at local height %1$d. Automatic synchronization will retry with replacement peers.</string>
     <string name="wallet_reads_ready" translatable="false">Handshake wallet state is ready at height %1$d.</string>
-    <string name="wallet_reads_balance_unavailable" translatable="false">No synchronized balance is exposed.</string>
+    <string name="wallet_reads_balance_unavailable" translatable="false">Balance is not available until a verified wallet snapshot completes.</string>
+    <string name="wallet_reads_balance_syncing" translatable="false">Balance is waiting for the active direct-peer verification and wallet scan to finish.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS spendable now</string>
     <string name="wallet_reads_balance_with_pending" translatable="false">%1$s HNS spendable now\n%2$s HNS pending outgoing\nTransaction Pending, please wait.</string>
-    <string name="wallet_reads_receive_unavailable" translatable="false">No payment receive address is exposed.</string>
+    <string name="wallet_reads_receive_unavailable" translatable="false">A payment receive address is not available yet.</string>
     <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d</string>
     <string name="wallet_reads_receive_local" translatable="false">%1$s\nDerivation index %2$d\nReady to receive HNS locally. Synchronize before trusting balance/history or sending.</string>
-    <string name="wallet_reads_name_receive_unavailable" translatable="false">No name transfer receive address is exposed.</string>
+    <string name="wallet_reads_name_receive_unavailable" translatable="false">A name transfer receive address is not available yet.</string>
     <string name="wallet_reads_name_receive_legacy_unavailable" translatable="false">Unavailable in this legacy HNWR-v1 wallet snapshot.</string>
     <string name="wallet_reads_name_receive" translatable="false">%1$s\nName derivation index %2$d</string>
-    <string name="wallet_reads_history_unavailable" translatable="false">No synchronized transaction history is exposed.</string>
+    <string name="wallet_reads_history_unavailable" translatable="false">Transaction history is not available until synchronization completes.</string>
     <string name="wallet_reads_history_empty" translatable="false">No wallet transactions were found in the synchronized snapshot.</string>
     <string name="wallet_reads_transaction" translatable="false">%1$s · %2$s\n%3$s\n%4$s</string>
     <string name="wallet_reads_transaction_unconfirmed" translatable="false">Unconfirmed</string>
     <string name="wallet_reads_transaction_confirmed" translatable="false">Block %1$d · %2$d confirmations</string>
-    <string name="wallet_reads_names_unavailable" translatable="false">No synchronized tracked-name state is exposed.</string>
+    <string name="wallet_reads_names_unavailable" translatable="false">Tracked names are not available until synchronization completes.</string>
     <string name="wallet_reads_names_empty" translatable="false">No names are tracked by this wallet yet.</string>
     <string name="wallet_reads_name" translatable="false">%1$s · proof height %2$d\n%3$s\n%4$s</string>
     <string name="wallet_reads_name_registered" translatable="false">registered</string>
@@ -455,8 +456,9 @@
     <string name="wallet_send_recovery_unconfirmed" translatable="false">Confirm the recovery backup before HNS value authority can be installed.</string>
     <string name="wallet_send_locked" translatable="false">Unlock and synchronize the wallet before sending HNS.</string>
     <string name="wallet_send_unavailable" translatable="false">Guarded HNS sends are unavailable until the wallet-owned verified peer and native value controller are ready.</string>
-    <string name="wallet_send_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before preparing a send.</string>
-    <string name="wallet_send_syncing_before_review" translatable="false">Synchronizing a fresh verified wallet snapshot before reviewing this send…</string>
+    <string name="wallet_send_requires_sync" translatable="false">A current verified wallet snapshot is required before sending.</string>
+    <string name="wallet_send_syncing" translatable="false">Synchronization is already in progress. Sending becomes available when the verified wallet snapshot is ready.</string>
+    <string name="wallet_send_syncing_before_review" translatable="false">Verifying current direct-peer wallet state before reviewing this send…</string>
     <string name="wallet_send_sync_failed" translatable="false">The wallet could not obtain a verified snapshot, so no send was prepared.</string>
     <string name="wallet_send_catchup_before_review" translatable="false">The wallet is still scanning verified history through %1$d of %2$d. No send was prepared; synchronize again until the confirmed available balance is ready.</string>
     <string name="wallet_send_ready" translatable="false">Synced and ready at height %1$d.</string>
@@ -545,11 +547,11 @@
     <string name="wallet_action_limit_hint" translatable="false">Offer page size (1–64)</string>
     <string name="wallet_value_actions_unavailable" translatable="false">Native name and Shakedex actions remain unavailable until their wallet-owned verified peer flows are ready.</string>
     <string name="wallet_value_actions_locked" translatable="false">Unlock and synchronize before preparing a name or Shakedex action.</string>
-    <string name="wallet_value_actions_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before preparing a name or Shakedex action.</string>
+    <string name="wallet_value_actions_requires_sync" translatable="false">Current verified wallet state is required before preparing a name or Shakedex action.</string>
     <string name="wallet_value_actions_ready" translatable="false">All native HNS name and Shakedex actions are ready at height %1$d.</string>
     <string name="wallet_value_actions_invalid" translatable="false">The action fields are not canonical. HNS amounts support at most 6 decimal places.</string>
     <string name="wallet_value_actions_syncing" translatable="false">Synchronizing direct HNS state before preparing the exact native action…</string>
-    <string name="wallet_value_actions_sync_failed" translatable="false">A fresh verified HNS snapshot could not be obtained. Synchronize before reviewing this action.</string>
+    <string name="wallet_value_actions_sync_failed" translatable="false">Current verified HNS wallet state could not be obtained. Synchronize before reviewing this action.</string>
     <string name="wallet_value_actions_catchup" translatable="false">HNS action review is waiting for wallet scan catch-up (%1$d of %2$d). Continue synchronization before reviewing the action.</string>
     <string name="wallet_value_actions_preparing" translatable="false">Preparing the exact native action and approval summary…</string>
     <string name="wallet_value_actions_prepare_failed" translatable="false">The action could not be prepared from the current synchronized state.</string>
@@ -561,7 +563,7 @@
     <string name="wallet_value_actions_reject_failed" translatable="false">The approval could not be discarded cleanly, so the wallet was locked.</string>
     <string name="wallet_shakedex_queries_unavailable" translatable="false">The authenticated Swap Board is not configured.</string>
     <string name="wallet_shakedex_queries_locked" translatable="false">Unlock and synchronize before querying Shakedex.</string>
-    <string name="wallet_shakedex_queries_requires_sync" translatable="false">Synchronize a fresh wallet snapshot before querying Shakedex.</string>
+    <string name="wallet_shakedex_queries_requires_sync" translatable="false">Current verified wallet state is required before querying Shakedex.</string>
     <string name="wallet_shakedex_queries_ready" translatable="false">Authenticated Shakedex queries are ready at height %1$d.</string>
     <string name="wallet_shakedex_queries_invalid" translatable="false">Enter a canonical session/listing cursor and a page size from 1 through 64.</string>
     <string name="wallet_shakedex_queries_loading" translatable="false">Refreshing the authenticated Shakedex board or session…</string>

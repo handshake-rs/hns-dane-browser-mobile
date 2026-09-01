@@ -2221,6 +2221,7 @@ class WalletActivity : ComponentActivity() {
         startWalletForegroundSyncService("HNS")
         Log.i(TAG, "Starting a bounded direct HNS synchronization round")
         readStatusView.text = getString(R.string.wallet_reads_syncing)
+        showReadProjectionSynchronizationPendingIfNeeded()
         renderWalletDashboard()
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
@@ -5391,6 +5392,19 @@ class WalletActivity : ComponentActivity() {
     }
 
     /**
+     * An active direct-peer round must not look like an instruction to start
+     * another synchronization. Keep an existing authenticated projection on
+     * screen, but replace the empty pre-sync placeholders when this wallet has
+     * never published a verified snapshot.
+     */
+    private fun showReadProjectionSynchronizationPendingIfNeeded() {
+        if (latestReadSnapshot == null) {
+            balanceView.text = getString(R.string.wallet_reads_balance_syncing)
+        }
+        sendStatusView.text = getString(R.string.wallet_send_syncing)
+    }
+
+    /**
      * Preserve a verified projection for display while making it unusable as
      * current value authority. The exact handle/generation/epoch join is what
      * gates send preparation, so clearing only that join is fail-closed
@@ -5421,6 +5435,7 @@ class WalletActivity : ComponentActivity() {
     private fun renderReadCatchup(progress: NativeWalletHnsCatchupProgress) {
         walletHnsJourney.catchupObserved()
         resetReadProjection(R.string.wallet_reads_catching_up)
+        showReadProjectionSynchronizationPendingIfNeeded()
         if (progress.scannedHeight == null && progress.headerTipHeight < progress.birthdayHeight) {
             readStatusView.text = getString(
                 R.string.wallet_reads_catching_up_before_birthday,
@@ -5553,6 +5568,7 @@ class WalletActivity : ComponentActivity() {
             WalletHnsLiveSyncPresentation.Preparing -> {
                 statusView.text = getString(R.string.wallet_status_sync_handoff)
                 readStatusView.text = getString(R.string.wallet_reads_syncing)
+                showReadProjectionSynchronizationPendingIfNeeded()
             }
             is WalletHnsLiveSyncPresentation.Live -> renderLiveHnsSyncProgress(presentation.progress)
             is WalletHnsLiveSyncPresentation.Catchup -> renderCachedHnsCatchup(presentation.progress)
@@ -5566,6 +5582,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun renderLiveHnsSyncProgress(progress: NativeWalletHnsLiveSyncProgress) {
         walletHnsJourney.catchupObserved()
+        showReadProjectionSynchronizationPendingIfNeeded()
         readStatusView.text = when (progress.stage) {
             NativeWalletHnsLiveSyncProgress.Stage.Connecting -> getString(
                 R.string.wallet_reads_live_connecting,
@@ -5602,6 +5619,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun renderCachedHnsCatchup(progress: NativeWalletHnsCatchupProgress) {
         walletHnsJourney.catchupObserved()
+        showReadProjectionSynchronizationPendingIfNeeded()
         if (progress.scannedHeight == null && progress.headerTipHeight < progress.birthdayHeight) {
             readStatusView.text = getString(
                 R.string.wallet_reads_catching_up_before_birthday,

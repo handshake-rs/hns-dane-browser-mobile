@@ -3176,6 +3176,7 @@ final class WalletViewController: UIViewController {
         let walletIdentity = ObjectIdentifier(wallet)
         let authorityGeneration = walletAuthorityGeneration
         readStatusLabel.text = "Synchronizing direct HNS wallet data…"
+        showReadProjectionSynchronizationPendingIfNeeded()
         refreshButtonStates()
         let keychain = keychain
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
@@ -3810,6 +3811,14 @@ final class WalletViewController: UIViewController {
         nameReceiveLabel.text = "Name transfer receive address: unavailable."
         historyLabel.text = "Transaction history: unavailable."
         namesLabel.text = "Tracked names: unavailable."
+    }
+
+    /// Keep an existing authenticated projection visible during refresh. For
+    /// a wallet that has never published one, describe the active work instead
+    /// of leaving an "unavailable" placeholder beside live sync progress.
+    private func showReadProjectionSynchronizationPendingIfNeeded() {
+        guard recentTransactions == nil else { return }
+        balanceLabel.text = "Confirmed spendable balance: waiting for active direct-peer verification and wallet scanning."
     }
 
     private func replaceWallet(
@@ -4601,6 +4610,7 @@ final class WalletViewController: UIViewController {
         shakedexAvailable = false
         receiveTargets = nil
         clearReadProjection()
+        showReadProjectionSynchronizationPendingIfNeeded()
         return true
     }
 
