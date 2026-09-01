@@ -158,8 +158,6 @@ data class HnsSyncProgress(
             bestHeightText = { "bestHeight $it" },
             formatHeight = { it.formatHeight() },
             targetText = { "target ${it.formatHeight()}" },
-            acceptedText = { "accepted +${it.formatHeight()}" },
-            stagedAcceptedText = { "staged accepted +${it.formatHeight()}" },
             peersText = { "peers ${it.formatHeight()}" },
         )
     }
@@ -175,12 +173,6 @@ data class HnsSyncProgress(
             targetText = {
                 context.getString(R.string.sync_progress_target, it.formatHeight(context))
             },
-            acceptedText = {
-                context.getString(R.string.sync_progress_accepted, it.formatHeight(context))
-            },
-            stagedAcceptedText = {
-                context.getString(R.string.sync_progress_staged_accepted, it.formatHeight(context))
-            },
             peersText = {
                 context.getString(R.string.sync_progress_peers, it.formatHeight(context))
             },
@@ -193,8 +185,6 @@ data class HnsSyncProgress(
         bestHeightText: (String) -> String,
         formatHeight: (Long) -> String,
         targetText: (Long) -> String,
-        acceptedText: (Long) -> String,
-        stagedAcceptedText: (Long) -> String,
         peersText: (Long) -> String,
     ): String {
         val parts = mutableListOf(statusText)
@@ -204,11 +194,6 @@ data class HnsSyncProgress(
             parts += bestHeightText(formattedBest)
         }
         targetHeight?.let { parts += targetText(it) }
-        if (syncInFlight) {
-            stagedAccepted?.let { parts += stagedAcceptedText(it) }
-        } else {
-            accepted?.takeIf { it > 0L }?.let { parts += acceptedText(it) }
-        }
         peerCount?.takeIf { it > 0L }?.let { parts += peersText(it) }
         return parts.joinToString(" • ")
     }

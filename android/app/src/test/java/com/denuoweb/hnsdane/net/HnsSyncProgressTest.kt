@@ -22,7 +22,7 @@ class HnsSyncProgressTest {
         assertFalse(progress.isAuthorityReady)
         assertEquals(278, progress.progressPermille())
         assertEquals(
-            "syncing • bestHeight 93,344 • target 335,684 • accepted +2,000 • peers 4",
+            "syncing • bestHeight 93,344 • target 335,684 • peers 4",
             progress.summary(),
         )
     }
@@ -58,7 +58,7 @@ class HnsSyncProgressTest {
         assertEquals(null, progress.progressPermille())
         val summary = progress.summary()
         assertEquals(
-            "syncing • bestHeight 92,000 • accepted +2,000",
+            "syncing • bestHeight 92,000",
             summary,
         )
         assertFalse(summary.contains("target unknown"))
@@ -211,7 +211,7 @@ class HnsSyncProgressTest {
         assertEquals(961, progress.progressPermille())
         val summary = progress.summary()
         assertEquals(
-            "syncing • staged validated 324,000 • target 337,000 • staged accepted +24,000",
+            "syncing • staged validated 324,000 • target 337,000",
             summary,
         )
         assertFalse(summary.contains("committed"))

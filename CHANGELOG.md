@@ -25,8 +25,10 @@ All notable changes to this project will be documented in this file.
 
 - Keep the Android browser header-sync strip visible after synchronization is
   current and remove the internal HNS name-tree root height from that compact
-  presentation. Root readiness remains enforced by the browser authority and
-  navigation security gates.
+  presentation. Also omit the redundant accepted-header counter because the
+  staged validated height already exposes forward progress. Root readiness and
+  accepted counts remain enforced or retained by native authority and
+  diagnostics.
 - Keep the browser's authenticated HNS chain presented as up to date when a
   freshness probe loses all of its selected connections but the persisted tip
   still equals a known target corroborated by non-expired peer-group evidence.
