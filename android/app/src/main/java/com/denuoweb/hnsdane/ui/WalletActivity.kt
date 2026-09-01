@@ -809,9 +809,9 @@ class WalletActivity : ComponentActivity() {
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(uiDp(20), uiDp(4), uiDp(20), 0)
-            addView(recipientInput)
-            addView(amountInput)
-            addView(maximumFeeInput)
+            addView(labeledWalletSendInput(R.string.wallet_send_recipient_label, recipientInput))
+            addView(labeledWalletSendInput(R.string.wallet_send_amount_label, amountInput))
+            addView(labeledWalletSendInput(R.string.wallet_send_maximum_fee_label, maximumFeeInput))
             addView(TextView(this@WalletActivity).apply {
                 text = getString(R.string.wallet_dashboard_send_form_notice)
                 textSize = 13f
@@ -846,6 +846,24 @@ class WalletActivity : ComponentActivity() {
         }
         dialog.show()
     }
+
+    private fun labeledWalletSendInput(labelResource: Int, input: EditText): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            input.id = View.generateViewId()
+            addView(TextView(this@WalletActivity).apply {
+                text = getString(labelResource)
+                textSize = 13f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(themeColors().secondaryText)
+                labelFor = input.id
+                setPadding(0, uiDp(8), 0, 0)
+            })
+            addView(input, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ))
+        }
 
     private fun showWalletDetails() {
         if (WalletHnsLiveSyncPresentationCache.canRequestCancellation(walletNetwork.id)) {

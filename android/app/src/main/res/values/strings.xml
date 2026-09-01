@@ -444,9 +444,12 @@
     <string name="wallet_reads_name_registered" translatable="false">registered</string>
     <string name="wallet_reads_name_not_registered" translatable="false">not registered</string>
     <string name="wallet_reads_more" translatable="false">%1$d more items are present in this synchronized snapshot.</string>
-    <string name="wallet_send_recipient_hint" translatable="false">Exact mainnet HNS recipient address</string>
-    <string name="wallet_send_amount_hint" translatable="false">Amount in HNS (up to 6 decimals)</string>
-    <string name="wallet_send_maximum_fee_hint" translatable="false">Maximum fee cap in HNS (use at least 0.05 for the mainnet test)</string>
+    <string name="wallet_send_recipient_label" translatable="false">Recipient address</string>
+    <string name="wallet_send_amount_label" translatable="false">Amount (HNS)</string>
+    <string name="wallet_send_maximum_fee_label" translatable="false">Maximum fee cap (HNS)</string>
+    <string name="wallet_send_recipient_hint" translatable="false">hs1…</string>
+    <string name="wallet_send_amount_hint" translatable="false">0.00</string>
+    <string name="wallet_send_maximum_fee_hint" translatable="false">0.05</string>
     <string name="wallet_send_waiting_for_wallet" translatable="false">Open and unlock a confirmed wallet before sending HNS.</string>
     <string name="wallet_send_recovery_unconfirmed" translatable="false">Confirm the recovery backup before HNS value authority can be installed.</string>
     <string name="wallet_send_locked" translatable="false">Unlock and synchronize the wallet before sending HNS.</string>
@@ -650,7 +653,7 @@
     <string name="wallet_dashboard_name_transfer" translatable="false">Name transfer</string>
     <string name="wallet_dashboard_copy_address" translatable="false">Copy address</string>
     <string name="wallet_dashboard_address_unavailable" translatable="false">A receive address is not available yet</string>
-    <string name="wallet_dashboard_send_form_notice" translatable="false">A fresh verified wallet snapshot is required before the transaction is prepared.</string>
+    <string name="wallet_dashboard_send_form_notice" translatable="false">The maximum fee cap is the most the wallet may pay in network fees; the default is 0.05 HNS. A fresh verified wallet snapshot is required before the transaction is prepared.</string>
     <string name="wallet_dashboard_name_actions" translatable="false">Name actions</string>
     <string name="wallet_dashboard_send_bitcoin" translatable="false">Send Bitcoin</string>
     <string name="wallet_swap_sell_btc" translatable="false">Sell BTC for HNS</string>

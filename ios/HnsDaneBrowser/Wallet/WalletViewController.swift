@@ -1591,7 +1591,12 @@ final class WalletViewController: UIViewController {
             preferredStyle: .alert
         )
         alert.addTextField { field in
-            field.placeholder = "Recipient address"
+            Self.configureSendField(
+                field,
+                visibleLabel: "Recipient",
+                placeholder: "hs1…",
+                accessibilityLabel: "HNS recipient address"
+            )
             field.autocapitalizationType = .none
             field.autocorrectionType = .no
             field.spellCheckingType = .no
@@ -1600,13 +1605,23 @@ final class WalletViewController: UIViewController {
             field.accessibilityIdentifier = "wallet.send.recipient"
         }
         alert.addTextField { field in
-            field.placeholder = "Amount in HNS"
+            Self.configureSendField(
+                field,
+                visibleLabel: "Amount (HNS)",
+                placeholder: "0.00",
+                accessibilityLabel: "Amount in HNS"
+            )
             field.keyboardType = .decimalPad
             field.textContentType = nil
             field.accessibilityIdentifier = "wallet.send.amount"
         }
         alert.addTextField { field in
-            field.placeholder = "Maximum fee cap in HNS (for example, 0.05)"
+            Self.configureSendField(
+                field,
+                visibleLabel: "Fee cap (HNS)",
+                placeholder: "0.05",
+                accessibilityLabel: "Maximum fee cap in HNS"
+            )
             field.text = "0.05"
             field.keyboardType = .decimalPad
             field.textContentType = nil
@@ -1629,6 +1644,23 @@ final class WalletViewController: UIViewController {
         })
         hnsSendFormAlert = alert
         present(alert, animated: true)
+    }
+
+    private static func configureSendField(
+        _ field: UITextField,
+        visibleLabel: String,
+        placeholder: String,
+        accessibilityLabel: String
+    ) {
+        let label = UILabel()
+        label.text = "\(visibleLabel)  "
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = .secondaryLabel
+        label.sizeToFit()
+        field.leftView = label
+        field.leftViewMode = .always
+        field.placeholder = placeholder
+        field.accessibilityLabel = accessibilityLabel
     }
 
     private func clearHnsSendForm(_ alert: UIAlertController?) {
