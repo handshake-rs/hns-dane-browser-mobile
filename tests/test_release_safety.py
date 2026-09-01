@@ -40,7 +40,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.0")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        wallet_commit = "bd16ce1d33bc620ccddede8636f411892188d2f4"
+        wallet_commit = "b529820801b20c3d2956542433cbb046a4ecbe3a"
         self.assertEqual(wallet, {
             "git": "https://github.com/handshake-rs/hns-wallet-rs.git",
             "rev": wallet_commit,
@@ -49,7 +49,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            'name = "hns-wallet-mobile"\nversion = "0.2.0"\nsource = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev=bd16ce1d33bc620ccddede8636f411892188d2f4#bd16ce1d33bc620ccddede8636f411892188d2f4"',
+            f'name = "hns-wallet-mobile"\nversion = "0.2.0"\nsource = "git+https://github.com/handshake-rs/hns-wallet-rs.git?rev={wallet_commit}#{wallet_commit}"',
             lockfile,
         )
         self.assertIn(
@@ -89,7 +89,34 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
                 self.assertNotIn("importHnsNameExactText", source)
                 self.assertNotIn("HNWI", source)
 
-    def test_store_and_privacy_copy_describes_fail_closed_native_reads(self) -> None:
+    def test_wallet_sync_copy_and_debug_capture_policy_match_platforms(self) -> None:
+        android_strings = (
+            ROOT / "android/app/src/main/res/values/strings.xml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "Verifying direct peer headers at height %1$d.", android_strings
+        )
+        self.assertNotIn("round %1$d of %2$d", android_strings)
+
+        android_wallet = (
+            ROOT
+            / "android/app/src/main/java/com/denuoweb/hnsdane/ui/WalletActivity.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("if (!BuildConfig.DEBUG)", android_wallet)
+        self.assertIn("window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)", android_wallet)
+
+        ios_wallet = (
+            ROOT / "ios/HnsDaneBrowser/Wallet/WalletViewController.swift"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'readStatusLabel.text = "Verifying direct peer headers at height '
+            '\\(progress.verifiedHeaderHeight)."',
+            ios_wallet,
+        )
+        self.assertIn("#if DEBUG\n        false\n        #else", ios_wallet)
+        self.assertIn("#if !DEBUG", ios_wallet)
+
+    def test_store_and_privacy_copy_describes_direct_native_wallet(self) -> None:
         paths = (
             ROOT / "store-assets/play-store/metadata/en-US/full-description.txt",
             ROOT / "store-assets/play-store/metadata/en-US/release-notes.txt",
@@ -100,20 +127,39 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         for path in paths:
             with self.subTest(path=path):
                 value = path.read_text(encoding="utf-8").casefold()
-                self.assertIn("read-only", value)
-                self.assertIn("unavailable", value)
-                self.assertIn("indexed backend", value)
+                self.assertIn("wallet", value)
+                self.assertNotIn("indexed backend", value)
+                self.assertNotIn("sending or value movement", value)
+                self.assertNotIn("no payment flow", value)
                 self.assertNotIn("not a wallet", value)
+
+        full_listing = "\n".join(
+            path.read_text(encoding="utf-8").casefold()
+            for path in (
+                ROOT / "store-assets/play-store/metadata/en-US/full-description.txt",
+                ROOT / "store-assets/app-store/metadata/en-US/description.txt",
+                ROOT / "store-assets/app-store/metadata/en-US/review-notes.txt",
+            )
+        )
+        for marker in (
+            "directly with handshake peers",
+            "guarded hns send",
+            "websites cannot",
+            "processed on the device",
+            "not expose the unfinished bitcoin",
+        ):
+            self.assertIn(marker, full_listing)
 
         privacy = (ROOT / "docs/privacy-policy.md").read_text(
             encoding="utf-8"
         ).casefold()
         for marker in (
-            "device-local hns account identity",
-            "device-bound database keys",
-            "scoped companion credential or indexed wallet backend",
-            "no wallet-specific network request is made",
-            "hnsa/hnsr service roles",
+            "native device-local hns wallet",
+            "device-bound database key",
+            "directly to handshake peers",
+            "broadcast transaction bytes only after native review",
+            "camera access is requested only after you tap the scanner",
+            "websites cannot invoke wallet operations",
             "deletes the incomplete wallet database",
             "two destructive confirmations",
             "type `delete` exactly",
@@ -127,19 +173,17 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         app_store = paths[2].read_text(encoding="utf-8").casefold()
         for marker in (
             "balance",
-            "receive target",
-            "name import",
-            "website-provider",
-            "settlement",
-            "exchange",
-            "p2p marketplaces",
+            "payment qr code",
+            "guarded hns send",
+            "websites cannot invoke wallet",
+            "unfinished bitcoin",
+            "exchange service",
         ):
             self.assertIn(marker, play)
             self.assertIn(marker, app_store)
         for marker in (
-            "confirmed wallet can be deleted locally",
-            "two destructive confirmations",
-            "requiring delete",
+            "protected confirmation flow",
+            "recovery phrase",
         ):
             self.assertIn(marker, play)
             self.assertIn(marker, app_store)

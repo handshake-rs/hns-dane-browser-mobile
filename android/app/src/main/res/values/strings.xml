@@ -411,7 +411,7 @@
     <string name="wallet_reads_syncing" translatable="false">Starting direct-peer HNS verification and wallet scanning…</string>
     <string name="wallet_reads_refresh_failed_retained" translatable="false">Refresh failed. The last verified snapshot remains visible but cannot authorize spending; synchronize again to refresh it.</string>
     <string name="wallet_reads_live_connecting" translatable="false">Finding independent Handshake peers. Verified local height %1$d; this sync continues from that checkpoint.</string>
-    <string name="wallet_reads_live_headers" translatable="false">Verifying direct-peer headers • round %1$d of %2$d • verified local height %3$d.</string>
+    <string name="wallet_reads_live_headers" translatable="false">Verifying direct peer headers at height %1$d.</string>
     <string name="wallet_reads_live_retrying" translatable="false">Direct peers did not agree yet. Replacing peers and retrying %1$d of %2$d from verified local height %3$d.</string>
     <string name="wallet_reads_live_scanning" translatable="false">Verified headers are current at height %1$d. Scanning wallet activity through %2$d of %3$d.</string>
     <string name="wallet_reads_live_finalizing" translatable="false">Verified headers and wallet activity are current at height %1$d. Finalizing the read-only snapshot…</string>
@@ -427,6 +427,9 @@
     <string name="wallet_reads_ready" translatable="false">Handshake wallet state is ready at height %1$d.</string>
     <string name="wallet_reads_balance_unavailable" translatable="false">Balance is not available until a verified wallet snapshot completes.</string>
     <string name="wallet_reads_balance_syncing" translatable="false">Balance is waiting for the active direct-peer verification and wallet scan to finish.</string>
+    <string name="wallet_pending_outgoing_recovery" translatable="false">Transaction pending. Synchronize after a new Handshake block so Shakescape can settle the outgoing transaction.</string>
+    <string name="wallet_pending_outgoing_balance_unavailable" translatable="false">Transaction pending. The synchronized balance will return after the outgoing transaction is settled.</string>
+    <string name="wallet_pending_outgoing_actions_disabled" translatable="false">Send and Receive are temporarily unavailable while the outgoing transaction is pending.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS spendable now</string>
     <string name="wallet_reads_balance_with_pending" translatable="false">%1$s HNS spendable now\n%2$s HNS pending outgoing\nTransaction Pending, please wait.</string>
     <string name="wallet_reads_receive_unavailable" translatable="false">A payment receive address is not available yet.</string>

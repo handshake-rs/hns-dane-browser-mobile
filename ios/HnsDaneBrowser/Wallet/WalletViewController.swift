@@ -9,6 +9,17 @@ import CoreImage
 /// only requests a local native action and displays its exact review result.
 @MainActor
 final class WalletViewController: UIViewController {
+    /// Debug builds stay capturable for UI diagnostics and release-candidate
+    /// documentation. Distribution builds still suspend protected wallet
+    /// authority while the system is recording or mirroring the screen.
+    private static var screenCaptureProtectionActive: Bool {
+        #if DEBUG
+        false
+        #else
+        UIScreen.main.isCaptured
+        #endif
+    }
+
     private let network: BrowserHandshakeNetwork
     private weak var browserProcess: BrowserProcess?
     private let keychain: WalletKeychainStore
@@ -166,6 +177,7 @@ final class WalletViewController: UIViewController {
                 object: nil
             )
         }
+        #if !DEBUG
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(protectWalletLifecycle),
@@ -178,6 +190,7 @@ final class WalletViewController: UIViewController {
             name: UIScreen.capturedDidChangeNotification,
             object: nil
         )
+        #endif
         refreshState()
         startPendingOutgoingRefreshObserver()
     }
@@ -191,7 +204,7 @@ final class WalletViewController: UIViewController {
         walletAuthorityRequested = true
         if UIApplication.shared.applicationState == .active,
            UIApplication.shared.isProtectedDataAvailable,
-           !UIScreen.main.isCaptured {
+           !Self.screenCaptureProtectionActive {
             walletLifecycleSuspended = false
         }
         startHnsSyncPresentationWatcher()
@@ -494,7 +507,10 @@ final class WalletViewController: UIViewController {
         let receive = dashboardButton(
             title: "Receive",
             action: #selector(showPaymentReceiveAddress),
-            enabled: receiveTargets != nil && directHnsValueAvailable && !isOperating
+            enabled: walletHnsPaymentActionsAvailable(
+                baseAvailable: receiveTargets != nil && directHnsValueAvailable && !isOperating,
+                hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
+            )
         )
         receive.configuration?.image = UIImage(systemName: "qrcode")
         receive.configuration?.imagePadding = 5
@@ -502,13 +518,19 @@ final class WalletViewController: UIViewController {
             title: "Send",
             action: #selector(showHnsSendForm),
             accent: .systemIndigo,
-            enabled: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating
+            enabled: walletHnsPaymentActionsAvailable(
+                baseAvailable: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating,
+                hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
+            )
         )
         let scan = dashboardButton(
             title: "",
             action: #selector(scanHandshakePaymentQr),
             accent: .systemIndigo,
-            enabled: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating
+            enabled: walletHnsPaymentActionsAvailable(
+                baseAvailable: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating,
+                hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
+            )
         )
         scan.configuration?.image = UIImage(systemName: "camera.viewfinder")
         scan.accessibilityLabel = "Scan Handshake payment QR code"
@@ -643,6 +665,10 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func showPaymentReceiveAddress() {
+        guard pendingOutgoingSnapshotHeight == nil else {
+            showErrorMessage("Send and Receive are temporarily unavailable while the outgoing transaction is pending.")
+            return
+        }
         guard let paymentReceiveAddress = receiveTargets?.paymentAddress else { return }
         let viewer = HandshakeReceiveQrViewController(address: paymentReceiveAddress)
         viewer.onShowNameAddress = { [weak self, weak viewer] in
@@ -1629,6 +1655,7 @@ final class WalletViewController: UIViewController {
 
     private func presentHnsSendForm(prefill: HandshakePaymentRequest?) {
         guard !isOperating,
+              pendingOutgoingSnapshotHeight == nil,
               walletIsUnlocked,
               directHnsValueAvailable,
               synchronizedReadsAvailable,
@@ -1735,7 +1762,8 @@ final class WalletViewController: UIViewController {
                 hasController: self.wallet != nil,
                 controllerUnlocked: self.walletIsUnlocked,
                 hasHnsValue: self.directHnsValueAvailable,
-                hasCurrentSnapshot: self.recentTransactions != nil
+                hasCurrentSnapshot: self.recentTransactions != nil,
+                hasPendingOutgoing: self.pendingOutgoingSnapshotHeight != nil
             )
             switch continuation {
             case .none, .wait:
@@ -1979,10 +2007,19 @@ final class WalletViewController: UIViewController {
         hnsSendApprovalAlert = nil
         readStatusLabel.text = "Broadcasting the approved HNS send…"
         let pendingRefreshFloor = latestPublishedSnapshotHeight
+        let pendingRecoveryAccountID = confirmedDeletionAccountID
+        let pendingRecoveryNetworkID = network.rawValue
         let keychain = keychain
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
             let outcome: Result<WalletHnsPostBroadcastResult<NativeHnsSendReceipt, NativeHnsReadSnapshot>, Error> = Result {
                 let receipt = try wallet.approveHnsSend(approval.actionToken)
+                if let pendingRecoveryAccountID {
+                    WalletPendingOutgoingRecoveryStore.save(
+                        networkID: pendingRecoveryNetworkID,
+                        accountID: pendingRecoveryAccountID,
+                        height: pendingRefreshFloor
+                    )
+                }
                 var snapshot: NativeHnsReadSnapshot? = nil
                 for attempt in 0..<3 {
                     snapshot = try? Self.synchronizeDirectHnsReads(wallet: wallet, keychain: keychain)
@@ -2020,7 +2057,7 @@ final class WalletViewController: UIViewController {
                        admissionStatus == "mempool" || admissionStatus == "confirmed" {
                         self.readStatusLabel.text = "HNS transaction \(result.receipt.txid) has verified network status: \(admissionStatus). You may close the wallet; confirmation still requires inclusion in a verified block."
                     } else if result.snapshot == nil {
-                        self.pendingOutgoingSnapshotHeight = pendingRefreshFloor
+                        self.pendingOutgoingSnapshotHeight = pendingRefreshFloor ?? 0
                         self.readStatusLabel.text = "Transaction pending. Shakescape could not refresh the wallet immediately and will retry automatically after it detects a new Handshake block."
                         self.maybeRefreshPendingOutgoingAfterNewBlock()
                     } else {
@@ -3644,7 +3681,7 @@ final class WalletViewController: UIViewController {
                lifecycleAllowsDeletion: walletLifecycleMayAcquireStorage,
                viewIsCurrent: viewIfLoaded?.window != nil,
                operationInFlight: isOperating || retirementInFlight,
-               screenIsCaptured: UIScreen.main.isCaptured
+               screenIsCaptured: Self.screenCaptureProtectionActive
            ) {
             throw WalletProviderError(
                 code: "walletDeletionAuthorityChanged",
@@ -3670,7 +3707,7 @@ final class WalletViewController: UIViewController {
               viewIfLoaded?.window != nil,
               !isOperating,
               !retirementInFlight,
-              !UIScreen.main.isCaptured,
+              !Self.screenCaptureProtectionActive,
               WalletStorageLeaseRegistry.isCurrent(authority.lease) else {
             showErrorMessage("Wallet ownership changed. The wallet was not deleted.")
             return
@@ -3715,6 +3752,7 @@ final class WalletViewController: UIViewController {
             case .deleted:
                 self.encryptedOrphanCleanupPending = false
                 self.persistentWalletExists = false
+                WalletPendingOutgoingRecoveryStore.clear(networkID: self.network.rawValue)
             case .controllerCloseFailed:
                 self.encryptedOrphanCleanupPending = false
                 // The key and files remain, but native controller retirement
@@ -3759,9 +3797,17 @@ final class WalletViewController: UIViewController {
         latestPublishedSnapshotHeight = snapshot.moduleStatus.validatedHeight
         if balance.hasPendingOutgoing {
             pendingOutgoingSnapshotHeight = snapshot.moduleStatus.validatedHeight
+            if let accountID = confirmedDeletionAccountID {
+                WalletPendingOutgoingRecoveryStore.save(
+                    networkID: network.rawValue,
+                    accountID: accountID,
+                    height: snapshot.moduleStatus.validatedHeight
+                )
+            }
         } else {
             pendingOutgoingSnapshotHeight = nil
             pendingOutgoingRefreshAttemptedHeight = nil
+            WalletPendingOutgoingRecoveryStore.clear(networkID: network.rawValue)
         }
         recentTransactions = snapshot.transactionHistory
         recentActivityPageOffset = 0
@@ -3817,6 +3863,10 @@ final class WalletViewController: UIViewController {
         nameReceiveLabel.text = "Name transfer receive address: unavailable."
         historyLabel.text = "Transaction history: unavailable."
         namesLabel.text = "Tracked names: unavailable."
+        if pendingOutgoingSnapshotHeight != nil {
+            readStatusLabel.text = "Transaction pending. Synchronize after a new Handshake block so Shakescape can settle the outgoing transaction."
+            balanceLabel.text = "Transaction pending. The synchronized balance will return after the outgoing transaction is settled."
+        }
     }
 
     /// Keep an existing authenticated projection visible during refresh. For
@@ -4156,6 +4206,10 @@ final class WalletViewController: UIViewController {
                    walletAccountIDIsCanonical(account.accountId) {
                     confirmedDeletionAccountID = account.accountId
                 }
+                pendingOutgoingSnapshotHeight = WalletPendingOutgoingRecoveryStore.load(
+                    networkID: network.rawValue,
+                    accountID: account.accountId
+                )
                 setReadAvailability(hasHnsReads, message: hasHnsReads
                     ? (hasHnsValue
                         ? "Direct HNS synchronization is ready. Synchronize before sending."
@@ -4277,7 +4331,7 @@ final class WalletViewController: UIViewController {
                 message: "Another wallet screen owns this network's local wallet storage."
             )
         }
-        guard !UIScreen.main.isCaptured else {
+        guard !Self.screenCaptureProtectionActive else {
             throw WalletProviderError(
                 code: "screenCaptured",
                 message: "Stop screen recording or mirroring before creating or restoring a wallet."
@@ -4389,7 +4443,7 @@ final class WalletViewController: UIViewController {
     @objc private func reactivateWalletLifecycle() {
         guard UIApplication.shared.applicationState == .active,
               UIApplication.shared.isProtectedDataAvailable,
-              !UIScreen.main.isCaptured else {
+              !Self.screenCaptureProtectionActive else {
             return
         }
         walletLifecycleSuspended = false
@@ -4414,7 +4468,7 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func handleScreenCaptureChange() {
-        if UIScreen.main.isCaptured {
+        if Self.screenCaptureProtectionActive {
             suspendWalletLifecycle()
         } else {
             reactivateWalletLifecycle()
@@ -4426,7 +4480,7 @@ final class WalletViewController: UIViewController {
             !walletLifecycleSuspended &&
             UIApplication.shared.applicationState == .active &&
             UIApplication.shared.isProtectedDataAvailable &&
-            !UIScreen.main.isCaptured
+            !Self.screenCaptureProtectionActive
     }
 
     private func beginWalletRetirement(deleteIncompleteWallet: Bool) {
@@ -4589,7 +4643,7 @@ final class WalletViewController: UIViewController {
             case .connecting:
                 readStatusLabel.text = "Connecting verified HNS peers. Verified headers are currently at height \(progress.verifiedHeaderHeight)."
             case .headers:
-                readStatusLabel.text = "Verifying HNS header agreement at height \(progress.verifiedHeaderHeight)."
+                readStatusLabel.text = "Verifying direct peer headers at height \(progress.verifiedHeaderHeight)."
             case .scanning:
                 readStatusLabel.text = "Verified headers are currently at height \(progress.verifiedHeaderHeight). Scanning wallet activity at height \(scanned) of \(progress.targetHeight) from birthday height \(progress.birthdayHeight)."
             case .finalizing:

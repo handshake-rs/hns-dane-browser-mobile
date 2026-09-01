@@ -23,6 +23,14 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Persist a non-sensitive, account-scoped pending-outgoing recovery marker
+  before post-broadcast synchronization on Android and iOS. Reopened wallets
+  now present the pending recovery state instead of a generic missing-balance
+  message, and disable Send, Receive, and QR-send continuation until a verified
+  snapshot settles the transaction; synchronization remains available.
+- Simplify direct HNS header progress to the current verified height and keep
+  wallet screenshots and recordings available in debug builds while retaining
+  capture protection in distribution builds.
 - Keep the Android browser header-sync strip visible after synchronization is
   current and remove the internal HNS name-tree root height from that compact
   presentation. Also omit the redundant accepted-header counter because the
@@ -39,12 +47,13 @@ All notable changes to this project will be documented in this file.
   boundary, while retaining exact app-private wallet ownership and modes.
 - Switched the native wallet closure from the stale published `0.2.0` cohort
   to exact reviewed `hns-wallet-rs` commit
-  `ac6a21cd28d6b05ff67b0c8db81e64c59f673ccf`, which refreshes all persisted
-  and locally discovered FINALIZE name proofs before the final wallet snapshot,
-  without rewinding the authenticated transaction scan, and accepts the
-  securely sticky Android 9 sandbox ancestor layout. It also makes controller
-  reacquisition reuse the authenticated product-pinned HNS bootstrap or its
-  verified descendant instead of rejecting that same chain as non-pristine.
+  `b529820801b20c3d2956542433cbb046a4ecbe3a`. The pinned closure refreshes all
+  persisted and locally discovered FINALIZE name proofs before the final wallet
+  snapshot without rewinding the authenticated transaction scan, accepts the
+  securely sticky Android 9 sandbox ancestor layout, reuses the authenticated
+  product-pinned HNS bootstrap or a verified descendant during controller
+  reacquisition, and keeps ordinary HNS reads independent of dormant Shakedex
+  recovery state.
 - Android now supplies and validates the bundled mainnet bootstrap snapshot on
   every eligible direct-wallet reopen, including when a nonzero rollback floor
   is already journaled, avoiding a false setup failure that could look like a

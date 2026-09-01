@@ -15,7 +15,7 @@ track_name="${PLAY_TRACK:-}"
 release_status="${PLAY_RELEASE_STATUS:-draft}"
 aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.0-play-upload-signed.aab}"
 release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.0}"
-release_notes="${PLAY_RELEASE_NOTES:-1.0.0 introduces the Shakescape name and visual identity while preserving the existing app identity and data. It adds native wallet lifecycle controls, protected local deletion, read-only balance, history and name views, plus exact-text name import; read and import remain unavailable without a scoped indexed backend. It also adds ECH for supported HNS origins and improves sync recovery, WebView headers, safe-area layout, and service-worker streaming.}"
+release_notes="${PLAY_RELEASE_NOTES:-1.0.0 introduces the Shakescape identity and a native device-local HNS wallet with direct peer synchronization, receive addresses and QR codes, guarded sends, recent activity, name import, restoration birthday heights, and protected deletion. It also improves dual-root DNSSEC and DANE presentation, synchronization recovery, unlock progress, and Android 9 compatibility.}"
 update_listing="${PLAY_UPDATE_LISTING:-false}"
 listing_language="${PLAY_LISTING_LANGUAGE:-en-US}"
 

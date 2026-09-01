@@ -6,6 +6,13 @@ import org.junit.Test
 
 class WalletPendingUnlockTest {
     @Test
+    fun pendingOutgoingDisablesSendAndReceiveActions() {
+        assertTrue(walletHnsPaymentActionsAvailable(true, false))
+        assertFalse(walletHnsPaymentActionsAvailable(true, true))
+        assertFalse(walletHnsPaymentActionsAvailable(false, false))
+    }
+
+    @Test
     fun queuedTapRunsOnceControllerBootstrapIsReady() {
         assertTrue(
             walletPendingUnlockMayRun(
@@ -57,6 +64,10 @@ class WalletPendingUnlockTest {
                 WalletPendingPaymentContinuation.Wait,
         )
         assertTrue(paymentContinuation(busy = true) == WalletPendingPaymentContinuation.Wait)
+        assertTrue(
+            paymentContinuation(hasPendingOutgoing = true) ==
+                WalletPendingPaymentContinuation.Wait,
+        )
     }
 
     private fun ready(
@@ -81,6 +92,7 @@ class WalletPendingUnlockTest {
         hasController: Boolean = true,
         controllerUnlocked: Boolean = true,
         hasCurrentSnapshot: Boolean = true,
+        hasPendingOutgoing: Boolean = false,
     ): WalletPendingPaymentContinuation = walletPendingPaymentContinuation(
         hasPendingPayment = true,
         resumeAfterScanner = resumeAfterScanner,
@@ -92,5 +104,6 @@ class WalletPendingUnlockTest {
         controllerUnlocked = controllerUnlocked,
         hasHnsValue = true,
         hasCurrentSnapshot = hasCurrentSnapshot,
+        hasPendingOutgoing = hasPendingOutgoing,
     )
 }

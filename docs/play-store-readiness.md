@@ -1,9 +1,9 @@
 # Google Play Readiness Checklist
 
-Last audited: 2026-08-14
+Last audited: 2026-09-01
 
-Current Android candidate source is `1.0.0` (`versionCode 51`) and supports
-Android 11 / API 30 or later. Google Play production remains on `0.5.6` / code
+Current Android candidate source is `1.0.0` (`versionCode 52`) and supports
+Android 9 / API 28 or later. Google Play production remains on `0.5.6` / code
 `47`; no code `52` AAB has been built, uploaded, or submitted.
 
 This checklist maps Shakescape to current Google Play update requirements
@@ -21,10 +21,9 @@ Console remain the release-identity sources. Earlier release results are dated
 historical evidence.
 
 Candidate Android source includes a native-only wallet controller for
-create/restore/open/status/unlock/lock and one non-value HNS account identity,
-plus strict HNWR-v2 native UI for synchronized balance, distinct HNS payment and
-name-transfer receive targets, transaction history, tracked names, and module
-status. The exact historical HNWR-v1 shape remains separately decoded. It is not in code `47`
+create/restore/open/status/unlock/lock, direct HNS peer synchronization,
+receive/QR, guarded send, recent activity, tracked-name import, birthday-height
+selection, and protected deletion. The exact historical HNWR-v1 shape remains separately decoded. It is not in code `47`
 or the GitHub code `48` APK. The exact underlying lifecycle tranche passed
 fresh-install Pixel 9 qualification plus Required CI run `31393998309` at
 `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`. Historical `0.5.8` source
@@ -64,15 +63,10 @@ Historical debug artifact `9222123624` has artifact-archive SHA-256
 `0c057ba339b64401671e406a3fd9015e254444d4c4b5ac051578819415a8081c`, expires
 2026-08-17, and is not Play/store signed. Installed-device and signed-product
 qualification remain open.
-The current product installs no scoped loopback read credential or indexed
-wallet backend, so every
-read field remains fail-closed and unavailable. A pruned node with wallet
-indexing and scoped authentication can serve retained/indexed current-wallet
-evidence, but fresh restore additionally needs
-archive-capable raw bytes or another durable wallet-relevant raw-tx source.
-The trusted-native exact-text name-import control is implemented but remains
-unavailable without the same backend and credential. Provider, send/value,
-settlement, exchange, HNSA/HNSR, and marketplace controls remain gated off.
+The current product uses its wallet-owned direct peer controller instead of the
+older scoped-loopback compatibility seam. Website-provider access, unfinished
+Bitcoin and name-operation screens, Shakedex marketplace UI, HNSA/HNSR roles,
+and cross-chain settlement remain gated off.
 Reconcile category, financial-feature
 declarations, Data safety, review notes, screenshots, and local deletion
 behavior against the exact signed candidate before upload.
@@ -81,20 +75,20 @@ behavior against the exact signed candidate before upload.
 
 | Area | Status | Evidence / Action |
 | --- | --- | --- |
-| Minimum API level | Current exact-source CI passed; artifact/signing/device gates open | `minSdk = 30`, with cargo-ndk platform 30. Exact pre-rebrand application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed Android build/unit and API 37 native-runtime instrumentation in complete manual CI `31835813994`. Historical artifact `9222123624` is bound to earlier source; extracted code `51` artifact inspection, signing, and installed-device qualification remain open. |
+| Minimum API level | Current source and debug devices passed; signed artifact gate open | `minSdk = 28`, with Android 9 compatibility covered by unit tests and the current universal debug APK exercised on a Moto G6 and Pixel 9. Exact signed-candidate inspection remains open. |
 | Target API level | Ready | `targetSdk = 37`, above the current Google Play requirement of Android 15 / API 35 for new apps and updates. |
 | Android App Bundle | Code 47 production complete | The signed 60,276,192-byte AAB has SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`. Edit `07330408575596336357` assigned code `47` to production with status `completed`, and `generatedApks/47` returned HTTP `200`. |
 | Android runtime hotfix | Shipped and exact-artifact validated | Rust 1.92's `std::fs::File::lock` target support omitted Android and returned `Unsupported` during fresh header-state initialization. Code `47` uses the locked `libc 0.2.186` Android `flock` path with the same lock semantics; upstream added equivalent support for Rust 1.98 in `rust-lang/rust#157038`. The exact signed APK upgraded a Pixel 9 from code `46` with data preserved, cold-launched, and reached `up_to_date` at height `340348`, lag `0`, freshness `current`, and `error: null` after manual sync. |
-| Native wallet candidate | Published wallet cohort; credentialed product gates pending | Source links published wallet `0.2.0`, HNS `0.3.1`, and the exact engine/browser-adapter `0.2.x`–`0.3.x` graph through a non-exported native activity, create-only Android KeyStore-wrapped database key, strict HNWR-v2 UI, and native-only name, Bitcoin, and Swap Board controls. The [released dependency cohort](released-dependency-cohort.md) records registry checksum enforcement and the registry-only adapter policy. Earlier application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed complete manual CI `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed. Play signing, installed-device qualification, fresh screenshots, and Console review/upload remain open. |
+| Native wallet candidate | Direct HNS wallet active; exact release qualification pending | Source pins the exact reviewed wallet closure at `b529820801b20c3d2956542433cbb046a4ecbe3a`. The non-exported native wallet supports direct synchronization, receive/QR, guarded send, activity, name import, birthday height, and deletion. Website-provider and unfinished Bitcoin/name-operation/Shakedex screens remain closed. Exact candidate CI, Play signing, fresh screenshots, and Console review/upload remain open. |
 | Proof Details namespace | Fixed and release-device confirmed | Every canonical DNS host uses the native dual-root gateway, so that route cannot identify HNS versus ICANN. Before the fix, Pixel 9 API 37 instrumentation reproduced an HNS-selected trace being shown as DNSSEC with synthetic ICANN details, and paired instrumentation passed after the correction. HNS browsing and corrected proof presentation then passed manually with the exact signed release APK. |
 | 64-bit / 16 KiB native code | Code 47 signed gates passed | The code `47` APK/AAB passed `arm64-v8a`/`x86_64`, 16 KiB, ELF hardening, Build ID, matching-symbol, stripping, path-sanitization, archive/APK signature, R8, and APK ZIP-alignment gates. The APK SHA-256 is `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`; the upload certificate SHA-256 is `D2:2F:F3:25:17:53:11:EB:E6:D6:E9:3D:A3:FD:F5:1D:84:89:22:A1:B8:1A:CB:B3:2F:22:39:CC:F9:4A:51:14`. |
-| Restricted permissions | Ready | Manifest does not request location, contacts, SMS, call logs, camera, microphone, all-files, package visibility, or account permissions. |
-| Foreground service | Not used | Sync is owned by the application while at least one app screen is started and stops when the whole app backgrounds. The manifest declares no service and requests none of `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, or `FOREGROUND_SERVICE_DATA_SYNC`; mark foreground-service use as not applicable and remove stale `dataSync` drafts. |
-| Privacy policy | Current read boundary deployed and read back | `https://shakescape.com/privacy/` is canonical. The published policy covers relay/recovery, wallet lifecycle, and unavailable read rows. Reconcile live Play answers before submission. |
+| Restricted permissions | Reconcile camera disclosure | Manifest requests camera only for the user-initiated native Handshake QR scanner; it does not request location, contacts, SMS, call logs, microphone, all-files, package visibility, or account permissions. Store and hosted privacy copy disclose on-device QR processing. |
+| Foreground service | Wallet data-sync service present | The non-exported `WalletSyncForegroundService` uses the `dataSync` type with `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC`. Declare and justify that exact foreground-service use in Play Console. |
+| Privacy policy | Updated for the direct wallet and QR scanner | `https://shakescape.com/privacy/` is canonical. It covers direct peer synchronization, approved broadcasts, native wallet storage/deletion, and on-device camera QR processing. Reconcile live Play answers before submission. |
 | Data safety form | Live reconciliation required | The current `No data collected / No data shared` posture is consistent with Google's open-web, on-device, and user-initiated-transfer exclusions. Confirm current WebView-provider Safe Browsing guidance before resubmission. |
 | Ads declaration | Ready | Declare “No ads.” Donations do not unlock features. |
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
-| App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `52` contains a limited local wallet controller and visible fail-closed read rows. Reconcile every current financial-feature/category declaration and describe the unprovisioned reads and unavailable value/provider/marketplace boundaries accurately. |
+| App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `52` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
 | Release track | Code 47 production complete | The Android Publisher API committed edit `07330408575596336357` with production status `completed`; `generatedApks/47` returned HTTP `200`. This was an update to an existing public listing, not a first closed-test launch. |
 | CI regression | Current exact-source CI and CodeQL passed | Exact current source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed run `31835813994`, including policy, Rust/supply-chain, Android build/unit, API 37 native instrumentation, complete Apple, and Required CI. CodeQL runs `31833858421` and `31833858650` also passed. Historical run `30484282637` remains code 47 Proof Details evidence only; signed-product, installed-device, screenshot, Console, and upload gates remain separate. |
@@ -200,13 +194,12 @@ resubmission because Google can rename fields without changing app behavior.
 
 ### Foreground Services
 
-The deployed code `47` release does not declare an
-Android service or request notification/foreground-service permissions. Header
-sync starts when the first app activity starts, publishes progress in-process
-across app screens, and stops when the last activity stops. In Play Console,
-answer that the submitted build does not use foreground service types. A
-foreground-service declaration, notification demo, or `dataSync` reviewer note
-would describe a removed implementation and must not be submitted.
+Historical code `47` did not declare a foreground service. Candidate code `52`
+declares the non-exported `WalletSyncForegroundService` with the `dataSync`
+type and requests `FOREGROUND_SERVICE` plus `FOREGROUND_SERVICE_DATA_SYNC`.
+This keeps a user-started bounded wallet synchronization visible while the app
+is backgrounded. Reconcile that exact use in Play Console and retain the
+foreground notification/device test in the signed-candidate gate.
 
 ### Data Safety Draft
 
@@ -220,7 +213,7 @@ resubmission:
 - Web browsing: do not declare URLs or browsing history solely because the browser contacts a user-selected site or sends the necessary HNS DNS query to a relay peer. Continue to disclose those network effects, including the relay peer's visibility into queried names/types and the client's network address, in the privacy policy even though Play excludes them from the Data safety form.
 - Default start page: the app loads a bundled `appassets.androidplatform.net` asset with a restrictive Content Security Policy and no network resources; it does not contact a developer server. A remote homepage is loaded only after the user configures one.
 - Safe Browsing: the installed Android WebView provider may check URLs through its Safe Browsing service. Confirm the provider's current Data safety guidance before submission. If it requires declaring a listed data type for this integration, update the form for that flow; do not imply that Denuo Web operates the service.
-- App activity: code `52` stores browsing history, diagnostics, download records, settings, resolver cache, HNS sync/cache state, cookies-adjacent WebView state, and a private network-scoped wallet database plus device-bound wrapped database key locally on device. No wallet-read backend is provisioned and the native controller does not transmit wallet data. Reconcile the form against Google's current on-device-processing definitions rather than copying code `47` answers.
+- App activity: code `52` stores browsing history, diagnostics, download records, settings, resolver cache, HNS sync/cache state, cookies-adjacent WebView state, and a private network-scoped wallet database plus device-bound wrapped database key locally on device. The wallet connects to Handshake peers for public-chain synchronization and user-approved transaction broadcast. Reconcile the form against Google's current on-device-processing and user-initiated-transfer definitions rather than copying code `47` answers.
 - Files/docs: user-initiated downloads are saved to public Downloads. Normal WebPKI downloads use Android DownloadManager; HNS downloads are fetched through the native gateway and saved through Android MediaStore.
 - Device or other IDs: `No` unless a future SDK adds one. Current app code does not read advertising ID, IMEI, contacts, installed apps, or account identifiers.
 - Encryption in transit: not applicable when the form correctly remains `No collected / No shared`. If WebView-provider guidance causes a data type to be declared, answer this question for the declared flow rather than for excluded open-web traffic.
@@ -253,7 +246,7 @@ Use a conservative general-purpose browser posture:
 
 ### Production Deployment and Remaining Device Qualification
 
-Code `51` is the release candidate. Historical code `49` wallet
+Code `52` is the release candidate. Historical code `49` wallet
 lifecycle source passed the focused exact-artifact Android exercise, Required CI
 `31402758394`, and full docs-parent CI `31411048376`. Code `50` adds the strict
 HNWR read projection but no credential/backend provision. Its pre-ECH exact
@@ -292,40 +285,24 @@ cross-origin physical-device matrix.
 
 ## Store Listing Draft
 
-The repository listing under `store-assets/play-store/metadata/en-US/` now
-describes the code `50` native wallet and fail-closed read boundary. Compare it
-field-by-field with the public listing and do not submit the older “not a
-wallet” sentence.
+The canonical listing under `store-assets/play-store/metadata/en-US/` describes
+the code `52` dual-root browser and direct native HNS wallet. Compare it
+field-by-field with the public listing; do not reuse the obsolete missing-backend
+or “no payment flow” text.
 
 Short description, 80 characters max:
 
 > Browse HNS with local proofs, DNSSEC, DANE, and an optional P2P relay.
 
-Full description draft:
-
-> Shakescape is a Handshake-first browser with local HNS proofs, authoritative DNS, an optional requester-only HNS P2P DNS relay, optional user-configured recursive HNS DoH recovery, proof-anchored authoritative DoH, and DNSSEC/DANE diagnostics. It syncs Handshake headers, verifies HNS proofs, resolves delegated names, and keeps HNS HTTPS strict to DNSSEC/DANE.
->
-> Features:
-> - HNS-aware omnibar for names such as `example/` and `name.tld/`
-> - Local Handshake proof verification and resolver cache
-> - DNSSEC and TLSA/DANE diagnostics for HTTPS HNS sites
-> - Optional P2P DNS relay requester, enabled only with explicit user consent, with all answers validated locally
-> - Optional manual relay peers accepted only as verified IP-literal endpoints
-> - Optional recursive HNS DoH recovery, blank by default and eligible only after direct, owner-published, and independently enabled P2P paths encounter interception or transport failure
-> - Configured-recursive answers still require local proof, DNSSEC, TLSA, and DANE validation; no HNS WebPKI fallback
-> - Ordinary ICANN browsing continues through bounded ICANN DoH and WebPKI
-> - Resolver trace, HNS proof viewer, and TLSA inspector
-> - Native create, restore, open, unlock, and lock controls for one device-local HNS account identity
-> - Fail-closed read-only wallet rows for balance, distinct payment and name-transfer receive targets, history, tracked names, and module status; this build does not provision the companion backend needed to populate them
-> - Local controls for cookies, history, downloads, and resolver cache
->
-> The native wallet screen manages one local HNS account identity and includes synchronized read-only fields plus exact-text name import, but this build installs no scoped credential or indexed backend, so those controls remain unavailable. Sending/value movement, website-provider access, HNSA/HNSR, settlement, exchange features, and P2P marketplaces are unavailable. Donations are optional and do not unlock features.
+The full description is maintained only in
+`store-assets/play-store/metadata/en-US/full-description.txt` so the release
+workflow and review copy cannot drift apart.
 
 ## Store Asset Checklist
 
 - App icon: 512×512 PNG for Play Console: `store-assets/play-store/hns-dane-browser-play-icon-512.png`.
 - Feature graphic: 1024×500 PNG24, no alpha: `store-assets/play-store/hns-dane-browser-feature-graphic-1024x500.png`.
-- Phone screenshots: recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, diagnostics, and the non-secret wallet control/read-unavailable boundary against exact code `52`. Never show a recovery phrase or account identifier. The current screenshots predate this candidate and must be replaced.
+- Phone screenshots: recapture first-run sync, a successful HNS page, resolver trace, privacy/deletion controls, diagnostics, and a non-secret direct-wallet screen against exact code `52`. Never show a recovery phrase, account identifier, address, balance, or transaction identifier. The current screenshots predate this candidate and must be replaced.
 - Tablet screenshots: recommended if tablet distribution remains enabled.
 - Privacy policy URL: keep the existing Play listing on the selected canonical
   route. Version-neutral read-boundary source `a5539cb` was deployed in run

@@ -1,19 +1,28 @@
-Shakescape is a Handshake-first WebKit browser that verifies HNS proofs locally and shows how each name and connection was resolved.
+Shakescape is a dual-root browser that resolves both ICANN and Handshake names and shows how each selected path was authenticated.
 
-Features:
+Browser features:
 
 - Browse Handshake names such as example/ and name.tld/
-- Sync Handshake headers and verify name proofs on your device
-- Resolve delegated names through authoritative DNS or RFC 8484 DNS-over-HTTPS
+- Sync and verify Handshake headers and name proofs on your device
+- Resolve delegated names through authoritative DNS or proof-anchored authoritative DNS-over-HTTPS
 - Validate DNSSEC, TLSA, and DANE policies locally
 - Inspect resolver paths, proof details, and security status
 - Optionally enable requester-only HNS peer-to-peer DNS relay consumption
-- Optionally configure recursive HNS DoH recovery when port 53 is intercepted
-- Keep all HNS answers subject to local proof, DNSSEC, TLSA, and DANE validation, without HNS WebPKI fallback
+- Optionally configure recursive HNS DoH recovery when direct authoritative resolution is blocked
+- Keep HNS answers subject to local proof, DNSSEC, TLSA, and DANE validation without an HNS WebPKI fallback
 - Keep website data in a persistent WebKit profile
 - Download files and share pages with standard iOS controls
-- Create or restore one device-local Handshake account identity, then open, unlock, and lock it; strict read-only fields remain unavailable because no scoped indexed backend is installed
 
-The shared Rust runtime performs HNS resolution, DNSSEC and DANE validation, and app-local proxying. WebKit renders pages and handles normal WebPKI trust for ordinary internet sites.
+Native HNS wallet features:
 
-The app has no developer-operated account, advertising SDK, analytics SDK, subscription, exchange feature, or paid feature unlocks. Its native wallet screen includes strict synchronized read-only fields and exact-text Handshake name import, but this build installs no scoped credential or indexed backend, so balance, distinct payment and name-transfer receive targets, history, tracked names, module status, and name import remain unavailable. An unlocked confirmed wallet can be deleted locally after two destructive confirmations showing its exact network and account and requiring DELETE; save the one-time recovery phrase first. Sending or value movement, website-provider access, HNSA/HNSR, settlement, and P2P marketplaces are unavailable.
+- Create or restore one device-local Shakescape wallet
+- Unlock it with device-protected key storage
+- Synchronize balance and recent activity directly with Handshake peers
+- Receive HNS with an address or payment QR code
+- Review and approve guarded HNS sends with an explicit fee cap
+- Import tracked Handshake names and set a restoration birthday height
+- Delete the encrypted local wallet through a protected confirmation flow
+
+Wallet actions remain inside the native app. Websites cannot invoke wallet operations or receive wallet data, and the app does not install a website wallet provider. Recovery phrases and private keys are not sent to Denuo Web or analytics services. The camera is used only when you choose to scan a Handshake payment QR code; the decoded address is processed on the device.
+
+The current release does not expose the unfinished Bitcoin, name-operation, or Shakedex marketplace screens. It has no developer-operated account, advertising SDK, analytics SDK, subscription, in-app purchase, exchange service, or paid feature unlock.

@@ -1,13 +1,14 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-08-23
+Last audited: 2026-09-01
 
 Current candidate source coordinates Android `1.0.0` / code `52`, the embedded
 non-publishable Rust workspace `1.0.0`, and iOS `1.0.0` / build `61`. It uses
-the published `hns-rs 0.3.1`, public `hns-dane-engine 0.2.2`, and
-`hns-wallet-rs 0.2.0` cohort, including published browser adapters at
-`0.2.2`. Lockfiles retain registry checksums and no HNS ecosystem Git source,
-as documented in [released-dependency-cohort.md](released-dependency-cohort.md).
+the published `hns-rs 0.3.1`, exact public engine/browser-adapter releases, and
+the complete `hns-wallet-rs` closure at immutable reviewed Git revision
+`b529820801b20c3d2956542433cbb046a4ecbe3a`. Registry dependencies retain
+checksums and the Git wallet source is commit-bearing in the lockfile, as
+documented in [released-dependency-cohort.md](released-dependency-cohort.md).
 
 The reviewed protocol → wallet → mobile source sequence is complete. Source policy,
 the lockfile, and notices bind that exact chain. Historical `0.5.8` application

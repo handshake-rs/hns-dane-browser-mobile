@@ -431,6 +431,7 @@ class WalletActivity : ComponentActivity() {
                 controllerUnlocked = controllerUnlocked,
                 hasHnsValue = controllerMayBeInspected && NativeWalletBridge.hasHnsValue(handle),
                 hasCurrentSnapshot = controllerMayBeInspected && hasCurrentWalletReadSnapshot(handle),
+                hasPendingOutgoing = pendingOutgoingSnapshotHeight != null,
             )) {
                 WalletPendingPaymentContinuation.None,
                 WalletPendingPaymentContinuation.Wait -> Unit
@@ -733,6 +734,11 @@ class WalletActivity : ComponentActivity() {
 
     private fun walletBalanceCard(actionsAvailable: Boolean = true): LinearLayout =
         LinearLayout(this).apply {
+            val paymentActionsAvailable =
+                walletHnsPaymentActionsAvailable(
+                    actionsAvailable = actionsAvailable,
+                    hasPendingOutgoing = pendingOutgoingSnapshotHeight != null,
+                )
             orientation = LinearLayout.VERTICAL
             background = settingsSurfaceDrawable(accent = themeColors().action)
             setPadding(uiDp(16), uiDp(15), uiDp(16), uiDp(14))
@@ -762,10 +768,10 @@ class WalletActivity : ComponentActivity() {
                     setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_qr_code, 0, 0, 0)
                     compoundDrawablePadding = uiDp(5)
                     compoundDrawablesRelative.firstOrNull()?.setTint(themeColors().action)
-                }.disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_send), secondary = true) {
                     showHnsSendDialog()
-                }.disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = uiDp(8)
                 })
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_sync)) {
@@ -891,6 +897,10 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showReceiveWalletDialog() {
+        if (pendingOutgoingSnapshotHeight != null) {
+            Toast.makeText(this, R.string.wallet_pending_outgoing_actions_disabled, Toast.LENGTH_LONG).show()
+            return
+        }
         val payment = latestReadSnapshot?.hnsReceiveTargets()?.paymentAddress
             ?: localPaymentReceiveTarget?.display
             ?: ""
@@ -992,6 +1002,10 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showHnsSendDialog(prefill: HandshakePaymentRequest? = null) {
+        if (pendingOutgoingSnapshotHeight != null) {
+            Toast.makeText(this, R.string.wallet_pending_outgoing_actions_disabled, Toast.LENGTH_LONG).show()
+            return
+        }
         val recipientInput = hnsSendRecipientInput()
         val amountInput = hnsSendAmountInput(R.string.wallet_send_amount_hint)
         val maximumFeeInput = hnsSendAmountInput(R.string.wallet_send_maximum_fee_hint).apply {
@@ -4460,9 +4474,16 @@ class WalletActivity : ComponentActivity() {
         statusView.text = getString(R.string.wallet_status_broadcasting_send)
         val handle = walletHandle
         val pendingRefreshFloor = latestReadSnapshot?.height
+        val pendingRecoveryAccountId = NativeWalletBridge.account(handle)?.accountId
         thread(name = "hns-wallet-send-broadcast") {
             val receipt = NativeWalletBridge.approveHnsValueAction(handle, approval.actionToken)
             approval.close()
+            if (receipt != null) {
+                // Persist the fail-closed recovery marker before attempting
+                // the post-broadcast network refresh. It must survive an
+                // Activity or process exit immediately after peer submission.
+                persistPendingOutgoingRecovery(pendingRecoveryAccountId, pendingRefreshFloor)
+            }
             // Native code keeps this controller unlocked only when the send
             // was rejected during final authenticated re-preparation, before
             // signing or broadcast could begin. A null receipt in that state
@@ -4529,7 +4550,7 @@ class WalletActivity : ComponentActivity() {
                             "HNS transaction was submitted to peers, but post-broadcast wallet synchronization failed",
                         )
                         sendStatusView.text = getString(R.string.wallet_send_submitted_sync_failed)
-                        pendingOutgoingSnapshotHeight = pendingRefreshFloor
+                        pendingOutgoingSnapshotHeight = pendingRefreshFloor ?: 0L
                         maybeRefreshPendingOutgoingAfterNewBlock()
                     }
                     admissionStatus != null -> {
@@ -4749,6 +4770,7 @@ class WalletActivity : ComponentActivity() {
         }
         statusView.text = getString(R.string.wallet_status_unlocked)
         val account = NativeWalletBridge.account(walletHandle)
+        restorePendingOutgoingRecovery(account?.accountId)
         accountView.text = if (account == null) {
             getString(R.string.wallet_account_unavailable)
         } else {
@@ -5374,6 +5396,10 @@ class WalletActivity : ComponentActivity() {
         nameReceiveView.text = getString(R.string.wallet_reads_name_receive_unavailable)
         historyView.text = getString(R.string.wallet_reads_history_unavailable)
         trackedNamesView.text = getString(R.string.wallet_reads_names_unavailable)
+        if (pendingOutgoingSnapshotHeight != null) {
+            readStatusView.text = getString(R.string.wallet_pending_outgoing_recovery)
+            balanceView.text = getString(R.string.wallet_pending_outgoing_balance_unavailable)
+        }
         nameImportStatusView.text = when (status) {
             R.string.wallet_reads_locked -> getString(R.string.wallet_name_import_locked)
             R.string.wallet_reads_ready_to_sync -> getString(R.string.wallet_name_import_ready)
@@ -5397,6 +5423,9 @@ class WalletActivity : ComponentActivity() {
             R.string.wallet_reads_waiting_for_wallet ->
                 getString(R.string.wallet_send_waiting_for_wallet)
             else -> getString(R.string.wallet_send_unavailable)
+        }
+        if (pendingOutgoingSnapshotHeight != null) {
+            sendStatusView.text = getString(R.string.wallet_pending_outgoing_actions_disabled)
         }
         valueActionStatusView.text = when (status) {
             R.string.wallet_reads_locked -> getString(R.string.wallet_value_actions_locked)
@@ -5622,8 +5651,6 @@ class WalletActivity : ComponentActivity() {
 
             NativeWalletHnsLiveSyncProgress.Stage.Headers -> getString(
                 R.string.wallet_reads_live_headers,
-                progress.headerRound,
-                DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC,
                 progress.headerTipHeight,
             )
 
@@ -5695,9 +5722,11 @@ class WalletActivity : ComponentActivity() {
         val balance = snapshot.hnsBalanceProjection()
         if (balance.hasPendingOutgoing) {
             pendingOutgoingSnapshotHeight = snapshot.height
+            persistPendingOutgoingRecovery(snapshot.height)
         } else {
             pendingOutgoingSnapshotHeight = null
             pendingOutgoingRefreshAttemptedHeight = null
+            clearPendingOutgoingRecovery()
         }
         balanceView.textSize = if (balance.hasPendingOutgoing) 18f else 24f
         balanceView.text = when {
@@ -5909,8 +5938,44 @@ class WalletActivity : ComponentActivity() {
     private fun deleteWalletFiles(): Boolean {
         val deleted = !ProcessWalletControllerRetirementFailures.blocks(walletStoragePath) &&
             deleteWalletDatabaseArtifacts(walletDatabaseFile)
-        if (deleted) WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
+        if (deleted) {
+            WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
+            clearPendingOutgoingRecovery()
+        }
         return deleted
+    }
+
+    private fun restorePendingOutgoingRecovery(accountId: String?) {
+        val preferences = getSharedPreferences(PENDING_OUTGOING_PREFS, MODE_PRIVATE)
+        if (!accountId.isNullOrBlank() &&
+            preferences.getString(PENDING_OUTGOING_ACCOUNT, null) == accountId
+        ) {
+            pendingOutgoingSnapshotHeight = preferences.getLong(PENDING_OUTGOING_HEIGHT, 0L)
+        } else {
+            pendingOutgoingSnapshotHeight = null
+            pendingOutgoingRefreshAttemptedHeight = null
+        }
+    }
+
+    private fun persistPendingOutgoingRecovery(height: Long?) {
+        persistPendingOutgoingRecovery(
+            NativeWalletBridge.account(walletHandle)?.accountId,
+            height,
+        )
+    }
+
+    private fun persistPendingOutgoingRecovery(accountId: String?, height: Long?) {
+        if (accountId.isNullOrBlank()) return
+        getSharedPreferences(PENDING_OUTGOING_PREFS, MODE_PRIVATE).edit()
+            .putString(PENDING_OUTGOING_ACCOUNT, accountId)
+            .putLong(PENDING_OUTGOING_HEIGHT, height ?: 0L)
+            .commit()
+    }
+
+    private fun clearPendingOutgoingRecovery() {
+        getSharedPreferences(PENDING_OUTGOING_PREFS, MODE_PRIVATE).edit().clear().commit()
+        pendingOutgoingSnapshotHeight = null
+        pendingOutgoingRefreshAttemptedHeight = null
     }
 
     private fun walletNetworkCode(network: HandshakeNetwork): Int = when (network) {
@@ -6093,9 +6158,11 @@ class WalletActivity : ComponentActivity() {
         const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L
         const val HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS = 3
         const val HNS_POST_BROADCAST_VERIFICATION_INTERVAL_MILLIS = 1_000L
-        const val DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC = 32
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
         const val NUL_CHARACTER = "\u0000"
+        const val PENDING_OUTGOING_PREFS = "wallet_pending_outgoing_recovery"
+        const val PENDING_OUTGOING_ACCOUNT = "account_id"
+        const val PENDING_OUTGOING_HEIGHT = "snapshot_height"
     }
 }
 
@@ -6108,6 +6175,11 @@ internal const val WALLET_APP_SWITCH_RETENTION_MILLIS = 30_000L
 /** Idle signing authority never survives an explicit Wallet -> Browser transition. */
 internal fun walletIdleSessionMayRetainAcrossScreen(browserNavigationRequested: Boolean): Boolean =
     !browserNavigationRequested
+
+internal fun walletHnsPaymentActionsAvailable(
+    actionsAvailable: Boolean,
+    hasPendingOutgoing: Boolean,
+): Boolean = actionsAvailable && !hasPendingOutgoing
 
 internal fun walletPendingUnlockMayRun(
     requested: Boolean,
@@ -6144,6 +6216,7 @@ internal fun walletPendingPaymentContinuation(
     controllerUnlocked: Boolean,
     hasHnsValue: Boolean,
     hasCurrentSnapshot: Boolean,
+    hasPendingOutgoing: Boolean,
 ): WalletPendingPaymentContinuation = when {
     !hasPendingPayment -> WalletPendingPaymentContinuation.None
     !foreground || !windowHasFocus || busy || dialogVisible ->
@@ -6154,6 +6227,7 @@ internal fun walletPendingPaymentContinuation(
         WalletPendingPaymentContinuation.Wait
     }
     !hasHnsValue -> WalletPendingPaymentContinuation.Wait
+    hasPendingOutgoing -> WalletPendingPaymentContinuation.Wait
     !hasCurrentSnapshot -> if (resumeAfterScanner) {
         WalletPendingPaymentContinuation.Synchronize
     } else {

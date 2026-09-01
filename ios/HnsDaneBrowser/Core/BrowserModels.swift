@@ -79,7 +79,7 @@ enum BrowserThemeMode: String, CaseIterable, Equatable, Sendable {
 }
 
 enum BrowserSettingsPreferences {
-    static let defaultHomepage = "https://denuoweb.com/work/hns-dane-browser"
+    static let defaultHomepage = "https://shakescape.com/"
 
     private static let homepageKey = "browser.settings.homepage"
     private static let themeKey = "browser.settings.theme"

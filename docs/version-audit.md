@@ -13,7 +13,7 @@ into the app.
 | Android app | `1.0.0` / code `52` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.0` / build `61` | `ios/project.yml` |
-| Native wallet controller | exact Git revision `bd16ce1d33bc620ccddede8636f411892188d2f4` | `rust/Cargo.toml`, commit-bearing `rust/Cargo.lock` |
+| Native wallet controller | exact Git revision `b529820801b20c3d2956542433cbb046a4ecbe3a` | `rust/Cargo.toml`, commit-bearing `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.3.1` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
@@ -90,21 +90,14 @@ Notes:
   `31411048376`. This evidence does not qualify or prove a signed `0.5.9`
   artifact.
 - The native controller exposes create, restore, open, status, unlock, lock,
-  one-time recovery display, and one local non-value HNS account identity. Both
-  platform shells now also implement separate strict bounded HNWR-v1/v2
-  decoding and UI for synchronized balance, ordinary-payment and name-transfer
-  receive targets, transaction history, tracked names, and module status.
-- The product installs no scoped loopback read credential or indexed wallet
-  backend, so those fields remain fail-closed and unavailable in the actual
-  candidate. A pruned indexed/authenticated node can
-  return indexed confirmation/history, and an existing wallet may reuse its
-  authenticated retained raw bytes. Fresh restore additionally needs
-  archive-capable raw bytes or another durable wallet-relevant raw-transaction
-  source. Trusted-native exact-text name import is implemented through a
-  separate closed HNWI-v1 result, but remains fail-closed unavailable without
-  that same credential and indexed backend.
-- Transfers, sending, website-provider access, settlement, exchange features,
-  HNSA/HNSR controls, and P2P marketplaces remain independently unavailable.
+  one-time recovery display, direct HNS peer synchronization, receive/QR,
+  guarded send, recent activity, birthday height, tracked-name import, and
+  protected deletion on both platforms.
+- The product uses its wallet-owned direct peer controller and does not depend
+  on the older scoped-loopback indexed-wallet compatibility seam.
+- Website-provider access, unfinished Bitcoin and name-operation screens,
+  settlement, exchange features, HNSA/HNSR controls, and P2P marketplaces
+  remain independently unavailable in the release UI.
   The exact Apple CI gate covers retirement queue/lease behavior and
   stale-completion publication-authority predicates in the app/simulator matrix;
   it does not execute an end-to-end credentialed native read in flight. Product
@@ -118,8 +111,8 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses published wallet `0.2.0`, HNS `0.3.1`,
-  engine, and browser-adapter `0.2.2` crates. The complete source and checksum
+- The mobile dependency sequence uses wallet revision `b529820801b20c3d2956542433cbb046a4ecbe3a`,
+  published HNS `0.3.1`, and exact engine/browser-adapter releases. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).
   Earlier run `31807520618` qualified only HNWR-v2 source
   `986accb7d86d220af63187031e629a9ce69d71e5`. Exact current application source

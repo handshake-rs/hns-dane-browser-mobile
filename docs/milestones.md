@@ -162,8 +162,8 @@
   value action ran.
 - Prepared the `1.0.0` platform release identity: Android code `52` and iOS
   build `61` align embedded Rust at `1.0.0`. The current dependency cohort
-  uses published HNS `0.3.1`, engine and browser-adapter `0.2.2`, and wallet
-  `0.2.0` crates with no Git ecosystem input. Exact HNWR-v2 code-bearing source
+  uses published HNS `0.3.1`, exact engine/browser-adapter releases, and wallet
+  revision `b529820801b20c3d2956542433cbb046a4ecbe3a`. Exact HNWR-v2 code-bearing source
   `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI `31807520618`,
   both associated CodeQL runs, and the Rust, Android, and complete Apple gates.
 - Completed current exact-name-import source qualification: exact application
@@ -175,8 +175,9 @@
   artifacts, installed-product evidence, credentialed read/import execution,
   screenshots, store readback, upload/submission, and the physical-iPhone matrix
   remain pending.
-- Updated release dependency sequence: mobile pins published wallet `0.2.0`,
-  HNS `0.3.1`, and public engine `0.2.2` crates with lockfile checksums.
+- Updated release dependency sequence: mobile pins the complete wallet closure
+  to immutable revision `b529820801b20c3d2956542433cbb046a4ecbe3a`, HNS
+  `0.3.1`, and exact public engine crates with lockfile checksums.
   [released-dependency-cohort.md](released-dependency-cohort.md) records their
   source tags and the tested registry-only adapter policy.
 - Mobile engine source policy is complete: public contracts and browser
@@ -185,10 +186,9 @@
   HNSA/HNSR-capable facade remains excluded
   until upstream provides a mobile-safe dependency boundary that does not pull
   its OpenSSL-backed public DANE/DNSSEC stack into Android and Apple closures.
-- Pending release qualification: scoped credential/indexed backend/data
-  provisioning, signed store artifacts, fresh commit-bound screenshots,
-  privacy/category declaration readback, intentional store upload, Android
-  credentialed read/create lifecycle qualification, and the physical-iPhone
+- Pending release qualification: final exact-source CI, signed store artifacts,
+  fresh commit-bound screenshots, privacy/category declaration readback,
+  intentional store upload, final Android installed-product qualification, and the physical-iPhone
   matrix remain for `1.0.0`. No currently published Play, GitHub, or App Store
   binary contains the native controls.
 - Added cross-platform dormant named-service consumption: Android and iOS now

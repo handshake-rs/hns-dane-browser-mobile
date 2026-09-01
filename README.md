@@ -45,7 +45,7 @@ Current source is the `1.0.0` release candidate: Android code `52`, embedded
 non-publishable Rust workspace `1.0.0`, and iOS build `61`. It directly pins
 published `hns-rs 0.3.1`, `hns-dane-engine 0.2.2`, and
 the complete `hns-wallet-rs` closure at reviewed Git commit
-`bd16ce1d33bc620ccddede8636f411892188d2f4`. The browser adapters are
+`b529820801b20c3d2956542433cbb046a4ecbe3a`. The browser adapters are
 also exact published `0.2.2` packages; the source tags, registry checks, and
 wallet revision are recorded in
 [the released dependency cohort](docs/released-dependency-cohort.md).

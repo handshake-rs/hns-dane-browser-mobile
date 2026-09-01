@@ -36,7 +36,8 @@ func walletPendingPaymentContinuation(
     hasController: Bool,
     controllerUnlocked: Bool,
     hasHnsValue: Bool,
-    hasCurrentSnapshot: Bool
+    hasCurrentSnapshot: Bool,
+    hasPendingOutgoing: Bool
 ) -> WalletPendingPaymentContinuation {
     guard hasPendingPayment else { return .none }
     guard foreground, !dialogVisible, !busy else { return .wait }
@@ -44,15 +45,58 @@ func walletPendingPaymentContinuation(
         return resumeAfterScanner ? .unlock : .wait
     }
     guard hasHnsValue else { return .wait }
+    guard !hasPendingOutgoing else { return .wait }
     guard hasCurrentSnapshot else {
         return resumeAfterScanner ? .synchronize : .wait
     }
     return .present
 }
 
+/// A non-sensitive, fail-closed UI marker for a transaction that was written
+/// to peers but has not yet been settled by a verified wallet snapshot. The
+/// encrypted wallet remains authoritative; a completed snapshot clears this
+/// marker as soon as it proves no outgoing transaction is pending.
+enum WalletPendingOutgoingRecoveryStore {
+    private static let prefix = "wallet.pendingOutgoingRecovery"
+
+    static func load(
+        networkID: String,
+        accountID: String,
+        defaults: UserDefaults = .standard
+    ) -> UInt64? {
+        let accountKey = "\(prefix).\(networkID).account"
+        guard defaults.string(forKey: accountKey) == accountID else { return nil }
+        let heightKey = "\(prefix).\(networkID).height"
+        return UInt64(max(0, defaults.integer(forKey: heightKey)))
+    }
+
+    static func save(
+        networkID: String,
+        accountID: String,
+        height: UInt64?,
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.set(accountID, forKey: "\(prefix).\(networkID).account")
+        defaults.set(Int(min(height ?? 0, UInt64(Int.max))),
+                     forKey: "\(prefix).\(networkID).height")
+    }
+
+    static func clear(networkID: String, defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: "\(prefix).\(networkID).account")
+        defaults.removeObject(forKey: "\(prefix).\(networkID).height")
+    }
+}
+
 let walletOperationInProgressMessage =
     "The wallet is still completing synchronization or another operation. " +
     "It may continue in the background. Wait for it to finish, then try again."
+
+func walletHnsPaymentActionsAvailable(
+    baseAvailable: Bool,
+    hasPendingOutgoing: Bool
+) -> Bool {
+    baseAvailable && !hasPendingOutgoing
+}
 
 enum WalletScreen: CaseIterable {
     case createWallet, restoreWallet, walletLock, hnsWallet, hnsReceive, hnsSend

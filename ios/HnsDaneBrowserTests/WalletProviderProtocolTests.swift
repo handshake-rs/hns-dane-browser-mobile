@@ -333,6 +333,50 @@ final class WalletProviderProtocolTests: XCTestCase {
             .wait
         )
         XCTAssertEqual(paymentContinuation(busy: true), .wait)
+        XCTAssertEqual(paymentContinuation(hasPendingOutgoing: true), .wait)
+    }
+
+    func testPendingOutgoingDisablesHnsPaymentActions() {
+        XCTAssertTrue(walletHnsPaymentActionsAvailable(
+            baseAvailable: true,
+            hasPendingOutgoing: false
+        ))
+        XCTAssertFalse(walletHnsPaymentActionsAvailable(
+            baseAvailable: true,
+            hasPendingOutgoing: true
+        ))
+    }
+
+    func testPendingOutgoingRecoveryMarkerIsAccountScopedAndClearable() {
+        let suite = "WalletPendingOutgoingRecoveryStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        WalletPendingOutgoingRecoveryStore.save(
+            networkID: "mainnet",
+            accountID: "001122",
+            height: 345_133,
+            defaults: defaults
+        )
+        XCTAssertEqual(
+            WalletPendingOutgoingRecoveryStore.load(
+                networkID: "mainnet",
+                accountID: "001122",
+                defaults: defaults
+            ),
+            345_133
+        )
+        XCTAssertNil(WalletPendingOutgoingRecoveryStore.load(
+            networkID: "mainnet",
+            accountID: "different",
+            defaults: defaults
+        ))
+        WalletPendingOutgoingRecoveryStore.clear(networkID: "mainnet", defaults: defaults)
+        XCTAssertNil(WalletPendingOutgoingRecoveryStore.load(
+            networkID: "mainnet",
+            accountID: "001122",
+            defaults: defaults
+        ))
     }
 
     private func paymentContinuation(
@@ -340,7 +384,8 @@ final class WalletProviderProtocolTests: XCTestCase {
         busy: Bool = false,
         hasController: Bool = true,
         controllerUnlocked: Bool = true,
-        hasCurrentSnapshot: Bool = true
+        hasCurrentSnapshot: Bool = true,
+        hasPendingOutgoing: Bool = false
     ) -> WalletPendingPaymentContinuation {
         walletPendingPaymentContinuation(
             hasPendingPayment: true,
@@ -351,7 +396,8 @@ final class WalletProviderProtocolTests: XCTestCase {
             hasController: hasController,
             controllerUnlocked: controllerUnlocked,
             hasHnsValue: true,
-            hasCurrentSnapshot: hasCurrentSnapshot
+            hasCurrentSnapshot: hasCurrentSnapshot,
+            hasPendingOutgoing: hasPendingOutgoing
         )
     }
 

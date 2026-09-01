@@ -1,13 +1,13 @@
 # Production Readiness Audit
 
-Last audited: 2026-08-14
+Last audited: 2026-09-01
 
 Current source is the `1.0.0` release candidate: Android code `52`, embedded
 non-publishable Rust `1.0.0`, and iOS `1.0.0` build `61`. Earlier
 HNWR-v2/ECH-and-sync-telemetry code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed exact-source CI and the
 complete Android and Apple platform matrix in run `31807520618`; that evidence
-predates the current `2061a27` pin and exact-name import tranche. Exact current
+predates the current direct-wallet implementation. Exact pre-release
 application source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the
 complete manually dispatched CI matrix in run `31835813994`, including policy,
 Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
@@ -29,10 +29,9 @@ distribution was used. iOS was not incremented for the later Android-only
 runtime-lock and Proof Details fixes.
 
 The candidate has native-only Android and iOS wallet controllers for
-create/restore/open/status/unlock/lock, one HNS account identity, and strict
-HNWR-v2 read UI for synchronized balance, distinct HNS payment and name-transfer
-receive targets, transaction history, tracked names, and module status, plus a
-native-only exact-text HNWI-v1 name import. Legacy
+create/restore/open/status/unlock/lock, direct HNS peer synchronization,
+receive/QR, guarded send, recent activity, birthday height, protected deletion,
+and native-only exact-text name import. Legacy
 HNWR-v1 remains a separate exact decoder shape. Its underlying lifecycle tranche passed the
 full Pixel 9 exercise at `571ea0c096ba50560c9060e66f742fd5a8ac6a5d`.
 Historical `0.5.8` source `f21bee1c3afccd06604dc99fccb51528e2441055` passed Required CI
@@ -62,15 +61,10 @@ succeeded, and the fresh-install wallet screen exposed the no-wallet controls
 and fail-closed read projection. No wallet, secret, account, credentialed sync,
 or value action ran. Signing, fresh screenshots, store
 declaration reconciliation/upload, and the physical-iPhone matrix remain open.
-The product
-installs no scoped loopback credential or indexed wallet backend, so every read
-field is fail-closed and unavailable. A pruned indexed/authenticated node can
-serve existing-wallet indexed/retained evidence; fresh restore additionally needs
-archive-capable raw bytes or another durable wallet-relevant raw-tx source.
-Trusted-native exact-text name import is implemented behind that same boundary,
-but is unavailable in the product without its credential and indexed backend.
-Website-provider, send/value, settlement, exchange, HNSA/HNSR, and P2P-market
-gates remain false. iOS now implements nonblocking read/lifecycle teardown with
+The product uses a wallet-owned direct peer controller and does not require the
+older scoped-loopback compatibility seam. Website-provider, unfinished Bitcoin
+and name-operation UI, settlement, exchange, HNSA/HNSR, and P2P-market gates
+remain false. iOS implements nonblocking read/lifecycle teardown with
 an exact lease handoff. Exact app/simulator CI covers the retirement queue/lease
 and stale-completion publication-authority predicates; an end-to-end
 credentialed read in flight remains unavailable without the scoped
@@ -80,16 +74,16 @@ credential/backend/data boundary.
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| `1.0.0` source identity | Released dependency cohort; signed candidate open | Android `1.0.0` / code `52`, iOS `1.0.0` / build `61`, and embedded Rust `1.0.0` are aligned for the major release. Direct dependencies use published HNS `0.3.1`, the exact engine/browser-adapter `0.2.x`–`0.3.x` graph, and wallet `0.2.0` crates with lockfile checksums and no Git ecosystem input. [released-dependency-cohort.md](released-dependency-cohort.md) binds that policy. Earlier pre-rebrand source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed policy, Rust/supply-chain, Android build/unit, API 37 native instrumentation, the complete Apple gate, and Required CI in run `31835813994`; CodeQL runs `31833858421` and `31833858650` also passed. Historical debug artifact `9222123624` is bound to earlier source, not upload/store signed, and no signed current candidate has been built or uploaded. |
+| `1.0.0` source identity | Exact dependency cohort; signed candidate open | Android `1.0.0` / code `52`, iOS `1.0.0` / build `61`, and embedded Rust `1.0.0` are aligned. HNS and engine dependencies are exact published releases; the wallet closure is locked to exact reviewed Git revision `b529820801b20c3d2956542433cbb046a4ecbe3a`. [released-dependency-cohort.md](released-dependency-cohort.md) binds that policy. The final versioned source still requires complete CI, CodeQL, signing, screenshot, and store readback qualification. |
 | Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 47 production complete | Android Publisher edit `07330408575596336357` committed code `47` directly to production with status `completed`; `generatedApks/47` returned HTTP `200`. |
 | App Store update | Public `0.5.5`; device qualification tracked separately | Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). The submission was then `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`; Apple published `0.5.5` on 2026-07-31. No TestFlight distribution was part of this release, and a real-iPhone pass remains a separate qualification item. |
-| Native wallet slice | Exact-name-import source CI passed; credentialed product gates pending | The pinned controller is connected to native-only Android/iOS lifecycle controls, secure app-owned key storage, strict HNWR-v2 projection/UI, and a strict HNWI-v1 exact-text name-import control. The import preserves UTF-8 bytes, returns one minimized summary, refreshes rows on success, leaves invalid input non-poisoning, and locks on runtime faults. Exact current source `adb9c506fe88c82b0317fd60c12fd6a9702753ed` passed the complete Rust, Android, Apple, and Required CI matrix in `31835813994`; both current CodeQL runs also passed. No wallet was created/restored and no credentialed operation ran. The product provides no scoped credential or indexed backend, so reads and import remain unavailable; provider/send/value/HNSA/HNSR/market gates remain false. A pruned indexed/authenticated node can return current-wallet indexed history and retained raw bytes, while fresh restore needs a durable archive-capable raw-tx source. iOS detaches UI authority and retires the native controller off the main actor while retaining its exact lease through destruction and cleanup. No signed-product or iPhone readiness is claimed. |
+| Native wallet slice | Direct HNS wallet active; final release gates pending | The exact pinned controller is connected to native Android/iOS lifecycle, direct peer synchronization, receive/QR, guarded sends, activity, name import, birthday height, and deletion. Websites cannot access it. Unfinished Bitcoin/name-operation/Shakedex screens remain hidden. Current Android device exercises cover the working debug flow; exact final CI, signed product, screenshots, and physical-iPhone evidence remain open. |
 | Android runtime opening | Root cause fixed and release-device validated | Rust 1.92's stable `std::fs::File` lock implementation omitted Android, so the first header-state lock returned `Unsupported` and `BrowserRuntime::open` returned no handle. The Android target now uses the locked `libc 0.2.186` `flock` operations; the equivalent upstream fix is merged for Rust 1.98 in `rust-lang/rust#157038`. The exact signed code `47` APK cold-launched and synchronized successfully after an in-place data-preserving upgrade. |
 | Android Proof Details | Namespace attribution fixed and release-device confirmed | Native-gateway routing is namespace-agnostic because every canonical DNS host enters the retained dual-root gateway. The prior UI treated that route as ICANN, so a retained HNS trace produced DNSSEC/synthetic ICANN details. Proof Details now uses only the strict retained `namespaceResolution` decision. Pre-fix reproduction, paired instrumentation, and HNS browsing/proof behavior passed on the Pixel 9 release device after correction. |
-| Privacy policy | Current HNWR boundary deployed and read back | Version-neutral source `a5539cb063fb4b19fed4dff5400a3bc991acdc4f` covers wallet lifecycle, absent network/provider/value paths, and unavailable read rows. Firebase run `31485234945` and live HTTP readback passed. Store privacy/category answers still require live readback. |
-| Manifest exposure | Ready | The only app-defined exported entry point is `LauncherActivity`. Browser, settings, diagnostics, HNS inspector, history, download, native wallet, and other app activities are non-exported, and the app declares no service. Merged dependency components remain subject to their own signature/permission guards. |
+| Privacy policy | Direct-wallet and QR disclosure updated | The canonical hosted policy covers wallet peer synchronization, approved broadcast, native storage/deletion, and on-device camera QR processing. Store privacy/category answers still require live readback. |
+| Manifest exposure | Ready | The only app-defined exported entry point is `LauncherActivity`. Browser, settings, diagnostics, HNS inspector, history, download, and wallet activities are non-exported. `WalletSyncForegroundService` is also non-exported and limited to user-started `dataSync`. |
 | Backup / transfer | Ready | App backup and device-transfer extraction are disabled for local browsing data, WebView state, download records, diagnostics, resolver cache, HNS sync/cache state, and Android wallet storage. iOS wallet files use complete file protection and are excluded from backup; its ThisDeviceOnly Keychain item follows platform Keychain retention semantics. |
 | Cleartext policy | Ready | Cleartext is disabled globally with a loopback-only exception for the local gateway. User-selected HTTP and direct DNS/HNS traffic are accurately disclosed, but ordinary open-web and user-initiated transfers are outside Google Play's Data safety collection/sharing scope. |
 | WebView hardening | Ready | Mixed content is blocked, Safe Browsing is enabled, file/content access is disabled, native JavaScript bridges are removed, WebView debugging follows `BuildConfig.DEBUG`, and browser-wide loopback proxying sends every canonical DNS host to exact per-origin Rust dual-root preparation. |
@@ -105,8 +99,8 @@ credential/backend/data boundary.
 - Added user-facing deletion of both cookies and WebView origin storage instead of clearing cookies alone.
 - On Android, replaced the automatic developer-hosted default homepage request
   with a bundled, Content-Security-Policy-restricted start page that contains
-  no network resources. The iOS shell still defaults to the documented Denuo
-  Web homepage and lets the user replace it.
+  no network resources. The iOS shell defaults to `https://shakescape.com/`
+  and lets the user replace it.
 - Added a Diagnostics control that clears the bounded, sanitized gateway event log.
 - Updated the repository privacy policy to disclose WebView-provider Safe Browsing, WebView origin storage, and gateway-diagnostic retention/deletion.
 - Corrected the Data safety draft to apply Google's explicit open-web, on-device, and user-initiated-transfer exclusions instead of treating ordinary browser networking as developer collection or sharing.

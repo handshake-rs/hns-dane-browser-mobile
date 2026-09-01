@@ -385,7 +385,7 @@ final class BrowserViewController: UIViewController {
             )
             shouldPresentScreenshotProof = scene == .proofDetails
         case .webPKIPage:
-            updateCanonicalAddress("https://denuoweb.com/work/hns-dane-browser")
+            updateCanonicalAddress("https://shakescape.com/")
             updateSecuritySummary(
                 BrowserSecuritySummary(
                     level: .webPKI,

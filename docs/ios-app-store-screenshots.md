@@ -42,7 +42,7 @@ requires `manifest.json` to name the same exact commit. The artifact contains:
 - `03-proof-details.jpg`, showing the actual proof returned for that same HNS
   navigation
 - `04-webpki.jpg`, captured after the shipping runtime loads
-  `https://denuoweb.com/work/hns-dane-browser`
+  `https://shakescape.com/`
 - `manifest.json`, containing the commit, Release configuration,
   Xcode/SDK/device provenance, the security labels actually shown by the app,
   dimensions, and SHA-256 digest for every image
