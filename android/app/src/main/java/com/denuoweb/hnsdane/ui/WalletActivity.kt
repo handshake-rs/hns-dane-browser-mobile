@@ -1541,8 +1541,14 @@ class WalletActivity : ComponentActivity() {
                     walletOpenDeferredUntilDeviceUnlock = false
                     durableWalletStoragePresent = true
                     publishWalletController(opened, reopenedDurable = true)
-                    attemptReadBootstrap(lease)
+                    // Publish the ordinary locked state first, then let the
+                    // asynchronous direct-controller preparation replace it
+                    // with its WORKING presentation. Calling refresh after
+                    // preparation began used to overwrite that progress with
+                    // "Signing authority is unavailable" while Unlock was
+                    // still disabled.
                     refreshControllerState()
+                    attemptReadBootstrap(lease)
                     runPendingWalletUnlockIfReady()
                 }
             }
@@ -4730,7 +4736,7 @@ class WalletActivity : ComponentActivity() {
     private fun attemptReadBootstrap(lease: WalletStorageOwnershipGate.Lease) {
         val expectedAuthority = walletReadBootstrapState(lease).authority ?: return
         if (!walletReadBootstrapMayInstall(expectedAuthority, walletReadBootstrapState(lease))) return
-        if (!beginOperation(lease, getString(R.string.wallet_status_syncing_reads))) return
+        if (!beginOperation(lease, getString(R.string.wallet_status_preparing_unlock))) return
         val epoch = lifecycleEpoch
         thread(name = "hns-wallet-direct-install") {
             val installed = runCatching {

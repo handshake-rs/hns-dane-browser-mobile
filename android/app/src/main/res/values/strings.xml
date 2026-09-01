@@ -365,6 +365,7 @@
     <string name="wallet_status_starting" translatable="false">Starting native wallet controller…</string>
     <string name="wallet_status_sync_handoff" translatable="false">Keeping the existing HNS sync connected…</string>
     <string name="wallet_status_opening" translatable="false">Opening your wallet… This may take up to a minute on older devices.</string>
+    <string name="wallet_status_preparing_unlock" translatable="false">Preparing the wallet for unlock… Please wait.</string>
     <string name="wallet_status_creating" translatable="false">Creating native wallet…</string>
     <string name="wallet_status_restoring" translatable="false">Restoring native wallet…</string>
     <string name="wallet_status_unlocking" translatable="false">Unlocking your wallet… Please wait.</string>
@@ -385,7 +386,7 @@
     <string name="wallet_status_not_created" translatable="false">No native wallet exists on this device.</string>
     <string name="wallet_status_native_unavailable" translatable="false">Native wallet core is unavailable.</string>
     <string name="wallet_status_recovery_required" translatable="false">Save the recovery phrase offline, then confirm. Leaving this screen discards the unconfirmed wallet.</string>
-    <string name="wallet_status_locked" translatable="false">Locked. Signing authority is unavailable.</string>
+    <string name="wallet_status_locked" translatable="false">Wallet is ready to unlock. Tap Unlock to continue.</string>
     <string name="wallet_status_device_locked" translatable="false">The existing wallet is locked while Android Keystore is unavailable. Unlock this device, then retry.</string>
     <string name="wallet_status_unlocked" translatable="false">Unlocked native wallet %1$s</string>
     <string name="wallet_status_unavailable" translatable="false">Native wallet status is unavailable; the controller failed closed.</string>
