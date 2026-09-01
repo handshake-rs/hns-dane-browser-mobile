@@ -590,9 +590,16 @@ class WalletActivity : ComponentActivity() {
         // not detach its nested children, so detach each reusable view before
         // placing it in a newly-created card. Without this, the second render
         // crashes with "The specified child already has a parent."
-        listOf(statusView, readStatusView, balanceView, sendStatusView, recoveryView).forEach { view ->
+        listOf(statusView, readStatusView, balanceView, sendStatusView).forEach { view ->
             (view.parent as? ViewGroup)?.removeView(view)
         }
+        // RecoveryPhraseView clears its secret whenever it leaves the real
+        // wallet screen. A dashboard redraw also detaches and immediately
+        // reattaches reusable children, so mark that one synchronous detach as
+        // a reparent before rebuilding the hierarchy. Otherwise the queued
+        // redraw after wallet creation erases the phrase before the user can
+        // record it.
+        recoveryView.detachForDashboardReparent()
         dashboardContent.removeAllViews()
         val hasController = walletHandle != INVALID_HANDLE
         // A direct peer synchronization owns the native controller for a
@@ -6305,6 +6312,7 @@ private class RecoveryPhraseView(context: Context) : View(context) {
         textSize = context.uiDp(17).toFloat()
     }
     private var secret: CharArray? = null
+    private val detachmentPolicy = OneShotSecretReparentRetention()
 
     init {
         visibility = GONE
@@ -6335,8 +6343,18 @@ private class RecoveryPhraseView(context: Context) : View(context) {
         invalidate()
     }
 
+    fun detachForDashboardReparent() {
+        val currentParent = parent as? ViewGroup ?: return
+        check(detachmentPolicy.arm())
+        currentParent.removeView(this)
+        // removeView dispatches detachment synchronously for the attached
+        // dashboard. Disarm defensively as well so a detached parent can never
+        // carry the one-shot exception into a later real screen teardown.
+        detachmentPolicy.disarm()
+    }
+
     override fun onDetachedFromWindow() {
-        clearSecret()
+        if (detachmentPolicy.shouldClearSecret()) clearSecret()
         super.onDetachedFromWindow()
     }
 
@@ -6395,5 +6413,26 @@ private class RecoveryPhraseView(context: Context) : View(context) {
             block(start, end - start)
             start = end
         }
+    }
+}
+
+/** Retains a secret across exactly one synchronous dashboard reparent. */
+internal class OneShotSecretReparentRetention {
+    private var armed = false
+
+    fun arm(): Boolean {
+        if (armed) return false
+        armed = true
+        return true
+    }
+
+    fun shouldClearSecret(): Boolean {
+        if (!armed) return true
+        armed = false
+        return false
+    }
+
+    fun disarm() {
+        armed = false
     }
 }

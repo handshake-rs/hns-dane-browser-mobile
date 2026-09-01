@@ -23,6 +23,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Keep the one-time Android recovery phrase visible across internal dashboard
+  redraws after wallet creation. Only the explicitly marked synchronous
+  reparent retains it; leaving the wallet screen still zeroes the unconfirmed
+  phrase and removes the incomplete wallet.
 - Persist a non-sensitive, account-scoped pending-outgoing recovery marker
   before post-broadcast synchronization on Android and iOS. Reopened wallets
   now present the pending recovery state instead of a generic missing-balance
