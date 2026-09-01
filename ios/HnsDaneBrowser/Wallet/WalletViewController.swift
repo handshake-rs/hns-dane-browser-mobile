@@ -1896,7 +1896,7 @@ final class WalletViewController: UIViewController {
             "Finality: proof-of-work confirmations",
             "Warning: fee estimate may change",
             "Expires: \(expiry)",
-        ].joined(separator: "\n\n")
+        ].joined(separator: "\n\n\n")
         let alert = UIAlertController(title: "Review HNS send", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Reject", style: .cancel) { [weak self] _ in
             self?.rejectHnsSendApproval(
