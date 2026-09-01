@@ -55,8 +55,8 @@ def live_provenance() -> dict:
                 "settings.hns-resolution.stateless-dane-certificates.toggle",
         },
         "webPKINavigation": {
-            "requestedURL": "https://denuoweb.com/work/hns-dane-browser",
-            "finalAddress": "https://denuoweb.com/work/hns-dane-browser",
+            "requestedURL": "https://shakescape.com/",
+            "finalAddress": "https://shakescape.com/",
             "navigationAttemptCount": 1,
             "retryReason": None,
             "securityLabel":
@@ -344,8 +344,7 @@ class ScreenshotManifestTests(unittest.TestCase):
                 "https://denuowebhttps//denuoweb/.com/work/hns-dane-browser"
             ),
             "webPKINavigation": (
-                "https://denuowebhttps//denuoweb.com/work/hns-dane-browser"
-                ".com/work/hns-dane-browser"
+                "https://shakescapehttps//shakescape.com/.com/"
             ),
         }
         for section, malformed_address in malformed_addresses.items():
@@ -463,8 +462,7 @@ class ScreenshotManifestTests(unittest.TestCase):
             provenance["webPKINavigation"].update(
                 {
                     "finalAddress": (
-                        "https://denuowebhttps//denuoweb.com/work/hns-dane-browser"
-                        ".com/work/hns-dane-browser"
+                        "https://shakescapehttps//shakescape.com/.com/"
                     ),
                     "securityLabel": "The Rust proxy rejected the HNS response",
                 }

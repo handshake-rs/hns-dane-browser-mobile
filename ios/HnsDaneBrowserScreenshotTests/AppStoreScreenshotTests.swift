@@ -7,7 +7,7 @@ import XCTest
 /// describe the same live HNS navigation shown in the first image.
 final class LiveAppStoreScreenshotTests: XCTestCase {
     private static let hnsURL = "https://denuoweb/"
-    private static let webPKIURL = "https://denuoweb.com/work/hns-dane-browser"
+    private static let webPKIURL = "https://shakescape.com/"
     private static let retryableDualRootSecurityLabel =
         "The Rust proxy rejected the dual-root response · Dual-root validation failed"
     private static let retryableMissingStatusSecurityLabel =
@@ -91,7 +91,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         dismissProofDetailsAndSettings(timeout: 20)
         let webPKIEvidence = try navigateAndWait(
             to: Self.webPKIURL,
-            expectedHost: "denuoweb.com",
+            expectedHost: "shakescape.com",
             expectedSecurity: .icannAuthenticated,
             timeout: 90,
             allowBoundedICANNRetry: true,

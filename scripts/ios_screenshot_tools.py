@@ -65,7 +65,7 @@ LIVE_TARGETS = {
     "hnsNavigation": "https://denuoweb/",
     "settings": "https://denuoweb/",
     "proofDetails": "https://denuoweb/",
-    "webPKINavigation": "https://denuoweb.com/work/hns-dane-browser",
+    "webPKINavigation": "https://shakescape.com/",
 }
 
 DEVICE_PRIORITY = (
