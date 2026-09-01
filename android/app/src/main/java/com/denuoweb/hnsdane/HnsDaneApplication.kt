@@ -23,6 +23,7 @@ import com.denuoweb.hnsdane.net.RustBrowserProxy
 import com.denuoweb.hnsdane.ui.BrowserThemePreferences
 import com.denuoweb.hnsdane.ui.HnsResolutionPreferences
 import java.io.Closeable
+import java.util.WeakHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.Executors
 
@@ -265,8 +266,11 @@ class HnsDaneApplication : Application() {
 private class AppLifecycleCallbacks(
     private val foregroundActivities: ForegroundActivityCounter,
 ) : Application.ActivityLifecycleCallbacks {
+    private val createdWithDarkTheme = WeakHashMap<Activity, Boolean>()
+
     override fun onActivityPreCreated(activity: Activity, savedInstanceState: Bundle?) {
         BrowserThemePreferences.applyTo(activity)
+        createdWithDarkTheme[activity] = BrowserThemePreferences.effectiveDark(activity)
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
@@ -274,10 +278,24 @@ private class AppLifecycleCallbacks(
         // application path without applying it twice on API 29 and newer.
         if (needsActivityCreatedThemeFallback(Build.VERSION.SDK_INT)) {
             BrowserThemePreferences.applyTo(activity)
+            createdWithDarkTheme[activity] = BrowserThemePreferences.effectiveDark(activity)
         }
     }
     override fun onActivityStarted(activity: Activity) {
         foregroundActivities.activityStarted()
+        val appliedDark = createdWithDarkTheme[activity] ?: return
+        val requestedDark = BrowserThemePreferences.effectiveDark(activity)
+        if (
+            activityThemeNeedsRecreation(appliedDark, requestedDark) &&
+            !activity.isFinishing && !activity.isChangingConfigurations
+        ) {
+            // Settings recreates itself immediately. Activities underneath it
+            // remain on the back stack, so reconcile them before they resume
+            // instead of requiring a process restart for their resources and
+            // custom programmatic colors to adopt the new theme.
+            createdWithDarkTheme[activity] = requestedDark
+            activity.recreate()
+        }
     }
     override fun onActivityResumed(activity: Activity) = Unit
     override fun onActivityPaused(activity: Activity) = Unit
@@ -285,11 +303,16 @@ private class AppLifecycleCallbacks(
         foregroundActivities.activityStopped(activity.isChangingConfigurations)
     }
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-    override fun onActivityDestroyed(activity: Activity) = Unit
+    override fun onActivityDestroyed(activity: Activity) {
+        createdWithDarkTheme.remove(activity)
+    }
 }
 
 internal fun needsActivityCreatedThemeFallback(sdkInt: Int): Boolean =
     sdkInt < Build.VERSION_CODES.Q
+
+internal fun activityThemeNeedsRecreation(appliedDark: Boolean, requestedDark: Boolean): Boolean =
+    appliedDark != requestedDark
 
 internal class ForegroundActivityCounter(
     private val onForeground: () -> Unit,

@@ -23,4 +23,12 @@ class AndroidApi28CompatibilityTest {
         assertTrue(usesScopedDownloadStorage(29))
         assertTrue(supportsTypedDataSyncForegroundService(29))
     }
+
+    @Test
+    fun activityRecreatesOnlyWhenEffectiveThemeChanges() {
+        assertFalse(activityThemeNeedsRecreation(appliedDark = false, requestedDark = false))
+        assertFalse(activityThemeNeedsRecreation(appliedDark = true, requestedDark = true))
+        assertTrue(activityThemeNeedsRecreation(appliedDark = false, requestedDark = true))
+        assertTrue(activityThemeNeedsRecreation(appliedDark = true, requestedDark = false))
+    }
 }
