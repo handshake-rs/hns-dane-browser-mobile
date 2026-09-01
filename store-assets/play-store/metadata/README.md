@@ -27,9 +27,16 @@ name-operation, and Shakedex marketplace cards are not exposed.
 - Expected upload artifact:
   `dist/play-store/hns-dane-browser-v1.0.0-play-upload-signed.aab`
 
-The retained screenshots predate the final wallet UI and must be recaptured from
-the exact versioned candidate without displaying recovery phrases, account IDs,
-addresses, balances, or transaction identifiers. The signed AAB, Play Console
-Data safety and financial-feature answers, foreground `dataSync` service
-declaration, screenshot set, and live listing must all be read back before
-intentional submission. No code `52` AAB has yet been uploaded.
+The eight phone screenshots were recaptured on a Pixel 9 at 1080 x 2424 from
+the current `1.0.0-debug` / code `52` application. They cover the local start
+page, the Shakescape ICANN site, the `denuoweb/` HNS site, browser navigation,
+the locked wallet, Handshake settings, build diagnostics, and a verified HNS
+proof. The wallet capture deliberately contains no recovery phrase, account ID,
+address, balance, or transaction identifier. The debug capture is suitable for
+listing review because it presents the current UI, but it is not evidence that
+the Play-signed AAB has passed release signing or installed-device gates.
+
+The signed AAB, Play Console Data safety and financial-feature answers,
+foreground `dataSync` service declaration, screenshot set, and live listing
+must all be read back before intentional submission. No code `52` AAB has yet
+been uploaded.
