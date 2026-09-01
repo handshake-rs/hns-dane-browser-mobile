@@ -415,18 +415,6 @@ final class BrowserViewController: UIViewController {
             : "Resolve Handshake names locally, validate DNSSEC and DANE, and inspect the proof behind each result."
         let badge = isWebPKI ? "Automatic DANE / WebPKI" : "DANE certificate verified"
         let badgeIcon = isWebPKI ? "●" : "✓"
-        let firstTitle = isWebPKI ? "Automatic TLSA policy" : "Local HNS proofs"
-        let firstBody = isWebPKI
-            ? "Secure TLSA is enforced; authenticated absence or an insecure delegation retains WebPKI."
-            : "Name results are anchored to the locally verified Handshake header chain."
-        let secondTitle = isWebPKI ? "Private-address blocking" : "DNSSEC + DANE"
-        let secondBody = isWebPKI
-            ? "The proxy rejects unsafe destinations before an origin connection is opened."
-            : "Delegated records and certificate policy are validated before a page is trusted."
-        let thirdTitle = isWebPKI ? "Clear security labels" : "Resolver transparency"
-        let thirdBody = isWebPKI
-            ? "The browser distinguishes DANE, validated WebPKI, blocked, and insecure paths."
-            : "Proof details expose the name hash, tree root, block height, and record types."
 
         return """
         <!doctype html>
@@ -445,11 +433,6 @@ final class BrowserViewController: UIViewController {
             .summary { margin: 0; max-width: 355px; color: #b4c8d9; font-size: 17px; line-height: 1.45; }
             .badge { display: inline-flex; align-items: center; gap: 9px; margin: 24px 0 28px; padding: 10px 14px; color: #e6f3ff; background: rgba(0,255,224,.09); border: 1px solid rgba(0,255,224,.45); border-radius: 999px; font-size: 14px; font-weight: 700; box-shadow: 0 0 24px rgba(0,255,224,.08); }
             .badge span { display: inline-grid; width: 22px; height: 22px; place-items: center; color: #0a0e17; background: #00ffe0; border-radius: 50%; }
-            .cards { display: grid; gap: 12px; }
-            article { padding: 19px 18px; background: rgba(14,21,36,.92); border: 1px solid rgba(120,92,255,.28); border-radius: 18px; box-shadow: 0 12px 30px rgba(0,0,0,.2); }
-            article h2 { margin: 0 0 7px; font-size: 18px; letter-spacing: -.25px; }
-            article p { margin: 0; color: #9fb4c6; font-size: 14px; line-height: 1.42; }
-            footer { margin-top: 28px; color: #00ffe0; font-size: 13px; font-weight: 700; letter-spacing: .5px; }
           </style>
         </head>
         <body>
@@ -458,12 +441,6 @@ final class BrowserViewController: UIViewController {
             <h1>\(title)</h1>
             <p class="summary">\(summary)</p>
             <div class="badge"><span>\(badgeIcon)</span>\(badge)</div>
-            <section class="cards">
-              <article><h2>\(firstTitle)</h2><p>\(firstBody)</p></article>
-              <article><h2>\(secondTitle)</h2><p>\(secondBody)</p></article>
-              <article><h2>\(thirdTitle)</h2><p>\(thirdBody)</p></article>
-            </section>
-            <footer>Shakescape · Denuo Web</footer>
           </main>
         </body>
         </html>
