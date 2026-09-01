@@ -865,6 +865,7 @@ final class WalletViewController: UIViewController {
             var destination = Array((fields[0].text ?? "").utf8)
             var amount = Array((fields[1].text ?? "").utf8)
             var fee = Array((fields[2].text ?? "").utf8)
+            self.statusLabel.text = "Preparing exact Bitcoin send…"
             DispatchQueue.global(qos: .userInitiated).async { [wallet] in
                 let outcome = Result {
                     try wallet.prepareBitcoinSend(
@@ -877,7 +878,9 @@ final class WalletViewController: UIViewController {
                     guard let self, self.wallet === wallet else { return }
                     switch outcome {
                     case .success(let approval): self.presentBitcoinSendApproval(approval, wallet: wallet)
-                    case .failure(let error): self.showError(error)
+                    case .failure(let error):
+                        self.refreshControllerState()
+                        self.showError(error)
                     }
                 }
             }
@@ -920,7 +923,10 @@ final class WalletViewController: UIViewController {
                     case .success(let receipt):
                         self.bitcoinStatusLabel.text = "Bitcoin transaction broadcast: \(receipt.txid)"
                         if let snapshot = try? wallet.bitcoinSnapshot() { self.renderBitcoinSnapshot(snapshot) }
-                    case .failure(let error): self.showError(error)
+                    case .failure:
+                        self.refreshControllerState()
+                        self.bitcoinStatusLabel.text = "The Bitcoin transaction is durably pending, but Kyoto was not ready to submit it. Synchronize Bitcoin to retry this same transaction. Do not prepare another send."
+                        self.showErrorMessage("The Bitcoin transaction is durably pending. Synchronize Bitcoin to retry this same transaction; do not prepare another send.")
                     }
                     self.refreshButtonStates()
                 }
@@ -4583,9 +4589,6 @@ enum WalletReadPresenter {
         ]
         if let registered = name.registered {
             states.append(registered ? "registered" : "not registered")
-        }
-        if let expired = name.expired {
-            states.append(expired ? "expired" : "current")
         }
         return [
             "\(name.name) · proof height \(name.proofHeight)",

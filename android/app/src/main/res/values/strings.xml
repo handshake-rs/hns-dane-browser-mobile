@@ -372,6 +372,8 @@
     <string name="wallet_status_stopping_sync" translatable="false">Stopping HNS synchronization…</string>
     <string name="wallet_reads_stopping_at_safe_checkpoint" translatable="false">The stop request is active. No additional synchronization batch will start; the last completed durable checkpoint is retained. Protected storage remains owned only while the active atomic call unwinds.</string>
     <string name="wallet_status_preparing_send" translatable="false">Preparing exact HNS send…</string>
+    <string name="wallet_status_preparing_bitcoin_send" translatable="false">Preparing exact Bitcoin send…</string>
+    <string name="wallet_status_bitcoin_recovery_locked" translatable="false">Locked after an unconfirmed Bitcoin broadcast. Unlock, then synchronize Bitcoin to retry the same durable transaction.</string>
     <string name="wallet_status_broadcasting_send" translatable="false">Broadcasting approved HNS transaction…</string>
     <string name="wallet_status_preparing_value_action" translatable="false">Preparing native HNS value action…</string>
     <string name="wallet_status_querying_shakedex" translatable="false">Querying the authenticated Shakedex board…</string>
@@ -439,8 +441,6 @@
     <string name="wallet_reads_name" translatable="false">%1$s · proof height %2$d\n%3$s\n%4$s</string>
     <string name="wallet_reads_name_registered" translatable="false">registered</string>
     <string name="wallet_reads_name_not_registered" translatable="false">not registered</string>
-    <string name="wallet_reads_name_expired" translatable="false">expired</string>
-    <string name="wallet_reads_name_current" translatable="false">current</string>
     <string name="wallet_reads_more" translatable="false">%1$d more items are present in this synchronized snapshot.</string>
     <string name="wallet_send_recipient_hint" translatable="false">Exact mainnet HNS recipient address</string>
     <string name="wallet_send_amount_hint" translatable="false">Amount in HNS (up to 6 decimals)</string>
@@ -525,7 +525,7 @@
     <string name="wallet_bitcoin_send_approval_message" translatable="false">Recipient:&#10;%1$s&#10;&#10;Amount:&#10;%2$d sats&#10;&#10;Fee:&#10;%3$d sats&#10;&#10;Approved maximum:&#10;%4$d sats&#10;&#10;Approval expires:&#10;%5$s&#10;&#10;Only this exact one-time native transaction can be broadcast.</string>
     <string name="wallet_bitcoin_send_broadcasting" translatable="false">Broadcasting the exact approved Bitcoin transaction through direct Kyoto peers…</string>
     <string name="wallet_bitcoin_send_accepted" translatable="false">Direct peers accepted Bitcoin transaction %1$s.</string>
-    <string name="wallet_bitcoin_send_ambiguous" translatable="false">The Bitcoin broadcast result was not confirmed. Reopen and synchronize before preparing another transaction.</string>
+    <string name="wallet_bitcoin_send_ambiguous" translatable="false">The Bitcoin transaction is durably pending, but Kyoto was not ready to submit it. Unlock, then synchronize Bitcoin to retry this same transaction. Do not prepare another send.</string>
     <string name="wallet_action_name_hint" translatable="false">Exact Handshake name</string>
     <string name="wallet_action_recipient_hint" translatable="false">Exact HNS recipient address</string>
     <string name="wallet_action_expected_recipient_hint" translatable="false">Expected recipient (optional)</string>

@@ -2067,6 +2067,8 @@ class WalletActivity : ComponentActivity() {
         }
         if (handle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(handle)) {
             resetBitcoinProjection()
+            Log.w(TAG, "Direct Bitcoin synchronization was requested while the wallet was locked or unavailable")
+            Toast.makeText(this, R.string.wallet_bitcoin_locked, Toast.LENGTH_SHORT).show()
             return
         }
         walletBitcoinSyncInProgress = true
@@ -3064,7 +3066,12 @@ class WalletActivity : ComponentActivity() {
             bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_unavailable)
             return
         }
-        if (!beginOperation(lease, getString(R.string.wallet_status_preparing_send), resetReads = false)) return
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_preparing_bitcoin_send),
+                resetReads = false,
+            )
+        ) return
         bitcoinStatusView.text = getString(R.string.wallet_bitcoin_send_preparing)
         val epoch = lifecycleEpoch
         thread(name = "bitcoin-wallet-send-prepare") {
@@ -3170,8 +3177,11 @@ class WalletActivity : ComponentActivity() {
                         busy = false
                         bitcoinStatusView.text = if (receipt == null) {
                             NativeWalletBridge.lock(walletHandle)
+                            refreshControllerState(resetReads = false)
+                            statusView.text = getString(R.string.wallet_status_bitcoin_recovery_locked)
                             getString(R.string.wallet_bitcoin_send_ambiguous)
                         } else {
+                            refreshControllerState(resetReads = false)
                             getString(R.string.wallet_bitcoin_send_accepted, receipt.txid)
                         }
                     }
@@ -5386,12 +5396,6 @@ class WalletActivity : ComponentActivity() {
                 getString(
                     if (registered) R.string.wallet_reads_name_registered
                     else R.string.wallet_reads_name_not_registered,
-                )
-            },
-            name.expired?.let { expired ->
-                getString(
-                    if (expired) R.string.wallet_reads_name_expired
-                    else R.string.wallet_reads_name_current,
                 )
             },
         ).joinToString(" · ")

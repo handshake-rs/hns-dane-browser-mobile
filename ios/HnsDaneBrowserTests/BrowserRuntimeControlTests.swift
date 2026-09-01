@@ -336,7 +336,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(summary.ownershipStatus, "walletOwned")
         XCTAssertEqual(WalletReadPresenter.presentName(summary), [
             "alpha · proof height 42",
-            "wallet owned · canonical decoded · registered · current",
+            "wallet owned · canonical decoded · registered",
             String(repeating: "a", count: 64),
         ].joined(separator: "\n"))
 
@@ -647,7 +647,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
         XCTAssertEqual(
             presentation.names,
-            "alpha · proof height 42\nwallet owned · canonical decoded · registered · current\n\(firstHash)\n\n1 more items are present in this synchronized snapshot."
+            "alpha · proof height 42\nwallet owned · canonical decoded · registered\n\(firstHash)\n\n1 more items are present in this synchronized snapshot."
         )
 
         let fullPresentation = WalletReadPresenter.present(snapshot, maximumVisibleItems: 2)
