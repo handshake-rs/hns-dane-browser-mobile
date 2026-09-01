@@ -15438,9 +15438,16 @@ fn run_sync_once(
         best_height,
         currentness.target_height,
     );
-    let error = if status == "peer_failed" {
+    let all_attempted_peers_failed =
+        result.attempted > 0 && result.successful == 0 && result.accepted == 0 && failed > 0;
+    let error = if all_attempted_peers_failed {
+        let context = if status == "up_to_date" {
+            "the retained verified chain remains current against non-expired corroborated peer evidence"
+        } else {
+            "no current verified chain could be retained"
+        };
         Some(format!(
-            "all {} attempted sync peers failed; see failures",
+            "all {} attempted sync peers failed; {context}; see failures",
             result.attempted,
         ))
     } else {
@@ -15521,10 +15528,20 @@ fn classify_sync_status(
         }
     // `attempted` is the number of scheduler passes, whereas `failed` counts
     // individual peer failures. A single pass can therefore fail several
-    // peers. Do not let that dimensional mismatch label an all-failed pass as
-    // merely "attempted" and accidentally retain a stale tip as current.
+    // peers. A failed freshness probe does not invalidate a chain already at
+    // a known, non-expired corroborated target; retain that authenticated
+    // current state while preserving every failure in diagnostics. A behind
+    // chain or a chain with no current target still fails closed.
     } else if attempted > 0 && successful == 0 && accepted == 0 && failed > 0 {
-        "peer_failed"
+        if !is_sync_behind(best_height, effective_target_height)
+            && !is_sync_target_unknown(best_height, effective_target_height)
+            && best_height.is_some_and(|height| height > 0)
+            && effective_target_height.is_some()
+        {
+            "up_to_date"
+        } else {
+            "peer_failed"
+        }
     } else if attempted > 0 {
         "attempted"
     } else if seed_failed {
@@ -21240,6 +21257,18 @@ mod tests {
         );
         assert_eq!(
             classify_sync_status(4, 0, 0, 2, false, Some(0), Some(335_684)),
+            "peer_failed",
+        );
+        assert_eq!(
+            classify_sync_status(1, 0, 0, 4, false, Some(335_684), Some(335_684)),
+            "up_to_date",
+        );
+        assert_eq!(
+            classify_sync_status(1, 0, 0, 4, false, Some(335_680), Some(335_684)),
+            "peer_failed",
+        );
+        assert_eq!(
+            classify_sync_status(1, 0, 0, 4, false, Some(335_684), None),
             "peer_failed",
         );
         assert_eq!(

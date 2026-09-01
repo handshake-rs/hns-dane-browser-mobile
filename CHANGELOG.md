@@ -23,6 +23,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Keep the Android browser header-sync strip visible after synchronization is
+  current and remove the internal HNS name-tree root height from that compact
+  presentation. Root readiness remains enforced by the browser authority and
+  navigation security gates.
+- Keep the browser's authenticated HNS chain presented as up to date when a
+  freshness probe loses all of its selected connections but the persisted tip
+  still equals a known target corroborated by non-expired peer-group evidence.
+  Behind and unknown-target chains continue to report the peer failure, and
+  every failed connection remains available in native diagnostics.
 - Fixed wallet creation on Android 9 devices whose app sandbox is reached
   through a root-owned sticky root directory and Android's UID-1000 `/data`
   boundary, while retaining exact app-private wallet ownership and modes.

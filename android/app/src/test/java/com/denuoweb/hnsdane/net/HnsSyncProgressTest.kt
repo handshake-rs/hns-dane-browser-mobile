@@ -22,7 +22,7 @@ class HnsSyncProgressTest {
         assertFalse(progress.isAuthorityReady)
         assertEquals(278, progress.progressPermille())
         assertEquals(
-            "syncing • bestHeight 93,344 • target 335,684 • needs HNS root 335,665 • accepted +2,000 • peers 4",
+            "syncing • bestHeight 93,344 • target 335,684 • accepted +2,000 • peers 4",
             progress.summary(),
         )
     }
@@ -36,11 +36,11 @@ class HnsSyncProgressTest {
         assertFalse(progress.isBehind)
         assertTrue(progress.isCurrent)
         assertTrue(progress.isAuthorityReady)
-        assertFalse(progress.shouldShowProgress)
+        assertTrue(progress.shouldShowProgress)
         assertFalse(progress.shouldContinueSoon)
         assertEquals(1000, progress.progressPermille())
         assertEquals(
-            "up_to_date • bestHeight 335,684 • target 335,684 • HNS root 335,665 ready",
+            "up_to_date • bestHeight 335,684 • target 335,684",
             progress.summary(),
         )
     }
@@ -147,6 +147,18 @@ class HnsSyncProgressTest {
     }
 
     @Test
+    fun failedFreshnessProbeRetainsCorroboratedCurrentChainPresentation() {
+        val progress = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","attempted":1,"successful":0,"accepted":0,"failed":4,"bestHeight":345108,"effectiveTargetHeight":345108,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":345097,"localTreeRootHeight":345097,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":12,"targetEvidenceExpired":false}""",
+        )
+
+        assertTrue(progress.isAuthorityReady)
+        assertTrue(progress.isCurrent)
+        assertTrue(progress.shouldShowProgress)
+        assertFalse(progress.shouldRetrySoon)
+    }
+
+    @Test
     fun tipCanLagWhileTheLatestCommittedTreeRootRemainsReady() {
         val progress = HnsSyncProgress.fromJson(
             """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"syncing","accepted":16,"bestHeight":335670,"bestPeerHeight":335684,"effectiveTargetHeight":335684,"lagBlocks":14,"freshness":"stale","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":335665,"localTreeRootHeight":335665,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
@@ -175,11 +187,11 @@ class HnsSyncProgressTest {
         )
 
         assertTrue(current.isAuthorityReady)
-        assertFalse(current.shouldShowProgress)
+        assertTrue(current.shouldShowProgress)
         assertTrue(syncingWithUsableRoot.isAuthorityReady)
         assertTrue(syncingWithUsableRoot.shouldShowProgress)
         assertTrue(currentAgain.isAuthorityReady)
-        assertFalse(currentAgain.shouldShowProgress)
+        assertTrue(currentAgain.shouldShowProgress)
         assertTrue(currentWithNewSyncInFlight.isCurrent)
         assertTrue(currentWithNewSyncInFlight.isAuthorityReady)
         assertTrue(currentWithNewSyncInFlight.shouldShowProgress)
@@ -199,7 +211,7 @@ class HnsSyncProgressTest {
         assertEquals(961, progress.progressPermille())
         val summary = progress.summary()
         assertEquals(
-            "syncing • staged validated 324,000 • target 337,000 • HNS root 299,989 ready • staged accepted +24,000",
+            "syncing • staged validated 324,000 • target 337,000 • staged accepted +24,000",
             summary,
         )
         assertFalse(summary.contains("committed"))

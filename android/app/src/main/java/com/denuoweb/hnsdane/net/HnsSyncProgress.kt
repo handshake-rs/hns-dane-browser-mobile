@@ -108,15 +108,9 @@ data class HnsSyncProgress(
                 targetEvidenceExpired == false
         }
 
-    /**
-     * Whether the global diagnostic sync indicator should be visible.
-     *
-     * This is deliberately stricter than [isAuthorityReady]: the latest committed
-     * name-tree root can remain safe to browse while newer headers are still being
-     * synchronized. UI visibility must not be used as a navigation security gate.
-     */
+    /** The global diagnostic sync strip remains visible in every state. */
     val shouldShowProgress: Boolean
-        get() = syncInFlight || !isCurrent
+        get() = true
 
     val shouldContinueSoon: Boolean
         get() = status == "syncing" &&
@@ -164,8 +158,6 @@ data class HnsSyncProgress(
             bestHeightText = { "bestHeight $it" },
             formatHeight = { it.formatHeight() },
             targetText = { "target ${it.formatHeight()}" },
-            rootReadyText = { "HNS root ${it.formatHeight()} ready" },
-            rootRequiredText = { "needs HNS root ${it.formatHeight()}" },
             acceptedText = { "accepted +${it.formatHeight()}" },
             stagedAcceptedText = { "staged accepted +${it.formatHeight()}" },
             peersText = { "peers ${it.formatHeight()}" },
@@ -182,12 +174,6 @@ data class HnsSyncProgress(
             formatHeight = { it.formatHeight(context) },
             targetText = {
                 context.getString(R.string.sync_progress_target, it.formatHeight(context))
-            },
-            rootReadyText = {
-                context.getString(R.string.sync_progress_root_ready, it.formatHeight(context))
-            },
-            rootRequiredText = {
-                context.getString(R.string.sync_progress_root_required, it.formatHeight(context))
             },
             acceptedText = {
                 context.getString(R.string.sync_progress_accepted, it.formatHeight(context))
@@ -207,8 +193,6 @@ data class HnsSyncProgress(
         bestHeightText: (String) -> String,
         formatHeight: (Long) -> String,
         targetText: (Long) -> String,
-        rootReadyText: (Long) -> String,
-        rootRequiredText: (Long) -> String,
         acceptedText: (Long) -> String,
         stagedAcceptedText: (Long) -> String,
         peersText: (Long) -> String,
@@ -220,9 +204,6 @@ data class HnsSyncProgress(
             parts += bestHeightText(formattedBest)
         }
         targetHeight?.let { parts += targetText(it) }
-        authoritativeTreeRootHeight?.let {
-            parts += if (isAuthorityReady) rootReadyText(it) else rootRequiredText(it)
-        }
         if (syncInFlight) {
             stagedAccepted?.let { parts += stagedAcceptedText(it) }
         } else {
