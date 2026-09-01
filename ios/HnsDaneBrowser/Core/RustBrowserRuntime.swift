@@ -421,7 +421,7 @@ final class RustBrowserRuntime: BrowserRuntime {
             if syncInFlight, let stagedBestHeight {
                 details.append("staged validated \(stagedBestHeight)")
             } else if !syncInFlight {
-                details.append("Local height \(best)")
+                details.append("Current height \(best)")
             }
             if let effectiveTargetHeight {
                 details.append("effective target \(effectiveTargetHeight)")

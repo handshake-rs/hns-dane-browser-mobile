@@ -155,7 +155,7 @@ data class HnsSyncProgress(
         return renderSummary(
             statusText = displayStatus,
             formattedBest = bestHeight?.formatHeight() ?: "unknown",
-            bestHeightText = { "bestHeight $it" },
+            bestHeightText = { "current height $it" },
             formatHeight = { it.formatHeight() },
             targetText = { "target ${it.formatHeight()}" },
             peersText = { "peers ${it.formatHeight()}" },

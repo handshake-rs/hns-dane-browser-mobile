@@ -111,7 +111,7 @@
     <string name="sync_progress_preparing">Preparing Handshake synchronization…</string>
     <string name="sync_progress_target">target %1$s</string>
     <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
-    <string name="sync_progress_best_height">bestHeight %1$s</string>
+    <string name="sync_progress_best_height">current height %1$s</string>
     <string name="sync_progress_accepted">accepted +%1$s</string>
     <string name="sync_progress_staged_accepted" translatable="false">staged accepted +%1$s</string>
     <string name="sync_progress_peers">peers %1$s</string>
