@@ -1564,6 +1564,7 @@ final class WalletViewController: UIViewController {
         }
         alert.addTextField { field in
             field.placeholder = "Maximum fee cap in HNS (for example, 0.05)"
+            field.text = "0.05"
             field.keyboardType = .decimalPad
             field.textContentType = nil
             field.accessibilityIdentifier = "wallet.send.maximum-fee"

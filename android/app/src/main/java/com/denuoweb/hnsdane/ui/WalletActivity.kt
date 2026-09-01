@@ -774,7 +774,9 @@ class WalletActivity : ComponentActivity() {
     private fun showHnsSendDialog() {
         val recipientInput = hnsSendRecipientInput()
         val amountInput = hnsSendAmountInput(R.string.wallet_send_amount_hint)
-        val maximumFeeInput = hnsSendAmountInput(R.string.wallet_send_maximum_fee_hint)
+        val maximumFeeInput = hnsSendAmountInput(R.string.wallet_send_maximum_fee_hint).apply {
+            setText(DEFAULT_HNS_MAXIMUM_FEE)
+        }
         sendRecipientInput = recipientInput
         sendAmountInput = amountInput
         sendMaximumFeeInput = maximumFeeInput
@@ -5637,6 +5639,7 @@ class WalletActivity : ComponentActivity() {
         const val MAX_BULK_NAME_IMPORTS = 10_000
         const val MAX_BULK_NAME_FILE_BYTES = 1024 * 1024
         const val MAX_SEND_RECIPIENT_BYTES = 512
+        const val DEFAULT_HNS_MAXIMUM_FEE = "0.05"
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
         const val DEFAULT_OFFER_PAGE_SIZE = 32
