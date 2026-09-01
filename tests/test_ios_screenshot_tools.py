@@ -32,8 +32,8 @@ def live_provenance() -> dict:
         "configuration": "Release",
         "fixtureEnvironmentInjected": False,
         "hnsNavigation": {
-            "requestedURL": "https://denuoweb/",
-            "finalAddress": "https://denuoweb/",
+            "requestedURL": "https://shakescape/",
+            "finalAddress": "https://shakescape/",
             "navigationAttemptCount": 1,
             "retryReason": None,
             "runtimeStatusBeforeNavigation":
@@ -41,14 +41,14 @@ def live_provenance() -> dict:
             "securityLabel": "DANE verified · authoritative DoH",
         },
         "proofDetails": {
-            "sourceRequestedURL": "https://denuoweb/",
-            "contentAccessibilityLabel": "Handshake proof details for denuoweb",
+            "sourceRequestedURL": "https://shakescape/",
+            "contentAccessibilityLabel": "Handshake proof details for shakescape",
         },
         "schemaVersion": LIVE_PROVENANCE_SCHEMA_VERSION,
         "settings": {
             "nativeWalletRowIdentifier": "settings.destination.wallet",
             "nativeWalletRowLabel": "Wallet",
-            "sourceRequestedURL": "https://denuoweb/",
+            "sourceRequestedURL": "https://shakescape/",
             "statelessDANERowIdentifier":
                 "settings.hns-resolution.stateless-dane-certificates",
             "statelessDANEToggleIdentifier":
@@ -367,9 +367,9 @@ class ScreenshotManifestTests(unittest.TestCase):
     def test_rejects_proof_details_for_wrong_host(self) -> None:
         provenance = live_provenance()
         provenance["proofDetails"]["contentAccessibilityLabel"] = (
-            "Handshake proof details for denuowebhttps"
+            "Handshake proof details for shakescapehttps"
         )
-        with self.assertRaisesRegex(ScreenshotToolError, "must identify denuoweb"):
+        with self.assertRaisesRegex(ScreenshotToolError, "must identify shakescape"):
             validate_live_provenance(provenance)
 
     def test_accepts_live_hns_and_automatic_icann_success_evidence(self) -> None:
@@ -457,7 +457,7 @@ class ScreenshotManifestTests(unittest.TestCase):
                 }
             )
             provenance["proofDetails"]["contentAccessibilityLabel"] = (
-                "Handshake proof details for denuowebhttps"
+                "Handshake proof details for shakescapehttps"
             )
             provenance["webPKINavigation"].update(
                 {

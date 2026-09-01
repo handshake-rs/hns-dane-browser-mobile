@@ -62,9 +62,9 @@ RETRYABLE_ICANN_SECURITY_LABELS = {
     RETRYABLE_MISSING_STATUS_SECURITY_LABEL,
 }
 LIVE_TARGETS = {
-    "hnsNavigation": "https://denuoweb/",
-    "settings": "https://denuoweb/",
-    "proofDetails": "https://denuoweb/",
+    "hnsNavigation": "https://shakescape/",
+    "settings": "https://shakescape/",
+    "proofDetails": "https://shakescape/",
     "webPKINavigation": "https://shakescape.com/",
 }
 
@@ -380,9 +380,9 @@ def validate_live_provenance(document: Any) -> dict[str, Any]:
         )
 
     proof_label = document["proofDetails"].get("contentAccessibilityLabel")
-    if proof_label != "Handshake proof details for denuoweb":
+    if proof_label != "Handshake proof details for shakescape":
         raise ScreenshotToolError(
-            "proofDetails.contentAccessibilityLabel must identify denuoweb"
+            "proofDetails.contentAccessibilityLabel must identify shakescape"
         )
     expected_settings_row = "settings.hns-resolution.stateless-dane-certificates"
     if document["settings"].get("statelessDANERowIdentifier") != expected_settings_row:

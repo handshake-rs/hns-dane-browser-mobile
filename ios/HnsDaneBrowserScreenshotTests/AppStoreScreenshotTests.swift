@@ -6,7 +6,7 @@ import XCTest
 /// All four images are captured in one test so Proof Details is guaranteed to
 /// describe the same live HNS navigation shown in the first image.
 final class LiveAppStoreScreenshotTests: XCTestCase {
-    private static let hnsURL = "https://denuoweb/"
+    private static let hnsURL = "https://shakescape/"
     private static let webPKIURL = "https://shakescape.com/"
     private static let retryableDualRootSecurityLabel =
         "The Rust proxy rejected the dual-root response · Dual-root validation failed"
@@ -75,7 +75,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         let currentRuntimeStatus = launchShippingRuntime(requireCurrentHeaders: true)
         var hnsEvidence = try navigateAndWait(
             to: Self.hnsURL,
-            expectedHost: "denuoweb",
+            expectedHost: "shakescape",
             expectedSecurity: .hnsDANE,
             timeout: 180
         )
@@ -464,7 +464,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
                 timeout: timeout,
                 condition: {
                     if proofContent.exists
-                        && proofContent.label == "Handshake proof details for denuoweb" {
+                        && proofContent.label == "Handshake proof details for shakescape" {
                         return true
                     }
                     if self.app.navigationBars["TLSA / DANE Inspector"].exists {
@@ -482,7 +482,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         guard unexpectedDestination == nil else { return [:] }
         XCTAssertEqual(
             proofContent.label,
-            "Handshake proof details for denuoweb",
+            "Handshake proof details for shakescape",
             "HNS proof details content did not match the live HNS navigation"
         )
         assertNoNavigationAlert()

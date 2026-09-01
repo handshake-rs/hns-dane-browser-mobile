@@ -29,7 +29,7 @@ name-operation, and Shakedex marketplace cards are not exposed.
 
 The eight phone screenshots were recaptured on a Pixel 9 at 1080 x 2424 from
 the current `1.0.0-debug` / code `52` application. They cover the local start
-page, the Shakescape ICANN site, the `denuoweb/` HNS site, browser navigation,
+page, the Shakescape ICANN site, the `shakescape/` HNS site, browser navigation,
 the locked wallet, Handshake settings, build diagnostics, and a verified HNS
 proof. The wallet capture deliberately contains no recovery phrase, account ID,
 address, balance, or transaction identifier. The debug capture is suitable for

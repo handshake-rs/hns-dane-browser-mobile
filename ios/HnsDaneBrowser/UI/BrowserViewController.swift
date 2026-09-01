@@ -348,11 +348,7 @@ final class BrowserViewController: UIViewController {
 
         switch scene {
         case .hnsPage, .proofDetails:
-            updateCanonicalAddress(
-                scene == .proofDetails
-                    ? "https://shakeshift/"
-                    : "https://denuoweb/"
-            )
+            updateCanonicalAddress("https://shakescape/")
             updateSecuritySummary(
                 BrowserSecuritySummary(
                     level: .handshakeDANE,
