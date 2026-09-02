@@ -138,6 +138,17 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      - name: Rebuild the qualified gate's ephemeral XCFramework
+        if: ${{ inputs.qualified_gate_run_id != '' && inputs.qualified_gate_commit != '' }}
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.92.0 --profile minimal
+          rustup target add --toolchain 1.92.0 \
+            aarch64-apple-ios \
+            aarch64-apple-ios-sim \
+            x86_64-apple-ios
+          ./scripts/build-rust-ios.sh
+
       - name: Capture mandatory live Release App Store screenshots
         id: live_capture
         run: ./scripts/generate-ios-app-store-screenshots.sh
