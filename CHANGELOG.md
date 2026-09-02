@@ -19,6 +19,11 @@ workspace remains independently versioned at `1.0.0`.
 
 ### Fixed
 
+- Recover an idempotent iOS main-frame navigation from a transient request
+  timeout using the same bounded scoped-proxy/WebView rotation already used
+  for a lost connection. GET and HEAD remain capped at two automatic replays;
+  non-idempotent requests are never replayed.
+
 - Treat a same-owner ICANN CNAME as positive response evidence for the queried
   RR family. Authenticated or proven-insecure CDN aliases retain positive TTL
   and no longer become indeterminate NODATA results on sites such as

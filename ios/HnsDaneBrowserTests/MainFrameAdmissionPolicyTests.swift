@@ -112,91 +112,88 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
         )
     }
 
-    func testConnectionLostFailureReplaysGetAndHeadWithBoundedBackoff() {
-        let error = NSError(
-            domain: NSURLErrorDomain,
-            code: NSURLErrorNetworkConnectionLost
-        )
+    func testTransientFailureReplaysGetAndHeadWithBoundedBackoff() {
+        for errorCode in [NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut] {
+            let error = NSError(
+                domain: NSURLErrorDomain,
+                code: errorCode
+            )
 
-        XCTAssertEqual(
-            policy.evaluate(
-                error: error,
-                matchesTrackedNavigation: true,
-                httpMethod: "GET",
-                automaticReplayCount: 0
-            ),
-            .rotateProxyAndWebView(afterBackoff: 0)
-        )
-        XCTAssertEqual(
-            policy.evaluate(
-                error: error,
-                matchesTrackedNavigation: true,
-                httpMethod: "head",
-                automaticReplayCount: 0
-            ),
-            .rotateProxyAndWebView(afterBackoff: 0)
-        )
-        XCTAssertEqual(
-            policy.evaluate(
-                error: error,
-                matchesTrackedNavigation: true,
-                httpMethod: nil,
-                automaticReplayCount: 0
-            ),
-            .rotateProxyAndWebView(afterBackoff: 0)
-        )
-        XCTAssertEqual(
-            policy.evaluate(
-                error: error,
-                matchesTrackedNavigation: true,
-                httpMethod: "GET",
-                automaticReplayCount: 1
-            ),
-            .rotateProxyAndWebView(afterBackoff: 0.5)
-        )
+            XCTAssertEqual(
+                policy.evaluate(
+                    error: error,
+                    matchesTrackedNavigation: true,
+                    httpMethod: "GET",
+                    automaticReplayCount: 0
+                ),
+                .rotateProxyAndWebView(afterBackoff: 0)
+            )
+            XCTAssertEqual(
+                policy.evaluate(
+                    error: error,
+                    matchesTrackedNavigation: true,
+                    httpMethod: "head",
+                    automaticReplayCount: 0
+                ),
+                .rotateProxyAndWebView(afterBackoff: 0)
+            )
+            XCTAssertEqual(
+                policy.evaluate(
+                    error: error,
+                    matchesTrackedNavigation: true,
+                    httpMethod: nil,
+                    automaticReplayCount: 0
+                ),
+                .rotateProxyAndWebView(afterBackoff: 0)
+            )
+            XCTAssertEqual(
+                policy.evaluate(
+                    error: error,
+                    matchesTrackedNavigation: true,
+                    httpMethod: "GET",
+                    automaticReplayCount: 1
+                ),
+                .rotateProxyAndWebView(afterBackoff: 0.5)
+            )
+        }
     }
 
-    func testConnectionLostFailureIsNeverReplayedMoreThanTwice() {
-        let error = NSError(
-            domain: NSURLErrorDomain,
-            code: NSURLErrorNetworkConnectionLost
-        )
-
-        XCTAssertEqual(
-            policy.evaluate(
-                error: error,
-                matchesTrackedNavigation: true,
-                httpMethod: "GET",
-                automaticReplayCount: 2
-            ),
-            .report
-        )
+    func testTransientFailureIsNeverReplayedMoreThanTwice() {
+        for errorCode in [NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut] {
+            XCTAssertEqual(
+                policy.evaluate(
+                    error: NSError(domain: NSURLErrorDomain, code: errorCode),
+                    matchesTrackedNavigation: true,
+                    httpMethod: "GET",
+                    automaticReplayCount: 2
+                ),
+                .report
+            )
+        }
     }
 
-    func testConnectionLostFailureDoesNotReplayUnsafeMethods() {
-        let error = NSError(
-            domain: NSURLErrorDomain,
-            code: NSURLErrorNetworkConnectionLost
-        )
-
-        XCTAssertEqual(
-            policy.evaluate(
-                error: error,
-                matchesTrackedNavigation: true,
-                httpMethod: "POST",
-                automaticReplayCount: 0
-            ),
-            .report
-        )
-        XCTAssertEqual(
-            policy.evaluate(
-                error: error,
-                matchesTrackedNavigation: true,
-                httpMethod: "PUT",
-                automaticReplayCount: 0
-            ),
-            .report
-        )
+    func testTransientFailureDoesNotReplayUnsafeMethods() {
+        for errorCode in [NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut] {
+            let error = NSError(domain: NSURLErrorDomain, code: errorCode)
+            XCTAssertEqual(
+                policy.evaluate(
+                    error: error,
+                    matchesTrackedNavigation: true,
+                    httpMethod: "POST",
+                    automaticReplayCount: 0
+                ),
+                .report
+            )
+            XCTAssertEqual(
+                policy.evaluate(
+                    error: error,
+                    matchesTrackedNavigation: true,
+                    httpMethod: "PUT",
+                    automaticReplayCount: 0
+                ),
+                .report
+            )
+        }
     }
 
     func testOtherFailuresRemainReportable() {
@@ -216,7 +213,7 @@ final class ProvisionalNavigationFailureRecoveryPolicyTests: XCTestCase {
             policy.evaluate(
                 error: NSError(
                     domain: NSURLErrorDomain,
-                    code: NSURLErrorTimedOut
+                    code: NSURLErrorCannotConnectToHost
                 ),
                 matchesTrackedNavigation: true,
                 httpMethod: "GET",

@@ -78,7 +78,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             expectedHost: "shakescape",
             expectedSecurity: .hnsDANE,
             expectedPageTextFragment: "Explore the web",
-            timeout: 180
+            timeout: 360
         )
         hnsEvidence["runtimeStatusBeforeNavigation"] = currentRuntimeStatus
         capture(named: "LIVE_APPSTORE_SCREENSHOT_01_HNS_PAGE")

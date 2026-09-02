@@ -384,7 +384,10 @@ struct ProvisionalNavigationFailureRecoveryPolicy {
     ) -> ProvisionalNavigationFailureRecoveryDecision {
         guard matchesTrackedNavigation,
               error.domain == NSURLErrorDomain,
-              error.code == NSURLErrorNetworkConnectionLost,
+              [
+                  NSURLErrorNetworkConnectionLost,
+                  NSURLErrorTimedOut,
+              ].contains(error.code),
               (0..<Self.maximumAutomaticReplayCount).contains(automaticReplayCount),
               replayPolicy.allowsAutomaticReplay(httpMethod: httpMethod) else {
             return .report
