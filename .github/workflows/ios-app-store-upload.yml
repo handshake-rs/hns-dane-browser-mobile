@@ -12,8 +12,17 @@ on:
         required: true
         default: false
         type: boolean
+      qualified_gate_run_id:
+        description: Prior upload run whose successful iOS gate may be reused when only release automation changed
+        required: false
+        type: string
+      qualified_gate_commit:
+        description: Exact source commit validated by the reusable prior iOS gate
+        required: false
+        type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -62,8 +71,61 @@ jobs:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
 
+      - name: Validate qualified prior iOS gate
+        if: ${{ inputs.qualified_gate_run_id != '' || inputs.qualified_gate_commit != '' }}
+        env:
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          GH_TOKEN: ${{ github.token }}
+          QUALIFIED_GATE_COMMIT: ${{ inputs.qualified_gate_commit }}
+          QUALIFIED_GATE_RUN_ID: ${{ inputs.qualified_gate_run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$QUALIFIED_GATE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          printf '%s\n' "$QUALIFIED_GATE_COMMIT" | grep -Eq '^[0-9a-f]{40}$'
+          git cat-file -e "${QUALIFIED_GATE_COMMIT}^{commit}"
+          git merge-base --is-ancestor "$QUALIFIED_GATE_COMMIT" "$EXPECTED_COMMIT"
+
+          run_json="$(gh api "repos/$REPOSITORY/actions/runs/$QUALIFIED_GATE_RUN_ID")"
+          jobs_json="$(gh api "repos/$REPOSITORY/actions/runs/$QUALIFIED_GATE_RUN_ID/jobs?per_page=100")"
+          jq -e \
+            --arg qualified_commit "$QUALIFIED_GATE_COMMIT" \
+            '.event == "workflow_dispatch"
+             and .head_branch == "main"
+             and .head_sha == $qualified_commit
+             and .path == ".github/workflows/ios-app-store-upload.yml"' \
+            <<<"$run_json" >/dev/null
+          jq -e \
+            '([.jobs[] | select(.name == "Validate, sign, and upload")] | length) == 1
+             and ([.jobs[] | select(.name == "Validate, sign, and upload")][0].steps
+               | [.[] | select(.name == "Run the complete unsigned iOS gate")]
+               | length) == 1
+             and ([.jobs[] | select(.name == "Validate, sign, and upload")][0].steps
+               | [.[] | select(.name == "Run the complete unsigned iOS gate")][0].conclusion
+               == "success")' \
+            <<<"$jobs_json" >/dev/null
+
+          unexpected=()
+          while IFS= read -r -d '' changed_path; do
+            case "$changed_path" in
+              .github/workflows/ios-app-store-upload.yml|\
+              ios/HnsDaneBrowserScreenshotTests/AppStoreScreenshotTests.swift)
+                ;;
+              *)
+                unexpected+=("$changed_path")
+                ;;
+            esac
+          done < <(git diff --name-only -z "$QUALIFIED_GATE_COMMIT..$EXPECTED_COMMIT" --)
+          if ((${#unexpected[@]})); then
+            printf 'qualified-gate-to-upload diff contains shipping or unapproved path: %s\n' \
+              "${unexpected[@]}" >&2
+            exit 2
+          fi
+          echo "Reusing successful iOS gate from run $QUALIFIED_GATE_RUN_ID at $QUALIFIED_GATE_COMMIT."
+
       - name: Run the complete unsigned iOS gate
         id: ios_gate
+        if: ${{ inputs.qualified_gate_run_id == '' && inputs.qualified_gate_commit == '' }}
         run: ./scripts/run-ios-gate.sh
 
       - name: Upload failed unsigned iOS gate diagnostics
