@@ -264,6 +264,56 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             self.release.screenshot_replacement_confirmation,
         )
 
+    def test_screenshot_cli_is_opt_in_and_confirmation_is_bidirectional(self):
+        parser = release_client.build_parser()
+        base = [
+            "--mode",
+            "apply-metadata",
+            "--expected-commit",
+            "a" * 40,
+            "--expected-version",
+            "1.0.4",
+            "--expected-build",
+            "64",
+        ]
+        self.assertIsNone(parser.parse_args(base).screenshots_dir)
+
+        with (
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    str(SCRIPT),
+                    *base,
+                    "--confirm-metadata",
+                    self.release.metadata_confirmation,
+                    "--screenshots-dir",
+                    "screens",
+                ],
+            ),
+            mock.patch.object(release_client, "load_local_release", return_value=self.release),
+            mock.patch("builtins.print"),
+        ):
+            self.assertEqual(release_client.main(), 2)
+
+        with (
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    str(SCRIPT),
+                    *base,
+                    "--confirm-metadata",
+                    self.release.metadata_confirmation,
+                    "--confirm-screenshot-replacement",
+                    self.release.screenshot_replacement_confirmation,
+                ],
+            ),
+            mock.patch.object(release_client, "load_local_release", return_value=self.release),
+            mock.patch("builtins.print"),
+        ):
+            self.assertEqual(release_client.main(), 2)
+
     def test_release_automation_diff_allows_only_the_pinned_boundary(self):
         with tempfile.TemporaryDirectory() as temporary:
             repository = Path(temporary)
@@ -752,6 +802,15 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn(
             "name: ios-app-store-live-screenshots-"
             "${{ inputs.expected_artifact_commit }}",
+            workflow,
+        )
+        self.assertIn(
+            "if: ${{ inputs.mode != 'discover' && "
+            "inputs.confirm_screenshot_replacement != '' }}",
+            workflow,
+        )
+        self.assertIn(
+            'if [[ -n "$CONFIRM_SCREENSHOT_REPLACEMENT" ]]; then',
             workflow,
         )
         self.assertIn('--expected-commit "$EXPECTED_ARTIFACT_COMMIT"', workflow)

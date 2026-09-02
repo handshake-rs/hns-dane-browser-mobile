@@ -35,6 +35,10 @@ workspace remains independently versioned at `1.0.0`.
   any durable mismatch and never deletes screenshots without the exact
   release-specific replacement confirmation.
 
+- Preserve the current App Store screenshots during ordinary binary, metadata,
+  and submission runs. Live capture, exact screenshot evidence, and screenshot
+  mutation are now explicit opt-ins used only when replacing the store set.
+
 ## 1.0.3 - 2026-09-01
 
 Android `versionCode 55` and iOS build `63` form this platform release. iOS was

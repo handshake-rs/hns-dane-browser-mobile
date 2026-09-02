@@ -391,10 +391,10 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
         capture_index = workflow.index(
-            "Capture mandatory live Release App Store screenshots"
+            "Capture replacement live Release App Store screenshots"
         )
         verify_index = workflow.index(
-            "Verify mandatory screenshots against the exact upload commit"
+            "Verify replacement screenshots against the exact upload commit"
         )
         credential_index = workflow.index("Materialize temporary signing credentials")
         upload_index = workflow.index("Create the signed archive and upload it")
@@ -408,8 +408,17 @@ class IosReleaseWorkflowSafetyTests(unittest.TestCase):
         )
         self.assertNotIn("continue-on-error: true", workflow)
         self.assertNotIn("non-blocking screenshot failure", workflow)
+        self.assertRegex(
+            workflow,
+            r"capture_screenshots:\n(?:\s+.*\n){1,5}\s+default: false",
+        )
+        self.assertGreaterEqual(
+            workflow.count("if: ${{ inputs.capture_screenshots }}"),
+            3,
+        )
         self.assertIn(
-            "if: failure() && steps.live_capture.outcome == 'failure'",
+            "if: failure() && inputs.capture_screenshots && "
+            "steps.live_capture.outcome == 'failure'",
             workflow,
         )
         self.assertIn(

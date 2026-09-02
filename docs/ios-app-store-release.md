@@ -110,11 +110,12 @@ base64 -w0 /trusted/path/app-store.mobileprovision | gh secret set --repo handsh
 The workflow is manual, refuses non-`main` refs, has read-only GitHub
 permissions, and requires the exact lowercase 40-character commit already
 reviewed and qualified. The requested commit must equal the `main` commit
-selected at dispatch. After the complete unsigned simulator/device-link gate,
-the workflow captures four live Release screenshots and fully verifies their
-exact-commit manifest, digests, runtime trust evidence, and visible native
-wallet row. Any screenshot failure stops the job before Apple credentials are
-read or an IPA is uploaded. The workflow then re-reads remote `main` and stops
+selected at dispatch. Screenshot capture defaults off so a binary-only release
+preserves the screenshots already in App Store Connect and cannot be blocked by
+an unrelated capture run. Set `capture_screenshots=true` only when preparing a
+replacement set; that path fully verifies the exact-commit manifest, digests,
+runtime trust evidence, and visible native wallet row before Apple credentials
+are read. The workflow then re-reads remote `main` and stops
 before materializing credentials if the branch moved. The signed-upload helper
 checks the exact clean tracked source and hard-coded repository `main` again
 immediately before Apple's irreversible upload call. A global upload lease also
@@ -137,9 +138,10 @@ gh workflow run ios-app-store-upload.yml \
 The workflow then:
 
 1. runs `scripts/run-ios-gate.sh` with Xcode 26.5/26.6 and the iOS 26.5 SDK;
-2. captures the exact-commit live Release screenshot set, requires the native
-   wallet row to be visibly represented, verifies every digest and provenance
-   field, and retains the set for review; failure blocks all later steps;
+2. skips screenshot work by default; when `capture_screenshots=true`, captures
+   the exact-commit live Release set, requires the native wallet row to be
+   visibly represented, verifies every digest and provenance field, and retains
+   the set for review, with any capture failure blocking all later steps;
 3. rechecks remote `main`, then writes the API key, distribution identity, and
    App Store profile only to the ephemeral runner's private temporary directory;
 4. verifies the identity and profile against the fixed team and bundle IDs,
@@ -162,12 +164,12 @@ GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
 the guarded release-workflow, client, tests, and this release guide; any app or
 metadata change fails closed. Mutation modes additionally require that upload
-run, its verified screenshot artifact, and release-specific confirmation
+run, its retained signed-IPA evidence, and release-specific confirmation
 strings. The client applies and reads back the version/app-info localizations,
-manual release type, exact build, App Review details, and four exact-artifact
-screenshots. `submit` then creates or safely resumes a Review Submission
-containing only this App Store version and marks it submitted as its final
-mutation.
+manual release type, exact build, and App Review details while leaving the
+current screenshots untouched. `submit` then creates or safely resumes a Review
+Submission containing only this App Store version and marks it submitted as its
+final mutation.
 
 ```sh
 expected_commit="$(git rev-parse HEAD)"
@@ -205,11 +207,14 @@ gh workflow run ios-app-store-submit.yml \
 ```
 
 Apple may carry the prior public version's screenshots into a new editable
-version. A byte mismatch still fails closed. After visually reviewing the
-retained exact-artifact images, a metadata-only run may replace only that
-version's mismatching `APP_IPHONE_65` set by adding the exact confirmation
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.4_64`. Without
-that input the client issues no screenshot deletion requests.
+version. The default release path deliberately keeps that set and neither
+downloads nor validates a replacement artifact. To replace it, first run the
+upload workflow with `-f capture_screenshots=true`; after visually reviewing its
+retained exact-artifact images, a metadata or submission run may replace only
+that version's `APP_IPHONE_65` set by adding the exact confirmation
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.4_64`. Replacement
+fails closed on any byte mismatch. Without that input the client performs no
+screenshot upload or deletion requests.
 
 If the exact build is not yet `VALID`, the workflow fails closed before
 submission and can be rerun after processing. It copies the private review

@@ -12,6 +12,11 @@ on:
         required: true
         default: false
         type: boolean
+      capture_screenshots:
+        description: Capture a replacement App Store screenshot set; leave false to retain the current set
+        required: true
+        default: false
+        type: boolean
       qualified_gate_run_id:
         description: Prior upload run whose successful iOS gate may be reused when only release automation changed
         required: false
@@ -110,6 +115,12 @@ jobs:
           while IFS= read -r -d '' changed_path; do
             case "$changed_path" in
               .github/workflows/ios-app-store-upload.yml|\
+              .github/workflows/ios-app-store-submit.yml|\
+              CHANGELOG.md|\
+              docs/ios-app-store-release.md|\
+              scripts/app_store_connect_release.py|\
+              tests/test_app_store_connect_release.py|\
+              tests/test_release_safety.py|\
               ios/HnsDaneBrowserScreenshotTests/AppStoreScreenshotTests.swift)
                 ;;
               *)
@@ -149,12 +160,13 @@ jobs:
             x86_64-apple-ios
           ./scripts/build-rust-ios.sh
 
-      - name: Capture mandatory live Release App Store screenshots
+      - name: Capture replacement live Release App Store screenshots
         id: live_capture
+        if: ${{ inputs.capture_screenshots }}
         run: ./scripts/generate-ios-app-store-screenshots.sh
 
       - name: Upload failed live-capture diagnostics
-        if: failure() && steps.live_capture.outcome == 'failure'
+        if: failure() && inputs.capture_screenshots && steps.live_capture.outcome == 'failure'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ios-app-store-screenshot-diagnostics-${{ inputs.expected_commit }}
@@ -162,7 +174,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Verify mandatory screenshots against the exact upload commit
+      - name: Verify replacement screenshots against the exact upload commit
+        if: ${{ inputs.capture_screenshots }}
         env:
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
         run: |
@@ -170,7 +183,8 @@ jobs:
             --directory build/app-store-live-screenshots \
             --expected-commit "$EXPECTED_COMMIT"
 
-      - name: Retain mandatory screenshots and provenance for human review
+      - name: Retain replacement screenshots and provenance for human review
+        if: ${{ inputs.capture_screenshots }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ios-app-store-live-screenshots-${{ inputs.expected_commit }}

@@ -794,8 +794,6 @@ class ReleaseManager:
         return result
 
     def apply_metadata(self) -> dict[str, Any]:
-        if not self.screenshot_paths:
-            raise ReleaseError("mutating metadata requires verified exact-commit screenshots")
         app = self.find_app()
         app_id = _resource_id(app, "apps")
         version = self.find_version(app_id, self.release.version)
@@ -874,15 +872,20 @@ class ReleaseManager:
         localization_id = _resource_id(localization, "appStoreVersionLocalizations")
         self._upsert_app_info_localization(app_id)
         self._upsert_review_detail(app_id, version_id)
-        screenshot_set = self._ensure_screenshots(localization_id)
+        screenshot_set = None
+        if self.screenshot_paths:
+            screenshot_set = self._ensure_screenshots(localization_id)
         self._verify_readback(app_id, version_id, build_id, localization_id, screenshot_set)
-        return {
+        result = {
             "version": self.release.version,
             "build": self.release.build,
             "metadataReadback": "verified",
-            "screenshotCount": len(self.screenshot_paths),
+            "screenshots": "replaced-and-verified" if self.screenshot_paths else "unchanged",
             "releaseType": "MANUAL",
         }
+        if self.screenshot_paths:
+            result["screenshotCount"] = len(self.screenshot_paths)
+        return result
 
     def _assert_version_editable(self, version: dict[str, Any]) -> None:
         attrs = _resource_attributes(version)
@@ -1401,7 +1404,7 @@ class ReleaseManager:
         version_id: str,
         build_id: str,
         localization_id: str,
-        screenshot_set_id: str,
+        screenshot_set_id: str | None,
     ) -> None:
         version_document = self.api.request("GET", f"/v1/appStoreVersions/{version_id}")
         version = _data_resource(version_document, "appStoreVersions")
@@ -1426,7 +1429,8 @@ class ReleaseManager:
         for field in VERSION_LOCALIZATION_FIELDS:
             if localization_attributes.get(field) != self.release.metadata[field]:
                 raise ReleaseError(f"App Store version localization readback differs for {field}")
-        self._verify_screenshot_resources(self.screenshots(screenshot_set_id))
+        if screenshot_set_id is not None:
+            self._verify_screenshot_resources(self.screenshots(screenshot_set_id))
         detail = self.review_detail(version_id)
         if detail is None or _resource_attributes(detail).get("notes") != self.release.metadata["reviewNotes"]:
             raise ReleaseError("App Review notes readback differs")
@@ -1626,7 +1630,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--expected-build", required=True)
     parser.add_argument("--review-contact-source-version", default="0.5.5")
-    parser.add_argument("--screenshots-dir", default="build/app-store-live-screenshots")
+    parser.add_argument("--screenshots-dir")
     parser.add_argument("--asset-timeout-seconds", type=int, default=300)
     parser.add_argument("--confirm-metadata")
     parser.add_argument("--confirm-screenshot-replacement")
@@ -1654,6 +1658,14 @@ def main() -> int:
             args.confirm_account_readiness,
             args.confirm_screenshot_replacement,
         )
+        if args.screenshots_dir and not args.confirm_screenshot_replacement:
+            raise ReleaseError(
+                "--screenshots-dir requires the exact --confirm-screenshot-replacement value"
+            )
+        if args.confirm_screenshot_replacement and not args.screenshots_dir:
+            raise ReleaseError(
+                "screenshot replacement requires --screenshots-dir with exact-commit evidence"
+            )
         if args.mode == "plan":
             print(json.dumps(local_plan(release), indent=2, sort_keys=True))
             return 0
@@ -1666,6 +1678,7 @@ def main() -> int:
         screenshot_paths = None
         if args.mode in {"apply-metadata", "submit"}:
             verify_exact_current_main(release)
+        if args.screenshots_dir:
             screenshot_paths = verified_screenshot_paths(
                 root, (root / args.screenshots_dir).resolve(), release.artifact_commit
             )

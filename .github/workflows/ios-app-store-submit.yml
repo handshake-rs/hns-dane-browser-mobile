@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       expected_artifact_commit:
-        description: Exact signed IPA and screenshot source commit
+        description: Exact signed IPA source commit; also the screenshot source when replacing them
         required: true
         type: string
       expected_upload_run_id:
@@ -187,6 +187,7 @@ jobs:
           EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          SCREENSHOT_REPLACEMENT: ${{ inputs.confirm_screenshot_replacement }}
           UPLOAD_RUN_ID: ${{ inputs.expected_upload_run_id }}
         run: |
           set -euo pipefail
@@ -212,24 +213,31 @@ jobs:
               echo "the credentialed iOS upload job did not complete successfully" >&2
               exit 2
             }
-          screenshot_artifact="ios-app-store-live-screenshots-${EXPECTED_ARTIFACT_COMMIT}"
           ipa_artifact="ios-app-store-ipa-${EXPECTED_ARTIFACT_COMMIT}"
           jq -e \
-            --arg screenshot_artifact "$screenshot_artifact" \
             --arg ipa_artifact "$ipa_artifact" \
             '([.artifacts[] | select(
-                .name == $screenshot_artifact and .expired == false and .size_in_bytes > 0
-              )] | length) == 1
-             and ([.artifacts[] | select(
                 .name == $ipa_artifact and .expired == false and .size_in_bytes > 0
               )] | length) == 1' \
             <<<"$artifacts_json" >/dev/null || {
-              echo "exact-commit screenshot and signed-IPA evidence must both be retained" >&2
+              echo "exact-commit signed-IPA evidence must be retained" >&2
               exit 2
             }
+          if [[ -n "$SCREENSHOT_REPLACEMENT" ]]; then
+            screenshot_artifact="ios-app-store-live-screenshots-${EXPECTED_ARTIFACT_COMMIT}"
+            jq -e \
+              --arg screenshot_artifact "$screenshot_artifact" \
+              '([.artifacts[] | select(
+                  .name == $screenshot_artifact and .expired == false and .size_in_bytes > 0
+                )] | length) == 1' \
+              <<<"$artifacts_json" >/dev/null || {
+                echo "exact-commit screenshot evidence is required for replacement" >&2
+                exit 2
+              }
+          fi
 
       - name: Download exact-commit App Store screenshots
-        if: ${{ inputs.mode != 'discover' }}
+        if: ${{ inputs.mode != 'discover' && inputs.confirm_screenshot_replacement != '' }}
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ios-app-store-live-screenshots-${{ inputs.expected_artifact_commit }}
@@ -239,7 +247,7 @@ jobs:
           run-id: ${{ inputs.expected_upload_run_id }}
 
       - name: Verify screenshots came from the exact release commit
-        if: ${{ inputs.mode != 'discover' }}
+        if: ${{ inputs.mode != 'discover' && inputs.confirm_screenshot_replacement != '' }}
         env:
           EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
         run: |
@@ -299,11 +307,11 @@ jobs:
           )
           if [[ "$MODE" != discover ]]; then
             arguments+=(
-              --screenshots-dir build/app-store-live-screenshots
               --confirm-metadata "$CONFIRM_METADATA"
             )
             if [[ -n "$CONFIRM_SCREENSHOT_REPLACEMENT" ]]; then
               arguments+=(
+                --screenshots-dir build/app-store-live-screenshots
                 --confirm-screenshot-replacement "$CONFIRM_SCREENSHOT_REPLACEMENT"
               )
             fi
