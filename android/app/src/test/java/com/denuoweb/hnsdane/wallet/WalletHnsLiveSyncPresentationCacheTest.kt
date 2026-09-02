@@ -84,6 +84,27 @@ class WalletHnsLiveSyncPresentationCacheTest {
     }
 
     @Test
+    fun checkpointGapRetainsSingleUseCancellationCapability() {
+        val network = "cache-catchup-cancellation-test"
+        var cancellationRequests = 0
+        val lease = WalletHnsLiveSyncPresentationCache.begin(network) {
+            cancellationRequests += 1
+        }
+        val catchup = catchupProgress(scannedHeight = 20L)
+
+        WalletHnsLiveSyncPresentationCache.finishCatchup(lease, catchup)
+
+        assertTrue(WalletHnsLiveSyncPresentationCache.canRequestCancellation(network))
+        assertTrue(WalletHnsLiveSyncPresentationCache.requestCancellation(network))
+        assertEquals(1, cancellationRequests)
+        assertTrue(lease.cancellationRequested.get())
+        assertTrue(WalletHnsLiveSyncPresentationCache.automaticSyncIsPaused(network))
+        assertFalse(WalletHnsLiveSyncPresentationCache.requestCancellation(network))
+        WalletHnsLiveSyncPresentationCache.resumeAutomaticSync(network)
+        WalletHnsLiveSyncPresentationCache.clear(network)
+    }
+
+    @Test
     fun clearedOrSupersededLeaseCannotResurrectOldProgress() {
         val network = "cache-supersession-test"
         val oldLease = WalletHnsLiveSyncPresentationCache.begin(network)

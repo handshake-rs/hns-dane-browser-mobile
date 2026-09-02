@@ -628,8 +628,9 @@ class WalletActivity : ComponentActivity() {
         // A direct peer synchronization owns the native controller for a
         // bounded network round. Its public progress has a separate mailbox,
         // so never wait for its status mutex on Android's main thread.
+        val hnsSynchronizationActive = hasActiveWalletHnsSynchronization()
         val controllerUnlocked = hasController && (
-            walletHnsSyncInProgress || NativeWalletBridge.status(walletHandle)?.locked == false
+            hnsSynchronizationActive || NativeWalletBridge.status(walletHandle)?.locked == false
         )
         when (
             walletDashboardMode(
@@ -638,7 +639,7 @@ class WalletActivity : ComponentActivity() {
                 hasRetainedSynchronization = hasRetainedHnsSyncPresentation(),
                 hasController = hasController,
                 hasDurableWalletStorage = durableWalletStoragePresent,
-                synchronizationInProgress = walletHnsSyncInProgress,
+                synchronizationInProgress = hnsSynchronizationActive,
                 controllerUnlocked = controllerUnlocked,
             )
         ) {
@@ -648,7 +649,10 @@ class WalletActivity : ComponentActivity() {
             WalletDashboardMode.NoWallet -> renderNoWalletDashboard()
             WalletDashboardMode.LockedWallet -> renderLockedWalletDashboard()
             WalletDashboardMode.UnlockedWallet ->
-                renderUnlockedWalletDashboard(actionsAvailable = !busy)
+                renderUnlockedWalletDashboard(
+                    actionsAvailable = !busy && !hnsSynchronizationActive,
+                    synchronizationInProgress = hnsSynchronizationActive,
+                )
         }
         if (pendingHandshakePayment != null) schedulePendingPaymentPresentation()
     }
@@ -685,7 +689,10 @@ class WalletActivity : ComponentActivity() {
         // a bounded direct-peer operation. Preserve the normal dashboard so
         // returning to Wallet never looks like a reset, but keep every action
         // disabled until this activity holds the replacement controller.
-        renderUnlockedWalletDashboard(actionsAvailable = false)
+        renderUnlockedWalletDashboard(
+            actionsAvailable = false,
+            synchronizationInProgress = true,
+        )
         if (WalletHnsLiveSyncPresentationCache.canRequestCancellation(walletNetwork.id)) {
             dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_wallet)) {
                 addSettingsRow(actionRow(
@@ -738,14 +745,24 @@ class WalletActivity : ComponentActivity() {
         addWalletTiles(locked = true, actionsAvailable = !busy)
     }
 
-    private fun renderUnlockedWalletDashboard(actionsAvailable: Boolean = true) {
+    private fun renderUnlockedWalletDashboard(
+        actionsAvailable: Boolean = true,
+        synchronizationInProgress: Boolean = false,
+    ) {
         dashboardContent.addView(statusCard(
-            label = getString(R.string.wallet_dashboard_unlocked, walletNetwork.displayName(this)),
+            label = getString(
+                if (synchronizationInProgress) {
+                    R.string.wallet_dashboard_synchronizing
+                } else {
+                    R.string.wallet_dashboard_unlocked
+                },
+                walletNetwork.displayName(this),
+            ),
             detail = statusView,
-            inProgress = busy,
+            inProgress = busy || synchronizationInProgress,
         ))
         dashboardContent.addView(walletBalanceCard(actionsAvailable))
-        if (latestReadSnapshot == null || walletHnsSyncInProgress) {
+        if (latestReadSnapshot == null || synchronizationInProgress) {
             dashboardContent.addView(statusCard(
                 label = getString(R.string.wallet_dashboard_sync_attention),
                 detail = readStatusView,
@@ -2296,7 +2313,9 @@ class WalletActivity : ComponentActivity() {
         val presentationLease = WalletHnsLiveSyncPresentationCache.begin(
             walletNetwork.id,
             requestCancellation = {
+                hnsCatchupRetry?.set(false)
                 NativeWalletBridge.cancelHnsSynchronization(handle)
+                runOnUiThread { finishStoppedHnsCatchupIfReady(lease, handle) }
             },
         )
         walletHnsSyncInProgress = true
@@ -2363,17 +2382,19 @@ class WalletActivity : ComponentActivity() {
                 busy = false
                 walletHnsSyncInProgress = false
                 if (liveHnsSyncPoller === poller) liveHnsSyncPoller = null
-                refreshControllerState()
                 when {
                     preflightFailure != null -> {
+                        refreshControllerState()
                         Log.w(TAG, "Direct HNS synchronization preflight rejected the wallet state")
                         resetReadProjection(preflightFailure)
                     }
                     synchronization == null -> {
+                        refreshControllerState(resetReads = false)
                         Log.w(TAG, "Direct HNS synchronization returned no authenticated result")
                         retainReadProjectionAfterRefreshFailure()
                     }
                     synchronization.snapshot != null -> {
+                        refreshControllerState(resetReads = false)
                         Log.i(TAG, "Direct HNS synchronization reached a verified wallet snapshot")
                         renderReadSnapshot(synchronization.snapshot)
                     }
@@ -2384,10 +2405,19 @@ class WalletActivity : ComponentActivity() {
                                 "${synchronization.catchup.scannedHeight ?: synchronization.catchup.birthdayHeight} " +
                                 "of ${synchronization.catchup.scanTargetHeight}",
                         )
-                        renderReadCatchup(synchronization.catchup)
+                        // A bounded checkpoint is an internal yield, not an
+                        // unlock or terminal wallet state. Install the retry
+                        // token before rendering so the dashboard remains one
+                        // continuous synchronization with value actions
+                        // disabled throughout the short checkpoint gap.
                         scheduleHnsCatchupRetry(lease, handle, epoch, authorityGeneration)
+                        statusView.text = getString(R.string.wallet_status_syncing_reads)
+                        renderReadCatchup(synchronization.catchup)
                     }
-                    else -> retainReadProjectionAfterRefreshFailure()
+                    else -> {
+                        refreshControllerState(resetReads = false)
+                        retainReadProjectionAfterRefreshFailure()
+                    }
                 }
                 finishWalletForegroundSyncIfIdle()
             }
@@ -2422,6 +2452,7 @@ class WalletActivity : ComponentActivity() {
                 val mayRetry =
                     retry.get() && hnsCatchupRetry === retry && !busy &&
                         !walletHnsSyncInProgress &&
+                        !WalletHnsLiveSyncPresentationCache.automaticSyncIsPaused(walletNetwork.id) &&
                         walletOperationMayPublish(epoch, lease, handle, authorityGeneration) &&
                         NativeWalletBridge.status(handle)?.locked == false
                 if (mayRetry) {
@@ -2437,10 +2468,34 @@ class WalletActivity : ComponentActivity() {
                             "busy=$busy syncInProgress=$walletHnsSyncInProgress " +
                             "sessionActive=${walletSessionIsActive()}",
                     )
+                    finishStoppedHnsCatchupIfReady(lease, handle)
                     finishWalletForegroundSyncIfIdle()
                 }
             }
         }
+    }
+
+    /**
+     * A Stop Sync tap during the short delay between bounded rounds is already
+     * at a durable checkpoint, so there is no native call to unwind. Restore
+     * ordinary controls immediately instead of waiting for the retry sleeper.
+     */
+    private fun finishStoppedHnsCatchupIfReady(
+        lease: WalletStorageOwnershipGate.Lease,
+        handle: Long,
+    ) {
+        if (
+            !WalletHnsLiveSyncPresentationCache.automaticSyncIsPaused(walletNetwork.id) ||
+                walletHnsSyncInProgress || currentStorageLease() !== lease ||
+                walletHandle != handle
+        ) return
+        hnsCatchupRetry?.set(false)
+        hnsCatchupRetry = null
+        WalletHnsLiveSyncPresentationCache.clear(walletNetwork.id)
+        refreshControllerState(resetReads = false)
+        readStatusView.text = getString(R.string.wallet_reads_sync_stopped_checkpoint)
+        renderWalletDashboard()
+        finishWalletForegroundSyncIfIdle()
     }
 
     private fun revealBitcoinReceiveAddress() {
@@ -5362,16 +5417,17 @@ class WalletActivity : ComponentActivity() {
     ): Boolean {
         val retirementFailed =
             ProcessWalletControllerRetirementFailures.blocks(walletStoragePath)
+        val operationBusy = busy || hasActiveWalletHnsSynchronization()
         if (
             !walletControllerOperationMayBegin(
                 retirementFailed = retirementFailed,
-                busy = busy,
+                busy = operationBusy,
                 ownsCurrentLease = currentStorageLease() === lease,
             )
         ) {
             when {
                 retirementFailed -> showControllerRetirementUncertain()
-                busy -> showWalletBusyFeedback()
+                operationBusy -> showWalletBusyFeedback()
                 else -> statusView.text = getString(R.string.wallet_status_unavailable)
             }
             return false

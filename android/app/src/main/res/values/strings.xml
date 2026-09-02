@@ -372,6 +372,7 @@
     <string name="wallet_status_locking" translatable="false">Locking native wallet…</string>
     <string name="wallet_status_deleting" translatable="false">Deleting the confirmed native wallet…</string>
     <string name="wallet_status_syncing_reads" translatable="false">Synchronizing read-only HNS wallet…</string>
+    <string name="wallet_reads_sync_stopped_checkpoint" translatable="false">HNS synchronization stopped. The last completed durable checkpoint was retained.</string>
     <string name="wallet_status_stopping_sync" translatable="false">Stopping HNS synchronization…</string>
     <string name="wallet_reads_stopping_at_safe_checkpoint" translatable="false">The stop request is active. No additional synchronization batch will start; the last completed durable checkpoint is retained. Protected storage remains owned only while the active atomic call unwinds.</string>
     <string name="wallet_status_preparing_send" translatable="false">Preparing exact HNS send…</string>
@@ -646,6 +647,7 @@
     <string name="wallet_dashboard_send" translatable="false">SEND</string>
     <string name="wallet_dashboard_sync" translatable="false">SYNC</string>
     <string name="wallet_dashboard_sync_attention" translatable="false">SYNC NEEDS ATTENTION</string>
+    <string name="wallet_dashboard_synchronizing" translatable="false">Synchronizing %1$s wallet</string>
     <string name="wallet_dashboard_sync_required" translatable="false">Synchronize to update</string>
     <string name="wallet_dashboard_names" translatable="false">Names</string>
     <string name="wallet_dashboard_bitcoin" translatable="false">Bitcoin</string>

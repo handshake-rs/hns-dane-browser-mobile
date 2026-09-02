@@ -23,6 +23,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Keep Android's bounded HNS catch-up rounds presented as one continuous
+  synchronization. Checkpoint yields no longer flash an ordinary unlocked
+  wallet or briefly expose value actions, and Stop Sync remains available
+  during the short retry gap.
 - Use the process-owned browser's authenticated current HNS height as the
   birthday for a newly generated Android or iOS wallet. The bundled mainnet
   height-300,000 checkpoint remains only a safe fallback and header-verification

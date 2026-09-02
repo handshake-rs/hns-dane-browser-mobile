@@ -75,7 +75,6 @@ internal object WalletHnsLiveSyncPresentationCache {
                 ?.takeIf { entry -> entry.lease === lease }
                 ?.let { entry ->
                     entry.presentation = WalletHnsLiveSyncPresentation.Catchup(progress)
-                    entry.requestCancellation = null
                     entry.acceptsLiveProgress = false
                 }
         }
@@ -89,7 +88,8 @@ internal object WalletHnsLiveSyncPresentationCache {
             entry.requestCancellation != null &&
                 (entry.presentation == null ||
                     entry.presentation is WalletHnsLiveSyncPresentation.Preparing ||
-                    entry.presentation is WalletHnsLiveSyncPresentation.Live)
+                    entry.presentation is WalletHnsLiveSyncPresentation.Live ||
+                    entry.presentation is WalletHnsLiveSyncPresentation.Catchup)
         } == true
     }
 
