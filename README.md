@@ -12,10 +12,10 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 - [GitHub Release v1.0.2](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.2)
 
-Android `1.0.2` / code `54` and iOS `1.0.2` / build `62`, with embedded Rust
-`1.0.0`, are the coordinated current release. This version improves direct HNS
-wallet synchronization, new-wallet birthday selection, pending-send recovery,
-and browser header freshness after returning from the wallet.
+Android `1.0.2` / code `54`, iOS `1.0.3` / build `63`, and embedded Rust
+`1.0.0` are the current platform versions. The Apple-only `1.0.3` patch clears
+a stale recovery placeholder when authenticated browser admission resumes and
+requires live store capture to prove the Shakescape page is visibly rendered.
 
 GitHub Release [`v1.0.2`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.2)
 publishes only the signed Android APK. Google Play production remains on
@@ -41,8 +41,8 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 `31485234945`. Store privacy/category answers still require exact-candidate
 reconciliation before submission.
 
-Current source coordinates Android `1.0.2` / code `54`, iOS `1.0.2` / build
-`62`, and the embedded non-publishable Rust workspace at `1.0.0`. It directly pins
+Current source coordinates Android `1.0.2` / code `54`, iOS `1.0.3` / build
+`63`, and the embedded non-publishable Rust workspace at `1.0.0`. It directly pins
 published `hns-rs 0.4.1`, the `hns-dane-engine` light-client `0.2.3` patch
 cohort, the remaining exact engine/browser-adapter releases, and
 the complete published `hns-wallet-rs 0.2.1` closure. The browser adapters are

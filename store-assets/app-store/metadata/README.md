@@ -1,11 +1,11 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.2` / build
-`62`, bundle ID `com.denuoweb.hnsdane.ios`. The public baseline and historical
+This directory contains the reviewed listing source for iOS `1.0.3` / build
+`63`, bundle ID `com.denuoweb.hnsdane.ios`. The public baseline and historical
 screenshots predate this candidate and are not evidence for it.
 
-- Version: `1.0.2`
-- Build: `62`
+- Version: `1.0.3`
+- Build: `63`
 
 The listing describes the shipping surface: dual-root browsing and one native,
 noncustodial HNS wallet with direct peer synchronization, receive/QR, guarded

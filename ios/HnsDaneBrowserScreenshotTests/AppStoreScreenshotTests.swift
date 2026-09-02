@@ -77,6 +77,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             to: Self.hnsURL,
             expectedHost: "shakescape",
             expectedSecurity: .hnsDANE,
+            expectedPageTextFragment: "Explore the web",
             timeout: 180
         )
         hnsEvidence["runtimeStatusBeforeNavigation"] = currentRuntimeStatus
@@ -93,6 +94,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             to: Self.webPKIURL,
             expectedHost: "shakescape.com",
             expectedSecurity: .icannAuthenticated,
+            expectedPageTextFragment: "Explore the web",
             timeout: 90,
             allowBoundedICANNRetry: true,
             expectedAddressOnFocus: Self.hnsURL
@@ -155,6 +157,7 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         to requestedURL: String,
         expectedHost: String,
         expectedSecurity: SubmissionSecurityExpectation,
+        expectedPageTextFragment: String,
         timeout: TimeInterval,
         allowBoundedICANNRetry: Bool = false,
         expectedAddressOnFocus: String? = nil
@@ -213,13 +216,16 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         )
 
         let webView = app.webViews.firstMatch
+        let expectedPageText = webView.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", expectedPageTextFragment)
+        ).firstMatch
         XCTAssertTrue(
             waitUntil(
                 description: "rendered page for \(expectedHost)",
                 timeout: timeout,
                 condition: {
                     webView.exists
-                        && webView.descendants(matching: .staticText).firstMatch.exists
+                        && expectedPageText.exists
                         && self.app.buttons["Reload"].exists
                 }
             )
@@ -301,6 +307,10 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
         XCTAssertTrue(
             expectedSecurity.matches(finalSecurityLabel),
             "Final security label did not prove the required trust result"
+        )
+        XCTAssertTrue(
+            expectedPageText.exists,
+            "The authenticated result did not leave the expected website content visible"
         )
 
         var evidence: [String: Any] = [

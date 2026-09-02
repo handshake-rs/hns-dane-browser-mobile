@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.3 - 2026-09-01
+
+### Fixed
+
+- Released iOS `1.0.3` (build `63`) as an Apple-only presentation patch;
+  Android remains `1.0.2` (code `54`) and the embedded Rust workspace remains
+  `1.0.0`.
+- Hide the stale header-recovery placeholder when authenticated browser
+  admission resumes, so a verified HNS page already loaded in WebKit becomes
+  visible again after a transient peer failure.
+- Require live App Store capture to prove that the Shakescape website text is
+  visibly rendered, in addition to the exact URL, current headers, verified
+  security result, and Handshake proof evidence.
+
 ## 1.0.2 - 2026-09-01
 
 Android `versionCode 54`, iOS build `62`, and the independently versioned

@@ -9,7 +9,7 @@ mandatory pre-credential gate; capture or verification failure blocks signing
 and upload.
 
 The checked-in images and manifest are retained `0.5.5` history and are not
-submission-ready for the configured `1.0.2` / build `62` candidate. Prior
+submission-ready for the configured `1.0.3` / build `63` candidate. Prior
 code-bearing
 source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including the complete Apple app/simulator gate. No fresh

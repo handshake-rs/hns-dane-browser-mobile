@@ -30,7 +30,7 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 
 
 class ReleaseCandidateMetadataTests(unittest.TestCase):
-    def test_102_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
+    def test_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.2\"$")
         self.assertRegex(gradle, r"(?m)^\s*versionCode = 54$")
@@ -67,8 +67,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertNotIn("b24b66c382de53330ec21dd3137e056a2bea3e2d", lockfile)
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.2$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 62$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.3$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 63$")
 
     def test_unshipped_named_service_market_and_value_closures_stay_absent(self) -> None:
         with (ROOT / "rust/Cargo.lock").open("rb") as source:

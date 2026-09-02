@@ -1399,6 +1399,10 @@ final class BrowserViewController: UIViewController {
         case .resume:
             isProxyAdmissionGranted = true
             coordinator.resume()
+            // A transient peer failure may have presented the retry placeholder
+            // over an already installed WebView. Admission recovery must retire
+            // that stale overlay so the authenticated page is visible again.
+            placeholderLabel.isHidden = true
         case .suspend:
             isProxyAdmissionGranted = false
             coordinator.suspend()

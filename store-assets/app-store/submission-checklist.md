@@ -1,6 +1,6 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.2`, build `62`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
+Candidate: iOS `1.0.3`, build `63`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
 manual release.
 
 ## Source and artifact
