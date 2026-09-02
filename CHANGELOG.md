@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.2 - 2026-09-01
+
+Android `versionCode 54`, iOS build `62`, and the independently versioned
+embedded Rust workspace `1.0.0` form this coordinated mobile release.
+
 ### Added
 
 - Added Android 9 / API 28 and 32-bit `armeabi-v7a` support alongside the

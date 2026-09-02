@@ -2,9 +2,9 @@
 
 Last audited: 2026-09-01
 
-Current Android candidate source is `1.0.1` (`versionCode 53`) and supports
+Current Android candidate source is `1.0.2` (`versionCode 54`) and supports
 Android 9 / API 28 or later. Google Play production remains on `0.5.6` / code
-`47`; no code `53` AAB has been built, uploaded, or submitted.
+`47`; no code `54` AAB has been built, uploaded, or submitted.
 
 This checklist maps Shakescape to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
@@ -88,11 +88,11 @@ behavior against the exact signed candidate before upload.
 | Data safety form | Live reconciliation required | The current `No data collected / No data shared` posture is consistent with Google's open-web, on-device, and user-initiated-transfer exclusions. Confirm current WebView-provider Safe Browsing guidance before resubmission. |
 | Ads declaration | Ready | Declare “No ads.” Donations do not unlock features. |
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
-| App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `53` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
+| App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `54` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
 | Release track | Code 47 production complete | The Android Publisher API committed edit `07330408575596336357` with production status `completed`; `generatedApks/47` returned HTTP `200`. This was an update to an existing public listing, not a first closed-test launch. |
 | CI regression | Current exact-source CI and CodeQL passed | Exact current source `3fff254c9f7f4df535e24256869331111dd0f40f` passed full CI run `33538557957`, including policy, Rust/supply-chain, Android build/unit/bundle, API 37 native instrumentation, the complete Apple gate, and Required CI. Both associated CodeQL workflows also passed. Signed-product, installed-device, Console, and upload gates remain separate. |
-| Store assets | Refresh in progress; live reconciliation pending | The committed Pixel set was captured from `1.0.0-debug` / code `52`; its HNS-site image still shows `denuoweb/`. Refresh it from `1.0.1-debug` / code `53` with the proof-backed `shakescape/` HNS site before a Play submission, then compare the final set and listing text with the live listing. |
+| Store assets | Current Pixel source set ready; live reconciliation pending | Seven 1080 × 2424 images were refreshed from `1.0.2-debug` / code `54`, including the now-live proof-backed `shakescape/` HNS site and proof details. The unchanged version-neutral locked-wallet image remains free of wallet-sensitive values. Compare the final set and listing text with the live listing before upload. |
 
 ## Release Signing
 
@@ -194,7 +194,7 @@ resubmission because Google can rename fields without changing app behavior.
 
 ### Foreground Services
 
-Historical code `47` did not declare a foreground service. Candidate code `53`
+Historical code `47` did not declare a foreground service. Candidate code `54`
 declares the non-exported `WalletSyncForegroundService` with the `dataSync`
 type and requests `FOREGROUND_SERVICE` plus `FOREGROUND_SERVICE_DATA_SYNC`.
 This keeps a user-started bounded wallet synchronization visible while the app
@@ -213,7 +213,7 @@ resubmission:
 - Web browsing: do not declare URLs or browsing history solely because the browser contacts a user-selected site or sends the necessary HNS DNS query to a relay peer. Continue to disclose those network effects, including the relay peer's visibility into queried names/types and the client's network address, in the privacy policy even though Play excludes them from the Data safety form.
 - Default start page: the app loads a bundled `appassets.androidplatform.net` asset with a restrictive Content Security Policy and no network resources; it does not contact a developer server. A remote homepage is loaded only after the user configures one.
 - Safe Browsing: the installed Android WebView provider may check URLs through its Safe Browsing service. Confirm the provider's current Data safety guidance before submission. If it requires declaring a listed data type for this integration, update the form for that flow; do not imply that Denuo Web operates the service.
-- App activity: code `53` stores browsing history, diagnostics, download records, settings, resolver cache, HNS sync/cache state, cookies-adjacent WebView state, and a private network-scoped wallet database plus device-bound wrapped database key locally on device. The wallet connects to Handshake peers for public-chain synchronization and user-approved transaction broadcast. Reconcile the form against Google's current on-device-processing and user-initiated-transfer definitions rather than copying code `47` answers.
+- App activity: code `54` stores browsing history, diagnostics, download records, settings, resolver cache, HNS sync/cache state, cookies-adjacent WebView state, and a private network-scoped wallet database plus device-bound wrapped database key locally on device. The wallet connects to Handshake peers for public-chain synchronization and user-approved transaction broadcast. Reconcile the form against Google's current on-device-processing and user-initiated-transfer definitions rather than copying code `47` answers.
 - Files/docs: user-initiated downloads are saved to public Downloads. Normal WebPKI downloads use Android DownloadManager; HNS downloads are fetched through the native gateway and saved through Android MediaStore.
 - Device or other IDs: `No` unless a future SDK adds one. Current app code does not read advertising ID, IMEI, contacts, installed apps, or account identifiers.
 - Encryption in transit: not applicable when the form correctly remains `No collected / No shared`. If WebView-provider guidance causes a data type to be declared, answer this question for the declared flow rather than for excluded open-web traffic.
@@ -256,7 +256,7 @@ created/restored and no credentialed read or value action ran. Signed AAB
 verification, live Console reconciliation, and intentional upload remain open.
 The current Pixel 9 screenshot set is committed for listing review, but it does
 not replace signed-candidate qualification. No
-credentialed Play operation has been performed for code `53`.
+credentialed Play operation has been performed for code `54`.
 
 Google Play production contains the `0.5.6` / code `47` Android hotfix with
 shared Rust `0.5.6`, built from exact shipping source
@@ -287,7 +287,7 @@ cross-origin physical-device matrix.
 ## Store Listing Draft
 
 The canonical listing under `store-assets/play-store/metadata/en-US/` describes
-the code `53` dual-root browser and direct native HNS wallet. Compare it
+the code `54` dual-root browser and direct native HNS wallet. Compare it
 field-by-field with the public listing; do not reuse the obsolete missing-backend
 or “no payment flow” text.
 

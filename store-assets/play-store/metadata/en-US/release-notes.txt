@@ -1,1 +1,1 @@
-1.0.1 keeps the one-time Android recovery phrase visible while the wallet dashboard redraws after creation. Leaving the wallet screen still securely clears the phrase and removes an unconfirmed wallet.
+1.0.2 improves direct HNS wallet synchronization, new-wallet birthday selection, pending-send recovery, and browser header freshness when returning from the wallet.

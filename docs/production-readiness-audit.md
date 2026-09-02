@@ -2,8 +2,8 @@
 
 Last audited: 2026-09-01
 
-Current source is the Android `1.0.1` patch candidate at code `53`, with embedded
-non-publishable Rust `1.0.0` and iOS `1.0.0` build `61`. Earlier
+Current source coordinates Android `1.0.2` / code `54`, embedded
+non-publishable Rust `1.0.0`, and iOS `1.0.2` / build `62`. Earlier
 HNWR-v2/ECH-and-sync-telemetry code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed exact-source CI and the
 complete Android and Apple platform matrix in run `31807520618`; that evidence
@@ -14,9 +14,8 @@ Rust/supply-chain, Android build/unit, API 37 native-runtime instrumentation,
 the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
 CI. CodeQL runs `31833858421` and `31833858650` also passed.
 Google Play production remains on `0.5.6` / code `47`, GitHub's current Android
-artifact is `1.0.0` / code `52` while `1.0.1` / code `53` is being prepared,
-and Apple's submitted source remains independently versioned at `1.0.0` /
-build `61`.
+artifact is `1.0.1` / code `53` while `1.0.2` / code `54` is being prepared,
+and the coordinated Apple candidate is `1.0.2` / build `62`.
 
 This audit records the release checkpoint for the existing public
 Google Play and Apple App Store apps. Google Play production contains Android
@@ -75,7 +74,7 @@ credential/backend/data boundary.
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| Current source identity | Exact dependency cohort; Android patch candidate open | Android `1.0.1` / code `53` independently advances over iOS `1.0.0` / build `61` and embedded Rust `1.0.0`. HNS, engine, and wallet dependencies remain the exact checksum-bearing published releases, including the complete wallet `0.2.1` cohort. [released-dependency-cohort.md](released-dependency-cohort.md) binds that policy. The final Android source still requires complete CI, CodeQL, signing, screenshot, and store readback qualification. |
+| Current source identity | Exact dependency cohort; coordinated candidate open | Android `1.0.2` / code `54`, iOS `1.0.2` / build `62`, and embedded Rust `1.0.0` use the exact checksum-bearing published HNS, engine, and wallet dependencies, including the complete wallet `0.2.1` cohort. [released-dependency-cohort.md](released-dependency-cohort.md) binds that policy. The final source still requires complete CI, CodeQL, signing, screenshot, and store readback qualification. |
 | Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 47 production complete | Android Publisher edit `07330408575596336357` committed code `47` directly to production with status `completed`; `generatedApks/47` returned HTTP `200`. |

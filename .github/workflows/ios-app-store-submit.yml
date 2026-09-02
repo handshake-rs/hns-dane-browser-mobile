@@ -30,15 +30,15 @@ on:
         default: 0.5.5
         type: string
       confirm_metadata:
-        description: For mutation, enter APPLY_METADATA_1.0.0_61
+        description: For mutation, enter APPLY_METADATA_1.0.2_62
         required: false
         type: string
       confirm_screenshot_replacement:
-        description: To replace a mismatching 6.5-inch set, enter REPLACE_SCREENSHOTS_1.0.0_61
+        description: To replace a mismatching 6.5-inch set, enter REPLACE_SCREENSHOTS_1.0.2_62
         required: false
         type: string
       confirm_submit:
-        description: For submission, enter SUBMIT_FOR_REVIEW_1.0.0_61
+        description: For submission, enter SUBMIT_FOR_REVIEW_1.0.2_62
         required: false
         type: string
       confirm_account_readiness:
@@ -101,7 +101,7 @@ jobs:
               echo "screenshot replacement is only valid for a mutating mode" >&2
               exit 2
             }
-            [[ "$SCREENSHOT_REPLACEMENT" == REPLACE_SCREENSHOTS_1.0.0_61 ]] || {
+            [[ "$SCREENSHOT_REPLACEMENT" == REPLACE_SCREENSHOTS_1.0.2_62 ]] || {
               echo "invalid release-specific screenshot replacement confirmation" >&2
               exit 2
             }
@@ -111,12 +111,12 @@ jobs:
               ;;
             apply-metadata)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.0_61 ]]
+              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.2_62 ]]
               ;;
             submit)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.0_61 ]]
-              [[ "$CONFIRM_SUBMIT" == SUBMIT_FOR_REVIEW_1.0.0_61 ]]
+              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.2_62 ]]
+              [[ "$CONFIRM_SUBMIT" == SUBMIT_FOR_REVIEW_1.0.2_62 ]]
               [[ "$ACCOUNT_READY" == true ]]
               ;;
             *)
@@ -178,8 +178,8 @@ jobs:
             --mode plan \
             --expected-commit "$EXPECTED_COMMIT" \
             --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT" \
-            --expected-version 1.0.0 \
-            --expected-build 61 >/dev/null
+            --expected-version 1.0.2 \
+            --expected-build 62 >/dev/null
 
       - name: Validate the successful exact-commit upload run
         if: ${{ inputs.mode != 'discover' }}
@@ -293,8 +293,8 @@ jobs:
             --mode "$MODE"
             --expected-commit "$EXPECTED_COMMIT"
             --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT"
-            --expected-version 1.0.0
-            --expected-build 61
+            --expected-version 1.0.2
+            --expected-build 62
             --review-contact-source-version "$REVIEW_CONTACT_SOURCE_VERSION"
           )
           if [[ "$MODE" != discover ]]; then

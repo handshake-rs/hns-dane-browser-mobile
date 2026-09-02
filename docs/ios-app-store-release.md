@@ -12,10 +12,10 @@ The committed application identity is:
   rechecked through the public record on 2026-08-09
 - Published iOS build: `0.5.5` (`57`) at source
   `d926561091634cd69fc9b7e79a4b76003fa4ee47`
-- Configured release candidate: `1.0.0` (`61`), not uploaded
+- Configured release candidate: `1.0.2` (`62`), not uploaded
 - Device family: iPhone
 
-Candidate build `61` includes a native-only wallet screen for
+Candidate build `62` includes a native-only wallet screen for
 create/restore/open/status/unlock/lock, one HNS account identity, and strict
 HNWR-v2 read-only fields for balance, distinct HNS payment and name-transfer
 receive targets, history, tracked names, and module status. The decoder retains
@@ -156,7 +156,7 @@ The workflow then:
 
 ## Apply metadata and submit through the API
 
-After the upload run succeeds and build `61` finishes processing, use the
+After the upload run succeeds and build `62` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
@@ -270,9 +270,9 @@ Apple approves it, add the supplied export-compliance code to the next build.
 
 ## Release gate after upload
 
-For `1.0.0`, every item in
+For `1.0.2`, every item in
 `store-assets/app-store/submission-checklist.md` remains a pre-submission gate.
-In particular, build `61` has not been signed, uploaded, processed, selected,
+In particular, build `62` has not been signed, uploaded, processed, selected,
 or submitted. The paragraphs below preserve the public `0.5.5` chronology.
 
 The `0.5.5` version-managed metadata, current iPhone screenshots, App Review

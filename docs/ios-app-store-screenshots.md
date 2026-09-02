@@ -9,7 +9,7 @@ mandatory pre-credential gate; capture or verification failure blocks signing
 and upload.
 
 The checked-in images and manifest are retained `0.5.5` history and are not
-submission-ready for the configured `1.0.0` / build `61` candidate. Prior
+submission-ready for the configured `1.0.2` / build `62` candidate. Prior
 code-bearing
 source `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI
 `31433931682`, including the complete Apple app/simulator gate. No fresh
@@ -36,7 +36,7 @@ malformed revision. Download the artifact named
 requires `manifest.json` to name the same exact commit. The artifact contains:
 
 - `01-hns-page.jpg`, captured after the shipping runtime loads
-  `https://denuoweb/`
+  `https://shakescape/`
 - `02-settings.jpg`, showing the corrected shipping Settings screen with the
   native Handshake wallet row fully visible during that live HNS session
 - `03-proof-details.jpg`, showing the actual proof returned for that same HNS

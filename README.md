@@ -10,14 +10,14 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 
 - [Google Play Store](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
-- [GitHub Release v1.0.1](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.1)
+- [GitHub Release v1.0.2](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.2)
 
-Android `1.0.1` / code `53`, with embedded Rust `1.0.0`, is an Android-only
-recovery-screen patch. It keeps the one-time recovery phrase visible across
-internal dashboard redraws while retaining secure clearing on screen exit. iOS
-remains independently versioned at `1.0.0` / build `61`.
+Android `1.0.2` / code `54` and iOS `1.0.2` / build `62`, with embedded Rust
+`1.0.0`, are the coordinated current release. This version improves direct HNS
+wallet synchronization, new-wallet birthday selection, pending-send recovery,
+and browser header freshness after returning from the wallet.
 
-GitHub Release [`v1.0.1`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.1)
+GitHub Release [`v1.0.2`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.2)
 publishes only the signed Android APK. Google Play production remains on
 `0.5.6` / code `47`; no AAB is part of this GitHub-only patch release.
 
@@ -41,8 +41,8 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 `31485234945`. Store privacy/category answers still require exact-candidate
 reconciliation before submission.
 
-Current source is the Android `1.0.1` patch candidate at code `53`, with the
-embedded non-publishable Rust workspace at `1.0.0` and iOS at `1.0.0` build `61`. It directly pins
+Current source coordinates Android `1.0.2` / code `54`, iOS `1.0.2` / build
+`62`, and the embedded non-publishable Rust workspace at `1.0.0`. It directly pins
 published `hns-rs 0.4.1`, the `hns-dane-engine` light-client `0.2.3` patch
 cohort, the remaining exact engine/browser-adapter releases, and
 the complete published `hns-wallet-rs 0.2.1` closure. The browser adapters are
