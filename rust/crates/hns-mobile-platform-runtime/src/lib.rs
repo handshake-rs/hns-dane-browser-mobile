@@ -8351,11 +8351,12 @@ fn icann_plan_freshness(
         .iter()
         .map(|(request, answer)| {
             let observation = evidence.observation(request).map_err(|_| ())?.ok_or(())?;
-            let contains_requested_rrset = answer
-                .records
-                .iter()
-                .any(|record| record.record_type.code() == request.qtype);
-            let kind_matches = if contains_requested_rrset {
+            let contains_positive_owner_answer = answer.records.iter().any(|record| {
+                record.name == answer.name
+                    && (record.record_type.code() == request.qtype
+                        || record.record_type == RecordType::Cname)
+            });
+            let kind_matches = if contains_positive_owner_answer {
                 observation.kind == IcannResponseKind::Answer
             } else {
                 matches!(
@@ -10550,16 +10551,25 @@ impl IcannEvidenceRecorder {
         message: &DnsMessage,
     ) -> Result<(), ResolverError> {
         let observed_at_unix = now_unix_seconds();
+        let request_owner =
+            DnsName::from_ascii(&request.qname).map_err(|_| ResolverError::InvalidDnsResponse)?;
+        // A same-owner CNAME is a positive answer to every ordinary RR query,
+        // even when the requested RRset exists only at the alias target. CDN
+        // responses commonly contain just that CNAME for AAAA/HTTPS. Treating
+        // such a response as NODATA loses the positive TTL (there is normally
+        // no negative SOA in the packet), so no durable ICANN observation is
+        // recorded and an otherwise valid alias plan becomes indeterminate.
+        let has_positive_owner_answer = message.answers.iter().any(|record| {
+            record.name == request_owner
+                && (record.record_type.code() == request.qtype
+                    || record.record_type == RecordType::Cname)
+        });
         let kind = if message.header.flags.rcode() == DNS_RCODE_NXDOMAIN {
             IcannResponseKind::NxDomain
-        } else if !message
-            .answers
-            .iter()
-            .any(|record| record.record_type.code() == request.qtype)
-        {
-            IcannResponseKind::NoData
-        } else {
+        } else if has_positive_owner_answer {
             IcannResponseKind::Answer
+        } else {
+            IcannResponseKind::NoData
         };
         let ttl = match kind {
             IcannResponseKind::Answer => message
@@ -26599,6 +26609,57 @@ mod tests {
 
         assert_eq!(freshness.observed_at_unix(), now);
         assert_eq!(freshness.expires_at_unix(), now + 5);
+    }
+
+    #[test]
+    fn icann_cname_only_response_records_positive_freshness_without_negative_soa() {
+        let now = now_unix_seconds();
+        let owner = DnsName::from_ascii("www.example").unwrap();
+        let request = ResolutionRequest {
+            qname: owner.to_string(),
+            qtype: RecordType::Aaaa.code(),
+        };
+        let message = DnsMessage {
+            header: DnsHeader {
+                id: DOH_DNS_ID,
+                flags: DnsFlags::new(0x8180),
+                question_count: 1,
+                answer_count: 1,
+                authority_count: 0,
+                additional_count: 0,
+            },
+            questions: vec![DnsQuestion {
+                name: owner.clone(),
+                record_type: RecordType::Aaaa,
+                class: DNS_CLASS_IN,
+            }],
+            answers: vec![cname_record("www.example", "edge.example")],
+            authorities: Vec::new(),
+            additionals: Vec::new(),
+        };
+        let evidence = IcannEvidenceRecorder::default();
+
+        evidence.record_response(&request, &message).unwrap();
+        let observation = evidence.observation(&request).unwrap().unwrap();
+
+        assert_eq!(observation.kind, IcannResponseKind::Answer);
+        assert!(!observation.secure);
+        assert!(observation.observed_at_unix >= now);
+        assert_eq!(
+            observation.expires_at_unix,
+            observation.observed_at_unix + 20
+        );
+
+        let answers = HashMap::from([(
+            request,
+            resolution_answer(
+                "www.example",
+                vec![cname_record("www.example", "edge.example")],
+                false,
+            ),
+        )]);
+        let freshness = icann_plan_freshness(&answers, &evidence, now_unix_seconds()).unwrap();
+        assert_eq!(freshness.expires_at_unix(), observation.expires_at_unix);
     }
 
     #[test]

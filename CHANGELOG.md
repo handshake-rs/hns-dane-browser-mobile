@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Register the Android launcher as an unscoped `http`/`https` browser target,
+  forward system-opened web URLs through the existing strict navigation
+  classifier, and advertise the Android browser-app category so Shakescape can
+  appear in Default apps.
+- Prepare iOS for Apple's managed default-browser capability by registering the
+  `http` and `https` URL schemes, wiring the reviewed
+  `com.apple.developer.web-browser` entitlement, and requiring the App Store
+  provisioning profile to contain that entitlement before release signing.
+
+### Fixed
+
+- Treat a same-owner ICANN CNAME as positive response evidence for the queried
+  RR family. CNAME-only CDN answers now retain their authenticated or
+  proven-insecure positive TTL instead of being misclassified as NODATA without
+  a negative SOA, fixing indeterminate dual-root failures on redirected sites
+  such as `www.foxnews.com` and `www.weather.gov` without weakening DNSSEC,
+  namespace-selection, or endpoint-lineage validation.
+- Keep polling App Store Connect after screenshot assets first report complete
+  until their exact filenames, sizes, and checksums converge, and accept either
+  hexadecimal checksum case. The guarded release client remains fail-closed on
+  any durable mismatch and never deletes screenshots without the exact
+  release-specific replacement confirmation.
+
 ## 1.0.3 - 2026-09-01
 
 ### Fixed

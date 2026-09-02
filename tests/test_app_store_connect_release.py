@@ -639,6 +639,51 @@ class SubmissionSafetyTests(unittest.TestCase):
                     self.assertEqual(uploads, expected_uploads)
                     self.assertFalse(any(event[0] == "DELETE" for event in api.events))
 
+    def test_exact_screenshot_checksum_readback_is_case_insensitive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            screenshot = Path(temporary) / "01-home.jpg"
+            screenshot.write_bytes(b"exact screenshot")
+            resource = complete_screenshot(
+                "exact-one",
+                screenshot.name,
+                screenshot.read_bytes(),
+            )
+            resource["attributes"]["sourceFileChecksum"] = resource["attributes"][
+                "sourceFileChecksum"
+            ].upper()
+            api = ScreenshotApi([resource])
+            manager = self.make_manager(api, allow_screenshot_replacement=True)
+            manager.screenshot_paths = [screenshot]
+
+            manager._ensure_screenshots("localization")
+
+            self.assertFalse(any(event[0] == "DELETE" for event in api.events))
+
+    def test_complete_screenshot_readback_waits_for_exact_fields_to_converge(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            screenshot = Path(temporary) / "01-home.jpg"
+            screenshot.write_bytes(b"exact screenshot")
+            stale = complete_screenshot(
+                "exact-one",
+                "stale-name.jpg",
+                screenshot.read_bytes(),
+            )
+            exact = complete_screenshot(
+                "exact-one",
+                screenshot.name,
+                screenshot.read_bytes(),
+            )
+            manager = self.make_manager(FakeApi())
+            manager.screenshot_paths = [screenshot]
+
+            with (
+                mock.patch.object(manager, "screenshots", side_effect=[[stale], [exact]]),
+                mock.patch.object(release_client.time, "sleep") as sleep,
+            ):
+                manager._wait_for_screenshots("iphone-65-set")
+
+            sleep.assert_called_once_with(5)
+
     def test_asset_upload_operations_must_cover_file_and_cannot_set_auth(self):
         with tempfile.TemporaryDirectory() as temporary:
             screenshot = Path(temporary) / "screen.jpg"

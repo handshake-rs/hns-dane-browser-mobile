@@ -1219,7 +1219,11 @@ class ReleaseManager:
             state = delivery.get("state") if isinstance(delivery, dict) else None
             checksum = hashlib.md5(path.read_bytes()).hexdigest()  # noqa: S324 - Apple API contract
             if state == "COMPLETE":
-                if attributes.get("sourceFileChecksum") != checksum:
+                source_checksum = attributes.get("sourceFileChecksum")
+                if (
+                    not isinstance(source_checksum, str)
+                    or source_checksum.casefold() != checksum
+                ):
                     raise ScreenshotSetMismatch(
                         "the existing App Store screenshot set differs from the exact release set; "
                         "refusing destructive replacement without its release-specific confirmation"
@@ -1261,10 +1265,12 @@ class ReleaseManager:
             delivery = attributes.get("assetDeliveryState")
             state = delivery.get("state") if isinstance(delivery, dict) else None
             checksum = hashlib.md5(path.read_bytes()).hexdigest()  # noqa: S324 - Apple API contract
+            source_checksum = attributes.get("sourceFileChecksum")
             if (
                 attributes.get("fileName") != path.name
                 or attributes.get("fileSize") != path.stat().st_size
-                or attributes.get("sourceFileChecksum") != checksum
+                or not isinstance(source_checksum, str)
+                or source_checksum.casefold() != checksum
                 or state != "COMPLETE"
             ):
                 raise ScreenshotSetMismatch(
@@ -1372,11 +1378,21 @@ class ReleaseManager:
             if len(states) == len(self.screenshot_paths or []) and states and all(
                 state == "COMPLETE" for state in states
             ):
-                return
+                try:
+                    self._verify_screenshot_resources(resources)
+                    return
+                except ScreenshotSetMismatch:
+                    # App Store Connect can expose COMPLETE before every
+                    # filename/checksum field has converged on the collection
+                    # readback. Keep polling the already uploaded resources;
+                    # do not delete or reserve another screenshot here.
+                    pass
             if any(state == "FAILED" for state in states):
                 raise ReleaseError("App Store Connect rejected a screenshot during processing")
             if time.monotonic() >= deadline:
-                raise ReleaseError("timed out waiting for App Store screenshots to process")
+                raise ReleaseError(
+                    "timed out waiting for exact App Store screenshot readback"
+                )
             time.sleep(5)
 
     def _verify_readback(

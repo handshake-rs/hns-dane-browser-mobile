@@ -87,6 +87,8 @@ class HnsSyncForegroundServiceManifestTest {
         assertNotNull(launcher)
         assertEquals("true", launcher?.getAttributeNS(ANDROID_NS, "exported"))
         assertTrue(launcher.hasLauncherIntentFilter())
+        assertTrue(launcher.hasDefaultBrowserViewFilter())
+        assertTrue(launcher.hasAppBrowserIntentFilter())
     }
 
     private fun locateManifest(): File {
@@ -116,6 +118,34 @@ class HnsSyncForegroundServiceManifestTest {
             .any { filter ->
                 filter.getElementsByTagName("action").hasAndroidName("android.intent.action.MAIN") &&
                     filter.getElementsByTagName("category").hasAndroidName("android.intent.category.LAUNCHER")
+            }
+    }
+
+    private fun Element?.hasDefaultBrowserViewFilter(): Boolean {
+        val element = this ?: return false
+        return element.getElementsByTagName("intent-filter")
+            .elements()
+            .any { filter ->
+                val categories = filter.getElementsByTagName("category")
+                val schemes = filter.getElementsByTagName("data")
+                    .elements()
+                    .map { it.getAttributeNS(ANDROID_NS, "scheme") }
+                    .toSet()
+                filter.getElementsByTagName("action").hasAndroidName("android.intent.action.VIEW") &&
+                    categories.hasAndroidName("android.intent.category.DEFAULT") &&
+                    categories.hasAndroidName("android.intent.category.BROWSABLE") &&
+                    schemes == setOf("http", "https")
+            }
+    }
+
+    private fun Element?.hasAppBrowserIntentFilter(): Boolean {
+        val element = this ?: return false
+        return element.getElementsByTagName("intent-filter")
+            .elements()
+            .any { filter ->
+                filter.getElementsByTagName("action").hasAndroidName("android.intent.action.MAIN") &&
+                    filter.getElementsByTagName("category")
+                        .hasAndroidName("android.intent.category.APP_BROWSER")
             }
     }
 

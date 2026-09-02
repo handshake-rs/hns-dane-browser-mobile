@@ -5,12 +5,13 @@ import android.content.Intent
 import android.os.Bundle
 
 /**
- * Exported entry point for the system launcher and Handshake payment URIs.
+ * Exported entry point for the system launcher, browser URLs, and Handshake payment URIs.
  *
  * Keeping the browser activity non-exported prevents other apps from supplying
  * internal navigation extras that would otherwise be loaded with this app's
- * WebView cookies and storage. The only external data forwarded here is an
- * untrusted `handshake:` string for strict parsing by the wallet screen.
+ * WebView cookies and storage. External `http` and `https` data is forwarded
+ * only as an untrusted address for the browser's strict classifier; an
+ * untrusted `handshake:` string is forwarded for strict wallet parsing.
  */
 class LauncherActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,10 +29,22 @@ class LauncherActivity : Activity() {
             finish()
             return
         }
-        startActivity(
-            Intent(this, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
-        )
+        val browserUrl = intent
+            .takeIf { it.action == Intent.ACTION_VIEW }
+            ?.dataString
+            ?.takeIf { intent.data?.scheme?.lowercase() in WEB_SCHEMES }
+        val browserIntent = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (browserUrl != null) {
+            browserIntent
+                .putExtra(MainActivity.EXTRA_LOAD_URL, browserUrl)
+                .putExtra(MainActivity.EXTRA_RETURN_TO_BACKGROUND_AFTER_BROWSER, true)
+        }
+        startActivity(browserIntent)
         finish()
+    }
+
+    private companion object {
+        val WEB_SCHEMES = setOf("http", "https")
     }
 }

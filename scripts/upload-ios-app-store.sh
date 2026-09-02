@@ -164,6 +164,12 @@ profile_team_id="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$profil
 profile_app_id="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$profile_plist")"
 profile_get_task_allow="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' "$profile_plist")"
 profile_beta_reports_active="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:beta-reports-active' "$profile_plist")"
+if ! profile_default_browser="$(
+  /usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.web-browser' \
+    "$profile_plist" 2>/dev/null
+)"; then
+  fail "the App Store profile does not include Apple's managed default-browser entitlement. Request approval and regenerate the profile."
+fi
 [[ "$profile_uuid" =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ ]] ||
   fail "the provisioning profile has an invalid UUID."
 [[ "$profile_team_id" == "$TEAM_ID" ]] ||
@@ -174,6 +180,8 @@ profile_beta_reports_active="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:b
   fail "the provisioning profile is not an App Store distribution profile."
 [[ "$profile_beta_reports_active" == true ]] ||
   fail "the provisioning profile is not enabled for App Store beta distribution."
+[[ "$profile_default_browser" == true ]] ||
+  fail "the App Store profile has not enabled Apple's managed default-browser entitlement."
 if /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$profile_plist" >/dev/null 2>&1; then
   fail "the provisioning profile is device-bound instead of App Store distribution."
 fi
