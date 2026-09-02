@@ -8,10 +8,8 @@ import java.util.jar.JarFile
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
+private val ELF32_HEADER_SIZE = 52
 private val ELF64_HEADER_SIZE = 64
-private val ELF64_PROGRAM_HEADER_SIZE = 56
-private val ELF64_SECTION_HEADER_SIZE = 64
-private val ELF64_DYNAMIC_ENTRY_SIZE = 16L
 private val ET_DYN = 3
 private val PT_LOAD = 1L
 private val PT_DYNAMIC = 2L
@@ -41,6 +39,31 @@ private data class ElfSection(
     val type: Long,
     val offset: Long,
     val size: Long,
+)
+
+private data class ElfLayout(
+    val label: String,
+    val is64Bit: Boolean,
+    val headerSize: Int,
+    val programHeaderOffsetField: Int,
+    val sectionHeaderOffsetField: Int,
+    val programHeaderEntrySizeField: Int,
+    val programHeaderCountField: Int,
+    val sectionHeaderEntrySizeField: Int,
+    val sectionHeaderCountField: Int,
+    val sectionNameTableIndexField: Int,
+    val minimumProgramHeaderSize: Int,
+    val minimumSectionHeaderSize: Int,
+    val sectionOffsetField: Int,
+    val sectionSizeField: Int,
+    val programFlagsField: Int,
+    val programOffsetField: Int,
+    val programVirtualAddressField: Int,
+    val programFileSizeField: Int,
+    val programMemorySizeField: Int,
+    val programAlignmentField: Int,
+    val dynamicEntrySize: Long,
+    val dynamicValueField: Int,
 )
 
 private data class ElfInspection(
@@ -79,10 +102,73 @@ private fun readBundleEntry(zip: ZipFile, entry: ZipEntry): ByteArray {
 }
 
 private fun expectedElfMachine(abi: String): Int = when (abi) {
+    "armeabi-v7a" -> 40
     "arm64-v8a" -> 183
     "x86_64" -> 62
     else -> error("Unsupported native ABI in release bundle: $abi")
 }
+
+private fun elfLayout(name: String, bytes: ByteArray): ElfLayout {
+    check(bytes.size >= ELF32_HEADER_SIZE) { "$name is too small to be an ELF file." }
+    return when (bytes[4].toInt()) {
+        1 -> ElfLayout(
+            label = "ELF32",
+            is64Bit = false,
+            headerSize = ELF32_HEADER_SIZE,
+            programHeaderOffsetField = 28,
+            sectionHeaderOffsetField = 32,
+            programHeaderEntrySizeField = 42,
+            programHeaderCountField = 44,
+            sectionHeaderEntrySizeField = 46,
+            sectionHeaderCountField = 48,
+            sectionNameTableIndexField = 50,
+            minimumProgramHeaderSize = 32,
+            minimumSectionHeaderSize = 40,
+            sectionOffsetField = 16,
+            sectionSizeField = 20,
+            programFlagsField = 24,
+            programOffsetField = 4,
+            programVirtualAddressField = 8,
+            programFileSizeField = 16,
+            programMemorySizeField = 20,
+            programAlignmentField = 28,
+            dynamicEntrySize = 8L,
+            dynamicValueField = 4,
+        )
+        2 -> ElfLayout(
+            label = "ELF64",
+            is64Bit = true,
+            headerSize = ELF64_HEADER_SIZE,
+            programHeaderOffsetField = 32,
+            sectionHeaderOffsetField = 40,
+            programHeaderEntrySizeField = 54,
+            programHeaderCountField = 56,
+            sectionHeaderEntrySizeField = 58,
+            sectionHeaderCountField = 60,
+            sectionNameTableIndexField = 62,
+            minimumProgramHeaderSize = 56,
+            minimumSectionHeaderSize = 64,
+            sectionOffsetField = 24,
+            sectionSizeField = 32,
+            programFlagsField = 4,
+            programOffsetField = 8,
+            programVirtualAddressField = 16,
+            programFileSizeField = 32,
+            programMemorySizeField = 40,
+            programAlignmentField = 48,
+            dynamicEntrySize = 16L,
+            dynamicValueField = 8,
+        )
+        else -> error("$name has an unsupported ELF class.")
+    }.also { layout ->
+        check(bytes.size >= layout.headerSize) {
+            "$name is too small for its ${layout.label} header."
+        }
+    }
+}
+
+private fun readElfWord(elf: ByteBuffer, layout: ElfLayout, offset: Int): Long =
+    if (layout.is64Bit) elf.getLong(offset) else elf.getInt(offset).toLong() and 0xffff_ffffL
 
 private fun readGnuBuildId(name: String, bytes: ByteArray, section: ElfSection): ByteArray {
     val elf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
@@ -122,14 +208,14 @@ private fun readGnuBuildId(name: String, bytes: ByteArray, section: ElfSection):
 }
 
 private fun inspectElf(name: String, bytes: ByteArray, expectedMachine: Int): ElfInspection {
-    check(bytes.size >= ELF64_HEADER_SIZE) { "$name is too small to be an ELF64 file." }
+    check(bytes.size >= ELF32_HEADER_SIZE) { "$name is too small to be an ELF file." }
     check(
         bytes[0] == 0x7f.toByte() &&
             bytes[1] == 'E'.code.toByte() &&
             bytes[2] == 'L'.code.toByte() &&
             bytes[3] == 'F'.code.toByte(),
     ) { "$name does not have an ELF header." }
-    check(bytes[4].toInt() == 2) { "$name is not an ELF64 file." }
+    val layout = elfLayout(name, bytes)
     check(bytes[5].toInt() == 1) { "$name is not a little-endian ELF file." }
     check(bytes[6].toInt() == 1) { "$name has an unsupported ELF version." }
 
@@ -141,13 +227,13 @@ private fun inspectElf(name: String, bytes: ByteArray, expectedMachine: Int): El
         "$name has ELF machine $machine; expected $expectedMachine."
     }
 
-    val sectionHeaderOffset = elf.getLong(40)
-    val sectionHeaderEntrySize = elf.getShort(58).toInt() and 0xffff
-    val sectionHeaderCount = elf.getShort(60).toInt() and 0xffff
-    val sectionNameTableIndex = elf.getShort(62).toInt() and 0xffff
+    val sectionHeaderOffset = readElfWord(elf, layout, layout.sectionHeaderOffsetField)
+    val sectionHeaderEntrySize = elf.getShort(layout.sectionHeaderEntrySizeField).toInt() and 0xffff
+    val sectionHeaderCount = elf.getShort(layout.sectionHeaderCountField).toInt() and 0xffff
+    val sectionNameTableIndex = elf.getShort(layout.sectionNameTableIndexField).toInt() and 0xffff
     check(sectionHeaderOffset >= 0L) { "$name has a negative section-header offset." }
-    check(sectionHeaderEntrySize >= ELF64_SECTION_HEADER_SIZE) {
-        "$name has an undersized ELF64 section-header entry: $sectionHeaderEntrySize"
+    check(sectionHeaderEntrySize >= layout.minimumSectionHeaderSize) {
+        "$name has an undersized ${layout.label} section-header entry: $sectionHeaderEntrySize"
     }
     check(sectionHeaderCount > 0) { "$name has no section headers." }
     check(sectionNameTableIndex in 1 until sectionHeaderCount) {
@@ -165,8 +251,16 @@ private fun inspectElf(name: String, bytes: ByteArray, expectedMachine: Int): El
         (sectionHeaderOffset + index.toLong() * sectionHeaderEntrySize.toLong()).toInt()
 
     val sectionNameTableHeader = sectionHeader(sectionNameTableIndex)
-    val sectionNameTableOffset = elf.getLong(sectionNameTableHeader + 24)
-    val sectionNameTableSize = elf.getLong(sectionNameTableHeader + 32)
+    val sectionNameTableOffset = readElfWord(
+        elf,
+        layout,
+        sectionNameTableHeader + layout.sectionOffsetField,
+    )
+    val sectionNameTableSize = readElfWord(
+        elf,
+        layout,
+        sectionNameTableHeader + layout.sectionSizeField,
+    )
     check(sectionNameTableOffset >= 0L && sectionNameTableSize > 0L) {
         "$name has an invalid section-name string table."
     }
@@ -190,8 +284,8 @@ private fun inspectElf(name: String, bytes: ByteArray, expectedMachine: Int): El
         check(nameEnd < sectionNameTableEnd) { "$name section $index has an unterminated name." }
 
         val sectionType = elf.getInt(header + 4).toLong() and 0xffff_ffffL
-        val sectionOffset = elf.getLong(header + 24)
-        val sectionSize = elf.getLong(header + 32)
+        val sectionOffset = readElfWord(elf, layout, header + layout.sectionOffsetField)
+        val sectionSize = readElfWord(elf, layout, header + layout.sectionSizeField)
         check(sectionOffset >= 0L && sectionSize >= 0L) {
             "$name section $index has negative bounds."
         }
@@ -232,12 +326,13 @@ private fun inspectDynamicHardening(
     programHeaderIndex: Int,
     fileOffset: Long,
     fileSize: Long,
+    layout: ElfLayout,
 ): DynamicHardening {
     check(fileOffset >= 0L && fileSize > 0L) {
         "$name has invalid PT_DYNAMIC bounds in program header $programHeaderIndex."
     }
-    check(fileSize % ELF64_DYNAMIC_ENTRY_SIZE == 0L) {
-        "$name PT_DYNAMIC size is not a multiple of the ELF64 dynamic-entry size."
+    check(fileSize % layout.dynamicEntrySize == 0L) {
+        "$name PT_DYNAMIC size is not a multiple of the ${layout.label} dynamic-entry size."
     }
     check(fileOffset <= fileLength && fileSize <= fileLength - fileOffset) {
         "$name has an out-of-bounds PT_DYNAMIC segment."
@@ -246,12 +341,12 @@ private fun inspectDynamicHardening(
     var hasTerminator = false
     var hasTextRelocations = false
     var hasImmediateBinding = false
-    val dynamicEntryCount = fileSize / ELF64_DYNAMIC_ENTRY_SIZE
+    val dynamicEntryCount = fileSize / layout.dynamicEntrySize
     for (index in 0 until dynamicEntryCount.toInt()) {
-        val entryOffset = fileOffset + index.toLong() * ELF64_DYNAMIC_ENTRY_SIZE
+        val entryOffset = fileOffset + index.toLong() * layout.dynamicEntrySize
         val entry = entryOffset.toInt()
-        val tag = elf.getLong(entry)
-        val value = elf.getLong(entry + 8)
+        val tag = readElfWord(elf, layout, entry)
+        val value = readElfWord(elf, layout, entry + layout.dynamicValueField)
         if (tag == DT_NULL) {
             hasTerminator = true
             break
@@ -279,12 +374,13 @@ private fun require16KiBElf(
     val abi = name.removePrefix("base/lib/").substringBefore('/')
     val inspection = inspectElf(name, bytes, expectedElfMachine(abi))
     val elf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-    val programHeaderOffset = elf.getLong(32)
-    val programHeaderEntrySize = elf.getShort(54).toInt() and 0xffff
-    val programHeaderCount = elf.getShort(56).toInt() and 0xffff
+    val layout = elfLayout(name, bytes)
+    val programHeaderOffset = readElfWord(elf, layout, layout.programHeaderOffsetField)
+    val programHeaderEntrySize = elf.getShort(layout.programHeaderEntrySizeField).toInt() and 0xffff
+    val programHeaderCount = elf.getShort(layout.programHeaderCountField).toInt() and 0xffff
     check(programHeaderOffset >= 0L) { "$name has a negative program-header offset." }
-    check(programHeaderEntrySize >= ELF64_PROGRAM_HEADER_SIZE) {
-        "$name has an undersized ELF64 program-header entry: $programHeaderEntrySize"
+    check(programHeaderEntrySize >= layout.minimumProgramHeaderSize) {
+        "$name has an undersized ${layout.label} program-header entry: $programHeaderEntrySize"
     }
     check(programHeaderCount > 0) { "$name has no program headers." }
 
@@ -307,7 +403,7 @@ private fun require16KiBElf(
         val headerOffset = programHeaderOffset + index.toLong() * programHeaderEntrySize.toLong()
         val header = headerOffset.toInt()
         val type = elf.getInt(header).toLong() and 0xffff_ffffL
-        val flags = elf.getInt(header + 4).toLong() and 0xffff_ffffL
+        val flags = elf.getInt(header + layout.programFlagsField).toLong() and 0xffff_ffffL
         if (type == PT_GNU_RELRO) {
             hasGnuRelro = true
         }
@@ -322,8 +418,9 @@ private fun require16KiBElf(
                 elf = elf,
                 fileLength = bytes.size.toLong(),
                 programHeaderIndex = index,
-                fileOffset = elf.getLong(header + 8),
-                fileSize = elf.getLong(header + 32),
+                fileOffset = readElfWord(elf, layout, header + layout.programOffsetField),
+                fileSize = readElfWord(elf, layout, header + layout.programFileSizeField),
+                layout = layout,
             )
             hasTextRelocations = hasTextRelocations || dynamicHardening.hasTextRelocations
             hasImmediateBinding = hasImmediateBinding || dynamicHardening.hasImmediateBinding
@@ -333,11 +430,15 @@ private fun require16KiBElf(
         }
 
         loadSegmentCount += 1
-        val fileOffset = elf.getLong(header + 8)
-        val virtualAddress = elf.getLong(header + 16)
-        val fileSize = elf.getLong(header + 32)
-        val memorySize = elf.getLong(header + 40)
-        val alignment = elf.getLong(header + 48)
+        val fileOffset = readElfWord(elf, layout, header + layout.programOffsetField)
+        val virtualAddress = readElfWord(
+            elf,
+            layout,
+            header + layout.programVirtualAddressField,
+        )
+        val fileSize = readElfWord(elf, layout, header + layout.programFileSizeField)
+        val memorySize = readElfWord(elf, layout, header + layout.programMemorySizeField)
+        val alignment = readElfWord(elf, layout, header + layout.programAlignmentField)
 
         check(fileOffset >= 0L && virtualAddress >= 0L && fileSize >= 0L && memorySize >= 0L) {
             "$name has negative values in PT_LOAD segment $index."

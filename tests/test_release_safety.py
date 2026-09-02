@@ -42,6 +42,15 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             '"base/lib/armeabi-v7a/libhns_dane_browser_ffi.so"',
             gradle,
         )
+        android_builder = (ROOT / "scripts/build-rust-android.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "HNS_RUST_ANDROID_ABIS:-armeabi-v7a,arm64-v8a,x86_64",
+            android_builder,
+        )
+        self.assertIn("max-page-size=16384", android_builder)
+        self.assertIn("common-page-size=16384", android_builder)
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)

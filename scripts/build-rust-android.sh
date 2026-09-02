@@ -6,7 +6,7 @@ OUT_DIR="${1:-$ROOT_DIR/android/app/build/generated/rustJniLibs}"
 PROFILE="${HNS_RUST_ANDROID_PROFILE:-release}"
 EXPECTED_CARGO_NDK_VERSION="${HNS_CARGO_NDK_VERSION:-4.1.2}"
 EXPECTED_NDK_VERSION="${HNS_ANDROID_NDK_VERSION:-28.2.13676358}"
-ANDROID_ABIS_CSV="${HNS_RUST_ANDROID_ABIS:-arm64-v8a,x86_64}"
+ANDROID_ABIS_CSV="${HNS_RUST_ANDROID_ABIS:-armeabi-v7a,arm64-v8a,x86_64}"
 RUST_TOOLCHAIN="1.92.0"
 CARGO=(cargo "+$RUST_TOOLCHAIN")
 RUSTC=(rustc "+$RUST_TOOLCHAIN")
@@ -145,6 +145,10 @@ if [[ "$PROFILE" == "release" ]]; then
     "--remap-path-prefix=$HOME_DIR=/build/home"
     "-C"
     "link-arg=-Wl,--build-id=sha1"
+    "-C"
+    "link-arg=-Wl,-z,max-page-size=16384"
+    "-C"
+    "link-arg=-Wl,-z,common-page-size=16384"
   )
   release_cflags=()
   for path_mapping in \
