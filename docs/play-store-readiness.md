@@ -4,10 +4,11 @@ Last audited: 2026-09-01
 
 Current Android candidate source is `1.0.3` (`versionCode 55`) and supports
 Android 9 / API 28 or later. Google Play has published `1.0.2` / code `54`. The
-110,302,605-byte code `55` AAB has passed the protected signed-product gate and
-is staged locally with SHA-256
-`d5f5a71b2de15382f40ae08f45c00c8031c983d3710745c9d806571470b1601f`;
-it has not been uploaded or submitted.
+initial code `55` AAB passed the protected signed-product gate, but a packaging
+audit found that its default ABI set retained the historical 64-bit-only Play
+selection. The gate now requires `armeabi-v7a`, `arm64-v8a`, and `x86_64`
+together; the replacement three-ABI AAB must pass the same protected gate
+before upload. No code `55` AAB has been uploaded or submitted.
 
 This checklist maps Shakescape to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the

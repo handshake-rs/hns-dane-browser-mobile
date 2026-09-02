@@ -34,6 +34,14 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.3\"$")
         self.assertRegex(gradle, r"(?m)^\s*versionCode = 55$")
+        self.assertIn(
+            '?: listOf("armeabi-v7a", "arm64-v8a", "x86_64")',
+            gradle,
+        )
+        self.assertIn(
+            '"base/lib/armeabi-v7a/libhns_dane_browser_ffi.so"',
+            gradle,
+        )
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
