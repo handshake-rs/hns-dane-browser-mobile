@@ -1,39 +1,43 @@
 {
   "capture": {
-    "commit": "d926561091634cd69fc9b7e79a4b76003fa4ee47",
+    "commit": "a0c8e3e2093d33106c383e51afdd488abb7c93fd",
     "configuration": "Release",
     "device": "iPhone 14 Plus",
     "fixtureEnvironmentInjected": false,
     "iosSdk": "26.5",
     "mode": "live-production-runtime",
-    "xcode": "Xcode 26.5 Build version 17F42"
+    "xcode": "Xcode 26.6 Build version 17F113"
   },
   "runtimeEvidence": {
     "captureMode": "live-production-runtime",
     "configuration": "Release",
     "fixtureEnvironmentInjected": false,
     "hnsNavigation": {
-      "finalAddress": "https://denuoweb/",
+      "finalAddress": "https://shakescape/",
+      "finalDisplayedAddress": "shakescape",
       "navigationAttemptCount": 1,
-      "requestedURL": "https://denuoweb/",
+      "requestedURL": "https://shakescape/",
       "retryReason": null,
-      "runtimeStatusBeforeNavigation": "Handshake headers current. Local height 340313 \u00b7 effective target 340313 \u00b7 freshness current \u00b7 raw peer 340313 \u00b7 estimate 340977 \u00b7 accepted 0/0",
-      "securityLabel": "DANE verified \u00b7 authoritative DNS \u00b7 HNS only"
+      "runtimeStatusBeforeNavigation": "Handshake headers current (diagnostic row hidden)",
+      "securityLabel": "DANE verified \u00b7 verified Rust path \u00b7 HNS only"
     },
     "proofDetails": {
-      "contentAccessibilityLabel": "Handshake proof details for denuoweb",
-      "sourceRequestedURL": "https://denuoweb/"
+      "contentAccessibilityLabel": "Handshake proof details for shakescape",
+      "sourceRequestedURL": "https://shakescape/"
     },
-    "schemaVersion": 2,
+    "schemaVersion": 3,
     "settings": {
-      "sourceRequestedURL": "https://denuoweb/",
-      "statelessDANERowIdentifier": "settings.hns-resolution.stateless-dane-certificates",
-      "statelessDANEToggleIdentifier": "settings.hns-resolution.stateless-dane-certificates.toggle"
+      "nativeWalletRowIdentifier": "settings.destination.wallet",
+      "nativeWalletRowLabel": "Wallet",
+      "sourceRequestedURL": "https://shakescape/",
+      "statelessDANERowIdentifier": "settings.handshake.stateless-dane-certificates",
+      "statelessDANEToggleIdentifier": "settings.handshake.stateless-dane-certificates.toggle"
     },
     "webPKINavigation": {
-      "finalAddress": "https://denuoweb.com/work/hns-dane-browser",
+      "finalAddress": "https://shakescape.com/",
+      "finalDisplayedAddress": "shakescape.com",
       "navigationAttemptCount": 1,
-      "requestedURL": "https://denuoweb.com/work/hns-dane-browser",
+      "requestedURL": "https://shakescape.com/",
       "retryReason": null,
       "securityLabel": "WebPKI verified \u00b7 no secure TLSA (authenticated absence or insecure delegation) \u00b7 validating ICANN DoH \u00b7 ICANN only"
     }
@@ -44,28 +48,28 @@
       "attachment": "LIVE_APPSTORE_SCREENSHOT_01_HNS_PAGE",
       "file": "01-hns-page.jpg",
       "height": 2778,
-      "sha256": "e0eac436f9127f4f7dfc113e5209e1e878b55d1f62cf9ade10cb01d4a3892ca7",
+      "sha256": "9252ec0cb3def9ef3864dca2c83f1b4d57c01ad1b8d1203140319b49ada9ee5f",
       "width": 1284
     },
     {
       "attachment": "LIVE_APPSTORE_SCREENSHOT_02_SETTINGS",
       "file": "02-settings.jpg",
       "height": 2778,
-      "sha256": "80f4eceb1d69e2894b8bd805dc79d5cacefdb41d5a50dc525e877428b109d4c7",
+      "sha256": "80f6fde05ad4e748b14060c6b344bbecfad54d2d64dbe1c5642017e7f134f5be",
       "width": 1284
     },
     {
       "attachment": "LIVE_APPSTORE_SCREENSHOT_03_PROOF_DETAILS",
       "file": "03-proof-details.jpg",
       "height": 2778,
-      "sha256": "b214ee0f2b74cf66c81d7d1a1adfac4d76734ff732472b6b6318a1fe95f219a8",
+      "sha256": "8304f0c08426e268d04b7228e3bd4c9fa7951eccf1ea260e41d74829f0ebce90",
       "width": 1284
     },
     {
       "attachment": "LIVE_APPSTORE_SCREENSHOT_04_WEBPKI",
       "file": "04-webpki.jpg",
       "height": 2778,
-      "sha256": "6a8b9ff79002d7b119874d7ad23c2d6ea74b586e2c051db77bed579d603bdc43",
+      "sha256": "8411a646e936fa71397b1dd5afac38e744e1c282aa676ebc2604184d74a34bfb",
       "width": 1284
     }
   ]
