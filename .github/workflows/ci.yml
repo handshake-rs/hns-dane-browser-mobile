@@ -96,7 +96,10 @@ jobs:
         run: |
           rustup toolchain install 1.92.0 --profile minimal
           rustup default 1.92.0
-          rustup target add --toolchain 1.92.0 aarch64-linux-android x86_64-linux-android
+          rustup target add --toolchain 1.92.0 \
+            armv7-linux-androideabi \
+            aarch64-linux-android \
+            x86_64-linux-android
           cargo +1.92.0 install cargo-ndk --version 4.1.2 --locked
 
       - name: Install pinned Android SDK components
@@ -150,7 +153,10 @@ jobs:
         run: |
           rustup toolchain install 1.92.0 --profile minimal
           rustup default 1.92.0
-          rustup target add --toolchain 1.92.0 aarch64-linux-android x86_64-linux-android
+          rustup target add --toolchain 1.92.0 \
+            armv7-linux-androideabi \
+            aarch64-linux-android \
+            x86_64-linux-android
           cargo +1.92.0 install cargo-ndk --version 4.1.2 --locked
 
       - name: Install pinned Android SDK components

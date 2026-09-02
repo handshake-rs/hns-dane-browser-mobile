@@ -51,6 +51,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         )
         self.assertIn("max-page-size=16384", android_builder)
         self.assertIn("common-page-size=16384", android_builder)
+        ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+        self.assertEqual(ci_workflow.count("armv7-linux-androideabi"), 2)
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
