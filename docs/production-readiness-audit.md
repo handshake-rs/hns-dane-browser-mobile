@@ -1,9 +1,9 @@
 # Production Readiness Audit
 
-Last audited: 2026-09-01
+Last audited: 2026-09-02
 
 Current source coordinates Android `1.0.3` / code `55`, embedded
-non-publishable Rust `1.0.0`, and iOS `1.0.3` / build `63`. Earlier
+non-publishable Rust `1.0.0`, and iOS `1.0.4` / build `64`. Earlier
 HNWR-v2/ECH-and-sync-telemetry code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed exact-source CI and the
 complete Android and Apple platform matrix in run `31807520618`; that evidence
@@ -15,15 +15,16 @@ the complete Apple ABI/XCFramework/app/simulator gate, and aggregate Required
 CI. CodeQL runs `31833858421` and `31833858650` also passed.
 Google Play has published Android `1.0.2` / code `54`; GitHub Release `v1.0.2`
 contains its signed universal APK. Android `1.0.3` / code `55` is the next
-candidate, and the Apple candidate remains `1.0.3` / build `63`.
+candidate, while Apple has published `1.0.3` / build `63` and the next Apple
+candidate is `1.0.4` / build `64`.
 
 This audit records the release checkpoint for the existing public
 Google Play and Apple App Store apps. Google Play production contains Android
 `0.5.6` (`versionCode 47`) and shared Rust `0.5.6` from shipping source
 `417af67efd68198de4871c0a339d1e456b60cb68`; the Apple public baseline
-observed on 2026-07-28 was `0.5.0`. Apple published iOS `0.5.5` on
-2026-07-31, and the public record still reports `0.5.5` as current on
-2026-08-09. The prior `VALID`, `WAITING_FOR_REVIEW`, and manual-release state
+observed on 2026-07-28 was `0.5.0`. Apple published iOS `1.0.3` on
+2026-09-02, and the public record reports `1.0.3` as current. The prior
+`VALID`, `WAITING_FOR_REVIEW`, and manual-release state
 below is retained as submission history, not current status. No TestFlight
 distribution was used. iOS was not incremented for the later Android-only
 runtime-lock and Proof Details fixes.
@@ -74,11 +75,11 @@ credential/backend/data boundary.
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| Current source identity | Exact dependency cohort; platform candidates independent | Android `1.0.3` / code `55`, iOS `1.0.3` / build `63`, and embedded Rust `1.0.0` use the exact checksum-bearing published HNS, engine, and wallet dependencies, including the complete wallet `0.2.1` cohort. [released-dependency-cohort.md](released-dependency-cohort.md) binds that policy. |
+| Current source identity | Exact dependency cohort; platform candidates independent | Android `1.0.3` / code `55`, iOS `1.0.4` / build `64`, and embedded Rust `1.0.0` use the exact checksum-bearing published HNS, engine, and wallet dependencies, including the complete wallet `0.2.1` cohort. [released-dependency-cohort.md](released-dependency-cohort.md) binds that policy. |
 | Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 54 published | Google Play has published Android `1.0.2` / code `54`; Android `1.0.3` / code `55` remains an unuploaded update candidate. |
-| App Store update | Public `0.5.5`; device qualification tracked separately | Exact-head Apple CI `30454904736` and live Release screenshot run `30454926117` passed for build `57` source `d926561091634cd69fc9b7e79a4b76003fa4ee47`. Protected run `30456522039` signed and uploaded the 47,930,601-byte IPA (SHA-256 `efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`). The submission was then `VALID`, direct App Review `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`; Apple published `0.5.5` on 2026-07-31. No TestFlight distribution was part of this release, and a real-iPhone pass remains a separate qualification item. |
+| App Store update | Public `1.0.3`; `1.0.4` qualification pending | Apple published `1.0.3` / build `63` on 2026-09-02. Candidate `1.0.4` / build `64` carries the authenticated CNAME fix and managed default-browser declarations. Signing remains fail-closed until the App Store provisioning profile contains `com.apple.developer.web-browser`; MarketplaceKit app installation remains absent. |
 | Native wallet slice | Direct HNS wallet active; final release gates pending | The exact pinned controller is connected to native Android/iOS lifecycle, direct peer synchronization, receive/QR, guarded sends, activity, name import, birthday height, and deletion. Websites cannot access it. Unfinished Bitcoin/name-operation/Shakedex screens remain hidden. Current Android device exercises cover the working debug flow; exact final CI, signed product, screenshots, and physical-iPhone evidence remain open. |
 | Android runtime opening | Root cause fixed and release-device validated | Rust 1.92's stable `std::fs::File` lock implementation omitted Android, so the first header-state lock returned `Unsupported` and `BrowserRuntime::open` returned no handle. The Android target now uses the locked `libc 0.2.186` `flock` operations; the equivalent upstream fix is merged for Rust 1.98 in `rust-lang/rust#157038`. The exact signed code `47` APK cold-launched and synchronized successfully after an in-place data-preserving upgrade. |
 | Android Proof Details | Namespace attribution fixed and release-device confirmed | Native-gateway routing is namespace-agnostic because every canonical DNS host enters the retained dual-root gateway. The prior UI treated that route as ICANN, so a retained HNS trace produced DNSSEC/synthetic ICANN details. Proof Details now uses only the strict retained `namespaceResolution` decision. Pre-fix reproduction, paired instrumentation, and HNS browsing/proof behavior passed on the Pixel 9 release device after correction. |

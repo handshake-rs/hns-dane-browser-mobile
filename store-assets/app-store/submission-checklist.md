@@ -1,11 +1,13 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.3`, build `63`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
+Candidate: iOS `1.0.4`, build `64`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
 manual release.
 
 ## Source and artifact
 
-- [ ] Increment every iOS, Android, Rust, metadata, test, and workflow version surface together.
+- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.4` / build `64` while retaining the independently versioned Android and Rust releases.
+- [ ] Confirm Apple approved `com.apple.developer.web-browser`, regenerate the App Store profile, and replace the protected `IOS_APP_STORE_PROFILE_BASE64` secret.
+- [x] Keep `com.apple.developer.browser.app-installation` absent until MarketplaceKit installation behavior is implemented and separately reviewed.
 - [ ] Push the exact candidate and require all repository, Rust, Android, Apple, Required CI, and CodeQL gates to pass.
 - [ ] Build and sign the IPA from that exact commit; record its digest, identity, signing, encryption declaration, and processing state.
 - [ ] Confirm the selected App Store Connect build is `VALID` and unexpired.

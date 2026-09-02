@@ -12,30 +12,23 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 - [GitHub Release v1.0.3](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
 
-Android `1.0.3` / code `55`, iOS `1.0.3` / build `63`, and embedded Rust
+Android `1.0.3` / code `55`, iOS `1.0.4` / build `64`, and embedded Rust
 `1.0.0` are the current source versions. Android `1.0.3` fixes authenticated
 CDN alias resolution and registers Shakescape for Android's default-browser
-role. The iOS `1.0.3` build remains the independently submitted presentation
-patch.
+role. Apple has published iOS `1.0.3`; iOS `1.0.4` carries the authenticated
+alias fix and Apple's managed default-browser declarations.
 
 GitHub Release [`v1.0.3`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
 publishes the signed universal Android APK. Google Play has published Android
 `1.0.2` / code `54`; the separately verified Android `1.0.3` / code `55` AAB
 is staged for the next Play update and is not attached to the public release.
 
-The Apple App Store published iOS `0.5.5` on 2026-07-31; a public-store lookup
-on 2026-08-09 confirms that `0.5.5` is the current version. Apple source
-`d926561091634cd69fc9b7e79a4b76003fa4ee47` adds the
-shared compressed-negative-evidence and post-resolution freshness fixes,
-stable semantic Proof Details selection, and origin revalidation for a cached
-main frame with no new Rust status. Exact-head Apple CI run `30454904736` and
-live Release screenshot run `30454926117` passed. Protected upload run
-`30456522039` signed and uploaded build `57`; the retained IPA has SHA-256
-`efea01f912035d0e2cde880a59cbe9e5b2e3f546e781fa5d9606942629225345`.
-The earlier `WAITING_FOR_REVIEW` and manual-release state is retained as dated
-submission history in the release audit; it is no longer the current public
-status. No TestFlight distribution was created. The hosted privacy policy at
-the canonical product URL was aligned with that historical public release.
+The Apple App Store published iOS `1.0.3` / build `63` on 2026-09-02. Candidate
+`1.0.4` / build `64` fixes authenticated same-owner CNAME/CDN resolution and
+registers the HTTP/HTTPS schemes required for Apple's managed default-browser
+role. Release signing requires an approved profile containing
+`com.apple.developer.web-browser`; the MarketplaceKit app-installation
+entitlement is intentionally absent. No TestFlight distribution is planned.
 Wallet-aware hosted-policy source
 `909dbd1a713f322f0a8d4cff88e765c612e184f3` was subsequently deployed and read
 back for the historical `0.5.8` candidate. Version-neutral read-boundary source
@@ -43,8 +36,8 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 `31485234945`. Store privacy/category answers still require exact-candidate
 reconciliation before submission.
 
-Current source coordinates Android `1.0.3` / code `55`, iOS `1.0.3` / build
-`63`, and the embedded non-publishable Rust workspace at `1.0.0`. It directly pins
+Current source coordinates Android `1.0.3` / code `55`, iOS `1.0.4` / build
+`64`, and the embedded non-publishable Rust workspace at `1.0.0`. It directly pins
 published `hns-rs 0.4.1`, the `hns-dane-engine` light-client `0.2.3` patch
 cohort, the remaining exact engine/browser-adapter releases, and
 the complete published `hns-wallet-rs 0.2.1` closure. The browser adapters are

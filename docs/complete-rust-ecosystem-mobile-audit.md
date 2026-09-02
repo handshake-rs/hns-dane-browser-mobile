@@ -12,14 +12,14 @@ It does not claim that the coordination-wide PDF is complete.
 - Working branch: `main`
 - Platforms in scope: Android WebView/JNI and iOS WKWebView/Apple C ABI
 
-Public-release successor: Apple published iOS `0.5.5` on 2026-07-31, and the
-public record still reports it as current on 2026-08-09. Any later references
+Public-release successor: Apple published iOS `1.0.3` on 2026-09-02, and the
+public record reports it as current. Any earlier references
 to `WAITING_FOR_REVIEW` are retained submission evidence, not current status.
 The public iOS `0.5.5`, Play Android `0.5.6`, and GitHub Android `0.5.7`
 descriptions accurately advertise browser releases with no wallet or exchange;
 those artifacts predate the native controller source described below. Current
-source coordinates Android `1.0.2` code `54`, embedded Rust `1.0.0`, and the
-Apple-only `1.0.3` candidate at iOS build `63`. The preceding HNWR code-bearing source
+source coordinates Android `1.0.3` code `55`, embedded Rust `1.0.0`, and the
+Apple-only `1.0.4` candidate at iOS build `64`. The preceding HNWR code-bearing source
 `893ba8271787f1ab7247fa78ed8787462b5542fc` passed full CI run
 `31433931682`, including the complete Android and Apple gates and aggregate
 Required CI. Exact debug APK artifact `9080493058` has SHA-256

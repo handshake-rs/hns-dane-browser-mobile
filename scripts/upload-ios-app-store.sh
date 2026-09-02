@@ -44,7 +44,7 @@ grep -Fq -- "$private_key_header" "$API_KEY_PATH" ||
 grep -Fq -- "$private_key_footer" "$API_KEY_PATH" ||
   fail "the App Store Connect key does not contain a private-key footer."
 
-for command in git openssl plutil python3 rustup security xcode-select xcodebuild xcrun; do
+for command in codesign git openssl plutil python3 rustup security xcode-select xcodebuild xcrun; do
   command -v "$command" >/dev/null 2>&1 ||
     fail "required command is unavailable: $command"
 done
@@ -370,6 +370,37 @@ archived_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionStrin
 archived_build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$archived_info")"
 archived_icon_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$archived_info")"
 archived_encryption="$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$archived_info")"
+archived_entitlements="$release_dir/ArchivedEntitlements.plist"
+codesign -d --entitlements :- "$archived_app" >"$archived_entitlements" 2>/dev/null ||
+  fail "codesign could not read the archived app entitlements."
+plutil -lint "$archived_entitlements" >/dev/null ||
+  fail "the archived app entitlements are not a valid property list."
+archived_default_browser="$(
+  /usr/libexec/PlistBuddy -c 'Print :com.apple.developer.web-browser' \
+    "$archived_entitlements" 2>/dev/null
+)" || fail "the archived app does not contain the managed default-browser entitlement."
+[[ "$archived_default_browser" == true ]] ||
+  fail "the archived app has not enabled the managed default-browser entitlement."
+if /usr/libexec/PlistBuddy \
+  -c 'Print :com.apple.developer.browser.app-installation' \
+  "$archived_entitlements" >/dev/null 2>&1; then
+  fail "the archived app unexpectedly contains the MarketplaceKit browser app-installation entitlement."
+fi
+python3 - "$archived_info" <<'PY' ||
+import plistlib
+import sys
+
+with open(sys.argv[1], "rb") as source:
+    info = plistlib.load(source)
+schemes = {
+    scheme
+    for item in info.get("CFBundleURLTypes", [])
+    for scheme in item.get("CFBundleURLSchemes", [])
+}
+if not {"http", "https"}.issubset(schemes):
+    raise SystemExit(1)
+PY
+  fail "the archived app does not register both HTTP and HTTPS URL schemes."
 [[ "$archived_bundle_id" == "$BUNDLE_ID" ]] ||
   fail "the archived bundle ID is $archived_bundle_id; expected $BUNDLE_ID."
 [[ "$archived_version" == "$version" ]] ||
@@ -382,7 +413,7 @@ archived_encryption="$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEnc
   fail "the archived export-compliance declaration is not the reviewed false value."
 [[ -s "$archived_app/Assets.car" ]] ||
   fail "the archive does not contain the compiled AppIcon asset catalog."
-printf 'Verified archived app: %s %s (%s), icon %s.\n' \
+printf 'Verified archived default-browser app: %s %s (%s), icon %s.\n' \
   "$archived_bundle_id" "$archived_version" "$archived_build" "$archived_icon_name"
 
 if [[ -n "$IPA_OUTPUT_PATH" ]]; then

@@ -2,6 +2,8 @@ No sign-in is required. Shakescape has no developer-operated account, subscripti
 
 Shakescape uses WKWebView for rendering and an authenticated loopback proxy at 127.0.0.1 for app traffic. It does not install a VPN or change the device's system proxy.
 
+This build registers the HTTP and HTTPS schemes and uses Apple's managed default-browser entitlement. When selected as the default browser, it navigates directly to the system-supplied destination through the same address field, strict navigation classifier, and WKWebView path used for in-app navigation. It does not claim Universal Links for specific domains. This build does not include the separate Browser App Installation entitlement and does not handle MarketplaceKit installation requests.
+
 Ordinary web test:
 1. Launch the app. When "Enter an address to begin" appears, enter https://shakescape.com/ and tap Go.
 2. Confirm the page loads and the security label shows the selected ICANN validation path.

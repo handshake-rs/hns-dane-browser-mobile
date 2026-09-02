@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.0.4 - 2026-09-02
+
+iOS build `64` is an Apple-only update following public iOS `1.0.3`. Android
+remains independently versioned at `1.0.3` / code `55`, and the embedded Rust
+workspace remains independently versioned at `1.0.0`.
+
 ### Added
 
 - Prepare iOS for Apple's managed default-browser capability by registering the
@@ -12,6 +18,11 @@ All notable changes to this project will be documented in this file.
   provisioning profile to contain that entitlement before release signing.
 
 ### Fixed
+
+- Treat a same-owner ICANN CNAME as positive response evidence for the queried
+  RR family. Authenticated or proven-insecure CDN aliases retain positive TTL
+  and no longer become indeterminate NODATA results on sites such as
+  `www.foxnews.com` and `www.weather.gov`.
 
 - Keep polling App Store Connect after screenshot assets first report complete
   until their exact filenames, sizes, and checksums converge, and accept either

@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-09-01.
+Audit date: 2026-09-02.
 
 This table records the independently versioned current release candidates.
 It is not evidence that signed artifacts were built or published. Android
@@ -10,9 +10,9 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `1.0.2` / code `54` | `android/app/build.gradle.kts` |
+| Android app | `1.0.3` / code `55` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
-| iOS app | `1.0.3` / build `63` | `ios/project.yml` |
+| iOS app | `1.0.4` / build `64` | `ios/project.yml` |
 | Native wallet controller | exact published `0.2.1` registry cohort | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.4.1` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
@@ -124,9 +124,9 @@ Notes:
   CI all succeeded. CodeQL runs `31833858421` and `31833858650` also passed.
   Signed store artifacts, exact screenshots, store
   declaration/readback, and intentional upload remain separate gates.
-- Apple published iOS `0.5.5` on 2026-07-31. A public-store lookup on
-  2026-08-09 still reports `0.5.5` as current; older review-state notes in
-  this repository describe the submission chronology, not the current status.
+- Apple published iOS `1.0.3` on 2026-09-02. Apple's public lookup reports
+  `1.0.3` as current; older review-state notes in this repository describe
+  submission chronology, not current status.
 - Public GitHub Android `0.5.7` / code `48` is an Android-only compatibility release. It
   lowers both the application and NDK platform floor to API 30, retains
   explicit UTF-8 form encoding through the older `URLEncoder` overload, and
@@ -199,7 +199,7 @@ Notes:
   edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes the verified APK only;
   the Play AAB and unchanged iOS build are not attached.
-- The public iOS baseline remains `0.5.5` / build `57`, available since 2026-07-31.
+- The public iOS baseline is `1.0.3` / build `63`, available since 2026-09-02.
   Its earlier `VALID`, direct `WAITING_FOR_REVIEW`, and manual-release state is
   retained as submission chronology. No TestFlight distribution was used.
 - Gateway-generated HNS error pages now include the requested URL above the status line so repeated 502 validation pages show which address failed.

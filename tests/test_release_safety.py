@@ -84,8 +84,23 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertNotIn("b24b66c382de53330ec21dd3137e056a2bea3e2d", lockfile)
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.3$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 63$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.4$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 64$")
+
+        entitlements = (
+            ROOT
+            / "ios/HnsDaneBrowser/Support/HnsDaneBrowser.entitlements"
+        ).read_text(encoding="utf-8")
+        self.assertIn("com.apple.developer.web-browser", entitlements)
+        self.assertNotIn("com.apple.developer.browser.app-installation", entitlements)
+
+        upload = (ROOT / "scripts/upload-ios-app-store.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("archived_default_browser", upload)
+        self.assertIn("the archived app does not register both HTTP and HTTPS", upload)
+        self.assertIn("com.apple.developer.browser.app-installation", upload)
+        self.assertIn("unexpectedly contains the MarketplaceKit", upload)
 
     def test_unshipped_named_service_market_and_value_closures_stay_absent(self) -> None:
         with (ROOT / "rust/Cargo.lock").open("rb") as source:

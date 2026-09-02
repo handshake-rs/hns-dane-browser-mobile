@@ -1,11 +1,17 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.3` / build
-`63`, bundle ID `com.denuoweb.hnsdane.ios`. The public baseline and historical
+This directory contains the reviewed listing source for iOS `1.0.4` / build
+`64`, bundle ID `com.denuoweb.hnsdane.ios`. Public iOS `1.0.3` and its
 screenshots predate this candidate and are not evidence for it.
 
-- Version: `1.0.3`
-- Build: `63`
+- Version: `1.0.4`
+- Build: `64`
+
+This update fixes authenticated CNAME/CDN resolution and prepares Shakescape
+for Apple's managed default-browser role. Release signing requires an App Store
+profile containing `com.apple.developer.web-browser`; the separate
+`com.apple.developer.browser.app-installation` entitlement is intentionally not
+requested or shipped.
 
 The listing describes the shipping surface: dual-root browsing and one native,
 noncustodial HNS wallet with direct peer synchronization, receive/QR, guarded
