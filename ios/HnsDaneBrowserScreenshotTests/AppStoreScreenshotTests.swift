@@ -183,6 +183,23 @@ final class LiveAppStoreScreenshotTests: XCTestCase {
             "Address field did not clear before entering the requested URL"
         )
 
+        // UIKit may resign the text field when its built-in clear button is
+        // activated. Reacquire focus explicitly before synthesizing text so a
+        // successful clear cannot turn the second live navigation into a
+        // keyboard-focus race on a slower hosted simulator.
+        address.tap()
+        XCTAssertTrue(
+            waitUntil(
+                description: "focused address field for \(expectedHost)",
+                timeout: 5,
+                condition: {
+                    address.exists
+                        && address.isHittable
+                        && self.app.keyboards.count > 0
+                }
+            )
+        )
+
         address.typeText(requestedURL)
         XCTAssertEqual(
             address.value as? String,
