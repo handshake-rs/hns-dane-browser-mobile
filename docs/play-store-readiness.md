@@ -1,14 +1,17 @@
 # Google Play Readiness Checklist
 
-Last audited: 2026-09-01
+Last audited: 2026-09-02
 
 Current Android candidate source is `1.0.3` (`versionCode 55`) and supports
 Android 9 / API 28 or later. Google Play has published `1.0.2` / code `54`. The
 initial code `55` AAB passed the protected signed-product gate, but a packaging
 audit found that its default ABI set retained the historical 64-bit-only Play
-selection. The gate now requires `armeabi-v7a`, `arm64-v8a`, and `x86_64`
-together; the replacement three-ABI AAB must pass the same protected gate
-before upload. No code `55` AAB has been uploaded or submitted.
+selection. Source `5173e02c6723e385c6ec8d8d12424fcb2ece2507` corrected the
+inventory and ELF32 verifier. Its replacement 144,692,488-byte signed AAB
+contains `armeabi-v7a`, `arm64-v8a`, and `x86_64`, passed the complete protected
+bundle gate, and has SHA-256
+`9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`.
+No code `55` AAB has been uploaded or submitted.
 
 This checklist maps Shakescape to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
@@ -96,7 +99,7 @@ behavior against the exact signed candidate before upload.
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
 | Release track | Code 54 published; code 55 pending | Google Play has published Android `1.0.2` / code `54`. The guarded upload for code `55` must use a fresh edit and fail rather than disturbing any review already in flight. |
 | CI regression | Current exact-source CI and CodeQL passed | Exact current source `3fff254c9f7f4df535e24256869331111dd0f40f` passed full CI run `33538557957`, including policy, Rust/supply-chain, Android build/unit/bundle, API 37 native instrumentation, the complete Apple gate, and Required CI. Both associated CodeQL workflows also passed. Signed-product, installed-device, Console, and upload gates remain separate. |
-| Store assets | Current Pixel source set ready; live reconciliation pending | Seven 1080 × 2424 images were refreshed from `1.0.2-debug` / code `54`, including the now-live proof-backed `shakescape/` HNS site and proof details. The unchanged version-neutral locked-wallet image remains free of wallet-sensitive values. Compare the final set and listing text with the live listing before upload. |
+| Store assets | Six-image Pixel set committed to Play | Six 1080 × 2424 images cover the ICANN and proof-backed `shakescape/` HNS sites, browser navigation, Handshake settings, diagnostics, and proof details. Android Publisher edit `04351495318173077620` removed the two obsolete local-start and locked-wallet captures, uploaded the canonical six-image set, committed successfully, and a fresh edit read back exactly six en-US phone screenshots. |
 
 ## Release Signing
 
@@ -307,7 +310,7 @@ workflow and review copy cannot drift apart.
 
 - App icon: 512×512 PNG for Play Console: `store-assets/play-store/hns-dane-browser-play-icon-512.png`.
 - Feature graphic: 1024×500 PNG24, no alpha: `store-assets/play-store/hns-dane-browser-feature-graphic-1024x500.png`.
-- Phone screenshots: eight current Pixel 9 captures cover the local start page, successful ICANN and HNS pages, browser navigation, Handshake settings, diagnostics, a verified HNS proof, and a non-secret locked-wallet screen. Never replace the wallet image with one showing a recovery phrase, account identifier, address, balance, or transaction identifier.
+- Phone screenshots: six current Pixel 9 captures cover successful ICANN and HNS pages, browser navigation, Handshake settings, diagnostics, and a verified HNS proof. The older local-start and locked-wallet captures must not be restored to the listing. Never add a wallet image showing a recovery phrase, account identifier, address, balance, or transaction identifier.
 - Tablet screenshots: recommended if tablet distribution remains enabled.
 - Privacy policy URL: keep the existing Play listing on the selected canonical
   route. Version-neutral read-boundary source `a5539cb` was deployed in run

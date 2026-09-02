@@ -27,18 +27,21 @@ name-operation, and Shakedex marketplace cards are not exposed.
 - Expected upload artifact:
   `dist/play-store/hns-dane-browser-v1.0.3-play-upload-signed.aab`
 
-Seven phone screenshots were refreshed on a Pixel 9 at 1080 x 2424 from the
-the prior `1.0.2-debug` / code `54` application. They cover the local start page,
-the Shakescape ICANN site, the proof-backed `shakescape/` HNS site, browser
-navigation, Handshake settings, build diagnostics, and a verified HNS proof.
-The unchanged locked-wallet screenshot is retained because that screen exposes
-no versioned copy and creating a throwaway screenshot wallet would unnecessarily
-produce recovery material. It contains no recovery phrase, account ID,
-address, balance, or transaction identifier. The screenshots are listing
-source only and are not evidence that the release APK or Play-signed AAB has
-passed release signing or installed-device gates.
+Six phone screenshots were refreshed on a Pixel 9 at 1080 x 2424 from the
+prior `1.0.2-debug` / code `54` application. They cover the Shakescape ICANN
+site, the proof-backed `shakescape/` HNS site, browser navigation, Handshake
+settings, build diagnostics, and a verified HNS proof. The older local-start
+and locked-wallet captures are intentionally excluded from the canonical
+listing set. The screenshots are listing source only and are not evidence that
+the release APK or Play-signed AAB has passed release signing or
+installed-device gates.
 
-The signed AAB, Play Console Data safety and financial-feature answers,
-foreground `dataSync` service declaration, screenshot set, and live listing
-must all be read back before intentional submission. Google Play has published
-code `54`; no code `55` AAB has yet been uploaded.
+The 144,692,488-byte, three-ABI signed AAB passed the protected bundle gate and
+has SHA-256
+`9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`.
+Android Publisher edit `04351495318173077620` replaced the live en-US phone
+screenshot inventory with these six canonical images, and a fresh edit read
+back exactly six. Play Console Data safety, financial-feature answers, the
+foreground `dataSync` declaration, and listing text must still be read back
+before intentional code `55` submission. Google Play has published code `54`;
+no code `55` AAB has yet been uploaded.

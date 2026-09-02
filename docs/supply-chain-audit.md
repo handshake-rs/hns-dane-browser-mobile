@@ -52,10 +52,11 @@ code `55` Play upload has been submitted. The first protected local AAB passed
 the signed-product gate but exposed that the pre-ARMv7 default ABI inventory
 had not been advanced with the supported target list. The current gate requires
 `armeabi-v7a`, `arm64-v8a`, and `x86_64` together and rejects an AAB missing any
-of them. A replacement AAB must pass package/version, signer,
-archive-integrity, 16 KiB alignment, ABI, ELF, debug-symbol, stripping, R8,
-release-lint, and resource-shrinking checks before upload. The iOS `1.0.3`
-build is tracked independently through App Store Connect.
+of them. The replacement 144,692,488-byte AAB passed package/version, signer,
+archive-integrity, 16 KiB alignment, ABI, ELF32/ELF64, debug-symbol, stripping,
+R8, release-lint, and resource-shrinking checks. Its SHA-256 is
+`9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`.
+The iOS `1.0.3` build is tracked independently through App Store Connect.
 
 ## Configured and Local Gates
 
