@@ -10,7 +10,7 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 
 - [Google Play Store](https://play.google.com/store/apps/details?id=com.denuoweb.hnsdane)
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
-- [GitHub Release v1.0.2](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.2)
+- [GitHub Release v1.0.3](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
 
 Android `1.0.3` / code `55`, iOS `1.0.3` / build `63`, and embedded Rust
 `1.0.0` are the current source versions. Android `1.0.3` fixes authenticated
@@ -18,10 +18,10 @@ CDN alias resolution and registers Shakescape for Android's default-browser
 role. The iOS `1.0.3` build remains the independently submitted presentation
 patch.
 
-GitHub Release [`v1.0.2`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.2)
-publishes only the signed Android APK for that release. Google Play has now
-published Android `1.0.2` / code `54`; Android `1.0.3` / code `55` is the next
-update candidate.
+GitHub Release [`v1.0.3`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
+publishes the signed universal Android APK. Google Play has published Android
+`1.0.2` / code `54`; the separately verified Android `1.0.3` / code `55` AAB
+is staged for the next Play update and is not attached to the public release.
 
 The Apple App Store published iOS `0.5.5` on 2026-07-31; a public-store lookup
 on 2026-08-09 confirms that `0.5.5` is the current version. Apple source

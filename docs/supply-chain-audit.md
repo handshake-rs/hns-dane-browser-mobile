@@ -48,8 +48,12 @@ manual CI run `31411048376`, including aggregate Required CI. These are retained
 as historical `0.5.8` results. Historical CI debug artifact `9080493058` is not
 a signed store artifact. A signed `1.0.0` Android APK is retained on its GitHub
 Release. Google Play has published Android `1.0.2` / code `54`; no `1.0.3` /
-code `55` Play AAB has been built or submitted. The iOS `1.0.3` build is
-tracked independently through App Store Connect.
+code `55` Play upload has been submitted. The protected local build produced a
+110,302,605-byte signed AAB with SHA-256
+`d5f5a71b2de15382f40ae08f45c00c8031c983d3710745c9d806571470b1601f` and
+passed package/version, signer, archive-integrity, 16 KiB alignment, ABI, ELF,
+debug-symbol, stripping, R8, release-lint, and resource-shrinking gates. The
+iOS `1.0.3` build is tracked independently through App Store Connect.
 
 ## Configured and Local Gates
 
