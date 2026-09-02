@@ -83,6 +83,13 @@ final class BrowserViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        // Returning from the wallet or settings does not reactivate the scene,
+        // so wake the existing process-owned scheduler here as well. Repeating
+        // resume coalesces the dormant timer into one immediate header
+        // freshness pass; it does not recreate the runtime or scan a wallet.
+        if isForeground {
+            resumeForegroundSync()
+        }
         presentPendingHandshakePaymentIfPossible()
 #if DEBUG && targetEnvironment(simulator)
         presentScreenshotProofIfNeeded()
@@ -626,6 +633,7 @@ final class BrowserViewController: UIViewController {
         settingsViewController = settings
         let navigation = UINavigationController(rootViewController: settings)
         navigation.modalPresentationStyle = .formSheet
+        navigation.presentationController?.delegate = self
         present(navigation, animated: true)
     }
 
@@ -1555,6 +1563,15 @@ extension BrowserViewController: UITextFieldDelegate {
     func textFieldDidEndEditing(_ textField: UITextField) {
         guard textField === addressField else { return }
         textField.text = BrowserAddressPresentation.displayText(for: canonicalAddress)
+    }
+}
+
+extension BrowserViewController: UIAdaptivePresentationControllerDelegate {
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        settingsViewController = nil
+        if isForeground {
+            resumeForegroundSync()
+        }
     }
 }
 

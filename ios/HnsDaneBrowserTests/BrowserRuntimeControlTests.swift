@@ -3706,6 +3706,30 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
+    func testRepeatedForegroundResumeWakesDormantHeaderTimer() async {
+        let runtime = NetworkSwitchRuntimeStub(network: .testnet, rejectsPolicy: false)
+        let process = BrowserProcess(
+            runtimeFactory: { _, _ in runtime },
+            syncSchedulingPolicy: BrowserSyncSchedulingPolicy(caughtUpInterval: 3_600),
+            initialNetwork: .testnet,
+            persistNetwork: { _ in }
+        )
+        defer { process.close() }
+
+        let prepared = expectation(description: "runtime prepared")
+        process.prepare { _ in prepared.fulfill() }
+        await fulfillment(of: [prepared], timeout: 2)
+
+        let firstSync = expectation(description: "first foreground sync")
+        process.resumeForegroundSync(observer: { _ in firstSync.fulfill() })
+        await fulfillment(of: [firstSync], timeout: 2)
+
+        let refreshedSync = expectation(description: "return freshness sync")
+        process.resumeForegroundSync(observer: { _ in refreshedSync.fulfill() })
+        await fulfillment(of: [refreshedSync], timeout: 2)
+    }
+
+    @MainActor
     func testSyncMaintenanceSafePointsWaitForSyncAndDrainOnceInOrder() async throws {
         let runtime = NetworkSwitchRuntimeStub(network: .testnet, rejectsPolicy: false)
         let syncStarted = expectation(description: "sync entered runtime")

@@ -26,7 +26,12 @@ class HnsSyncScheduler(
     private val singleFlight: HnsSyncSingleFlight = ProcessHnsSyncSingleFlight,
 ) : Closeable {
     private val running = AtomicBoolean(false)
+    private val scheduleLock = Any()
     private var future: ScheduledFuture<*>? = null
+    private var scheduleGeneration: Long = 0L
+
+    private var snapshotObserver: ((HnsSyncSnapshot) -> Unit)? = null
+    private var syncStartingObserver: (() -> Unit)? = null
 
     @Volatile
     var lastSnapshot: HnsSyncSnapshot? = null
@@ -40,7 +45,24 @@ class HnsSyncScheduler(
             return
         }
 
+        snapshotObserver = onSnapshot
+        syncStartingObserver = onSyncStarting
         scheduleNext(0, onSnapshot, onSyncStarting)
+    }
+
+    /**
+     * Coalesces the pending idle timer into one immediate freshness pass.
+     *
+     * This is used when the browser becomes visible again after another
+     * in-process screen (notably the wallet) may have learned a newer peer
+     * height. It does not restart the native runtime or start a wallet scan.
+     */
+    fun requestSyncNow(): Boolean {
+        if (!running.get()) return false
+        val onSnapshot = snapshotObserver ?: return false
+        val onSyncStarting = syncStartingObserver ?: return false
+        scheduleNext(0, onSnapshot, onSyncStarting)
+        return true
     }
 
     internal fun tick(
@@ -98,16 +120,72 @@ class HnsSyncScheduler(
         onSnapshot: (HnsSyncSnapshot) -> Unit,
         onSyncStarting: () -> Unit,
     ) {
+        synchronized(scheduleLock) {
+            scheduleNextLocked(delayMs, onSnapshot, onSyncStarting)
+        }
+    }
+
+    private fun scheduleNextIfCurrent(
+        expectedGeneration: Long,
+        delayMs: Long,
+        onSnapshot: (HnsSyncSnapshot) -> Unit,
+        onSyncStarting: () -> Unit,
+    ) {
+        synchronized(scheduleLock) {
+            if (expectedGeneration != scheduleGeneration) return
+            scheduleNextLocked(delayMs, onSnapshot, onSyncStarting)
+        }
+    }
+
+    private fun scheduleNextLocked(
+        delayMs: Long,
+        onSnapshot: (HnsSyncSnapshot) -> Unit,
+        onSyncStarting: () -> Unit,
+    ) {
+        scheduleGeneration = if (scheduleGeneration == Long.MAX_VALUE) {
+            1L
+        } else {
+            scheduleGeneration + 1L
+        }
+        val generation = scheduleGeneration
+        // Do not interrupt native work if it has already begun. Its
+        // generation check below will hand off to the newly queued pass.
+        future?.cancel(false)
         future = executor.schedule(
-            { tick(onSnapshot, onSyncStarting) },
+            { runScheduled(generation, onSnapshot, onSyncStarting) },
             delayMs,
             TimeUnit.MILLISECONDS,
         )
     }
 
+    private fun runScheduled(
+        generation: Long,
+        onSnapshot: (HnsSyncSnapshot) -> Unit,
+        onSyncStarting: () -> Unit,
+    ) {
+        if (!running.get() || synchronized(scheduleLock) { generation != scheduleGeneration }) {
+            return
+        }
+        val snapshot = runOnceIfIdle(onSnapshot, onSyncStarting)
+        if (running.get()) {
+            scheduleNextIfCurrent(
+                expectedGeneration = generation,
+                delayMs = snapshot?.let(::nextDelayMs) ?: activeIntervalMs,
+                onSnapshot = onSnapshot,
+                onSyncStarting = onSyncStarting,
+            )
+        }
+    }
+
     override fun close() {
         running.set(false)
-        future?.cancel(true)
+        synchronized(scheduleLock) {
+            scheduleGeneration += 1L
+            future?.cancel(true)
+            future = null
+        }
+        snapshotObserver = null
+        syncStartingObserver = null
         executor.shutdownNow()
     }
 

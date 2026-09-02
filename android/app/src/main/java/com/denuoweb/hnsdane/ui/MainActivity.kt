@@ -425,6 +425,14 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         activityStopped = false
         gatewayInterceptionEnabled = true
+        observeForegroundSync()
+        // Switching from WalletActivity does not background the process, so
+        // the process-owned scheduler may still be waiting on its ten-minute
+        // idle timer. Ask it for one lightweight freshness pass before calling
+        // a retained target "up to date" or admitting a new HNS navigation.
+        if ((application as? HnsDaneApplication)?.requestForegroundSyncRefresh() == true) {
+            foregroundSyncPreparing = true
+        }
         BrowserCookiePreferences.applyTo(webView)
         val resetReloadQueued = reconcileHeaderResetGeneration()
         val resumeUrl = pendingMainFrameUrl ?: activeMainFrameUrl ?: currentPageUrl()
@@ -463,7 +471,6 @@ class MainActivity : ComponentActivity() {
                 refreshSyncProgress()
             }
         }
-        observeForegroundSync()
         startSyncStatusPolling()
     }
 
@@ -648,6 +655,14 @@ class MainActivity : ComponentActivity() {
                     return@post
                 }
                 foregroundSyncPreparing = preparing
+                if (preparing) {
+                    val activeUrl = pendingMainFrameUrl ?: activeMainFrameUrl
+                    val target = activeUrl?.let(classifier::classify)
+                    if (target?.let(::targetRequiresDualRootReadiness) == true) {
+                        proxyCoordinator.ensure(null)
+                    }
+                }
+                refreshSecurityState()
                 refreshSyncProgress()
             }
         }
@@ -983,6 +998,7 @@ class MainActivity : ComponentActivity() {
     /** Reset recovery may expose diagnostics, but never the previous authority generation. */
     private fun hasCurrentHeaderAuthority(progress: HnsSyncProgress = currentSyncProgress()): Boolean =
         (application as? HnsDaneApplication)?.isHeaderRecoveryInProgress != true &&
+            !foregroundSyncPreparing &&
             progress.isAuthorityReady
 
     private fun resumePendingNavigationIfReady(progress: HnsSyncProgress) {
@@ -1050,7 +1066,8 @@ class MainActivity : ComponentActivity() {
         }
         val securityTarget = (pendingMainFrameUrl ?: activeMainFrameUrl)?.let(classifier::classify)
         if (
-            (application as? HnsDaneApplication)?.isHeaderRecoveryInProgress == true &&
+            ((application as? HnsDaneApplication)?.isHeaderRecoveryInProgress == true ||
+                foregroundSyncPreparing) &&
             securityTarget?.let(::targetRequiresDualRootReadiness) == true
         ) {
             setSecurityState(SecurityState.Syncing)
@@ -1128,8 +1145,7 @@ class MainActivity : ComponentActivity() {
         // truthful-but-stale persisted status "idle"; it has not yet reached
         // Rust's factual syncInFlight transition. This overlay never affects
         // header authority or proxy admission below.
-        val awaitingNativeSyncStart =
-            foregroundSyncPreparing && !progress.syncInFlight && progress.status == "idle"
+        val awaitingNativeSyncStart = foregroundSyncPreparing && !progress.syncInFlight
         if (awaitingNativeSyncStart || progress.shouldShowProgress) {
             syncProgressBar.visibility = View.VISIBLE
             syncProgressStats.visibility = View.VISIBLE

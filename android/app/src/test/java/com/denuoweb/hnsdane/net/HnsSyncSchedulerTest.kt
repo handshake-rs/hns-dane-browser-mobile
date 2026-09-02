@@ -9,8 +9,71 @@ import org.junit.Test
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class HnsSyncSchedulerTest {
+    @Test
+    fun requestSyncNowCoalescesIdleTimerIntoImmediateFreshnessPass() {
+        val calls = AtomicInteger(0)
+        val firstPass = CountDownLatch(1)
+        val refreshedPass = CountDownLatch(1)
+        val scheduler = HnsSyncScheduler(
+            dataDir = File("/tmp/hns-dane-browser-refresh-test"),
+            bridge = object : HnsSyncBridge {
+                override fun syncOnce(dataDir: String): String {
+                    when (calls.incrementAndGet()) {
+                        1 -> firstPass.countDown()
+                        2 -> refreshedPass.countDown()
+                    }
+                    return """{"status":"up_to_date"}"""
+                }
+            },
+            idleIntervalMs = TimeUnit.HOURS.toMillis(1),
+        )
+
+        scheduler.start(onSnapshot = {})
+        assertTrue(firstPass.await(1, TimeUnit.SECONDS))
+        assertTrue(scheduler.requestSyncNow())
+        assertTrue(refreshedPass.await(1, TimeUnit.SECONDS))
+        // Replacing the idle timer must produce one requested pass, not leave
+        // the superseded timer queued as another immediate invocation.
+        Thread.sleep(50)
+        assertEquals(2, calls.get())
+        scheduler.close()
+    }
+
+    @Test
+    fun requestSyncNowDuringActivePassRunsOnceImmediatelyAfterIt() {
+        val calls = AtomicInteger(0)
+        val activePassStarted = CountDownLatch(1)
+        val releaseActivePass = CountDownLatch(1)
+        val refreshedPass = CountDownLatch(1)
+        val scheduler = HnsSyncScheduler(
+            dataDir = File("/tmp/hns-dane-browser-active-refresh-test"),
+            bridge = object : HnsSyncBridge {
+                override fun syncOnce(dataDir: String): String {
+                    when (calls.incrementAndGet()) {
+                        1 -> {
+                            activePassStarted.countDown()
+                            releaseActivePass.await()
+                        }
+                        2 -> refreshedPass.countDown()
+                    }
+                    return """{"status":"up_to_date"}"""
+                }
+            },
+            idleIntervalMs = TimeUnit.HOURS.toMillis(1),
+        )
+
+        scheduler.start(onSnapshot = {})
+        assertTrue(activePassStarted.await(1, TimeUnit.SECONDS))
+        assertTrue(scheduler.requestSyncNow())
+        releaseActivePass.countDown()
+        assertTrue(refreshedPass.await(1, TimeUnit.SECONDS))
+        assertEquals(2, calls.get())
+        scheduler.close()
+    }
+
     @Test
     fun runOncePublishesNativeSyncSnapshot() {
         val dataDir = File("/tmp/hns-dane-browser-test")

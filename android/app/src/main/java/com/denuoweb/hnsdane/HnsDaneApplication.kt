@@ -118,6 +118,20 @@ class HnsDaneApplication : Application() {
         return Closeable { proxyAvailabilityListeners -= listener }
     }
 
+    /** Requests one coalesced peer freshness pass without restarting browser state. */
+    internal fun requestForegroundSyncRefresh(): Boolean {
+        val scheduler = foregroundSync ?: return false
+        // Install the presentation gate before the executor can finish a fast
+        // no-progress pass; publishing it afterward could race the terminal
+        // snapshot and leave the UI stuck in preparation.
+        publishForegroundSyncPreparation(true, scheduler)
+        if (scheduler.requestSyncNow()) {
+            return true
+        }
+        publishForegroundSyncPreparation(false, scheduler)
+        return false
+    }
+
     internal fun onHandshakeNetworkChanged() {
         browserProxyCoordinator.ensure(null)
         restartForegroundSync()
@@ -190,8 +204,10 @@ class HnsDaneApplication : Application() {
                 if (!publish) {
                     return@sync
                 }
-                publishForegroundSyncPreparation(false)
                 syncListeners.forEach { listener -> listener(snapshot) }
+                // Publish the new authoritative snapshot before removing the
+                // presentation gate for the pass that produced it.
+                publishForegroundSyncPreparation(false)
             },
             onSyncStarting = {
                 publishForegroundSyncPreparation(true, scheduler)

@@ -23,6 +23,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Wake Android and iOS process-owned browser header schedulers for one
+  coalesced freshness pass when returning from another in-app screen. Android
+  no longer presents a retained target as up to date or uses it to admit a new
+  HNS navigation while that check is pending; neither platform restarts the
+  runtime or rescans the wallet.
 - Keep Android's bounded HNS catch-up rounds presented as one continuous
   synchronization. Checkpoint yields no longer flash an ordinary unlocked
   wallet or briefly expose value actions, and Stop Sync remains available
