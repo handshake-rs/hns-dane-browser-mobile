@@ -384,7 +384,7 @@ def validate_live_provenance(document: Any) -> dict[str, Any]:
         raise ScreenshotToolError(
             "proofDetails.contentAccessibilityLabel must identify shakescape"
         )
-    expected_settings_row = "settings.hns-resolution.stateless-dane-certificates"
+    expected_settings_row = "settings.handshake.stateless-dane-certificates"
     if document["settings"].get("statelessDANERowIdentifier") != expected_settings_row:
         raise ScreenshotToolError("settings provenance is missing the stateless DANE row")
     expected_settings_toggle = f"{expected_settings_row}.toggle"

@@ -76,13 +76,32 @@ export DEVELOPER_DIR="$developer_dir"
 WORK_DIR="$(mktemp -d "$ROOT_DIR/build/ios-screenshot-work.XXXXXX")"
 SIMULATOR_ID=""
 cleanup() {
+  status=$?
+  trap - EXIT INT TERM
+  if [[ "$status" -ne 0 ]]; then
+    mkdir -p -- "$DIAGNOSTICS_DIR"
+    if [[ -n "${RESULT_BUNDLE:-}" && -d "${RESULT_BUNDLE:-}" && \
+          ! -e "$DIAGNOSTICS_DIR/Screenshots.xcresult" ]]; then
+      cp -R -- "$RESULT_BUNDLE" "$DIAGNOSTICS_DIR/Screenshots.xcresult"
+    fi
+    if [[ -n "${ATTACHMENTS_DIR:-}" && -d "${ATTACHMENTS_DIR:-}" ]]; then
+      cp -R -- "$ATTACHMENTS_DIR" "$DIAGNOSTICS_DIR/attachments"
+    fi
+    if [[ -n "${OUTPUT_DIR:-}" && -d "${OUTPUT_DIR:-}" ]]; then
+      mkdir -p -- "$DIAGNOSTICS_DIR/generated-output"
+      cp -R -- "$OUTPUT_DIR"/. "$DIAGNOSTICS_DIR/generated-output/"
+    fi
+  fi
   if [[ -n "$SIMULATOR_ID" ]]; then
     xcrun simctl shutdown "$SIMULATOR_ID" >/dev/null 2>&1 || true
     xcrun simctl delete "$SIMULATOR_ID" >/dev/null 2>&1 || true
   fi
   rm -rf -- "$WORK_DIR"
+  exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 xcrun simctl list runtimes --json >"$WORK_DIR/runtimes.json"
 xcrun simctl list devicetypes --json >"$WORK_DIR/devicetypes.json"

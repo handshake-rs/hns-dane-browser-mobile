@@ -50,9 +50,9 @@ def live_provenance() -> dict:
             "nativeWalletRowLabel": "Wallet",
             "sourceRequestedURL": "https://shakescape/",
             "statelessDANERowIdentifier":
-                "settings.hns-resolution.stateless-dane-certificates",
+                "settings.handshake.stateless-dane-certificates",
             "statelessDANEToggleIdentifier":
-                "settings.hns-resolution.stateless-dane-certificates.toggle",
+                "settings.handshake.stateless-dane-certificates.toggle",
         },
         "webPKINavigation": {
             "requestedURL": "https://shakescape.com/",
