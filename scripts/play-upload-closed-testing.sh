@@ -13,9 +13,9 @@ fi
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
 track_name="${PLAY_TRACK:-}"
 release_status="${PLAY_RELEASE_STATUS:-draft}"
-aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.2-play-upload-signed.aab}"
-release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.2}"
-release_notes="${PLAY_RELEASE_NOTES:-1.0.2 improves direct HNS wallet synchronization, new-wallet birthday selection, pending-send recovery, and browser header freshness when returning from the wallet.}"
+aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.3-play-upload-signed.aab}"
+release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.3}"
+release_notes="${PLAY_RELEASE_NOTES:-1.0.3 fixes authenticated CDN alias resolution, lets Android offer Shakescape as a default browser, and retains guarded send and synchronization protections for the native HNS wallet.}"
 update_listing="${PLAY_UPDATE_LISTING:-false}"
 listing_language="${PLAY_LISTING_LANGUAGE:-en-US}"
 

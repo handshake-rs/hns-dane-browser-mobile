@@ -6,14 +6,32 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Register the Android launcher as an unscoped `http`/`https` browser target,
-  forward system-opened web URLs through the existing strict navigation
-  classifier, and advertise the Android browser-app category so Shakescape can
-  appear in Default apps.
 - Prepare iOS for Apple's managed default-browser capability by registering the
   `http` and `https` URL schemes, wiring the reviewed
   `com.apple.developer.web-browser` entitlement, and requiring the App Store
   provisioning profile to contain that entitlement before release signing.
+
+### Fixed
+
+- Keep polling App Store Connect after screenshot assets first report complete
+  until their exact filenames, sizes, and checksums converge, and accept either
+  hexadecimal checksum case. The guarded release client remains fail-closed on
+  any durable mismatch and never deletes screenshots without the exact
+  release-specific replacement confirmation.
+
+## 1.0.3 - 2026-09-01
+
+Android `versionCode 55` and iOS build `63` form this platform release. iOS was
+submitted first as a presentation patch; Android followed after `1.0.2` became
+public on Google Play. The embedded Rust workspace remains independently
+versioned at `1.0.0`.
+
+### Added
+
+- Register the Android launcher as an unscoped `http`/`https` browser target,
+  forward system-opened web URLs through the existing strict navigation
+  classifier, and advertise the Android browser-app category so Shakescape can
+  appear in Default apps.
 
 ### Fixed
 
@@ -23,19 +41,6 @@ All notable changes to this project will be documented in this file.
   a negative SOA, fixing indeterminate dual-root failures on redirected sites
   such as `www.foxnews.com` and `www.weather.gov` without weakening DNSSEC,
   namespace-selection, or endpoint-lineage validation.
-- Keep polling App Store Connect after screenshot assets first report complete
-  until their exact filenames, sizes, and checksums converge, and accept either
-  hexadecimal checksum case. The guarded release client remains fail-closed on
-  any durable mismatch and never deletes screenshots without the exact
-  release-specific replacement confirmation.
-
-## 1.0.3 - 2026-09-01
-
-### Fixed
-
-- Released iOS `1.0.3` (build `63`) as an Apple-only presentation patch;
-  Android remains `1.0.2` (code `54`) and the embedded Rust workspace remains
-  `1.0.0`.
 - Hide the stale header-recovery placeholder when authenticated browser
   admission resumes, so a verified HNS page already loaded in WebKit becomes
   visible again after a transient peer failure.

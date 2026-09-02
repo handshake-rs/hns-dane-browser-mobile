@@ -1,1 +1,1 @@
-1.0.2 improves direct HNS wallet synchronization, new-wallet birthday selection, pending-send recovery, and browser header freshness when returning from the wallet.
+1.0.3 fixes authenticated CDN alias resolution, lets Android offer Shakescape as a default browser, and retains guarded send and synchronization protections for the native HNS wallet.

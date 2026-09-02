@@ -2,9 +2,9 @@
 
 Last audited: 2026-09-01
 
-Current Android candidate source is `1.0.2` (`versionCode 54`) and supports
-Android 9 / API 28 or later. Google Play production remains on `0.5.6` / code
-`47`; no code `54` AAB has been built, uploaded, or submitted.
+Current Android candidate source is `1.0.3` (`versionCode 55`) and supports
+Android 9 / API 28 or later. Google Play has published `1.0.2` / code `54`; no
+code `55` AAB has been built, uploaded, or submitted.
 
 This checklist maps Shakescape to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
@@ -90,7 +90,7 @@ behavior against the exact signed candidate before upload.
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
 | App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `54` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
-| Release track | Code 47 production complete | The Android Publisher API committed edit `07330408575596336357` with production status `completed`; `generatedApks/47` returned HTTP `200`. This was an update to an existing public listing, not a first closed-test launch. |
+| Release track | Code 54 published; code 55 pending | Google Play has published Android `1.0.2` / code `54`. The guarded upload for code `55` must use a fresh edit and fail rather than disturbing any review already in flight. |
 | CI regression | Current exact-source CI and CodeQL passed | Exact current source `3fff254c9f7f4df535e24256869331111dd0f40f` passed full CI run `33538557957`, including policy, Rust/supply-chain, Android build/unit/bundle, API 37 native instrumentation, the complete Apple gate, and Required CI. Both associated CodeQL workflows also passed. Signed-product, installed-device, Console, and upload gates remain separate. |
 | Store assets | Current Pixel source set ready; live reconciliation pending | Seven 1080 × 2424 images were refreshed from `1.0.2-debug` / code `54`, including the now-live proof-backed `shakescape/` HNS site and proof details. The unchanged version-neutral locked-wallet image remains free of wallet-sensitive values. Compare the final set and listing text with the live listing before upload. |
 
