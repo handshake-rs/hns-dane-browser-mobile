@@ -28,6 +28,7 @@ final class BrowserViewController: UIViewController {
     private let forwardButton = UIButton(type: .system)
     private let reloadButton = UIButton(type: .system)
     private let shareButton = UIButton(type: .system)
+    private let tabsButton = UIButton(type: .system)
     private let controlsButton = UIButton(type: .system)
     private let addressField = UITextField()
     private let securityLabel = UILabel()
@@ -40,6 +41,8 @@ final class BrowserViewController: UIViewController {
     private var coordinator: BrowserProxyCoordinator?
     private var environment: BrowserProcess.Environment?
     private var progressObservation: NSKeyValueObservation?
+    private var titleObservation: NSKeyValueObservation?
+    private var browserTabs = BrowserTabs(homepage: BrowserSettingsPreferences.homepage)
     private var canonicalAddress = ""
     private var pendingExternalAddress: String?
     private var pendingHandshakePayment: HandshakePaymentRequest?
@@ -142,6 +145,7 @@ final class BrowserViewController: UIViewController {
         isDestroyed = true
         isForeground = false
         isForegroundSyncPreparing = false
+        tabsButton.isEnabled = false
         stopSyncStatusPolling()
 #if DEBUG && targetEnvironment(simulator)
         if appStoreScreenshotScene != nil { return }
@@ -154,6 +158,7 @@ final class BrowserViewController: UIViewController {
         isProxyAdmissionGranted = false
         environment = nil
         progressObservation = nil
+        titleObservation = nil
     }
 
     func openExternalURL(_ url: URL) {
@@ -200,6 +205,7 @@ final class BrowserViewController: UIViewController {
         configureButton(forwardButton, symbol: "chevron.forward", label: "Forward", action: #selector(goForward))
         configureButton(reloadButton, symbol: "arrow.clockwise", label: "Reload", action: #selector(reloadOrStop))
         configureButton(shareButton, symbol: "square.and.arrow.up", label: "Share", action: #selector(sharePage))
+        configureTabsButton()
         controlsButton.setImage(UIImage(systemName: "gearshape"), for: .normal)
         controlsButton.accessibilityLabel = "Settings"
         controlsButton.accessibilityIdentifier = "app-store-screenshot.controls"
@@ -252,6 +258,7 @@ final class BrowserViewController: UIViewController {
                 backButton,
                 forwardButton,
                 addressField,
+                tabsButton,
                 reloadButton,
                 shareButton,
                 controlsButton,
@@ -262,6 +269,7 @@ final class BrowserViewController: UIViewController {
         addressRow.spacing = 8
         backButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
         forwardButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
+        tabsButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
         reloadButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
         shareButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
         controlsButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
@@ -301,6 +309,24 @@ final class BrowserViewController: UIViewController {
             root.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         refreshSettingsIfPresented()
+    }
+
+    private func configureTabsButton() {
+        tabsButton.layer.cornerRadius = 5
+        tabsButton.layer.borderWidth = 1.5
+        tabsButton.layer.borderColor = UIColor.secondaryLabel.cgColor
+        tabsButton.titleLabel?.font = .preferredFont(forTextStyle: .caption1)
+        tabsButton.titleLabel?.adjustsFontForContentSizeCategory = true
+        tabsButton.addTarget(self, action: #selector(presentBrowserTabs), for: .touchUpInside)
+        tabsButton.accessibilityIdentifier = "browser.tabs"
+        refreshTabsButton()
+    }
+
+    private func refreshTabsButton() {
+        let count = browserTabs.tabs.count
+        tabsButton.setTitle(String(count), for: .normal)
+        tabsButton.accessibilityLabel = count == 1 ? "1 open tab" : "\(count) open tabs"
+        tabsButton.accessibilityHint = "Shows your open tabs"
     }
 
     private func configureButton(
@@ -612,6 +638,66 @@ final class BrowserViewController: UIViewController {
     @objc private func sharePage() {
         guard let url = coordinator?.currentShareURL else { return }
         presentShareSheet(items: [url], sourceView: shareButton)
+    }
+
+    @objc private func presentBrowserTabs() {
+        guard presentedViewController == nil else { return }
+        let tabs = BrowserTabsViewController(snapshot: browserTabs.snapshot)
+        tabs.onNewTab = { [weak self] in
+            guard let self, !self.isDestroyed,
+                  let tab = self.browserTabs.open(homepage: BrowserSettingsPreferences.homepage)
+            else { return nil }
+            self.refreshTabsButton()
+            self.replaceBrowsingContext(with: tab.address)
+            return self.browserTabs.snapshot
+        }
+        tabs.onSelectTab = { [weak self] id in
+            guard let self, !self.isDestroyed, id != self.browserTabs.activeID,
+                  let tab = self.browserTabs.select(id: id) else { return }
+            self.replaceBrowsingContext(with: tab.address)
+        }
+        tabs.onCloseTab = { [weak self] id in
+            guard let self, !self.isDestroyed else { return nil }
+            let result = self.browserTabs.close(id: id)
+            guard result != .rejected else { return nil }
+            self.refreshTabsButton()
+            if case .selected(let address) = result {
+                self.replaceBrowsingContext(with: address)
+            }
+            return self.browserTabs.snapshot
+        }
+        let navigation = UINavigationController(rootViewController: tabs)
+        navigation.modalPresentationStyle = .pageSheet
+        if let sheet = navigation.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(navigation, animated: true)
+    }
+
+    /// A tab switch is a browsing-context boundary. Replacing the coordinator is the supported
+    /// way to discard WebKit history and renderer state; WKWebView exposes no safe clear-history
+    /// API, and retaining hidden WebViews would let inactive tabs continue executing.
+    private func replaceBrowsingContext(with address: String) {
+        guard !isDestroyed else { return }
+        canonicalAddress = address
+        addressField.text = BrowserAddressPresentation.displayText(for: address)
+        backButton.isEnabled = false
+        forwardButton.isEnabled = false
+        shareButton.isEnabled = false
+        guard let environment else {
+            pendingExternalAddress = address
+            return
+        }
+
+        environment.revokeProxyCoordinator()
+        coordinator = nil
+        isProxyAdmissionGranted = false
+        progressObservation = nil
+        titleObservation = nil
+        placeholderLabel.isHidden = false
+        placeholderLabel.text = "Opening tab…"
+        installCoordinator(environment: environment, replayAddress: address)
     }
 
     @objc private func presentBrowserSettings() {
@@ -995,6 +1081,7 @@ final class BrowserViewController: UIViewController {
         coordinator = nil
         isProxyAdmissionGranted = false
         progressObservation = nil
+        titleObservation = nil
         placeholderLabel.isHidden = false
         placeholderLabel.text = "Switching to \(network.title)…"
         showTransientSyncStatus("Switching network")
@@ -1085,6 +1172,7 @@ final class BrowserViewController: UIViewController {
         coordinator = nil
         isProxyAdmissionGranted = false
         progressObservation = nil
+        titleObservation = nil
         placeholderLabel.isHidden = false
         placeholderLabel.text = "Applying runtime policy…"
         showTransientSyncStatus("Applying policy")
@@ -1330,6 +1418,7 @@ final class BrowserViewController: UIViewController {
     private func setControlOperationInFlight(_ value: Bool) {
         isControlOperationInFlight = value
         controlsButton.isEnabled = !isDestroyed && !value
+        tabsButton.isEnabled = !isDestroyed && !value
         refreshSettingsIfPresented()
     }
 
@@ -1681,6 +1770,15 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
                 self?.progressView.progress = Float(webView.estimatedProgress)
             }
         }
+        titleObservation = webView.observe(\.title, options: [.new]) { [weak self, weak webView] _, _ in
+            DispatchQueue.main.async { [weak self, weak webView] in
+                guard let self, let webView,
+                      webView.url?.absoluteString == self.browserTabs.activeTab.address else {
+                    return
+                }
+                self.browserTabs.updateActiveTitle(webView.title)
+            }
+        }
         webView.translatesAutoresizingMaskIntoConstraints = false
         webContainer.addSubview(webView)
         NSLayoutConstraint.activate([
@@ -1694,12 +1792,14 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
 
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, remove webView: WKWebView) {
         progressObservation = nil
+        titleObservation = nil
         placeholderLabel.isHidden = false
         placeholderLabel.text = isForeground ? "Switching secure browsing context…" : "Secure browsing paused"
     }
 
     func proxyCoordinator(_ coordinator: BrowserProxyCoordinator, didUpdateAddress address: String) {
         updateCanonicalAddress(address)
+        browserTabs.updateActiveAddress(address)
         shareButton.isEnabled = true
         BrowserHistoryStore.record(url: address)
         recordGatewayEvent(
@@ -1716,6 +1816,7 @@ extension BrowserViewController: BrowserProxyCoordinatorDelegate {
         didUpdateSameDocumentAddress address: String
     ) {
         updateCanonicalAddress(address)
+        browserTabs.updateActiveAddress(address)
         shareButton.isEnabled = true
         refreshSettingsIfPresented()
     }

@@ -164,7 +164,7 @@ iOS UI / Browser Shell                             [public; device qualification
 - `PersistentWebKitProfile`: owns one identified persistent data store and its authenticated whole-browser proxy configuration; it never clears the profile to a direct-network fallback.
 - `BrowserAuthenticationPolicy`: permits a local HNS or DNS-named ICANN certificate only after exact host, proxy generation, challenge tuple, and leaf DER authorization by Rust. Canonical public IP literals retain WebKit's default WebPKI handling.
 - `HeaderSnapshotBootstrapper`: installs the same bounded compressed mainnet snapshot used by Android before asynchronous sync continues.
-- `BrowserViewController`: UIKit browser surface, main-frame admission, history, status, and download handoff. Platform code does not open origin sockets or independently resolve or validate HNS names.
+- `BrowserViewController`: UIKit browser surface, main-frame admission, history, status, download handoff, and a bounded native tab switcher. Inactive tabs retain only a sanitized title and current URL; a tab boundary revokes and rebuilds the sole live WKWebView/coordinator instead of retaining hidden renderers or sharing WebKit back-forward state. Platform code does not open origin sockets or independently resolve or validate HNS names.
 
 ## Android Modules
 

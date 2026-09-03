@@ -20,6 +20,9 @@
 		B1000000000000000000000B /* RustBrowserRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000B /* RustBrowserRuntime.swift */; };
 		B1000000000000000000000C /* BrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000C /* BrowserViewController.swift */; };
 		B1000000000000000000002A /* BrowserSettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002C /* BrowserSettingsViewController.swift */; };
+		B1000000000000000000002B /* BrowserTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002D /* BrowserTabs.swift */; };
+		B1000000000000000000002C /* BrowserTabsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002E /* BrowserTabsViewController.swift */; };
+		B1000000000000000000002D /* BrowserTabsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000002F /* BrowserTabsTests.swift */; };
 		B10000000000000000000017 /* BrowserRuntimePolicyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000027 /* BrowserRuntimePolicyStore.swift */; };
 		B10000000000000000000016 /* BrowserNavigationParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000025 /* BrowserNavigationParser.swift */; };
 		B1000000000000000000000D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F1000000000000000000000E /* PrivacyInfo.xcprivacy */; };
@@ -110,6 +113,9 @@
 		F1000000000000000000002A /* HnsDaneBrowserScreenshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HnsDaneBrowserScreenshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1000000000000000000002B /* AppStoreScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshotTests.swift; sourceTree = "<group>"; };
 		F1000000000000000000002C /* BrowserSettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserSettingsViewController.swift; sourceTree = "<group>"; };
+		F1000000000000000000002D /* BrowserTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserTabs.swift; sourceTree = "<group>"; };
+		F1000000000000000000002E /* BrowserTabsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserTabsViewController.swift; sourceTree = "<group>"; };
+		F1000000000000000000002F /* BrowserTabsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserTabsTests.swift; sourceTree = "<group>"; };
 		F20000000000000000000001 /* WalletKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletKeychainStore.swift; sourceTree = "<group>"; };
 		F20000000000000000000002 /* WalletProviderProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletProviderProtocol.swift; sourceTree = "<group>"; };
 		F20000000000000000000003 /* WalletUIState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletUIState.swift; sourceTree = "<group>"; };
@@ -195,6 +201,7 @@
 				F10000000000000000000004 /* BrowserAuthenticationPolicy.swift */,
 				F10000000000000000000005 /* BrowserDownloadController.swift */,
 				F10000000000000000000006 /* BrowserModels.swift */,
+				F1000000000000000000002D /* BrowserTabs.swift */,
 				F10000000000000000000025 /* BrowserNavigationParser.swift */,
 				F10000000000000000000027 /* BrowserRuntimePolicyStore.swift */,
 				F10000000000000000000007 /* BrowserProxyCoordinator.swift */,
@@ -210,6 +217,7 @@
 			isa = PBXGroup;
 			children = (
 				F1000000000000000000002C /* BrowserSettingsViewController.swift */,
+				F1000000000000000000002E /* BrowserTabsViewController.swift */,
 				F1000000000000000000000C /* BrowserViewController.swift */,
 			);
 			path = UI;
@@ -252,6 +260,7 @@
 				F10000000000000000000023 /* MainFrameAdmissionPolicyTests.swift */,
 				F10000000000000000000026 /* BrowserNavigationParserTests.swift */,
 				F10000000000000000000028 /* BrowserRuntimeControlTests.swift */,
+				F1000000000000000000002F /* BrowserTabsTests.swift */,
 				F2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift */,
 				F20000000000000000000005 /* WalletProviderProtocolTests.swift */,
 			);
@@ -444,6 +453,8 @@
 				B1000000000000000000000B /* RustBrowserRuntime.swift in Sources */,
 				B1000000000000000000000C /* BrowserViewController.swift in Sources */,
 				B1000000000000000000002A /* BrowserSettingsViewController.swift in Sources */,
+				B1000000000000000000002B /* BrowserTabs.swift in Sources */,
+				B1000000000000000000002C /* BrowserTabsViewController.swift in Sources */,
 				B10000000000000000000016 /* BrowserNavigationParser.swift in Sources */,
 				B10000000000000000000017 /* BrowserRuntimePolicyStore.swift in Sources */,
 				B20000000000000000000006 /* WalletApprovalProjection.swift in Sources */,
@@ -468,6 +479,7 @@
 				B10000000000000000000023 /* MainFrameAdmissionPolicyTests.swift in Sources */,
 				B10000000000000000000025 /* BrowserNavigationParserTests.swift in Sources */,
 				B10000000000000000000026 /* BrowserRuntimeControlTests.swift in Sources */,
+				B1000000000000000000002D /* BrowserTabsTests.swift in Sources */,
 				B2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift in Sources */,
 				B20000000000000000000005 /* WalletProviderProtocolTests.swift in Sources */,
 			);
