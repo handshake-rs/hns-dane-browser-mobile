@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Reuse the browser runtime's already-validated canonical Mainnet headers when
+  installing an Android or iOS direct wallet. The browser exports a bounded
+  temporary stream through the wallet's exact birthday; native wallet code
+  verifies the compiled block-300,000 anchor, independently replays every
+  header, persists only its own authenticated checkpoint, and still requires
+  fresh agreement from wallet-owned peers before enabling value operations.
+  Restored wallets therefore retain their entered scan birthday without first
+  downloading and verifying the same pre-birthday headers from genesis.
 - Add bounded, root-label-aware dual-root resolution caches. HNS inclusion and
   non-inclusion state is reused only while the exact authoritative Urkel tree
   root remains current; ICANN TLD presence and authenticated NXDOMAIN are

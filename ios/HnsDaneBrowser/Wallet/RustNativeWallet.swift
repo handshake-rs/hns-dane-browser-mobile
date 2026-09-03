@@ -2433,6 +2433,15 @@ final class RustNativeWallet: @unchecked Sendable {
         try decodeOutput(operation: "wallet status", invoke: hns_browser_wallet_status)
     }
 
+    func birthdayHeight() throws -> UInt64 {
+        var height: UInt64 = 0
+        try NativeWalletBridge.check(
+            hns_browser_wallet_birthday_height(try liveHandle(), &height),
+            operation: "wallet birthday"
+        )
+        return height
+    }
+
     func accounts() throws -> [NativeWalletAccount] {
         try decodeOutput(operation: "wallet accounts", invoke: hns_browser_wallet_accounts)
     }

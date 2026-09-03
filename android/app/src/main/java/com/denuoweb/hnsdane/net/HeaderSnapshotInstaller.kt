@@ -100,6 +100,36 @@ object HeaderSnapshotInstaller {
         }
     }
 
+    /**
+     * Export the browser's already-validated canonical headers exactly through
+     * the wallet birthday. Native wallet code independently replays the stream
+     * before persisting it, so the browser cache accelerates synchronization
+     * without becoming wallet value authority.
+     */
+    fun exportWalletBirthdayBootstrap(
+        context: Context,
+        dataDir: String,
+        network: String,
+        birthdayHeight: Long,
+    ): File? {
+        if (network != MAINNET || birthdayHeight !in SNAPSHOT_HEIGHT..1_000_000L) return null
+        val tempDir = File(context.cacheDir, "hns-wallet-header-bootstrap")
+        if (!tempDir.exists() && !tempDir.mkdirs()) return null
+        val tempFile = runCatching {
+            File.createTempFile("hns-wallet-browser-", ".snapshot", tempDir)
+        }.getOrNull() ?: return null
+        if (NativeBridge.exportWalletHeaderSnapshot(
+                dataDir = dataDir,
+                snapshotPath = tempFile.absolutePath,
+                targetHeight = birthdayHeight,
+                network = network,
+            )) {
+            return tempFile
+        }
+        tempFile.delete()
+        return if (birthdayHeight == SNAPSHOT_HEIGHT) extractWalletGenesisBootstrap(context) else null
+    }
+
     private fun bundledSnapshotDisabled(context: Context, network: String): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(disabledKey(network), false) ||

@@ -24,6 +24,7 @@ int main() {
     auto *walletRestore = &hns_browser_wallet_restore;
     auto *walletOpen = &hns_browser_wallet_open;
     auto *walletStatus = &hns_browser_wallet_status;
+    auto *walletBirthday = &hns_browser_wallet_birthday_height;
     auto *walletAccounts = &hns_browser_wallet_accounts;
     auto *walletConfigureReads = &hns_browser_wallet_configure_hns_reads;
     auto *walletHasReads = &hns_browser_wallet_has_hns_reads;
@@ -44,6 +45,7 @@ int main() {
     (void)walletRestore;
     (void)walletOpen;
     (void)walletStatus;
+    (void)walletBirthday;
     (void)walletAccounts;
     (void)walletConfigureReads;
     (void)walletHasReads;

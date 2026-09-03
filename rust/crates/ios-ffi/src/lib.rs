@@ -798,6 +798,17 @@ struct IosDirectShakescapeConnectResult {
 }
 
 impl NativeWalletController {
+    fn birthday_height(&self) -> Result<u64, MobileWalletError> {
+        match self {
+            Self::Lifecycle(controller) => Ok(controller.account_config().birthday_height),
+            Self::HnsReads(controller) => Ok(controller.account_config().birthday_height),
+            Self::DirectHnsValue { controller, .. } => {
+                Ok(controller.account_config().birthday_height)
+            }
+            Self::Failed => Err(MobileWalletError::ControllerFailed),
+        }
+    }
+
     fn with_mut<T>(
         &mut self,
         lifecycle: impl FnOnce(&mut MobileWalletController) -> Result<T, MobileWalletError>,
@@ -864,18 +875,20 @@ impl NativeWalletController {
         let Self::Lifecycle(lifecycle) = self else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        let requires_genesis_bootstrap = lifecycle.account_config().network == HnsNetwork::Mainnet
-            && lifecycle.account_config().birthday_height
-                == u64::from(MAINNET_GENESIS_BOOTSTRAP_HEIGHT);
+        let account = lifecycle.account_config();
+        let requires_genesis_bootstrap = account.network == HnsNetwork::Mainnet
+            && account.birthday_height == u64::from(MAINNET_GENESIS_BOOTSTRAP_HEIGHT);
         if requires_genesis_bootstrap && bootstrap_snapshot_path.is_none() {
             return Err(MobileWalletError::ControllerFailed);
         }
-        let bootstrap_headers = if requires_genesis_bootstrap {
-            let path = bootstrap_snapshot_path.ok_or(MobileWalletError::ControllerFailed)?;
-            Some(
-                load_mainnet_genesis_bootstrap(path)
-                    .map_err(|_| MobileWalletError::ControllerFailed)?,
-            )
+        let bootstrap = if account.network == HnsNetwork::Mainnet {
+            match bootstrap_snapshot_path {
+                Some(path) => Some(
+                    load_mainnet_genesis_bootstrap(path, account.birthday_height)
+                        .map_err(|_| MobileWalletError::ControllerFailed)?,
+                ),
+                None => None,
+            }
         } else {
             None
         };
@@ -889,16 +902,25 @@ impl NativeWalletController {
                 return Err(MobileWalletError::ControllerFailed);
             };
             let peer_config = direct_hns_peer_config(lifecycle.account_config().network);
-            match bootstrap_headers {
-                Some(headers) => lifecycle
+            match bootstrap {
+                Some(bootstrap) => match lifecycle
                     .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
                         database_key,
-                        peer_config,
+                        peer_config.clone(),
                         rollback_floor,
-                        MAINNET_GENESIS_BOOTSTRAP_HEIGHT,
-                        MAINNET_GENESIS_BOOTSTRAP_HASH,
-                        headers,
-                    )?,
+                        bootstrap.target_height,
+                        bootstrap.target_hash,
+                        bootstrap.headers,
+                    ) {
+                    Ok(coordinator) => coordinator,
+                    Err(_) if !requires_genesis_bootstrap => lifecycle
+                        .open_direct_hns_peer_coordinator_with_floor(
+                            database_key,
+                            peer_config,
+                            rollback_floor,
+                        )?,
+                    Err(error) => return Err(error),
+                },
                 None => lifecycle.open_direct_hns_peer_coordinator_with_floor(
                     database_key,
                     peer_config,
@@ -1969,16 +1991,25 @@ fn read_exact_array<const N: usize>(reader: &mut impl Read) -> Result<[u8; N], F
 /// The outer app resource is only an accelerator: every header is still
 /// independently replayed and checked by the wallet coordinator before it is
 /// committed as local authority.
-fn load_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, FfiFailure> {
+struct IosMainnetGenesisBootstrap {
+    target_height: u32,
+    target_hash: [u8; 32],
+    headers: Vec<Header>,
+}
+
+fn load_mainnet_genesis_bootstrap(
+    path: &Path,
+    birthday_height: u64,
+) -> Result<IosMainnetGenesisBootstrap, FfiFailure> {
     let metadata = std::fs::metadata(path).map_err(|_| {
         FfiFailure::new(
             HNS_BROWSER_RESULT_INVALID_ARGUMENT,
             "wallet header bootstrap is unreadable",
         )
     })?;
-    if !metadata.is_file() || metadata.len() != MAINNET_GENESIS_BOOTSTRAP_BYTES {
+    if !metadata.is_file() {
         return Err(FfiFailure::invalid(
-            "wallet header bootstrap has an unexpected length",
+            "wallet header bootstrap is not a regular file",
         ));
     }
     let file = File::open(path).map_err(|_| {
@@ -1996,9 +2027,16 @@ fn load_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, FfiFailure
     let target_height = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let header_count = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let target_hash = read_exact_array::<32>(&mut reader)?;
-    if target_height != MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+    let expected_bytes = 51_u64
+        .checked_add(u64::from(header_count).saturating_mul(HEADER_SIZE as u64))
+        .ok_or_else(|| FfiFailure::invalid("wallet header bootstrap length overflow"))?;
+    if target_height < MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+        || u64::from(target_height) != birthday_height
+        || target_height > 1_000_000
         || header_count != target_height.saturating_add(1)
-        || target_hash != MAINNET_GENESIS_BOOTSTRAP_HASH
+        || metadata.len() != expected_bytes
+        || (target_height == MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+            && metadata.len() != MAINNET_GENESIS_BOOTSTRAP_BYTES)
     {
         return Err(FfiFailure::invalid(
             "wallet header bootstrap metadata does not match this app",
@@ -2013,12 +2051,22 @@ fn load_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, FfiFailure
         ));
     }
     let mut headers = Vec::with_capacity(target_height as usize);
-    for _ in 0..target_height {
+    let mut pinned_checkpoint_matches = false;
+    for height in 1..=target_height {
         let header =
             Header::decode(&read_exact_array::<HEADER_SIZE>(&mut reader)?).map_err(|_| {
                 FfiFailure::invalid("wallet header bootstrap contains an invalid header")
             })?;
+        if height == MAINNET_GENESIS_BOOTSTRAP_HEIGHT {
+            pinned_checkpoint_matches =
+                header.block_hash().into_bytes() == MAINNET_GENESIS_BOOTSTRAP_HASH;
+        }
         headers.push(header);
+    }
+    if !pinned_checkpoint_matches {
+        return Err(FfiFailure::invalid(
+            "wallet header bootstrap does not contain the pinned mainnet checkpoint",
+        ));
     }
     let mut trailing = [0_u8; 1];
     if reader
@@ -2030,7 +2078,11 @@ fn load_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, FfiFailure
             "wallet header bootstrap has trailing data",
         ));
     }
-    Ok(headers)
+    Ok(IosMainnetGenesisBootstrap {
+        target_height,
+        target_hash,
+        headers,
+    })
 }
 
 unsafe fn wallet_database_key(slice: HnsBrowserSlice) -> Result<MobileDatabaseKey, FfiFailure> {
@@ -3329,6 +3381,24 @@ pub unsafe extern "C" fn hns_browser_runtime_install_header_snapshot(
 
 #[unsafe(no_mangle)]
 /// # Safety
+/// The non-empty snapshot path slice must remain readable for its declared length.
+pub unsafe extern "C" fn hns_browser_runtime_export_wallet_header_snapshot(
+    runtime: HnsBrowserRuntimeHandle,
+    snapshot_path: HnsBrowserSlice,
+    target_height: u32,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        // SAFETY: This unsafe export carries the caller's readable-slice contract.
+        let path = unsafe { required_input_str(snapshot_path, MAX_PATH_BYTES) }?;
+        runtime_entry(runtime)?
+            .runtime
+            .export_wallet_header_snapshot(path, target_height)
+            .map_err(|_| FfiFailure::internal())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
 /// `out_status_json` must point to one writable [`HnsBrowserBuffer`].
 pub unsafe extern "C" fn hns_browser_runtime_reset_headers_from_peers(
     runtime: HnsBrowserRuntimeHandle,
@@ -3663,6 +3733,28 @@ pub unsafe extern "C" fn hns_browser_wallet_status(
         let output = allocate_output(json.as_bytes(), false)?;
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_status_json, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `out_height` must point to one writable `uint64_t` value.
+pub unsafe extern "C" fn hns_browser_wallet_birthday_height(
+    wallet: HnsBrowserWalletHandle,
+    out_height: *mut u64,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_height)?;
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let height = entry
+            .controller
+            .birthday_height()
+            .map_err(|_| wallet_runtime_failure("unable to read wallet birthday"))?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_height, height) };
         Ok(())
     })
 }
@@ -6446,6 +6538,7 @@ mod tests {
             "hns_browser_runtime_add_static_relay_peer",
             "hns_browser_runtime_clear_resolver_cache",
             "hns_browser_runtime_install_header_snapshot",
+            "hns_browser_runtime_export_wallet_header_snapshot",
             "hns_browser_runtime_reset_headers_from_peers",
             "hns_browser_runtime_proof_details",
             "hns_browser_classify_name",
@@ -6455,6 +6548,7 @@ mod tests {
             "hns_browser_wallet_restore",
             "hns_browser_wallet_open",
             "hns_browser_wallet_status",
+            "hns_browser_wallet_birthday_height",
             "hns_browser_wallet_accounts",
             "hns_browser_wallet_configure_hns_reads",
             "hns_browser_wallet_has_hns_reads",
@@ -6979,6 +7073,13 @@ mod tests {
             HNS_BROWSER_RESULT_OK
         );
         assert_ne!(wallet, 0);
+        let mut birthday_height = u64::MAX;
+        // SAFETY: Output points to one writable height value.
+        assert_eq!(
+            unsafe { hns_browser_wallet_birthday_height(wallet, &mut birthday_height) },
+            HNS_BROWSER_RESULT_OK
+        );
+        assert_eq!(birthday_height, 0);
 
         let mut recovery = HnsBrowserBuffer::empty();
         // SAFETY: Output points to one writable buffer descriptor.

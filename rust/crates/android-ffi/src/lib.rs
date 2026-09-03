@@ -380,6 +380,18 @@ struct AndroidDirectShakescapeConnectResult {
 }
 
 impl AndroidWalletController {
+    fn birthday_height(&self) -> Option<u64> {
+        match self {
+            Self::Lifecycle(controller) => Some(controller.account_config().birthday_height),
+            Self::Reads(controller) => Some(controller.account_config().birthday_height),
+            Self::Value(controller) => Some(controller.account_config().birthday_height),
+            Self::DirectValue { controller, .. } => {
+                Some(controller.account_config().birthday_height)
+            }
+            Self::Failed => None,
+        }
+    }
+
     fn status_bundle(&mut self) -> Option<Vec<u8>> {
         let (status, hns_reads_enabled, hns_value_enabled, shakedex_enabled) = match self {
             Self::Lifecycle(controller) => (controller.status().ok()?, false, false, false),
@@ -549,19 +561,19 @@ impl AndroidWalletController {
         let Self::Lifecycle(lifecycle) = self else {
             return None;
         };
-        let requires_genesis_bootstrap = lifecycle.account_config().network == HnsNetwork::Mainnet
-            && lifecycle.account_config().birthday_height
-                == u64::from(ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT);
+        let account = lifecycle.account_config();
+        let requires_genesis_bootstrap = account.network == HnsNetwork::Mainnet
+            && account.birthday_height == u64::from(ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT);
         if requires_genesis_bootstrap && bootstrap_snapshot_path.is_none() {
             android_log_error(
                 "wallet-owned direct HNS bootstrap asset was unavailable for a checkpoint-born wallet",
             );
             return None;
         }
-        let bootstrap_headers = if let Some(path) = bootstrap_snapshot_path {
-            if requires_genesis_bootstrap {
-                match load_android_mainnet_genesis_bootstrap(path) {
-                    Ok(headers) => Some(headers),
+        let bootstrap = if let Some(path) = bootstrap_snapshot_path {
+            if account.network == HnsNetwork::Mainnet {
+                match load_android_mainnet_genesis_bootstrap(path, account.birthday_height) {
+                    Ok(bootstrap) => Some(bootstrap),
                     Err(error) => {
                         android_log_error(&format!(
                             "wallet-owned direct HNS bootstrap rejected before controller replacement: {error}"
@@ -570,9 +582,7 @@ impl AndroidWalletController {
                     }
                 }
             } else {
-                // Pre-bootstrap wallets and recovery accounts keep their
-                // honest birthday. They fall back to direct peer sync rather
-                // than letting a packaged accelerator discard discovery.
+                // Non-mainnet wallets never consume a Mainnet header stream.
                 None
             }
         } else {
@@ -587,16 +597,29 @@ impl AndroidWalletController {
                 return None;
             };
             let peer_config = android_direct_hns_peer_config(lifecycle.account_config().network);
-            match bootstrap_headers {
-                Some(headers) => lifecycle
+            match bootstrap {
+                Some(bootstrap) => match lifecycle
                     .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
                         database_key,
-                        peer_config,
+                        peer_config.clone(),
                         rollback_floor,
-                        ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT,
-                        ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH,
-                        headers,
-                    ),
+                        bootstrap.target_height,
+                        bootstrap.target_hash,
+                        bootstrap.headers,
+                    ) {
+                    Ok(coordinator) => Ok(coordinator),
+                    Err(error) if !requires_genesis_bootstrap => {
+                        android_log_error(&format!(
+                            "wallet browser-header acceleration was unavailable; retaining existing direct-peer checkpoint: {error}"
+                        ));
+                        lifecycle.open_direct_hns_peer_coordinator_with_floor(
+                            database_key,
+                            peer_config,
+                            rollback_floor,
+                        )
+                    }
+                    Err(error) => Err(error),
+                },
                 None => lifecycle.open_direct_hns_peer_coordinator_with_floor(
                     database_key,
                     peer_config,
@@ -2798,10 +2821,19 @@ fn read_exact_array<const N: usize>(reader: &mut impl Read) -> Result<[u8; N], &
 /// the wallet authority. The envelope's fixed height/hash are compiled into
 /// this app version; the wallet core then independently validates every
 /// header from canonical genesis before committing it.
-fn load_android_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, &'static str> {
+struct AndroidMainnetGenesisBootstrap {
+    target_height: u32,
+    target_hash: [u8; 32],
+    headers: Vec<Header>,
+}
+
+fn load_android_mainnet_genesis_bootstrap(
+    path: &Path,
+    birthday_height: u64,
+) -> Result<AndroidMainnetGenesisBootstrap, &'static str> {
     let metadata = std::fs::metadata(path).map_err(|_| "bundled header bootstrap is unreadable")?;
-    if !metadata.is_file() || metadata.len() != ANDROID_MAINNET_GENESIS_BOOTSTRAP_BYTES {
-        return Err("bundled header bootstrap has an unexpected length");
+    if !metadata.is_file() {
+        return Err("bundled header bootstrap is not a regular file");
     }
     let file = File::open(path).map_err(|_| "bundled header bootstrap cannot be opened")?;
     let mut reader = BufReader::new(file);
@@ -2811,9 +2843,16 @@ fn load_android_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, &'
     let target_height = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let header_count = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let target_hash = read_exact_array::<32>(&mut reader)?;
-    if target_height != ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+    let expected_bytes = 51_u64
+        .checked_add(u64::from(header_count).saturating_mul(HEADER_SIZE as u64))
+        .ok_or("bundled header bootstrap length overflow")?;
+    if target_height < ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+        || u64::from(target_height) != birthday_height
+        || target_height > 1_000_000
         || header_count != target_height.saturating_add(1)
-        || target_hash != ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH
+        || metadata.len() != expected_bytes
+        || (target_height == ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+            && metadata.len() != ANDROID_MAINNET_GENESIS_BOOTSTRAP_BYTES)
     {
         return Err("bundled header bootstrap metadata does not match this app");
     }
@@ -2824,11 +2863,19 @@ fn load_android_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, &'
     }
 
     let mut headers = Vec::with_capacity(target_height as usize);
-    for _ in 0..target_height {
+    let mut pinned_checkpoint_matches = false;
+    for height in 1..=target_height {
         let bytes = read_exact_array::<HEADER_SIZE>(&mut reader)?;
         let header = Header::decode(&bytes)
             .map_err(|_| "bundled header bootstrap contains an invalid header encoding")?;
+        if height == ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT {
+            pinned_checkpoint_matches =
+                header.block_hash().into_bytes() == ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH;
+        }
         headers.push(header);
+    }
+    if !pinned_checkpoint_matches {
+        return Err("bundled header bootstrap does not contain the pinned mainnet checkpoint");
     }
     let mut trailing = [0_u8; 1];
     if reader
@@ -2838,7 +2885,11 @@ fn load_android_mainnet_genesis_bootstrap(path: &Path) -> Result<Vec<Header>, &'
     {
         return Err("bundled header bootstrap has trailing data");
     }
-    Ok(headers)
+    Ok(AndroidMainnetGenesisBootstrap {
+        target_height,
+        target_hash,
+        headers,
+    })
 }
 
 fn android_wallet_database_key(
@@ -4516,6 +4567,29 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeI
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeExportWalletHeaderSnapshot(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    snapshot_path: JString<'_>,
+    target_height: jlong,
+) -> jboolean {
+    if target_height <= 0 {
+        return false.into();
+    }
+    let Ok(target_height) = u32::try_from(target_height) else {
+        return false.into();
+    };
+    match (runtime_from_handle(handle), env.get_string(&snapshot_path)) {
+        (Some(runtime), Ok(snapshot_path)) => runtime
+            .export_wallet_header_snapshot(snapshot_path.to_string_lossy().as_ref(), target_height)
+            .is_ok()
+            .into(),
+        _ => false.into(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeResetHeadersFromPeers(
     env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -5214,6 +5288,24 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .ok()
     .flatten()
     .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeBirthdayHeight(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jlong {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let controller = record.controller_try_if_active()?;
+        controller
+            .birthday_height()
+            .and_then(|height| i64::try_from(height).ok())
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(-1)
 }
 
 #[unsafe(no_mangle)]

@@ -121,6 +121,14 @@ final class RustBrowserRuntime: BrowserRuntime {
         _ = try RustBridge.data(copying: output)
     }
 
+    func exportWalletHeaderSnapshot(at path: String, targetHeight: UInt32) throws {
+        let handle = try liveHandle()
+        let result = RustBridge.withUTF8Slice(path) { pathSlice in
+            hns_browser_runtime_export_wallet_header_snapshot(handle, pathSlice, targetHeight)
+        }
+        try RustBridge.check(result, operation: "wallet header snapshot export")
+    }
+
     @discardableResult
     func updatePolicy(_ policy: BrowserRuntimePolicy) throws -> UInt64 {
         let handle = try liveHandle()

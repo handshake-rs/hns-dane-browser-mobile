@@ -3955,7 +3955,8 @@ final class WalletViewController: UIViewController {
 
         let keychain = keychain
         let installNetwork = network
-        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
+        let browserRuntime = browserProcess?.preparedRuntimeForWalletBootstrap()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain, browserRuntime] in
             let outcome: Result<Void, Error> = Result {
                 var openingFloor = try keychain.directHnsRollbackFloorForOpen()
                 defer { WalletSecretBytes.wipe(&openingFloor) }
@@ -3979,8 +3980,12 @@ final class WalletViewController: UIViewController {
                 }
 
                 if installNetwork == .mainnet {
-                    try WalletHeaderSnapshotBootstrapper().withGenesisSnapshot { snapshot in
-                        try install(snapshot.path)
+                    let birthdayHeight = try wallet.birthdayHeight()
+                    try WalletHeaderSnapshotBootstrapper().withBirthdaySnapshot(
+                        runtime: browserRuntime,
+                        birthdayHeight: birthdayHeight
+                    ) { snapshot in
+                        try install(snapshot?.path)
                     }
                 } else {
                     try install(nil)

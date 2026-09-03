@@ -246,6 +246,17 @@ object NativeBridge :
         unavailable = unavailableSyncJson("rust-core-unavailable", network),
     ) { handle -> nativeRuntimeInstallHeaderSnapshot(handle, snapshotPath) }
 
+    fun exportWalletHeaderSnapshot(
+        dataDir: String,
+        snapshotPath: String,
+        targetHeight: Long,
+        network: String = DEFAULT_NETWORK,
+    ): Boolean = targetHeight in 1..1_000_000L && withRuntime(
+        dataDir = dataDir,
+        network = network,
+        unavailable = false,
+    ) { handle -> nativeRuntimeExportWalletHeaderSnapshot(handle, snapshotPath, targetHeight) }
+
     fun resetHeadersFromPeers(dataDir: String, network: String = DEFAULT_NETWORK): String = withRuntime(
         dataDir = dataDir,
         network = network,
@@ -538,6 +549,12 @@ object NativeBridge :
     private external fun nativeRuntimeClearResolverCache(handle: Long): String
 
     private external fun nativeRuntimeInstallHeaderSnapshot(handle: Long, snapshotPath: String): String
+
+    private external fun nativeRuntimeExportWalletHeaderSnapshot(
+        handle: Long,
+        snapshotPath: String,
+        targetHeight: Long,
+    ): Boolean
 
     private external fun nativeRuntimeResetHeadersFromPeers(handle: Long): String
 

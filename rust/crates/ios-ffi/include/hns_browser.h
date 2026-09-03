@@ -206,6 +206,10 @@ HnsBrowserResult hns_browser_runtime_install_header_snapshot(
     HnsBrowserRuntimeHandle runtime,
     HnsBrowserSlice snapshot_path,
     HnsBrowserBuffer *out_status_json);
+HnsBrowserResult hns_browser_runtime_export_wallet_header_snapshot(
+    HnsBrowserRuntimeHandle runtime,
+    HnsBrowserSlice snapshot_path,
+    uint32_t target_height);
 HnsBrowserResult hns_browser_runtime_reset_headers_from_peers(
     HnsBrowserRuntimeHandle runtime,
     HnsBrowserBuffer *out_status_json);
@@ -256,6 +260,9 @@ HnsBrowserResult hns_browser_wallet_open(
 HnsBrowserResult hns_browser_wallet_status(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_status_json);
+HnsBrowserResult hns_browser_wallet_birthday_height(
+    HnsBrowserWalletHandle wallet,
+    uint64_t *out_height);
 HnsBrowserResult hns_browser_wallet_accounts(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_accounts_json);

@@ -988,6 +988,10 @@ protocol BrowserRuntime: AnyObject {
     /// Imports the bounded, uncompressed mainnet bootstrap snapshot at a private file path.
     func installHeaderSnapshot(at path: String) throws
 
+    /// Writes canonical browser headers through the requested wallet birthday.
+    /// The wallet independently revalidates the resulting temporary stream.
+    func exportWalletHeaderSnapshot(at path: String, targetHeight: UInt32) throws
+
     /// Publishes a live resolver policy. Native code revokes every older proxy generation.
     @discardableResult
     func updatePolicy(_ policy: BrowserRuntimePolicy) throws -> UInt64
@@ -1008,6 +1012,10 @@ protocol BrowserRuntime: AnyObject {
 }
 
 extension BrowserRuntime {
+    func exportWalletHeaderSnapshot(at path: String, targetHeight: UInt32) throws {
+        throw BrowserCoreError.runtimeUnavailable("wallet header export is unavailable")
+    }
+
     func addStaticRelayPeer(_ endpoint: String) throws -> BrowserSyncSummary {
         throw BrowserCoreError.runtimeUnavailable("static relay peer management is unavailable")
     }

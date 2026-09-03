@@ -200,4 +200,49 @@ final class WalletHeaderSnapshotBootstrapper {
         )
         return try body(snapshotURL)
     }
+
+    /// Prefer a canonical browser export truncated to the wallet's exact
+    /// birthday. Rust wallet code independently validates the stream and its
+    /// direct peers still establish currentness. If the browser cannot cover
+    /// a later birthday, return no accelerator; the exact 300,000 checkpoint
+    /// retains the bundled fail-closed fallback.
+    func withBirthdaySnapshot<T>(
+        runtime: BrowserRuntime?,
+        birthdayHeight: UInt64,
+        body: (URL?) throws -> T
+    ) throws -> T {
+        guard birthdayHeight >= HeaderSnapshotBootstrapper.snapshotHeight,
+              birthdayHeight <= UInt64(UInt32.max) else {
+            return try body(nil)
+        }
+        if let runtime {
+            let temporaryDirectory = fileManager.temporaryDirectory
+                .appendingPathComponent("hns-wallet-header-bootstrap", isDirectory: true)
+            try fileManager.createDirectory(
+                at: temporaryDirectory,
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.complete]
+            )
+            let snapshotURL = temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("snapshot")
+            defer { try? fileManager.removeItem(at: snapshotURL) }
+            do {
+                try runtime.exportWalletHeaderSnapshot(
+                    at: snapshotURL.path,
+                    targetHeight: UInt32(birthdayHeight)
+                )
+                return try body(snapshotURL)
+            } catch where birthdayHeight != HeaderSnapshotBootstrapper.snapshotHeight {
+                return try body(nil)
+            } catch {
+                // The fixed checkpoint below remains independently pinned by
+                // native code and is the fallback for a birthday of 300,000.
+            }
+        }
+        if birthdayHeight == HeaderSnapshotBootstrapper.snapshotHeight {
+            return try withGenesisSnapshot { try body($0) }
+        }
+        return try body(nil)
+    }
 }

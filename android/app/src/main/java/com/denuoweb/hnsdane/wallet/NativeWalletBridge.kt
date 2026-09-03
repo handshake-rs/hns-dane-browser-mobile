@@ -84,6 +84,13 @@ internal object NativeWalletBridge {
             null
         }
 
+    fun birthdayHeight(handle: Long): Long? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeBirthdayHeight(handle) }.getOrNull()?.takeIf { it >= 0L }
+        } else {
+            null
+        }
+
     /** Installs one exact, authority-bound app-owned read-only sidecar binding. */
     fun configureHnsReads(
         currentAuthority: WalletReadBootstrapAuthority,
@@ -1071,6 +1078,8 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeStatus(handle: Long): ByteArray?
+
+    private external fun nativeBirthdayHeight(handle: Long): Long
 
     @JvmStatic
     private external fun nativeAccounts(handle: Long): ByteArray?

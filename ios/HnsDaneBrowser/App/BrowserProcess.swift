@@ -145,6 +145,13 @@ final class BrowserProcess {
         }
     }
 
+    /// The runtime is internally synchronized and may export a read-only
+    /// canonical header stream while the wallet prepares off the main thread.
+    func preparedRuntimeForWalletBootstrap() -> BrowserRuntime? {
+        guard case .ready(let environment) = state else { return nil }
+        return environment.runtime
+    }
+
     func updatePolicy(
         _ policy: BrowserRuntimePolicy,
         completion: @escaping (Result<UInt64, Error>) -> Void

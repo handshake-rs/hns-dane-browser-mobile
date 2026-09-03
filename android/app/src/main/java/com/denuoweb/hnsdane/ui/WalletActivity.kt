@@ -4897,18 +4897,23 @@ class WalletActivity : ComponentActivity() {
         thread(name = "hns-wallet-direct-install") {
             val installed = runCatching {
                 val floor = keyStore.directHnsRollbackFloorForOpen()
-                // A checkpoint-born Mainnet wallet must receive its pinned
-                // genesis-header stream on *every* controller installation,
-                // not just the first one.  The Keystore floor is a rollback
-                // guard, not a substitute for the bootstrap input: the
-                // native lifecycle layer rejects a birthday-300,000 direct
-                // controller without it even when the encrypted checkpoint
-                // and floor already resume at a newer height.  Supplying it
-                // again lets native validate the file and then reopen the
-                // persisted authenticated checkpoint; it does not rescan
-                // from genesis or overwrite chain state.
+                // Prefer the browser's canonical stream through this wallet's
+                // exact birthday. Native independently replays every header,
+                // and direct wallet peers must still establish currentness.
+                // Re-supplying the stream is idempotent after a persisted
+                // wallet checkpoint has advanced beyond the birthday.
+                val birthdayHeight = NativeWalletBridge.birthdayHeight(
+                    expectedAuthority.walletHandle,
+                )
                 val bootstrap = if (walletDirectHnsNeedsGenesisBootstrap(walletNetwork)) {
-                    HeaderSnapshotInstaller.extractWalletGenesisBootstrap(applicationContext)
+                    birthdayHeight?.let { birthday ->
+                        HeaderSnapshotInstaller.exportWalletBirthdayBootstrap(
+                            context = applicationContext,
+                            dataDir = filesDir.absolutePath,
+                            network = walletNetwork.id,
+                            birthdayHeight = birthday,
+                        )
+                    }
                 } else {
                     null
                 }
