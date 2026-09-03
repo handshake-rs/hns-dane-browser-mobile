@@ -12,32 +12,32 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 - [GitHub Release v1.0.3](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
 
-Android `1.0.3` / code `55`, iOS `1.0.4` / build `64`, and embedded Rust
-`1.0.0` are the current source versions. Android `1.0.3` fixes authenticated
-CDN alias resolution and registers Shakescape for Android's default-browser
-role. Apple has published iOS `1.0.3`; iOS `1.0.4` carries the authenticated
-alias fix and Apple's managed default-browser declarations.
+Android `1.0.4` / code `56`, iOS `1.0.4` / build `65`, and embedded Rust
+`1.0.0` are the current source versions. Both platform builds contain the
+complete signed-origin/unsigned-CDN fix. Android retains its default-browser
+registration; the replacement iOS build deliberately omits Apple's still-
+unapproved managed default-browser entitlement.
 
 GitHub Release [`v1.0.3`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
-publishes the signed universal Android APK. Google Play has published Android
-`1.0.2` / code `54`; the separately verified Android `1.0.3` / code `55` AAB
-is staged for the next Play update and is not attached to the public release.
+publishes the signed universal Android APK. The exact Android `1.0.4` / code
+`56` signed AAB has been committed to the Google Play production track and its
+generated APK set is available; existing listing assets were preserved.
 
-The Apple App Store published iOS `1.0.3` / build `63` on 2026-09-02. Candidate
-`1.0.4` / build `64` fixes authenticated same-owner CNAME/CDN resolution and
-registers the HTTP/HTTPS schemes required for Apple's managed default-browser
-role. Release signing requires an approved profile containing
-`com.apple.developer.web-browser`; the MarketplaceKit app-installation
-entitlement is intentionally absent. No TestFlight distribution is planned.
+The Apple App Store published iOS `1.0.3` / build `63` on 2026-09-02. The first
+`1.0.4` upload, build `64`, was canceled; replacement build `65` is valid and
+`WAITING_FOR_REVIEW` with manual release. It carries the CNAME/CDN and bounded
+navigation-recovery fixes without the unapproved managed default-browser or
+MarketplaceKit app-installation entitlements. No TestFlight distribution is
+planned.
 Wallet-aware hosted-policy source
 `909dbd1a713f322f0a8d4cff88e765c612e184f3` was subsequently deployed and read
 back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 `a5539cb063fb4b19fed4dff5400a3bc991acdc4f` was deployed and read back in run
-`31485234945`. Store privacy/category answers still require exact-candidate
-reconciliation before submission.
+`31485234945`. The `1.0.4` submission workflows reconciled and read back the
+current store metadata while preserving the existing screenshots.
 
-Current source coordinates Android `1.0.3` / code `55`, iOS `1.0.4` / build
-`64`, and the embedded non-publishable Rust workspace at `1.0.0`. It directly pins
+Current source coordinates Android `1.0.4` / code `56`, iOS `1.0.4` / build
+`65`, and the embedded non-publishable Rust workspace at `1.0.0`. It directly pins
 published `hns-rs 0.4.1`, the `hns-dane-engine` light-client `0.2.3` patch
 cohort, the remaining exact engine/browser-adapter releases, and
 the complete published `hns-wallet-rs 0.2.1` closure. The browser adapters are
@@ -66,16 +66,15 @@ approve a native wallet action.
 The current per-action source, test, and device evidence is tracked in the
 [native HNS wallet feature matrix](docs/wallet-feature-matrix.md).
 
-These direct-wallet changes are unreleased local source. Rust and ABI tests
-cover their closed boundaries, but the current stack has not yet passed the
-complete Apple build/device matrix or a successful Android on-chain send. The
-latest state-preserving Android exercise proved review and peer submission but
-the transaction later returned as dropped/unconfirmed after the wallet
-restarted and rescanned from block zero. Local mempool presentation is not
-evidence that a miner retained the transaction. Exact-byte dropped-send
-recovery is pinned in the mobile stack, and the subsequent forward-only change
-watch-set fix preserves the authenticated scan head instead of triggering a
-birthday rescan; both still require installed-device requalification.
+The direct-wallet stack is included in the `1.0.x` product line and current
+store submissions. Rust, ABI, Android, Apple, packaging, and store workflow
+gates cover its closed boundaries, but a complete physical-iPhone matrix and
+installed cross-chain swap remain open. Earlier Android on-chain exercise
+proved review and peer submission before the transaction later returned as
+dropped/unconfirmed after restart; local mempool presentation was not treated
+as miner evidence. Exact-byte dropped-send recovery and the forward-only change
+watch-set fix are now included, with installed-device conclusions remaining
+scoped to their recorded runs.
 
 Earlier HNWR-v2 code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed full CI run
@@ -130,8 +129,8 @@ action was exercised. This is installed shell/UI-projection evidence, not a
 credentialed backend/read-sync, lifecycle-creation, signing, HNSA/HNSR,
 provider, value, or marketplace result. Signed store artifacts, fresh
 commit-bound screenshots, live store declaration readback, intentional upload,
-and the physical-iPhone matrix remain open. None of the public builds listed
-above contains the native wallet controls.
+and the physical-iPhone matrix remain open. These limitations describe the
+historical `0.5.9` artifact; they do not describe the current `1.0.x` product.
 
 Canonical source lives at
 [`handshake-rs/hns-dane-browser-mobile`](https://github.com/handshake-rs/hns-dane-browser-mobile).
@@ -211,8 +210,9 @@ release qualification, and broader device-qualification work are tracked in
 Android has completed its Rust-only proxy cutover: `MainActivity` uses the
 shared Rust runtime and proxy, while Kotlin owns only platform UI, WebView
 admission, lifecycle, and JNI conversion. The Apple C ABI, XCFramework build,
-and native iOS shell use the same runtime and proxy, and version `0.5.5` is
-public on the Apple App Store. Linux validates the Rust, ABI, header, and
+and native iOS shell use the same runtime and proxy, and version `1.0.3` is
+public on the Apple App Store while replacement `1.0.4` build `65` awaits
+review. Linux validates the Rust, ABI, header, and
 architecture boundaries; macOS compilation and simulator tests against the
 iOS 26.5 SDK form the Apple build gate. The signed physical-device matrix in
 `docs/ios-device-validation.md` is not an archive, upload, or App Store
