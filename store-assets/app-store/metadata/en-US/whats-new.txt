@@ -1,1 +1,1 @@
-Fixes authenticated CNAME and CDN resolution for sites that previously produced an indeterminate namespace result. Also prepares Shakescape for Apple's managed default-browser role while retaining the existing strict navigation, DNSSEC, DANE, and wallet-isolation protections.
+Fixes authenticated CNAME and CDN resolution for sites that previously produced an indeterminate namespace result, including sites behind same-owner CDN aliases. Also improves recovery from transient navigation timeouts while retaining strict DNSSEC, DANE, navigation, and wallet-isolation protections.

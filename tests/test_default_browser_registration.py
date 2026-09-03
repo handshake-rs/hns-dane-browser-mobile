@@ -7,7 +7,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 IOS_INFO = ROOT / "ios/HnsDaneBrowser/Support/Info.plist"
-IOS_ENTITLEMENTS = ROOT / "ios/HnsDaneBrowser/Support/HnsDaneBrowser.entitlements"
 IOS_PROJECT = ROOT / "ios/HnsDaneBrowser.xcodeproj/project.pbxproj"
 ANDROID_MANIFEST = ROOT / "android/app/src/main/AndroidManifest.xml"
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
@@ -63,7 +62,7 @@ class DefaultBrowserRegistrationTests(unittest.TestCase):
             )
         )
 
-    def test_ios_registers_web_schemes_and_managed_entitlement(self) -> None:
+    def test_ios_default_browser_activation_stays_dormant_until_approved(self) -> None:
         with IOS_INFO.open("rb") as source:
             info = plistlib.load(source)
         registered_schemes = {
@@ -71,18 +70,14 @@ class DefaultBrowserRegistrationTests(unittest.TestCase):
             for url_type in info.get("CFBundleURLTypes", [])
             for scheme in url_type.get("CFBundleURLSchemes", [])
         }
-        self.assertTrue({"http", "https", "handshake"}.issubset(registered_schemes))
-
-        with IOS_ENTITLEMENTS.open("rb") as source:
-            entitlements = plistlib.load(source)
-        self.assertIs(entitlements.get("com.apple.developer.web-browser"), True)
+        self.assertIn("handshake", registered_schemes)
+        self.assertFalse({"http", "https"} & registered_schemes)
 
         project = IOS_PROJECT.read_text(encoding="utf-8")
-        setting = (
-            "CODE_SIGN_ENTITLEMENTS = "
-            "HnsDaneBrowser/Support/HnsDaneBrowser.entitlements;"
+        self.assertNotIn("HnsDaneBrowser.entitlements", project)
+        self.assertFalse(
+            (ROOT / "ios/HnsDaneBrowser/Support/HnsDaneBrowser.entitlements").exists()
         )
-        self.assertEqual(project.count(setting), 2)
 
 
 if __name__ == "__main__":

@@ -10,14 +10,13 @@ iOS build `64` is an Apple-only update following public iOS `1.0.3`. Android
 remains independently versioned at `1.0.3` / code `55`, and the embedded Rust
 workspace remains independently versioned at `1.0.0`.
 
-### Added
-
-- Prepare iOS for Apple's managed default-browser capability by registering the
-  `http` and `https` URL schemes, wiring the reviewed
-  `com.apple.developer.web-browser` entitlement, and requiring the App Store
-  provisioning profile to contain that entitlement before release signing.
-
 ### Fixed
+
+- Keep Apple's still-unapproved managed default-browser entitlement out of the
+  iOS 1.0.4 signed product so the authenticated CNAME and navigation fixes can
+  ship independently. The iOS default-browser role remains dormant until Apple
+  approves the entitlement; it can be enabled in a later version without
+  reverting the underlying browser implementation.
 
 - Recover an idempotent iOS main-frame navigation from a transient request
   timeout using the same bounded scoped-proxy/WebView rotation already used

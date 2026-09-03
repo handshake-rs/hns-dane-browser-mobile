@@ -6,7 +6,7 @@ manual release.
 ## Source and artifact
 
 - [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.4` / build `64` while retaining the independently versioned Android and Rust releases.
-- [ ] Confirm Apple approved `com.apple.developer.web-browser`, regenerate the App Store profile, and replace the protected `IOS_APP_STORE_PROFILE_BASE64` secret.
+- [x] Keep the pending `com.apple.developer.web-browser` capability out of this candidate and defer default-browser activation to a later version after Apple approval.
 - [x] Keep `com.apple.developer.browser.app-installation` absent until MarketplaceKit installation behavior is implemented and separately reviewed.
 - [ ] Push the exact candidate and require all repository, Rust, Android, Apple, Required CI, and CodeQL gates to pass.
 - [ ] Build and sign the IPA from that exact commit; record its digest, identity, signing, encryption declaration, and processing state.
