@@ -15645,24 +15645,26 @@ fn assess_peer_target(
     }
 
     let peer_groups = by_group.len();
-    let observations = by_group.into_values().collect::<Vec<_>>();
-    let mut heights = observations
-        .iter()
-        .map(|(_, height)| *height)
-        .collect::<Vec<_>>();
-    heights.sort_unstable();
-    let height = (heights.len() >= LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS)
-        .then(|| heights[(heights.len() - 1) / 2]);
-    let evidence_valid_until_unix = height.map(|_| {
-        let mut expirations = observations
-            .iter()
-            .map(|(observed_at, _)| {
-                observed_at.saturating_add(LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS)
-            })
-            .collect::<Vec<_>>();
-        expirations.sort_unstable();
-        expirations[peer_groups - LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS]
-    });
+    let mut observations = by_group.into_values().collect::<Vec<_>>();
+    let (height, evidence_valid_until_unix) = if peer_groups >= LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS {
+        // We only need two order statistics, not two completely sorted copies
+        // of the observations. Keep target assessment linear and bounded to a
+        // single vector even if a persisted peer store grows unexpectedly.
+        let target_index = (peer_groups - 1) / 2;
+        let (_, target, _) =
+            observations.select_nth_unstable_by_key(target_index, |(_, height)| *height);
+        let height = target.1;
+
+        let expiry_index = peer_groups - LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS;
+        let (_, expiry, _) =
+            observations.select_nth_unstable_by_key(expiry_index, |(observed_at, _)| *observed_at);
+        let valid_until = expiry
+            .0
+            .saturating_add(LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS);
+        (Some(height), Some(valid_until))
+    } else {
+        (None, None)
+    };
     PeerTargetAssessment {
         height,
         peer_groups,
@@ -21007,6 +21009,10 @@ mod tests {
         let target = assess_peer_target(&peers, &network, now);
         assert_eq!(target.height, Some(102));
         assert_eq!(target.peer_groups, 4);
+        assert_eq!(
+            target.evidence_valid_until_unix,
+            Some(now + LOCAL_CHAIN_TARGET_OBSERVATION_MAX_AGE_SECONDS)
+        );
     }
 
     #[test]

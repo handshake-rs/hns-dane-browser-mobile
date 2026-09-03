@@ -138,8 +138,7 @@ class MainActivity : ComponentActivity() {
     private var mainFrameHnsSecurityPath: HnsPageSecurityPath? = null
     private var mainFrameHnsTraceJson: String? = null
     private var mainFrameHnsStatusUrl: String? = null
-    @Volatile
-    private var lastSyncSnapshot: HnsSyncSnapshot? = null
+    private var lastSyncProgress = HnsSyncProgress()
     private var syncSnapshotSubscription: Closeable? = null
     private var syncPreparationSubscription: Closeable? = null
     private var foregroundSyncPreparing: Boolean = false
@@ -466,7 +465,7 @@ class MainActivity : ComponentActivity() {
                 if (activityDestroyed) {
                     return@runOnUiThread
                 }
-                lastSyncSnapshot = snapshot
+                updateSyncSnapshot(snapshot)
                 refreshSecurityState()
                 refreshSyncProgress()
             }
@@ -635,7 +634,7 @@ class MainActivity : ComponentActivity() {
                 if (!syncStatusPolling) {
                     return@runOnUiThread
                 }
-                lastSyncSnapshot = snapshot
+                updateSyncSnapshot(snapshot)
                 refreshSecurityState()
                 refreshSyncProgress()
                 mainHandler.postDelayed(syncStatusPollRunnable, SYNC_STATUS_POLL_MS)
@@ -658,7 +657,10 @@ class MainActivity : ComponentActivity() {
                 if (preparing) {
                     val activeUrl = pendingMainFrameUrl ?: activeMainFrameUrl
                     val target = activeUrl?.let(classifier::classify)
-                    if (target?.let(::targetRequiresDualRootReadiness) == true) {
+                    if (
+                        target?.let(::targetRequiresDualRootReadiness) == true &&
+                        !isAuthorityReadyForSelectedNetwork(currentSyncProgress())
+                    ) {
                         proxyCoordinator.ensure(null)
                     }
                 }
@@ -671,7 +673,7 @@ class MainActivity : ComponentActivity() {
                 if (syncSnapshotSubscription == null || activityDestroyed) {
                     return@post
                 }
-                lastSyncSnapshot = snapshot
+                updateSyncSnapshot(snapshot)
                 refreshSecurityState()
                 refreshSyncProgress()
             }
@@ -992,14 +994,20 @@ class MainActivity : ComponentActivity() {
             )
     }
 
-    private fun currentSyncProgress(): HnsSyncProgress =
-        HnsSyncProgress.fromJson(lastSyncSnapshot?.statusJson)
+    private fun updateSyncSnapshot(snapshot: HnsSyncSnapshot) {
+        lastSyncProgress = HnsSyncProgress.fromJson(snapshot.statusJson)
+    }
+
+    private fun currentSyncProgress(): HnsSyncProgress = lastSyncProgress
+
+    private fun isAuthorityReadyForSelectedNetwork(progress: HnsSyncProgress): Boolean =
+        progress.isAuthorityReadyFor(HnsResolutionPreferences.handshakeNetworkId(this))
 
     /** Reset recovery may expose diagnostics, but never the previous authority generation. */
     private fun hasCurrentHeaderAuthority(progress: HnsSyncProgress = currentSyncProgress()): Boolean =
         (application as? HnsDaneApplication)?.isHeaderRecoveryInProgress != true &&
             !foregroundSyncPreparing &&
-            progress.isAuthorityReady
+            isAuthorityReadyForSelectedNetwork(progress)
 
     private fun resumePendingNavigationIfReady(progress: HnsSyncProgress) {
         val pending = pendingNavigation ?: return
@@ -1056,6 +1064,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshSecurityState() {
+        val syncProgress = currentSyncProgress()
         val failedUrl = failedMainFrameUrl
         if (
             failedUrl != null &&
@@ -1067,7 +1076,8 @@ class MainActivity : ComponentActivity() {
         val securityTarget = (pendingMainFrameUrl ?: activeMainFrameUrl)?.let(classifier::classify)
         if (
             ((application as? HnsDaneApplication)?.isHeaderRecoveryInProgress == true ||
-                foregroundSyncPreparing) &&
+                (foregroundSyncPreparing &&
+                    !isAuthorityReadyForSelectedNetwork(syncProgress))) &&
             securityTarget?.let(::targetRequiresDualRootReadiness) == true
         ) {
             setSecurityState(SecurityState.Syncing)
@@ -1086,7 +1096,6 @@ class MainActivity : ComponentActivity() {
             BrowserSecurityPolicy.state(
                 targetKind = currentTargetKind,
                 proxyAvailable = proxyAvailable,
-                syncStatusJson = lastSyncSnapshot?.statusJson,
                 mainFrameHnsStatusCode = mainFrameHnsStatusCode,
                 mainFrameHnsTlsPolicy = mainFrameHnsTlsPolicy,
                 mainFrameHnsResolverPolicy = mainFrameHnsResolverPolicy,
@@ -1097,6 +1106,8 @@ class MainActivity : ComponentActivity() {
                         .classify(pendingMainFrameUrl ?: activeMainFrameUrl.orEmpty())
                         .displayHost,
                 ),
+                syncProgress = syncProgress,
+                expectedNetwork = HnsResolutionPreferences.handshakeNetworkId(this),
             ),
         )
     }
@@ -1145,7 +1156,9 @@ class MainActivity : ComponentActivity() {
         // truthful-but-stale persisted status "idle"; it has not yet reached
         // Rust's factual syncInFlight transition. This overlay never affects
         // header authority or proxy admission below.
-        val awaitingNativeSyncStart = foregroundSyncPreparing && !progress.syncInFlight
+        val awaitingNativeSyncStart = foregroundSyncPreparing &&
+            !progress.syncInFlight &&
+            !isAuthorityReadyForSelectedNetwork(progress)
         if (awaitingNativeSyncStart || progress.shouldShowProgress) {
             syncProgressBar.visibility = View.VISIBLE
             syncProgressStats.visibility = View.VISIBLE

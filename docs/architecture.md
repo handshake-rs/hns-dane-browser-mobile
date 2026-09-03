@@ -181,9 +181,10 @@ iOS UI / Browser Shell                             [public; device qualification
 - `HnsSyncScheduler`: single-threaded scheduler owned by
   `HnsDaneApplication` while at least one app activity is started. It calls the
   native sync tick and publishes snapshots in-process, using the active
-  interval only after accepted header progress, bounded retry intervals after
-  peer/seed failures, and a 10-minute interval for current or no-progress
-  states. It survives navigation between in-app screens, is not a foreground
+  interval only after accepted header progress is still needed to reach the
+  target name-tree root, bounded retry intervals after peer/seed failures, and
+  a 10-minute interval for ready-root or no-progress states. It survives
+  navigation between in-app screens, is not a foreground
   service, and stops when the whole app leaves the foreground.
 - `HnsWebViewGatewayInterceptor`: compatibility page-request interception when the proxy cannot start, plus bodyless Service Worker HNS/ICANN HTTP/HTTPS execution for every admitted route because Android WebView cannot authorize a worker's local CONNECT certificate. It routes through the persistent shared runtime without Chromium CONNECT, with file-backed decoded response bodies, bounded same-origin redirect following, URL-bound main-frame status reporting, family-wide internal-header stripping, rejection of prohibited trust metadata before rendering or redirect following, and fail-closed handling for body-bearing requests.
 - `HnsServiceWorkerGatewayClient`: Service Worker fetch routing that follows the same immutable proxy/compatibility/block snapshot as WebView requests so worker fetches cannot bypass full-host dual-root resolution or automatic ICANN DANE validation. Android WebView does not surface a Service Worker TLS failure to the page's `WebViewClient`, so admitted DNS-named requests use the shared Rust runtime gateway rather than a CONNECT path whose live local certificate the worker cannot authorize. Transition, background/suspended, destroyed-client, invalid-host, and unavailable-generation requests fail closed instead of falling through to Chromium DNS. A process-generation gate prevents an older Activity from replacing or disabling the newer Activity's singleton Service Worker client.
@@ -238,8 +239,12 @@ The native sync JSON declares `syncStatusSchemaVersion: 3`. Android and iOS
 require that exact version, a locally available authoritative HNS name-tree
 root, the effective target, exact two-block threshold, three-group quorum, and
 explicit non-expired evidence before showing name authority as current. Legacy
-or malformed status fails closed. No-progress states use a ten-minute cadence;
-the short cadence is reserved for runs that accepted headers.
+or malformed status fails closed. No-progress and same-tree-epoch maintenance
+use a ten-minute cadence; the short cadence is reserved for accepted headers
+that are still required to reach the authoritative name-tree root. The browser
+progress UI follows that same root requirement, so a private peer-evidence or
+ordinary-tip refresh cannot replace usable name state with a misleading
+`syncing` presentation.
 
 `X-HNS-Resolution-Trace` includes `localBestHeight`, `targetHeight`,
 `estimatedTargetHeight`, `localChainLagBlocks`, `localChainFreshness`,

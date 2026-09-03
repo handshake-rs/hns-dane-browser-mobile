@@ -316,24 +316,24 @@ final class RustBrowserRuntime: BrowserRuntime {
             in: object,
             key: "syncStatusSchemaVersion"
         )
-        let bestHeight = unsignedInteger(in: object, key: "bestHeight")
-        let peerHeight = unsignedInteger(in: object, key: "bestPeerHeight")
-        let estimatedTipHeight = unsignedInteger(in: object, key: "estimatedTipHeight")
-        let effectiveTargetHeight = unsignedInteger(in: object, key: "effectiveTargetHeight")
-        let lagBlocks = unsignedInteger(in: object, key: "lagBlocks")
+        let bestHeight = height(in: object, key: "bestHeight")
+        let peerHeight = height(in: object, key: "bestPeerHeight")
+        let estimatedTipHeight = height(in: object, key: "estimatedTipHeight")
+        let effectiveTargetHeight = height(in: object, key: "effectiveTargetHeight")
+        let lagBlocks = height(in: object, key: "lagBlocks")
         let freshness = string(in: object, key: "freshness") ?? "unknown"
-        let freshnessThresholdBlocks = unsignedInteger(
+        let freshnessThresholdBlocks = height(
             in: object,
             key: "freshnessThresholdBlocks"
         )
-        let treeIntervalBlocks = unsignedInteger(in: object, key: "treeIntervalBlocks")
-        let authoritativeTreeRootHeight = unsignedInteger(
+        let treeIntervalBlocks = height(in: object, key: "treeIntervalBlocks")
+        let authoritativeTreeRootHeight = height(
             in: object,
             key: "authoritativeTreeRootHeight"
         )
-        let localTreeRootHeight = unsignedInteger(in: object, key: "localTreeRootHeight")
+        let localTreeRootHeight = height(in: object, key: "localTreeRootHeight")
         let treeRootReady = boolean(in: object, key: "treeRootReady")
-        let blocksUntilAuthoritativeTreeRoot = unsignedInteger(
+        let blocksUntilAuthoritativeTreeRoot = height(
             in: object,
             key: "blocksUntilAuthoritativeTreeRoot"
         )
@@ -345,42 +345,26 @@ final class RustBrowserRuntime: BrowserRuntime {
         let successful = nonnegativeInt(in: object, key: "successful") ?? 0
         let accepted = nonnegativeInt(in: object, key: "accepted") ?? 0
         let syncInFlight = boolean(in: object, key: "syncInFlight") ?? false
-        let stagedBestHeight = unsignedInteger(in: object, key: "stagedBestHeight")
+        let stagedBestHeight = height(in: object, key: "stagedBestHeight")
         let stagedAccepted = nonnegativeInt(in: object, key: "stagedAccepted") ?? 0
         let failed = nonnegativeInt(in: object, key: "failed") ?? 0
         let cacheEntries = nonnegativeInt(in: object, key: "resourceCacheEntries") ?? 0
         let cacheBytes = unsignedInteger(in: object, key: "resourceCacheBytes") ?? 0
         let cacheEvicted = nonnegativeInt(in: object, key: "resourceCacheEvicted") ?? 0
-        let hasAuthoritativeTreeRoot: Bool
-        if syncStatusSchemaVersion == 3,
-           treeRootReady == true,
-           let bestHeight,
-           let localTreeRootHeight,
-           let treeIntervalBlocks,
-           let blocksUntilAuthoritativeTreeRoot,
-           bestHeight > 0,
-           treeIntervalBlocks > 0,
-           localTreeRootHeight > 0,
-           localTreeRootHeight <= bestHeight,
-           blocksUntilAuthoritativeTreeRoot == 0 {
-            if network == BrowserHandshakeNetwork.regtest.rawValue {
-                hasAuthoritativeTreeRoot = true
-            } else if targetSource == "corroboratedPeers",
-                      let effectiveTargetHeight,
-                      let authoritativeTreeRootHeight,
-                      effectiveTargetHeight >= bestHeight,
-                      authoritativeTreeRootHeight > 0,
-                      localTreeRootHeight == authoritativeTreeRootHeight,
-                      bestHeight >= authoritativeTreeRootHeight,
-                      targetPeerGroups >= 3,
-                      !targetEvidenceExpired {
-                hasAuthoritativeTreeRoot = true
-            } else {
-                hasAuthoritativeTreeRoot = false
-            }
-        } else {
-            hasAuthoritativeTreeRoot = false
-        }
+        let hasAuthoritativeTreeRoot = BrowserTreeRootAuthority(
+            syncStatusSchemaVersion: syncStatusSchemaVersion,
+            network: network,
+            bestHeight: bestHeight,
+            effectiveTargetHeight: effectiveTargetHeight,
+            treeIntervalBlocks: treeIntervalBlocks,
+            authoritativeTreeRootHeight: authoritativeTreeRootHeight,
+            localTreeRootHeight: localTreeRootHeight,
+            treeRootReady: treeRootReady,
+            blocksUntilAuthoritativeTreeRoot: blocksUntilAuthoritativeTreeRoot,
+            targetSource: targetSource,
+            targetPeerGroups: targetPeerGroups,
+            targetEvidenceExpired: targetEvidenceExpired
+        ).isReady
         let hasAuthoritativeCurrentness = hasAuthoritativeTreeRoot
             && freshness == "current"
             && freshnessThresholdBlocks == 2
@@ -393,7 +377,7 @@ final class RustBrowserRuntime: BrowserRuntime {
             && hasAuthoritativeCurrentness
 
         let headline: String
-        if syncInFlight {
+        if syncInFlight && !hasAuthoritativeTreeRoot {
             headline = "Syncing Handshake headers"
         } else if isCurrent {
             headline = "Handshake headers current"
@@ -418,9 +402,9 @@ final class RustBrowserRuntime: BrowserRuntime {
         } else {
             let best = bestHeight.map(String.init) ?? "unknown"
             var details: [String] = []
-            if syncInFlight, let stagedBestHeight {
+            if syncInFlight && !hasAuthoritativeTreeRoot, let stagedBestHeight {
                 details.append("staged validated \(stagedBestHeight)")
-            } else if !syncInFlight {
+            } else {
                 details.append("Current height \(best)")
             }
             if let effectiveTargetHeight {
@@ -431,7 +415,7 @@ final class RustBrowserRuntime: BrowserRuntime {
                 details.append("HNS root \(authoritativeTreeRootHeight) \(rootState)")
             }
             details.append("freshness \(freshness)")
-            if syncInFlight {
+            if syncInFlight && !hasAuthoritativeTreeRoot {
                 details.append("staged accepted +\(stagedAccepted)")
             } else {
                 details.append("accepted \(accepted)/\(attempted)")
@@ -488,6 +472,14 @@ final class RustBrowserRuntime: BrowserRuntime {
             return nil
         }
         return UInt64(number.stringValue)
+    }
+
+    private static func height(in object: [String: Any], key: String) -> UInt64? {
+        guard let value = unsignedInteger(in: object, key: key),
+              value <= UInt64(UInt32.max) else {
+            return nil
+        }
+        return value
     }
 
     private static func nonnegativeInt(in object: [String: Any], key: String) -> Int? {

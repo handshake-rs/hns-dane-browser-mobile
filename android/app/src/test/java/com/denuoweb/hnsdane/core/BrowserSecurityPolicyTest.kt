@@ -1,5 +1,6 @@
 package com.denuoweb.hnsdane.core
 
+import com.denuoweb.hnsdane.net.HnsSyncProgress
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -78,6 +79,54 @@ class BrowserSecurityPolicyTest {
                 ),
             )
         }
+    }
+
+    @Test
+    fun typedSyncProjectionAcceptsFormattedJsonAndClassifiesErrors() {
+        val formattedReady = readySyncStatus("up_to_date")
+            .replace(",", ",\n  ")
+            .replace(":", ": ")
+        assertEquals(
+            SecurityState.Loading,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.HnsName,
+                proxyAvailable = true,
+                syncStatusJson = formattedReady,
+            ),
+        )
+        assertEquals(
+            SecurityState.ProofUnavailable,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.HnsName,
+                proxyAvailable = true,
+                syncStatusJson = """{ "status" : "peer_failed" }""",
+            ),
+        )
+    }
+
+    @Test
+    fun readyAuthorityMustMatchTheSelectedNetwork() {
+        val progress = HnsSyncProgress.fromJson(
+            readySyncStatus("up_to_date"),
+        )
+        assertEquals(
+            SecurityState.Loading,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.HnsName,
+                proxyAvailable = true,
+                syncProgress = progress,
+                expectedNetwork = "mainnet",
+            ),
+        )
+        assertEquals(
+            SecurityState.Syncing,
+            BrowserSecurityPolicy.state(
+                targetKind = BrowserTargetKind.HnsName,
+                proxyAvailable = true,
+                syncProgress = progress,
+                expectedNetwork = "testnet",
+            ),
+        )
     }
 
     @Test

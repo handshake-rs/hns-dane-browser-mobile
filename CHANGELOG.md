@@ -26,6 +26,20 @@ workspace remains independently versioned at `1.0.0`.
 
 ### Fixed
 
+- Drive foreground browser catch-up and its visible sync state from the
+  authoritative Handshake name-tree epoch instead of exact header-tip
+  currentness. Android and iOS now leave an already usable tree root presented
+  as ready during same-epoch peer maintenance, and accepted ordinary headers
+  no longer trigger rapid follow-up rounds after that root is available.
+- Parse Android native sync status once into its typed projection instead of
+  independently scanning JSON fragments in the security toolbar, and collect
+  the iOS tree-root evidence and readiness rules in one value type shared by
+  native-status presentation and admission decisions.
+- Bound native sync-status decoding to the Rust height domain, require a
+  supported selected network before tree-root evidence can authorize either
+  mobile shell, and compute peer target/expiry order statistics in place
+  instead of allocating and fully sorting two copies of every peer group.
+
 - Keep ICANN trust policy aligned with the complete validated route when a
   DNSSEC-signed origin CNAMEs into an unsigned CDN. A secure origin-scoped
   TLSA denial no longer conflicts with the proven-insecure endpoint lineage,

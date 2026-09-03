@@ -201,7 +201,7 @@ struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
         if summary?.isCaughtUp == true {
             return caughtUpInterval
         }
-        if summary?.madeHeaderProgress == true {
+        if summary?.needsTreeRootCatchUpContinuation == true {
             return progressInterval
         }
         if summary?.needsHeaderBootstrap == true {

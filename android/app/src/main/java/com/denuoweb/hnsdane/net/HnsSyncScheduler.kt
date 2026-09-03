@@ -109,7 +109,7 @@ class HnsSyncScheduler(
     internal fun nextDelayMs(snapshot: HnsSyncSnapshot): Long {
         val progress = HnsSyncProgress.fromJson(snapshot.statusJson)
         return when {
-            progress.shouldContinueSoon -> activeIntervalMs
+            progress.needsTreeRootCatchUpContinuation -> activeIntervalMs
             progress.shouldRetrySoon -> retryIntervalMs
             else -> idleIntervalMs
         }

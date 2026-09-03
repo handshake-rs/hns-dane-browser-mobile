@@ -1,16 +1,20 @@
 package com.denuoweb.hnsdane.core
 
+import com.denuoweb.hnsdane.net.HnsSyncProgress
+
 object BrowserSecurityPolicy {
     fun state(
         targetKind: BrowserTargetKind?,
         proxyAvailable: Boolean,
-        syncStatusJson: String?,
+        syncStatusJson: String? = null,
         mainFrameHnsStatusCode: Int? = null,
         mainFrameHnsTlsPolicy: HnsPageTlsPolicy? = null,
         mainFrameHnsResolverPolicy: HnsPageResolverPolicy? = null,
         mainFrameHnsSecurityPath: HnsPageSecurityPath? = null,
         mainFrameHnsResolutionTraceJson: String? = null,
         isOpaqueIpLiteral: Boolean = false,
+        syncProgress: HnsSyncProgress = HnsSyncProgress.fromJson(syncStatusJson),
+        expectedNetwork: String? = null,
     ): SecurityState {
         if (targetKind == BrowserTargetKind.LocalAsset) {
             return SecurityState.LocalContent
@@ -85,14 +89,13 @@ object BrowserSecurityPolicy {
         ) {
             return SecurityState.Loading
         }
-        if (
-            syncStatusJson.hasSyncStatus("error") ||
-            syncStatusJson.hasSyncStatus("seed_failed") ||
-            syncStatusJson.hasSyncStatus("peer_failed")
-        ) {
+        if (syncProgress.requiresAttention) {
             return SecurityState.ProofUnavailable
         }
-        if (syncStatusJson.hasAuthoritativeTreeRoot()) {
+        if (
+            expectedNetwork?.let { syncProgress.isAuthorityReadyFor(it) }
+                ?: syncProgress.isAuthorityReady
+        ) {
             return SecurityState.Loading
         }
 
@@ -115,60 +118,4 @@ object BrowserSecurityPolicy {
             HnsPageSecurityPath.HnsP2pDnsRelay -> SecurityState.HnsViaP2pDnsRelay
         }
 
-    private fun String?.hasSyncStatus(status: String): Boolean =
-        this?.contains("\"status\":\"$status\"") == true
-
-    private fun String?.hasAuthoritativeTreeRoot(): Boolean {
-        val json = this ?: return false
-        if (json.longField("syncStatusSchemaVersion") != 3L) return false
-        val best = json.longField("bestHeight") ?: return false
-        val localRoot = json.longField("localTreeRootHeight") ?: return false
-        val interval = json.longField("treeIntervalBlocks") ?: return false
-        val blocksUntilAuthority =
-            json.longField("blocksUntilAuthoritativeTreeRoot") ?: return false
-        if (
-            json.booleanField("treeRootReady") != true ||
-            best <= 0L ||
-            interval <= 0L ||
-            localRoot <= 0L ||
-            localRoot > best ||
-            blocksUntilAuthority != 0L
-        ) {
-            return false
-        }
-        if (json.stringField("network") == "regtest") {
-            return true
-        }
-        val target = json.longField("effectiveTargetHeight") ?: return false
-        val authorityRoot = json.longField("authoritativeTreeRootHeight") ?: return false
-        val targetPeerGroups = json.longField("targetPeerGroups") ?: return false
-        val evidenceExpired = json.booleanField("targetEvidenceExpired") ?: return false
-        return json.stringField("targetSource") == "corroboratedPeers" &&
-            target >= best &&
-            authorityRoot > 0L &&
-            localRoot == authorityRoot &&
-            best >= authorityRoot &&
-            targetPeerGroups >= 3L &&
-            !evidenceExpired
-    }
-
-    private fun String.longField(name: String): Long? {
-        val pattern = """"$name"\s*:\s*(null|-?\d+)(?=\s*[,}])""".toRegex()
-        val value = pattern.find(this)?.groupValues?.getOrNull(1) ?: return null
-        return value.takeUnless { it == "null" }?.toLongOrNull()
-    }
-
-    private fun String.stringField(name: String): String? {
-        val pattern = """"$name"\s*:\s*"([^"]*)"""".toRegex()
-        return pattern.find(this)?.groupValues?.getOrNull(1)
-    }
-
-    private fun String.booleanField(name: String): Boolean? {
-        val pattern = """"$name"\s*:\s*(true|false|null)(?=\s*[,}])""".toRegex()
-        return when (pattern.find(this)?.groupValues?.getOrNull(1)) {
-            "true" -> true
-            "false" -> false
-            else -> null
-        }
-    }
 }

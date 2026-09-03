@@ -2,52 +2,54 @@ package com.denuoweb.hnsdane.net
 
 import android.content.Context
 import com.denuoweb.hnsdane.R
+import org.json.JSONObject
 import java.text.NumberFormat
 import java.util.Locale
 
 data class HnsSyncProgress(
-    val syncStatusSchemaVersion: Long?,
-    val network: String,
-    val status: String,
-    val bestHeight: Long?,
-    val bestPeerHeight: Long?,
-    val attempted: Long?,
-    val successful: Long?,
-    val accepted: Long?,
-    val failed: Long?,
-    val syncInFlight: Boolean,
-    val stagedBestHeight: Long?,
-    val stagedAccepted: Long?,
-    val peerCount: Long?,
-    val peerGroups: Long?,
-    val estimatedTipHeight: Long?,
-    val effectiveTargetHeight: Long?,
-    val lagBlocks: Long?,
-    val freshness: String,
-    val freshnessThresholdBlocks: Long?,
-    val treeIntervalBlocks: Long?,
-    val authoritativeTreeRootHeight: Long?,
-    val localTreeRootHeight: Long?,
-    val treeRootReady: Boolean?,
-    val blocksUntilAuthoritativeTreeRoot: Long?,
-    val targetSource: String,
-    val targetPeerGroups: Long?,
-    val targetEvidenceExpired: Boolean?,
+    val syncStatusSchemaVersion: Long? = null,
+    val network: String = "unknown",
+    val status: String = "idle",
+    val bestHeight: Long? = null,
+    val bestPeerHeight: Long? = null,
+    val attempted: Long? = null,
+    val successful: Long? = null,
+    val accepted: Long? = null,
+    val failed: Long? = null,
+    val syncInFlight: Boolean = false,
+    val stagedBestHeight: Long? = null,
+    val stagedAccepted: Long? = null,
+    val peerCount: Long? = null,
+    val peerGroups: Long? = null,
+    val estimatedTipHeight: Long? = null,
+    val effectiveTargetHeight: Long? = null,
+    val lagBlocks: Long? = null,
+    val freshness: String = "unknown",
+    val freshnessThresholdBlocks: Long? = null,
+    val treeIntervalBlocks: Long? = null,
+    val authoritativeTreeRootHeight: Long? = null,
+    val localTreeRootHeight: Long? = null,
+    val treeRootReady: Boolean? = null,
+    val blocksUntilAuthoritativeTreeRoot: Long? = null,
+    val targetSource: String = "unknown",
+    val targetPeerGroups: Long? = null,
+    val targetEvidenceExpired: Boolean? = null,
 ) {
-    val targetHeight: Long?
-        get() = effectiveTargetHeight
-
+    /**
+     * Header-tip maintenance is not browser synchronization when the committed
+     * chain already contains the name-tree root authoritative for the peer
+     * target. Keep that distinction in one projection so callers do not each
+     * reinterpret the native transport status.
+     */
     private val displayStatus: String
-        get() = if (syncInFlight) "syncing" else status.ifBlank { "idle" }
-
-    val isBehind: Boolean
-        get() {
-            val best = bestHeight ?: return false
-            val target = targetHeight ?: return false
-            return target > best
+        get() = when {
+            isCurrent -> "up_to_date"
+            isAuthorityReady -> "name_state_ready"
+            syncInFlight -> "syncing"
+            else -> status.ifBlank { "idle" }
         }
 
-    val isBehindKnownPeer: Boolean
+    val isBehind: Boolean
         get() {
             val best = bestHeight ?: return false
             val target = effectiveTargetHeight ?: return false
@@ -72,7 +74,7 @@ data class HnsSyncProgress(
                 best > 0L &&
                 target >= best &&
                 lag >= 0L &&
-                threshold == 2L &&
+                threshold == REQUIRED_FRESHNESS_THRESHOLD_BLOCKS &&
                 lag == target - best &&
                 lag <= threshold &&
                 targetEvidenceExpired == false
@@ -80,14 +82,21 @@ data class HnsSyncProgress(
 
     val isAuthorityReady: Boolean
         get() {
-            if (syncStatusSchemaVersion != CURRENT_SCHEMA_VERSION || treeRootReady != true) return false
+            if (
+                syncStatusSchemaVersion != CURRENT_SCHEMA_VERSION ||
+                network !in EXPECTED_TREE_INTERVAL_BLOCKS ||
+                treeRootReady != true
+            ) {
+                return false
+            }
             val best = bestHeight ?: return false
             val localRoot = localTreeRootHeight ?: return false
             val interval = treeIntervalBlocks ?: return false
+            val expectedInterval = EXPECTED_TREE_INTERVAL_BLOCKS[network] ?: return false
             val blocksUntilAuthority = blocksUntilAuthoritativeTreeRoot ?: return false
             if (
                 best <= 0L ||
-                interval <= 0L ||
+                interval != expectedInterval ||
                 localRoot <= 0L ||
                 localRoot > best ||
                 blocksUntilAuthority != 0L
@@ -104,17 +113,24 @@ data class HnsSyncProgress(
                 authorityRoot > 0L &&
                 localRoot == authorityRoot &&
                 best >= authorityRoot &&
-                (targetPeerGroups ?: 0L) >= 3L &&
+                (targetPeerGroups ?: 0L) >= REQUIRED_TARGET_PEER_GROUPS &&
                 targetEvidenceExpired == false
         }
+
+    fun isAuthorityReadyFor(expectedNetwork: String): Boolean =
+        network == expectedNetwork && isAuthorityReady
 
     /** The global diagnostic sync strip remains visible in every state. */
     val shouldShowProgress: Boolean
         get() = true
 
-    val shouldContinueSoon: Boolean
+    val needsTreeRootCatchUpContinuation: Boolean
         get() = status == "syncing" &&
-            (accepted ?: 0L) > 0L
+            (accepted ?: 0L) > 0L &&
+            !isAuthorityReady
+
+    val requiresAttention: Boolean
+        get() = status in RETRY_STATUSES
 
     val shouldRetrySoon: Boolean
         get() = status in RETRY_STATUSES ||
@@ -145,8 +161,10 @@ data class HnsSyncProgress(
     fun progressPermille(): Int? {
         // Staged height is presentation-only. Authority and navigation decisions
         // continue to use the committed fields above.
-        val best = stagedBestHeight?.takeIf { syncInFlight } ?: bestHeight ?: return null
-        val target = targetHeight ?: return null
+        val best = stagedBestHeight?.takeIf { syncInFlight && !isAuthorityReady }
+            ?: bestHeight
+            ?: return null
+        val target = effectiveTargetHeight ?: return null
         if (target <= 0L) return null
         return ((best.coerceIn(0L, target) * 1000L) / target).toInt()
     }
@@ -188,12 +206,12 @@ data class HnsSyncProgress(
         peersText: (Long) -> String,
     ): String {
         val parts = mutableListOf(statusText)
-        if (syncInFlight) {
+        if (syncInFlight && !isAuthorityReady) {
             stagedBestHeight?.let { parts += "staged validated ${formatHeight(it)}" }
         } else {
             parts += bestHeightText(formattedBest)
         }
-        targetHeight?.let { parts += targetText(it) }
+        effectiveTargetHeight?.let { parts += targetText(it) }
         peerCount?.takeIf { it > 0L }?.let { parts += peersText(it) }
         return parts.joinToString(" • ")
     }
@@ -219,89 +237,68 @@ data class HnsSyncProgress(
         private val CURRENT_STATUSES = setOf("up_to_date", "synced", "attempted")
         private val RETRY_STATUSES = setOf("error", "peer_failed", "seed_failed")
         private const val CURRENT_SCHEMA_VERSION = 3L
+        private const val REQUIRED_FRESHNESS_THRESHOLD_BLOCKS = 2L
+        private const val REQUIRED_TARGET_PEER_GROUPS = 3L
+        private const val MAX_STATUS_JSON_CHARS = 64 * 1024
+        private const val MAX_U32 = 0xffff_ffffL
+        private val EXPECTED_TREE_INTERVAL_BLOCKS = mapOf(
+            "mainnet" to 36L,
+            "testnet" to 36L,
+            "regtest" to 5L,
+        )
 
         fun fromJson(statusJson: String?): HnsSyncProgress {
-            if (statusJson.isNullOrBlank()) {
-                return HnsSyncProgress(
-                    syncStatusSchemaVersion = null,
-                    network = "unknown",
-                    status = "idle",
-                    bestHeight = null,
-                    bestPeerHeight = null,
-                    attempted = null,
-                    successful = null,
-                    accepted = null,
-                    failed = null,
-                    syncInFlight = false,
-                    stagedBestHeight = null,
-                    stagedAccepted = null,
-                    peerCount = null,
-                    peerGroups = null,
-                    estimatedTipHeight = null,
-                    effectiveTargetHeight = null,
-                    lagBlocks = null,
-                    freshness = "unknown",
-                    freshnessThresholdBlocks = null,
-                    treeIntervalBlocks = null,
-                    authoritativeTreeRootHeight = null,
-                    localTreeRootHeight = null,
-                    treeRootReady = null,
-                    blocksUntilAuthoritativeTreeRoot = null,
-                    targetSource = "unknown",
-                    targetPeerGroups = null,
-                    targetEvidenceExpired = null,
-                )
-            }
+            val json = statusJson
+                ?.takeIf { it.isNotBlank() && it.length <= MAX_STATUS_JSON_CHARS }
+                ?.let { runCatching { JSONObject(it) }.getOrNull() }
+                ?: return empty()
             return HnsSyncProgress(
-                syncStatusSchemaVersion = longField(statusJson, "syncStatusSchemaVersion"),
-                network = stringField(statusJson, "network") ?: "unknown",
-                status = stringField(statusJson, "status") ?: "idle",
-                bestHeight = longField(statusJson, "bestHeight"),
-                bestPeerHeight = longField(statusJson, "bestPeerHeight"),
-                attempted = longField(statusJson, "attempted"),
-                successful = longField(statusJson, "successful"),
-                accepted = longField(statusJson, "accepted"),
-                failed = longField(statusJson, "failed"),
-                syncInFlight = booleanField(statusJson, "syncInFlight") ?: false,
-                stagedBestHeight = longField(statusJson, "stagedBestHeight"),
-                stagedAccepted = longField(statusJson, "stagedAccepted"),
-                peerCount = longField(statusJson, "peerCount"),
-                peerGroups = longField(statusJson, "peerGroups"),
-                estimatedTipHeight = longField(statusJson, "estimatedTipHeight"),
-                effectiveTargetHeight = longField(statusJson, "effectiveTargetHeight"),
-                lagBlocks = longField(statusJson, "lagBlocks"),
-                freshness = stringField(statusJson, "freshness") ?: "unknown",
-                freshnessThresholdBlocks = longField(statusJson, "freshnessThresholdBlocks"),
-                treeIntervalBlocks = longField(statusJson, "treeIntervalBlocks"),
-                authoritativeTreeRootHeight = longField(statusJson, "authoritativeTreeRootHeight"),
-                localTreeRootHeight = longField(statusJson, "localTreeRootHeight"),
-                treeRootReady = booleanField(statusJson, "treeRootReady"),
+                syncStatusSchemaVersion = json.nonnegativeLongField("syncStatusSchemaVersion"),
+                network = json.stringField("network") ?: "unknown",
+                status = json.stringField("status") ?: "idle",
+                bestHeight = json.u32Field("bestHeight"),
+                bestPeerHeight = json.u32Field("bestPeerHeight"),
+                attempted = json.nonnegativeLongField("attempted"),
+                successful = json.nonnegativeLongField("successful"),
+                accepted = json.nonnegativeLongField("accepted"),
+                failed = json.nonnegativeLongField("failed"),
+                syncInFlight = json.booleanField("syncInFlight") ?: false,
+                stagedBestHeight = json.u32Field("stagedBestHeight"),
+                stagedAccepted = json.nonnegativeLongField("stagedAccepted"),
+                peerCount = json.nonnegativeLongField("peerCount"),
+                peerGroups = json.nonnegativeLongField("peerGroups"),
+                estimatedTipHeight = json.u32Field("estimatedTipHeight"),
+                effectiveTargetHeight = json.u32Field("effectiveTargetHeight"),
+                lagBlocks = json.u32Field("lagBlocks"),
+                freshness = json.stringField("freshness") ?: "unknown",
+                freshnessThresholdBlocks = json.u32Field("freshnessThresholdBlocks"),
+                treeIntervalBlocks = json.u32Field("treeIntervalBlocks"),
+                authoritativeTreeRootHeight = json.u32Field("authoritativeTreeRootHeight"),
+                localTreeRootHeight = json.u32Field("localTreeRootHeight"),
+                treeRootReady = json.booleanField("treeRootReady"),
                 blocksUntilAuthoritativeTreeRoot =
-                    longField(statusJson, "blocksUntilAuthoritativeTreeRoot"),
-                targetSource = stringField(statusJson, "targetSource") ?: "unknown",
-                targetPeerGroups = longField(statusJson, "targetPeerGroups"),
-                targetEvidenceExpired = booleanField(statusJson, "targetEvidenceExpired"),
+                    json.u32Field("blocksUntilAuthoritativeTreeRoot"),
+                targetSource = json.stringField("targetSource") ?: "unknown",
+                targetPeerGroups = json.nonnegativeLongField("targetPeerGroups"),
+                targetEvidenceExpired = json.booleanField("targetEvidenceExpired"),
             )
         }
 
-        private fun stringField(json: String, name: String): String? {
-            val pattern = """"$name"\s*:\s*"([^"]*)"""".toRegex()
-            return pattern.find(json)?.groupValues?.getOrNull(1)
-        }
+        private fun empty() = HnsSyncProgress()
 
-        private fun longField(json: String, name: String): Long? {
-            val pattern = """"$name"\s*:\s*(null|-?\d+)(?=\s*[,}])""".toRegex()
-            val value = pattern.find(json)?.groupValues?.getOrNull(1) ?: return null
-            return value.takeUnless { it == "null" }?.toLongOrNull()
-        }
+        private fun JSONObject.stringField(name: String): String? =
+            opt(name) as? String
 
-        private fun booleanField(json: String, name: String): Boolean? {
-            val pattern = """"$name"\s*:\s*(true|false|null)(?=\s*[,}])""".toRegex()
-            return when (pattern.find(json)?.groupValues?.getOrNull(1)) {
-                "true" -> true
-                "false" -> false
-                else -> null
-            }
-        }
+        private fun JSONObject.longField(name: String): Long? =
+            (opt(name) as? Number)?.toString()?.toLongOrNull()
+
+        private fun JSONObject.nonnegativeLongField(name: String): Long? =
+            longField(name)?.takeIf { it >= 0L }
+
+        private fun JSONObject.u32Field(name: String): Long? =
+            longField(name)?.takeIf { it in 0L..MAX_U32 }
+
+        private fun JSONObject.booleanField(name: String): Boolean? =
+            opt(name) as? Boolean
     }
 }

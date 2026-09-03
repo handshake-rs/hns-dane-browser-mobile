@@ -1366,6 +1366,7 @@ final class BrowserViewController: UIViewController {
         let awaitingNativeSyncStart = isForegroundSyncPreparing
             && !summary.syncInFlight
             && summary.status == "idle"
+            && !summary.hasAuthoritativeTreeRoot
         if awaitingNativeSyncStart {
             // The native summary remains the only authority for proxy admission
             // below. This local state only avoids briefly presenting its prior

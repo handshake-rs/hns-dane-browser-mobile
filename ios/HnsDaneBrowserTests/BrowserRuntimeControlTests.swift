@@ -2833,6 +2833,30 @@ final class BrowserRuntimeControlTests: XCTestCase {
             ),
             30
         )
+        let sameTreeEpochProgress = BrowserSyncSummary(
+            headline: "Name state ready",
+            detail: "Ordinary headers advanced",
+            syncStatusSchemaVersion: 3,
+            status: "syncing",
+            network: "mainnet",
+            accepted: 1,
+            bestHeight: 339_305,
+            effectiveTargetHeight: 339_308,
+            lagBlocks: 3,
+            freshness: "stale",
+            freshnessThresholdBlocks: 2,
+            treeIntervalBlocks: 36,
+            authoritativeTreeRootHeight: 339_301,
+            localTreeRootHeight: 339_301,
+            treeRootReady: true,
+            blocksUntilAuthoritativeTreeRoot: 0,
+            targetSource: "corroboratedPeers",
+            targetPeerGroups: 3,
+            targetEvidenceExpired: false
+        )
+        XCTAssertTrue(sameTreeEpochProgress.hasAuthoritativeTreeRoot)
+        XCTAssertFalse(sameTreeEpochProgress.needsTreeRootCatchUpContinuation)
+        XCTAssertEqual(policy.delay(after: sameTreeEpochProgress, consecutiveFailures: 0), 600)
         XCTAssertTrue(
             BrowserSyncSummary(
                 headline: "Attention",
@@ -2909,17 +2933,17 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let inFlight = try RustBrowserRuntime.syncSummary(from: inFlightStatus)
 
         XCTAssertTrue(inFlight.isCaughtUp, "staged telemetry must not change committed currentness")
-        XCTAssertTrue(inFlight.shouldShowSyncProgress)
+        XCTAssertFalse(inFlight.shouldShowSyncProgress)
         XCTAssertEqual(inFlight.bestHeight, 339_308)
-        XCTAssertEqual(inFlight.displayedSyncHeight, 339_344)
+        XCTAssertEqual(inFlight.displayedSyncHeight, 339_308)
         XCTAssertEqual(inFlight.syncProgressFraction, 1)
-        XCTAssertEqual(inFlight.headline, "Syncing Handshake headers")
+        XCTAssertEqual(inFlight.headline, "Handshake headers current")
         XCTAssertFalse(inFlight.syncDiagnosticText.contains("Committed"))
-        XCTAssertTrue(inFlight.syncDiagnosticText.contains("staged validated 339344"))
+        XCTAssertTrue(inFlight.syncDiagnosticText.contains("Current height 339308"))
         XCTAssertTrue(inFlight.syncDiagnosticText.contains("effective target 339308"))
         XCTAssertTrue(inFlight.syncDiagnosticText.contains("HNS root 339301 ready"))
-        XCTAssertTrue(inFlight.syncDiagnosticText.contains("staged accepted +36"))
-        XCTAssertTrue(
+        XCTAssertTrue(inFlight.syncDiagnosticText.contains("accepted 0/3"))
+        XCTAssertFalse(
             HNSSyncViewController.statusText(
                 summary: inFlight,
                 isOperationInFlight: false
@@ -2946,6 +2970,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
             ),
             "private staged progress must never authorize browsing"
         )
+        XCTAssertTrue(stagedOnly.shouldShowSyncProgress)
+        XCTAssertEqual(stagedOnly.displayedSyncHeight, 339_308)
 
         let currentAgain = try RustBrowserRuntime.syncSummary(from: publicAuthorityStatus())
         XCTAssertFalse(currentAgain.shouldShowSyncProgress)
@@ -3012,7 +3038,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "estimatedTipHeight": 339_400,
         ])
         XCTAssertFalse(legacy.isCaughtUp)
-        XCTAssertNil(legacy.targetHeight)
+        XCTAssertNil(legacy.effectiveTargetHeight)
         XCTAssertEqual(legacy.freshness, "unknown")
         XCTAssertEqual(legacy.headline, "Handshake sync up to date")
         XCTAssertEqual(policy.delay(after: legacy, consecutiveFailures: 0), 600)
@@ -3027,7 +3053,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         variants.append(missingVersion)
 
         var invalidInterval = current
-        invalidInterval["treeIntervalBlocks"] = 0
+        invalidInterval["treeIntervalBlocks"] = 5
         variants.append(invalidInterval)
 
         var missingAuthority = current
@@ -3050,10 +3076,19 @@ final class BrowserRuntimeControlTests: XCTestCase {
         expiredEvidence["targetEvidenceExpired"] = true
         variants.append(expiredEvidence)
 
+        var unsupportedNetwork = current
+        unsupportedNetwork["network"] = "simnet"
+        variants.append(unsupportedNetwork)
+
         var genesis = current
         genesis["bestHeight"] = 0
         genesis["effectiveTargetHeight"] = 0
         variants.append(genesis)
+
+        var oversizedHeight = current
+        oversizedHeight["bestHeight"] = NSNumber(value: UInt64(UInt32.max) + 1)
+        oversizedHeight["effectiveTargetHeight"] = NSNumber(value: UInt64(UInt32.max) + 1)
+        variants.append(oversizedHeight)
 
         for variant in variants {
             let summary = try RustBrowserRuntime.syncSummary(from: variant)

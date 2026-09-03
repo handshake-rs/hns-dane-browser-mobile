@@ -407,6 +407,64 @@ struct BrowserSecuritySummary: Equatable, Sendable {
     )
 }
 
+struct BrowserTreeRootAuthority: Equatable, Sendable {
+    static let supportedSyncStatusSchemaVersion: UInt64 = 3
+    static let requiredFreshnessThresholdBlocks: UInt64 = 2
+    static let requiredTargetPeerGroups = 3
+
+    let syncStatusSchemaVersion: UInt64?
+    let network: String?
+    let bestHeight: UInt64?
+    let effectiveTargetHeight: UInt64?
+    let treeIntervalBlocks: UInt64?
+    let authoritativeTreeRootHeight: UInt64?
+    let localTreeRootHeight: UInt64?
+    let treeRootReady: Bool?
+    let blocksUntilAuthoritativeTreeRoot: UInt64?
+    let targetSource: String
+    let targetPeerGroups: Int
+    let targetEvidenceExpired: Bool
+
+    var isReady: Bool {
+        guard let selectedNetwork = network.flatMap(BrowserHandshakeNetwork.init(rawValue:)),
+              let expectedTreeInterval = Self.treeIntervalBlocks[selectedNetwork],
+              syncStatusSchemaVersion == Self.supportedSyncStatusSchemaVersion,
+              treeRootReady == true,
+              let bestHeight,
+              let localTreeRootHeight,
+              let treeIntervalBlocks,
+              let blocksUntilAuthoritativeTreeRoot,
+              bestHeight > 0,
+              treeIntervalBlocks == expectedTreeInterval,
+              localTreeRootHeight > 0,
+              localTreeRootHeight <= bestHeight,
+              blocksUntilAuthoritativeTreeRoot == 0 else {
+            return false
+        }
+        if selectedNetwork == .regtest {
+            return true
+        }
+        guard targetSource == "corroboratedPeers",
+              let effectiveTargetHeight,
+              let authoritativeTreeRootHeight,
+              effectiveTargetHeight >= bestHeight,
+              authoritativeTreeRootHeight > 0,
+              localTreeRootHeight == authoritativeTreeRootHeight,
+              bestHeight >= authoritativeTreeRootHeight,
+              targetPeerGroups >= Self.requiredTargetPeerGroups,
+              !targetEvidenceExpired else {
+            return false
+        }
+        return true
+    }
+
+    private static let treeIntervalBlocks: [BrowserHandshakeNetwork: UInt64] = [
+        .mainnet: 36,
+        .testnet: 36,
+        .regtest: 5,
+    ]
+}
+
 struct BrowserSyncSummary: Equatable, Sendable {
     let syncStatusSchemaVersion: UInt64?
     let headline: String
@@ -518,11 +576,9 @@ struct BrowserSyncSummary: Equatable, Sendable {
         error != nil || ["error", "peer_failed", "seed_failed"].contains(status)
     }
 
-    var targetHeight: UInt64? { effectiveTargetHeight }
-
     var isBehind: Bool {
-        guard let bestHeight, let targetHeight else { return false }
-        return targetHeight > bestHeight
+        guard let bestHeight, let effectiveTargetHeight else { return false }
+        return effectiveTargetHeight > bestHeight
     }
 
     var hasAuthoritativeCurrentness: Bool {
@@ -534,43 +590,31 @@ struct BrowserSyncSummary: Equatable, Sendable {
               let freshnessThresholdBlocks,
               bestHeight > 0,
               effectiveTargetHeight >= bestHeight,
-              freshnessThresholdBlocks == 2,
+              freshnessThresholdBlocks ==
+                BrowserTreeRootAuthority.requiredFreshnessThresholdBlocks,
               !targetEvidenceExpired
         else {
             return false
         }
-        return lagBlocks == effectiveTargetHeight - bestHeight && lagBlocks <= 2
+        return lagBlocks == effectiveTargetHeight - bestHeight
+            && lagBlocks <= BrowserTreeRootAuthority.requiredFreshnessThresholdBlocks
     }
 
     var hasAuthoritativeTreeRoot: Bool {
-        guard syncStatusSchemaVersion == 3,
-              treeRootReady == true,
-              let bestHeight,
-              let localTreeRootHeight,
-              let treeIntervalBlocks,
-              let blocksUntilAuthoritativeTreeRoot,
-              bestHeight > 0,
-              treeIntervalBlocks > 0,
-              localTreeRootHeight > 0,
-              localTreeRootHeight <= bestHeight,
-              blocksUntilAuthoritativeTreeRoot == 0 else {
-            return false
-        }
-        if network == BrowserHandshakeNetwork.regtest.rawValue {
-            return true
-        }
-        guard targetSource == "corroboratedPeers",
-              let effectiveTargetHeight,
-              let authoritativeTreeRootHeight,
-              effectiveTargetHeight >= bestHeight,
-              authoritativeTreeRootHeight > 0,
-              localTreeRootHeight == authoritativeTreeRootHeight,
-              bestHeight >= authoritativeTreeRootHeight,
-              targetPeerGroups >= 3,
-              !targetEvidenceExpired else {
-            return false
-        }
-        return true
+        BrowserTreeRootAuthority(
+            syncStatusSchemaVersion: syncStatusSchemaVersion,
+            network: network,
+            bestHeight: bestHeight,
+            effectiveTargetHeight: effectiveTargetHeight,
+            treeIntervalBlocks: treeIntervalBlocks,
+            authoritativeTreeRootHeight: authoritativeTreeRootHeight,
+            localTreeRootHeight: localTreeRootHeight,
+            treeRootReady: treeRootReady,
+            blocksUntilAuthoritativeTreeRoot: blocksUntilAuthoritativeTreeRoot,
+            targetSource: targetSource,
+            targetPeerGroups: targetPeerGroups,
+            targetEvidenceExpired: targetEvidenceExpired
+        ).isReady
     }
 
     /// Only the Rust runtime's corroborated target can authorize currentness.
@@ -580,8 +624,8 @@ struct BrowserSyncSummary: Equatable, Sendable {
             && hasAuthoritativeCurrentness
     }
 
-    var madeHeaderProgress: Bool {
-        !isCaughtUp && accepted > 0
+    var needsTreeRootCatchUpContinuation: Bool {
+        !hasAuthoritativeTreeRoot && accepted > 0
     }
 
     /// A target-less non-genesis sync needs another prompt pass even when the
@@ -602,17 +646,18 @@ struct BrowserSyncSummary: Equatable, Sendable {
             && bestHeight == 0
     }
 
-    /// The global diagnostic row stays visible while work is active or the
-    /// committed chain is not current. This is intentionally independent of
-    /// `hasAuthoritativeTreeRoot`, which remains the navigation security gate.
+    /// The browser-level progress row is about name-state readiness, not
+    /// incidental header-tip maintenance within an already usable tree epoch.
     var shouldShowSyncProgress: Bool {
-        syncInFlight || !isCaughtUp
+        !hasAuthoritativeTreeRoot
     }
 
     /// Presentation-only height used by the progress bar. Staged state is
     /// ignored as soon as its matching in-flight marker clears.
     var displayedSyncHeight: UInt64? {
-        syncInFlight ? (stagedBestHeight ?? bestHeight) : bestHeight
+        syncInFlight && !hasAuthoritativeTreeRoot
+            ? (stagedBestHeight ?? bestHeight)
+            : bestHeight
     }
 
     var syncProgressFraction: Double? {

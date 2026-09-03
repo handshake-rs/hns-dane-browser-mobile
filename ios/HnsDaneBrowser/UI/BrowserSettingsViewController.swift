@@ -1346,7 +1346,8 @@ final class HNSSyncViewController: UITableViewController {
         summary: BrowserSyncSummary,
         isOperationInFlight: Bool
     ) -> String {
-        var lines = [isOperationInFlight || summary.syncInFlight ? "Running…" : summary.headline]
+        let isTreeRootSyncRunning = summary.syncInFlight && !summary.hasAuthoritativeTreeRoot
+        var lines = [isOperationInFlight || isTreeRootSyncRunning ? "Running…" : summary.headline]
         if !summary.detail.isEmpty {
             lines.append(summary.detail)
         }
