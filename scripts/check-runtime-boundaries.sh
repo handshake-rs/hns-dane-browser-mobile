@@ -146,6 +146,7 @@ android_wallet_bootstrap="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsda
 android_wallet_name_import="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/NativeWalletNameImportResult.kt"
 android_hrm_hnsa_consumer="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/HrmHnsaWalletConsumer.kt"
 android_wallet_bridge="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/NativeWalletBridge.kt"
+android_header_installer="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/net/HeaderSnapshotInstaller.kt"
 android_wallet_protocol="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/wallet/MobileWalletProviderProtocol.kt"
 android_wallet_ffi="$ROOT_DIR/rust/crates/android-ffi/src/lib.rs"
 android_classifier="$ROOT_DIR/android/app/src/main/java/com/denuoweb/hnsdane/core/BrowserUrlClassifier.kt"
@@ -155,6 +156,7 @@ ios_bridging_header="$ROOT_DIR/ios/HnsDaneBrowser/Support/HnsDaneBrowser-Bridgin
 ios_native_wallet="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/RustNativeWallet.swift"
 ios_hrm_hnsa_consumer="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/HrmHnsaWalletConsumer.swift"
 ios_wallet_controller="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletViewController.swift"
+ios_header_bootstrapper="$ROOT_DIR/ios/HnsDaneBrowser/Core/HeaderSnapshotBootstrapper.swift"
 ios_wallet_protocol="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletProviderProtocol.swift"
 
 require_source_contains "$android_trace" \
@@ -191,8 +193,14 @@ require_source_contains "$android_wallet_activity" \
   'NativeWalletBridge.configureWalletOwnedDirectHnsValue(' \
   "Android mainnet wallet reads must install the wallet-owned direct HNS controller."
 require_source_contains "$android_wallet_activity" \
-  'HeaderSnapshotInstaller.extractWalletGenesisBootstrap(applicationContext)' \
-  "Android mainnet wallet reads must bootstrap from the packaged genesis headers."
+  'if (configure(""))' \
+  "Android must try the persisted wallet checkpoint before exporting headers."
+require_source_contains "$android_wallet_activity" \
+  'HeaderSnapshotInstaller.exportWalletBirthdayBootstrap(' \
+  "Android pristine restores must export the bounded post-checkpoint segment."
+require_source_absent "$android_header_installer" \
+  'extractWalletGenesisBootstrap' \
+  "Android wallet bootstrap must not decompress the genesis header stream."
 require_source_contains "$android_wallet_activity" \
   'keyStore.commitDirectHnsSynchronization(floor)' \
   "Android direct HNS synchronization must commit its rollback floor through the Keystore journal."
@@ -318,6 +326,15 @@ require_source_contains "$ios_native_wallet" \
 require_source_contains "$ios_native_wallet" \
   'hns_browser_wallet_import_hns_name_exact_text(' \
   "iOS trusted-native name import must use the dedicated C ABI boundary."
+require_source_contains "$ios_wallet_controller" \
+  'try install(nil)' \
+  "iOS must try the persisted wallet checkpoint before exporting headers."
+require_source_contains "$ios_header_bootstrapper" \
+  'try runtime.exportWalletHeaderSnapshot(' \
+  "iOS pristine restores must export the bounded post-checkpoint segment."
+require_source_absent "$ios_header_bootstrapper" \
+  'withGenesisSnapshot' \
+  "iOS wallet bootstrap must not decompress the genesis header stream."
 require_source_contains "$ios_wallet_controller" \
   'walletNameImportMayStart(expected: authority, current: current)' \
   "iOS trusted-native name import must recheck its exact wallet authority before starting."

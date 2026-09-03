@@ -73,38 +73,9 @@ object HeaderSnapshotInstaller {
     }
 
     /**
-     * Extract the app-shipped mainnet header stream for the independent wallet
-     * authority. The native wallet pins the expected endpoint and validates
-     * every header from genesis; this method merely streams the compressed APK
-     * asset to an app-private temporary file without holding it in the JVM.
-     * The caller owns and deletes the returned file after JNI consumes it.
-     */
-    fun extractWalletGenesisBootstrap(context: Context): File? {
-        val tempDir = File(context.cacheDir, "hns-wallet-header-bootstrap")
-        if (!tempDir.exists() && !tempDir.mkdirs()) {
-            return null
-        }
-        val tempFile = File(tempDir, "hns-wallet-headers-300000.snapshot")
-        return runCatching {
-            context.assets.open(ASSET_NAME).use { asset ->
-                GZIPInputStream(asset).use { gzip ->
-                    FileOutputStream(tempFile).use { output ->
-                        copySnapshotExactly(gzip, output, EXPECTED_SNAPSHOT_BYTES)
-                    }
-                }
-            }
-            tempFile
-        }.getOrElse {
-            tempFile.delete()
-            null
-        }
-    }
-
-    /**
-     * Export the browser's already-validated canonical headers exactly through
-     * the wallet birthday. Native wallet code independently replays the stream
-     * before persisting it, so the browser cache accelerates synchronization
-     * without becoming wallet value authority.
+     * Export only the browser's canonical headers after the wallet crate's
+     * pinned block-300,000 checkpoint through the exact wallet birthday.
+     * Native independently validates that segment before persisting it.
      */
     fun exportWalletBirthdayBootstrap(
         context: Context,
@@ -116,7 +87,7 @@ object HeaderSnapshotInstaller {
         val tempDir = File(context.cacheDir, "hns-wallet-header-bootstrap")
         if (!tempDir.exists() && !tempDir.mkdirs()) return null
         val tempFile = runCatching {
-            File.createTempFile("hns-wallet-browser-", ".snapshot", tempDir)
+            File.createTempFile("hns-wallet-browser-", ".segment", tempDir)
         }.getOrNull() ?: return null
         if (NativeBridge.exportWalletHeaderSnapshot(
                 dataDir = dataDir,
@@ -127,7 +98,7 @@ object HeaderSnapshotInstaller {
             return tempFile
         }
         tempFile.delete()
-        return if (birthdayHeight == SNAPSHOT_HEIGHT) extractWalletGenesisBootstrap(context) else null
+        return null
     }
 
     private fun bundledSnapshotDisabled(context: Context, network: String): Boolean {

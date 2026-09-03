@@ -3958,10 +3958,9 @@ final class WalletViewController: UIViewController {
         let browserRuntime = browserProcess?.preparedRuntimeForWalletBootstrap()
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain, browserRuntime] in
             let outcome: Result<Void, Error> = Result {
-                var openingFloor = try keychain.directHnsRollbackFloorForOpen()
-                defer { WalletSecretBytes.wipe(&openingFloor) }
-
                 let install: (String?) throws -> Void = { snapshotPath in
+                    var openingFloor = try keychain.directHnsRollbackFloorForOpen()
+                    defer { WalletSecretBytes.wipe(&openingFloor) }
                     let configured = try keychain.withDatabaseKey(
                         prompt: "Authenticate to enable your direct HNS wallet"
                     ) { databaseKey in
@@ -3980,12 +3979,20 @@ final class WalletViewController: UIViewController {
                 }
 
                 if installNetwork == .mainnet {
-                    let birthdayHeight = try wallet.birthdayHeight()
-                    try WalletHeaderSnapshotBootstrapper().withBirthdaySnapshot(
-                        runtime: browserRuntime,
-                        birthdayHeight: birthdayHeight
-                    ) { snapshot in
-                        try install(snapshot?.path)
+                    do {
+                        // Existing wallets open from their persisted,
+                        // rollback-fenced birthday checkpoint without asking
+                        // the browser to export or the wallet to replay data.
+                        try install(nil)
+                    } catch {
+                        let birthdayHeight = try wallet.birthdayHeight()
+                        try WalletHeaderSnapshotBootstrapper().withBirthdaySnapshot(
+                            runtime: browserRuntime,
+                            birthdayHeight: birthdayHeight
+                        ) { segment in
+                            guard let segment else { throw error }
+                            try install(segment.path)
+                        }
                     }
                 } else {
                     try install(nil)

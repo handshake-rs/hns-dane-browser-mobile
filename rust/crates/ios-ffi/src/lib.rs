@@ -9,7 +9,7 @@
 )]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use hns_header_consensus::{HEADER_SIZE, Header, Network};
+use hns_header_consensus::{HEADER_SIZE, Header};
 use hns_light_sync::SyncState;
 use hns_mobile_platform_runtime::{
     BrowserNameClass, BrowserProxy, BrowserProxyResolverPolicy, BrowserProxySecurityPath,
@@ -154,13 +154,9 @@ const WALLET_DIRECT_SHAKESCAPE_CONNECT_FAILED: u8 = 5;
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_EXCHANGE_FAILED: u8 = 6;
 const WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const HNS_LIGHT_FLOOR_BYTES: usize = 36;
-const MAINNET_GENESIS_BOOTSTRAP_MAGIC: &[u8; 11] = b"HNSHDRSNAP1";
-const MAINNET_GENESIS_BOOTSTRAP_HEIGHT: u32 = 300_000;
-const MAINNET_GENESIS_BOOTSTRAP_BYTES: u64 = 70_800_287;
-const MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
-    0, 0, 0, 0, 0, 0, 0, 12, 52, 107, 32, 60, 77, 216, 102, 166, 136, 26, 130, 156, 157, 202, 16,
-    190, 31, 89, 123, 179, 142, 19, 43, 169,
-];
+const IOS_WALLET_HEADER_SEGMENT_MAGIC: &[u8; 11] = b"HNSWLTSEG01";
+const IOS_MAINNET_WALLET_CHECKPOINT_HEIGHT: u32 = 300_000;
+const IOS_WALLET_HEADER_SEGMENT_METADATA_BYTES: u64 = 55;
 const DIRECT_HNS_MAX_HEADER_ROUNDS_PER_SYNC: usize = 32;
 const DIRECT_HNS_MAX_SCAN_CHUNKS_PER_SYNC: usize = 32;
 // Match the direct coordinator's single atomic filtered-block request window.
@@ -869,22 +865,18 @@ impl NativeWalletController {
         &mut self,
         database_key: &MobileDatabaseKey,
         rollback_floor: HnsLightFloor,
-        bootstrap_snapshot_path: Option<&Path>,
+        bootstrap_segment_path: Option<&Path>,
         bitcoin_data_dir: PathBuf,
     ) -> Result<MobileBitcoinValueController, MobileWalletError> {
         let Self::Lifecycle(lifecycle) = self else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        let account = lifecycle.account_config();
-        let requires_genesis_bootstrap = account.network == HnsNetwork::Mainnet
-            && account.birthday_height == u64::from(MAINNET_GENESIS_BOOTSTRAP_HEIGHT);
-        if requires_genesis_bootstrap && bootstrap_snapshot_path.is_none() {
-            return Err(MobileWalletError::ControllerFailed);
-        }
-        let bootstrap = if account.network == HnsNetwork::Mainnet {
-            match bootstrap_snapshot_path {
+        let account_network = lifecycle.account_config().network;
+        let account_birthday = lifecycle.account_config().birthday_height;
+        let bootstrap = if account_network == HnsNetwork::Mainnet {
+            match bootstrap_segment_path {
                 Some(path) => Some(
-                    load_mainnet_genesis_bootstrap(path, account.birthday_height)
+                    load_ios_mainnet_checkpoint_segment(path, account_birthday)
                         .map_err(|_| MobileWalletError::ControllerFailed)?,
                 ),
                 None => None,
@@ -903,29 +895,35 @@ impl NativeWalletController {
             };
             let peer_config = direct_hns_peer_config(lifecycle.account_config().network);
             match bootstrap {
-                Some(bootstrap) => match lifecycle
-                    .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
+                Some(bootstrap) => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor_and_checkpoint_bootstrap(
                         database_key,
-                        peer_config.clone(),
+                        peer_config,
                         rollback_floor,
                         bootstrap.target_height,
                         bootstrap.target_hash,
-                        bootstrap.headers,
-                    ) {
-                    Ok(coordinator) => coordinator,
-                    Err(_) if !requires_genesis_bootstrap => lifecycle
-                        .open_direct_hns_peer_coordinator_with_floor(
-                            database_key,
-                            peer_config,
-                            rollback_floor,
-                        )?,
-                    Err(error) => return Err(error),
-                },
-                None => lifecycle.open_direct_hns_peer_coordinator_with_floor(
-                    database_key,
-                    peer_config,
-                    rollback_floor,
-                )?,
+                        bootstrap.headers_after_checkpoint,
+                    )?,
+                None => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor(
+                        database_key,
+                        peer_config,
+                        rollback_floor,
+                    )
+                    .and_then(|coordinator| {
+                        let birthday_requires_checkpoint = account_network == HnsNetwork::Mainnet
+                            && account_birthday >= u64::from(IOS_MAINNET_WALLET_CHECKPOINT_HEIGHT);
+                        let anchor_installed = coordinator
+                            .backend()
+                            .header_sync_status()
+                            .map(|status| u64::from(status.tip.height().get()) >= account_birthday)
+                            .unwrap_or(false);
+                        if birthday_requires_checkpoint && !anchor_installed {
+                            Err(MobileWalletError::ControllerFailed)
+                        } else {
+                            Ok(coordinator)
+                        }
+                    })?,
             }
         };
         let lifecycle = match std::mem::replace(self, Self::Failed) {
@@ -1991,16 +1989,16 @@ fn read_exact_array<const N: usize>(reader: &mut impl Read) -> Result<[u8; N], F
 /// The outer app resource is only an accelerator: every header is still
 /// independently replayed and checked by the wallet coordinator before it is
 /// committed as local authority.
-struct IosMainnetGenesisBootstrap {
+struct IosMainnetCheckpointSegment {
     target_height: u32,
     target_hash: [u8; 32],
-    headers: Vec<Header>,
+    headers_after_checkpoint: Vec<Header>,
 }
 
-fn load_mainnet_genesis_bootstrap(
+fn load_ios_mainnet_checkpoint_segment(
     path: &Path,
     birthday_height: u64,
-) -> Result<IosMainnetGenesisBootstrap, FfiFailure> {
+) -> Result<IosMainnetCheckpointSegment, FfiFailure> {
     let metadata = std::fs::metadata(path).map_err(|_| {
         FfiFailure::new(
             HNS_BROWSER_RESULT_INVALID_ARGUMENT,
@@ -2019,54 +2017,36 @@ fn load_mainnet_genesis_bootstrap(
         )
     })?;
     let mut reader = BufReader::new(file);
-    if read_exact_array::<11>(&mut reader)? != *MAINNET_GENESIS_BOOTSTRAP_MAGIC {
+    if read_exact_array::<11>(&mut reader)? != *IOS_WALLET_HEADER_SEGMENT_MAGIC {
         return Err(FfiFailure::invalid(
             "wallet header bootstrap has an invalid magic",
         ));
     }
+    let checkpoint_height = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let target_height = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let header_count = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let target_hash = read_exact_array::<32>(&mut reader)?;
-    let expected_bytes = 51_u64
+    let expected_bytes = IOS_WALLET_HEADER_SEGMENT_METADATA_BYTES
         .checked_add(u64::from(header_count).saturating_mul(HEADER_SIZE as u64))
         .ok_or_else(|| FfiFailure::invalid("wallet header bootstrap length overflow"))?;
-    if target_height < MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+    if checkpoint_height != IOS_MAINNET_WALLET_CHECKPOINT_HEIGHT
+        || target_height < checkpoint_height
         || u64::from(target_height) != birthday_height
         || target_height > 1_000_000
-        || header_count != target_height.saturating_add(1)
+        || header_count != target_height.saturating_sub(checkpoint_height)
         || metadata.len() != expected_bytes
-        || (target_height == MAINNET_GENESIS_BOOTSTRAP_HEIGHT
-            && metadata.len() != MAINNET_GENESIS_BOOTSTRAP_BYTES)
     {
         return Err(FfiFailure::invalid(
             "wallet header bootstrap metadata does not match this app",
         ));
     }
-    let genesis = Header::decode(&read_exact_array::<HEADER_SIZE>(&mut reader)?).map_err(|_| {
-        FfiFailure::invalid("wallet header bootstrap has an invalid genesis header")
-    })?;
-    if genesis.block_hash() != Network::Mainnet.parameters().genesis_hash {
-        return Err(FfiFailure::invalid(
-            "wallet header bootstrap has a non-mainnet genesis header",
-        ));
-    }
-    let mut headers = Vec::with_capacity(target_height as usize);
-    let mut pinned_checkpoint_matches = false;
-    for height in 1..=target_height {
+    let mut headers_after_checkpoint = Vec::with_capacity(header_count as usize);
+    for _ in 0..header_count {
         let header =
             Header::decode(&read_exact_array::<HEADER_SIZE>(&mut reader)?).map_err(|_| {
                 FfiFailure::invalid("wallet header bootstrap contains an invalid header")
             })?;
-        if height == MAINNET_GENESIS_BOOTSTRAP_HEIGHT {
-            pinned_checkpoint_matches =
-                header.block_hash().into_bytes() == MAINNET_GENESIS_BOOTSTRAP_HASH;
-        }
-        headers.push(header);
-    }
-    if !pinned_checkpoint_matches {
-        return Err(FfiFailure::invalid(
-            "wallet header bootstrap does not contain the pinned mainnet checkpoint",
-        ));
+        headers_after_checkpoint.push(header);
     }
     let mut trailing = [0_u8; 1];
     if reader
@@ -2078,10 +2058,10 @@ fn load_mainnet_genesis_bootstrap(
             "wallet header bootstrap has trailing data",
         ));
     }
-    Ok(IosMainnetGenesisBootstrap {
+    Ok(IosMainnetCheckpointSegment {
         target_height,
         target_hash,
-        headers,
+        headers_after_checkpoint,
     })
 }
 

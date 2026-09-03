@@ -151,61 +151,21 @@ final class HeaderSnapshotBootstrapper {
     }
 }
 
-/// Produces one private, short-lived copy of the bundled header stream for
-/// the wallet's independent direct-peer coordinator. The browser runtime and
-/// wallet deliberately validate this stream independently: a browser header
-/// cache is never wallet chain authority.
+/// Produces a private, short-lived browser export containing only the headers
+/// after the wallet crate's compiled block-300,000 checkpoint through the
+/// imported wallet's birthday.
 final class WalletHeaderSnapshotBootstrapper {
-    private let resourceURL: () -> URL?
     private let fileManager: FileManager
-    private let decompressor: HeaderSnapshotDecompressing
 
     init(
-        resourceURL: @escaping () -> URL? = {
-            Bundle.main.url(
-                forResource: "hns_headers_300000.snapshot",
-                withExtension: "gzip"
-            )
-        },
-        fileManager: FileManager = .default,
-        decompressor: HeaderSnapshotDecompressing = ZlibHeaderSnapshotDecompressor()
+        fileManager: FileManager = .default
     ) {
-        self.resourceURL = resourceURL
         self.fileManager = fileManager
-        self.decompressor = decompressor
     }
 
-    /// The closure receives a complete-file-protected uncompressed snapshot
-    /// and must finish native configuration before returning. The snapshot is
-    /// removed on every exit, including native controller rejection.
-    func withGenesisSnapshot<T>(_ body: (URL) throws -> T) throws -> T {
-        guard let compressedURL = resourceURL() else {
-            throw HeaderSnapshotBootstrapError.bundledSnapshotMissing
-        }
-        let temporaryDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("hns-wallet-header-bootstrap", isDirectory: true)
-        try fileManager.createDirectory(
-            at: temporaryDirectory,
-            withIntermediateDirectories: true,
-            attributes: [.protectionKey: FileProtectionType.complete]
-        )
-        let snapshotURL = temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("snapshot")
-        defer { try? fileManager.removeItem(at: snapshotURL) }
-        try decompressor.decompress(
-            source: compressedURL,
-            destination: snapshotURL,
-            expectedBytes: HeaderSnapshotBootstrapper.expectedUncompressedBytes
-        )
-        return try body(snapshotURL)
-    }
-
-    /// Prefer a canonical browser export truncated to the wallet's exact
-    /// birthday. Rust wallet code independently validates the stream and its
-    /// direct peers still establish currentness. If the browser cannot cover
-    /// a later birthday, return no accelerator; the exact 300,000 checkpoint
-    /// retains the bundled fail-closed fallback.
+    /// Export the exact post-checkpoint segment required for the birthday.
+    /// Rust authenticates the compiled checkpoint and validates every header
+    /// in this segment; direct peers independently establish currentness.
     func withBirthdaySnapshot<T>(
         runtime: BrowserRuntime?,
         birthdayHeight: UInt64,
@@ -225,23 +185,17 @@ final class WalletHeaderSnapshotBootstrapper {
             )
             let snapshotURL = temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("snapshot")
+                .appendingPathExtension("segment")
             defer { try? fileManager.removeItem(at: snapshotURL) }
             do {
                 try runtime.exportWalletHeaderSnapshot(
                     at: snapshotURL.path,
                     targetHeight: UInt32(birthdayHeight)
                 )
-                return try body(snapshotURL)
-            } catch where birthdayHeight != HeaderSnapshotBootstrapper.snapshotHeight {
-                return try body(nil)
             } catch {
-                // The fixed checkpoint below remains independently pinned by
-                // native code and is the fallback for a birthday of 300,000.
+                return try body(nil)
             }
-        }
-        if birthdayHeight == HeaderSnapshotBootstrapper.snapshotHeight {
-            return try withGenesisSnapshot { try body($0) }
+            return try body(snapshotURL)
         }
         return try body(nil)
     }

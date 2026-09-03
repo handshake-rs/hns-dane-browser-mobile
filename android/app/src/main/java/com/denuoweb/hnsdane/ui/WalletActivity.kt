@@ -4896,38 +4896,44 @@ class WalletActivity : ComponentActivity() {
         val epoch = lifecycleEpoch
         thread(name = "hns-wallet-direct-install") {
             val installed = runCatching {
-                val floor = keyStore.directHnsRollbackFloorForOpen()
-                // Prefer the browser's canonical stream through this wallet's
-                // exact birthday. Native independently replays every header,
-                // and direct wallet peers must still establish currentness.
-                // Re-supplying the stream is idempotent after a persisted
-                // wallet checkpoint has advanced beyond the birthday.
-                val birthdayHeight = NativeWalletBridge.birthdayHeight(
-                    expectedAuthority.walletHandle,
-                )
-                val bootstrap = if (walletDirectHnsNeedsGenesisBootstrap(walletNetwork)) {
-                    birthdayHeight?.let { birthday ->
-                        HeaderSnapshotInstaller.exportWalletBirthdayBootstrap(
-                            context = applicationContext,
-                            dataDir = filesDir.absolutePath,
-                            network = walletNetwork.id,
-                            birthdayHeight = birthday,
-                        )
-                    }
-                } else {
-                    null
-                }
-                try {
-                    keyStore.withDatabaseKey { databaseKey ->
+                fun configure(segmentPath: String): Boolean {
+                    val floor = keyStore.directHnsRollbackFloorForOpen()
+                    return keyStore.withDatabaseKey { databaseKey ->
                         NativeWalletBridge.configureWalletOwnedDirectHnsValue(
                             currentAuthority = expectedAuthority,
                             databaseKey = databaseKey,
                             rollbackFloor = floor,
-                            genesisBootstrapPath = bootstrap?.absolutePath.orEmpty(),
+                            headerSegmentPath = segmentPath,
                         )
                     } == true
-                } finally {
-                    bootstrap?.delete()
+                }
+                // Existing wallets open directly from their encrypted,
+                // rollback-fenced birthday checkpoint. Export browser headers
+                // only when native reports that a pristine restore still
+                // needs the segment after the pinned block-300,000 anchor.
+                if (configure("")) {
+                    true
+                } else {
+                    val birthdayHeight = NativeWalletBridge.birthdayHeight(
+                        expectedAuthority.walletHandle,
+                    )
+                    val segment = if (walletDirectHnsNeedsGenesisBootstrap(walletNetwork)) {
+                        birthdayHeight?.let { birthday ->
+                            HeaderSnapshotInstaller.exportWalletBirthdayBootstrap(
+                                context = applicationContext,
+                                dataDir = filesDir.absolutePath,
+                                network = walletNetwork.id,
+                                birthdayHeight = birthday,
+                            )
+                        }
+                    } else {
+                        null
+                    }
+                    try {
+                        segment != null && configure(segment.absolutePath)
+                    } finally {
+                        segment?.delete()
+                    }
                 }
             }.getOrDefault(false)
             val floorStored = if (installed) {
@@ -5088,6 +5094,8 @@ class WalletActivity : ComponentActivity() {
         }
         if (!accepted && storageOwner === owner) {
             statusView.text = getString(R.string.wallet_status_unavailable)
+        } else if (accepted && storageOwner === owner && storageLease == null) {
+            statusView.text = getString(R.string.wallet_status_waiting_for_previous_controller)
         }
     }
 

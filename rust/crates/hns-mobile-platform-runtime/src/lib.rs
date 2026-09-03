@@ -308,6 +308,8 @@ const ANDROID_PARALLEL_HEADER_FETCH_PEERS: usize = 4;
 const ANDROID_MIN_PEER_TARGET: usize = 64;
 const ANDROID_PEER_HEIGHT_REFRESH_INTERVAL_SECONDS: u64 = 10 * 60;
 const HEADER_SNAPSHOT_MAGIC: &[u8] = b"HNSHDRSNAP1";
+const WALLET_HEADER_SEGMENT_MAGIC: &[u8] = b"HNSWLTSEG01";
+const WALLET_MAINNET_CHECKPOINT_HEIGHT: u32 = 300_000;
 const HEADER_SNAPSHOT_IMPORT_BATCH: usize = 2_000;
 const HEADER_SNAPSHOT_MAX_HEIGHT: u32 = 1_000_000;
 const MAINNET_GENESIS_TIME: u64 = 1_580_745_078;
@@ -3689,10 +3691,10 @@ impl BrowserRuntime {
     /// Export the browser's canonical, consensus-validated Mainnet headers in
     /// the same bounded stream format consumed by the independent wallet.
     /// The target is supplied by the wallet shell and must be no newer than
-    /// the browser's canonical tip. The wallet replays every header and still
-    /// requires fresh agreement from its own peers before issuing current
-    /// value authority; this file is an acceleration input, not shared mutable
-    /// chain state.
+    /// the browser's canonical tip. The wallet validates every header after
+    /// its compiled checkpoint and still requires fresh agreement from its own
+    /// peers before issuing current value authority; this file is an
+    /// acceleration input, not shared mutable chain state.
     pub fn export_wallet_header_snapshot(
         &self,
         snapshot_path: impl AsRef<Path>,
@@ -3703,7 +3705,9 @@ impl BrowserRuntime {
                 "wallet header export is only available for mainnet".to_owned(),
             ));
         }
-        if target_height == 0 || target_height > HEADER_SNAPSHOT_MAX_HEIGHT {
+        if target_height < WALLET_MAINNET_CHECKPOINT_HEIGHT
+            || target_height > HEADER_SNAPSHOT_MAX_HEIGHT
+        {
             return Err(RuntimeError::InvalidConfiguration(
                 "wallet header export target is outside the supported range".to_owned(),
             ));
@@ -3721,9 +3725,10 @@ impl BrowserRuntime {
             .read()
             .map_err(|_| RuntimeError::Synchronization("maintenance lock"))?;
         let _header_state_lock = self.acquire_ready_header_state()?;
-        export_wallet_header_snapshot_inner(
+        export_wallet_header_segment_inner(
             &self.inner.data_dir,
             snapshot_path.as_ref(),
+            WALLET_MAINNET_CHECKPOINT_HEIGHT,
             target_height,
             self.inner.configuration.network,
         )
@@ -16259,12 +16264,18 @@ fn install_header_snapshot_inner(
     sync_status_with_override(data_dir, network, "snapshot_imported", 1, 1, accepted_total)
 }
 
-fn export_wallet_header_snapshot_inner(
+fn export_wallet_header_segment_inner(
     data_dir: &str,
     snapshot_path: &Path,
+    checkpoint_height: u32,
     target_height: u32,
     network: NetworkKind,
 ) -> Result<(), String> {
+    if target_height < checkpoint_height {
+        return Err(format!(
+            "wallet header segment target {target_height} precedes checkpoint {checkpoint_height}"
+        ));
+    }
     let base = network_base_path(data_dir, network);
     let chain = open_initialized_header_chain(&base, network)?;
     let best_height = chain
@@ -16284,10 +16295,12 @@ fn export_wallet_header_snapshot_inner(
     let result = (|| {
         let mut output = fs::File::create(snapshot_path)
             .map_err(|error| format!("create wallet header export: {error}"))?;
+        let header_count = target_height.saturating_sub(checkpoint_height);
         output
-            .write_all(HEADER_SNAPSHOT_MAGIC)
+            .write_all(WALLET_HEADER_SEGMENT_MAGIC)
+            .and_then(|()| output.write_all(&checkpoint_height.to_be_bytes()))
             .and_then(|()| output.write_all(&target_height.to_be_bytes()))
-            .and_then(|()| output.write_all(&target_height.saturating_add(1).to_be_bytes()))
+            .and_then(|()| output.write_all(&header_count.to_be_bytes()))
             .and_then(|()| output.write_all(target.hash.as_bytes()))
             .map_err(|error| format!("write wallet header export metadata: {error}"))?;
         // Stream the canonical range with one ordered SQLite cursor. Calling
@@ -16300,14 +16313,14 @@ fn export_wallet_header_snapshot_inner(
                 "SELECT canonical.height, header.header
                  FROM hash_by_height AS canonical
                  INNER JOIN headers_by_hash AS header ON header.hash = canonical.hash
-                 WHERE canonical.height <= ?1
+                 WHERE canonical.height > ?1 AND canonical.height <= ?2
                  ORDER BY canonical.height ASC",
             )
             .map_err(|error| format!("prepare wallet header export: {error}"))?;
         let mut rows = statement
-            .query(params![target_height])
+            .query(params![checkpoint_height, target_height])
             .map_err(|error| format!("query wallet header export: {error}"))?;
-        let mut expected_height = 0_u32;
+        let mut expected_height = checkpoint_height.saturating_add(1);
         while let Some(row) = rows
             .next()
             .map_err(|error| format!("read wallet header export: {error}"))?
@@ -17620,39 +17633,44 @@ mod tests {
         assert_eq!(heights.last(), Some(&Height(3)));
 
         let snapshot = data_dir.join("wallet.snapshot");
-        export_wallet_header_snapshot_inner(
+        export_wallet_header_segment_inner(
             data_dir.to_str().unwrap(),
             &snapshot,
+            1,
             2,
             NetworkKind::Regtest,
         )
         .unwrap();
 
         let mut input = fs::File::open(&snapshot).unwrap();
-        let metadata = read_header_snapshot_metadata(&mut input).unwrap();
-        assert_eq!(metadata.target_height, 2);
+        let mut magic = [0_u8; 11];
+        input.read_exact(&mut magic).unwrap();
+        assert_eq!(&magic, WALLET_HEADER_SEGMENT_MAGIC);
+        assert_eq!(read_u32_be(&mut input, "checkpoint").unwrap(), 1);
+        assert_eq!(read_u32_be(&mut input, "target").unwrap(), 2);
+        assert_eq!(read_u32_be(&mut input, "count").unwrap(), 1);
+        let mut target_hash = [0_u8; 32];
+        input.read_exact(&mut target_hash).unwrap();
         let chain = open_initialized_header_chain(&base, NetworkKind::Regtest).unwrap();
         assert_eq!(
-            metadata.tip_hash,
-            chain.canonical_header(Height(2)).unwrap().hash
+            target_hash.as_slice(),
+            chain.canonical_header(Height(2)).unwrap().hash.as_bytes()
         );
-        for height in 0..=2 {
-            let mut encoded = [0_u8; HEADER_SIZE];
-            input.read_exact(&mut encoded).unwrap();
-            assert_eq!(
-                encoded,
-                chain
-                    .canonical_header(Height(height))
-                    .unwrap()
-                    .header
-                    .serialize()
-            );
-        }
+        let mut encoded = [0_u8; HEADER_SIZE];
+        input.read_exact(&mut encoded).unwrap();
+        assert_eq!(
+            encoded,
+            chain
+                .canonical_header(Height(2))
+                .unwrap()
+                .header
+                .serialize()
+        );
         let mut trailing = [0_u8; 1];
         assert_eq!(input.read(&mut trailing).unwrap(), 0);
         assert_eq!(
             fs::metadata(snapshot).unwrap().len(),
-            51 + (3 * HEADER_SIZE) as u64
+            55 + HEADER_SIZE as u64
         );
         let _ = fs::remove_dir_all(data_dir);
     }

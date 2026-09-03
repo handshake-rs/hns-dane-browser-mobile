@@ -5,7 +5,7 @@
     deny(clippy::expect_used, clippy::panic, clippy::unwrap_used)
 )]
 
-use hns_header_consensus::{HEADER_SIZE, Header, Network};
+use hns_header_consensus::{HEADER_SIZE, Header};
 use hns_light_sync::SyncState;
 use hns_mobile_platform_runtime::*;
 use hns_wallet_ffi::ServiceErrorCode;
@@ -140,13 +140,9 @@ const MAX_ANDROID_WALLET_BASE_UNITS_BYTES: usize = 39;
 const MAX_ANDROID_WALLET_VALUE_INTENT_JSON_BYTES: usize = 8 * 1024;
 const MAX_ANDROID_WALLET_SHAKEDEX_QUERY_JSON_BYTES: usize = 4 * 1024;
 const ANDROID_HNS_LIGHT_FLOOR_BYTES: usize = 36;
-const ANDROID_MAINNET_GENESIS_BOOTSTRAP_MAGIC: &[u8; 11] = b"HNSHDRSNAP1";
-const ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT: u32 = 300_000;
-const ANDROID_MAINNET_GENESIS_BOOTSTRAP_BYTES: u64 = 70_800_287;
-const ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH: [u8; 32] = [
-    0, 0, 0, 0, 0, 0, 0, 12, 52, 107, 32, 60, 77, 216, 102, 166, 136, 26, 130, 156, 157, 202, 16,
-    190, 31, 89, 123, 179, 142, 19, 43, 169,
-];
+const ANDROID_WALLET_HEADER_SEGMENT_MAGIC: &[u8; 11] = b"HNSWLTSEG01";
+const ANDROID_MAINNET_WALLET_CHECKPOINT_HEIGHT: u32 = 300_000;
+const ANDROID_WALLET_HEADER_SEGMENT_METADATA_BYTES: u64 = 55;
 /// HSD serves at most 2,000 headers per response. The bundled mainnet
 /// checkpoint leaves substantially less than this budget on ordinary first
 /// install, while the cap prevents a JNI read operation from becoming an
@@ -561,18 +557,11 @@ impl AndroidWalletController {
         let Self::Lifecycle(lifecycle) = self else {
             return None;
         };
-        let account = lifecycle.account_config();
-        let requires_genesis_bootstrap = account.network == HnsNetwork::Mainnet
-            && account.birthday_height == u64::from(ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT);
-        if requires_genesis_bootstrap && bootstrap_snapshot_path.is_none() {
-            android_log_error(
-                "wallet-owned direct HNS bootstrap asset was unavailable for a checkpoint-born wallet",
-            );
-            return None;
-        }
+        let account_network = lifecycle.account_config().network;
+        let account_birthday = lifecycle.account_config().birthday_height;
         let bootstrap = if let Some(path) = bootstrap_snapshot_path {
-            if account.network == HnsNetwork::Mainnet {
-                match load_android_mainnet_genesis_bootstrap(path, account.birthday_height) {
+            if account_network == HnsNetwork::Mainnet {
+                match load_android_mainnet_checkpoint_segment(path, account_birthday) {
                     Ok(bootstrap) => Some(bootstrap),
                     Err(error) => {
                         android_log_error(&format!(
@@ -598,33 +587,42 @@ impl AndroidWalletController {
             };
             let peer_config = android_direct_hns_peer_config(lifecycle.account_config().network);
             match bootstrap {
-                Some(bootstrap) => match lifecycle
-                    .open_direct_hns_peer_coordinator_with_floor_and_genesis_bootstrap(
+                Some(bootstrap) => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor_and_checkpoint_bootstrap(
                         database_key,
-                        peer_config.clone(),
+                        peer_config,
                         rollback_floor,
                         bootstrap.target_height,
                         bootstrap.target_hash,
-                        bootstrap.headers,
-                    ) {
-                    Ok(coordinator) => Ok(coordinator),
-                    Err(error) if !requires_genesis_bootstrap => {
-                        android_log_error(&format!(
-                            "wallet browser-header acceleration was unavailable; retaining existing direct-peer checkpoint: {error}"
-                        ));
-                        lifecycle.open_direct_hns_peer_coordinator_with_floor(
-                            database_key,
-                            peer_config,
-                            rollback_floor,
-                        )
-                    }
-                    Err(error) => Err(error),
-                },
-                None => lifecycle.open_direct_hns_peer_coordinator_with_floor(
-                    database_key,
-                    peer_config,
-                    rollback_floor,
-                ),
+                        bootstrap.headers_after_checkpoint,
+                    ),
+                None => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor(
+                        database_key,
+                        peer_config,
+                        rollback_floor,
+                    )
+                    .and_then(|coordinator| {
+                        let birthday_requires_checkpoint =
+                            account_network == HnsNetwork::Mainnet
+                                && account_birthday
+                                    >= u64::from(ANDROID_MAINNET_WALLET_CHECKPOINT_HEIGHT);
+                        let anchor_installed = coordinator
+                            .backend()
+                            .header_sync_status()
+                            .map(|status| {
+                                u64::from(status.tip.height().get()) >= account_birthday
+                            })
+                            .unwrap_or(false);
+                        if birthday_requires_checkpoint && !anchor_installed {
+                            android_log_error(
+                                "wallet birthday checkpoint is not installed; a post-checkpoint header segment is required",
+                            );
+                            Err(MobileWalletError::ControllerFailed)
+                        } else {
+                            Ok(coordinator)
+                        }
+                    }),
             }
         };
         let coordinator = match coordinator_result {
@@ -2820,62 +2818,49 @@ fn read_exact_array<const N: usize>(reader: &mut impl Read) -> Result<[u8; N], &
 /// Decode the Android-shipped header stream before its contents can cross into
 /// the wallet authority. The envelope's fixed height/hash are compiled into
 /// this app version; the wallet core then independently validates every
-/// header from canonical genesis before committing it.
-struct AndroidMainnetGenesisBootstrap {
+/// header after the compiled checkpoint before committing it.
+struct AndroidMainnetCheckpointSegment {
     target_height: u32,
     target_hash: [u8; 32],
-    headers: Vec<Header>,
+    headers_after_checkpoint: Vec<Header>,
 }
 
-fn load_android_mainnet_genesis_bootstrap(
+fn load_android_mainnet_checkpoint_segment(
     path: &Path,
     birthday_height: u64,
-) -> Result<AndroidMainnetGenesisBootstrap, &'static str> {
+) -> Result<AndroidMainnetCheckpointSegment, &'static str> {
     let metadata = std::fs::metadata(path).map_err(|_| "bundled header bootstrap is unreadable")?;
     if !metadata.is_file() {
         return Err("bundled header bootstrap is not a regular file");
     }
     let file = File::open(path).map_err(|_| "bundled header bootstrap cannot be opened")?;
     let mut reader = BufReader::new(file);
-    if read_exact_array::<11>(&mut reader)? != *ANDROID_MAINNET_GENESIS_BOOTSTRAP_MAGIC {
-        return Err("bundled header bootstrap has an invalid magic");
+    if read_exact_array::<11>(&mut reader)? != *ANDROID_WALLET_HEADER_SEGMENT_MAGIC {
+        return Err("wallet header segment has an invalid magic");
     }
+    let checkpoint_height = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let target_height = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let header_count = u32::from_be_bytes(read_exact_array::<4>(&mut reader)?);
     let target_hash = read_exact_array::<32>(&mut reader)?;
-    let expected_bytes = 51_u64
+    let expected_bytes = ANDROID_WALLET_HEADER_SEGMENT_METADATA_BYTES
         .checked_add(u64::from(header_count).saturating_mul(HEADER_SIZE as u64))
-        .ok_or("bundled header bootstrap length overflow")?;
-    if target_height < ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT
+        .ok_or("wallet header segment length overflow")?;
+    if checkpoint_height != ANDROID_MAINNET_WALLET_CHECKPOINT_HEIGHT
+        || target_height < checkpoint_height
         || u64::from(target_height) != birthday_height
         || target_height > 1_000_000
-        || header_count != target_height.saturating_add(1)
+        || header_count != target_height.saturating_sub(checkpoint_height)
         || metadata.len() != expected_bytes
-        || (target_height == ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT
-            && metadata.len() != ANDROID_MAINNET_GENESIS_BOOTSTRAP_BYTES)
     {
-        return Err("bundled header bootstrap metadata does not match this app");
-    }
-    let genesis = Header::decode(&read_exact_array::<HEADER_SIZE>(&mut reader)?)
-        .map_err(|_| "bundled header bootstrap has an invalid genesis header")?;
-    if genesis.block_hash() != Network::Mainnet.parameters().genesis_hash {
-        return Err("bundled header bootstrap has a non-mainnet genesis header");
+        return Err("wallet header segment metadata does not match this wallet");
     }
 
-    let mut headers = Vec::with_capacity(target_height as usize);
-    let mut pinned_checkpoint_matches = false;
-    for height in 1..=target_height {
+    let mut headers_after_checkpoint = Vec::with_capacity(header_count as usize);
+    for _ in 0..header_count {
         let bytes = read_exact_array::<HEADER_SIZE>(&mut reader)?;
         let header = Header::decode(&bytes)
-            .map_err(|_| "bundled header bootstrap contains an invalid header encoding")?;
-        if height == ANDROID_MAINNET_GENESIS_BOOTSTRAP_HEIGHT {
-            pinned_checkpoint_matches =
-                header.block_hash().into_bytes() == ANDROID_MAINNET_GENESIS_BOOTSTRAP_HASH;
-        }
-        headers.push(header);
-    }
-    if !pinned_checkpoint_matches {
-        return Err("bundled header bootstrap does not contain the pinned mainnet checkpoint");
+            .map_err(|_| "wallet header segment contains an invalid header encoding")?;
+        headers_after_checkpoint.push(header);
     }
     let mut trailing = [0_u8; 1];
     if reader
@@ -2883,12 +2868,12 @@ fn load_android_mainnet_genesis_bootstrap(
         .map_err(|_| "bundled header bootstrap could not be finalized")?
         != 0
     {
-        return Err("bundled header bootstrap has trailing data");
+        return Err("wallet header segment has trailing data");
     }
-    Ok(AndroidMainnetGenesisBootstrap {
+    Ok(AndroidMainnetCheckpointSegment {
         target_height,
         target_hash,
-        headers,
+        headers_after_checkpoint,
     })
 }
 
