@@ -10,17 +10,18 @@ workspace remains independently versioned at `1.0.0`.
 
 ### Released
 
-- Uploaded the exact 144,692,488-byte Android `1.0.3` / code `55` three-ABI
+- Uploaded the exact 144,695,055-byte Android `1.0.4` / code `56` three-ABI
   signed AAB (SHA-256
-  `9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`)
-  and committed Android Publisher edit `07303019632521856332` to the Google
+  `b0cbede5e40c32912b43736754880ba82e634344a85a52b9132fdbf46b829003`)
+  and committed Android Publisher edit `13709111796723000294` to the Google
   Play production track with status `completed`. Existing listing assets and
-  screenshots were preserved; `generatedApks/55` returned HTTP `200`.
+  screenshots were preserved; `generatedApks/56` returned HTTP `200`.
 
-- Signed and uploaded iOS `1.0.4` / build `64` in protected workflow
-  `33699401108`. After App Store Connect reported the build `VALID`, protected
-  workflow `33702492441` reconciled its metadata, preserved the existing
-  screenshots, and submitted it with manual release. Apple reports
+- Canceled iOS `1.0.4` / build `64` in protected workflow `33714324536`, then
+  signed and uploaded replacement build `65` in protected workflow
+  `33714480005`. After App Store Connect reported the build `VALID`, protected
+  workflow `33717460159` attached it, verified the metadata, preserved the
+  existing screenshots, and submitted it with manual release. Apple reports
   `WAITING_FOR_REVIEW`.
 
 ### Fixed

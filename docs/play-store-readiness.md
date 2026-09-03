@@ -3,16 +3,13 @@
 Last audited: 2026-09-02
 
 Current Android candidate source is `1.0.4` (`versionCode 56`) and supports
-Android 9 / API 28 or later. The preceding code `55` was committed to Google Play
+Android 9 / API 28 or later. Code `56` was committed to the Google Play
 production track with status `completed` through Android Publisher edit
-`07303019632521856332`; `generatedApks/55` returned HTTP `200`. The
-initial code `55` AAB passed the protected signed-product gate, but a packaging
-audit found that its default ABI set retained the historical 64-bit-only Play
-selection. Source `5173e02c6723e385c6ec8d8d12424fcb2ece2507` corrected the
-inventory and ELF32 verifier. Its replacement 144,692,488-byte signed AAB
+`13709111796723000294`; `generatedApks/56` returned HTTP `200`. Its
+144,695,055-byte signed AAB
 contains `armeabi-v7a`, `arm64-v8a`, and `x86_64`, passed the complete protected
 bundle gate, and has SHA-256
-`9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`.
+`b0cbede5e40c32912b43736754880ba82e634344a85a52b9132fdbf46b829003`.
 The guarded production upload preserved the existing listing and screenshot
 inventory.
 
@@ -100,7 +97,7 @@ behavior against the exact signed candidate before upload.
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
 | App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `54` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
-| Release track | Code 56 candidate; code 55 committed to production | Android `1.0.4` / code `56` carries the complete signed-origin/unsigned-CDN fix. Android Publisher edit `07303019632521856332` previously committed Android `1.0.3` / code `55` to production and `generatedApks/55` returned HTTP `200`. |
+| Release track | Code 56 committed to production | Android `1.0.4` / code `56` carries the complete signed-origin/unsigned-CDN fix. Android Publisher edit `13709111796723000294` committed it with status `completed`; `generatedApks/56` returned HTTP `200`. Existing listing text and screenshots were preserved. |
 | CI regression | Current exact-source CI and CodeQL passed | Exact current source `3fff254c9f7f4df535e24256869331111dd0f40f` passed full CI run `33538557957`, including policy, Rust/supply-chain, Android build/unit/bundle, API 37 native instrumentation, the complete Apple gate, and Required CI. Both associated CodeQL workflows also passed. Signed-product, installed-device, Console, and upload gates remain separate. |
 | Store assets | Six-image Pixel set committed to Play | Six 1080 × 2424 images cover the ICANN and proof-backed `shakescape/` HNS sites, browser navigation, Handshake settings, diagnostics, and proof details. Android Publisher edit `04351495318173077620` removed the two obsolete local-start and locked-wallet captures, uploaded the canonical six-image set, committed successfully, and a fresh edit read back exactly six en-US phone screenshots. |
 

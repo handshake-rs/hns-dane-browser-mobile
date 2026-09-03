@@ -3,7 +3,7 @@
 Last audited: 2026-09-02
 
 Current release source coordinates Android `1.0.4` / code `56`, the embedded
-non-publishable Rust workspace `1.0.0`, and iOS `1.0.4` / build `64`. It uses
+non-publishable Rust workspace `1.0.0`, and iOS `1.0.4` / build `65`. It uses
 the published `hns-rs 0.4.1`, exact public engine/browser-adapter releases
 (including the coherent light-client `0.2.3` patch cohort), and
 the complete exact published `hns-wallet-rs 0.2.1` closure. Registry
@@ -54,14 +54,16 @@ first protected local AAB passed
 the signed-product gate but exposed that the pre-ARMv7 default ABI inventory
 had not been advanced with the supported target list. The current gate requires
 `armeabi-v7a`, `arm64-v8a`, and `x86_64` together and rejects an AAB missing any
-of them. The replacement 144,692,488-byte AAB passed package/version, signer,
+of them. The code `56` 144,695,055-byte AAB passed package/version, signer,
 archive-integrity, 16 KiB alignment, ABI, ELF32/ELF64, debug-symbol, stripping,
 R8, release-lint, and resource-shrinking checks. Its SHA-256 is
-`9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`.
-The iOS `1.0.4` / build `64` IPA was signed and uploaded by protected workflow
-run `33699401108`; App Store Connect reported it `VALID`. Protected submission
-run `33702492441` reconciled metadata without replacing screenshots and moved
-the update to `WAITING_FOR_REVIEW` with manual release.
+`b0cbede5e40c32912b43736754880ba82e634344a85a52b9132fdbf46b829003`.
+Android Publisher edit `13709111796723000294` committed it to production and
+`generatedApks/56` returned HTTP `200`. The iOS `1.0.4` / build `65` IPA was
+signed and uploaded by protected workflow run `33714480005`; App Store Connect
+reported it `VALID`. Protected submission run `33717460159` reconciled metadata
+without replacing screenshots and moved the update to `WAITING_FOR_REVIEW`
+with manual release after build `64` was withdrawn.
 
 ## Configured and Local Gates
 

@@ -12,8 +12,8 @@ The committed application identity is:
   through Apple's public lookup record
 - Published iOS build: `1.0.3` (`63`) at source
   `96d946557ebc6bbd6259990ec7f81ba988d13468`
-- Replacement update: `1.0.4` (`65`), replacing withdrawn build `64`, manual
-  release
+- Submitted replacement: `1.0.4` (`65`), `WAITING_FOR_REVIEW`, replacing
+  withdrawn build `64`, manual release
 - Device family: iPhone
 
 Candidate build `65` includes a native-only wallet screen for
@@ -159,7 +159,7 @@ The workflow then:
 
 ## Apply metadata and submit through the API
 
-After the upload run succeeds and build `64` finishes processing, use the
+After the upload run succeeds and build `65` finishes processing, use the
 separate protected workflow. Its default `discover` mode performs authenticated
 GET requests only. Pin both the exact current `main` automation commit and the
 signed-artifact commit from the successful upload run. They may differ only by
@@ -277,13 +277,13 @@ Apple approves it, add the supplied export-compliance code to the next build.
 ## Release gate after upload
 
 For `1.0.4`, protected upload workflow
-[`33699401108`](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/33699401108)
-passed the complete fresh Apple gate, signed and uploaded build `64`, and
-retained the IPA artifact. App Store Connect subsequently reported the build
-`VALID`. Protected submission workflow
-[`33702492441`](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/33702492441)
-reconciled version metadata, selected build `64`, preserved the existing
-screenshots, and submitted the update. Readback reports
+[`33714480005`](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/33714480005)
+passed the complete fresh Apple gate, signed and uploaded replacement build
+`65`, and retained the IPA artifact. App Store Connect subsequently reported
+the build `VALID`. Protected submission workflow
+[`33717460159`](https://github.com/handshake-rs/hns-dane-browser-mobile/actions/runs/33717460159)
+reconciled version metadata, selected build `65`, preserved the existing
+screenshots, and submitted the update after build `64` was withdrawn. Readback reports
 `WAITING_FOR_REVIEW`, `releaseType=MANUAL`, and `reviewType=APP_STORE`.
 Public `1.0.3` / build `63` remains the public baseline until Apple approves
 and the manual release is issued.
