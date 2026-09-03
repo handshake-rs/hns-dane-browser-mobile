@@ -9,6 +9,8 @@
     deny(clippy::expect_used, clippy::panic, clippy::unwrap_used)
 )]
 
+mod icann_locked_names;
+
 use hns_browser_observability::{
     BrowserStatus as CanonicalBrowserStatus, IcannTlsAction as CanonicalIcannTlsAction,
     NameTreeCurrentness as CanonicalNameTreeCurrentness,
@@ -134,6 +136,7 @@ use hns_transport::{
     TlsValidation, TlsaRecordSource, TlsaTransport, TransportError, classify_ech_config_list,
 };
 use hns_urkel::UrkelProofVerifier;
+use icann_locked_names::{HSD_ICANN_ROOT_DATASET_VERSION, is_hsd_icann_root_name};
 use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
@@ -265,6 +268,12 @@ const GATEWAY_RESOLVER_CACHE_ENTRIES: usize = 1_024;
 const GATEWAY_RESOLVER_CACHE_TTL: Duration = Duration::from_secs(300);
 const GATEWAY_NEGATIVE_ANSWER_CACHE_TTL: Duration = Duration::from_secs(30);
 const NAMESPACE_EVIDENCE_MAX_TTL_SECONDS: u64 = 30;
+const ROOT_STATE_CACHE_ENTRIES: usize = 1_024;
+const MAINNET_CLAIM_PERIOD_END_HEIGHT: u32 = 4 * 365 * 144;
+// The bundled mainnet checkpoint at this height is after ICANNLOCKUP became
+// active. Requiring its ancestry is stronger than inferring BIP9 activation
+// from a single header timestamp, which could also describe a failed branch.
+const MAINNET_POST_ICANN_LOCKUP_CHECKPOINT_HEIGHT: u32 = 258_026;
 const MAX_CONCURRENT_ADMITTED_DELIVERIES: usize = 8;
 const DNS_INTERCEPTION_PROBE_TIMEOUT: Duration = Duration::from_millis(350);
 const DNS_INTERCEPTION_PROBE_ID: u16 = 0x484a;
@@ -6641,6 +6650,110 @@ fn remaining_until(deadline: Instant) -> Result<Duration, Error> {
         .ok_or_else(|| Error::new(ErrorKind::TimedOut, "live proof deadline exceeded"))
 }
 
+#[derive(Clone)]
+struct CachedHnsRootState {
+    records: ProvenNameRecords,
+    observation: HnsProofObservation,
+}
+
+/// Fixed-capacity FIFO map with O(1) average lookup, insertion, and eviction.
+/// Root-state reuse does not need recency promotion, so this avoids the O(n)
+/// queue scan of an LRU hit on attacker-selected TLDs.
+struct BoundedFifo<Key, Value> {
+    max_entries: usize,
+    entries: HashMap<Key, Value>,
+    order: VecDeque<Key>,
+}
+
+impl<Key, Value> BoundedFifo<Key, Value>
+where
+    Key: Clone + Eq + std::hash::Hash,
+    Value: Clone,
+{
+    fn new(max_entries: usize) -> Self {
+        let max_entries = max_entries.max(1);
+        Self {
+            max_entries,
+            entries: HashMap::with_capacity(max_entries),
+            order: VecDeque::with_capacity(max_entries),
+        }
+    }
+
+    fn get(&self, key: &Key) -> Option<Value> {
+        self.entries.get(key).cloned()
+    }
+
+    fn insert(&mut self, key: Key, value: Value) {
+        if !self.entries.contains_key(&key) {
+            if self.entries.len() >= self.max_entries
+                && let Some(evicted) = self.order.pop_front()
+            {
+                self.entries.remove(&evicted);
+            }
+            self.order.push_back(key.clone());
+        }
+        self.entries.insert(key, value);
+    }
+
+    fn remove(&mut self, key: &Key) {
+        if self.entries.remove(key).is_some() {
+            self.order.retain(|candidate| candidate != key);
+        }
+    }
+
+    fn clear(&mut self) {
+        self.entries.clear();
+        self.order.clear();
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    #[cfg(test)]
+    fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
+/// Process-local root-label state. Ordinary entries are scoped to one exact
+/// authoritative Urkel root and discarded atomically when that root changes.
+/// Permanently locked absences are admitted only after an exact verified
+/// non-inclusion proof and only for the pinned hsd consensus root-name set.
+struct HnsRootStateCache {
+    authority_root: Option<[u8; 32]>,
+    entries: BoundedFifo<NameHash, CachedHnsRootState>,
+    locked_dataset_version: &'static str,
+    locked_absences: HashSet<String>,
+}
+
+impl HnsRootStateCache {
+    fn new() -> Self {
+        Self {
+            authority_root: None,
+            entries: BoundedFifo::new(ROOT_STATE_CACHE_ENTRIES),
+            locked_dataset_version: HSD_ICANN_ROOT_DATASET_VERSION,
+            locked_absences: HashSet::with_capacity(ROOT_STATE_CACHE_ENTRIES),
+        }
+    }
+
+    fn set_authority_root(&mut self, tree_root: [u8; 32]) {
+        if self.authority_root != Some(tree_root) {
+            self.entries.clear();
+            self.authority_root = Some(tree_root);
+        }
+    }
+
+    fn get(&mut self, name_hash: NameHash) -> Option<CachedHnsRootState> {
+        self.entries.get(&name_hash)
+    }
+
+    fn insert(&mut self, name_hash: NameHash, state: CachedHnsRootState) {
+        self.entries.insert(name_hash, state);
+    }
+}
+
 struct GatewayProofProvider {
     base: PathBuf,
     values: SqliteResourceValueProvider,
@@ -6652,6 +6765,7 @@ struct GatewayProofProvider {
     proof_peer: Option<Arc<Mutex<Option<SocketAddr>>>>,
     evidence: HnsProofEvidenceRecorder,
     trace: DnsTraceRecorder,
+    root_states: Arc<Mutex<HnsRootStateCache>>,
 }
 
 impl GatewayProofProvider {
@@ -6667,6 +6781,7 @@ impl GatewayProofProvider {
             proof_peer: None,
             evidence: HnsProofEvidenceRecorder::default(),
             trace: DnsTraceRecorder::default(),
+            root_states: Arc::new(Mutex::new(HnsRootStateCache::new())),
         }
     }
 
@@ -6695,6 +6810,55 @@ impl GatewayProofProvider {
         root_name: &str,
         name_hash: NameHash,
     ) -> Result<ProvenNameRecords, ResolverError> {
+        if local_chain_lacks_authoritative_tree_root(&self.base, self.network)? {
+            return Err(ResolverError::LocalChainNotCurrent);
+        }
+        let authority = authoritative_tree_root_header(&self.base, self.network)?;
+        let authority_root = authority.header.tree_root.into_bytes();
+        {
+            let mut cache = self
+                .root_states
+                .lock()
+                .map_err(|_| ResolverError::CachePoisoned)?;
+            cache.set_authority_root(authority_root);
+            if cache.locked_dataset_version == HSD_ICANN_ROOT_DATASET_VERSION
+                && cache.locked_absences.contains(root_name)
+                && permanent_hns_icann_absence_is_active(self.network, &authority, root_name)
+            {
+                let observed_at_unix = now_unix_seconds();
+                let observation = HnsProofObservation {
+                    anchor: ResourceValueAnchor {
+                        tree_root: authority.header.tree_root,
+                        height: authority.height,
+                    },
+                    exists: false,
+                    has_delegation: false,
+                    observed_at_unix,
+                    expires_at_unix: observed_at_unix
+                        .saturating_add(NAMESPACE_EVIDENCE_MAX_TTL_SECONDS),
+                };
+                self.evidence.record(root_name, observation)?;
+                return Ok(ProvenNameRecords {
+                    root_name: root_name.to_owned(),
+                    name_hash,
+                    records: Vec::new(),
+                    secure: true,
+                    exists: false,
+                });
+            }
+            if let Some(mut cached) = cache.get(name_hash) {
+                if cached.records.root_name != root_name || cached.records.name_hash != name_hash {
+                    return Err(ResolverError::ProofNameMismatch);
+                }
+                let observed_at_unix = now_unix_seconds();
+                cached.observation.observed_at_unix = observed_at_unix;
+                cached.observation.expires_at_unix =
+                    observed_at_unix.saturating_add(NAMESPACE_EVIDENCE_MAX_TTL_SECONDS);
+                self.evidence.record(root_name, cached.observation)?;
+                return Ok(cached.records);
+            }
+        }
+
         let verified = self.values.prove_resource_value(root_name, name_hash)?;
         if verified.root_name != root_name || verified.name_hash != name_hash || !verified.secure {
             return Err(ResolverError::ProofNameMismatch);
@@ -6702,10 +6866,7 @@ impl GatewayProofProvider {
         let Some(anchor) = verified.anchor else {
             return Err(ResolverError::ProofUnavailable);
         };
-        if local_chain_lacks_authoritative_tree_root(&self.base, self.network)? {
-            return Err(ResolverError::LocalChainNotCurrent);
-        }
-        if !self.anchor_matches_authoritative_tree_root(Some(anchor))? {
+        if !hns_anchor_matches_authoritative_tree_root(&self.base, self.network, anchor)? {
             return Err(ResolverError::ProofUnavailable);
         }
         let exists = verified.value.is_some();
@@ -6717,28 +6878,30 @@ impl GatewayProofProvider {
             .iter()
             .any(|record| record.name == root_owner && record.record_type == RecordType::Ns);
         let observed_at_unix = now_unix_seconds();
-        self.evidence.record(
-            root_name,
-            HnsProofObservation {
-                anchor,
-                exists,
-                has_delegation,
-                observed_at_unix,
-                expires_at_unix: observed_at_unix
-                    .saturating_add(NAMESPACE_EVIDENCE_MAX_TTL_SECONDS),
-            },
-        )?;
-        Ok(records)
-    }
-
-    fn anchor_matches_authoritative_tree_root(
-        &self,
-        anchor: Option<ResourceValueAnchor>,
-    ) -> Result<bool, ResolverError> {
-        let Some(anchor) = anchor else {
-            return Ok(false);
+        let observation = HnsProofObservation {
+            anchor,
+            exists,
+            has_delegation,
+            observed_at_unix,
+            expires_at_unix: observed_at_unix.saturating_add(NAMESPACE_EVIDENCE_MAX_TTL_SECONDS),
         };
-        hns_anchor_matches_authoritative_tree_root(&self.base, self.network, anchor)
+        self.evidence.record(root_name, observation)?;
+        let mut cache = self
+            .root_states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        cache.set_authority_root(authority_root);
+        cache.insert(
+            name_hash,
+            CachedHnsRootState {
+                records: records.clone(),
+                observation,
+            },
+        );
+        if !exists && permanent_hns_icann_absence_is_active(self.network, &authority, root_name) {
+            cache.locked_absences.insert(root_name.to_owned());
+        }
+        Ok(records)
     }
 
     fn fetch_and_store_live_proof(
@@ -6947,6 +7110,17 @@ impl GatewayProofProvider {
             .is_ok();
         attempt
     }
+}
+
+fn permanent_hns_icann_absence_is_active(
+    network: NetworkKind,
+    authority: &hns_chain::StoredHeader,
+    root_name: &str,
+) -> bool {
+    network == NetworkKind::Mainnet
+        && authority.height.0 >= MAINNET_CLAIM_PERIOD_END_HEIGHT
+        && authority.height.0 >= MAINNET_POST_ICANN_LOCKUP_CHECKPOINT_HEIGHT
+        && is_hsd_icann_root_name(root_name)
 }
 
 impl HnsProofProvider for GatewayProofProvider {
@@ -7327,6 +7501,7 @@ impl AndroidGatewayResolver {
         }
         self.hns_evidence.begin()?;
         self.icann_evidence.begin()?;
+        self.preflight_root_states(&origin);
         let plan = build_namespace_plan(
             self.hns.as_ref(),
             self.icann.as_ref(),
@@ -7339,6 +7514,28 @@ impl AndroidGatewayResolver {
         }
         self.trace.record_namespace(plan.metadata.clone());
         self.finish_plan(plan)
+    }
+
+    fn preflight_root_states(&self, origin: &NamespaceOriginContext) {
+        let Ok(root) = hns_root_label(&origin.key.host) else {
+            return;
+        };
+        let request = ResolutionRequest {
+            qname: root,
+            qtype: RecordType::Ns.code(),
+        };
+        thread::scope(|scope| {
+            scope.spawn(|| {
+                let _ = self.hns_evidence.begin();
+                let _ = self.hns.resolve(&request);
+                self.hns_evidence.reset();
+            });
+            scope.spawn(|| {
+                let _ = self.icann_evidence.begin();
+                let _ = self.icann.resolve(&request);
+                self.icann_evidence.reset();
+            });
+        });
     }
 
     fn origin_for_query(
@@ -10651,6 +10848,20 @@ impl IcannEvidenceRecorder {
             .copied())
     }
 
+    fn replay(
+        &self,
+        request: &ResolutionRequest,
+        observation: IcannResponseObservation,
+    ) -> Result<(), ResolverError> {
+        self.states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .entry(thread::current().id())
+            .or_default()
+            .insert(request.clone(), observation);
+        Ok(())
+    }
+
     #[cfg(test)]
     fn insert_observation(
         &self,
@@ -11130,6 +11341,219 @@ impl Resolver for IcannDohResolver {
             self.evidence.record_response(request, &message)?;
         }
         answer
+    }
+}
+
+#[derive(Clone, Copy)]
+enum CachedIcannRootState {
+    Present,
+    AuthenticatedAbsent(IcannResponseObservation),
+}
+
+#[derive(Clone, Copy)]
+struct CachedIcannRootEntry {
+    state: CachedIcannRootState,
+    expires_at_unix: u64,
+    expires_at: Instant,
+}
+
+/// Bounded cache for the ICANN root label, independent of full-origin plans.
+/// Only authenticated NXDOMAIN for an explicit TLD NS query can suppress
+/// descendant lookups; NODATA and transport/DNSSEC failures are never absence.
+struct IcannRootCachingResolver<R> {
+    inner: R,
+    evidence: IcannEvidenceRecorder,
+    states: Mutex<BoundedFifo<String, CachedIcannRootEntry>>,
+    probe_lock: Mutex<()>,
+}
+
+impl<R> IcannRootCachingResolver<R>
+where
+    R: Resolver,
+{
+    fn new(inner: R, evidence: IcannEvidenceRecorder) -> Self {
+        Self {
+            inner,
+            evidence,
+            states: Mutex::new(BoundedFifo::new(ROOT_STATE_CACHE_ENTRIES)),
+            probe_lock: Mutex::new(()),
+        }
+    }
+
+    fn root_label(request: &ResolutionRequest) -> Result<String, ResolverError> {
+        let canonical = request.qname.trim_end_matches('.').to_ascii_lowercase();
+        let root = canonical.rsplit('.').next().unwrap_or_default();
+        if root.is_empty() || DnsName::from_ascii(root).is_err() {
+            return Err(ResolverError::InvalidDnsResponse);
+        }
+        Ok(root.to_owned())
+    }
+
+    fn cached_presence_answer(root: &str) -> Result<ResolutionAnswer, ResolverError> {
+        Ok(ResolutionAnswer {
+            name: DnsName::from_ascii(root).map_err(|_| ResolverError::InvalidDnsResponse)?,
+            records: Vec::new(),
+            secure: true,
+        })
+    }
+
+    fn cached_state(&self, root: &String) -> Result<Option<CachedIcannRootState>, ResolverError> {
+        let mut states = self
+            .states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        let Some(entry) = states.get(root) else {
+            return Ok(None);
+        };
+        if entry.expires_at_unix <= now_unix_seconds() || entry.expires_at <= Instant::now() {
+            states.remove(root);
+            return Ok(None);
+        }
+        Ok(Some(entry.state))
+    }
+
+    fn insert_state(
+        &self,
+        root: String,
+        state: CachedIcannRootState,
+        expires_at_unix: u64,
+    ) -> Result<(), ResolverError> {
+        let ttl = expires_at_unix.saturating_sub(now_unix_seconds());
+        if ttl == 0 {
+            return Ok(());
+        }
+        let expires_at = Instant::now()
+            .checked_add(Duration::from_secs(ttl))
+            .ok_or(ResolverError::InvalidDnsResponse)?;
+        self.states
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?
+            .insert(
+                root,
+                CachedIcannRootEntry {
+                    state,
+                    expires_at_unix,
+                    expires_at,
+                },
+            );
+        Ok(())
+    }
+
+    fn probe_root(&self, root: &String) -> Result<CachedIcannRootState, ResolverError> {
+        if let Some(state) = self.cached_state(root)? {
+            return Ok(state);
+        }
+        let _probe = self
+            .probe_lock
+            .lock()
+            .map_err(|_| ResolverError::CachePoisoned)?;
+        if let Some(state) = self.cached_state(root)? {
+            return Ok(state);
+        }
+        let request = ResolutionRequest {
+            qname: root.to_owned(),
+            qtype: RecordType::Ns.code(),
+        };
+        let result = self.inner.resolve(&request);
+        let observation = self.evidence.observation(&request)?;
+        match (result, observation) {
+            (Ok(answer), Some(observation))
+                if observation.kind == IcannResponseKind::Answer
+                    && observation.secure == answer.secure =>
+            {
+                self.insert_state(
+                    root.to_owned(),
+                    CachedIcannRootState::Present,
+                    observation.expires_at_unix,
+                )?;
+                Ok(CachedIcannRootState::Present)
+            }
+            (Err(ResolverError::NameNotFound), Some(observation))
+                if observation.kind == IcannResponseKind::NxDomain && observation.secure =>
+            {
+                self.insert_state(
+                    root.to_owned(),
+                    CachedIcannRootState::AuthenticatedAbsent(observation),
+                    observation.expires_at_unix,
+                )?;
+                Ok(CachedIcannRootState::AuthenticatedAbsent(observation))
+            }
+            (Err(error), _) => Err(error),
+            (Ok(_), _) => Err(ResolverError::InvalidDnsResponse),
+        }
+    }
+}
+
+impl<R> Resolver for IcannRootCachingResolver<R>
+where
+    R: Resolver,
+{
+    fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+        let root = Self::root_label(request)?;
+        let is_root_probe = request
+            .qname
+            .trim_end_matches('.')
+            .eq_ignore_ascii_case(&root)
+            && request.qtype == RecordType::Ns.code();
+        if is_root_probe {
+            if let Some(state) = self.cached_state(&root)? {
+                return match state {
+                    CachedIcannRootState::Present => Self::cached_presence_answer(&root),
+                    CachedIcannRootState::AuthenticatedAbsent(observation) => {
+                        self.evidence.replay(request, observation)?;
+                        Err(ResolverError::NameNotFound)
+                    }
+                };
+            }
+            let _probe = self
+                .probe_lock
+                .lock()
+                .map_err(|_| ResolverError::CachePoisoned)?;
+            if let Some(state) = self.cached_state(&root)? {
+                return match state {
+                    CachedIcannRootState::Present => Self::cached_presence_answer(&root),
+                    CachedIcannRootState::AuthenticatedAbsent(observation) => {
+                        self.evidence.replay(request, observation)?;
+                        Err(ResolverError::NameNotFound)
+                    }
+                };
+            }
+            let result = self.inner.resolve(request);
+            let observation = self.evidence.observation(request)?;
+            return match (result, observation) {
+                (Ok(answer), Some(observation))
+                    if observation.kind == IcannResponseKind::Answer
+                        && observation.secure == answer.secure =>
+                {
+                    self.insert_state(
+                        root,
+                        CachedIcannRootState::Present,
+                        observation.expires_at_unix,
+                    )?;
+                    Ok(answer)
+                }
+                (Err(ResolverError::NameNotFound), Some(observation))
+                    if observation.kind == IcannResponseKind::NxDomain && observation.secure =>
+                {
+                    self.insert_state(
+                        root,
+                        CachedIcannRootState::AuthenticatedAbsent(observation),
+                        observation.expires_at_unix,
+                    )?;
+                    self.evidence.replay(request, observation)?;
+                    Err(ResolverError::NameNotFound)
+                }
+                (Err(error), _) => Err(error),
+                (Ok(answer), _) => Ok(answer),
+            };
+        }
+        match self.probe_root(&root) {
+            Ok(CachedIcannRootState::AuthenticatedAbsent(observation)) => {
+                self.evidence.replay(request, observation)?;
+                Err(ResolverError::NameNotFound)
+            }
+            Ok(CachedIcannRootState::Present) | Err(_) => self.inner.resolve(request),
+        }
     }
 }
 
@@ -12419,6 +12843,7 @@ fn persistent_gateway_resolver_stack(
     let delegated = AuthenticatedHnsDelegationRecordingResolver::new(delegated, dns_trace.clone());
     let primary = DelegatingResolver::new(proof_provider, delegated);
     let icann = IcannDohResolver::new(dns_trace.clone(), http, icann_evidence.clone(), fixture_key);
+    let icann = IcannRootCachingResolver::new(icann, icann_evidence.clone());
     PersistentGatewayResolver {
         hns: Arc::new(primary),
         icann: Arc::new(icann),
@@ -28354,5 +28779,245 @@ mod tests {
         evidence.reset();
         assert!(trace.snapshot().is_empty());
         assert!(evidence.observation("pirate").unwrap().is_none());
+    }
+
+    struct RootCacheTestIcannResolver {
+        evidence: IcannEvidenceRecorder,
+        calls: Arc<Mutex<Vec<ResolutionRequest>>>,
+        root_result: Result<IcannResponseKind, &'static str>,
+    }
+
+    impl Resolver for RootCacheTestIcannResolver {
+        fn resolve(&self, request: &ResolutionRequest) -> Result<ResolutionAnswer, ResolverError> {
+            self.calls.lock().unwrap().push(request.clone());
+            if request.qtype == RecordType::Ns.code() && !request.qname.contains('.') {
+                let kind = self
+                    .root_result
+                    .map_err(|message| ResolverError::DnsTransport(message.to_owned()))?;
+                let observed_at_unix = now_unix_seconds();
+                self.evidence.insert_observation(
+                    request.clone(),
+                    IcannResponseObservation {
+                        kind,
+                        secure: true,
+                        observed_at_unix,
+                        expires_at_unix: observed_at_unix + 30,
+                    },
+                );
+                if kind == IcannResponseKind::NxDomain {
+                    return Err(ResolverError::NameNotFound);
+                }
+            }
+            Ok(ResolutionAnswer {
+                name: DnsName::from_ascii(&request.qname).unwrap(),
+                records: Vec::new(),
+                secure: true,
+            })
+        }
+    }
+
+    #[test]
+    fn icann_authenticated_root_absence_is_reused_for_sibling_hosts() {
+        let evidence = IcannEvidenceRecorder::default();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let resolver = IcannRootCachingResolver::new(
+            RootCacheTestIcannResolver {
+                evidence: evidence.clone(),
+                calls: Arc::clone(&calls),
+                root_result: Ok(IcannResponseKind::NxDomain),
+            },
+            evidence.clone(),
+        );
+        for host in ["app.pirate", "docs.pirate"] {
+            let request = ResolutionRequest {
+                qname: host.to_owned(),
+                qtype: RecordType::A.code(),
+            };
+            assert_eq!(resolver.resolve(&request), Err(ResolverError::NameNotFound));
+            let observation = evidence.observation(&request).unwrap().unwrap();
+            assert_eq!(observation.kind, IcannResponseKind::NxDomain);
+            assert!(observation.secure);
+        }
+        assert_eq!(
+            calls.lock().unwrap().as_slice(),
+            &[ResolutionRequest {
+                qname: "pirate".to_owned(),
+                qtype: RecordType::Ns.code(),
+            }]
+        );
+    }
+
+    #[test]
+    fn icann_root_errors_are_not_cached_as_absence() {
+        let evidence = IcannEvidenceRecorder::default();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let resolver = IcannRootCachingResolver::new(
+            RootCacheTestIcannResolver {
+                evidence: evidence.clone(),
+                calls: Arc::clone(&calls),
+                root_result: Err("timeout"),
+            },
+            evidence,
+        );
+        let request = ResolutionRequest {
+            qname: "app.pirate".to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        assert!(resolver.resolve(&request).is_ok());
+        assert!(resolver.resolve(&request).is_ok());
+        let calls = calls.lock().unwrap();
+        assert_eq!(calls.len(), 4);
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| call.qtype == RecordType::Ns.code())
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn icann_root_nodata_never_suppresses_descendant_resolution() {
+        let evidence = IcannEvidenceRecorder::default();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let resolver = IcannRootCachingResolver::new(
+            RootCacheTestIcannResolver {
+                evidence: evidence.clone(),
+                calls: Arc::clone(&calls),
+                root_result: Ok(IcannResponseKind::NoData),
+            },
+            evidence,
+        );
+        let request = ResolutionRequest {
+            qname: "app.unsigned".to_owned(),
+            qtype: RecordType::A.code(),
+        };
+        assert!(resolver.resolve(&request).is_ok());
+        assert!(calls.lock().unwrap().iter().any(|call| call == &request));
+    }
+
+    #[test]
+    fn concurrent_icann_root_misses_are_coalesced() {
+        let evidence = IcannEvidenceRecorder::default();
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let resolver = IcannRootCachingResolver::new(
+            RootCacheTestIcannResolver {
+                evidence: evidence.clone(),
+                calls: Arc::clone(&calls),
+                root_result: Ok(IcannResponseKind::NxDomain),
+            },
+            evidence,
+        );
+        thread::scope(|scope| {
+            for index in 0..8 {
+                let resolver = &resolver;
+                scope.spawn(move || {
+                    let request = ResolutionRequest {
+                        qname: format!("host{index}.pirate"),
+                        qtype: RecordType::A.code(),
+                    };
+                    assert_eq!(resolver.resolve(&request), Err(ResolverError::NameNotFound));
+                });
+            }
+        });
+        assert_eq!(calls.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn hns_root_state_cache_is_bounded_and_cleared_by_tree_root() {
+        let mut cache = HnsRootStateCache::new();
+        cache.set_authority_root([1; 32]);
+        for index in 0..=ROOT_STATE_CACHE_ENTRIES {
+            let root_name = format!("root{index}");
+            let name_hash = NameHash::from_name(&root_name).unwrap();
+            let observation = HnsProofObservation {
+                anchor: ResourceValueAnchor {
+                    tree_root: hns_core::Hash::new([1; 32]),
+                    height: Height(10),
+                },
+                exists: false,
+                has_delegation: false,
+                observed_at_unix: 1,
+                expires_at_unix: 31,
+            };
+            cache.insert(
+                name_hash,
+                CachedHnsRootState {
+                    records: ProvenNameRecords {
+                        root_name,
+                        name_hash,
+                        records: Vec::new(),
+                        secure: true,
+                        exists: false,
+                    },
+                    observation,
+                },
+            );
+        }
+        assert_eq!(cache.entries.len(), ROOT_STATE_CACHE_ENTRIES);
+        assert!(cache.get(NameHash::from_name("root0").unwrap()).is_none());
+        assert!(
+            cache
+                .get(NameHash::from_name(&format!("root{ROOT_STATE_CACHE_ENTRIES}")).unwrap())
+                .is_some()
+        );
+        cache.set_authority_root([2; 32]);
+        assert!(cache.entries.is_empty());
+    }
+
+    #[test]
+    fn expired_icann_root_state_is_removed_before_reuse() {
+        let evidence = IcannEvidenceRecorder::default();
+        let resolver = IcannRootCachingResolver::new(
+            RootCacheTestIcannResolver {
+                evidence: evidence.clone(),
+                calls: Arc::new(Mutex::new(Vec::new())),
+                root_result: Ok(IcannResponseKind::Answer),
+            },
+            evidence,
+        );
+        let root = "expired".to_owned();
+        resolver.states.lock().unwrap().insert(
+            root.clone(),
+            CachedIcannRootEntry {
+                state: CachedIcannRootState::Present,
+                expires_at_unix: now_unix_seconds(),
+                expires_at: Instant::now(),
+            },
+        );
+        assert!(resolver.cached_state(&root).unwrap().is_none());
+        assert!(resolver.states.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn permanent_hns_tombstones_require_mainnet_checkpoint_and_pinned_name() {
+        let header = BlockHeader::genesis_for_network(NetworkKind::Mainnet);
+        let mut authority = StoredHeader {
+            hash: header.hash(),
+            chainwork: Chainwork::from_bits(header.bits).unwrap(),
+            header,
+            height: Height(MAINNET_POST_ICANN_LOCKUP_CHECKPOINT_HEIGHT),
+        };
+        assert!(permanent_hns_icann_absence_is_active(
+            NetworkKind::Mainnet,
+            &authority,
+            "com"
+        ));
+        assert!(!permanent_hns_icann_absence_is_active(
+            NetworkKind::Mainnet,
+            &authority,
+            "pirate"
+        ));
+        assert!(!permanent_hns_icann_absence_is_active(
+            NetworkKind::Regtest,
+            &authority,
+            "com"
+        ));
+        authority.height = Height(MAINNET_CLAIM_PERIOD_END_HEIGHT);
+        assert!(!permanent_hns_icann_absence_is_active(
+            NetworkKind::Mainnet,
+            &authority,
+            "com"
+        ));
     }
 }

@@ -334,7 +334,7 @@ does not by itself change peer score or start a cooldown. See
 - No HSD Urkel inclusion value should be cached as resolver data until its serialized `NameState` name matches the requested root and only its bounded `data` field is extracted.
 - No TCP proof response should be stored for resolver use unless it matches a tracked getproof request and passes Urkel verification.
 - No cached verified resource value should be served unless its root label and name hash match the resolver request.
-- No chain-anchored cached verified resource value, whether an inclusion or non-inclusion, should be served unless its proof tree root and height match the current local best header and that local chain is current enough for resolution. Sync ticks prune values that are unanchored or not anchored to the current tip; a materially stale local chain fails before delegated DNS or relay transport.
+- No chain-anchored cached verified resource value, whether an inclusion or non-inclusion, should be served unless its proof anchor remains canonical, its proof tree root matches the currently authoritative name-tree root, and the local chain is current enough for resolution. Same-tree-root headers may reuse the result; a new authoritative tree root atomically invalidates the process cache. Sync ticks prune values that are unanchored or no longer canonical; a materially stale local chain fails before delegated DNS or relay transport.
 - No persisted verified resource value should be stored or returned unless its root label and name hash are normalized and matched.
 - No proven HNS answer should be returned if the proof name hash or root name mismatches the request.
 - No verified HNS non-inclusion should be treated as an existing name with an empty record set.
@@ -433,7 +433,7 @@ does not by itself change peer score or start a cooldown. See
   canonical publication guard is held. Android raw/JNI wrappers propagate
   post-parse runtime errors as no result; they cannot replace a rejected
   admitted response with fresh unstamped 500 bytes or a file body.
-- No vendored IANA/root-zone list may authoritatively select a namespace. Every canonical complete hostname must be resolved independently through HNS and ICANN, with HNS-only, ICANN-only, convergent, divergent, neither, and indeterminate outcomes handled explicitly before any origin connection.
+- No live or vendored IANA/root-zone list may authoritatively select a namespace. Every canonical complete hostname must receive independent typed HNS and ICANN results, with HNS-only, ICANN-only, convergent, divergent, neither, and indeterminate outcomes handled explicitly before any origin connection. A root-label result may satisfy descendants only when it is cryptographically scoped to them: exact-current-tree HNS proof state, or secure ICANN NXDOMAIN for the TLD within its negative TTL and RRSIG lifetime. The pinned hsd root-flag snapshot can enable a permanent mainnet HNS tombstone only after exact post-claim non-inclusion has first been proven on a chain descended from the bundled post-ICANNLOCKUP checkpoint; it cannot imply absence, override an inclusion, or choose ICANN.
 - No successful response may expose a newly selected divergent namespace until
   its sticky selection has been durably recorded. Persistence failure withholds
   the response. Once persistence increments the binding revision, stale

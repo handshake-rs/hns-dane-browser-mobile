@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add bounded, root-label-aware dual-root resolution caches. HNS inclusion and
+  non-inclusion state is reused only while the exact authoritative Urkel tree
+  root remains current; ICANN TLD presence and authenticated NXDOMAIN are
+  reused only through their DNS TTL and denial-signature lifetime. Cold root
+  probes run concurrently, sibling HNS hosts avoid repeated proof acquisition,
+  and sibling names below an absent ICANN TLD avoid repeated DoH queries.
+- Add a pinned snapshot of hsd's 1,487 consensus root-flagged ICANN names for
+  the post-lockup optimization. A permanent in-process HNS absence tombstone
+  is learned only after an exact mainnet Urkel non-inclusion proof after both
+  the claim period and the post-ICANNLOCKUP checkpoint; the dataset never
+  selects a namespace and a claimed HNS version of an ICANN name remains a
+  normal conflict.
 - Add lightweight Android user tabs: a count badge immediately to the right
   of the omnibox opens a bounded tab switcher, and the hamburger action row
   includes New Tab, which opens the configured homepage. Inactive tabs retain
