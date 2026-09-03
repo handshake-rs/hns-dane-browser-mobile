@@ -100,6 +100,18 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import org.json.JSONObject
 
+/**
+ * Admission authority comes only from the authenticated sync projection and
+ * explicit header-recovery state. Foreground sync preparation is
+ * presentation-only and must not revoke an already authenticated tree root.
+ */
+internal fun browserHasCurrentHeaderAuthority(
+    headerRecoveryInProgress: Boolean,
+    progress: HnsSyncProgress,
+    expectedNetwork: String,
+): Boolean =
+    !headerRecoveryInProgress && progress.isAuthorityReadyFor(expectedNetwork)
+
 class MainActivity : ComponentActivity() {
     private val classifier = BrowserUrlClassifier(NativeBridge)
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -1155,9 +1167,12 @@ class MainActivity : ComponentActivity() {
 
     /** Reset recovery may expose diagnostics, but never the previous authority generation. */
     private fun hasCurrentHeaderAuthority(progress: HnsSyncProgress = currentSyncProgress()): Boolean =
-        (application as? HnsDaneApplication)?.isHeaderRecoveryInProgress != true &&
-            !foregroundSyncPreparing &&
-            isAuthorityReadyForSelectedNetwork(progress)
+        browserHasCurrentHeaderAuthority(
+            headerRecoveryInProgress =
+                (application as? HnsDaneApplication)?.isHeaderRecoveryInProgress == true,
+            progress = progress,
+            expectedNetwork = HnsResolutionPreferences.handshakeNetworkId(this),
+        )
 
     private fun resumePendingNavigationIfReady(progress: HnsSyncProgress) {
         val pending = pendingNavigation ?: return
