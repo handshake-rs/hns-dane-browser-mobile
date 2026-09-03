@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -118,6 +119,10 @@ class MainActivity : ComponentActivity() {
     private var securityStatusText: String = ""
     private lateinit var hamburgerButton: TextView
     private var hamburgerPopup: PopupWindow? = null
+    private lateinit var tabButton: TextView
+    private var tabPopup: PopupWindow? = null
+    private lateinit var browserTabs: BrowserTabs
+    private var clearHistoryAfterTabNavigation: Boolean = false
     private lateinit var syncProgressBar: ProgressBar
     private lateinit var syncProgressStats: TextView
     private lateinit var syncGateNotice: TextView
@@ -226,6 +231,7 @@ class MainActivity : ComponentActivity() {
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
         configureServiceWorkerInterception()
+        browserTabs = restoreBrowserTabs(savedInstanceState)
 
         omnibox = EditText(this).apply {
             hint = getString(R.string.omnibox_hint)
@@ -330,6 +336,12 @@ class MainActivity : ComponentActivity() {
                 dp(TOOLBAR_CONTROL_HEIGHT_DP),
             ))
             addView(omnibox, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(tabButton(), LinearLayout.LayoutParams(
+                dp(TAB_BUTTON_SIZE_DP),
+                dp(TAB_BUTTON_SIZE_DP),
+            ).apply {
+                marginStart = dp(6)
+            })
             addView(menuButton())
         }
 
@@ -377,7 +389,11 @@ class MainActivity : ComponentActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
+                if (clearHistoryAfterTabNavigation) {
+                    // Do not expose another tab's page while the replacement
+                    // page is still committing into the shared WebView.
+                    return
+                } else if (webView.canGoBack()) {
                     navigateHistory(-1)
                 } else if (returnToBackgroundAfterBrowserBack) {
                     // Main was reordered above a retained Wallet. Returning
@@ -392,16 +408,21 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        val restoredUrl = savedInstanceState?.getString(STATE_MAIN_FRAME_URL)
-        if (!restoredUrl.isNullOrBlank()) {
-            loadTarget(classifier.classify(restoredUrl))
+        if (savedInstanceState != null) {
+            loadTarget(classifier.classify(browserTabs.active.url))
         } else {
             loadInitialPage(intent)
         }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        (pendingMainFrameUrl ?: activeMainFrameUrl ?: currentPageUrl())?.let { url ->
+        saveActiveTabMetadata()
+        val snapshot = browserTabs.snapshot()
+        outState.putStringArrayList(STATE_TAB_URLS, snapshot.urls)
+        outState.putStringArrayList(STATE_TAB_TITLES, snapshot.titles)
+        outState.putInt(STATE_ACTIVE_TAB_INDEX, snapshot.activeIndex)
+        browserTabs.active.url.let { url ->
+            // Keep the previous single-page key for downgrade compatibility.
             outState.putString(STATE_MAIN_FRAME_URL, url)
         }
         super.onSaveInstanceState(outState)
@@ -476,6 +497,8 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         hamburgerPopup?.dismiss()
         hamburgerPopup = null
+        tabPopup?.dismiss()
+        tabPopup = null
         activityStopped = true
         proxyNavigationSubmittedGeneration = null
         gatewayInterceptionEnabled = false
@@ -703,6 +726,38 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { showHamburgerMenu() }
         }
 
+    private fun tabButton(): TextView =
+        TextView(this).apply {
+            tabButton = this
+            gravity = Gravity.CENTER
+            textSize = 14f
+            minWidth = dp(TAB_BUTTON_SIZE_DP)
+            minHeight = dp(TOOLBAR_CONTROL_HEIGHT_DP)
+            setTextColor(themeColors().primaryText)
+            background = InsetDrawable(tabCountBackground(), dp(6))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { showTabsPopup() }
+            refreshTabButton()
+        }
+
+    private fun refreshTabButton() {
+        if (!::tabButton.isInitialized || !::browserTabs.isInitialized) return
+        tabButton.text = browserTabs.count.toString()
+        tabButton.contentDescription = resources.getQuantityString(
+            R.plurals.tab_count_content_description,
+            browserTabs.count,
+            browserTabs.count,
+        )
+    }
+
+    private fun tabCountBackground(): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        setColor(Color.TRANSPARENT)
+        setStroke(dp(2), themeColors().secondaryText)
+        cornerRadius = dp(5).toFloat()
+    }
+
     private fun showHamburgerMenu() {
         hamburgerPopup?.dismiss()
         val popup = PopupWindow(this)
@@ -721,6 +776,9 @@ class MainActivity : ComponentActivity() {
                 })
                 addView(menuIconButton("⌂", getString(R.string.menu_home), true, popup) {
                     loadHomePage()
+                })
+                addView(menuIconButton("＋", getString(R.string.menu_new_tab), true, popup) {
+                    openNewTab()
                 })
             }, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -765,6 +823,24 @@ class MainActivity : ComponentActivity() {
             0,
         )
     }
+
+    private fun showTabsPopup() {
+        tabPopup?.dismiss()
+        val colors = themeColors()
+        tabPopup = BrowserTabsPopup.show(
+            context = this,
+            anchor = tabButton,
+            tabs = browserTabs.all(),
+            activeTabId = browserTabs.active.id,
+            primaryTextColor = colors.primaryText,
+            secondaryTextColor = colors.secondaryText,
+            background = { hamburgerPopupBackground(colors) },
+            onSelect = ::switchToTab,
+            onClose = ::closeTab,
+            onDismiss = { popup ->
+                if (tabPopup === popup) tabPopup = null
+            },
+        )
 
     private fun hamburgerPopupBackground(colors: ThemeColors) =
         if (BrowserThemePreferences.effectiveDark(this)) {
@@ -859,6 +935,76 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun restoreBrowserTabs(savedInstanceState: Bundle?): BrowserTabs {
+        val homepage = BrowserPreferences.homepage(this)
+        val urls = savedInstanceState?.getStringArrayList(STATE_TAB_URLS)
+        val titles = savedInstanceState?.getStringArrayList(STATE_TAB_TITLES)
+        if (urls != null) {
+            return BrowserTabs.restore(
+                BrowserTabsSnapshot(
+                    urls = urls,
+                    titles = titles ?: arrayListOf(),
+                    activeIndex = savedInstanceState.getInt(STATE_ACTIVE_TAB_INDEX, 0),
+                ),
+                homepage,
+            )
+        }
+        val tabs = BrowserTabs.create(homepage)
+        savedInstanceState
+            ?.getString(STATE_MAIN_FRAME_URL)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { tabs.updateActive(it) }
+        return tabs
+    }
+
+    private fun saveActiveTabMetadata() {
+        val url = pendingMainFrameUrl ?: activeMainFrameUrl ?: currentPageUrl() ?: return
+        val settledTitle = webView.title.takeUnless {
+            pendingMainFrameUrl != null || clearHistoryAfterTabNavigation
+        }
+        browserTabs.updateActive(url, settledTitle)
+    }
+
+    private fun openNewTab() {
+        saveActiveTabMetadata()
+        val tab = browserTabs.open(BrowserPreferences.homepage(this))
+        if (tab == null) {
+            Toast.makeText(
+                this,
+                getString(R.string.toast_tab_limit_reached, BrowserTabs.MAX_TABS),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        refreshTabButton()
+        navigateToTab(tab)
+    }
+
+    private fun switchToTab(id: Long) {
+        if (browserTabs.active.id == id) return
+        saveActiveTabMetadata()
+        val tab = browserTabs.select(id) ?: return
+        refreshTabButton()
+        navigateToTab(tab)
+    }
+
+    private fun closeTab(id: Long) {
+        val wasActive = browserTabs.active.id == id
+        if (wasActive) saveActiveTabMetadata()
+        val active = browserTabs.close(id, BrowserPreferences.homepage(this)) ?: return
+        refreshTabButton()
+        if (wasActive) navigateToTab(active)
+    }
+
+    private fun navigateToTab(tab: BrowserTab) {
+        // A single live WebView keeps inactive tabs inert. Clear before and
+        // after the replacement commits so Back cannot cross tab boundaries.
+        clearHistoryAfterTabNavigation = true
+        webView.stopLoading()
+        webView.clearHistory()
+        loadTarget(classifier.classify(tab.url))
+    }
+
     private fun loadHomePage() {
         loadTarget(classifier.classify(BrowserPreferences.homepage(this)))
     }
@@ -927,6 +1073,9 @@ class MainActivity : ComponentActivity() {
             refreshTransportWarning()
             Toast.makeText(this, getString(R.string.toast_link_not_supported), Toast.LENGTH_SHORT).show()
             return
+        }
+        if (::browserTabs.isInitialized) {
+            browserTabs.navigateActive(target.url)
         }
         pendingMainFrameUrl = target.url
         pendingNavigation = PendingNavigation(target, generation, load)
@@ -1294,6 +1443,13 @@ class MainActivity : ComponentActivity() {
             refreshTransportWarning()
         }
 
+        override fun onPageCommitVisible(view: WebView, url: String) {
+            if (clearHistoryAfterTabNavigation) {
+                view.clearHistory()
+                clearHistoryAfterTabNavigation = false
+            }
+        }
+
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val requestUrl = request.url.toString()
             val scheme = request.url.scheme?.lowercase(Locale.US)
@@ -1402,6 +1558,10 @@ class MainActivity : ComponentActivity() {
                 return
             }
             failedMainFrameUrl = requestUrl
+            if (clearHistoryAfterTabNavigation) {
+                view.clearHistory()
+                clearHistoryAfterTabNavigation = false
+            }
             pageIsLoading = false
             pageLoadProgress = 0
             refreshSecurityState()
@@ -1434,6 +1594,8 @@ class MainActivity : ComponentActivity() {
             }
             pageIsLoading = false
             pageLoadProgress = PAGE_PROGRESS_MAX
+            browserTabs.updateActive(url, view.title)
+            refreshTabButton()
             recordHistoryEntry(url, view.title)
             refreshSecurityState()
             refreshPageProgress()
@@ -1451,6 +1613,7 @@ class MainActivity : ComponentActivity() {
             activeMainFrameUrl = url
             admittedMainFrameUrl = url
             currentTargetKind = target.kind
+            browserTabs.updateActive(url, view.title)
             refreshTransportWarning()
         }
 
@@ -1476,6 +1639,12 @@ class MainActivity : ComponentActivity() {
             if (!pageIsLoading) return
             pageLoadProgress = newProgress.coerceIn(0, PAGE_PROGRESS_MAX)
             refreshPageProgress()
+        }
+
+        override fun onReceivedTitle(view: WebView, title: String?) {
+            val url = view.url ?: return
+            if (url.mainFrameMatchKey() != browserTabs.active.url.mainFrameMatchKey()) return
+            browserTabs.updateActive(url, title)
         }
     }
 
@@ -1820,14 +1989,18 @@ class MainActivity : ComponentActivity() {
         private const val INITIAL_SYNC_STATUS_POLL_MS = 250L
         private const val SYNC_STATUS_POLL_MS = 2_000L
         private const val TOOLBAR_CONTROL_HEIGHT_DP = 48
+        private const val TAB_BUTTON_SIZE_DP = 48
         private const val HTTP_WARNING_BAR_HEIGHT_DP = 22
         private const val MENU_ICON_BUTTON_SIZE_DP = 55
-        private const val MENU_POPUP_WIDTH_DP = MENU_ICON_BUTTON_SIZE_DP * 3
+        private const val MENU_POPUP_WIDTH_DP = MENU_ICON_BUTTON_SIZE_DP * 4
         private const val MENU_ROW_HEIGHT_DP = 55
         private const val DARK_MENU_OUTLINE_ALPHA = 72
         private const val MAX_DOWNLOAD_COLLISION_ATTEMPTS = 10_000
         private const val MAX_DOWNLOAD_FILE_NAME_CHARS = 120
         private const val STATE_MAIN_FRAME_URL = "main_frame_url"
+        private const val STATE_TAB_URLS = "tab_urls"
+        private const val STATE_TAB_TITLES = "tab_titles"
+        private const val STATE_ACTIVE_TAB_INDEX = "active_tab_index"
         private const val WHOLE_BROWSER_PROXY_SCOPE = "whole-browser.invalid"
         private val UNSAFE_DOWNLOAD_FILE_CHARS = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
         private val WEB_NAVIGATION_SCHEMES = setOf("http", "https")

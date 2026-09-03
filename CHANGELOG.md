@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Add lightweight Android user tabs: a count badge immediately to the right
+  of the omnibox opens a bounded tab switcher, and the hamburger action row
+  includes New Tab, which opens the configured homepage. Inactive tabs retain
+  only bounded URL/title metadata and cannot execute hidden WebView, script,
+  proxy, or network work.
+
 ## 1.0.4 - 2026-09-02
 
 iOS build `65` replaces the withdrawn build `64` following public iOS `1.0.3`.

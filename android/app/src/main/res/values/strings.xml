@@ -85,7 +85,17 @@
     <string name="menu_forward">Forward</string>
     <string name="menu_refresh">Refresh</string>
     <string name="menu_home">Home</string>
+    <string name="menu_new_tab">New tab</string>
     <string name="menu_settings">Settings</string>
+    <string name="tabs_title">Tabs</string>
+    <plurals name="tab_count_content_description">
+        <item quantity="one">%1$d open tab</item>
+        <item quantity="other">%1$d open tabs</item>
+    </plurals>
+    <string name="tab_current_content_description">Current tab: %1$s</string>
+    <string name="tab_switch_content_description">Switch to tab: %1$s</string>
+    <string name="tab_close_content_description">Close tab</string>
+    <string name="toast_tab_limit_reached">Up to %1$d tabs can be open</string>
 
     <string name="toast_link_not_supported">This link type is not supported</string>
     <string name="toast_no_app_for_link">No app can open this link</string>
