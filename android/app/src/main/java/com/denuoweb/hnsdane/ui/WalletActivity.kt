@@ -848,13 +848,19 @@ class WalletActivity : ComponentActivity() {
             setTextColor(themeColors().secondaryText)
             setPadding(uiDp(4), uiDp(18), uiDp(4), uiDp(7))
         })
-        dashboardContent.addView(
+        val walletTile = dashboardTile(
+            title = getString(R.string.wallet_dashboard_wallet),
+            summary = if (locked) getString(R.string.wallet_dashboard_locked_short)
+            else getString(R.string.wallet_dashboard_unlocked_short),
+        ) { showWalletDetails() }.disabledWhenWalletHandoff(!actionsAvailable)
+        dashboardContent.addView(walletTileRow(
             dashboardTile(
-                title = getString(R.string.wallet_dashboard_wallet),
+                title = getString(R.string.wallet_dashboard_names),
                 summary = if (locked) getString(R.string.wallet_dashboard_locked_short)
-                else getString(R.string.wallet_dashboard_unlocked_short),
-            ) { showWalletDetails() }.disabledWhenWalletHandoff(!actionsAvailable),
-        )
+                else namesSummary(),
+            ) { showNamesDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
+            walletTile,
+        ))
     }
 
     private fun <T : View> T.disabledWhenWalletHandoff(disabled: Boolean): T = apply {
