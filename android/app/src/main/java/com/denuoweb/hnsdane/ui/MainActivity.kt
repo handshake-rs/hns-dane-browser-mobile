@@ -336,7 +336,7 @@ class MainActivity : ComponentActivity() {
                 dp(TOOLBAR_CONTROL_HEIGHT_DP),
             ))
             addView(omnibox, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(tabButton(), LinearLayout.LayoutParams(
+            addView(createTabButton(), LinearLayout.LayoutParams(
                 dp(TAB_BUTTON_SIZE_DP),
                 dp(TAB_BUTTON_SIZE_DP),
             ).apply {
@@ -726,7 +726,7 @@ class MainActivity : ComponentActivity() {
             setOnClickListener { showHamburgerMenu() }
         }
 
-    private fun tabButton(): TextView =
+    private fun createTabButton(): TextView =
         TextView(this).apply {
             tabButton = this
             gravity = Gravity.CENTER
@@ -841,6 +841,7 @@ class MainActivity : ComponentActivity() {
                 if (tabPopup === popup) tabPopup = null
             },
         )
+    }
 
     private fun hamburgerPopupBackground(colors: ThemeColors) =
         if (BrowserThemePreferences.effectiveDark(this)) {
