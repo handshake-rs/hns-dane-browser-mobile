@@ -7877,12 +7877,29 @@ fn build_present_root_plan(
                 })?;
             }
 
-            let candidate_policy = match (namespace, secure_tlsa, candidate_tlsa_records.is_empty())
-            {
-                (Namespace::Hns, true, false) | (Namespace::Icann, true, false) => {
+            // ICANN provenance describes the complete origin plan, not only
+            // the final TLSA lookup. A DNSSEC-secure origin can CNAME into an
+            // unsigned CDN while its origin-scoped TLSA denial remains
+            // secure. In that case the endpoint lineage is still proven
+            // insecure, so retaining an authenticated-absence policy (or
+            // secure TLSA bytes) would conflict with the plan provenance and
+            // fail validation. Fall back to ordinary WebPKI for the complete
+            // proven-insecure ICANN route.
+            let complete_icann_plan_secure =
+                namespace != Namespace::Icann || answers.values().all(|answer| answer.secure);
+            if namespace == Namespace::Icann && !complete_icann_plan_secure {
+                candidate_tlsa_records.clear();
+            }
+            let candidate_policy = match (
+                namespace,
+                secure_tlsa,
+                candidate_tlsa_records.is_empty(),
+                complete_icann_plan_secure,
+            ) {
+                (Namespace::Hns, true, false, _) | (Namespace::Icann, true, false, true) => {
                     TlsTrustPolicy::Dane
                 }
-                (Namespace::Hns, true, true) => {
+                (Namespace::Hns, true, true, _) => {
                     stateless_candidate.get_or_insert((
                         service.clone(),
                         candidate_tlsa_records,
@@ -7893,9 +7910,10 @@ fn build_present_root_plan(
                     // certificate-carried fallback.
                     continue;
                 }
-                (Namespace::Icann, true, true) => TlsTrustPolicy::WebPkiAuthenticatedAbsence,
-                (Namespace::Icann, false, _) => TlsTrustPolicy::WebPkiInsecureDelegation,
-                (Namespace::Hns, false, _) => {
+                (Namespace::Icann, true, true, true) => TlsTrustPolicy::WebPkiAuthenticatedAbsence,
+                (Namespace::Icann, _, _, false) => TlsTrustPolicy::WebPkiInsecureDelegation,
+                (Namespace::Icann, false, _, true) => TlsTrustPolicy::WebPkiInsecureDelegation,
+                (Namespace::Hns, false, _, _) => {
                     return Err((
                         root_failure(namespace, query.clone(), &ResolverError::DnssecFailed),
                         answers,
@@ -26558,6 +26576,116 @@ mod tests {
 
         assert_eq!(plan.tls_policy(), TlsTrustPolicy::WebPkiInsecureDelegation);
         assert!(plan.tlsa_records().is_empty());
+        assert_eq!(
+            plan.provenance(),
+            &EvidenceProvenance::IcannDoh {
+                chain_state: IcannChainState::ProvenInsecure,
+            }
+        );
+    }
+
+    #[test]
+    fn secure_origin_tlsa_absence_with_unsigned_cdn_cname_uses_insecure_webpki() {
+        let now = now_unix_seconds();
+        let host = "www.example";
+        let target = "edge.example-cdn";
+        let query = OriginQuery::new(
+            CanonicalHost::parse(host).unwrap(),
+            OriginScheme::Https,
+            None,
+            ProtocolCapabilities::all(),
+        );
+        let base = temp_dir_path("icann-secure-origin-unsigned-cdn");
+        let origin = NamespaceOriginContext {
+            key: NamespaceOriginKey {
+                profile: base.clone(),
+                host: host.to_owned(),
+                scheme: "https".to_owned(),
+                port: 443,
+                supported_protocols: ProtocolCapabilities::all(),
+                network: 0,
+                policy_revision: 0,
+                binding_revision: 0,
+            },
+            base,
+            network: NetworkKind::Mainnet,
+            binding: NamespaceBindingSnapshot::default(),
+        };
+        let request = |qname: &str, record_type: RecordType| ResolutionRequest {
+            qname: qname.to_owned(),
+            qtype: record_type.code(),
+        };
+        let host_a = request(host, RecordType::A);
+        let host_aaaa = request(host, RecordType::Aaaa);
+        let host_https = request(host, RecordType::Https);
+        let target_a = request(target, RecordType::A);
+        let target_aaaa = request(target, RecordType::Aaaa);
+        let target_https = request(target, RecordType::Https);
+        let tlsa = request("_443._tcp.www.example", RecordType::Tlsa);
+        let alias_answer = || resolution_answer(host, vec![cname_record(host, target)], false);
+        let resolver = RequestMapResolver {
+            answers: HashMap::from([
+                (host_a.clone(), alias_answer()),
+                (host_aaaa.clone(), alias_answer()),
+                (host_https.clone(), alias_answer()),
+                (
+                    target_a.clone(),
+                    resolution_answer(target, vec![address_record(target, [192, 0, 2, 90])], false),
+                ),
+                (
+                    target_aaaa.clone(),
+                    resolution_answer(target, Vec::new(), false),
+                ),
+                (
+                    target_https.clone(),
+                    resolution_answer(target, Vec::new(), false),
+                ),
+                (
+                    tlsa.clone(),
+                    resolution_answer(&tlsa.qname, Vec::new(), true),
+                ),
+            ]),
+            name_not_found: HashSet::new(),
+            requests: Arc::new(Mutex::new(Vec::new())),
+        };
+        let evidence = IcannEvidenceRecorder::default();
+        for (request, kind, secure) in [
+            (host_a, IcannResponseKind::Answer, false),
+            (host_aaaa, IcannResponseKind::Answer, false),
+            (host_https, IcannResponseKind::Answer, false),
+            (target_a, IcannResponseKind::Answer, false),
+            (target_aaaa, IcannResponseKind::NoData, false),
+            (target_https, IcannResponseKind::NoData, false),
+            (tlsa, IcannResponseKind::NoData, true),
+        ] {
+            evidence.insert_observation(
+                request,
+                IcannResponseObservation {
+                    kind,
+                    secure,
+                    observed_at_unix: now,
+                    expires_at_unix: now.saturating_add(60),
+                },
+            );
+        }
+
+        let build = build_present_root_plan(
+            &resolver,
+            Namespace::Icann,
+            &query,
+            &origin,
+            now,
+            &HnsProofEvidenceRecorder::default(),
+            &evidence,
+        )
+        .unwrap();
+        let RootLookup::Present(plan) = build.lookup else {
+            panic!("signed origins routed through unsigned CDNs must retain an ICANN plan");
+        };
+
+        assert_eq!(plan.terminal_target().as_str(), target);
+        assert_eq!(plan.endpoint_target().as_str(), target);
+        assert_eq!(plan.tls_policy(), TlsTrustPolicy::WebPkiInsecureDelegation);
         assert_eq!(
             plan.provenance(),
             &EvidenceProvenance::IcannDoh {

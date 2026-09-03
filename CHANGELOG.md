@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- Keep ICANN trust policy aligned with the complete validated route when a
+  DNSSEC-signed origin CNAMEs into an unsigned CDN. A secure origin-scoped
+  TLSA denial no longer conflicts with the proven-insecure endpoint lineage,
+  so sites such as `www.foxnews.com` and `www.weather.gov` use ordinary WebPKI
+  instead of failing with an indeterminate dual-root result.
+
 ## 1.0.4 - 2026-09-02
 
 iOS build `64` is an Apple-only update following public iOS `1.0.3`. Android
