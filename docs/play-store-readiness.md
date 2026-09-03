@@ -2,8 +2,8 @@
 
 Last audited: 2026-09-02
 
-Current Android release source is `1.0.3` (`versionCode 55`) and supports
-Android 9 / API 28 or later. Code `55` was committed to the Google Play
+Current Android candidate source is `1.0.4` (`versionCode 56`) and supports
+Android 9 / API 28 or later. The preceding code `55` was committed to Google Play
 production track with status `completed` through Android Publisher edit
 `07303019632521856332`; `generatedApks/55` returned HTTP `200`. The
 initial code `55` AAB passed the protected signed-product gate, but a packaging
@@ -100,7 +100,7 @@ behavior against the exact signed candidate before upload.
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
 | App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `54` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
-| Release track | Code 55 committed to production | Android Publisher edit `07303019632521856332` uploaded Android `1.0.3` / code `55`, assigned it to production with status `completed`, and committed successfully. A post-commit `generatedApks/55` request returned HTTP `200`. Store review, processing, and public propagation remain controlled by Google Play. |
+| Release track | Code 56 candidate; code 55 committed to production | Android `1.0.4` / code `56` carries the complete signed-origin/unsigned-CDN fix. Android Publisher edit `07303019632521856332` previously committed Android `1.0.3` / code `55` to production and `generatedApks/55` returned HTTP `200`. |
 | CI regression | Current exact-source CI and CodeQL passed | Exact current source `3fff254c9f7f4df535e24256869331111dd0f40f` passed full CI run `33538557957`, including policy, Rust/supply-chain, Android build/unit/bundle, API 37 native instrumentation, the complete Apple gate, and Required CI. Both associated CodeQL workflows also passed. Signed-product, installed-device, Console, and upload gates remain separate. |
 | Store assets | Six-image Pixel set committed to Play | Six 1080 × 2424 images cover the ICANN and proof-backed `shakescape/` HNS sites, browser navigation, Handshake settings, diagnostics, and proof details. Android Publisher edit `04351495318173077620` removed the two obsolete local-start and locked-wallet captures, uploaded the canonical six-image set, committed successfully, and a fresh edit read back exactly six en-US phone screenshots. |
 

@@ -1,1 +1,1 @@
-1.0.3 fixes authenticated CDN alias resolution, lets Android offer Shakescape as a default browser, and retains guarded send and synchronization protections for the native HNS wallet.
+1.0.4 fixes DNSSEC-signed sites routed through unsigned CDN endpoints while retaining strict dual-root validation and native-wallet protections.

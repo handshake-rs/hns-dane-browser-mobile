@@ -13,7 +13,7 @@ notices bind the complete protocol → wallet chain;
 [released-dependency-cohort.md](released-dependency-cohort.md) records the
 published source tags and registry checksums.
 
-The configured Android `1.0.3` candidate is code `55`, with embedded Rust `1.0.0`,
+The configured Android `1.0.4` candidate is code `56`, with embedded Rust `1.0.0`,
 and iOS `1.0.4` build `64`. Historical `0.5.8` application source
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
 `31402758394`, including Android build/unit/native instrumentation,

@@ -57,6 +57,9 @@ class FakeApi:
                     appStoreState="PREPARE_FOR_SUBMISSION",
                 )
             ]
+        if path == "/v1/builds":
+            build = params["filter[version]"]
+            return [resource("builds", f"build-{build}", version=build)]
         if path == "/v1/apps/app/reviewSubmissions":
             if self.active_state is None:
                 return []
@@ -75,6 +78,8 @@ class FakeApi:
 
     def request(self, method, path, *, params=None, body=None, expected=(200,)):
         self.requests.append((method, path, params, body))
+        if method == "GET" and path == "/v1/appStoreVersions/version/relationships/build":
+            return {"data": {"type": "builds", "id": "build-64"}}
         if method == "POST" and path == "/v1/reviewSubmissions":
             self.active_state = "READY_FOR_REVIEW"
             return {"data": resource("reviewSubmissions", "submission", state="READY_FOR_REVIEW")}
@@ -82,6 +87,13 @@ class FakeApi:
             self.item_created = True
             return {"data": resource("reviewSubmissionItems", "item", state="READY_FOR_REVIEW")}
         if method == "PATCH" and path == "/v1/reviewSubmissions/submission":
+            if body["data"]["attributes"].get("canceled") is True:
+                self.active_state = "CANCELING"
+                return {
+                    "data": resource(
+                        "reviewSubmissions", "submission", state="CANCELING"
+                    )
+                }
             self.active_state = "WAITING_FOR_REVIEW"
             return {"data": resource("reviewSubmissions", "submission", state="WAITING_FOR_REVIEW")}
         raise AssertionError(f"unexpected API request: {method} {path}")
@@ -149,7 +161,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.4",
-            "64",
+            "65",
             {},
         )
 
@@ -159,14 +171,14 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.4",
-            "64",
+            "65",
         )
         plan = release_client.local_plan(release)
         self.assertEqual(plan["mode"], "plan")
         self.assertEqual(plan["networkRequests"], 0)
         self.assertEqual(plan["mutations"], 0)
         self.assertEqual(plan["version"], "1.0.4")
-        self.assertEqual(plan["build"], "64")
+        self.assertEqual(plan["build"], "65")
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 
@@ -187,7 +199,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-version",
             "1.0.4",
             "--expected-build",
-            "64",
+            "65",
         ]
         with (
             mock.patch.object(sys, "argv", arguments),
@@ -204,7 +216,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "a" * 40,
             "a" * 40,
             "1.0.4",
-            "64",
+            "65",
         )
 
     def test_mutations_require_release_specific_confirmation_strings(self):
@@ -238,6 +250,25 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             self.release.metadata_confirmation,
             self.release.submit_confirmation,
             True,
+        )
+        with self.assertRaisesRegex(release_client.ReleaseError, "confirm-cancel"):
+            release_client.validate_confirmations(
+                self.release,
+                "cancel-submission",
+                None,
+                None,
+                False,
+                cancel_build="64",
+                cancel_confirmation=None,
+            )
+        release_client.validate_confirmations(
+            self.release,
+            "cancel-submission",
+            None,
+            None,
+            False,
+            cancel_build="64",
+            cancel_confirmation="CANCEL_SUBMISSION_1.0.4_64",
         )
 
     def test_screenshot_replacement_confirmation_is_exact_and_mutation_only(self):
@@ -281,7 +312,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-version",
             "1.0.4",
             "--expected-build",
-            "64",
+            "65",
         ]
         self.assertIsNone(parser.parse_args(base).screenshots_dir)
 
@@ -354,7 +385,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 automation_commit,
                 artifact_commit,
                 "1.0.4",
-                "64",
+                "65",
                 {},
             )
             release_client.verify_release_automation_diff(release)
@@ -368,7 +399,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 changed_commit,
                 artifact_commit,
                 "1.0.4",
-                "64",
+                "65",
                 {},
             )
             with self.assertRaisesRegex(
@@ -455,7 +486,7 @@ class SubmissionSafetyTests(unittest.TestCase):
             "b" * 40,
             "b" * 40,
             "1.0.4",
-            "64",
+            "65",
             {},
         )
         return release_client.ReleaseManager(
@@ -510,6 +541,29 @@ class SubmissionSafetyTests(unittest.TestCase):
         self.assertFalse(
             any(method in {"POST", "PATCH"} for method, *_rest in api.requests)
         )
+
+    def test_cancel_submission_requires_exact_version_build_and_single_item(self):
+        api = FakeApi(active_state="WAITING_FOR_REVIEW")
+        manager = self.make_manager(api)
+        with mock.patch.object(release_client, "verify_exact_current_main") as verify:
+            result = manager.cancel_submission("64")
+        self.assertEqual(
+            result,
+            {
+                "build": "64",
+                "reviewState": "CANCELING",
+                "version": "1.0.4",
+            },
+        )
+        verify.assert_called_once_with(manager.release)
+        cancel = [
+            request
+            for request in api.requests
+            if request[0] == "PATCH"
+            and request[1] == "/v1/reviewSubmissions/submission"
+        ]
+        self.assertEqual(len(cancel), 1)
+        self.assertIs(cancel[0][3]["data"]["attributes"]["canceled"], True)
 
     def test_existing_screenshot_mismatch_without_confirmation_deletes_nothing(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -784,9 +838,10 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
-        self.assertIn("APPLY_METADATA_1.0.4_64", workflow)
-        self.assertIn("REPLACE_SCREENSHOTS_1.0.4_64", workflow)
-        self.assertIn("SUBMIT_FOR_REVIEW_1.0.4_64", workflow)
+        self.assertIn("APPLY_METADATA_1.0.4_65", workflow)
+        self.assertIn("REPLACE_SCREENSHOTS_1.0.4_65", workflow)
+        self.assertIn("SUBMIT_FOR_REVIEW_1.0.4_65", workflow)
+        self.assertIn("CANCEL_SUBMISSION_1.0.4_64", workflow)
         self.assertIn('[[ "$ACCOUNT_READY" == true ]]', workflow)
         self.assertIn('.path == ".github/workflows/ios-app-store-upload.yml"', workflow)
         self.assertIn("expected_artifact_commit:", workflow)

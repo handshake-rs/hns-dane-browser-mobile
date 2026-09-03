@@ -12,10 +12,11 @@ The committed application identity is:
   through Apple's public lookup record
 - Published iOS build: `1.0.3` (`63`) at source
   `96d946557ebc6bbd6259990ec7f81ba988d13468`
-- Submitted update: `1.0.4` (`64`), `WAITING_FOR_REVIEW`, manual release
+- Replacement update: `1.0.4` (`65`), replacing withdrawn build `64`, manual
+  release
 - Device family: iPhone
 
-Candidate build `64` includes a native-only wallet screen for
+Candidate build `65` includes a native-only wallet screen for
 create/restore/open/status/unlock/lock, one HNS account identity, and strict
 HNWR-v2 read-only fields for balance, distinct HNS payment and name-transfer
 receive targets, history, tracked names, and module status. The decoder retains
@@ -201,8 +202,8 @@ gh workflow run ios-app-store-submit.yml \
   -f expected_upload_run_id="$upload_run_id" \
   -f mode=submit \
   -f review_contact_source_version=1.0.3 \
-  -f confirm_metadata=APPLY_METADATA_1.0.4_64 \
-  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.4_64 \
+  -f confirm_metadata=APPLY_METADATA_1.0.4_65 \
+  -f confirm_submit=SUBMIT_FOR_REVIEW_1.0.4_65 \
   -f confirm_account_readiness=true
 ```
 
@@ -212,7 +213,7 @@ downloads nor validates a replacement artifact. To replace it, first run the
 upload workflow with `-f capture_screenshots=true`; after visually reviewing its
 retained exact-artifact images, a metadata or submission run may replace only
 that version's `APP_IPHONE_65` set by adding the exact confirmation
-`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.4_64`. Replacement
+`-f confirm_screenshot_replacement=REPLACE_SCREENSHOTS_1.0.4_65`. Replacement
 fails closed on any byte mismatch. Without that input the client performs no
 screenshot upload or deletion requests.
 

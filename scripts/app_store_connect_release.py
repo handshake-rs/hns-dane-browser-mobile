@@ -56,6 +56,10 @@ SUBMITTED_REVIEW_STATES = {
     "COMPLETING",
     "COMPLETE",
 }
+CANCELLABLE_REVIEW_STATES = {
+    "WAITING_FOR_REVIEW",
+    "IN_REVIEW",
+}
 METADATA_FILES = {
     "name": "name.txt",
     "subtitle": "subtitle.txt",
@@ -139,6 +143,9 @@ class LocalRelease:
     @property
     def screenshot_replacement_confirmation(self) -> str:
         return f"REPLACE_SCREENSHOTS_{self.version}_{self.build}"
+
+    def cancel_confirmation(self, build: str) -> str:
+        return f"CANCEL_SUBMISSION_{self.version}_{build}"
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -509,6 +516,8 @@ def validate_confirmations(
     submit_confirmation: str | None,
     account_readiness: bool,
     screenshot_replacement_confirmation: str | None = None,
+    cancel_build: str | None = None,
+    cancel_confirmation: str | None = None,
 ) -> None:
     if screenshot_replacement_confirmation:
         if mode not in {"apply-metadata", "submit"}:
@@ -533,6 +542,14 @@ def validate_confirmations(
         if not account_readiness:
             raise ReleaseError(
                 "review submission requires an explicit account-level readiness attestation"
+            )
+    if mode == "cancel-submission":
+        if cancel_build is None or not re.fullmatch(r"[1-9][0-9]*", cancel_build):
+            raise ReleaseError("review cancellation requires one exact --cancel-build")
+        required = release.cancel_confirmation(cancel_build)
+        if cancel_confirmation != required:
+            raise ReleaseError(
+                f"review cancellation requires --confirm-cancel {required}"
             )
 
 
@@ -634,16 +651,17 @@ class ReleaseManager:
         ]
         return _only(matches, f"iOS version {version}", allow_zero=True)
 
-    def find_build(self, app_id: str) -> dict[str, Any] | None:
+    def find_build(self, app_id: str, build: str | None = None) -> dict[str, Any] | None:
+        build = build or self.release.build
         builds = self.api.list(
             "/v1/builds",
             params={
                 "filter[app]": app_id,
-                "filter[version]": self.release.build,
+                "filter[version]": build,
                 "limit": 2,
             },
         )
-        return _only(builds, f"build {self.release.build}", allow_zero=True)
+        return _only(builds, f"build {build}", allow_zero=True)
 
     def version_localization(self, version_id: str) -> dict[str, Any] | None:
         values = self.api.list(
@@ -1544,6 +1562,61 @@ class ReleaseManager:
             )
         return {"reviewState": state, "alreadySubmitted": False}
 
+    def cancel_submission(self, build: str) -> dict[str, Any]:
+        """Cancel one exact-version, exact-build active review submission."""
+        app = self.find_app()
+        app_id = _resource_id(app, "apps")
+        version = self.find_version(app_id, self.release.version)
+        if version is None:
+            raise ReleaseError("the exact App Store version does not exist")
+        version_id = _resource_id(version, "appStoreVersions")
+        build_resource = self.find_build(app_id, build)
+        if build_resource is None:
+            raise ReleaseError(f"the exact submitted build {build} does not exist")
+        build_id = _resource_id(build_resource, "builds")
+        if self.attached_build_id(version_id) != build_id:
+            raise ReleaseError(
+                f"App Store version {self.release.version} is not attached to build {build}"
+            )
+        active = self.active_review_submissions(app_id)
+        if len(active) != 1:
+            raise ReleaseError("review cancellation requires exactly one active submission")
+        submission = active[0]
+        submission_id = _resource_id(submission, "reviewSubmissions")
+        state = _resource_attributes(submission).get("state")
+        if state not in CANCELLABLE_REVIEW_STATES:
+            raise ReleaseError(f"the active review submission is not cancellable: {state}")
+        items = self.submission_items(submission_id)
+        if len(items) != 1 or _relationship_id(
+            items[0], "appStoreVersion", "appStoreVersions"
+        ) != version_id:
+            raise ReleaseError(
+                "review cancellation refused an unrelated or multi-item submission"
+            )
+        verify_exact_current_main(self.release)
+        document = self.api.request(
+            "PATCH",
+            f"/v1/reviewSubmissions/{submission_id}",
+            body={
+                "data": {
+                    "type": "reviewSubmissions",
+                    "id": submission_id,
+                    "attributes": {"canceled": True},
+                }
+            },
+        )
+        canceled = _data_resource(document, "reviewSubmissions")
+        canceled_state = _resource_attributes(canceled).get("state")
+        if canceled_state != "CANCELING":
+            raise ReleaseError(
+                "App Store Connect accepted cancellation without returning CANCELING"
+            )
+        return {
+            "build": build,
+            "reviewState": canceled_state,
+            "version": self.release.version,
+        }
+
     def existing_submission_status(self) -> dict[str, Any] | None:
         """Return a read-only exact-version submission result, if one exists."""
         app = self.find_app()
@@ -1596,7 +1669,9 @@ def local_plan(release: LocalRelease) -> dict[str, Any]:
     }
 
 
-def execute_authenticated_mode(manager: ReleaseManager, mode: str) -> dict[str, Any]:
+def execute_authenticated_mode(
+    manager: ReleaseManager, mode: str, cancel_build: str | None = None
+) -> dict[str, Any]:
     if mode == "discover":
         return manager.discover()
     if mode == "submit":
@@ -1606,6 +1681,10 @@ def execute_authenticated_mode(manager: ReleaseManager, mode: str) -> dict[str, 
                 "metadata": {"status": "unchanged-already-submitted"},
                 "submission": existing,
             }
+    if mode == "cancel-submission":
+        if cancel_build is None:
+            raise ReleaseError("review cancellation requires one exact build")
+        return {"cancellation": manager.cancel_submission(cancel_build)}
     result = {"metadata": manager.apply_metadata()}
     if mode == "submit":
         result["submission"] = manager.submit()
@@ -1630,7 +1709,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--mode",
-        choices=("plan", "discover", "apply-metadata", "submit"),
+        choices=("plan", "discover", "cancel-submission", "apply-metadata", "submit"),
         default="plan",
     )
     parser.add_argument("--expected-commit", required=True)
@@ -1643,6 +1722,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--confirm-metadata")
     parser.add_argument("--confirm-screenshot-replacement")
     parser.add_argument("--confirm-submit")
+    parser.add_argument("--cancel-build")
+    parser.add_argument("--confirm-cancel")
     parser.add_argument("--confirm-account-readiness", action="store_true")
     return parser
 
@@ -1665,6 +1746,8 @@ def main() -> int:
             args.confirm_submit,
             args.confirm_account_readiness,
             args.confirm_screenshot_replacement,
+            args.cancel_build,
+            args.confirm_cancel,
         )
         if args.screenshots_dir and not args.confirm_screenshot_replacement:
             raise ReleaseError(
@@ -1684,7 +1767,7 @@ def main() -> int:
             raise ReleaseError("HNS_ASC_API_KEY_PATH is required for authenticated modes")
         api = AppStoreConnectApi(JwtProvider(key_id, issuer_id, Path(key_path_value)))
         screenshot_paths = None
-        if args.mode in {"apply-metadata", "submit"}:
+        if args.mode in {"cancel-submission", "apply-metadata", "submit"}:
             verify_exact_current_main(release)
         if args.screenshots_dir:
             screenshot_paths = verified_screenshot_paths(
@@ -1701,7 +1784,7 @@ def main() -> int:
             ),
             asset_timeout_seconds=args.asset_timeout_seconds,
         )
-        result = execute_authenticated_mode(manager, args.mode)
+        result = execute_authenticated_mode(manager, args.mode, args.cancel_build)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (ReleaseError, subprocess.CalledProcessError) as error:

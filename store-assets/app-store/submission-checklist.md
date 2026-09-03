@@ -1,11 +1,11 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.4`, build `64`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
+Candidate: iOS `1.0.4`, build `65`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
 manual release.
 
 ## Source and artifact
 
-- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.4` / build `64` while retaining the independently versioned Android and Rust releases.
+- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.4` / build `65` while retaining the independently versioned Android and Rust releases.
 - [x] Keep the pending `com.apple.developer.web-browser` capability out of this candidate and defer default-browser activation to a later version after Apple approval.
 - [x] Keep `com.apple.developer.browser.app-installation` absent until MarketplaceKit installation behavior is implemented and separately reviewed.
 - [ ] Push the exact candidate and require all repository, Rust, Android, Apple, Required CI, and CodeQL gates to pass.

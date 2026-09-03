@@ -1,11 +1,11 @@
 # App Store metadata
 
 This directory contains the reviewed listing source for iOS `1.0.4` / build
-`64`, bundle ID `com.denuoweb.hnsdane.ios`. Public iOS `1.0.3` and its
+`65`, bundle ID `com.denuoweb.hnsdane.ios`. Public iOS `1.0.3` and its
 screenshots predate this candidate and are not evidence for it.
 
 - Version: `1.0.4`
-- Build: `64`
+- Build: `65`
 
 This update fixes authenticated CNAME/CDN resolution and transient iOS
 navigation timeout recovery. Apple's managed `com.apple.developer.web-browser`

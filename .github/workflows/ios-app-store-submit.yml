@@ -22,6 +22,7 @@ on:
         type: choice
         options:
           - discover
+          - cancel-submission
           - apply-metadata
           - submit
       review_contact_source_version:
@@ -30,15 +31,15 @@ on:
         default: 1.0.3
         type: string
       confirm_metadata:
-        description: For mutation, enter APPLY_METADATA_1.0.4_64
+        description: For mutation, enter APPLY_METADATA_1.0.4_65
         required: false
         type: string
       confirm_screenshot_replacement:
-        description: To replace a mismatching 6.5-inch set, enter REPLACE_SCREENSHOTS_1.0.4_64
+        description: To replace a mismatching 6.5-inch set, enter REPLACE_SCREENSHOTS_1.0.4_65
         required: false
         type: string
       confirm_submit:
-        description: For submission, enter SUBMIT_FOR_REVIEW_1.0.4_64
+        description: For submission, enter SUBMIT_FOR_REVIEW_1.0.4_65; to cancel build 64 enter CANCEL_SUBMISSION_1.0.4_64
         required: false
         type: string
       confirm_account_readiness:
@@ -101,7 +102,7 @@ jobs:
               echo "screenshot replacement is only valid for a mutating mode" >&2
               exit 2
             }
-            [[ "$SCREENSHOT_REPLACEMENT" == REPLACE_SCREENSHOTS_1.0.4_64 ]] || {
+            [[ "$SCREENSHOT_REPLACEMENT" == REPLACE_SCREENSHOTS_1.0.4_65 ]] || {
               echo "invalid release-specific screenshot replacement confirmation" >&2
               exit 2
             }
@@ -109,14 +110,17 @@ jobs:
           case "$MODE" in
             discover)
               ;;
+            cancel-submission)
+              [[ "$CONFIRM_SUBMIT" == CANCEL_SUBMISSION_1.0.4_64 ]]
+              ;;
             apply-metadata)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.4_64 ]]
+              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.4_65 ]]
               ;;
             submit)
               [[ "$EXPECTED_UPLOAD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.4_64 ]]
-              [[ "$CONFIRM_SUBMIT" == SUBMIT_FOR_REVIEW_1.0.4_64 ]]
+              [[ "$CONFIRM_METADATA" == APPLY_METADATA_1.0.4_65 ]]
+              [[ "$CONFIRM_SUBMIT" == SUBMIT_FOR_REVIEW_1.0.4_65 ]]
               [[ "$ACCOUNT_READY" == true ]]
               ;;
             *)
@@ -179,10 +183,10 @@ jobs:
             --expected-commit "$EXPECTED_COMMIT" \
             --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT" \
             --expected-version 1.0.4 \
-            --expected-build 64 >/dev/null
+            --expected-build 65 >/dev/null
 
       - name: Validate the successful exact-commit upload run
-        if: ${{ inputs.mode != 'discover' }}
+        if: ${{ inputs.mode == 'apply-metadata' || inputs.mode == 'submit' }}
         env:
           EXPECTED_ARTIFACT_COMMIT: ${{ inputs.expected_artifact_commit }}
           GH_TOKEN: ${{ github.token }}
@@ -302,7 +306,7 @@ jobs:
             --expected-commit "$EXPECTED_COMMIT"
             --expected-artifact-commit "$EXPECTED_ARTIFACT_COMMIT"
             --expected-version 1.0.4
-            --expected-build 64
+            --expected-build 65
             --review-contact-source-version "$REVIEW_CONTACT_SOURCE_VERSION"
           )
           if [[ "$MODE" != discover ]]; then
@@ -320,6 +324,12 @@ jobs:
             arguments+=(--confirm-submit "$CONFIRM_SUBMIT")
             [[ "$ACCOUNT_READY" == true ]]
             arguments+=(--confirm-account-readiness)
+          fi
+          if [[ "$MODE" == cancel-submission ]]; then
+            arguments+=(
+              --cancel-build 64
+              --confirm-cancel "$CONFIRM_SUBMIT"
+            )
           fi
           python3 scripts/app_store_connect_release.py "${arguments[@]}"
 

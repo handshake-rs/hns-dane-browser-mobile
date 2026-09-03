@@ -32,8 +32,8 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 class ReleaseCandidateMetadataTests(unittest.TestCase):
     def test_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.3\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 55$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.4\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 56$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a", "x86_64")',
             gradle,
@@ -87,7 +87,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
         self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.4$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 64$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 65$")
 
         upload = (ROOT / "scripts/upload-ios-app-store.sh").read_text(
             encoding="utf-8"

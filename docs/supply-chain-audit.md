@@ -2,7 +2,7 @@
 
 Last audited: 2026-09-02
 
-Current release source coordinates Android `1.0.3` / code `55`, the embedded
+Current release source coordinates Android `1.0.4` / code `56`, the embedded
 non-publishable Rust workspace `1.0.0`, and iOS `1.0.4` / build `64`. It uses
 the published `hns-rs 0.4.1`, exact public engine/browser-adapter releases
 (including the coherent light-client `0.2.3` patch cohort), and

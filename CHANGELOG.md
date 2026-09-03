@@ -2,20 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
-
-### Fixed
-
-- Keep ICANN trust policy aligned with the complete validated route when a
-  DNSSEC-signed origin CNAMEs into an unsigned CDN. A secure origin-scoped
-  TLSA denial no longer conflicts with the proven-insecure endpoint lineage,
-  so sites such as `www.foxnews.com` and `www.weather.gov` use ordinary WebPKI
-  instead of failing with an indeterminate dual-root result.
-
 ## 1.0.4 - 2026-09-02
 
-iOS build `64` is an Apple-only update following public iOS `1.0.3`. Android
-remains independently versioned at `1.0.3` / code `55`, and the embedded Rust
+iOS build `65` replaces the withdrawn build `64` following public iOS `1.0.3`.
+Android `1.0.4` / code `56` carries the same browser fix, and the embedded Rust
 workspace remains independently versioned at `1.0.0`.
 
 ### Released
@@ -34,6 +24,12 @@ workspace remains independently versioned at `1.0.0`.
   `WAITING_FOR_REVIEW`.
 
 ### Fixed
+
+- Keep ICANN trust policy aligned with the complete validated route when a
+  DNSSEC-signed origin CNAMEs into an unsigned CDN. A secure origin-scoped
+  TLSA denial no longer conflicts with the proven-insecure endpoint lineage,
+  so sites such as `www.foxnews.com` and `www.weather.gov` use ordinary WebPKI
+  instead of failing with an indeterminate dual-root result.
 
 - Keep Apple's still-unapproved managed default-browser entitlement out of the
   iOS 1.0.4 signed product so the authenticated CNAME and navigation fixes can

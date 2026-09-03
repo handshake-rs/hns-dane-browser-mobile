@@ -10,7 +10,7 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `1.0.3` / code `55` | `android/app/build.gradle.kts` |
+| Android app | `1.0.4` / code `56` | `android/app/build.gradle.kts` |
 | Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.4` / build `64` | `ios/project.yml` |
 | Native wallet controller | exact published `0.2.1` registry cohort | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
