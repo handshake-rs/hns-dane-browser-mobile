@@ -260,9 +260,12 @@ const DNS_AUTHENTIC_DATA_FLAG: u16 = 0x0020;
 const DNS_CHECKING_DISABLED_FLAG: u16 = 0x0010;
 const DNSSEC_DO_FLAG: u32 = 0x8000;
 const DEFAULT_DNS_UDP_PAYLOAD: usize = 1232;
-const DEFAULT_GATEWAY_PROOF_PEERS: usize = 3;
-const DEFAULT_GATEWAY_PROOF_TIMEOUT: Duration = Duration::from_secs(3);
-const LIVE_PROOF_CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(500);
+// A proof needs only one locally verified winner. Race a bounded, diverse
+// cohort so newly discovered dead endpoints cannot make an otherwise current
+// browser fail several navigations before it reaches its proven sync peers.
+const DEFAULT_GATEWAY_PROOF_PEERS: usize = 8;
+const DEFAULT_GATEWAY_PROOF_TIMEOUT: Duration = Duration::from_secs(10);
+const LIVE_PROOF_CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(2);
 const LIVE_PROOF_IO_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const GATEWAY_RESOLVER_CACHE_ENTRIES: usize = 1_024;
 const GATEWAY_RESOLVER_CACHE_TTL: Duration = Duration::from_secs(300);
@@ -8249,7 +8252,9 @@ fn root_failure(namespace: Namespace, query: OriginQuery, error: &ResolverError)
         {
             RootFailureKind::Timeout
         }
-        ResolverError::DnsTransport(_) => RootFailureKind::Transport,
+        ResolverError::DnsTransport(_) | ResolverError::ProofUnavailable => {
+            RootFailureKind::Transport
+        }
         ResolverError::Port53InterceptionDetected => RootFailureKind::Transport,
         ResolverError::LocalChainNotCurrent => RootFailureKind::StaleHnsAnchor,
         ResolverError::DnssecFailed | ResolverError::RelayDnssecFailed => {
@@ -16670,8 +16675,12 @@ fn select_live_proof_peers(
     candidates.sort_by(|left, right| {
         let left_reaches_tip = left.last_height >= proof_height;
         let right_reaches_tip = right.last_height >= proof_height;
-        left.score
-            .cmp(&right.score)
+        let left_has_succeeded = left.successes > 0;
+        let right_has_succeeded = right.successes > 0;
+        right_reaches_tip
+            .cmp(&left_reaches_tip)
+            .then_with(|| right_has_succeeded.cmp(&left_has_succeeded))
+            .then_with(|| left.score.cmp(&right.score))
             .then_with(|| right.successes.cmp(&left.successes))
             .then_with(|| right.last_connected_at.cmp(&left.last_connected_at))
             .then_with(|| {
@@ -16679,7 +16688,6 @@ fn select_live_proof_peers(
                     .last_height_observed_at
                     .cmp(&left.last_height_observed_at)
             })
-            .then_with(|| right_reaches_tip.cmp(&left_reaches_tip))
             .then_with(|| left.address.cmp(&right.address))
     });
 
@@ -21828,6 +21836,57 @@ mod tests {
 
         assert_eq!(selected, vec![same_group, stale_recent, stale_older]);
         assert!(!selected.contains(&overclaiming));
+    }
+
+    #[test]
+    fn live_proof_peer_selection_prefers_proven_tip_peers_over_clean_unknowns() {
+        let now = 2_000;
+        let proof_height = Height(345_452);
+        let proven: SocketAddr = "1.1.1.2:12038".parse().unwrap();
+        let proven_other_group: SocketAddr = "2.2.2.2:12038".parse().unwrap();
+        let unknown: SocketAddr = "3.3.3.3:12038".parse().unwrap();
+        let unknown_other_group: SocketAddr = "4.4.4.4:12038".parse().unwrap();
+        let mut peers = PeerManager::default();
+
+        peers.seed([unknown, unknown_other_group]);
+        peers.record_success(proven, proof_height, now - 2);
+        peers.record_success(proven_other_group, proof_height, now - 1);
+        // Model the live-device condition: useful peers acquired a non-zero
+        // score during catch-up while untouched discoveries still score zero.
+        peers.record_transient_failure(proven);
+        peers.record_transient_failure(proven_other_group);
+
+        let selected =
+            select_live_proof_peers(&peers, &hns_core::network::mainnet(), 4, now, proof_height);
+
+        assert_eq!(selected[0..2], [proven_other_group, proven]);
+        assert!(selected[2..].contains(&unknown));
+        assert!(selected[2..].contains(&unknown_other_group));
+    }
+
+    #[test]
+    fn live_proof_mobile_race_is_bounded_and_wider_than_authority_quorum() {
+        assert_eq!(DEFAULT_GATEWAY_PROOF_PEERS, 8);
+        assert_eq!(DEFAULT_GATEWAY_PROOF_TIMEOUT, Duration::from_secs(10));
+        assert_eq!(LIVE_PROOF_CONNECT_ATTEMPT_TIMEOUT, Duration::from_secs(2));
+        assert!(DEFAULT_GATEWAY_PROOF_PEERS > LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS);
+        assert!(LIVE_PROOF_CONNECT_ATTEMPT_TIMEOUT < DEFAULT_GATEWAY_PROOF_TIMEOUT);
+    }
+
+    #[test]
+    fn unavailable_live_proof_is_reported_as_transport_not_internal() {
+        let failure = root_failure(
+            Namespace::Hns,
+            OriginQuery::new(
+                CanonicalHost::parse("foxnews.com").unwrap(),
+                OriginScheme::Https,
+                None,
+                ProtocolCapabilities::all(),
+            ),
+            &ResolverError::ProofUnavailable,
+        );
+
+        assert_eq!(failure.kind(), RootFailureKind::Transport);
     }
 
     #[test]

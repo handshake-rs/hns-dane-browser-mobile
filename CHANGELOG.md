@@ -1,5 +1,12 @@
 # Changelog
 
+- Prefer current, previously successful Handshake peers over untouched
+  discoveries when fetching an exact-root Urkel proof. The mobile gateway now
+  races eight diverse peers with bounded cold-network timeouts and reports an
+  exhausted proof race as a transport failure, preventing fresh processes
+  from repeatedly failing ordinary ICANN sites such as `foxnews.com` while
+  still requiring locally verified HNS absence before dual-root selection.
+
 - Show live validated `current block` and peer-corroborated `target block`
   counters when an entered address is held behind header synchronization on
   Android and iOS. Clock-derived targets are visibly marked as estimates until
