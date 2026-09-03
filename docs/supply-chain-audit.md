@@ -1,9 +1,9 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-09-01
+Last audited: 2026-09-02
 
-Current candidate source coordinates Android `1.0.3` / code `55`, the embedded
-non-publishable Rust workspace `1.0.0`, and iOS `1.0.3` / build `63`. It uses
+Current release source coordinates Android `1.0.3` / code `55`, the embedded
+non-publishable Rust workspace `1.0.0`, and iOS `1.0.4` / build `64`. It uses
 the published `hns-rs 0.4.1`, exact public engine/browser-adapter releases
 (including the coherent light-client `0.2.3` patch cohort), and
 the complete exact published `hns-wallet-rs 0.2.1` closure. Registry
@@ -47,8 +47,10 @@ exercise. Documentation-only descendant
 manual CI run `31411048376`, including aggregate Required CI. These are retained
 as historical `0.5.8` results. Historical CI debug artifact `9080493058` is not
 a signed store artifact. A signed `1.0.0` Android APK is retained on its GitHub
-Release. Google Play has published Android `1.0.2` / code `54`; no `1.0.3` /
-code `55` Play upload has been submitted. The first protected local AAB passed
+Release. Android Publisher edit `07303019632521856332` committed Android
+`1.0.3` / code `55` to the Google Play production track with status
+`completed`; a post-commit `generatedApks/55` request returned HTTP `200`. The
+first protected local AAB passed
 the signed-product gate but exposed that the pre-ARMv7 default ABI inventory
 had not been advanced with the supported target list. The current gate requires
 `armeabi-v7a`, `arm64-v8a`, and `x86_64` together and rejects an AAB missing any
@@ -56,7 +58,10 @@ of them. The replacement 144,692,488-byte AAB passed package/version, signer,
 archive-integrity, 16 KiB alignment, ABI, ELF32/ELF64, debug-symbol, stripping,
 R8, release-lint, and resource-shrinking checks. Its SHA-256 is
 `9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`.
-The iOS `1.0.3` build is tracked independently through App Store Connect.
+The iOS `1.0.4` / build `64` IPA was signed and uploaded by protected workflow
+run `33699401108`; App Store Connect reported it `VALID`. Protected submission
+run `33702492441` reconciled metadata without replacing screenshots and moved
+the update to `WAITING_FOR_REVIEW` with manual release.
 
 ## Configured and Local Gates
 

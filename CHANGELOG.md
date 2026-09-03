@@ -10,6 +10,21 @@ iOS build `64` is an Apple-only update following public iOS `1.0.3`. Android
 remains independently versioned at `1.0.3` / code `55`, and the embedded Rust
 workspace remains independently versioned at `1.0.0`.
 
+### Released
+
+- Uploaded the exact 144,692,488-byte Android `1.0.3` / code `55` three-ABI
+  signed AAB (SHA-256
+  `9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`)
+  and committed Android Publisher edit `07303019632521856332` to the Google
+  Play production track with status `completed`. Existing listing assets and
+  screenshots were preserved; `generatedApks/55` returned HTTP `200`.
+
+- Signed and uploaded iOS `1.0.4` / build `64` in protected workflow
+  `33699401108`. After App Store Connect reported the build `VALID`, protected
+  workflow `33702492441` reconciled its metadata, preserved the existing
+  screenshots, and submitted it with manual release. Apple reports
+  `WAITING_FOR_REVIEW`.
+
 ### Fixed
 
 - Keep Apple's still-unapproved managed default-browser entitlement out of the

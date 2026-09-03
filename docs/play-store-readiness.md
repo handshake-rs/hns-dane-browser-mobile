@@ -2,8 +2,10 @@
 
 Last audited: 2026-09-02
 
-Current Android candidate source is `1.0.3` (`versionCode 55`) and supports
-Android 9 / API 28 or later. Google Play has published `1.0.2` / code `54`. The
+Current Android release source is `1.0.3` (`versionCode 55`) and supports
+Android 9 / API 28 or later. Code `55` was committed to the Google Play
+production track with status `completed` through Android Publisher edit
+`07303019632521856332`; `generatedApks/55` returned HTTP `200`. The
 initial code `55` AAB passed the protected signed-product gate, but a packaging
 audit found that its default ABI set retained the historical 64-bit-only Play
 selection. Source `5173e02c6723e385c6ec8d8d12424fcb2ece2507` corrected the
@@ -11,7 +13,8 @@ inventory and ELF32 verifier. Its replacement 144,692,488-byte signed AAB
 contains `armeabi-v7a`, `arm64-v8a`, and `x86_64`, passed the complete protected
 bundle gate, and has SHA-256
 `9ac5e6a89442c52c9bc598535bb5abda83a3ea17d3a345f562abf75738856dfe`.
-No code `55` AAB has been uploaded or submitted.
+The guarded production upload preserved the existing listing and screenshot
+inventory.
 
 This checklist maps Shakescape to current Google Play update requirements
 and identifies the Play Console fields that must be reconciled outside the
@@ -97,7 +100,7 @@ behavior against the exact signed candidate before upload.
 | Account deletion | Not applicable | The app does not create developer-operated accounts. |
 | App category | Candidate review required | Utilities/Tools may remain appropriate for the browser, but code `54` contains a noncustodial HNS wallet with native sends. Reconcile every financial-feature/category declaration and distinguish it from the unavailable website-provider, exchange, and marketplace surfaces. |
 | Target audience | Live reconciliation required | Use `18 and over` because the app is a general-purpose browser and is not child-directed; confirm the existing public listing already uses that answer. |
-| Release track | Code 54 published; code 55 pending | Google Play has published Android `1.0.2` / code `54`. The guarded upload for code `55` must use a fresh edit and fail rather than disturbing any review already in flight. |
+| Release track | Code 55 committed to production | Android Publisher edit `07303019632521856332` uploaded Android `1.0.3` / code `55`, assigned it to production with status `completed`, and committed successfully. A post-commit `generatedApks/55` request returned HTTP `200`. Store review, processing, and public propagation remain controlled by Google Play. |
 | CI regression | Current exact-source CI and CodeQL passed | Exact current source `3fff254c9f7f4df535e24256869331111dd0f40f` passed full CI run `33538557957`, including policy, Rust/supply-chain, Android build/unit/bundle, API 37 native instrumentation, the complete Apple gate, and Required CI. Both associated CodeQL workflows also passed. Signed-product, installed-device, Console, and upload gates remain separate. |
 | Store assets | Six-image Pixel set committed to Play | Six 1080 × 2424 images cover the ICANN and proof-backed `shakescape/` HNS sites, browser navigation, Handshake settings, diagnostics, and proof details. Android Publisher edit `04351495318173077620` removed the two obsolete local-start and locked-wallet captures, uploaded the canonical six-image set, committed successfully, and a fresh edit read back exactly six en-US phone screenshots. |
 

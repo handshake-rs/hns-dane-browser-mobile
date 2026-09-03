@@ -42,6 +42,8 @@ has SHA-256
 Android Publisher edit `04351495318173077620` replaced the live en-US phone
 screenshot inventory with these six canonical images, and a fresh edit read
 back exactly six. Play Console Data safety, financial-feature answers, the
-foreground `dataSync` declaration, and listing text must still be read back
-before intentional code `55` submission. Google Play has published code `54`;
-no code `55` AAB has yet been uploaded.
+foreground `dataSync` declaration, and listing text remain independently
+reviewable in Play Console. Android Publisher edit `07303019632521856332`
+uploaded code `55`, assigned it to production with status `completed`, and
+committed successfully without replacing listing assets. A post-commit
+`generatedApks/55` request returned HTTP `200`.
