@@ -51,6 +51,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         )
         self.assertIn("max-page-size=16384", android_builder)
         self.assertIn("common-page-size=16384", android_builder)
+        self.assertIn('command -v sccache', android_builder)
+        self.assertIn('export RUSTC_WRAPPER="$SCCACHE_BIN"', android_builder)
         ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual(ci_workflow.count("armv7-linux-androideabi"), 2)
 

@@ -180,6 +180,14 @@ if [[ "$PROFILE" == "release" ]]; then
   export CXXFLAGS_x86_64_linux_android="$CXXFLAGS"
 fi
 
+# A compiler cache changes build latency, not release inputs or output flags.
+# Select it only after the release override guard so callers cannot substitute
+# an arbitrary compiler wrapper. Builders without sccache remain supported.
+if SCCACHE_BIN="$(command -v sccache 2>/dev/null)" && [[ -n "$SCCACHE_BIN" ]]; then
+  export RUSTC_WRAPPER="$SCCACHE_BIN"
+  echo "Using sccache for Android Rust compilation: $SCCACHE_BIN"
+fi
+
 cd "$ROOT_DIR/rust"
 "${CARGO[@]}" "${ARGS[@]}" --locked
 

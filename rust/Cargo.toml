@@ -31,7 +31,7 @@ hns-gateway = { package = "hns-browser-gateway", version = "=0.2.3", default-fea
 hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
-hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.2", default-features = false, features = ["mobile"] }
+hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.3", default-features = false, features = ["mobile"] }
 # The release candidate consumes the complete checksum-bearing wallet 0.2.1
 # cohort from crates.io. Keep all direct entry crates on the same exact version.
 hns-wallet-ffi = "=0.2.1"
