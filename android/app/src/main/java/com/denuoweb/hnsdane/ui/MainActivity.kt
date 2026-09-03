@@ -1220,13 +1220,33 @@ class MainActivity : ComponentActivity() {
         }
         val progress = currentSyncProgress()
         val host = pending.target.displayHost ?: pending.target.url
-        syncGateNotice.text = if (progress.status in SYNC_FAILURE_STATUSES) {
+        val status = if (progress.status in SYNC_FAILURE_STATUSES) {
             getString(R.string.sync_gate_failed, host)
         } else {
             getString(R.string.sync_gate_waiting, host)
         }
+        val heights = progress.gateHeights()
+        syncGateNotice.text = if (heights == null) {
+            status
+        } else {
+            val unknown = getString(R.string.common_unknown)
+            val suffix = if (heights.targetIsEstimated) {
+                " ${getString(R.string.sync_gate_target_estimated_suffix)}"
+            } else {
+                ""
+            }
+            "$status\n\n${getString(
+                R.string.sync_gate_block_progress,
+                heights.current?.let(::formatSyncGateHeight) ?: unknown,
+                heights.target?.let(::formatSyncGateHeight) ?: unknown,
+                suffix,
+            )}"
+        }
         syncGateNotice.visibility = View.VISIBLE
     }
+
+    private fun formatSyncGateHeight(height: Long): String =
+        java.text.NumberFormat.getIntegerInstance(resources.configuration.locales[0]).format(height)
 
     private fun refreshSecurityState() {
         val syncProgress = currentSyncProgress()

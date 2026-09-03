@@ -169,6 +169,24 @@ data class HnsSyncProgress(
         return ((best.coerceIn(0L, target) * 1000L) / target).toInt()
     }
 
+    /**
+     * Presentation-only heights for a navigation waiting on header authority.
+     * The staged height contains headers already validated in the private sync
+     * stage, but cannot grant authority before atomic publication. Until peer
+     * groups corroborate a target, the clock-derived estimate is labelled so
+     * it cannot be mistaken for authenticated peer evidence.
+     */
+    fun gateHeights(): SyncGateHeights? {
+        val current = stagedBestHeight?.takeIf { syncInFlight } ?: bestHeight
+        val target = effectiveTargetHeight ?: estimatedTipHeight
+        if (current == null && target == null) return null
+        return SyncGateHeights(
+            current = current,
+            target = target,
+            targetIsEstimated = effectiveTargetHeight == null && estimatedTipHeight != null,
+        )
+    }
+
     fun summary(): String {
         return renderSummary(
             statusText = displayStatus,
@@ -302,3 +320,9 @@ data class HnsSyncProgress(
             opt(name) as? Boolean
     }
 }
+
+data class SyncGateHeights(
+    val current: Long?,
+    val target: Long?,
+    val targetIsEstimated: Boolean,
+)

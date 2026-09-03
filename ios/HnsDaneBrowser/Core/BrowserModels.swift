@@ -660,6 +660,23 @@ struct BrowserSyncSummary: Equatable, Sendable {
             : bestHeight
     }
 
+    /// User-facing progress for an address held behind the authority gate.
+    /// A wall-clock target remains explicitly estimated until independent
+    /// peer groups corroborate it; it never participates in admission.
+    var syncGateProgressText: String? {
+        let current = displayedSyncHeight
+        let target = effectiveTargetHeight ?? estimatedTipHeight
+        guard current != nil || target != nil else { return nil }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        let currentText = current.flatMap { formatter.string(from: NSNumber(value: $0)) } ?? "unknown"
+        let targetText = target.flatMap { formatter.string(from: NSNumber(value: $0)) } ?? "unknown"
+        let estimate = effectiveTargetHeight == nil && estimatedTipHeight != nil
+            ? " (estimated until peers agree)"
+            : ""
+        return "Current block: \(currentText)\nTarget block: \(targetText)\(estimate)"
+    }
+
     var syncProgressFraction: Double? {
         guard let displayedSyncHeight,
               let effectiveTargetHeight,

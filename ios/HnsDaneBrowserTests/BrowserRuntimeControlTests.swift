@@ -2831,7 +2831,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 ),
                 consecutiveFailures: 0
             ),
-            30
+            1
         )
         let sameTreeEpochProgress = BrowserSyncSummary(
             headline: "Name state ready",
@@ -2866,7 +2866,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
     }
 
-    func testSyncSchedulingRetriesUnknownTargetPromptlyWithoutChangingProgressCadence() {
+    func testSyncSchedulingKeepsUnknownTargetOnCriticalProgressCadence() {
         let policy = BrowserSyncSchedulingPolicy(
             progressInterval: 30,
             retryInterval: 10,
@@ -2900,7 +2900,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         let resetGenesisStatuses = ["idle", "syncing", "up_to_date", "attempted", "synced"]
 
         XCTAssertTrue(unknownTarget.hasUnknownTargetProgress)
-        XCTAssertEqual(policy.delay(after: unknownTarget, consecutiveFailures: 0), 10)
+        XCTAssertEqual(policy.delay(after: unknownTarget, consecutiveFailures: 0), 30)
         for status in resetGenesisStatuses {
             let resetGenesis = BrowserSyncSummary(
                 headline: "Syncing",
@@ -2912,7 +2912,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 bestHeight: 0
             )
             XCTAssertTrue(resetGenesis.needsHeaderBootstrap)
-            XCTAssertEqual(policy.delay(after: resetGenesis, consecutiveFailures: 0), 10)
+            XCTAssertEqual(policy.delay(after: resetGenesis, consecutiveFailures: 0), 30)
         }
         XCTAssertEqual(policy.delay(after: progressing, consecutiveFailures: 0), 30)
         XCTAssertFalse(regtest.needsHeaderBootstrap)
@@ -3002,6 +3002,10 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(summary.syncDiagnosticText.contains("Committed"))
         XCTAssertFalse(summary.syncDiagnosticText.contains("target unknown"))
         XCTAssertFalse(summary.syncDiagnosticText.contains("HNS root unknown"))
+        XCTAssertEqual(
+            summary.syncGateProgressText,
+            "Current block: 324,000\nTarget block: 336,900 (estimated until peers agree)"
+        )
     }
 
     func testIOSRecognizesAndroidCurrentSyncStates() throws {

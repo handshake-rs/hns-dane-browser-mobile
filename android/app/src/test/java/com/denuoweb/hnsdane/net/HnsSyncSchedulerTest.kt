@@ -157,7 +157,7 @@ class HnsSyncSchedulerTest {
             ),
         )
         assertEquals(
-            11L,
+            7L,
             scheduler.nextDelayMs(
                 HnsSyncSnapshot(
                     statusJson = """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"up_to_date","accepted":0,"bestHeight":335684,"bestPeerHeight":335684,"effectiveTargetHeight":null,"lagBlocks":null,"freshness":"unknown","freshnessThresholdBlocks":2,"targetSource":"unknown","peerCount":505}""",
@@ -225,7 +225,7 @@ class HnsSyncSchedulerTest {
 
         listOf("idle", "syncing", "up_to_date", "attempted", "synced").forEach { status ->
             assertEquals(
-                11L,
+                7L,
                 scheduler.nextDelayMs(
                     HnsSyncSnapshot(
                         statusJson = """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"$status","bestHeight":0,"peerCount":23}""",

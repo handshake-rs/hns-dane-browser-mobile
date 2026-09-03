@@ -183,7 +183,7 @@ struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
     let failureBackoff: [TimeInterval]
 
     init(
-        progressInterval: TimeInterval = 30,
+        progressInterval: TimeInterval = 1,
         retryInterval: TimeInterval = 10,
         caughtUpInterval: TimeInterval = 600,
         failureBackoff: [TimeInterval] = [5, 15, 60]
@@ -195,6 +195,9 @@ struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
     }
 
     func delay(after summary: BrowserSyncSummary?, consecutiveFailures: Int) -> TimeInterval {
+        // Thrown runtime/I/O failures retain bounded backoff. A completed
+        // peer pass whose factual status still lacks target authority is not
+        // a scheduler failure and remains on the critical progress cadence.
         if consecutiveFailures > 0, !failureBackoff.isEmpty {
             return failureBackoff[min(consecutiveFailures - 1, failureBackoff.count - 1)]
         }
@@ -204,11 +207,8 @@ struct BrowserSyncSchedulingPolicy: Equatable, Sendable {
         if summary?.needsTreeRootCatchUpContinuation == true {
             return progressInterval
         }
-        if summary?.needsHeaderBootstrap == true {
-            return retryInterval
-        }
-        if summary?.hasUnknownTargetProgress == true {
-            return retryInterval
+        if summary?.needsHeaderBootstrap == true || summary?.hasUnknownTargetProgress == true {
+            return progressInterval
         }
         return caughtUpInterval
     }

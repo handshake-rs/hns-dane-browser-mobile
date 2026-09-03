@@ -1,5 +1,13 @@
 # Changelog
 
+- Show live validated `current block` and peer-corroborated `target block`
+  counters when an entered address is held behind header synchronization on
+  Android and iOS. Clock-derived targets are visibly marked as estimates until
+  peers agree. Cold-start synchronization now gives parallel mobile peer
+  probes their intended ten-second allowance and removes avoidable scheduler
+  gaps while the public-network target is still unknown, without weakening the
+  independent peer-group authority threshold.
+
 All notable changes to this project will be documented in this file.
 
 ## Unreleased

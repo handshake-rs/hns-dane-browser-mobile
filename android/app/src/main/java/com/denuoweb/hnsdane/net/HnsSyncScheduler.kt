@@ -110,6 +110,11 @@ class HnsSyncScheduler(
         val progress = HnsSyncProgress.fromJson(snapshot.statusJson)
         return when {
             progress.needsTreeRootCatchUpContinuation -> activeIntervalMs
+            // A foreground browser that still has no corroborated target (or
+            // is at genesis) is on its critical startup path. Avoid inserting
+            // the ordinary ten-second retry pause between already-bounded
+            // native peer passes.
+            progress.hasUnknownTargetProgress || progress.needsHeaderBootstrap -> activeIntervalMs
             progress.shouldRetrySoon -> retryIntervalMs
             else -> idleIntervalMs
         }

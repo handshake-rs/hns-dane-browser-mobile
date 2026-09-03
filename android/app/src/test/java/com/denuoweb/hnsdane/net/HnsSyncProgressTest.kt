@@ -260,6 +260,22 @@ class HnsSyncProgressTest {
         )
         assertFalse(summary.contains("committed"))
         assertFalse(summary.contains("300,000"))
+        assertEquals(
+            SyncGateHeights(324_000L, 337_000L, targetIsEstimated = false),
+            progress.gateHeights(),
+        )
+    }
+
+    @Test
+    fun navigationGateLabelsClockTargetAsEstimatedUntilPeersAgree() {
+        val progress = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"syncing","syncInFlight":true,"stagedBestHeight":312000,"bestHeight":300000,"estimatedTipHeight":345500,"effectiveTargetHeight":null}""",
+        )
+
+        assertEquals(
+            SyncGateHeights(312_000L, 345_500L, targetIsEstimated = true),
+            progress.gateHeights(),
+        )
     }
 
     @Test

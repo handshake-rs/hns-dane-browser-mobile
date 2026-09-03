@@ -130,6 +130,8 @@
     <string name="sync_progress_root_ready">HNS root %1$s ready</string>
     <string name="sync_progress_root_required">needs HNS root %1$s</string>
     <string name="sync_gate_waiting">Waiting for authenticated Handshake headers before loading %1$s.</string>
+    <string name="sync_gate_block_progress">Current block: %1$s\nTarget block: %2$s%3$s</string>
+    <string name="sync_gate_target_estimated_suffix">(estimated until peers agree)</string>
     <string name="sync_gate_failed">Handshake header sync must recover before loading %1$s. Check the sync details above.</string>
 
     <string name="screen_cookie_options">Cookie Options</string>

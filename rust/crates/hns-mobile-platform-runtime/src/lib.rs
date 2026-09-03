@@ -15876,17 +15876,7 @@ fn run_sync_once(
     let runner = HeaderSyncRunner::with_config(
         network,
         TcpHeaderPeerConnector,
-        HeaderSyncRunnerConfig {
-            preferred_peers: ANDROID_HEADER_SYNC_PEERS,
-            max_header_batches_per_peer: ANDROID_HEADER_SYNC_BATCHES_PER_PEER,
-            peer_discovery_target: ANDROID_MIN_PEER_TARGET,
-            parallel_peer_probes: ANDROID_PARALLEL_PEER_PROBES,
-            parallel_header_fetch_peers: ANDROID_PARALLEL_HEADER_FETCH_PEERS,
-            peer_height_refresh_interval: ANDROID_PEER_HEIGHT_REFRESH_INTERVAL_SECONDS,
-            checkpoint_header_prefetch: sync_checkpoints_for_network(network_kind),
-            timeout,
-            ..HeaderSyncRunnerConfig::default()
-        },
+        mobile_header_sync_runner_config(network_kind, timeout),
     );
     let result = runner
         .sync_once_parallel_and_persist_with_completion_time_and_progress(
@@ -15996,6 +15986,30 @@ fn run_sync_once(
             })
             .collect(),
     })
+}
+
+fn mobile_header_sync_runner_config(
+    network_kind: NetworkKind,
+    timeout: Duration,
+) -> HeaderSyncRunnerConfig {
+    HeaderSyncRunnerConfig {
+        preferred_peers: ANDROID_HEADER_SYNC_PEERS,
+        max_header_batches_per_peer: ANDROID_HEADER_SYNC_BATCHES_PER_PEER,
+        peer_discovery_target: ANDROID_MIN_PEER_TARGET,
+        parallel_peer_probes: ANDROID_PARALLEL_PEER_PROBES,
+        parallel_header_fetch_peers: ANDROID_PARALLEL_HEADER_FETCH_PEERS,
+        // The engine default is intentionally desktop-conservative at three
+        // seconds. Cold mobile radios routinely establish a usable Handshake
+        // TCP path after that deadline, which caused otherwise healthy peers
+        // to be discarded and forced another whole sync pass. Keep probes
+        // parallel, but give each the same bounded mobile allowance as header
+        // fetching.
+        parallel_peer_probe_timeout: timeout,
+        peer_height_refresh_interval: ANDROID_PEER_HEIGHT_REFRESH_INTERVAL_SECONDS,
+        checkpoint_header_prefetch: sync_checkpoints_for_network(network_kind),
+        timeout,
+        ..HeaderSyncRunnerConfig::default()
+    }
 }
 
 fn classify_sync_status(
@@ -17189,6 +17203,17 @@ mod tests {
     use std::thread;
 
     const TEST_CONCURRENCY_TIMEOUT: Duration = Duration::from_secs(10);
+
+    #[test]
+    fn mobile_parallel_probe_timeout_matches_bounded_header_timeout() {
+        let timeout = Duration::from_secs(10);
+        let config = mobile_header_sync_runner_config(NetworkKind::Mainnet, timeout);
+
+        assert_eq!(config.parallel_peer_probe_timeout, timeout);
+        assert_eq!(config.timeout, timeout);
+        assert_eq!(config.parallel_peer_probes, 32);
+        assert_eq!(config.parallel_header_fetch_peers, 4);
+    }
 
     #[test]
     fn header_state_exclusive_lock_blocks_shared_probe_until_release() {

@@ -1501,9 +1501,12 @@ final class BrowserViewController: UIViewController {
         }
         if !isProxyAdmissionGranted && !isHeaderResetInFlight {
             placeholderLabel.isHidden = false
-            placeholderLabel.text = summary.requiresRetry
+            let status = summary.requiresRetry
                 ? "Handshake header sync must recover before loading this address."
                 : "Waiting for authenticated Handshake headers before loading this address."
+            placeholderLabel.text = [status, summary.syncGateProgressText]
+                .compactMap { $0 }
+                .joined(separator: "\n\n")
         }
         refreshSettingsIfPresented()
     }
