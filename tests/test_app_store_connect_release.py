@@ -170,6 +170,13 @@ class LocalReleaseSafetyTests(unittest.TestCase):
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 
+    def test_no_idfa_readback_accepts_apples_false_and_nullable_encodings(self):
+        self.assertTrue(release_client.is_no_idfa_readback({"usesIdfa": False}))
+        self.assertTrue(release_client.is_no_idfa_readback({"usesIdfa": None}))
+        self.assertFalse(release_client.is_no_idfa_readback({"usesIdfa": True}))
+        self.assertFalse(release_client.is_no_idfa_readback({}))
+        self.assertFalse(release_client.is_no_idfa_readback({"usesIdfa": 0}))
+
     def test_cli_defaults_artifact_commit_to_expected_commit(self):
         arguments = [
             str(SCRIPT),

@@ -543,6 +543,14 @@ def _resource_attributes(resource: dict[str, Any]) -> dict[str, Any]:
     return attributes
 
 
+def is_no_idfa_readback(attributes: dict[str, Any]) -> bool:
+    """Accept both App Store Connect encodings for a negative IDFA declaration."""
+    if "usesIdfa" not in attributes:
+        return False
+    value = attributes["usesIdfa"]
+    return value is False or value is None
+
+
 def _resource_id(resource: dict[str, Any], expected_type: str) -> str:
     if resource.get("type") != expected_type or not isinstance(resource.get("id"), str):
         raise ReleaseError(f"App Store Connect returned a malformed {expected_type} resource")
@@ -1415,8 +1423,8 @@ class ReleaseManager:
             raise ReleaseError("App Store release type readback is not MANUAL")
         if attributes.get("reviewType") != "APP_STORE":
             raise ReleaseError("App Store review type readback is not APP_STORE")
-        if attributes.get("usesIdfa") is not False:
-            raise ReleaseError("App Store IDFA declaration readback is not false")
+        if not is_no_idfa_readback(attributes):
+            raise ReleaseError("App Store IDFA declaration readback is not false or null")
         if attributes.get("copyright") != self.release.metadata["copyright"]:
             raise ReleaseError("App Store copyright readback differs")
         if self.attached_build_id(version_id) != build_id:
