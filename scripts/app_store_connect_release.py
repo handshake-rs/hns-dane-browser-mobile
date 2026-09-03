@@ -40,7 +40,13 @@ ISSUER_ID = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
-EDITABLE_VERSION_STATES = {"PREPARE_FOR_SUBMISSION"}
+EDITABLE_VERSION_STATES = {
+    "PREPARE_FOR_SUBMISSION",
+    # App Store Connect leaves a version in this state after the developer
+    # cancels review. Apple permits that same version to be edited and
+    # resubmitted with a replacement build.
+    "DEVELOPER_REJECTED",
+}
 ACTIVE_REVIEW_STATES = {
     "READY_FOR_REVIEW",
     "WAITING_FOR_REVIEW",
@@ -919,7 +925,7 @@ class ReleaseManager:
         known = {state for state in states if isinstance(state, str)}
         if not known.intersection(EDITABLE_VERSION_STATES):
             raise ReleaseError(
-                "the exact App Store version is not in PREPARE_FOR_SUBMISSION"
+                "the exact App Store version is not editable for submission"
             )
 
     def _upsert_version_localization(self, version_id: str) -> dict[str, Any]:

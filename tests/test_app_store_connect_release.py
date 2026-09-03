@@ -565,6 +565,22 @@ class SubmissionSafetyTests(unittest.TestCase):
         self.assertEqual(len(cancel), 1)
         self.assertIs(cancel[0][3]["data"]["attributes"]["canceled"], True)
 
+    def test_developer_rejected_version_remains_editable_for_replacement(self):
+        manager = self.make_manager(FakeApi())
+        for state in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED"):
+            with self.subTest(state=state):
+                manager._assert_version_editable(
+                    resource("appStoreVersions", "version", appStoreState=state)
+                )
+        with self.assertRaisesRegex(release_client.ReleaseError, "not editable"):
+            manager._assert_version_editable(
+                resource(
+                    "appStoreVersions",
+                    "version",
+                    appStoreState="WAITING_FOR_REVIEW",
+                )
+            )
+
     def test_existing_screenshot_mismatch_without_confirmation_deletes_nothing(self):
         with tempfile.TemporaryDirectory() as temporary:
             screenshot = Path(temporary) / "01.jpg"
