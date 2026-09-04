@@ -30,7 +30,8 @@
     <string name="action_saved_wallet_recovery" translatable="false">I saved it</string>
     <string name="action_sync_wallet_reads" translatable="false">Synchronize</string>
     <string name="action_import_wallet_name" translatable="false">Import name</string>
-    <string name="action_import_wallet_names_file" translatable="false">Import names from file</string>
+    <string name="action_import_multiple_wallet_names" translatable="false">Import multiple names</string>
+    <string name="action_review_wallet_names" translatable="false">Review names</string>
     <string name="action_load_more_wallet_names" translatable="false">Load next names</string>
     <string name="action_previous_wallet_names" translatable="false">Load previous names</string>
     <string name="action_previous_wallet_activity" translatable="false">Previous</string>
@@ -344,6 +345,7 @@
     <string name="row_wallet_transfer_name" translatable="false">Transfer name</string>
     <string name="row_wallet_transfer_name_summary" translatable="false">Prepare a transfer of one tracked Handshake name to an exact recipient.</string>
     <string name="row_wallet_finalize_name" translatable="false">Finalize name transfer</string>
+    <string name="row_wallet_set_records" translatable="false">Set records</string>
     <string name="row_wallet_finalize_name_summary" translatable="false">Finalize a transfer after the on-chain lockup has matured.</string>
     <string name="row_wallet_create_offer" translatable="false">Create fixed-price offer</string>
     <string name="row_wallet_create_offer_summary" translatable="false">Lock a tracked name and publish an authenticated listing to the Swap Board.</string>
@@ -552,6 +554,7 @@
     <string name="wallet_bitcoin_send_accepted" translatable="false">Direct peers accepted Bitcoin transaction %1$s.</string>
     <string name="wallet_bitcoin_send_ambiguous" translatable="false">The Bitcoin transaction is durably pending, but Kyoto was not ready to submit it. Unlock, then synchronize Bitcoin to retry this same transaction. Do not prepare another send.</string>
     <string name="wallet_action_name_hint" translatable="false">Exact Handshake name</string>
+    <string name="wallet_action_resource_records_hint" translatable="false">One record per line, for example:&#10;NS ns1.example.&#10;GLUE4 ns1.example. 192.0.2.1&#10;TXT &quot;hello&quot;&#10;&#10;Supported: NS, GLUE4, GLUE6, SYNTH4, SYNTH6, DS, TXT. Leave empty to clear. Advanced: hex:00…</string>
     <string name="wallet_action_recipient_hint" translatable="false">Exact HNS recipient address</string>
     <string name="wallet_action_expected_recipient_hint" translatable="false">Expected recipient (optional)</string>
     <string name="wallet_action_maximum_fee_hint" translatable="false">Maximum network fee in HNS</string>
@@ -624,8 +627,12 @@
     <string name="wallet_name_import_failed" translatable="false">Name import failed closed. Reopen and unlock the wallet before retrying.</string>
     <string name="wallet_name_import_success" translatable="false">Imported and refreshed:\n%1$s</string>
     <string name="wallet_name_import_success_refresh_failed" translatable="false">The import result could not be confirmed in the required fresh wallet rows. The wallet was locked and no imported row was published.</string>
-    <string name="wallet_name_bulk_import_reading" translatable="false">Reading the bounded name file…</string>
-    <string name="wallet_name_bulk_import_invalid_file" translatable="false">The file must contain 1–10,000 unique exact names, either one per line or as a JSON string array.</string>
+    <string name="wallet_name_multiple_import_hint" translatable="false">Enter 1–10,000 unique exact Handshake names separated by spaces only. Commas, tabs, and line breaks are not accepted.</string>
+    <string name="wallet_name_multiple_import_example" translatable="false">alpha beta example-name</string>
+    <string name="wallet_name_multiple_import_invalid" translatable="false">Enter 1–10,000 unique canonical names separated only by spaces.</string>
+    <string name="wallet_name_multiple_import_review_title" translatable="false">Review names</string>
+    <string name="wallet_name_multiple_import_review_message" translatable="false">%1$d names will be authenticated and added atomically. Review the complete list before importing.</string>
+    <string name="wallet_name_multiple_import_review_list" translatable="false">Complete list of names to import</string>
     <string name="wallet_name_bulk_import_importing" translatable="false">Authenticating and atomically importing %1$d exact names before one wallet refresh…</string>
     <string name="wallet_name_bulk_import_success" translatable="false">Imported and authenticated %1$d names. The wallet refreshed once.</string>
     <string name="wallet_name_bulk_import_catching_up" translatable="false">Imported %1$d names atomically. Name indexing is catching up; the previously verified balance remains available.</string>

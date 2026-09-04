@@ -84,3 +84,18 @@ panic = "abort"
 [profile.ios-release]
 inherits = "release"
 panic = "unwind"
+
+[patch.crates-io]
+hns-wallet-bitcoin-kyoto = { path = "../../hns-wallet-rs/crates/hns-wallet-bitcoin-kyoto" }
+hns-wallet-chain-api = { path = "../../hns-wallet-rs/crates/hns-wallet-chain-api" }
+hns-wallet-ethereum = { path = "../../hns-wallet-rs/crates/hns-wallet-ethereum" }
+hns-wallet-ffi = { path = "../../hns-wallet-rs/crates/hns-wallet-ffi" }
+hns-wallet-hns = { path = "../../hns-wallet-rs/crates/hns-wallet-hns" }
+hns-wallet-host = { path = "../../hns-wallet-rs/crates/hns-wallet-host" }
+hns-wallet-market = { path = "../../hns-wallet-rs/crates/hns-wallet-market" }
+hns-wallet-mobile = { path = "../../hns-wallet-rs/crates/hns-wallet-mobile" }
+hns-wallet-provider = { path = "../../hns-wallet-rs/crates/hns-wallet-provider" }
+hns-wallet-service = { path = "../../hns-wallet-rs/crates/hns-wallet-service" }
+hns-wallet-shakedex = { path = "../../hns-wallet-rs/crates/hns-wallet-shakedex" }
+hns-wallet-store = { path = "../../hns-wallet-rs/crates/hns-wallet-store" }
+hns-wallet-types = { path = "../../hns-wallet-rs/crates/hns-wallet-types" }

@@ -957,6 +957,7 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
     let nameReceiveTarget: NameReceiveTarget?
     let transactionHistory: [Transaction]
     let knownNames: [KnownName]
+    let knownNameCount: Int
     let finalizeNotices: [FinalizeNotice]
     let moduleStatus: ModuleStatus
 
@@ -1054,6 +1055,7 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
         nameReceiveTarget: NameReceiveTarget?,
         transactionHistory: [Transaction],
         knownNames: [KnownName],
+        knownNameCount: Int? = nil,
         finalizeNotices: [FinalizeNotice] = [],
         moduleStatus: ModuleStatus
     ) throws {
@@ -1062,10 +1064,13 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
         self.nameReceiveTarget = nameReceiveTarget
         self.transactionHistory = transactionHistory
         self.knownNames = knownNames
+        self.knownNameCount = knownNameCount ?? knownNames.count
         self.finalizeNotices = finalizeNotices
         self.moduleStatus = moduleStatus
         guard transactionHistory.count <= 10_000,
               knownNames.count <= 10_000,
+              self.knownNameCount >= knownNames.count,
+              self.knownNameCount <= 10_000,
               Set(transactionHistory.map(\.txid)).count == transactionHistory.count,
               Set(knownNames.map(\.name)).count == knownNames.count,
               Set(knownNames.map(\.nameHash)).count == knownNames.count,
@@ -1130,6 +1135,7 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
                 nameReceiveTarget: decoded.nameReceiveTarget,
                 transactionHistory: decoded.transactionHistory,
                 knownNames: decoded.knownNames,
+                knownNameCount: Int(decoded.knownNameCount),
                 finalizeNotices: decoded.finalizeNotices,
                 moduleStatus: decoded.moduleStatus
             )
@@ -1248,6 +1254,7 @@ struct NativeHnsSendReceipt: Equatable, Sendable {
 enum NativeHnsValueIntent: Sendable {
     case transferName(name: String, recipient: String, maximumFeeBaseUnits: String)
     case finalizeName(name: String, expectedRecipient: String?, maximumFeeBaseUnits: String)
+    case setNameRecords(name: String, records: String, maximumFeeBaseUnits: String)
     case createFixedPriceOffer(
         name: String,
         priceBaseUnits: String,
@@ -1262,6 +1269,7 @@ enum NativeHnsValueIntent: Sendable {
     enum ApprovalKind: Equatable, Sendable {
         case nameTransfer
         case nameFinalize
+        case nameUpdate
         case nameMarketOffer
         case nameMarketPurchase
     }
@@ -1272,6 +1280,8 @@ enum NativeHnsValueIntent: Sendable {
             return .nameTransfer
         case .finalizeName:
             return .nameFinalize
+        case .setNameRecords:
+            return .nameUpdate
         case .createFixedPriceOffer, .cancelOffer, .recoverName:
             return .nameMarketOffer
         case .acceptOffer, .finalizePurchase:
@@ -1281,7 +1291,7 @@ enum NativeHnsValueIntent: Sendable {
 
     var requiresShakedex: Bool {
         switch self {
-        case .transferName, .finalizeName:
+        case .transferName, .finalizeName, .setNameRecords:
             return false
         case .createFixedPriceOffer, .cancelOffer, .acceptOffer,
              .finalizePurchase, .recoverName:
@@ -1314,6 +1324,18 @@ enum NativeHnsValueIntent: Sendable {
                 "action": "finalizeName",
                 "name": name,
                 "expectedRecipient": expectedRecipient.map { $0 as Any } ?? NSNull(),
+                "maximumFee": maximumFee,
+            ]
+        case let .setNameRecords(name, records, maximumFee):
+            guard Self.isPublicText(name, maximum: 63),
+                  records.utf8.count <= 4_096,
+                  Self.isPositiveBaseUnits(maximumFee) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid HNS name-record input")
+            }
+            object = [
+                "action": "setNameRecords",
+                "name": name,
+                "records": records,
                 "maximumFee": maximumFee,
             ]
         case let .createFixedPriceOffer(name, price, maximumFee, lifetime):
@@ -2115,6 +2137,10 @@ private struct NativeHnsValueApprovalPayload: Decodable {
             case kind, name, recipient, maximumFee, warnings
         }
 
+        private enum UpdateKeys: String, CodingKey, CaseIterable {
+            case kind, name, resourceHex, resourceBytes, recordCount, maximumFee, warnings
+        }
+
         private enum OfferKeys: String, CodingKey, CaseIterable {
             case kind, action, name, listingId, price, maximumFee, warnings
         }
@@ -2152,6 +2178,36 @@ private struct NativeHnsValueApprovalPayload: Decodable {
                 detailLines = [
                     "Name: \(name)",
                     "Recipient: \(recipient)",
+                    "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS",
+                ] + warnings.map(Self.warningText)
+            case "nameUpdate":
+                let container = try decoder.strictContainer(keyedBy: UpdateKeys.self)
+                let name = try container.decode(String.self, forKey: .name)
+                let resourceHex = try container.decode(String.self, forKey: .resourceHex)
+                let resourceBytes = try container.decode(UInt16.self, forKey: .resourceBytes)
+                let recordCount = try container.decode(UInt16.self, forKey: .recordCount)
+                let maximumFee = try container.decode(
+                    NativeHnsReadSnapshot.Amount.self,
+                    forKey: .maximumFee
+                )
+                let warnings = try container.decode([String].self, forKey: .warnings)
+                guard Self.isPublicText(name, maximum: 63),
+                      resourceBytes <= 512,
+                      resourceHex.utf8.count == Int(resourceBytes) * 2,
+                      resourceHex.utf8.allSatisfy({ byte in
+                          (0x30...0x39).contains(byte) || (0x61...0x66).contains(byte)
+                      }),
+                      maximumFee.baseUnits != "0",
+                      warnings == ["feeEstimateMayChange"] else {
+                    throw NativeWalletBridgeError.invalidOutput("invalid HNS name-update summary")
+                }
+                self.kind = .nameUpdate
+                title = "Set Handshake resource records"
+                detailLines = [
+                    "Name: \(name)",
+                    "Records: \(recordCount)",
+                    "Resource size: \(resourceBytes) bytes",
+                    "Exact resource hex: \(resourceHex.isEmpty ? "(empty; clear records)" : resourceHex)",
                     "Maximum fee: \(Self.formatHnsBaseUnits(maximumFee.baseUnits)) HNS",
                 ] + warnings.map(Self.warningText)
             case "nameMarketOffer":
@@ -3347,6 +3403,43 @@ final class RustNativeWallet: @unchecked Sendable {
             try? lock()
             throw error
         }
+    }
+
+    /// Sends one reviewed array to the native controller so validation and
+    /// persistence remain atomic. The JSON transport is bounded and wiped as
+    /// soon as the native call returns.
+    func importHnsNamesExactText(_ exactNames: [String]) throws -> Int {
+        guard (1...10_000).contains(exactNames.count),
+              Set(exactNames).count == exactNames.count,
+              exactNames.allSatisfy({ (1...63).contains($0.utf8.count) }) else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "trusted-native HNS bulk name input is outside its bound"
+            )
+        }
+        var data = try JSONSerialization.data(withJSONObject: exactNames, options: [])
+        defer { data.resetBytes(in: data.startIndex..<data.endIndex) }
+        guard (2...1_048_576).contains(data.count) else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "trusted-native HNS bulk name JSON exceeds its input bound"
+            )
+        }
+        var importedCount: UInt64 = 0
+        let currentHandle = try liveHandle()
+        let result = data.withUnsafeBytes { buffer in
+            hns_browser_wallet_import_hns_names_exact_text(
+                currentHandle,
+                NativeWalletBridge.slice(buffer),
+                &importedCount
+            )
+        }
+        try NativeWalletBridge.check(result, operation: "wallet HNS bulk name import")
+        guard importedCount == UInt64(exactNames.count) else {
+            try? lock()
+            throw NativeWalletBridgeError.invalidOutput(
+                "HNS bulk name import returned an inexact count"
+            )
+        }
+        return Int(importedCount)
     }
 
     func unlock(databaseKey: UnsafeRawBufferPointer) throws {

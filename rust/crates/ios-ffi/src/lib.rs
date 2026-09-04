@@ -114,6 +114,8 @@ const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;
 const WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_NAME_INPUT_BYTES: usize = 63;
 const MAX_WALLET_NAME_IMPORT_JSON_BYTES: usize = 4 * 1024;
+const MAX_WALLET_BULK_NAMES: usize = 10_000;
+const MAX_WALLET_BULK_NAMES_JSON_BYTES: usize = 1024 * 1024;
 const WALLET_HNS_RECEIVE_BUNDLE_MAGIC: &[u8; 4] = b"HNRT";
 const WALLET_HNS_RECEIVE_BUNDLE_VERSION: u8 = 1;
 const WALLET_BITCOIN_BUNDLE_MAGIC: &[u8; 4] = b"HNBW";
@@ -2152,6 +2154,30 @@ unsafe fn wallet_exact_hns_name(name: HnsBrowserSlice) -> Result<SensitiveBytes,
         ));
     }
     Ok(SensitiveBytes(bytes))
+}
+
+unsafe fn wallet_exact_hns_names_json(
+    exact_names_json: HnsBrowserSlice,
+) -> Result<Vec<String>, FfiFailure> {
+    // SAFETY: This helper carries the exported caller's readable-slice contract.
+    let mut bytes = unsafe { input_bytes(exact_names_json, MAX_WALLET_BULK_NAMES_JSON_BYTES) }?;
+    let parsed = serde_json::from_slice::<Vec<String>>(&bytes);
+    bytes.fill(0);
+    let names = parsed.map_err(|_| FfiFailure::invalid("wallet HNS names JSON is invalid"))?;
+    if names.is_empty() || names.len() > MAX_WALLET_BULK_NAMES {
+        return Err(FfiFailure::invalid(
+            "wallet HNS bulk name count is outside its bound",
+        ));
+    }
+    let mut exact = HashSet::with_capacity(names.len());
+    if names.iter().any(|name| {
+        name.is_empty() || name.len() > MAX_WALLET_NAME_INPUT_BYTES || !exact.insert(name.as_str())
+    }) {
+        return Err(FfiFailure::invalid(
+            "wallet HNS bulk names must be unique bounded exact text",
+        ));
+    }
+    Ok(names)
 }
 
 fn wallet_read_bundle(snapshot: &MobileHnsReadSnapshot) -> Result<SensitiveBytes, FfiFailure> {
@@ -4955,6 +4981,89 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_name_exact_text(
 }
 
 #[unsafe(no_mangle)]
+/// Atomically imports a bounded JSON array of unique exact canonical
+/// Handshake names. No display-side normalization or partial import is
+/// permitted. On success, `out_imported_count` equals the input array length.
+///
+/// # Safety
+/// `exact_names_json` must remain readable for its declared length and
+/// `out_imported_count` must point to one writable `uint64_t` value.
+pub unsafe extern "C" fn hns_browser_wallet_import_hns_names_exact_text(
+    wallet: HnsBrowserWalletHandle,
+    exact_names_json: HnsBrowserSlice,
+    out_imported_count: *mut u64,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_imported_count)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_imported_count, 0) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        // Parse only after proving that a compatible live controller exists.
+        // SAFETY: This export carries the caller's readable-slice contract.
+        let names = unsafe { wallet_exact_hns_names_json(exact_names_json) }?;
+        let refs = names.iter().map(String::as_str).collect::<Vec<_>>();
+        let imported: Result<usize, FfiFailure> = match &mut entry.controller {
+            NativeWalletController::HnsReads(controller) => controller
+                .import_names_exact_text(&refs)
+                .map_err(|error| wallet_name_import_failure(&error)),
+            NativeWalletController::DirectHnsValue {
+                coordinator,
+                controller,
+                ..
+            } => (|| {
+                let now_unix = HnsReadSystemClock
+                    .now_unix()
+                    .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+                coordinator
+                    .connect_available(now_unix)
+                    .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
+                for name in &names {
+                    coordinator
+                        .synchronize_name_proof_exact_text(name, now_unix)
+                        .map_err(|_| {
+                            direct_hns_not_ready("direct HNS name proof is unavailable")
+                        })?;
+                }
+                controller
+                    .import_names_exact_text(&refs)
+                    .map_err(|error| wallet_name_import_failure(&error))
+            })(),
+            NativeWalletController::Lifecycle(_) => {
+                return Err(FfiFailure::new(
+                    HNS_BROWSER_RESULT_NOT_READY,
+                    "trusted-native HNS name import requires synchronized wallet reads",
+                ));
+            }
+            NativeWalletController::Failed => {
+                return Err(wallet_runtime_failure(
+                    "native wallet controller has failed",
+                ));
+            }
+        };
+        let imported = match imported {
+            Ok(count) if count == names.len() => count,
+            Ok(_) => {
+                entry.controller.lock_fail_closed();
+                return Err(wallet_runtime_failure(
+                    "HNS bulk name import returned an inexact count",
+                ));
+            }
+            Err(failure) => {
+                if failure.code != HNS_BROWSER_RESULT_INVALID_ARGUMENT {
+                    entry.controller.lock_fail_closed();
+                }
+                return Err(failure);
+            }
+        };
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_imported_count, imported as u64) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Performs one bounded synchronized read. The returned private bundle is
 /// `HNWR`, version 2, read-only-HNS flags, zero reserved bytes, a big-endian
 /// JSON length, and the exact serialized `MobileHnsReadSnapshot`. Callers must
@@ -6550,6 +6659,7 @@ mod tests {
             "hns_browser_wallet_approve_bitcoin_send",
             "hns_browser_wallet_reject_bitcoin_send",
             "hns_browser_wallet_import_hns_name_exact_text",
+            "hns_browser_wallet_import_hns_names_exact_text",
             "hns_browser_wallet_prepare_hns_send",
             "hns_browser_wallet_approve_hns_send",
             "hns_browser_wallet_reject_hns_send",
@@ -6716,6 +6826,47 @@ mod tests {
             wallet_name_import_bundle(&oversized_summary),
             Err(FfiFailure {
                 code: HNS_BROWSER_RESULT_RESOURCE_EXHAUSTED,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn wallet_bulk_name_import_json_is_unique_and_bounded() {
+        let valid = serde_json::to_vec(&vec!["alpha", "beta-2"]).expect("JSON");
+        // SAFETY: The fixture remains readable for this call.
+        assert_eq!(
+            unsafe { wallet_exact_hns_names_json(ffi_slice(&valid)) }
+                .ok()
+                .expect("valid names"),
+            vec!["alpha", "beta-2"]
+        );
+
+        for invalid in [
+            serde_json::to_vec(&Vec::<String>::new()).expect("JSON"),
+            serde_json::to_vec(&vec!["alpha", "alpha"]).expect("JSON"),
+            serde_json::to_vec(&vec!["a".repeat(MAX_WALLET_NAME_INPUT_BYTES + 1)]).expect("JSON"),
+            b"not-json".to_vec(),
+        ] {
+            // SAFETY: Each fixture remains readable for this call.
+            assert!(matches!(
+                unsafe { wallet_exact_hns_names_json(ffi_slice(&invalid)) },
+                Err(FfiFailure {
+                    code: HNS_BROWSER_RESULT_INVALID_ARGUMENT,
+                    ..
+                })
+            ));
+        }
+
+        let oversized = HnsBrowserSlice {
+            ptr: ptr::without_provenance::<u8>(1),
+            len: (MAX_WALLET_BULK_NAMES_JSON_BYTES + 1) as u64,
+        };
+        // SAFETY: The length is rejected before its sentinel pointer is read.
+        assert!(matches!(
+            unsafe { wallet_exact_hns_names_json(oversized) },
+            Err(FfiFailure {
+                code: HNS_BROWSER_RESULT_INVALID_ARGUMENT,
                 ..
             })
         ));

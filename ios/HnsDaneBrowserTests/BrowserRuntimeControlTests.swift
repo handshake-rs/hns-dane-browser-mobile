@@ -241,12 +241,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let versionThreeJSON = versionTwoJSON.replacingOccurrences(
             of: "\"knownNames\":[],",
-            with: "\"knownNames\":[],\"knownNameCount\":0,\"knownNamesComplete\":true,\"finalizeNotices\":[{\"name\":\"alpha\",\"transactionId\":\"(String(repeating: "c", count: 64))\",\"phase\":\"finalizeWaiting\",\"currentHeight\":42,\"finalizeEligibleHeight\":100}],"
+            with: "\"knownNames\":[],\"knownNameCount\":2,\"knownNamesComplete\":false,\"finalizeNotices\":[{\"name\":\"alpha\",\"transactionId\":\"(String(repeating: "c", count: 64))\",\"phase\":\"finalizeWaiting\",\"currentHeight\":42,\"finalizeEligibleHeight\":100}],"
         )
         let versionThree = try NativeHnsReadSnapshot.decode(
             bundle: hnsReadBundle(json: versionThreeJSON, version: 3)
         )
         XCTAssertEqual(versionThree.finalizeNotices.first?.name, "alpha")
+        XCTAssertEqual(versionThree.knownNameCount, 2)
         XCTAssertEqual(versionThree.finalizeNotices.first?.phase, "finalizeWaiting")
         XCTAssertEqual(versionThree.finalizeNotices.first?.finalizeEligibleHeight, 100)
 
@@ -2435,6 +2436,32 @@ final class BrowserRuntimeControlTests: XCTestCase {
         )
     }
 
+    func testMultipleWalletNameImportAcceptsOnlySpaceSeparatedCanonicalNames() {
+        XCTAssertEqual(
+            parseSpaceSeparatedWalletNames("alpha beta-2 gamma_name"),
+            ["alpha", "beta-2", "gamma_name"]
+        )
+        XCTAssertEqual(parseSpaceSeparatedWalletNames("  alpha   beta  "), ["alpha", "beta"])
+
+        for rejected in [
+            "", "alpha\nbeta", "alpha\tbeta", "alpha,beta", "alpha alpha",
+            "Alpha", "alpha.", "-alpha", "alpha-", "example", "éclair",
+        ] {
+            XCTAssertNil(parseSpaceSeparatedWalletNames(rejected), rejected)
+        }
+    }
+
+    func testMultipleWalletNameImportEnforcesCurrentTenThousandNameBound() {
+        let maximum = (0..<maximumMultipleWalletNameImports)
+            .map { "name\($0)" }
+            .joined(separator: " ")
+        XCTAssertEqual(
+            parseSpaceSeparatedWalletNames(maximum)?.count,
+            maximumMultipleWalletNameImports
+        )
+        XCTAssertNil(parseSpaceSeparatedWalletNames(maximum + " overflow"))
+    }
+
     @MainActor
     func testIOSSettingsExposeCurrentPageOnlyWhenAndroidWould() throws {
         let withoutPage = BrowserSettingsViewController(
@@ -4021,6 +4048,20 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertTrue(finalizeObject["expectedRecipient"] is NSNull)
         XCTAssertEqual(finalize.expectedApprovalKind, .nameFinalize)
 
+        let update = NativeHnsValueIntent.setNameRecords(
+            name: "alpha",
+            records: "NS ns1.example.\nGLUE4 ns1.example. 192.0.2.1",
+            maximumFeeBaseUnits: "3000"
+        )
+        let updateObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(try update.encodedBytes()))
+                as? [String: Any]
+        )
+        XCTAssertEqual(Set(updateObject.keys), ["action", "name", "records", "maximumFee"])
+        XCTAssertEqual(updateObject["action"] as? String, "setNameRecords")
+        XCTAssertEqual(update.expectedApprovalKind, .nameUpdate)
+        XCTAssertFalse(update.requiresShakedex)
+
         XCTAssertThrowsError(try NativeHnsValueIntent.transferName(
             name: "alpha",
             recipient: "recipient with spaces",
@@ -4060,6 +4101,18 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(approval.title, "Transfer Handshake name")
         XCTAssertTrue(approval.detailLines.contains("Maximum fee: 0.001 HNS"))
         approval.actionToken.discard()
+
+        let updateApprovalJSON = """
+        {"actionToken":"\(token)","expiresAtUnix":42,"summary":{"kind":"nameUpdate","name":"alpha","resourceHex":"0004c0000201","resourceBytes":6,"recordCount":1,"maximumFee":{"asset":"HNS","base_units":"3000"},"warnings":["feeEstimateMayChange"]}}
+        """
+        let updateApproval = try NativeHnsValueApproval.decode(
+            bundle: hnsValueBundle(magic: "HNVP", json: updateApprovalJSON)
+        )
+        XCTAssertEqual(updateApproval.kind, .nameUpdate)
+        XCTAssertEqual(updateApproval.title, "Set Handshake resource records")
+        XCTAssertTrue(updateApproval.detailLines.contains("Records: 1"))
+        XCTAssertTrue(updateApproval.detailLines.contains("Exact resource hex: 0004c0000201"))
+        updateApproval.actionToken.discard()
 
         XCTAssertThrowsError(try NativeHnsValueApproval.decode(
             bundle: hnsValueBundle(

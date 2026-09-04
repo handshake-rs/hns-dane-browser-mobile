@@ -445,6 +445,16 @@ HnsBrowserResult hns_browser_wallet_import_hns_name_exact_text(
     HnsBrowserSlice exact_name,
     HnsBrowserBuffer *out_summary_bundle);
 /*
+ * Atomically imports one JSON array containing 1..10000 unique exact
+ * canonical Handshake names. Each name contains 1..63 UTF-8 bytes. The JSON
+ * input is bounded to 1 MiB. On success, the returned count exactly equals the
+ * array length; failures never report a partial result.
+ */
+HnsBrowserResult hns_browser_wallet_import_hns_names_exact_text(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice exact_names_json,
+    uint64_t *out_imported_count);
+/*
  * A direct native-only HNS send. Preparation returns HNVP-v1, whose one-shot
  * action token may be approved once to return HNVX-v1, or rejected. Input
  * amounts are canonical nonzero base-unit ASCII integers. None of these

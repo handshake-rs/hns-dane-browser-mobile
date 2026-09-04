@@ -11,7 +11,6 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import android.text.Editable
@@ -118,13 +117,11 @@ import com.denuoweb.hnsdane.wallet.walletTransactionStatusLabel
 import com.denuoweb.hnsdane.wallet.walletSetupMayInspectStorage
 import com.denuoweb.hnsdane.wallet.walletStorageNamespace
 import java.io.File
-import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.security.SecureRandom
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
-import org.json.JSONArray
 import kotlin.concurrent.thread
 import kotlin.math.ceil
 
@@ -280,11 +277,6 @@ class WalletActivity : ComponentActivity() {
             }
         }
         bitmap?.recycle()
-    }
-    private val bulkNameFilePicker = registerForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) importWalletNamesFromFile(uri)
     }
     // This is wallet-local public output. It exists only while this exact
     // native controller stays unlocked and never substitutes for a synced
@@ -1335,7 +1327,7 @@ class WalletActivity : ComponentActivity() {
         val snapshot = latestReadSnapshot
         val actions = buildList {
             add(getString(R.string.action_import_wallet_name) to ::showNameImportDialog)
-            add(getString(R.string.action_import_wallet_names_file) to ::showBulkNameFilePicker)
+            add(getString(R.string.action_import_multiple_wallet_names) to ::showMultipleNameImportDialog)
             if (snapshot != null && trackedNamePageOffset > 0) {
                 add(getString(R.string.action_previous_wallet_names) to ::loadPreviousWalletNamePage)
             }
@@ -1355,69 +1347,6 @@ class WalletActivity : ComponentActivity() {
             ),
             actions = actions,
         )
-    }
-
-    private fun showBulkNameFilePicker() {
-        bulkNameFilePicker.launch(arrayOf("text/plain", "application/json", "text/csv"))
-    }
-
-    private fun importWalletNamesFromFile(uri: Uri) {
-        nameImportStatusView.text = getString(R.string.wallet_name_bulk_import_reading)
-        thread(name = "hns-wallet-name-file-read") {
-            val names = runCatching {
-                val bytes = contentResolver.openInputStream(uri)?.use { input ->
-                    val output = ByteArrayOutputStream()
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    try {
-                        while (true) {
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            require(output.size() + count <= MAX_BULK_NAME_FILE_BYTES)
-                            output.write(buffer, 0, count)
-                        }
-                        output.toByteArray()
-                    } finally {
-                        buffer.fill(0)
-                    }
-                } ?: throw IllegalArgumentException("name file is unavailable")
-                try {
-                    val text = bytes.toString(Charsets.UTF_8)
-                    require(text.toByteArray(Charsets.UTF_8).contentEquals(bytes))
-                    parseBulkWalletNames(text)
-                } finally {
-                    bytes.fill(0)
-                }
-            }.getOrNull()
-            runOnUiThread {
-                if (names == null) {
-                    nameImportStatusView.text = getString(R.string.wallet_name_bulk_import_invalid_file)
-                } else {
-                    importWalletNames(names)
-                }
-            }
-        }
-    }
-
-    private fun parseBulkWalletNames(text: String): List<String> {
-        val names = if (text.startsWith("[")) {
-            val array = JSONArray(text)
-            List(array.length()) { index -> array.getString(index) }
-        } else {
-            text.lineSequence().toList()
-        }
-        require(names.isNotEmpty() && names.size <= MAX_BULK_NAME_IMPORTS)
-        require(names.toSet().size == names.size)
-        require(names.all(::isExactWalletNameText))
-        return names
-    }
-
-    private fun isExactWalletNameText(name: String): Boolean {
-        val bytes = exactWalletNameUtf8(name) ?: return false
-        return try {
-            bytes.toString(Charsets.UTF_8) == name
-        } finally {
-            bytes.fill(0)
-        }
     }
 
     private fun loadNextWalletNamePage() {
@@ -1473,13 +1402,63 @@ class WalletActivity : ComponentActivity() {
         dialog.show()
     }
 
+    private fun showMultipleNameImportDialog() {
+        val input = multipleNameImportInput()
+        nameImportInput = input
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.action_import_multiple_wallet_names)
+            .setMessage(R.string.wallet_name_multiple_import_hint)
+            .setView(input)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_review_wallet_names, null)
+            .create()
+        dialog.setOnDismissListener {
+            if (nameImportInput === input) clearNameImportInput()
+        }
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val names = parseSpaceSeparatedWalletNames(input.text?.toString().orEmpty())
+                if (names == null) {
+                    input.error = getString(R.string.wallet_name_multiple_import_invalid)
+                    return@setOnClickListener
+                }
+                clearNameImportInput()
+                dialog.dismiss()
+                window.decorView.post { showMultipleNameImportReview(names) }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showMultipleNameImportReview(names: List<String>) {
+        val horizontalPadding = (20 * resources.displayMetrics.density).toInt()
+        val verticalPadding = (12 * resources.displayMetrics.density).toInt()
+        val list = TextView(this).apply {
+            text = names.mapIndexed { index, name -> "${index + 1}. $name" }.joinToString("\n")
+            setTextIsSelectable(true)
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            contentDescription = getString(R.string.wallet_name_multiple_import_review_list)
+        }
+        val scroll = ScrollView(this).apply {
+            addView(list)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_name_multiple_import_review_title)
+            .setMessage(getString(R.string.wallet_name_multiple_import_review_message, names.size))
+            .setView(scroll)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_import_multiple_wallet_names) { _, _ ->
+                importWalletNames(names)
+            }
+            .show()
+    }
+
     private fun showNameActionMenu() {
         val labels = arrayOf(
             getString(R.string.row_wallet_transfer_name),
             getString(R.string.row_wallet_finalize_name),
-            getString(R.string.row_wallet_create_offer),
-            getString(R.string.row_wallet_cancel_offer),
-            getString(R.string.row_wallet_recover_name),
+            getString(R.string.row_wallet_set_records),
         )
         AlertDialog.Builder(this)
             .setTitle(R.string.wallet_dashboard_name_actions)
@@ -1487,9 +1466,7 @@ class WalletActivity : ComponentActivity() {
                 when (which) {
                     0 -> showTransferNameForm()
                     1 -> showFinalizeNameForm()
-                    2 -> showCreateOfferForm()
-                    3 -> showCancelOfferForm()
-                    else -> showRecoverNameForm()
+                    else -> showSetNameRecordsForm()
                 }
             }
             .show()
@@ -1581,6 +1558,9 @@ class WalletActivity : ComponentActivity() {
         val transport = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
         val transportControls = directShakescapeControls(transport)
         val actions = mutableListOf<Pair<String, () -> Unit>>(
+            getString(R.string.row_wallet_create_offer) to ::showCreateOfferForm,
+            getString(R.string.row_wallet_cancel_offer) to ::showCancelOfferForm,
+            getString(R.string.row_wallet_recover_name) to ::showRecoverNameForm,
             getString(R.string.row_wallet_list_offers) to ::showListOffersForm,
             getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
             getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
@@ -2929,6 +2909,8 @@ class WalletActivity : ComponentActivity() {
         val numeric: Boolean = false,
         val decimal: Boolean = true,
         val initial: String = "",
+        val multiline: Boolean = false,
+        val maxCharacters: Int = MAX_VALUE_ACTION_INPUT_CHARACTERS,
     )
 
     /** One validated public HNS payment request retained only across its sync/review flow. */
@@ -2968,10 +2950,15 @@ class WalletActivity : ComponentActivity() {
                         if (field.decimal) InputType.TYPE_NUMBER_FLAG_DECIMAL else 0
                     )
                 } else {
-                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                    InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+                        (if (field.multiline) InputType.TYPE_TEXT_FLAG_MULTI_LINE else 0)
                 }
-                filters = arrayOf(InputFilter.LengthFilter(MAX_VALUE_ACTION_INPUT_CHARACTERS))
-                setSingleLine(true)
+                filters = arrayOf(InputFilter.LengthFilter(field.maxCharacters))
+                setSingleLine(!field.multiline)
+                if (field.multiline) {
+                    minLines = 7
+                    gravity = Gravity.TOP or Gravity.START
+                }
                 if (field.initial.isNotEmpty()) setText(field.initial)
                 layout.addView(
                     this,
@@ -3753,6 +3740,25 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
+    private fun showSetNameRecordsForm() = showWalletActionForm(
+        R.string.row_wallet_set_records,
+        listOf(
+            WalletActionInput(R.string.wallet_action_name_hint),
+            WalletActionInput(
+                R.string.wallet_action_resource_records_hint,
+                multiline = true,
+                maxCharacters = MAX_RESOURCE_EDITOR_CHARACTERS,
+            ),
+            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+        ),
+    ) { values ->
+        val fee = parsePositiveHnsToBaseUnits(values[2])
+        if (fee == null) return@showWalletActionForm invalidValueActionInput()
+        prepareWalletValueAction(
+            NativeHnsValueIntent.SetNameRecords(values[0], values[1], fee),
+        )
+    }
+
     private fun showCreateOfferForm() = showWalletActionForm(
         R.string.row_wallet_create_offer,
         listOf(
@@ -4040,7 +4046,8 @@ class WalletActivity : ComponentActivity() {
     private fun prepareWalletValueAction(intent: NativeHnsValueIntent) {
         val requiresShakedex = when (intent) {
             is NativeHnsValueIntent.TransferName,
-            is NativeHnsValueIntent.FinalizeName -> false
+            is NativeHnsValueIntent.FinalizeName,
+            is NativeHnsValueIntent.SetNameRecords -> false
             is NativeHnsValueIntent.CreateFixedPriceOffer,
             is NativeHnsValueIntent.CancelOffer,
             is NativeHnsValueIntent.AcceptOffer,
@@ -4063,6 +4070,7 @@ class WalletActivity : ComponentActivity() {
         val expectedKind = when (intent) {
             is NativeHnsValueIntent.TransferName -> NativeHnsValueApprovalKind.NAME_TRANSFER
             is NativeHnsValueIntent.FinalizeName -> NativeHnsValueApprovalKind.NAME_FINALIZE
+            is NativeHnsValueIntent.SetNameRecords -> NativeHnsValueApprovalKind.NAME_UPDATE
             is NativeHnsValueIntent.CreateFixedPriceOffer,
             is NativeHnsValueIntent.CancelOffer,
             is NativeHnsValueIntent.RecoverName -> NativeHnsValueApprovalKind.NAME_MARKET_OFFER
@@ -4808,9 +4816,9 @@ class WalletActivity : ComponentActivity() {
             return
         }
         if (
-            names.isEmpty() || names.size > MAX_BULK_NAME_IMPORTS ||
+            names.isEmpty() || names.size > MAX_MULTIPLE_WALLET_NAME_IMPORTS ||
             names.toSet().size != names.size ||
-            names.any { !isExactWalletNameText(it) }
+            names.any { !isCanonicalHandshakeNameText(it) }
         ) {
             nameImportStatusView.text = getString(R.string.wallet_name_import_invalid)
             return
@@ -6200,6 +6208,29 @@ class WalletActivity : ComponentActivity() {
         freezesText = false
     }
 
+    private fun multipleNameImportInput(): EditText = EditText(this).apply {
+        hint = getString(R.string.wallet_name_multiple_import_example)
+        inputType = InputType.TYPE_CLASS_TEXT or
+            InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+            InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        imeOptions = EditorInfo.IME_ACTION_DONE or
+            EditorInfo.IME_FLAG_NO_EXTRACT_UI or
+            EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        filters = arrayOf(InputFilter { source, start, end, destination, destinationStart, destinationEnd ->
+            val replacementLength = end - start
+            val nextLength = destination.length - (destinationEnd - destinationStart) + replacementLength
+            if (nextLength <= MAX_MULTIPLE_NAME_INPUT_CHARACTERS) null else ""
+        })
+        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        setAutofillHints(null)
+        minLines = 4
+        maxLines = 8
+        gravity = Gravity.TOP or Gravity.START
+        isSaveEnabled = false
+        freezesText = false
+    }
+
     private fun hnsSendRecipientInput(): EditText = EditText(this).apply {
         hint = getString(R.string.wallet_send_recipient_hint)
         inputType = InputType.TYPE_CLASS_TEXT or
@@ -6292,11 +6323,10 @@ class WalletActivity : ComponentActivity() {
         const val MAX_RECOVERY_CHARACTERS = 256
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
-        const val MAX_BULK_NAME_IMPORTS = 10_000
-        const val MAX_BULK_NAME_FILE_BYTES = 1024 * 1024
         const val MAX_SEND_RECIPIENT_BYTES = 512
         const val DEFAULT_HNS_MAXIMUM_FEE = "0.05"
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
+        const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
         const val DEFAULT_OFFER_PAGE_SIZE = 32
         const val DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS = 250L

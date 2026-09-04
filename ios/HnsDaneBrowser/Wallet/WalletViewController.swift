@@ -2156,6 +2156,11 @@ final class WalletViewController: UIViewController {
             alert.addAction(UIAlertAction(title: "Track exact HNS name", style: .default) { [weak self] _ in
                 self?.requestExactHnsNameImport()
             })
+            alert.addAction(UIAlertAction(title: "Import multiple names", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in
+                    self?.requestMultipleHnsNameImport()
+                }
+            })
         }
         if hnsValueActionMayStart {
             alert.addAction(UIAlertAction(title: "Name actions", style: .default) { [weak self] _ in
@@ -2193,17 +2198,9 @@ final class WalletViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "Finalize transfer", style: .default) { [weak self] _ in
             self?.afterWalletMenuDismissal { [weak self] in self?.showFinalizeNameForm() }
         })
-        if shakedexAvailable {
-            alert.addAction(UIAlertAction(title: "Create fixed-price offer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showCreateOfferForm() }
-            })
-            alert.addAction(UIAlertAction(title: "Cancel offer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showCancelOfferForm() }
-            })
-            alert.addAction(UIAlertAction(title: "Recover name from offer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showRecoverNameForm() }
-            })
-        }
+        alert.addAction(UIAlertAction(title: "Set records", style: .default) { [weak self] _ in
+            self?.afterWalletMenuDismissal { [weak self] in self?.showSetNameRecordsForm() }
+        })
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
     }
@@ -2229,6 +2226,15 @@ final class WalletViewController: UIViewController {
             preferredStyle: .alert
         )
         if shakedexActionMayStart {
+            alert.addAction(UIAlertAction(title: "Create fixed-price offer", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showCreateOfferForm() }
+            })
+            alert.addAction(UIAlertAction(title: "Cancel offer", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showCancelOfferForm() }
+            })
+            alert.addAction(UIAlertAction(title: "Recover name from offer", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showRecoverNameForm() }
+            })
             alert.addAction(UIAlertAction(title: "List offers", style: .default) { [weak self] _ in
                 self?.afterWalletMenuDismissal { [weak self] in self?.showListOffersForm() }
             })
@@ -2364,6 +2370,25 @@ final class WalletViewController: UIViewController {
                 )
             )
         }
+    }
+
+    private func showSetNameRecordsForm() {
+        guard presentedViewController == nil else { return }
+        let editor = NameRecordsEditorViewController { [weak self] name, records, feeText in
+            guard let self,
+                  let fee = Self.positiveHnsBaseUnits(feeText) else {
+                self?.showErrorMessage(
+                    "Enter an exact name, valid resource records, and a positive maximum fee with no more than six decimal places."
+                )
+                return
+            }
+            self.beginHnsValueAction(
+                .setNameRecords(name: name, records: records, maximumFeeBaseUnits: fee)
+            )
+        }
+        let navigation = UINavigationController(rootViewController: editor)
+        navigation.modalPresentationStyle = .formSheet
+        present(navigation, animated: true)
     }
 
     private func showCreateOfferForm() {
@@ -3516,6 +3541,142 @@ final class WalletViewController: UIViewController {
                     self.refreshState()
                     self.nameImportStatusLabel.text =
                         "Name import failed closed. Reopen and unlock the wallet before retrying. \(detail)"
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func requestMultipleHnsNameImport() {
+        let current = currentWalletNameImportState()
+        guard presentedViewController == nil,
+              let expected = current.authority,
+              walletNameImportMayStart(expected: expected, current: current) else {
+            nameImportStatusLabel.text =
+                "Multiple-name import requires the current reopened, unlocked, read-configured wallet in protected foreground access."
+            return
+        }
+        let editor = WalletMultipleNameImportEditorViewController { [weak self] names in
+            self?.showMultipleHnsNameImportReview(names: names, authority: expected)
+        }
+        present(UINavigationController(rootViewController: editor), animated: true)
+    }
+
+    private func showMultipleHnsNameImportReview(
+        names: [String],
+        authority: WalletNameImportAuthority
+    ) {
+        guard presentedViewController == nil else { return }
+        let current = currentWalletNameImportState()
+        guard walletNameImportMayStart(expected: authority, current: current) else {
+            nameImportStatusLabel.text =
+                "Wallet authority changed before the import review. No names were imported."
+            return
+        }
+        let review = WalletMultipleNameImportReviewViewController(names: names) { [weak self] in
+            guard let self else { return }
+            let rechecked = self.currentWalletNameImportState()
+            guard walletNameImportMayStart(expected: authority, current: rechecked) else {
+                self.nameImportStatusLabel.text =
+                    "Wallet authority changed while the review was open. No names were imported."
+                return
+            }
+            self.beginMultipleHnsNameImport(names: names, authority: authority)
+        }
+        present(UINavigationController(rootViewController: review), animated: true)
+    }
+
+    private func beginMultipleHnsNameImport(
+        names: [String],
+        authority: WalletNameImportAuthority
+    ) {
+        let current = currentWalletNameImportState()
+        guard walletNameImportMayStart(expected: authority, current: current),
+              let wallet,
+              let lease = storageLease else {
+            nameImportStatusLabel.text =
+                "Wallet authority changed before multiple-name import began. No names were imported."
+            return
+        }
+        isOperating = true
+        readGeneration &+= 1
+        let generation = readGeneration
+        nameImportStatusLabel.text =
+            "Importing \(names.count) exact HNS names atomically and refreshing synchronized wallet rows…"
+        refreshButtonStates()
+        let keychain = keychain
+
+        DispatchQueue.global(qos: .userInitiated).async { [wallet, names, keychain] in
+            let outcome: WalletHnsBulkNameImportOutcome
+            do {
+                let importedCount = try Self.withDirectHnsFloorJournal(
+                    wallet: wallet,
+                    keychain: keychain
+                ) {
+                    try wallet.importHnsNamesExactText(names)
+                }
+                do {
+                    let refreshed = try Self.withDirectHnsFloorJournal(
+                        wallet: wallet,
+                        keychain: keychain
+                    ) {
+                        try wallet.synchronizeHnsReads()
+                    }
+                    guard importedCount == names.count,
+                          refreshed.knownNameCount >= importedCount else {
+                        throw NativeWalletBridgeError.invalidOutput(
+                            "fresh wallet rows report fewer names than the atomic import count"
+                        )
+                    }
+                    outcome = .success(importedCount, refreshed)
+                } catch {
+                    try? wallet.lock()
+                    outcome = .successRefreshFailed(error.localizedDescription)
+                }
+            } catch {
+                if walletNameImportFailureIsNonPoisoningInvalid(error) {
+                    outcome = .invalidInput
+                } else {
+                    try? wallet.lock()
+                    outcome = .failure(error.localizedDescription)
+                }
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      walletNameImportCompletionMayApply(
+                          expected: authority,
+                          current: self.currentWalletNameImportAuthority(),
+                          expectedGeneration: generation,
+                          currentGeneration: self.readGeneration,
+                          expectedLease: lease,
+                          currentLease: self.storageLease,
+                          lifecycleAllowsImport: self.walletLifecycleMayAcquireStorage,
+                          viewIsCurrent: self.walletAuthorityRequested &&
+                              self.viewIfLoaded?.window != nil,
+                          operationInFlight: self.isOperating
+                      ) else {
+                    return
+                }
+                self.isOperating = false
+                switch outcome {
+                case .success(let count, let snapshot):
+                    self.publish(snapshot)
+                    self.nameImportStatusLabel.text =
+                        "Imported and refreshed \(count) exact HNS names."
+                case .successRefreshFailed(let detail):
+                    self.refreshState()
+                    self.readStatusLabel.text =
+                        "The required post-import refresh failed closed. Reopen and unlock before retrying."
+                    self.clearReadProjection()
+                    self.nameImportStatusLabel.text =
+                        "The bulk import result could not be confirmed in fresh wallet rows. The wallet was locked and no imported rows were published. \(detail)"
+                case .invalidInput:
+                    self.nameImportStatusLabel.text =
+                        "The reviewed text is not a unique list of canonical Handshake names. Nothing was imported and the wallet remains usable."
+                case .failure(let detail):
+                    self.refreshState()
+                    self.nameImportStatusLabel.text =
+                        "Multiple-name import failed closed. Reopen and unlock the wallet before retrying. \(detail)"
                 }
                 self.refreshButtonStates()
             }
@@ -4914,7 +5075,7 @@ enum WalletReadPresenter {
             let entries = names.map { presentName($0) }.joined(separator: "\n\n")
             trackedNames = appendRemainingCount(
                 entries,
-                remaining: snapshot.knownNames.count - names.count
+                remaining: snapshot.knownNameCount - names.count
             )
         }
 
@@ -5096,6 +5257,55 @@ private enum WalletHnsNameImportOutcome: Sendable {
     case successRefreshFailed(String)
     case invalidInput
     case failure(String)
+}
+
+private enum WalletHnsBulkNameImportOutcome: Sendable {
+    case success(Int, NativeHnsReadSnapshot)
+    case successRefreshFailed(String)
+    case invalidInput
+    case failure(String)
+}
+
+let maximumMultipleWalletNameImports = 10_000
+let maximumMultipleWalletNameInputCharacters =
+    maximumMultipleWalletNameImports * 63 + maximumMultipleWalletNameImports - 1
+
+private let reservedHandshakeNameTexts: Set<String> = [
+    "example", "invalid", "local", "localhost", "test",
+]
+
+func isCanonicalHandshakeNameText(_ name: String) -> Bool {
+    let bytes = Array(name.utf8)
+    guard (1...63).contains(bytes.count),
+          !reservedHandshakeNameTexts.contains(name) else {
+        return false
+    }
+    return bytes.indices.allSatisfy { index in
+        let byte = bytes[index]
+        let alphanumeric = (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) ||
+            (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte)
+        let interiorSeparator = (byte == UInt8(ascii: "-") || byte == UInt8(ascii: "_")) &&
+            index != bytes.startIndex && index != bytes.index(before: bytes.endIndex)
+        return alphanumeric || interiorSeparator
+    }
+}
+
+/// ASCII spaces are deliberately the only separators. Pasted commas, tabs,
+/// and line breaks are rejected instead of silently changing the request.
+func parseSpaceSeparatedWalletNames(_ text: String) -> [String]? {
+    guard !text.isEmpty,
+          text.count <= maximumMultipleWalletNameInputCharacters,
+          !text.contains(where: { $0.isWhitespace && $0 != " " }) else {
+        return nil
+    }
+    let names = text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+    guard !names.isEmpty,
+          names.count <= maximumMultipleWalletNameImports,
+          Set(names).count == names.count,
+          names.allSatisfy(isCanonicalHandshakeNameText) else {
+        return nil
+    }
+    return names
 }
 
 @MainActor
@@ -5665,6 +5875,368 @@ enum HandshakePaymentURI {
             return false
         }
         return amount.contains(where: { $0 != "0" && $0 != "." })
+    }
+}
+
+@MainActor
+private final class NameRecordsEditorViewController: UIViewController, UITextViewDelegate {
+    private static let maximumEditorCharacters = 4_096
+
+    private let onReview: (String, String, String) -> Void
+    private let nameField = UITextField()
+    private let recordsView = UITextView()
+    private let feeField = UITextField()
+    private let characterCountLabel = UILabel()
+
+    init(onReview: @escaping (String, String, String) -> Void) {
+        self.onReview = onReview
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Set records"
+        view.backgroundColor = .systemBackground
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .cancel,
+            target: self,
+            action: #selector(cancel)
+        )
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Review",
+            style: .done,
+            target: self,
+            action: #selector(review)
+        )
+
+        configure(nameField, placeholder: "Exact name", keyboard: .asciiCapable)
+        nameField.accessibilityIdentifier = "wallet.name-records.name"
+        configure(feeField, placeholder: "Maximum fee cap in HNS (for example, 0.05)", keyboard: .decimalPad)
+        feeField.accessibilityIdentifier = "wallet.name-records.maximum-fee"
+
+        recordsView.delegate = self
+        recordsView.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        recordsView.autocapitalizationType = .none
+        recordsView.autocorrectionType = .no
+        recordsView.spellCheckingType = .no
+        recordsView.smartDashesType = .no
+        recordsView.smartQuotesType = .no
+        recordsView.keyboardType = .asciiCapable
+        recordsView.layer.borderColor = UIColor.separator.cgColor
+        recordsView.layer.borderWidth = 1
+        recordsView.layer.cornerRadius = 8
+        recordsView.accessibilityIdentifier = "wallet.name-records.records"
+        recordsView.accessibilityLabel = "Raw Handshake resource records"
+
+        let instructions = UILabel()
+        instructions.numberOfLines = 0
+        instructions.font = .preferredFont(forTextStyle: .footnote)
+        instructions.textColor = .secondaryLabel
+        instructions.text = """
+        Enter one record per line. Supported forms:
+        NS ns1.example.
+        GLUE4 ns1.example. 192.0.2.1
+        GLUE6 ns1.example. 2001:db8::1
+        SYNTH4 192.0.2.2   or   SYNTH6 2001:db8::2
+        DS 12345 8 2 a1b2…
+        TXT "text with spaces"
+
+        Blank lines and lines beginning with # are ignored. Leave the records empty to clear the resource. Advanced users may enter hex: followed by the exact encoded resource bytes.
+        """
+
+        characterCountLabel.font = .preferredFont(forTextStyle: .caption1)
+        characterCountLabel.textColor = .secondaryLabel
+        characterCountLabel.textAlignment = .right
+        updateCharacterCount()
+
+        let stack = UIStackView(arrangedSubviews: [
+            fieldLabel("Name"), nameField,
+            fieldLabel("Resource records"), instructions, recordsView, characterCountLabel,
+            fieldLabel("Fee limit"), feeField,
+        ])
+        stack.axis = .vertical
+        stack.spacing = 10
+        stack.setCustomSpacing(20, after: nameField)
+        stack.setCustomSpacing(20, after: characterCountLabel)
+
+        let scroll = UIScrollView()
+        scroll.keyboardDismissMode = .interactive
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scroll)
+        scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -20),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 20),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -20),
+            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -40),
+            recordsView.heightAnchor.constraint(greaterThanOrEqualToConstant: 220),
+            nameField.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            feeField.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+        ])
+        nameField.becomeFirstResponder()
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+        updateCharacterCount()
+    }
+
+    func textView(
+        _ textView: UITextView,
+        shouldChangeTextIn range: NSRange,
+        replacementText text: String
+    ) -> Bool {
+        guard let current = textView.text,
+              let swiftRange = Range(range, in: current) else { return false }
+        return current.replacingCharacters(in: swiftRange, with: text).count <= Self.maximumEditorCharacters
+    }
+
+    private func configure(
+        _ field: UITextField,
+        placeholder: String,
+        keyboard: UIKeyboardType
+    ) {
+        field.borderStyle = .roundedRect
+        field.placeholder = placeholder
+        field.keyboardType = keyboard
+        field.autocapitalizationType = .none
+        field.autocorrectionType = .no
+        field.spellCheckingType = .no
+        field.textContentType = nil
+    }
+
+    private func fieldLabel(_ text: String) -> UILabel {
+        let label = UILabel()
+        label.text = text
+        label.font = .preferredFont(forTextStyle: .headline)
+        return label
+    }
+
+    private func updateCharacterCount() {
+        characterCountLabel.text = "\(recordsView.text.count) / \(Self.maximumEditorCharacters) characters"
+    }
+
+    @objc private func cancel() {
+        scrubInputs()
+        dismiss(animated: true)
+    }
+
+    @objc private func review() {
+        let name = nameField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let records = recordsView.text ?? ""
+        let fee = feeField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !name.isEmpty, !fee.isEmpty else {
+            let alert = UIAlertController(
+                title: "Missing fields",
+                message: "Enter the exact name and a maximum fee. Records may be empty when you intend to clear them.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+        scrubInputs()
+        dismiss(animated: true) { [onReview] in onReview(name, records, fee) }
+    }
+
+    private func scrubInputs() {
+        nameField.text = nil
+        recordsView.text = nil
+        feeField.text = nil
+        view.endEditing(true)
+    }
+}
+
+@MainActor
+private final class WalletMultipleNameImportEditorViewController: UIViewController, UITextViewDelegate {
+    private let onReview: ([String]) -> Void
+    private let namesView = UITextView()
+    private let characterCountLabel = UILabel()
+
+    init(onReview: @escaping ([String]) -> Void) {
+        self.onReview = onReview
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Import multiple names"
+        view.backgroundColor = .systemBackground
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .cancel,
+            target: self,
+            action: #selector(cancel)
+        )
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Review",
+            style: .done,
+            target: self,
+            action: #selector(review)
+        )
+
+        let instructions = UILabel()
+        instructions.numberOfLines = 0
+        instructions.font = .preferredFont(forTextStyle: .body)
+        instructions.text =
+            "Enter canonical Handshake names separated by spaces only. Up to 10,000 unique names may be imported at once. Commas, tabs, line breaks, uppercase letters, trailing dots, and duplicate names are rejected."
+
+        namesView.delegate = self
+        namesView.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
+        namesView.autocapitalizationType = .none
+        namesView.autocorrectionType = .no
+        namesView.spellCheckingType = .no
+        namesView.smartDashesType = .no
+        namesView.smartQuotesType = .no
+        namesView.smartInsertDeleteType = .no
+        namesView.keyboardType = .asciiCapable
+        namesView.layer.borderColor = UIColor.separator.cgColor
+        namesView.layer.borderWidth = 1
+        namesView.layer.cornerRadius = 8
+        namesView.accessibilityIdentifier = "wallet.import-multiple-hns-names.text"
+        namesView.accessibilityLabel = "Space-separated Handshake names"
+
+        characterCountLabel.font = .preferredFont(forTextStyle: .caption1)
+        characterCountLabel.textColor = .secondaryLabel
+        characterCountLabel.textAlignment = .right
+        updateCharacterCount()
+
+        let stack = UIStackView(arrangedSubviews: [instructions, namesView, characterCountLabel])
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+        ])
+        namesView.becomeFirstResponder()
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+        updateCharacterCount()
+    }
+
+    func textView(
+        _ textView: UITextView,
+        shouldChangeTextIn range: NSRange,
+        replacementText text: String
+    ) -> Bool {
+        guard let current = textView.text,
+              let swiftRange = Range(range, in: current) else { return false }
+        return current.replacingCharacters(in: swiftRange, with: text).count <=
+            maximumMultipleWalletNameInputCharacters
+    }
+
+    private func updateCharacterCount() {
+        characterCountLabel.text =
+            "\(namesView.text.count) / \(maximumMultipleWalletNameInputCharacters) characters"
+    }
+
+    @objc private func cancel() {
+        scrubInput()
+        dismiss(animated: true)
+    }
+
+    @objc private func review() {
+        guard let names = parseSpaceSeparatedWalletNames(namesView.text ?? "") else {
+            let alert = UIAlertController(
+                title: "Check the name list",
+                message: "Use 1–10,000 unique canonical names separated by ASCII spaces only. Each name may contain lowercase letters or digits, with hyphens and underscores only inside the name, and must be at most 63 bytes.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+        scrubInput()
+        dismiss(animated: true) { [onReview] in onReview(names) }
+    }
+
+    private func scrubInput() {
+        namesView.text = nil
+        view.endEditing(true)
+    }
+}
+
+@MainActor
+private final class WalletMultipleNameImportReviewViewController: UIViewController {
+    private let names: [String]
+    private let onImport: () -> Void
+
+    init(names: [String], onImport: @escaping () -> Void) {
+        self.names = names
+        self.onImport = onImport
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Review \(names.count) names"
+        view.backgroundColor = .systemBackground
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .cancel,
+            target: self,
+            action: #selector(cancel)
+        )
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Import",
+            style: .done,
+            target: self,
+            action: #selector(confirmImport)
+        )
+
+        let summary = UILabel()
+        summary.numberOfLines = 0
+        summary.font = .preferredFont(forTextStyle: .body)
+        summary.text =
+            "Confirm the complete list below. All \(names.count) names will be imported atomically; if any name cannot be validated, none are added."
+
+        let list = UITextView()
+        list.isEditable = false
+        list.isSelectable = true
+        list.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        list.text = names.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+        list.layer.borderColor = UIColor.separator.cgColor
+        list.layer.borderWidth = 1
+        list.layer.cornerRadius = 8
+        list.accessibilityIdentifier = "wallet.import-multiple-hns-names.review"
+        list.accessibilityLabel = "Complete list of \(names.count) Handshake names to import"
+
+        let stack = UIStackView(arrangedSubviews: [summary, list])
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+        ])
+    }
+
+    @objc private func cancel() {
+        dismiss(animated: true)
+    }
+
+    @objc private func confirmImport() {
+        dismiss(animated: true) { [onImport] in onImport() }
     }
 }
 

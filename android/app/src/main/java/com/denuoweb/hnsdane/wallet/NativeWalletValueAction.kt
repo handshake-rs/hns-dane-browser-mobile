@@ -103,6 +103,12 @@ internal sealed interface NativeHnsValueIntent {
         val maximumFeeBaseUnits: String,
     ) : NativeHnsValueIntent
 
+    data class SetNameRecords(
+        val name: String,
+        val records: String,
+        val maximumFeeBaseUnits: String,
+    ) : NativeHnsValueIntent
+
     data class CreateFixedPriceOffer(
         val name: String,
         val priceBaseUnits: String,
@@ -140,6 +146,7 @@ internal sealed interface NativeShakedexQuery {
 internal enum class NativeHnsValueApprovalKind {
     NAME_TRANSFER,
     NAME_FINALIZE,
+    NAME_UPDATE,
     NAME_MARKET_OFFER,
     NAME_MARKET_PURCHASE,
 }
@@ -190,6 +197,11 @@ internal fun NativeHnsValueIntent.encodeJson(): ByteArray? = runCatching {
                 "expectedRecipient",
                 expectedRecipient?.requirePublicText(MAX_RECIPIENT_CHARACTERS) ?: JSONObject.NULL,
             )
+            .put("maximumFee", maximumFeeBaseUnits.requireBaseUnits(nonzero = true))
+        is NativeHnsValueIntent.SetNameRecords -> JSONObject()
+            .put("action", "setNameRecords")
+            .put("name", name.requirePublicText(MAX_NAME_CHARACTERS))
+            .put("records", records.also { require(it.length <= MAX_RESOURCE_EDITOR_CHARACTERS) })
             .put("maximumFee", maximumFeeBaseUnits.requireBaseUnits(nonzero = true))
         is NativeHnsValueIntent.CreateFixedPriceOffer -> JSONObject()
             .put("action", "createFixedPriceOffer")
@@ -274,6 +286,7 @@ private object NativeHnsValueApprovalParser {
     ): Triple<NativeHnsValueApprovalKind, String, List<String>> =
         when (summary.get("kind") as? String) {
             "nameTransfer", "nameFinalize" -> parseNameAction(summary)
+            "nameUpdate" -> parseNameUpdate(summary)
             "nameMarketOffer" -> parseOffer(summary)
             "nameMarketPurchase" -> parsePurchase(summary)
             else -> throw IllegalArgumentException("unsupported native value summary")
@@ -300,6 +313,34 @@ private object NativeHnsValueApprovalParser {
             if (kind == "nameTransfer") "Transfer Handshake name" else "Finalize name transfer",
             listOf("Name: $name", "Recipient: $recipient", "Maximum fee: $fee base units") +
                 warnings.map(::displayWarning),
+        )
+    }
+
+    private fun parseNameUpdate(
+        summary: JSONObject,
+    ): Triple<NativeHnsValueApprovalKind, String, List<String>> {
+        summary.requireExactKeys(
+            "kind", "name", "resourceHex", "resourceBytes", "recordCount", "maximumFee", "warnings",
+        )
+        val name = summary.getString("name").requirePublicText(MAX_NAME_CHARACTERS)
+        val resourceBytes = summary.getInt("resourceBytes").also { require(it in 0..512) }
+        val recordCount = summary.getInt("recordCount").also { require(it >= 0) }
+        val resourceHex = summary.getString("resourceHex").also {
+            require(it.length == resourceBytes * 2 && it.all { character -> character in '0'..'9' || character in 'a'..'f' })
+        }
+        val fee = summary.getJSONObject("maximumFee").hnsBaseUnits(nonzero = true)
+        val warnings = summary.getJSONArray("warnings").strictTextList()
+        require(warnings == listOf("feeEstimateMayChange"))
+        return Triple(
+            NativeHnsValueApprovalKind.NAME_UPDATE,
+            "Set Handshake resource records",
+            listOf(
+                "Name: $name",
+                "Records: $recordCount",
+                "Resource size: $resourceBytes bytes",
+                "Exact resource hex: ${if (resourceHex.isEmpty()) "(empty; clear records)" else resourceHex}",
+                "Maximum fee: $fee base units",
+            ) + warnings.map(::displayWarning),
         )
     }
 
@@ -413,6 +454,8 @@ private fun String.requireBaseUnits(nonzero: Boolean): String = also {
     val amount = BigInteger(this)
     require(amount <= MAX_BASE_UNITS && (!nonzero || amount.signum() > 0))
 }
+
+private const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024
 
 private object NativeHnsSendApprovalParser {
     private val magic = "HNVP".toByteArray(Charsets.US_ASCII)
