@@ -13,6 +13,32 @@ import org.junit.Test
 
 class NativeWalletReadSnapshotTest {
     @Test
+    fun finalizeNoticeV4IsStrictAndRetainedUntilNativeCompletion() {
+        val value = snapshot()
+            .put("knownNameCount", 1)
+            .put("knownNamesComplete", true)
+            .put(
+                "finalizeNotices",
+                JSONArray().put(
+                    JSONObject()
+                        .put("name", "alpha")
+                        .put("transactionId", "cd".repeat(32))
+                        .put("phase", "finalizeWaiting")
+                        .put("currentHeight", 100)
+                        .put("finalizeEligibleHeight", 288),
+                ),
+            )
+        val parsed = NativeWalletReadSnapshot.parse(bundle(value, version = 4))
+        assertEquals("alpha", parsed?.finalizeNotices?.single()?.name)
+        assertEquals("finalizeWaiting", parsed?.finalizeNotices?.single()?.phase)
+        assertEquals(288L, parsed?.finalizeNotices?.single()?.finalizeEligibleHeight)
+
+        value.getJSONArray("finalizeNotices").getJSONObject(0)
+            .put("finalizeEligibleHeight", JSONObject.NULL)
+        assertNull(NativeWalletReadSnapshot.parse(bundle(value, version = 4)))
+    }
+
+    @Test
     fun paginatedV3RetainsBalanceWithAnIncompleteFirstNamePage() {
         val value = snapshot()
             .put("knownNameCount", 2_448)

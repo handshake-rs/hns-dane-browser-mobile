@@ -769,6 +769,16 @@ class WalletActivity : ComponentActivity() {
                 healthy = false,
             ))
         }
+        latestReadSnapshot?.finalizeNotices?.takeIf { it.isNotEmpty() }?.let { notices ->
+            dashboardContent.addView(statusCard(
+                label = getString(R.string.wallet_dashboard_finalize_notice),
+                detail = preferenceSummary(
+                    text = notices.joinToString("\n\n", transform = ::formatFinalizeNotice),
+                    maxLines = Int.MAX_VALUE,
+                ),
+                healthy = notices.any { it.phase == "finalizeAvailable" },
+            ))
+        }
         addWalletTiles(locked = false, actionsAvailable = actionsAvailable)
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_recent_activity)) {
             addSettingsRow(navRow(
@@ -905,6 +915,37 @@ class WalletActivity : ComponentActivity() {
     private fun recentActivitySummary(): String = latestReadSnapshot?.transactions?.size?.let { count ->
         resources.getQuantityString(R.plurals.wallet_dashboard_transactions, count, count)
     } ?: getString(R.string.wallet_dashboard_no_synced_activity)
+
+    private fun formatFinalizeNotice(notice: com.denuoweb.hnsdane.wallet.NativeHnsFinalizeNotice): String =
+        when (notice.phase) {
+            "transferPending" -> getString(
+                R.string.wallet_finalize_notice_transfer_pending,
+                notice.name,
+                notice.transactionId,
+                notice.currentHeight,
+            )
+            "finalizeWaiting" -> getString(
+                R.string.wallet_finalize_notice_waiting,
+                notice.name,
+                notice.currentHeight,
+                notice.finalizeEligibleHeight,
+                notice.transactionId,
+            )
+            "finalizeAvailable" -> getString(
+                R.string.wallet_finalize_notice_available,
+                notice.name,
+                notice.currentHeight,
+                notice.finalizeEligibleHeight,
+                notice.transactionId,
+            )
+            "finalizePending" -> getString(
+                R.string.wallet_finalize_notice_finalize_pending,
+                notice.name,
+                notice.transactionId,
+                notice.currentHeight,
+            )
+            else -> error("closed native finalize notice phase")
+        }
 
     private fun showRestoreWalletDialog() {
         val phraseInput = sensitiveRestoreInput()
@@ -4169,6 +4210,13 @@ class WalletActivity : ComponentActivity() {
                     getString(R.string.wallet_value_actions_result_ambiguous)
                 } else {
                     getString(R.string.wallet_value_actions_result, result.displayJson)
+                }
+                if (result != null) {
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.wallet_value_actions_result_title)
+                        .setMessage(getString(R.string.wallet_value_actions_result, result.displayJson))
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
                 }
             }
         }

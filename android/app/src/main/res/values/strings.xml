@@ -576,6 +576,12 @@
     <string name="wallet_value_actions_executing" translatable="false">Executing the exact approved native action…</string>
     <string name="wallet_value_actions_result_ambiguous" translatable="false">No complete result could be returned. The wallet was locked; synchronize before deciding whether to retry.</string>
     <string name="wallet_value_actions_result" translatable="false">Action accepted. Fresh native result:&#10;%1$s</string>
+    <string name="wallet_value_actions_result_title" translatable="false">HNS action accepted</string>
+    <string name="wallet_dashboard_finalize_notice" translatable="false">PENDING FINALIZE</string>
+    <string name="wallet_finalize_notice_transfer_pending" translatable="false">%1$s: TRANSFER submitted and awaiting confirmation. Transaction %2$s. Current block %3$d.</string>
+    <string name="wallet_finalize_notice_waiting" translatable="false">%1$s: TRANSFER confirmed. FINALIZE remains pending. Current block %2$d; FINALIZE becomes available at block %3$d. Transfer transaction %4$s.</string>
+    <string name="wallet_finalize_notice_available" translatable="false">%1$s: FINALIZE is available now. Current block %2$d; eligible since block %3$d. This notice remains until FINALIZE is confirmed. Transfer transaction %4$s.</string>
+    <string name="wallet_finalize_notice_finalize_pending" translatable="false">%1$s: FINALIZE submitted and awaiting confirmation. Transaction %2$s. Current block %3$d. This notice remains until completion is verified.</string>
     <string name="wallet_value_actions_rejected" translatable="false">Action rejected. No value action was executed.</string>
     <string name="wallet_value_actions_reject_failed" translatable="false">The approval could not be discarded cleanly, so the wallet was locked.</string>
     <string name="wallet_shakedex_queries_unavailable" translatable="false">The authenticated Swap Board is not configured.</string>

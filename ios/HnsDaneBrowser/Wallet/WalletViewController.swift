@@ -40,6 +40,7 @@ final class WalletViewController: UIViewController {
     private var readGeneration: UInt64 = 0
     private var synchronizedReadsAvailable = false
     private var recentTransactions: [NativeHnsReadSnapshot.Transaction]?
+    private var finalizeNotices: [NativeHnsReadSnapshot.FinalizeNotice] = []
     private var recentActivityPageOffset = 0
     /// Native-validated receive targets are retained separately from their
     /// human-readable labels. Pasteboard actions must never copy headings or
@@ -549,6 +550,20 @@ final class WalletViewController: UIViewController {
                 title: "Sync needed",
                 body: [readStatusLabel],
                 accent: .systemOrange
+            ))
+        }
+
+        if !finalizeNotices.isEmpty {
+            let notice = UILabel()
+            notice.numberOfLines = 0
+            notice.font = .preferredFont(forTextStyle: .body)
+            notice.adjustsFontForContentSizeCategory = true
+            notice.text = finalizeNotices.map(formatFinalizeNotice).joined(separator: "\n\n")
+            dashboardStack.addArrangedSubview(dashboardCard(
+                title: "PENDING FINALIZE",
+                body: [notice],
+                accent: finalizeNotices.contains(where: { $0.phase == "finalizeAvailable" })
+                    ? .systemOrange : .systemCyan
             ))
         }
 
@@ -3812,6 +3827,7 @@ final class WalletViewController: UIViewController {
             WalletPendingOutgoingRecoveryStore.clear(networkID: network.rawValue)
         }
         recentTransactions = snapshot.transactionHistory
+        finalizeNotices = snapshot.finalizeNotices
         recentActivityPageOffset = 0
         receiveTargets = WalletReceiveTargets(snapshot: snapshot)
         readStatusLabel.text = presentation.status
@@ -3865,6 +3881,7 @@ final class WalletViewController: UIViewController {
     private func clearReadProjection() {
         receiveTargets = nil
         recentTransactions = nil
+        finalizeNotices = []
         recentActivityPageOffset = 0
         balanceLabel.text = "Confirmed spendable balance: unavailable."
         paymentReceiveLabel.text = "Payment receive address: unavailable."
@@ -3874,6 +3891,22 @@ final class WalletViewController: UIViewController {
         if pendingOutgoingSnapshotHeight != nil {
             readStatusLabel.text = "Transaction pending. Synchronize after a new Handshake block so Shakescape can settle the outgoing transaction."
             balanceLabel.text = "Transaction pending. The synchronized balance will return after the outgoing transaction is settled."
+        }
+    }
+
+    private func formatFinalizeNotice(_ notice: NativeHnsReadSnapshot.FinalizeNotice) -> String {
+        switch notice.phase {
+        case "transferPending":
+            return "\(notice.name): TRANSFER submitted and awaiting confirmation. Transaction \(notice.transactionID). Current block \(notice.currentHeight)."
+        case "finalizeWaiting":
+            return "\(notice.name): TRANSFER confirmed. FINALIZE remains pending. Current block \(notice.currentHeight); FINALIZE becomes available at block \(notice.finalizeEligibleHeight ?? 0). Transfer transaction \(notice.transactionID)."
+        case "finalizeAvailable":
+            return "\(notice.name): FINALIZE is available now. Current block \(notice.currentHeight); eligible since block \(notice.finalizeEligibleHeight ?? 0). This notice remains until FINALIZE is confirmed. Transfer transaction \(notice.transactionID)."
+        case "finalizePending":
+            return "\(notice.name): FINALIZE submitted and awaiting confirmation. Transaction \(notice.transactionID). Current block \(notice.currentHeight). This notice remains until completion is verified."
+        default:
+            assertionFailure("closed native finalize notice phase")
+            return ""
         }
     }
 

@@ -16,12 +16,21 @@ internal data class NativeWalletReadSnapshot(
     val trackedNames: List<NativeWalletName>,
     val trackedNameCount: Int = trackedNames.size,
     val trackedNamesComplete: Boolean = true,
+    val finalizeNotices: List<NativeHnsFinalizeNotice> = emptyList(),
 ) {
     companion object {
         fun parse(bundle: ByteArray): NativeWalletReadSnapshot? =
             NativeWalletReadSnapshotParser.parse(bundle)
     }
 }
+
+internal data class NativeHnsFinalizeNotice(
+    val name: String,
+    val transactionId: String,
+    val phase: String,
+    val currentHeight: Long,
+    val finalizeEligibleHeight: Long?,
+)
 
 /** Ordinary HNS coin receive target; never a Handshake name-owner target. */
 internal data class NativeWalletPaymentReceiveTarget(
@@ -248,6 +257,7 @@ private object NativeWalletReadSnapshotParser {
     )
     private val maxBaseUnits = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE)
     private val decimal = Regex("0|[1-9][0-9]{0,38}")
+    private val lowercaseHex = Regex("[0-9a-f]+")
     private val transactionStatuses = setOf(
         "prepared",
         "authorized",
@@ -269,7 +279,8 @@ private object NativeWalletReadSnapshotParser {
         require(
             version == LEGACY_VERSION ||
                 version == NAME_RECEIVE_VERSION ||
-                version == PAGINATED_NAMES_VERSION
+                version == PAGINATED_NAMES_VERSION ||
+                version == FINALIZE_NOTICES_VERSION
         )
         require(header.get().toInt() and 0xff == READ_ONLY_HNS_FLAG)
         require(header.short.toInt() == 0)
@@ -313,6 +324,18 @@ private object NativeWalletReadSnapshotParser {
                 "knownNames",
                 "knownNameCount",
                 "knownNamesComplete",
+                "moduleStatus",
+            )
+
+            FINALIZE_NOTICES_VERSION -> value.requireExactKeys(
+                "balance",
+                "receiveTarget",
+                "nameReceiveTarget",
+                "transactionHistory",
+                "knownNames",
+                "knownNameCount",
+                "knownNamesComplete",
+                "finalizeNotices",
                 "moduleStatus",
             )
 
@@ -365,18 +388,27 @@ private object NativeWalletReadSnapshotParser {
         require(transactions.map(NativeWalletTransaction::txid).toSet().size == transactions.size)
         require(names.map(NativeWalletName::name).toSet().size == names.size)
         require(names.map(NativeWalletName::nameHash).toSet().size == names.size)
-        val trackedNameCount = if (version == PAGINATED_NAMES_VERSION) {
+        val trackedNameCount = if (version >= PAGINATED_NAMES_VERSION) {
             exactUnsignedLong(value.get("knownNameCount"), MAX_READ_ITEMS.toLong()).toInt()
         } else {
             names.size
         }
-        val trackedNamesComplete = if (version == PAGINATED_NAMES_VERSION) {
+        val trackedNamesComplete = if (version >= PAGINATED_NAMES_VERSION) {
             value.getBoolean("knownNamesComplete")
         } else {
             true
         }
         require(trackedNameCount >= names.size)
         require(trackedNamesComplete == (trackedNameCount == names.size))
+        val finalizeNotices = if (version >= FINALIZE_NOTICES_VERSION) {
+            value.getJSONArray("finalizeNotices").let { array ->
+                require(array.length() <= MAX_READ_ITEMS)
+                List(array.length()) { index -> parseFinalizeNotice(array.getJSONObject(index)) }
+            }
+        } else {
+            emptyList()
+        }
+        require(finalizeNotices.map(NativeHnsFinalizeNotice::name).toSet().size == finalizeNotices.size)
 
         return NativeWalletReadSnapshot(
             balanceBaseUnits = balanceBaseUnits,
@@ -387,7 +419,30 @@ private object NativeWalletReadSnapshotParser {
             trackedNames = names,
             trackedNameCount = trackedNameCount,
             trackedNamesComplete = trackedNamesComplete,
+            finalizeNotices = finalizeNotices,
         )
+    }
+
+    private fun parseFinalizeNotice(value: JSONObject): NativeHnsFinalizeNotice {
+        value.requireExactKeys(
+            "name",
+            "transactionId",
+            "phase",
+            "currentHeight",
+            "finalizeEligibleHeight",
+        )
+        val name = value.getString("name")
+        require(name.isNotEmpty() && name.length <= 63 && name.all { it.code in 0x20..0x7e })
+        val transactionId = value.getString("transactionId")
+        require(transactionId.length == TRANSACTION_ID_BYTES * 2 && lowercaseHex.matches(transactionId))
+        val phase = value.getString("phase")
+        require(phase in FINALIZE_NOTICE_PHASES)
+        val currentHeight = exactUnsignedLong(value.get("currentHeight"))
+        val eligible = value.opt("finalizeEligibleHeight")
+            .takeUnless { it == null || it === JSONObject.NULL }
+            ?.let(::exactUnsignedLong)
+        require((phase == "transferPending") == (eligible == null))
+        return NativeHnsFinalizeNotice(name, transactionId, phase, currentHeight, eligible)
     }
 
     private fun parsePaymentReceiveTarget(
@@ -513,6 +568,7 @@ private object NativeWalletReadSnapshotParser {
     private const val LEGACY_VERSION = 1
     private const val NAME_RECEIVE_VERSION = 2
     private const val PAGINATED_NAMES_VERSION = 3
+    private const val FINALIZE_NOTICES_VERSION = 4
     private const val READ_ONLY_HNS_FLAG = 1
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 4 * 1024 * 1024
@@ -521,6 +577,12 @@ private object NativeWalletReadSnapshotParser {
     private const val MAX_RECEIVE_CHARACTERS = 512
     private const val ACCOUNT_ID_BYTES = 16
     private const val TRANSACTION_ID_BYTES = 32
+    private val FINALIZE_NOTICE_PHASES = setOf(
+        "transferPending",
+        "finalizeWaiting",
+        "finalizeAvailable",
+        "finalizePending",
+    )
     private const val UINT32_MAX = 0xffff_ffffL
     private const val UBYTE_MAX = 0xffL
     private const val HEX = "0123456789abcdef"

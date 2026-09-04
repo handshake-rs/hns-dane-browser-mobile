@@ -239,6 +239,17 @@ final class BrowserRuntimeControlTests: XCTestCase {
             versionTwo.nameReceiveTarget?.display
         )
 
+        let versionThreeJSON = versionTwoJSON.replacingOccurrences(
+            of: "\"knownNames\":[],",
+            with: "\"knownNames\":[],\"knownNameCount\":0,\"knownNamesComplete\":true,\"finalizeNotices\":[{\"name\":\"alpha\",\"transactionId\":\"(String(repeating: "c", count: 64))\",\"phase\":\"finalizeWaiting\",\"currentHeight\":42,\"finalizeEligibleHeight\":100}],"
+        )
+        let versionThree = try NativeHnsReadSnapshot.decode(
+            bundle: hnsReadBundle(json: versionThreeJSON, version: 3)
+        )
+        XCTAssertEqual(versionThree.finalizeNotices.first?.name, "alpha")
+        XCTAssertEqual(versionThree.finalizeNotices.first?.phase, "finalizeWaiting")
+        XCTAssertEqual(versionThree.finalizeNotices.first?.finalizeEligibleHeight, 100)
+
         let populatedJSON = json
             .replacingOccurrences(
                 of: "\"transactionHistory\":[]",
@@ -357,7 +368,6 @@ final class BrowserRuntimeControlTests: XCTestCase {
             "wallet owned · canonical decoded · registered",
             String(repeating: "a", count: 64),
         ].joined(separator: "\n"))
-
         let account = [UInt8(1)] + Array(repeating: UInt8(0), count: 15)
         let emptyReadJSON = minimalHnsReadJSON(paymentAccount: account)
         func snapshot(nameJSON: String?) throws -> NativeHnsReadSnapshot {

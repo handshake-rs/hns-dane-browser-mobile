@@ -68,7 +68,7 @@ const WALLET_ACCOUNT_BUNDLE_MAGIC: &[u8; 4] = b"HNWA";
 const WALLET_ACCOUNT_BUNDLE_VERSION: u8 = 1;
 const MAX_WALLET_ACCOUNT_LABEL_BYTES: usize = 128;
 const WALLET_READ_BUNDLE_MAGIC: &[u8; 4] = b"HNWR";
-const WALLET_READ_BUNDLE_VERSION: u8 = 3;
+const WALLET_READ_BUNDLE_VERSION: u8 = 4;
 const WALLET_READ_BUNDLE_FLAGS: u8 = 1;
 const WALLET_READ_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_READ_JSON_BYTES: usize = 4 * 1024 * 1024;
@@ -4566,10 +4566,17 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeRuntimeE
         return false.into();
     };
     match (runtime_from_handle(handle), env.get_string(&snapshot_path)) {
-        (Some(runtime), Ok(snapshot_path)) => runtime
+        (Some(runtime), Ok(snapshot_path)) => match runtime
             .export_wallet_header_snapshot(snapshot_path.to_string_lossy().as_ref(), target_height)
-            .is_ok()
-            .into(),
+        {
+            Ok(()) => true.into(),
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet header segment export failed for target {target_height}: {error}"
+                ));
+                false.into()
+            }
+        },
         _ => false.into(),
     }
 }

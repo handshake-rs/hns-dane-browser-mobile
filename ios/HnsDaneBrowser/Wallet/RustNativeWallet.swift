@@ -868,7 +868,7 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
             }
         }
 
-        private static func isCanonicalHandshakeName(_ value: String) -> Bool {
+        fileprivate static func isCanonicalHandshakeName(_ value: String) -> Bool {
             let bytes = Array(value.utf8)
             let reserved: Set<String> = ["example", "invalid", "local", "localhost", "test"]
             guard (1...63).contains(bytes.count), !reserved.contains(value) else {
@@ -879,6 +879,44 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
                     (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte) ||
                     (byte == UInt8(ascii: "-") || byte == UInt8(ascii: "_")) &&
                     index != 0 && index + 1 != bytes.count
+            }
+        }
+    }
+
+    struct FinalizeNotice: Decodable, Equatable, Sendable {
+        let name: String
+        let transactionID: String
+        let phase: String
+        let currentHeight: UInt64
+        let finalizeEligibleHeight: UInt64?
+
+        private enum CodingKeys: String, CodingKey, CaseIterable {
+            case name, phase, currentHeight, finalizeEligibleHeight
+            case transactionID = "transactionId"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+            name = try container.decode(String.self, forKey: .name)
+            transactionID = try container.decode(String.self, forKey: .transactionID)
+            phase = try container.decode(String.self, forKey: .phase)
+            currentHeight = try container.decode(UInt64.self, forKey: .currentHeight)
+            finalizeEligibleHeight = try container.decodeIfPresent(
+                UInt64.self,
+                forKey: .finalizeEligibleHeight
+            )
+            let phases: Set<String> = [
+                "transferPending", "finalizeWaiting", "finalizeAvailable", "finalizePending",
+            ]
+            guard KnownName.isCanonicalHandshakeName(name),
+                  transactionID.count == 64,
+                  transactionID.utf8.allSatisfy({
+                      (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                      (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+                  }),
+                  phases.contains(phase),
+                  (phase == "transferPending") == (finalizeEligibleHeight == nil) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid HNS finalize notice")
             }
         }
     }
@@ -919,6 +957,7 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
     let nameReceiveTarget: NameReceiveTarget?
     let transactionHistory: [Transaction]
     let knownNames: [KnownName]
+    let finalizeNotices: [FinalizeNotice]
     let moduleStatus: ModuleStatus
 
     private struct VersionOnePayload: Decodable {
@@ -975,12 +1014,47 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
         }
     }
 
+    private struct VersionThreePayload: Decodable {
+        let balance: Amount
+        let receiveTarget: ReceiveTarget
+        let nameReceiveTarget: NameReceiveTarget
+        let transactionHistory: [Transaction]
+        let knownNames: [KnownName]
+        let knownNameCount: UInt32
+        let knownNamesComplete: Bool
+        let finalizeNotices: [FinalizeNotice]
+        let moduleStatus: ModuleStatus
+
+        private enum CodingKeys: String, CodingKey, CaseIterable {
+            case balance, receiveTarget, nameReceiveTarget, transactionHistory, knownNames
+            case knownNameCount, knownNamesComplete, finalizeNotices, moduleStatus
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+            balance = try container.decode(Amount.self, forKey: .balance)
+            receiveTarget = try container.decode(ReceiveTarget.self, forKey: .receiveTarget)
+            nameReceiveTarget = try container.decode(NameReceiveTarget.self, forKey: .nameReceiveTarget)
+            transactionHistory = try container.decode([Transaction].self, forKey: .transactionHistory)
+            knownNames = try container.decode([KnownName].self, forKey: .knownNames)
+            knownNameCount = try container.decode(UInt32.self, forKey: .knownNameCount)
+            knownNamesComplete = try container.decode(Bool.self, forKey: .knownNamesComplete)
+            finalizeNotices = try container.decode([FinalizeNotice].self, forKey: .finalizeNotices)
+            moduleStatus = try container.decode(ModuleStatus.self, forKey: .moduleStatus)
+            guard knownNameCount >= knownNames.count,
+                  knownNamesComplete == (Int(knownNameCount) == knownNames.count) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid paginated HNS name projection")
+            }
+        }
+    }
+
     private init(
         balance: Amount,
         receiveTarget: ReceiveTarget,
         nameReceiveTarget: NameReceiveTarget?,
         transactionHistory: [Transaction],
         knownNames: [KnownName],
+        finalizeNotices: [FinalizeNotice] = [],
         moduleStatus: ModuleStatus
     ) throws {
         self.balance = balance
@@ -988,12 +1062,14 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
         self.nameReceiveTarget = nameReceiveTarget
         self.transactionHistory = transactionHistory
         self.knownNames = knownNames
+        self.finalizeNotices = finalizeNotices
         self.moduleStatus = moduleStatus
         guard transactionHistory.count <= 10_000,
               knownNames.count <= 10_000,
               Set(transactionHistory.map(\.txid)).count == transactionHistory.count,
               Set(knownNames.map(\.name)).count == knownNames.count,
-              Set(knownNames.map(\.nameHash)).count == knownNames.count else {
+              Set(knownNames.map(\.nameHash)).count == knownNames.count,
+              Set(finalizeNotices.map(\.name)).count == finalizeNotices.count else {
             throw NativeWalletBridgeError.invalidOutput("HNS read snapshot exceeds native bounds")
         }
         if let nameReceiveTarget {
@@ -1044,6 +1120,17 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
                 nameReceiveTarget: decoded.nameReceiveTarget,
                 transactionHistory: decoded.transactionHistory,
                 knownNames: decoded.knownNames,
+                moduleStatus: decoded.moduleStatus
+            )
+        case 3:
+            let decoded = try decoder.decode(VersionThreePayload.self, from: payload)
+            return try NativeHnsReadSnapshot(
+                balance: decoded.balance,
+                receiveTarget: decoded.receiveTarget,
+                nameReceiveTarget: decoded.nameReceiveTarget,
+                transactionHistory: decoded.transactionHistory,
+                knownNames: decoded.knownNames,
+                finalizeNotices: decoded.finalizeNotices,
                 moduleStatus: decoded.moduleStatus
             )
         default:
