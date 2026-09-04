@@ -22,6 +22,10 @@ class NativeWalletNameImportResultTest {
         assertEquals("walletOwned", parsed?.ownershipStatus)
         assertEquals(true, parsed?.registered)
         assertEquals(false, parsed?.expired)
+        assertEquals("1000000", parsed?.canonicalState?.valueBaseUnits)
+        assertEquals(2L, parsed?.canonicalState?.renewals)
+        assertEquals("00", parsed?.rawResourceHex)
+        assertEquals(0L, parsed?.resourceRecordCount)
     }
 
     @Test
@@ -62,6 +66,13 @@ class NativeWalletNameImportResultTest {
         rejectSuccess { it.put("ownershipStatus", "marketListed") }
         rejectSuccess { it.put("registered", 1) }
         rejectSuccess { it.put("expired", "false") }
+        rejectSuccess { it.put("rawResourceHex", "0") }
+        rejectSuccess { it.put("resourceRecordCount", -1) }
+        rejectSuccess { it.put("rawResourceHex", JSONObject.NULL).put("resourceRecordCount", 1) }
+        rejectSuccess {
+            it.getJSONObject("canonicalState").put("valueBaseUnits", "18446744073709551616")
+        }
+        rejectSuccess { it.getJSONObject("canonicalState").put("ownerOutpoint", "private") }
     }
 
     @Test
@@ -139,6 +150,21 @@ class NativeWalletNameImportResultTest {
         .put("ownershipStatus", "walletOwned")
         .put("registered", true)
         .put("expired", false)
+        .put(
+            "canonicalState",
+            JSONObject()
+                .put("valueBaseUnits", "1000000")
+                .put("highestBaseUnits", "2000000")
+                .put("startHeight", 1)
+                .put("renewalHeight", 2)
+                .put("transferHeight", 0)
+                .put("revokedHeight", 0)
+                .put("claimedHeight", 0)
+                .put("renewals", 2)
+                .put("weak", false),
+        )
+        .put("rawResourceHex", "00")
+        .put("resourceRecordCount", 0)
 
     private fun bundle(value: JSONObject): ByteArray =
         rawBundle(value.toString().toByteArray(Charsets.UTF_8))

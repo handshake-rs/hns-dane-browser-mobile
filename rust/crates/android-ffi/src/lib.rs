@@ -76,7 +76,9 @@ const WALLET_NAME_PAGE_BUNDLE_MAGIC: &[u8; 4] = b"HNWP";
 const WALLET_NAME_PAGE_BUNDLE_VERSION: u8 = 1;
 const WALLET_NAME_PAGE_BUNDLE_FLAGS: u8 = 0;
 const WALLET_NAME_PAGE_BUNDLE_HEADER_BYTES: usize = 12;
-const MAX_WALLET_NAME_PAGE_JSON_BYTES: usize = 64 * 1024;
+// A page can contain 64 protocol-bounded (512-byte) resources encoded as hex,
+// plus canonical state and disclosure metadata for every name.
+const MAX_WALLET_NAME_PAGE_JSON_BYTES: usize = 128 * 1024;
 const MAX_ANDROID_WALLET_BULK_NAMES: usize = 10_000;
 const MAX_ANDROID_WALLET_BULK_NAMES_JSON_BYTES: usize = 1024 * 1024;
 /// Result envelope for one bounded HNS reconciliation. Unlike HNWR, this can

@@ -22,10 +22,12 @@ import androidx.activity.ComponentActivity
 internal fun ComponentActivity.setSettingsScreen(
     title: String,
     onPullDownAtTop: (() -> Unit)? = null,
+    persistentFooter: View? = null,
     content: LinearLayout.() -> Unit,
 ) = setSecondaryScreen(
     title = title,
     onPullDownAtTop = onPullDownAtTop,
+    persistentFooter = persistentFooter,
     content = content,
 )
 

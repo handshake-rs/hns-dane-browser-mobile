@@ -6769,6 +6769,9 @@ mod tests {
             ownership_status: hns_wallet_mobile::MobileHnsNameOwnershipStatus::WalletOwned,
             registered: Some(true),
             expired: Some(false),
+            canonical_state: None,
+            raw_resource_hex: None,
+            resource_record_count: None,
         };
         let bundle = wallet_name_import_bundle(&summary)
             .ok()

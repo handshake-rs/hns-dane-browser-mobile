@@ -23,6 +23,7 @@ internal fun ComponentActivity.setSecondaryScreen(
     onSwipeLeft: (() -> Unit)? = null,
     onSwipeRight: (() -> Unit)? = null,
     onPullDownAtTop: (() -> Unit)? = null,
+    persistentFooter: View? = null,
     content: LinearLayout.() -> Unit,
 ) {
     val colors = themeColors()
@@ -31,21 +32,56 @@ internal fun ComponentActivity.setSecondaryScreen(
         gravity = Gravity.START
         setBackgroundColor(colors.background)
         setPadding(uiDp(20), uiDp(20), uiDp(20), uiDp(20))
-        applySystemBarPadding()
-        addView(screenHeading(title))
+        title.takeIf(String::isNotBlank)?.let { addView(screenHeading(it)) }
         content()
     }
-
-    setContentView(
-        ScrollView(this).apply {
+    val scroll = SecondaryScreenScrollView(this).apply {
+        setBackgroundColor(colors.background)
+        isFillViewport = true
+        installScreenGestures(onSwipeLeft, onSwipeRight, onPullDownAtTop)
+        addView(root, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ))
+    }
+    if (persistentFooter == null) {
+        root.applySystemBarPadding()
+        setContentView(scroll)
+    } else {
+        setContentView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setBackgroundColor(colors.background)
-            installScreenGestures(onSwipeLeft, onSwipeRight, onPullDownAtTop)
-            addView(root, LinearLayout.LayoutParams(
+            applySystemBarPadding()
+            addView(scroll, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            ))
+            addView(persistentFooter, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ))
-        },
-    )
+        })
+    }
+}
+
+/** Lets an immersive child page use the viewport without changing every settings screen. */
+internal class SecondaryScreenScrollView(context: Context) : ScrollView(context) {
+    var scrollingEnabled: Boolean = true
+
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean =
+        scrollingEnabled && super.onInterceptTouchEvent(event)
+
+    override fun onTouchEvent(event: MotionEvent): Boolean =
+        scrollingEnabled && super.onTouchEvent(event)
+}
+
+internal fun View.setSecondaryScreenScrollingEnabled(enabled: Boolean) {
+    var ancestor = parent
+    while (ancestor != null && ancestor !is SecondaryScreenScrollView) {
+        ancestor = ancestor.parent
+    }
+    (ancestor as? SecondaryScreenScrollView)?.scrollingEnabled = enabled
 }
 
 internal fun Context.screenSection(

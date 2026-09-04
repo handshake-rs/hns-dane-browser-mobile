@@ -696,6 +696,28 @@
     <string name="wallet_qr_save_failed" translatable="false">The QR code could not be saved</string>
     <string name="wallet_dashboard_send_form_notice" translatable="false">The maximum fee cap is the most the wallet may pay in network fees; the default is 0.05 HNS. A fresh verified wallet snapshot is required before the transaction is prepared.</string>
     <string name="wallet_dashboard_name_actions" translatable="false">Name actions</string>
+    <string name="wallet_name_action_status_heading" translatable="false">NAME ACTION STATUS</string>
+    <string name="wallet_name_card_active" translatable="false">Active</string>
+    <string name="wallet_name_card_expired" translatable="false">Expired</string>
+    <string name="wallet_name_card_previously_expired" translatable="false">Previously expired</string>
+    <string name="wallet_name_card_empty" translatable="false">Awaiting tracked name</string>
+    <string name="wallet_name_card_no_names" translatable="false">No names are tracked yet. Open Name actions to import one name or a space-separated list.</string>
+    <string name="wallet_name_card_details" translatable="false">STATE  %1$s\nPROOF BLOCK  %2$d\nNAME HASH  %3$s</string>
+    <string name="wallet_name_card_position" translatable="false">NAME %1$d OF %2$d</string>
+    <string name="wallet_name_card_position_empty" translatable="false">NO TRACKED NAMES</string>
+    <string name="wallet_name_previous" translatable="false">← PREVIOUS</string>
+    <string name="wallet_name_next" translatable="false">NEXT →</string>
+    <string name="wallet_name_options" translatable="false">OPTIONS</string>
+    <string name="wallet_name_search_omnibar_hint" translatable="false">Search tracked names…</string>
+    <string name="wallet_name_search_action" translatable="false">Search names</string>
+    <string name="wallet_name_search_title" translatable="false">Find a tracked name</string>
+    <string name="wallet_name_search_hint" translatable="false">name</string>
+    <string name="wallet_name_search_summary" translatable="false">Jump directly to any name tracked by this wallet</string>
+    <string name="wallet_name_search_invalid" translatable="false">Enter one valid Handshake name</string>
+    <string name="wallet_name_search_not_found" translatable="false">That name is not tracked by this wallet</string>
+    <string name="wallet_name_actions_summary" translatable="false">Import, transfer, finalize, or set records</string>
+    <string name="wallet_name_back_to_wallet" translatable="false">Wallet overview</string>
+    <string name="wallet_name_back_to_wallet_summary" translatable="false">Return to balances and recent activity</string>
     <string name="wallet_dashboard_send_bitcoin" translatable="false">Send Bitcoin</string>
     <string name="wallet_swap_sell_btc" translatable="false">Sell BTC for HNS</string>
     <string name="wallet_swap_btc_amount_hint" translatable="false">BTC offered (sats)</string>

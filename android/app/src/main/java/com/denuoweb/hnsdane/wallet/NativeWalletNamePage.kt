@@ -57,7 +57,7 @@ internal data class NativeWalletNamePage(
         private val KEYS = setOf("offset", "total", "names", "hasMore")
         private const val VERSION = 1
         private const val HEADER_BYTES = 12
-        private const val MAX_JSON_BYTES = 64 * 1024
+        private const val MAX_JSON_BYTES = 128 * 1024
         private const val PAGE_SIZE = 64
         private const val MAX_NAMES = 10_000
     }

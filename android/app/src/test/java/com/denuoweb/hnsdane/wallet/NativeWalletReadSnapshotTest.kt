@@ -86,6 +86,10 @@ class NativeWalletReadSnapshotTest {
         )
         assertEquals("alpha", parsed?.trackedNames?.single()?.name)
         assertTrue(parsed?.trackedNames?.single()?.registered == true)
+        assertEquals("1000000", parsed?.trackedNames?.single()?.canonicalState?.valueBaseUnits)
+        assertEquals(2L, parsed?.trackedNames?.single()?.canonicalState?.renewals)
+        assertEquals("00", parsed?.trackedNames?.single()?.rawResourceHex)
+        assertEquals(0L, parsed?.trackedNames?.single()?.resourceRecordCount)
     }
 
     @Test
@@ -314,7 +318,22 @@ class NativeWalletReadSnapshotTest {
                         .put("resourceStatus", "canonicalDecoded")
                         .put("ownershipStatus", "walletOwned")
                         .put("registered", true)
-                        .put("expired", false),
+                        .put("expired", false)
+                        .put(
+                            "canonicalState",
+                            JSONObject()
+                                .put("valueBaseUnits", "1000000")
+                                .put("highestBaseUnits", "2000000")
+                                .put("startHeight", 1)
+                                .put("renewalHeight", 2)
+                                .put("transferHeight", 0)
+                                .put("revokedHeight", 0)
+                                .put("claimedHeight", 0)
+                                .put("renewals", 2)
+                                .put("weak", false),
+                        )
+                        .put("rawResourceHex", "00")
+                        .put("resourceRecordCount", 0),
                 ),
             )
             .put(

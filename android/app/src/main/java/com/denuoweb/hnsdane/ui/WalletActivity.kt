@@ -27,6 +27,8 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -195,6 +197,7 @@ class WalletActivity : ComponentActivity() {
     private var restoreInput: EditText? = null
     private lateinit var recoveryView: RecoveryPhraseView
     private lateinit var dashboardContent: LinearLayout
+    private lateinit var namesGalleryFooter: LinearLayout
     @Volatile
     private var walletHandle = INVALID_HANDLE
     private var walletAuthorityGeneration = 0L
@@ -240,6 +243,14 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshot: NativeWalletReadSnapshot? = null
     private var loadedTrackedNames: List<NativeWalletName> = emptyList()
     private var trackedNamePageOffset: Int = 0
+    private var showingNamesPage = false
+    private var selectedTrackedNameIndex = 0
+    private var trackedNameNavigationInFlight = false
+    private var trackedNameSearchIndex: List<String> = emptyList()
+    private var trackedNameSearchIndexHeight = -1L
+    private var trackedNameSearchIndexCount = -1
+    private var trackedNameSearchIndexInFlight = false
+    private var trackedNameSearchInput: AutoCompleteTextView? = null
     private var recentActivityPageOffset: Int = 0
     private var pendingHandshakePayment: HandshakePaymentRequest? = null
     private var pendingPaymentPresentationScheduled = false
@@ -363,9 +374,19 @@ class WalletActivity : ComponentActivity() {
         dashboardContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
+        namesGalleryFooter = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            elevation = uiDp(10).toFloat()
+            setBackgroundColor(themeColors().background)
+            setPadding(uiDp(20), uiDp(7), uiDp(20), uiDp(8))
+        }
         setSettingsScreen(
-            title = getString(R.string.screen_wallet),
+            // The wallet's state and content identify the screen. Omitting the
+            // redundant title also lets the Names omnibar own the top edge.
+            title = "",
             onPullDownAtTop = ::pullToSynchronizeWalletReads,
+            persistentFooter = namesGalleryFooter,
         ) {
             addView(dashboardContent)
         }
@@ -375,6 +396,11 @@ class WalletActivity : ComponentActivity() {
         // before attacker-controlled website content remains visible.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (showingNamesPage) {
+                    showingNamesPage = false
+                    renderWalletDashboard()
+                    return
+                }
                 browserNavigationRequested = true
                 startActivity(
                     Intent(this@WalletActivity, MainActivity::class.java)
@@ -599,13 +625,17 @@ class WalletActivity : ComponentActivity() {
      */
     private fun renderWalletDashboard() {
         if (!::dashboardContent.isInitialized) return
+        namesGalleryFooter.visibility = View.GONE
+        namesGalleryFooter.removeAllViews()
+        trackedNameSearchInput = null
+        dashboardContent.setSecondaryScreenScrollingEnabled(!showingNamesPage)
         // The dashboard is redrawn as the wallet changes state, but these
         // views preserve live state (including secrets, selection, and status
         // text) across redraws. Removing a card from `dashboardContent` does
         // not detach its nested children, so detach each reusable view before
         // placing it in a newly-created card. Without this, the second render
         // crashes with "The specified child already has a parent."
-        listOf(statusView, readStatusView, balanceView, sendStatusView).forEach { view ->
+        listOf(statusView, readStatusView, balanceView, sendStatusView, valueActionStatusView).forEach { view ->
             (view.parent as? ViewGroup)?.removeView(view)
         }
         // RecoveryPhraseView clears its secret whenever it leaves the real
@@ -641,10 +671,14 @@ class WalletActivity : ComponentActivity() {
             WalletDashboardMode.NoWallet -> renderNoWalletDashboard()
             WalletDashboardMode.LockedWallet -> renderLockedWalletDashboard()
             WalletDashboardMode.UnlockedWallet ->
-                renderUnlockedWalletDashboard(
-                    actionsAvailable = !busy && !hnsSynchronizationActive,
-                    synchronizationInProgress = hnsSynchronizationActive,
-                )
+                if (showingNamesPage && latestReadSnapshot != null) {
+                    renderNamesPage(actionsAvailable = !busy && !hnsSynchronizationActive)
+                } else {
+                    renderUnlockedWalletDashboard(
+                        actionsAvailable = !busy && !hnsSynchronizationActive,
+                        synchronizationInProgress = hnsSynchronizationActive,
+                    )
+                }
         }
         if (pendingHandshakePayment != null) schedulePendingPaymentPresentation()
     }
@@ -781,6 +815,88 @@ class WalletActivity : ComponentActivity() {
         if (actionsAvailable) schedulePendingPaymentPresentation()
     }
 
+    private fun renderNamesPage(actionsAvailable: Boolean) {
+        val snapshot = latestReadSnapshot ?: run {
+            showingNamesPage = false
+            renderUnlockedWalletDashboard(actionsAvailable)
+            return
+        }
+        val total = snapshot.trackedNameCount
+        if (total == 0) selectedTrackedNameIndex = 0
+        val relativeIndex = selectedTrackedNameIndex - trackedNamePageOffset
+        val selected = loadedTrackedNames.getOrNull(relativeIndex)
+        val state = selected?.let { name ->
+            listOfNotNull(
+                walletReadCodeLabel(name.ownershipStatus),
+                walletReadCodeLabel(name.resourceStatus),
+                name.registered?.let {
+                    getString(
+                        if (it) R.string.wallet_reads_name_registered
+                        else R.string.wallet_reads_name_not_registered,
+                    )
+                },
+                name.expired?.takeIf { it }?.let {
+                    getString(R.string.wallet_name_card_previously_expired)
+                },
+            ).joinToString(" · ")
+        } ?: getString(R.string.wallet_name_card_empty)
+
+        dashboardContent.addView(trackedNameOmnibar(
+            actionsAvailable = actionsAvailable,
+            total = total,
+        ), LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply {
+            bottomMargin = uiDp(8)
+        })
+
+        dashboardContent.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = settingsSurfaceDrawable(accent = themeColors().action)
+            setPadding(uiDp(12), uiDp(12), uiDp(12), uiDp(14))
+            val nameCard = MetallicNameCardView(this@WalletActivity).apply {
+                bind(
+                    name = selected?.name,
+                    state = state,
+                    sections = selected?.let(::walletNameCardSections).orEmpty(),
+                )
+                isEnabled = selected != null
+            }
+            addView(nameCard, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ))
+            fitNameCardToViewport(nameCard)
+        })
+        renderNamesGalleryFooter(actionsAvailable, total)
+    }
+
+    /**
+     * The Names page is a single collectible composition, not a document.
+     * Measure the actual space between the card and persistent controls so
+     * short and tall phones get one complete, non-scrolling card viewport.
+     */
+    private fun fitNameCardToViewport(card: MetallicNameCardView) {
+        fun updateHeight() {
+            if (!showingNamesPage || !namesGalleryFooter.isShown) return
+            val cardPosition = IntArray(2)
+            val footerPosition = IntArray(2)
+            card.getLocationInWindow(cardPosition)
+            namesGalleryFooter.getLocationInWindow(footerPosition)
+            // Account for the card container's lower inset and the screen's
+            // bottom content padding above the persistent footer.
+            val available = footerPosition[1] - cardPosition[1] - uiDp(34)
+            if (available <= 0 || card.layoutParams.height == available) return
+            card.layoutParams = card.layoutParams.apply { height = available }
+        }
+        card.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateHeight() }
+        namesGalleryFooter.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateHeight()
+        }
+        card.post(::updateHeight)
+    }
+
     private fun walletBalanceCard(actionsAvailable: Boolean = true): LinearLayout =
         LinearLayout(this).apply {
             val paymentActionsAvailable =
@@ -886,7 +1002,7 @@ class WalletActivity : ComponentActivity() {
             })
         }
 
-    private fun namesSummary(): String = latestReadSnapshot?.trackedNames?.size?.let { count ->
+    private fun namesSummary(): String = latestReadSnapshot?.trackedNameCount?.let { count ->
         resources.getQuantityString(R.plurals.wallet_dashboard_tracked_names, count, count)
     } ?: getString(R.string.wallet_dashboard_sync_required)
 
@@ -1324,48 +1440,34 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun showNamesDashboard() {
-        val snapshot = latestReadSnapshot
-        val actions = buildList {
-            add(getString(R.string.action_import_wallet_name) to ::showNameImportDialog)
-            add(getString(R.string.action_import_multiple_wallet_names) to ::showMultipleNameImportDialog)
-            if (snapshot != null && trackedNamePageOffset > 0) {
-                add(getString(R.string.action_previous_wallet_names) to ::loadPreviousWalletNamePage)
-            }
-            if (
-                snapshot != null &&
-                trackedNamePageOffset + loadedTrackedNames.size < snapshot.trackedNameCount
-            ) {
-                add(getString(R.string.action_load_more_wallet_names) to ::loadNextWalletNamePage)
-            }
-            add(getString(R.string.wallet_dashboard_name_actions) to ::showNameActionMenu)
+        if (latestReadSnapshot == null) {
+            Toast.makeText(this, R.string.wallet_dashboard_sync_required, Toast.LENGTH_SHORT).show()
+            return
         }
-        walletDetailDialog(
-            title = getString(R.string.wallet_dashboard_names),
-            rows = listOf(
-                getString(R.string.row_wallet_read_names) to trackedNamesView.text.toString(),
-                getString(R.string.row_wallet_value_action_status) to valueActionStatusView.text.toString(),
-            ),
-            actions = actions,
-        )
+        showingNamesPage = true
+        val total = latestReadSnapshot?.trackedNameCount ?: 0
+        selectedTrackedNameIndex = if (total == 0) 0 else {
+            selectedTrackedNameIndex.coerceIn(0, total - 1)
+        }
+        renderWalletDashboard()
     }
 
-    private fun loadNextWalletNamePage() {
-        loadWalletNamePage(trackedNamePageOffset + loadedTrackedNames.size)
-    }
-
-    private fun loadPreviousWalletNamePage() {
-        loadWalletNamePage((trackedNamePageOffset - MAX_VISIBLE_READ_ITEMS).coerceAtLeast(0))
-    }
-
-    private fun loadWalletNamePage(offset: Int) {
+    private fun loadWalletNamePageForSelection(index: Int) {
         val snapshot = latestReadSnapshot ?: return
+        val offset = walletNamePageOffsetForIndex(
+            index,
+            MAX_VISIBLE_READ_ITEMS,
+            snapshot.trackedNameCount,
+        ) ?: return
+        if (trackedNameNavigationInFlight) return
+        trackedNameNavigationInFlight = true
         val handle = walletHandle
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
-        if (offset !in 0 until snapshot.trackedNameCount) return
         thread(name = "hns-wallet-name-page") {
             val page = NativeWalletBridge.hnsNamePage(handle, offset, MAX_VISIBLE_READ_ITEMS)
             runOnUiThread {
+                trackedNameNavigationInFlight = false
                 if (
                     page == null || page.offset != offset || page.total != snapshot.trackedNameCount ||
                     page.names.isEmpty() ||
@@ -1377,8 +1479,284 @@ class WalletActivity : ComponentActivity() {
                 }
                 trackedNamePageOffset = page.offset
                 loadedTrackedNames = page.names
+                selectedTrackedNameIndex = index
                 renderLoadedTrackedNames(snapshot.trackedNameCount)
-                showNamesDashboard()
+                if (showingNamesPage) renderWalletDashboard()
+            }
+        }
+    }
+
+    private fun selectRelativeTrackedName(delta: Int) {
+        val snapshot = latestReadSnapshot ?: return
+        val target = selectedTrackedNameIndex + delta
+        if (target !in 0 until snapshot.trackedNameCount || trackedNameNavigationInFlight) return
+        val relative = target - trackedNamePageOffset
+        if (relative in loadedTrackedNames.indices) {
+            selectedTrackedNameIndex = target
+            renderWalletDashboard()
+        } else {
+            loadWalletNamePageForSelection(target)
+        }
+    }
+
+    private fun trackedNameOmnibar(actionsAvailable: Boolean, total: Int): AutoCompleteTextView =
+        AutoCompleteTextView(this).apply {
+            hint = getString(R.string.wallet_name_search_omnibar_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setSingleLine(true)
+            threshold = 1
+            textSize = 15f
+            setTextColor(themeColors().primaryText)
+            setHintTextColor(themeColors().secondaryText)
+            setPadding(uiDp(18), uiDp(12), uiDp(18), uiDp(12))
+            background = settingsSurfaceDrawable(
+                accent = themeColors().secondaryAction,
+                fill = themeColors().background,
+                cornerRadius = 22,
+            )
+            isEnabled = actionsAvailable && total > 0 && !trackedNameNavigationInFlight
+            trackedNameSearchInput = this
+            installTrackedNameSuggestions(this)
+            setOnItemClickListener { parent, _, position, _ ->
+                val selectedName = parent.getItemAtPosition(position) as? String
+                    ?: return@setOnItemClickListener
+                setText(selectedName, false)
+                searchTrackedNames(selectedName)
+            }
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId != EditorInfo.IME_ACTION_SEARCH) return@setOnEditorActionListener false
+                val query = canonicalTrackedNameSearchText(text?.toString().orEmpty())
+                if (query == null) {
+                    error = getString(R.string.wallet_name_search_invalid)
+                } else {
+                    searchTrackedNames(query)
+                }
+                true
+            }
+            setOnClickListener {
+                if (text.isNullOrEmpty() && adapter?.count.orZero() > 0) showDropDown()
+            }
+            ensureTrackedNameSearchIndex()
+        }
+
+    private fun installTrackedNameSuggestions(input: AutoCompleteTextView) {
+        val names = trackedNameSearchIndex.ifEmpty { loadedTrackedNames.map(NativeWalletName::name) }
+        input.setAdapter(ArrayAdapter(
+            this,
+            android.R.layout.simple_dropdown_item_1line,
+            names,
+        ))
+    }
+
+    private fun ensureTrackedNameSearchIndex() {
+        val snapshot = latestReadSnapshot ?: return
+        val cacheMatches = trackedNameSearchIndexHeight == snapshot.height &&
+            trackedNameSearchIndexCount == snapshot.trackedNameCount
+        if (cacheMatches || trackedNameSearchIndexInFlight || snapshot.trackedNameCount == 0) return
+
+        trackedNameSearchIndexInFlight = true
+        val handle = walletHandle
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        thread(name = "hns-wallet-name-autocomplete") {
+            val names = ArrayList<String>(snapshot.trackedNameCount)
+            var offset = 0
+            var valid = true
+            while (offset < snapshot.trackedNameCount) {
+                val page = NativeWalletBridge.hnsNamePage(handle, offset, 64)
+                if (
+                    page == null || page.offset != offset ||
+                    page.total != snapshot.trackedNameCount || page.names.isEmpty()
+                ) {
+                    valid = false
+                    break
+                }
+                names.addAll(page.names.map(NativeWalletName::name))
+                offset += page.names.size
+                if (!page.hasMore) break
+            }
+            if (names.size != snapshot.trackedNameCount || names.toSet().size != names.size) {
+                valid = false
+            }
+            runOnUiThread {
+                trackedNameSearchIndexInFlight = false
+                if (
+                    !valid || handle != walletHandle || epoch != lifecycleEpoch ||
+                    authorityGeneration != walletAuthorityGeneration ||
+                    latestReadSnapshot !== snapshot
+                ) return@runOnUiThread
+                trackedNameSearchIndex = names
+                trackedNameSearchIndexHeight = snapshot.height
+                trackedNameSearchIndexCount = snapshot.trackedNameCount
+                trackedNameSearchInput?.let(::installTrackedNameSuggestions)
+            }
+        }
+    }
+
+    private fun Int?.orZero(): Int = this ?: 0
+
+    private fun walletNameCardSections(name: NativeWalletName): List<WalletNameCardSection> {
+        fun stat(label: String, value: Any, monospace: Boolean = false) =
+            WalletNameCardStat(label, value.toString(), monospace)
+        fun row(vararg stats: WalletNameCardStat) = WalletNameCardRow(stats.toList())
+
+        val identity = WalletNameCardSection(
+            title = "CHAIN IDENTITY",
+            rows = listOf(
+                row(
+                    stat("OWNERSHIP", walletReadCodeLabel(name.ownershipStatus)),
+                    stat("RESOURCE STATUS", walletReadCodeLabel(name.resourceStatus)),
+                ),
+                row(
+                    stat("PROOF HEIGHT", name.proofHeight),
+                    stat("SNAPSHOT HEIGHT", latestReadSnapshot?.height ?: name.proofHeight),
+                ),
+                row(
+                    stat("REGISTERED", name.registered?.yesNoUnknown() ?: "UNKNOWN"),
+                    stat("EXPIRED BEFORE", name.expired?.yesNoUnknown() ?: "UNKNOWN"),
+                ),
+                row(stat("NAME HASH", name.nameHash, monospace = true)),
+            ),
+        )
+        val covenantRows = name.canonicalState?.let { state ->
+            listOf(
+                row(
+                    stat("VALUE", "${formatHnsBaseUnits(state.valueBaseUnits)} HNS"),
+                    stat("HIGHEST BID", "${formatHnsBaseUnits(state.highestBaseUnits)} HNS"),
+                ),
+                row(
+                    stat("START HEIGHT", state.startHeight),
+                    stat("RENEWAL HEIGHT", state.renewalHeight),
+                ),
+                row(
+                    stat("TRANSFER HEIGHT", state.transferHeight),
+                    stat("REVOKED HEIGHT", state.revokedHeight),
+                ),
+                row(
+                    stat("CLAIMED HEIGHT", state.claimedHeight),
+                    stat("RENEWAL COVENANTS", state.renewals),
+                ),
+                row(stat("WEAK NAME", state.weak.yesNoUnknown())),
+            )
+        } ?: listOf(row(stat("CANONICAL STATE", "UNAVAILABLE")))
+        val rawResource = when (val raw = name.rawResourceHex) {
+            null -> "UNAVAILABLE"
+            "" -> "EMPTY"
+            else -> compactRawResourceHex(raw)
+        }
+        return listOf(
+            identity,
+            WalletNameCardSection("COVENANT STATE", covenantRows),
+            WalletNameCardSection(
+                title = "RESOURCE DATA",
+                rows = listOf(
+                    row(
+                        stat("RECORDS", name.resourceRecordCount ?: "UNKNOWN"),
+                        stat("BYTES", name.rawResourceHex?.length?.div(2) ?: "UNKNOWN"),
+                    ),
+                    row(stat("RAW RESOURCE HEX PREVIEW", rawResource, monospace = true)),
+                ),
+            ),
+        )
+    }
+
+    private fun Boolean.yesNoUnknown(): String = if (this) "YES" else "NO"
+
+    private fun renderNamesGalleryFooter(actionsAvailable: Boolean, total: Int) {
+        namesGalleryFooter.visibility = View.VISIBLE
+        namesGalleryFooter.addView(TextView(this).apply {
+            text = if (total == 0) {
+                getString(R.string.wallet_name_card_position_empty)
+            } else {
+                getString(
+                    R.string.wallet_name_card_position,
+                    selectedTrackedNameIndex + 1,
+                    total,
+                )
+            }
+            gravity = Gravity.CENTER
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.08f
+            setTextColor(themeColors().secondaryText)
+            setPadding(0, 0, 0, uiDp(5))
+        })
+        namesGalleryFooter.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(dashboardActionButton(
+                getString(R.string.wallet_name_previous),
+                secondary = true,
+            ) { selectRelativeTrackedName(-1) }.disabledWhenWalletHandoff(
+                !actionsAvailable || trackedNameNavigationInFlight || selectedTrackedNameIndex <= 0,
+            ), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(dashboardActionButton(
+                getString(R.string.wallet_name_options),
+            ) { showNameActionMenu() }.disabledWhenWalletHandoff(!actionsAvailable),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    leftMargin = uiDp(7)
+                },
+            )
+            addView(dashboardActionButton(
+                getString(R.string.wallet_name_next),
+                secondary = true,
+            ) { selectRelativeTrackedName(1) }.disabledWhenWalletHandoff(
+                !actionsAvailable || trackedNameNavigationInFlight ||
+                    selectedTrackedNameIndex + 1 >= total,
+            ), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                leftMargin = uiDp(7)
+            })
+        })
+    }
+
+    private fun searchTrackedNames(query: String) {
+        val snapshot = latestReadSnapshot ?: return
+        if (trackedNameNavigationInFlight) return
+        val local = loadedTrackedNames.indexOfFirst { it.name == query }
+        if (local >= 0) {
+            selectedTrackedNameIndex = trackedNamePageOffset + local
+            renderWalletDashboard()
+            return
+        }
+        trackedNameNavigationInFlight = true
+        renderWalletDashboard()
+        val handle = walletHandle
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        thread(name = "hns-wallet-name-search") {
+            var foundPage: com.denuoweb.hnsdane.wallet.NativeWalletNamePage? = null
+            var foundIndex = -1
+            var offset = 0
+            while (offset < snapshot.trackedNameCount && foundIndex < 0) {
+                val page = NativeWalletBridge.hnsNamePage(handle, offset, MAX_VISIBLE_READ_ITEMS)
+                    ?: break
+                val match = page.names.indexOfFirst { it.name == query }
+                if (match >= 0) {
+                    foundPage = page
+                    foundIndex = page.offset + match
+                } else if (page.names.isEmpty() || !page.hasMore) {
+                    break
+                } else {
+                    offset = page.offset + page.names.size
+                }
+            }
+            runOnUiThread {
+                trackedNameNavigationInFlight = false
+                val matchedPage = foundPage
+                if (
+                    handle != walletHandle || epoch != lifecycleEpoch ||
+                    authorityGeneration != walletAuthorityGeneration ||
+                    latestReadSnapshot !== snapshot || !showingNamesPage
+                ) return@runOnUiThread
+                if (matchedPage == null || foundIndex < 0) {
+                    Toast.makeText(this, R.string.wallet_name_search_not_found, Toast.LENGTH_SHORT).show()
+                } else {
+                    trackedNamePageOffset = matchedPage.offset
+                    loadedTrackedNames = matchedPage.names
+                    selectedTrackedNameIndex = foundIndex
+                    renderLoadedTrackedNames(snapshot.trackedNameCount)
+                }
+                renderWalletDashboard()
             }
         }
     }
@@ -1456,6 +1834,8 @@ class WalletActivity : ComponentActivity() {
 
     private fun showNameActionMenu() {
         val labels = arrayOf(
+            getString(R.string.action_import_wallet_name),
+            getString(R.string.action_import_multiple_wallet_names),
             getString(R.string.row_wallet_transfer_name),
             getString(R.string.row_wallet_finalize_name),
             getString(R.string.row_wallet_set_records),
@@ -1464,8 +1844,10 @@ class WalletActivity : ComponentActivity() {
             .setTitle(R.string.wallet_dashboard_name_actions)
             .setItems(labels) { _, which ->
                 when (which) {
-                    0 -> showTransferNameForm()
-                    1 -> showFinalizeNameForm()
+                    0 -> showNameImportDialog()
+                    1 -> showMultipleNameImportDialog()
+                    2 -> showTransferNameForm()
+                    3 -> showFinalizeNameForm()
                     else -> showSetNameRecordsForm()
                 }
             }
@@ -5878,6 +6260,8 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshot = snapshot
         loadedTrackedNames = snapshot.trackedNames.take(MAX_VISIBLE_READ_ITEMS)
         trackedNamePageOffset = 0
+        selectedTrackedNameIndex = 0
+        trackedNameNavigationInFlight = false
         recentActivityPageOffset = 0
         localPaymentReceiveTarget = snapshot.paymentReceiveTarget
         latestReadSnapshotHandle = walletHandle

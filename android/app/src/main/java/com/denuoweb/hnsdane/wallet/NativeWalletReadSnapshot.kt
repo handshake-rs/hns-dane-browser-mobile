@@ -71,6 +71,21 @@ internal data class NativeWalletName(
     val ownershipStatus: String,
     val registered: Boolean?,
     val expired: Boolean?,
+    val canonicalState: NativeWalletNameState?,
+    val rawResourceHex: String?,
+    val resourceRecordCount: Long?,
+)
+
+internal data class NativeWalletNameState(
+    val valueBaseUnits: String,
+    val highestBaseUnits: String,
+    val startHeight: Long,
+    val renewalHeight: Long,
+    val transferHeight: Long,
+    val revokedHeight: Long,
+    val claimedHeight: Long,
+    val renewals: Long,
+    val weak: Boolean,
 )
 
 /**
@@ -192,6 +207,9 @@ internal object NativeWalletNameParser {
             "ownershipStatus",
             "registered",
             "expired",
+            "canonicalState",
+            "rawResourceHex",
+            "resourceRecordCount",
         )
         val name = value.get("name") as? String
             ?: throw IllegalArgumentException("tracked name is not text")
@@ -205,6 +223,24 @@ internal object NativeWalletNameParser {
         val ownershipStatus = value.get("ownershipStatus") as? String
             ?: throw IllegalArgumentException("ownership status is not text")
         require(ownershipStatus in ownershipStatuses)
+        val canonicalState = when (val state = value.get("canonicalState")) {
+            JSONObject.NULL -> null
+            is JSONObject -> parseCanonicalState(state)
+            else -> throw IllegalArgumentException("canonical name state is invalid")
+        }
+        val rawResourceHex = when (val raw = value.get("rawResourceHex")) {
+            JSONObject.NULL -> null
+            is String -> raw.also {
+                require(it.length <= MAX_RESOURCE_HEX_CHARACTERS)
+                require(it.length % 2 == 0 && (it.isEmpty() || lowercaseHex.matches(it)))
+            }
+            else -> throw IllegalArgumentException("raw name resource is invalid")
+        }
+        val resourceRecordCount = when (val count = value.get("resourceRecordCount")) {
+            JSONObject.NULL -> null
+            else -> exactUnsignedLong(count).also { require(it <= MAX_RESOURCE_RECORDS) }
+        }
+        require(rawResourceHex != null || resourceRecordCount == null)
         return NativeWalletName(
             name = name,
             nameHash = nameHash,
@@ -213,8 +249,46 @@ internal object NativeWalletNameParser {
             ownershipStatus = ownershipStatus,
             registered = value.optionalBoolean("registered"),
             expired = value.optionalBoolean("expired"),
+            canonicalState = canonicalState,
+            rawResourceHex = rawResourceHex,
+            resourceRecordCount = resourceRecordCount,
         )
     }
+
+    private fun parseCanonicalState(value: JSONObject): NativeWalletNameState {
+        value.requireExactKeys(
+            "valueBaseUnits",
+            "highestBaseUnits",
+            "startHeight",
+            "renewalHeight",
+            "transferHeight",
+            "revokedHeight",
+            "claimedHeight",
+            "renewals",
+            "weak",
+        )
+        return NativeWalletNameState(
+            valueBaseUnits = canonicalU64Decimal(value.get("valueBaseUnits")),
+            highestBaseUnits = canonicalU64Decimal(value.get("highestBaseUnits")),
+            startHeight = exactU32(value.get("startHeight")),
+            renewalHeight = exactU32(value.get("renewalHeight")),
+            transferHeight = exactU32(value.get("transferHeight")),
+            revokedHeight = exactU32(value.get("revokedHeight")),
+            claimedHeight = exactU32(value.get("claimedHeight")),
+            renewals = exactU32(value.get("renewals")),
+            weak = value.get("weak") as? Boolean
+                ?: throw IllegalArgumentException("weak name flag is invalid"),
+        )
+    }
+
+    private fun canonicalU64Decimal(value: Any): String {
+        require(value is String && U64_DECIMAL.matches(value))
+        require(BigInteger(value) <= U64_MAX)
+        return value
+    }
+
+    private fun exactU32(value: Any): Long =
+        exactUnsignedLong(value).also { require(it <= UINT32_MAX) }
 
     private fun JSONObject.requireExactKeys(vararg expected: String) {
         require(keys().asSequence().toSet() == expected.toSet())
@@ -245,6 +319,11 @@ internal object NativeWalletNameParser {
 
     private const val MAX_NAME_BYTES = 63
     private const val NAME_HASH_HEX_CHARACTERS = 64
+    private const val MAX_RESOURCE_HEX_CHARACTERS = 1_024
+    private const val MAX_RESOURCE_RECORDS = 512L
+    private const val UINT32_MAX = 0xffff_ffffL
+    private val U64_DECIMAL = Regex("0|[1-9][0-9]{0,19}")
+    private val U64_MAX = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE)
     private val RESERVED_NAMES = setOf("example", "invalid", "local", "localhost", "test")
 }
 

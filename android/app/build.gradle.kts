@@ -641,6 +641,13 @@ val buildRustAndroid = tasks.register<Exec>("buildRustAndroid") {
             include("**/*.toml")
             include("**/*.txt")
         },
+        // Cargo patches the wallet crates from this sibling checkout during
+        // local development. Track those sources so Gradle cannot reuse a JNI
+        // library after its serialized mobile schema has changed.
+        fileTree(rootDir.resolve("../hns-wallet-rs/crates")) {
+            include("**/*.rs")
+            include("**/*.toml")
+        },
         rootDir.resolve("rust/Cargo.toml"),
         rootDir.resolve("rust/Cargo.lock"),
         rootDir.resolve("rust/rust-toolchain.toml"),
@@ -662,6 +669,7 @@ val buildRustAndroid = tasks.register<Exec>("buildRustAndroid") {
 android {
     namespace = "com.denuoweb.hnsdane"
     compileSdk = 37
+    buildToolsVersion = "36.1.0"
     if (androidNdkHome.isNotBlank()) {
         ndkPath = androidNdkHome
     }

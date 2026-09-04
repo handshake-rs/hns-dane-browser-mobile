@@ -49,6 +49,9 @@ class NativeWalletNamePageTest {
         .put("ownershipStatus", "walletOwned")
         .put("registered", true)
         .put("expired", false)
+        .put("canonicalState", JSONObject.NULL)
+        .put("rawResourceHex", JSONObject.NULL)
+        .put("resourceRecordCount", JSONObject.NULL)
 
     private fun bundle(value: JSONObject): ByteArray {
         val json = value.toString().toByteArray(Charsets.UTF_8)
