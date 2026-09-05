@@ -53,7 +53,7 @@ class FakeApi:
                 resource(
                     "appStoreVersions",
                     "version",
-                    versionString="1.0.4",
+                    versionString="1.0.5",
                     appStoreState="PREPARE_FOR_SUBMISSION",
                 )
             ]
@@ -79,7 +79,7 @@ class FakeApi:
     def request(self, method, path, *, params=None, body=None, expected=(200,)):
         self.requests.append((method, path, params, body))
         if method == "GET" and path == "/v1/appStoreVersions/version/relationships/build":
-            return {"data": {"type": "builds", "id": "build-64"}}
+            return {"data": {"type": "builds", "id": "build-66"}}
         if method == "POST" and path == "/v1/reviewSubmissions":
             self.active_state = "READY_FOR_REVIEW"
             return {"data": resource("reviewSubmissions", "submission", state="READY_FOR_REVIEW")}
@@ -160,8 +160,8 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             ROOT,
             "a" * 40,
             "a" * 40,
-            "1.0.4",
-            "65",
+            "1.0.5",
+            "66",
             {},
         )
 
@@ -170,15 +170,15 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             ROOT,
             "a" * 40,
             "a" * 40,
-            "1.0.4",
-            "65",
+            "1.0.5",
+            "66",
         )
         plan = release_client.local_plan(release)
         self.assertEqual(plan["mode"], "plan")
         self.assertEqual(plan["networkRequests"], 0)
         self.assertEqual(plan["mutations"], 0)
-        self.assertEqual(plan["version"], "1.0.4")
-        self.assertEqual(plan["build"], "65")
+        self.assertEqual(plan["version"], "1.0.5")
+        self.assertEqual(plan["build"], "66")
         serialized = json.dumps(plan)
         self.assertNotIn(release.metadata["reviewNotes"], serialized)
 
@@ -197,9 +197,9 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-commit",
             "a" * 40,
             "--expected-version",
-            "1.0.4",
+            "1.0.5",
             "--expected-build",
-            "65",
+            "66",
         ]
         with (
             mock.patch.object(sys, "argv", arguments),
@@ -215,8 +215,8 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             ROOT,
             "a" * 40,
             "a" * 40,
-            "1.0.4",
-            "65",
+            "1.0.5",
+            "66",
         )
 
     def test_mutations_require_release_specific_confirmation_strings(self):
@@ -258,7 +258,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 None,
                 None,
                 False,
-                cancel_build="64",
+                cancel_build="66",
                 cancel_confirmation=None,
             )
         release_client.validate_confirmations(
@@ -267,8 +267,8 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             None,
             None,
             False,
-            cancel_build="64",
-            cancel_confirmation="CANCEL_SUBMISSION_1.0.4_64",
+            cancel_build="66",
+            cancel_confirmation="CANCEL_SUBMISSION_1.0.5_66",
         )
 
     def test_screenshot_replacement_confirmation_is_exact_and_mutation_only(self):
@@ -282,7 +282,7 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 self.release.metadata_confirmation,
                 None,
                 False,
-                "REPLACE_SCREENSHOTS_1.0.4_61",
+                "REPLACE_SCREENSHOTS_1.0.5_61",
             )
         with self.assertRaisesRegex(release_client.ReleaseError, "mutating mode"):
             release_client.validate_confirmations(
@@ -310,9 +310,9 @@ class LocalReleaseSafetyTests(unittest.TestCase):
             "--expected-commit",
             "a" * 40,
             "--expected-version",
-            "1.0.4",
+            "1.0.5",
             "--expected-build",
-            "65",
+            "66",
         ]
         self.assertIsNone(parser.parse_args(base).screenshots_dir)
 
@@ -384,8 +384,8 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 repository,
                 automation_commit,
                 artifact_commit,
-                "1.0.4",
-                "65",
+                "1.0.5",
+                "66",
                 {},
             )
             release_client.verify_release_automation_diff(release)
@@ -398,8 +398,8 @@ class LocalReleaseSafetyTests(unittest.TestCase):
                 repository,
                 changed_commit,
                 artifact_commit,
-                "1.0.4",
-                "65",
+                "1.0.5",
+                "66",
                 {},
             )
             with self.assertRaisesRegex(
@@ -485,8 +485,8 @@ class SubmissionSafetyTests(unittest.TestCase):
             ROOT,
             "b" * 40,
             "b" * 40,
-            "1.0.4",
-            "65",
+            "1.0.5",
+            "66",
             {},
         )
         return release_client.ReleaseManager(
@@ -546,13 +546,13 @@ class SubmissionSafetyTests(unittest.TestCase):
         api = FakeApi(active_state="WAITING_FOR_REVIEW")
         manager = self.make_manager(api)
         with mock.patch.object(release_client, "verify_exact_current_main") as verify:
-            result = manager.cancel_submission("64")
+            result = manager.cancel_submission("66")
         self.assertEqual(
             result,
             {
-                "build": "64",
+                "build": "66",
                 "reviewState": "CANCELING",
-                "version": "1.0.4",
+                "version": "1.0.5",
             },
         )
         verify.assert_called_once_with(manager.release)
@@ -854,10 +854,10 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('[[ "$DISPATCH_COMMIT" == "$EXPECTED_COMMIT" ]]', workflow)
         self.assertIn("git ls-remote --exit-code origin refs/heads/main", workflow)
         self.assertIn("group: global-ios-app-store-upload-lease", workflow)
-        self.assertIn("APPLY_METADATA_1.0.4_65", workflow)
-        self.assertIn("REPLACE_SCREENSHOTS_1.0.4_65", workflow)
-        self.assertIn("SUBMIT_FOR_REVIEW_1.0.4_65", workflow)
-        self.assertIn("CANCEL_SUBMISSION_1.0.4_64", workflow)
+        self.assertIn("APPLY_METADATA_1.0.5_66", workflow)
+        self.assertIn("REPLACE_SCREENSHOTS_1.0.5_66", workflow)
+        self.assertIn("SUBMIT_FOR_REVIEW_1.0.5_66", workflow)
+        self.assertIn("CANCEL_SUBMISSION_1.0.5_66", workflow)
         self.assertIn('[[ "$ACCOUNT_READY" == true ]]', workflow)
         self.assertIn('.path == ".github/workflows/ios-app-store-upload.yml"', workflow)
         self.assertIn("expected_artifact_commit:", workflow)

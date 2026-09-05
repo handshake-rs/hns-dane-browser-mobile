@@ -21,10 +21,10 @@ All notable changes to this project will be documented in this file.
 
 ## 1.0.5 - 2026-09-05
 
-Android `1.0.5` / code `57` is the pending Google Play candidate. It embeds
-Rust workspace `1.0.1` and the complete published `hns-wallet-rs 0.2.3`
-cohort. iOS remains independently versioned at `1.0.4` / build `65` while
-that submission is pending review.
+Android `1.0.5` / code `57` and iOS `1.0.5` / build `66` are the current store
+candidates. They embed Rust workspace `1.0.1` and the complete published
+`hns-wallet-rs 0.2.3` cohort. The prior iOS `1.0.4` submission is retained only
+as release history.
 
 ### Added
 

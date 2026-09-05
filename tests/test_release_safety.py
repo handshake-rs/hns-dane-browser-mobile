@@ -88,8 +88,8 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertNotIn("b24b66c382de53330ec21dd3137e056a2bea3e2d", lockfile)
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.4$")
-        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 65$")
+        self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.5$")
+        self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 66$")
 
         upload = (ROOT / "scripts/upload-ios-app-store.sh").read_text(
             encoding="utf-8"
@@ -209,10 +209,15 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             "payment qr code",
             "guarded hns send",
             "websites cannot invoke wallet",
-            "unfinished bitcoin",
             "exchange service",
         ):
             self.assertIn(marker, play)
+            self.assertIn(marker, app_store)
+        self.assertIn("unfinished bitcoin", play)
+        for marker in (
+            "name transfer/finalization",
+            "capability-gated direct shakedex and bitcoin controls",
+        ):
             self.assertIn(marker, app_store)
         for marker in (
             "protected confirmation flow",

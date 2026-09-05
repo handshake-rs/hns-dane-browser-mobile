@@ -3,7 +3,7 @@
 Last audited: 2026-09-05
 
 Current release source coordinates Android `1.0.5` / code `57`, the embedded
-non-publishable Rust workspace `1.0.1`, and iOS `1.0.4` / build `65`. It uses
+non-publishable Rust workspace `1.0.1`, and iOS `1.0.5` / build `66`. It uses
 the published `hns-rs 0.4.1`, exact public engine/browser-adapter releases
 (including the coherent light-client `0.2.3` patch cohort), and
 the complete exact published `hns-wallet-rs 0.2.3` closure from release commit

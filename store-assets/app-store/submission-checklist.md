@@ -1,11 +1,11 @@
 # App Store submission checklist
 
-Candidate: iOS `1.0.4`, build `65`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
+Candidate: iOS `1.0.5`, build `66`, `com.denuoweb.hnsdane.ios`, iPhone, Free,
 manual release.
 
 ## Source and artifact
 
-- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.4` / build `65` while retaining the independently versioned Android and Rust releases.
+- [x] Increment every iOS candidate, metadata, test, and workflow version surface to `1.0.5` / build `66` while retaining the independently versioned Android and Rust releases.
 - [x] Keep the pending `com.apple.developer.web-browser` capability out of this candidate and defer default-browser activation to a later version after Apple approval.
 - [x] Keep `com.apple.developer.browser.app-installation` absent until MarketplaceKit installation behavior is implemented and separately reviewed.
 - [ ] Push the exact candidate and require all repository, Rust, Android, Apple, Required CI, and CodeQL gates to pass.
@@ -15,7 +15,7 @@ manual release.
 ## Listing and privacy
 
 - [x] Describe the native noncustodial HNS wallet, direct peer synchronization, receive/QR, guarded send, and protected deletion.
-- [x] State that websites cannot access the wallet and unfinished Bitcoin, name-operation, and Shakedex screens are not exposed.
+- [x] State that websites cannot access the wallet; disclose supported name operations and capability-gated native Shakedex and Bitcoin controls.
 - [x] Use `https://shakescape.com/` for product/support and `https://shakescape.com/privacy/` for privacy.
 - [x] Explain that camera access is user-initiated and QR data is processed on-device.
 - [ ] Reconcile App Privacy, unrestricted web access, financial-feature/category, content-rights, export, DSA/trader, price, availability, and routing answers against the exact binary.

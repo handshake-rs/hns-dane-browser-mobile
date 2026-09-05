@@ -14,7 +14,7 @@ notices bind the complete protocol → wallet chain;
 published source tags and registry checksums.
 
 The configured Android `1.0.5` candidate is code `57`, with embedded Rust `1.0.1`,
-and iOS `1.0.4` build `65`. Historical `0.5.8` application source
+and the configured iOS `1.0.5` candidate is build `66`. Historical `0.5.8` application source
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
 `31402758394`, including Android build/unit/native instrumentation,
 Rust/supply-chain, and the complete Apple

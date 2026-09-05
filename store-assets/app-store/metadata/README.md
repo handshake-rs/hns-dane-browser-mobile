@@ -1,14 +1,15 @@
 # App Store metadata
 
-This directory contains the reviewed listing source for iOS `1.0.4` / build
-`65`, bundle ID `com.denuoweb.hnsdane.ios`. Public iOS `1.0.3` and its
+This directory contains the reviewed listing source for iOS `1.0.5` / build
+`66`, bundle ID `com.denuoweb.hnsdane.ios`. The preceding iOS release and its
 screenshots predate this candidate and are not evidence for it.
 
-- Version: `1.0.4`
-- Build: `65`
+- Version: `1.0.5`
+- Build: `66`
 
-This update fixes authenticated CNAME/CDN resolution and transient iOS
-navigation timeout recovery. Apple's managed `com.apple.developer.web-browser`
+This update brings the current native wallet synchronization, recovery, name
+tracking, Unicode-name, record, transfer/finalization, and diagnostic work to
+iOS. Apple's managed `com.apple.developer.web-browser`
 request remains pending, so neither that entitlement nor the separate
 `com.apple.developer.browser.app-installation` entitlement is requested or
 shipped in this candidate. Default-browser activation is reserved for a later
@@ -16,9 +17,10 @@ version after Apple grants the capability.
 
 The listing describes the shipping surface: dual-root browsing and one native,
 noncustodial HNS wallet with direct peer synchronization, receive/QR, guarded
-send, recent activity, name import, restoration birthday height, and protected
-deletion. Websites have no wallet-provider access. The unfinished Bitcoin,
-name-operation, and Shakedex marketplace cards are not exposed.
+send, recent activity, name import, restoration birthday height, protected
+deletion, supported name operations, and capability-gated direct Shakedex and
+Bitcoin controls. Websites have no wallet-provider access, and value-changing
+actions remain behind explicit native review and approval.
 
 Canonical metadata files are the text files in `en-US/`. Product, support, and
 privacy URLs must use `https://shakescape.com/`; `review-notes.txt` must explain
