@@ -53,6 +53,7 @@
 		B20000000000000000000007 /* WalletEventProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000007 /* WalletEventProjection.swift */; };
 		B20000000000000000000008 /* RustNativeWallet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000008 /* RustNativeWallet.swift */; };
 		B20000000000000000000009 /* WalletViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000009 /* WalletViewController.swift */; };
+		B2000000000000000000000C /* WalletNamesGalleryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000000000000000000000C /* WalletNamesGalleryViewController.swift */; };
 		B2000000000000000000000A /* HrmHnsaWalletConsumer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000000000000000000000A /* HrmHnsaWalletConsumer.swift */; };
 		B2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift */; };
 		B30000000000000000000001 /* WalletRecoveryConfirmationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30000000000000000000001 /* WalletRecoveryConfirmationTests.swift */; };
@@ -126,6 +127,7 @@
 		F20000000000000000000007 /* WalletEventProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletEventProjection.swift; sourceTree = "<group>"; };
 		F20000000000000000000008 /* RustNativeWallet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RustNativeWallet.swift; sourceTree = "<group>"; };
 		F20000000000000000000009 /* WalletViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletViewController.swift; sourceTree = "<group>"; };
+		F2000000000000000000000C /* WalletNamesGalleryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletNamesGalleryViewController.swift; sourceTree = "<group>"; };
 		F2000000000000000000000A /* HrmHnsaWalletConsumer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HrmHnsaWalletConsumer.swift; sourceTree = "<group>"; };
 		F2000000000000000000000B /* HrmHnsaWalletConsumerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HrmHnsaWalletConsumerTests.swift; sourceTree = "<group>"; };
 		F30000000000000000000001 /* WalletRecoveryConfirmationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletRecoveryConfirmationTests.swift; sourceTree = "<group>"; };
@@ -248,6 +250,7 @@
 				F20000000000000000000002 /* WalletProviderProtocol.swift */,
 				F20000000000000000000003 /* WalletUIState.swift */,
 				F20000000000000000000009 /* WalletViewController.swift */,
+				F2000000000000000000000C /* WalletNamesGalleryViewController.swift */,
 				F20000000000000000000004 /* WalletWebKitBridge.swift */,
 			);
 			path = Wallet;
@@ -469,6 +472,7 @@
 				B2000000000000000000000A /* HrmHnsaWalletConsumer.swift in Sources */,
 				B20000000000000000000008 /* RustNativeWallet.swift in Sources */,
 				B20000000000000000000009 /* WalletViewController.swift in Sources */,
+				B2000000000000000000000C /* WalletNamesGalleryViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

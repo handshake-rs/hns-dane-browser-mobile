@@ -930,6 +930,47 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
         }
     }
 
+    struct KnownNameState: Decodable, Equatable, Sendable {
+        let valueBaseUnits: String
+        let highestBaseUnits: String
+        let startHeight: UInt32
+        let renewalHeight: UInt32
+        let transferHeight: UInt32
+        let revokedHeight: UInt32
+        let claimedHeight: UInt32
+        let renewals: UInt32
+        let weak: Bool
+
+        private enum CodingKeys: String, CodingKey, CaseIterable {
+            case valueBaseUnits, highestBaseUnits, startHeight, renewalHeight
+            case transferHeight, revokedHeight, claimedHeight, renewals, weak
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+            valueBaseUnits = try container.decode(String.self, forKey: .valueBaseUnits)
+            highestBaseUnits = try container.decode(String.self, forKey: .highestBaseUnits)
+            startHeight = try container.decode(UInt32.self, forKey: .startHeight)
+            renewalHeight = try container.decode(UInt32.self, forKey: .renewalHeight)
+            transferHeight = try container.decode(UInt32.self, forKey: .transferHeight)
+            revokedHeight = try container.decode(UInt32.self, forKey: .revokedHeight)
+            claimedHeight = try container.decode(UInt32.self, forKey: .claimedHeight)
+            renewals = try container.decode(UInt32.self, forKey: .renewals)
+            weak = try container.decode(Bool.self, forKey: .weak)
+            guard Self.isCanonicalUInt64(valueBaseUnits),
+                  Self.isCanonicalUInt64(highestBaseUnits) else {
+                throw NativeWalletBridgeError.invalidOutput("invalid canonical HNS name value")
+            }
+        }
+
+        private static func isCanonicalUInt64(_ value: String) -> Bool {
+            guard !value.isEmpty,
+                  value.utf8.allSatisfy({ (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) }),
+                  value == "0" || value.first != "0" else { return false }
+            return UInt64(value) != nil
+        }
+    }
+
     struct KnownName: Decodable, Equatable, Sendable {
         let name: String
         let nameHash: String
@@ -938,9 +979,13 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
         let ownershipStatus: String
         let registered: Bool?
         let expired: Bool?
+        let canonicalState: KnownNameState?
+        let rawResourceHex: String?
+        let resourceRecordCount: UInt32?
 
         private enum CodingKeys: String, CodingKey, CaseIterable {
             case name, nameHash, proofHeight, resourceStatus, ownershipStatus, registered, expired
+            case canonicalState, rawResourceHex, resourceRecordCount
         }
 
         init(from decoder: Decoder) throws {
@@ -952,6 +997,15 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
             ownershipStatus = try container.decode(String.self, forKey: .ownershipStatus)
             registered = try container.decodeIfPresent(Bool.self, forKey: .registered)
             expired = try container.decodeIfPresent(Bool.self, forKey: .expired)
+            canonicalState = try container.decodeIfPresent(
+                KnownNameState.self,
+                forKey: .canonicalState
+            )
+            rawResourceHex = try container.decodeIfPresent(String.self, forKey: .rawResourceHex)
+            resourceRecordCount = try container.decodeIfPresent(
+                UInt32.self,
+                forKey: .resourceRecordCount
+            )
             let resourceStatuses: Set<String> = [
                 "unavailableCanonicalBinding", "noCurrentState", "empty", "canonicalDecoded",
                 "canonicalOpaque",
@@ -966,7 +1020,16 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
                   nameHash.count == 64,
                   nameHash.utf8.allSatisfy({ (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) || (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0) }),
                   resourceStatuses.contains(resourceStatus),
-                  ownershipStatuses.contains(ownershipStatus) else {
+                  ownershipStatuses.contains(ownershipStatus),
+                  rawResourceHex.map({ value in
+                      value.utf8.count <= 1_024 && value.utf8.count.isMultiple(of: 2) &&
+                          value.utf8.allSatisfy {
+                              (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) ||
+                                  (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
+                          }
+                  }) ?? true,
+                  resourceRecordCount.map({ $0 <= 512 }) ?? true,
+                  rawResourceHex != nil || resourceRecordCount == nil else {
                 throw NativeWalletBridgeError.invalidOutput("invalid known HNS name")
             }
         }
@@ -1282,6 +1345,62 @@ enum NativeHnsNameImportBundle {
         return try JSONDecoder().decode(
             NativeHnsReadSnapshot.KnownName.self,
             from: payload
+        )
+    }
+}
+
+struct NativeHnsNamePage: Decodable, Equatable, Sendable {
+    let offset: Int
+    let total: Int
+    let names: [NativeHnsReadSnapshot.KnownName]
+    let hasMore: Bool
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case offset, total, names, hasMore
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        let offset = try container.decode(UInt32.self, forKey: .offset)
+        let total = try container.decode(UInt32.self, forKey: .total)
+        names = try container.decode([NativeHnsReadSnapshot.KnownName].self, forKey: .names)
+        hasMore = try container.decode(Bool.self, forKey: .hasMore)
+        self.offset = Int(offset)
+        self.total = Int(total)
+        guard total <= 10_000,
+              names.count <= 64,
+              offset <= total,
+              UInt64(offset) + UInt64(names.count) <= UInt64(total),
+              hasMore == (UInt64(offset) + UInt64(names.count) < UInt64(total)),
+              Set(names.map(\.name)).count == names.count,
+              Set(names.map(\.nameHash)).count == names.count else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS name page")
+        }
+    }
+
+    static func decode(bundle: [UInt8]) throws -> NativeHnsNamePage {
+        let headerLength = 12
+        let maximumJSONBytes = 128 * 1_024
+        guard bundle.count > headerLength,
+              bundle.count <= headerLength + maximumJSONBytes,
+              Array(bundle[0..<4]) == Array("HNWP".utf8),
+              bundle[4] == 1,
+              bundle[5] == 0,
+              bundle[6] == 0,
+              bundle[7] == 0 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS name page header")
+        }
+        let payloadLength = bundle[8..<12].reduce(UInt32(0)) { partial, byte in
+            (partial << 8) | UInt32(byte)
+        }
+        guard payloadLength >= 2,
+              payloadLength <= UInt32(maximumJSONBytes),
+              Int(payloadLength) == bundle.count - headerLength else {
+            throw NativeWalletBridgeError.invalidOutput("invalid HNS name page length")
+        }
+        return try JSONDecoder().decode(
+            NativeHnsNamePage.self,
+            from: Data(bundle[headerLength...])
         )
     }
 }
@@ -3428,6 +3547,30 @@ final class RustNativeWallet: @unchecked Sendable {
         var bundle = try NativeWalletBridge.bytes(copying: output)
         defer { WalletSecretBytes.wipe(&bundle) }
         return try NativeHnsSynchronization.decode(bundle: bundle)
+    }
+
+    /// Reads one page from the controller's last authenticated reconciliation
+    /// without reconnecting to peers or replaying wallet synchronization.
+    func hnsNamePage(offset: Int, limit: Int = 64) throws -> NativeHnsNamePage {
+        guard (0...10_000).contains(offset), (1...64).contains(limit) else {
+            throw NativeWalletBridgeError.invalidOutput("HNS name page request is out of bounds")
+        }
+        var output = HnsBrowserBuffer()
+        let result = hns_browser_wallet_hns_name_page(
+            try liveHandle(),
+            UInt32(offset),
+            UInt32(limit),
+            &output
+        )
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "wallet HNS name page")
+        var bundle = try NativeWalletBridge.bytes(copying: output)
+        defer { WalletSecretBytes.wipe(&bundle) }
+        let page = try NativeHnsNamePage.decode(bundle: bundle)
+        guard page.offset == offset else {
+            throw NativeWalletBridgeError.invalidOutput("HNS name page offset changed")
+        }
+        return page
     }
 
     /// Reads only the native synchronizer's public progress mailbox. This call

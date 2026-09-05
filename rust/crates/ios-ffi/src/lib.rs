@@ -112,6 +112,9 @@ const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
 const WALLET_NAME_IMPORT_BUNDLE_FLAGS: u8 = 0;
 const WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES: usize = 12;
+const WALLET_NAME_PAGE_BUNDLE_MAGIC: &[u8; 4] = b"HNWP";
+const WALLET_NAME_PAGE_BUNDLE_VERSION: u8 = 1;
+const MAX_WALLET_NAME_PAGE_JSON_BYTES: usize = 128 * 1024;
 const MAX_WALLET_NAME_INPUT_BYTES: usize = 63;
 const MAX_WALLET_NAME_IMPORT_JSON_BYTES: usize = 4 * 1024;
 const MAX_WALLET_BULK_NAMES: usize = 10_000;
@@ -2231,6 +2234,19 @@ fn wallet_name_import_bundle(summary: &MobileHnsNameSummary) -> Result<Sensitive
     bundle.extend_from_slice(&payload);
     payload.fill(0);
     Ok(SensitiveBytes(bundle))
+}
+
+fn wallet_name_page_bundle(page: &impl serde::Serialize) -> Result<SensitiveBytes, FfiFailure> {
+    let mut json = serde_json::to_vec(page)
+        .map_err(|_| wallet_runtime_failure("unable to encode HNS name page"))?;
+    let result = wallet_json_bundle(
+        json.as_slice(),
+        WALLET_NAME_PAGE_BUNDLE_MAGIC,
+        WALLET_NAME_PAGE_BUNDLE_VERSION,
+        MAX_WALLET_NAME_PAGE_JSON_BYTES,
+    );
+    json.fill(0);
+    result
 }
 
 fn wallet_name_import_failure(error: &MobileWalletError) -> FfiFailure {
@@ -5064,8 +5080,60 @@ pub unsafe extern "C" fn hns_browser_wallet_import_hns_names_exact_text(
 }
 
 #[unsafe(no_mangle)]
+/// Returns one bounded HNWP-v1 page from the last authenticated wallet
+/// synchronization. This projection performs no peer access and cannot
+/// advance or replace the controller's synchronized state.
+///
+/// # Safety
+/// `out_page_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_hns_name_page(
+    wallet: HnsBrowserWalletHandle,
+    offset: u32,
+    limit: u32,
+    out_page_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_page_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_page_bundle, HnsBrowserBuffer::empty()) };
+        let limit =
+            usize::try_from(limit).map_err(|_| FfiFailure::invalid("invalid page limit"))?;
+        let offset =
+            usize::try_from(offset).map_err(|_| FfiFailure::invalid("invalid page offset"))?;
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let page = match &entry.controller {
+            NativeWalletController::HnsReads(controller) => {
+                controller.known_name_page(offset, limit)
+            }
+            NativeWalletController::DirectHnsValue { controller, .. } => {
+                controller.known_name_page(offset, limit)
+            }
+            NativeWalletController::Lifecycle(_) => {
+                return Err(FfiFailure::new(
+                    HNS_BROWSER_RESULT_NOT_READY,
+                    "trusted-native HNS name pages require synchronized wallet reads",
+                ));
+            }
+            NativeWalletController::Failed => {
+                return Err(wallet_runtime_failure(
+                    "native wallet controller has failed",
+                ));
+            }
+        }
+        .map_err(|_| FfiFailure::invalid("HNS name page is outside synchronized bounds"))?;
+        let bundle = wallet_name_page_bundle(&page)?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_page_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Performs one bounded synchronized read. The returned private bundle is
-/// `HNWR`, version 2, read-only-HNS flags, zero reserved bytes, a big-endian
+/// `HNWR`, version 3, read-only-HNS flags, zero reserved bytes, a big-endian
 /// JSON length, and the exact serialized `MobileHnsReadSnapshot`. Callers must
 /// free it promptly and must never expose it to website content or logs.
 ///
@@ -6660,6 +6728,7 @@ mod tests {
             "hns_browser_wallet_reject_bitcoin_send",
             "hns_browser_wallet_import_hns_name_exact_text",
             "hns_browser_wallet_import_hns_names_exact_text",
+            "hns_browser_wallet_hns_name_page",
             "hns_browser_wallet_prepare_hns_send",
             "hns_browser_wallet_approve_hns_send",
             "hns_browser_wallet_reject_hns_send",
@@ -6799,13 +6868,12 @@ mod tests {
         let payload = std::str::from_utf8(&bundle.0[WALLET_NAME_IMPORT_BUNDLE_HEADER_BYTES..])
             .expect("summary JSON");
         for forbidden in [
-            "proofState",
-            "currentState",
-            "rawResource",
-            "ownerOutpoint",
-            "derivation",
-            "provider",
-            "value",
+            "\"proofState\"",
+            "\"currentState\"",
+            "\"rawResource\"",
+            "\"ownerOutpoint\"",
+            "\"derivation\"",
+            "\"provider\"",
         ] {
             assert!(!payload.contains(forbidden));
         }

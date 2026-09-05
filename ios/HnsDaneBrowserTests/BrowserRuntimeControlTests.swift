@@ -221,7 +221,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     private func hnsNameSummaryJSON(name: String = "alpha") -> String {
         """
-        {"name":"\(name)","nameHash":"\(String(repeating: "a", count: 64))","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false}
+        {"name":"\(name)","nameHash":"\(String(repeating: "a", count: 64))","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false,"canonicalState":null,"rawResourceHex":null,"resourceRecordCount":null}
         """
     }
 
@@ -329,7 +329,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             )
             .replacingOccurrences(
                 of: "\"knownNames\":[]",
-                with: "\"knownNames\":[{\"name\":\"alpha\",\"nameHash\":\"\(nameHash)\",\"proofHeight\":42,\"resourceStatus\":\"canonicalDecoded\",\"ownershipStatus\":\"walletOwned\",\"registered\":true,\"expired\":false}]"
+                with: "\"knownNames\":[{\"name\":\"alpha\",\"nameHash\":\"\(nameHash)\",\"proofHeight\":42,\"resourceStatus\":\"canonicalDecoded\",\"ownershipStatus\":\"walletOwned\",\"registered\":true,\"expired\":false,\"canonicalState\":{\"valueBaseUnits\":\"1000000\",\"highestBaseUnits\":\"2000000\",\"startHeight\":1,\"renewalHeight\":2,\"transferHeight\":0,\"revokedHeight\":0,\"claimedHeight\":0,\"renewals\":3,\"weak\":false},\"rawResourceHex\":\"00\",\"resourceRecordCount\":0}]"
             )
         let populated = try NativeHnsReadSnapshot.decode(
             bundle: hnsReadBundle(json: populatedJSON)
@@ -338,6 +338,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(populated.transactionHistory.first?.fee, "10")
         XCTAssertEqual(populated.knownNames.first?.name, "alpha")
         XCTAssertEqual(populated.knownNames.first?.ownershipStatus, "walletOwned")
+        XCTAssertEqual(populated.knownNames.first?.canonicalState?.renewals, 3)
+        XCTAssertEqual(populated.knownNames.first?.rawResourceHex, "00")
+        XCTAssertEqual(populated.knownNames.first?.resourceRecordCount, 0)
 
         XCTAssertThrowsError(try NativeHnsReadSnapshot.decode(
             bundle: hnsReadBundle(json: json, version: 2)
@@ -514,6 +517,29 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 bundle: hnsNameImportBundle(
                     json: hnsNameSummaryJSON(name: invalidName)
                 )
+            ))
+        }
+    }
+
+    func testAuthenticatedHNSNamePageIsStrictAndBounded() throws {
+        let name = hnsNameSummaryJSON()
+        let json = "{\"offset\":0,\"total\":1,\"names\":[\(name)],\"hasMore\":false}"
+        let page = try NativeHnsNamePage.decode(
+            bundle: hnsValueBundle(magic: "HNWP", json: json)
+        )
+        XCTAssertEqual(page.offset, 0)
+        XCTAssertEqual(page.total, 1)
+        XCTAssertEqual(page.names.first?.name, "alpha")
+        XCTAssertFalse(page.hasMore)
+
+        for invalid in [
+            json.replacingOccurrences(of: "\"hasMore\":false", with: "\"hasMore\":true"),
+            json.replacingOccurrences(of: "\"total\":1", with: "\"total\":0"),
+            json.replacingOccurrences(of: "\"offset\":0", with: "\"offset\":2"),
+            json.replacingOccurrences(of: "{\"offset\"", with: "{\"extra\":0,\"offset\""),
+        ] {
+            XCTAssertThrowsError(try NativeHnsNamePage.decode(
+                bundle: hnsValueBundle(magic: "HNWP", json: invalid)
             ))
         }
     }
@@ -696,8 +722,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
             {"module":"handshake","txid":[\(secondTransaction)],"status":"mempool","net_amount":{"negative":false,"magnitude":"1000000"},"fee":null,"block_height":null,"first_seen_unix":2,"confirmation_count":0}
           ],
           "knownNames":[
-            {"name":"alpha","nameHash":"\(firstHash)","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false},
-            {"name":"second","nameHash":"\(secondHash)","proofHeight":41,"resourceStatus":"empty","ownershipStatus":"notWalletOwned","registered":false,"expired":null}
+            {"name":"alpha","nameHash":"\(firstHash)","proofHeight":42,"resourceStatus":"canonicalDecoded","ownershipStatus":"walletOwned","registered":true,"expired":false,"canonicalState":null,"rawResourceHex":"","resourceRecordCount":0},
+            {"name":"second","nameHash":"\(secondHash)","proofHeight":41,"resourceStatus":"empty","ownershipStatus":"notWalletOwned","registered":false,"expired":null,"canonicalState":null,"rawResourceHex":"","resourceRecordCount":0}
           ],
           "moduleStatus":{"phase":"ready","validated_height":42,"scanned_height":42,"target_height":42,"last_error":null}
         }

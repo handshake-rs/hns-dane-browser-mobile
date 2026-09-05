@@ -455,6 +455,16 @@ HnsBrowserResult hns_browser_wallet_import_hns_names_exact_text(
     HnsBrowserSlice exact_names_json,
     uint64_t *out_imported_count);
 /*
+ * Returns one HNWP-v1 JSON page from the last authenticated synchronization.
+ * The limit must be 1..64 and the offset must not exceed the synchronized
+ * total. This performs no network or synchronization work.
+ */
+HnsBrowserResult hns_browser_wallet_hns_name_page(
+    HnsBrowserWalletHandle wallet,
+    uint32_t offset,
+    uint32_t limit,
+    HnsBrowserBuffer *out_page_bundle);
+/*
  * A direct native-only HNS send. Preparation returns HNVP-v1, whose one-shot
  * action token may be approved once to return HNVX-v1, or rejected. Input
  * amounts are canonical nonzero base-unit ASCII integers. None of these

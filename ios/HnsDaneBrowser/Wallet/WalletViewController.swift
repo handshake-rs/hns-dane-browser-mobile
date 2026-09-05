@@ -40,7 +40,9 @@ final class WalletViewController: UIViewController {
     private var directHnsValueAvailable = false
     private var shakedexAvailable = false
     private var readGeneration: UInt64 = 0
+    private var nameGalleryLoadGeneration: UInt64 = 0
     private var synchronizedReadsAvailable = false
+    private var latestReadSnapshot: NativeHnsReadSnapshot?
     private var recentTransactions: [NativeHnsReadSnapshot.Transaction]?
     private var finalizeNotices: [NativeHnsReadSnapshot.FinalizeNotice] = []
     private var recentActivityPageOffset = 0
@@ -60,6 +62,7 @@ final class WalletViewController: UIViewController {
     private weak var restorePhraseField: UITextField?
     private weak var walletNameImportAlert: UIAlertController?
     private weak var walletNameImportField: UITextField?
+    private weak var namesGalleryViewController: WalletNamesGalleryViewController?
     private weak var hnsSendFormAlert: UIAlertController?
     private weak var hnsSendApprovalAlert: UIAlertController?
     private var pendingHnsSendApproval: NativeHnsSendApproval?
@@ -635,12 +638,24 @@ final class WalletViewController: UIViewController {
         }
 
         dashboardStack.addArrangedSubview(tileHeading("Explore"))
-        dashboardStack.addArrangedSubview(dashboardTile(
+        let namesSummary = latestReadSnapshot.map { snapshot in
+            snapshot.knownNameCount == 1
+                ? "1 tracked name"
+                : "\(snapshot.knownNameCount) tracked names"
+        } ?? "Synchronize to update"
+        let namesTile = dashboardTile(
+            title: "Names",
+            summary: namesSummary,
+            enabled: !isOperating,
+            action: { [weak self] in self?.showNamesDashboard() }
+        )
+        let walletTile = dashboardTile(
             title: "Wallet",
             summary: "Security and lifecycle",
             enabled: !isOperating,
             action: { [weak self] in self?.showWalletManagement() }
-        ))
+        )
+        dashboardStack.addArrangedSubview(dashboardTileRow(namesTile, walletTile))
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "Recent activity",
             body: [historyLabel, dashboardButton(
@@ -2285,14 +2300,89 @@ final class WalletViewController: UIViewController {
     }
 
     private func showNamesDashboard() {
+        guard let snapshot = latestReadSnapshot else {
+            showErrorMessage("Synchronize the HNS wallet before opening tracked names.")
+            return
+        }
+        let gallery = WalletNamesGalleryViewController(
+            names: snapshot.knownNames,
+            totalNameCount: snapshot.knownNameCount,
+            snapshotHeight: snapshot.moduleStatus.validatedHeight,
+            actionsAvailable: !isOperating
+        )
+        gallery.onOptions = { [weak self] in self?.showTrackedNameOptionsMenu() }
+        namesGalleryViewController = gallery
+        navigationController?.pushViewController(gallery, animated: true)
+        loadCompleteNameGallery(snapshot: snapshot, into: gallery)
+    }
+
+    private func loadCompleteNameGallery(
+        snapshot: NativeHnsReadSnapshot,
+        into gallery: WalletNamesGalleryViewController
+    ) {
+        nameGalleryLoadGeneration &+= 1
+        let generation = nameGalleryLoadGeneration
+        guard snapshot.knownNameCount > snapshot.knownNames.count,
+              let wallet else { return }
+        let authorityGeneration = walletAuthorityGeneration
+        let expectedHeight = snapshot.moduleStatus.validatedHeight
+        DispatchQueue.global(qos: .userInitiated).async { [weak self, weak wallet, weak gallery] in
+            guard let wallet else { return }
+            var names: [NativeHnsReadSnapshot.KnownName] = []
+            var offset = 0
+            var valid = true
+            while offset < snapshot.knownNameCount {
+                do {
+                    let page = try wallet.hnsNamePage(offset: offset)
+                    guard page.offset == offset,
+                          page.total == snapshot.knownNameCount,
+                          !page.names.isEmpty else {
+                        valid = false
+                        break
+                    }
+                    names.append(contentsOf: page.names)
+                    offset += page.names.count
+                    if !page.hasMore { break }
+                } catch {
+                    valid = false
+                    break
+                }
+            }
+            let uniqueNames = Set(names.map(\.name)).count == names.count
+            let uniqueHashes = Set(names.map(\.nameHash)).count == names.count
+            DispatchQueue.main.async {
+                guard let self, let gallery,
+                      valid,
+                      names.count == snapshot.knownNameCount,
+                      uniqueNames,
+                      uniqueHashes,
+                      generation == self.nameGalleryLoadGeneration,
+                      self.wallet === wallet,
+                      self.walletAuthorityGeneration == authorityGeneration,
+                      self.latestReadSnapshot?.moduleStatus.validatedHeight == expectedHeight,
+                      self.namesGalleryViewController === gallery else { return }
+                gallery.update(
+                    names: names,
+                    totalNameCount: snapshot.knownNameCount,
+                    snapshotHeight: expectedHeight,
+                    actionsAvailable: !self.isOperating
+                )
+            }
+        }
+    }
+
+    private func showTrackedNameOptionsMenu() {
+        guard presentedViewController == nil else { return }
         let alert = UIAlertController(
-            title: "Names",
-            message: "\(namesLabel.text ?? "Tracked names: unavailable.")\n\n\(nameImportStatusLabel.text ?? "")",
+            title: "Name options",
+            message: nameImportStatusLabel.text,
             preferredStyle: .alert
         )
         if importNameButton.isEnabled {
             alert.addAction(UIAlertAction(title: "Track exact HNS name", style: .default) { [weak self] _ in
-                self?.requestExactHnsNameImport()
+                self?.afterWalletMenuDismissal { [weak self] in
+                    self?.requestExactHnsNameImport()
+                }
             })
             alert.addAction(UIAlertAction(title: "Import multiple names", style: .default) { [weak self] _ in
                 self?.afterWalletMenuDismissal { [weak self] in
@@ -4363,6 +4453,7 @@ final class WalletViewController: UIViewController {
     private func publish(_ snapshot: NativeHnsReadSnapshot) {
         let presentation = WalletReadPresenter.present(snapshot)
         let balance = WalletHnsBalancePresenter.present(snapshot)
+        latestReadSnapshot = snapshot
         latestPublishedSnapshotHeight = snapshot.moduleStatus.validatedHeight
         if balance.hasPendingOutgoing {
             pendingOutgoingSnapshotHeight = snapshot.moduleStatus.validatedHeight
@@ -4388,6 +4479,15 @@ final class WalletViewController: UIViewController {
         nameReceiveLabel.text = presentation.nameReceive
         historyLabel.text = presentation.history
         namesLabel.text = presentation.names
+        namesGalleryViewController?.update(
+            names: snapshot.knownNames,
+            totalNameCount: snapshot.knownNameCount,
+            snapshotHeight: snapshot.moduleStatus.validatedHeight,
+            actionsAvailable: !isOperating
+        )
+        if let gallery = namesGalleryViewController {
+            loadCompleteNameGallery(snapshot: snapshot, into: gallery)
+        }
         maybeRefreshPendingOutgoingAfterNewBlock()
     }
 
@@ -4431,6 +4531,14 @@ final class WalletViewController: UIViewController {
     }
 
     private func clearReadProjection() {
+        nameGalleryLoadGeneration &+= 1
+        if let gallery = namesGalleryViewController,
+           let navigationController,
+           navigationController.viewControllers.contains(where: { $0 === gallery }) {
+            navigationController.popToViewController(self, animated: false)
+        }
+        namesGalleryViewController = nil
+        latestReadSnapshot = nil
         receiveTargets = nil
         recentTransactions = nil
         finalizeNotices = []
