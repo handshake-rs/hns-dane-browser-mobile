@@ -86,17 +86,17 @@
     <string name="menu_forward">Forward</string>
     <string name="menu_refresh">Refresh</string>
     <string name="menu_home">Home</string>
-    <string name="menu_new_tab">New tab</string>
+    <string name="menu_new_tab" translatable="false">New tab</string>
     <string name="menu_settings">Settings</string>
-    <string name="tabs_title">Tabs</string>
-    <plurals name="tab_count_content_description">
+    <string name="tabs_title" translatable="false">Tabs</string>
+    <plurals name="tab_count_content_description" translatable="false">
         <item quantity="one">%1$d open tab</item>
         <item quantity="other">%1$d open tabs</item>
     </plurals>
-    <string name="tab_current_content_description">Current tab: %1$s</string>
-    <string name="tab_switch_content_description">Switch to tab: %1$s</string>
-    <string name="tab_close_content_description">Close tab</string>
-    <string name="toast_tab_limit_reached">Up to %1$d tabs can be open</string>
+    <string name="tab_current_content_description" translatable="false">Current tab: %1$s</string>
+    <string name="tab_switch_content_description" translatable="false">Switch to tab: %1$s</string>
+    <string name="tab_close_content_description" translatable="false">Close tab</string>
+    <string name="toast_tab_limit_reached" translatable="false">Up to %1$d tabs can be open</string>
 
     <string name="toast_link_not_supported">This link type is not supported</string>
     <string name="toast_no_app_for_link">No app can open this link</string>
@@ -131,8 +131,8 @@
     <string name="sync_progress_root_ready">HNS root %1$s ready</string>
     <string name="sync_progress_root_required">needs HNS root %1$s</string>
     <string name="sync_gate_waiting">Waiting for authenticated Handshake headers before loading %1$s.</string>
-    <string name="sync_gate_block_progress">Current block: %1$s\nTarget block: %2$s%3$s</string>
-    <string name="sync_gate_target_estimated_suffix">(estimated until peers agree)</string>
+    <string name="sync_gate_block_progress" translatable="false">Current block: %1$s\nTarget block: %2$s%3$s</string>
+    <string name="sync_gate_target_estimated_suffix" translatable="false">(estimated until peers agree)</string>
     <string name="sync_gate_failed">Handshake header sync must recover before loading %1$s. Check the sync details above.</string>
 
     <string name="screen_cookie_options">Cookie Options</string>
