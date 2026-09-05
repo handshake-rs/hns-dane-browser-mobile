@@ -350,6 +350,7 @@ class WalletActivity : ComponentActivity() {
     private var durableWalletStoragePresent = false
     private var walletOpenDeferredUntilDeviceUnlock = false
     private var walletUnlockRequested = false
+    private var walletUnlockAuthenticationGranted = false
     private val walletHnsJourney = WalletHnsJourney()
     private val leaseReleaseHandoff = WalletLeaseReleaseHandoff()
 
@@ -609,6 +610,7 @@ class WalletActivity : ComponentActivity() {
         // An Unlock tap may be queued while the durable controller is still
         // reopening. Never carry that user-presence request off this screen.
         walletUnlockRequested = false
+        walletUnlockAuthenticationGranted = false
         cachedHnsSyncPresentationWatcher?.set(false)
         if (retainInAppSession) {
             // Android calls the departing Activity's onStop before it reports
@@ -2155,7 +2157,10 @@ class WalletActivity : ComponentActivity() {
                 if (opened == INVALID_HANDLE) {
                     durableWalletStoragePresent = true
                     walletOpenDeferredUntilDeviceUnlock = !databaseKeyAvailable
-                    if (databaseKeyAvailable) walletUnlockRequested = false
+                    if (databaseKeyAvailable) {
+                        walletUnlockRequested = false
+                        walletUnlockAuthenticationGranted = false
+                    }
                     statusView.text = getString(
                         if (databaseKeyAvailable) {
                             R.string.wallet_status_open_failed
@@ -2191,6 +2196,22 @@ class WalletActivity : ComponentActivity() {
      * silently discarded the tap, forcing the user to wait and tap again.
      */
     private fun requestWalletUnlock() {
+        queueWalletUnlock(authenticationGranted = false)
+    }
+
+    /**
+     * Re-entering from Android's credential screen starts a new storage
+     * ownership session. Older 32-bit devices can return the successful
+     * activity result before that asynchronous lease and controller reopen.
+     * Retain the one-shot authorization until the existing readiness gate can
+     * consume it instead of silently dropping it or asking for a second PIN.
+     */
+    private fun resumeWalletUnlockAfterAuthentication() {
+        queueWalletUnlock(authenticationGranted = true)
+    }
+
+    private fun queueWalletUnlock(authenticationGranted: Boolean) {
+        if (authenticationGranted) walletUnlockAuthenticationGranted = true
         walletUnlockRequested = true
         runPendingWalletUnlockIfReady()
         if (walletHandle == INVALID_HANDLE) {
@@ -2210,7 +2231,12 @@ class WalletActivity : ComponentActivity() {
             )
         ) return
         walletUnlockRequested = false
-        unlockWallet()
+        if (walletUnlockAuthenticationGranted) {
+            walletUnlockAuthenticationGranted = false
+            unlockWalletAfterAuthentication()
+        } else {
+            unlockWallet()
+        }
     }
 
     private fun createWallet() {
@@ -2581,7 +2607,7 @@ class WalletActivity : ComponentActivity() {
         requireWalletAuthentication(
             getString(R.string.wallet_auth_unlock_title),
             getString(R.string.wallet_auth_unlock_message),
-            action = ::unlockWalletAfterAuthentication,
+            action = ::resumeWalletUnlockAfterAuthentication,
         )
     }
 
