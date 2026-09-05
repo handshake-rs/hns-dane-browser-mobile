@@ -25,12 +25,6 @@ class GatewayActivity : ComponentActivity() {
 
         setSecondaryScreen(
             title = getString(R.string.screen_gateway),
-            onSwipeLeft = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.Gateway, forward = true, url, traceJson)
-            },
-            onSwipeRight = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.Gateway, forward = false, url, traceJson)
-            },
         ) {
             addView(hnsDiagnosticTabs(HnsDiagnosticTool.Gateway, url, traceJson))
             addView(screenSection(getString(R.string.section_recent_gateway_events)) {

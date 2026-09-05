@@ -19,12 +19,6 @@ internal enum class HnsDiagnosticTool(
     Diagnostics(R.string.diagnostic_tab_diagnostics),
     Gateway(R.string.diagnostic_tab_gateway);
 
-    fun next(): HnsDiagnosticTool =
-        entries[(ordinal + 1) % entries.size]
-
-    fun previous(): HnsDiagnosticTool =
-        entries[(ordinal + entries.size - 1) % entries.size]
-
     fun title(context: Context, traceJson: String): String =
         when (this) {
             ProofDetails -> if (HnsResolutionTraceFormat.isIcann(HnsResolutionTraceFormat.parse(traceJson))) {
@@ -59,19 +53,6 @@ internal fun ComponentActivity.hnsDiagnosticTabs(
             })
         }
     }
-
-internal fun ComponentActivity.openAdjacentHnsDiagnostic(
-    current: HnsDiagnosticTool,
-    forward: Boolean,
-    url: String,
-    traceJson: String,
-) {
-    openHnsDiagnosticTool(
-        tool = if (forward) current.next() else current.previous(),
-        url = url,
-        traceJson = traceJson,
-    )
-}
 
 private fun ComponentActivity.hnsDiagnosticTab(
     tool: HnsDiagnosticTool,

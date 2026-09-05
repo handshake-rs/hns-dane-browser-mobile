@@ -217,15 +217,31 @@ class SettingsActivity : ComponentActivity() {
                     startActivity(Intent(this@SettingsActivity, HnsDomainWizardActivity::class.java))
                 })
                 addSettingsRow(navRow(getString(R.string.settings_connection_details), getString(R.string.settings_connection_details_summary)) {
-                    startActivity(Intent(this@SettingsActivity, HnsResolverTraceActivity::class.java))
+                    startActivity(Intent(this@SettingsActivity, HnsResolverTraceActivity::class.java).apply {
+                        currentUrlFromIntent()?.let { putExtra(HnsResolverTraceActivity.EXTRA_URL, it) }
+                        currentTraceFromIntent()?.let {
+                            putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, it)
+                        }
+                        currentSecurityStatusFromIntent()?.let {
+                            putExtra(HnsResolverTraceActivity.EXTRA_SECURITY_STATUS, it)
+                        }
+                    })
                 })
             })
             addView(settingsGroup(getString(R.string.settings_app_diagnostics)) {
                 addSettingsRow(navRow(getString(R.string.row_diagnostics), getString(R.string.row_diagnostics_summary)) {
-                    startActivity(Intent(this@SettingsActivity, DiagnosticsActivity::class.java))
+                    startActivity(Intent(this@SettingsActivity, DiagnosticsActivity::class.java).apply {
+                        currentUrlFromIntent()?.let { putExtra(DiagnosticsActivity.EXTRA_URL, it) }
+                        currentTraceFromIntent()?.let {
+                            putExtra(DiagnosticsActivity.EXTRA_TRACE_JSON, it)
+                        }
+                    })
                 })
                 addSettingsRow(navRow(getString(R.string.settings_gateway_log), getString(R.string.row_gateway_summary)) {
-                    startActivity(Intent(this@SettingsActivity, GatewayActivity::class.java))
+                    startActivity(Intent(this@SettingsActivity, GatewayActivity::class.java).apply {
+                        currentUrlFromIntent()?.let { putExtra(GatewayActivity.EXTRA_URL, it) }
+                        currentTraceFromIntent()?.let { putExtra(GatewayActivity.EXTRA_TRACE_JSON, it) }
+                    })
                 })
             })
         }
@@ -272,6 +288,10 @@ class SettingsActivity : ComponentActivity() {
         startActivity(Intent(this, SettingsActivity::class.java).apply {
             putExtra(EXTRA_DESTINATION, destination.id)
             currentUrlFromIntent()?.let { putExtra(EXTRA_CURRENT_URL, it) }
+            currentTraceFromIntent()?.let { putExtra(EXTRA_CURRENT_TRACE_JSON, it) }
+            currentSecurityStatusFromIntent()?.let {
+                putExtra(EXTRA_CURRENT_SECURITY_STATUS, it)
+            }
         })
     }
 
@@ -742,6 +762,16 @@ class SettingsActivity : ComponentActivity() {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
 
+    private fun currentTraceFromIntent(): String? =
+        intent.getStringExtra(EXTRA_CURRENT_TRACE_JSON)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+    private fun currentSecurityStatusFromIntent(): String? =
+        intent.getStringExtra(EXTRA_CURRENT_SECURITY_STATUS)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
     private fun buildLabel(): String {
         val channel = if (BuildConfig.DEBUG) {
             getString(R.string.common_debug_demo)
@@ -753,6 +783,9 @@ class SettingsActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_CURRENT_URL = "com.denuoweb.hnsdane.CURRENT_URL"
+        const val EXTRA_CURRENT_TRACE_JSON = "com.denuoweb.hnsdane.CURRENT_TRACE_JSON"
+        const val EXTRA_CURRENT_SECURITY_STATUS =
+            "com.denuoweb.hnsdane.CURRENT_SECURITY_STATUS"
         const val EXTRA_DESTINATION = "com.denuoweb.hnsdane.SETTINGS_DESTINATION"
         const val DESTINATION_BROWSER = "browser"
         const val DESTINATION_PRIVACY = "privacy"

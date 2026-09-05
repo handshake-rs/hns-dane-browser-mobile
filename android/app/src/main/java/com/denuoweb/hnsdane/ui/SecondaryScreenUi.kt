@@ -20,8 +20,6 @@ import kotlin.math.abs
 
 internal fun ComponentActivity.setSecondaryScreen(
     title: String,
-    onSwipeLeft: (() -> Unit)? = null,
-    onSwipeRight: (() -> Unit)? = null,
     onPullDownAtTop: (() -> Unit)? = null,
     persistentFooter: View? = null,
     content: LinearLayout.() -> Unit,
@@ -38,7 +36,7 @@ internal fun ComponentActivity.setSecondaryScreen(
     val scroll = SecondaryScreenScrollView(this).apply {
         setBackgroundColor(colors.background)
         isFillViewport = true
-        installScreenGestures(onSwipeLeft, onSwipeRight, onPullDownAtTop)
+        installScreenGestures(onPullDownAtTop)
         addView(root, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -300,13 +298,9 @@ internal fun Context.uiDp(value: Int): Int =
 
 @SuppressLint("ClickableViewAccessibility")
 private fun ScrollView.installScreenGestures(
-    onSwipeLeft: (() -> Unit)?,
-    onSwipeRight: (() -> Unit)?,
     onPullDownAtTop: (() -> Unit)?,
 ) {
-    if (onSwipeLeft == null && onSwipeRight == null && onPullDownAtTop == null) {
-        return
-    }
+    if (onPullDownAtTop == null) return
 
     var downX = 0f
     var downY = 0f
@@ -321,16 +315,7 @@ private fun ScrollView.installScreenGestures(
             MotionEvent.ACTION_UP -> {
                 val deltaX = event.x - downX
                 val deltaY = event.y - downY
-                if (abs(deltaX) >= context.uiDp(72) && abs(deltaX) > abs(deltaY) * 1.5f) {
-                    if (deltaX < 0) {
-                        onSwipeLeft?.invoke()
-                    } else {
-                        onSwipeRight?.invoke()
-                    }
-                    return@setOnTouchListener true
-                }
                 if (
-                    onPullDownAtTop != null &&
                     pullStartedAtTop &&
                     scrollY <= 0 &&
                     deltaY >= context.uiDp(72) &&

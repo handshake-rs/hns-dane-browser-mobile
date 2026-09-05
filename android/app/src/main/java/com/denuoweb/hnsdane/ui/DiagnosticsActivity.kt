@@ -23,12 +23,6 @@ class DiagnosticsActivity : ComponentActivity() {
 
         setSecondaryScreen(
             title = getString(R.string.screen_diagnostics),
-            onSwipeLeft = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.Diagnostics, forward = true, url, traceJson)
-            },
-            onSwipeRight = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.Diagnostics, forward = false, url, traceJson)
-            },
         ) {
             addView(hnsDiagnosticTabs(HnsDiagnosticTool.Diagnostics, url, traceJson))
             addView(screenSection(getString(R.string.section_app_and_runtime)) {

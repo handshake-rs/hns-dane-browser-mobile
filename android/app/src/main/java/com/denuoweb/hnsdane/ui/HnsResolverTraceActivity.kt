@@ -23,12 +23,6 @@ class HnsResolverTraceActivity : ComponentActivity() {
 
         setSecondaryScreen(
             title = getString(R.string.screen_resolver_trace),
-            onSwipeLeft = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.ResolverTrace, forward = true, url, traceJson)
-            },
-            onSwipeRight = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.ResolverTrace, forward = false, url, traceJson)
-            },
         ) {
             addView(hnsDiagnosticTabs(HnsDiagnosticTool.ResolverTrace, url, traceJson))
             addView(screenSection(getString(R.string.section_summary)) {

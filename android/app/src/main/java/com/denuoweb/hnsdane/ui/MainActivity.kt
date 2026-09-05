@@ -172,11 +172,15 @@ class MainActivity : ComponentActivity() {
     private var pageLoadProgress: Int = 0
     private var navigationGeneration: Long = 0L
     private var pendingNavigation: PendingNavigation? = null
+    private var pendingHistoryTraversal: PendingHistoryTraversal? = null
     private var proxyNavigationSubmittedGeneration: Long? = null
     private var failedMainFrameUrl: String? = null
     private var activityStopped: Boolean = false
     private var observedHeaderResetGeneration: Long = 0L
     private var returnToBackgroundAfterBrowserBack: Boolean = false
+    private var returningFromInternalScreen: Boolean = false
+    private var retainedSecurityPathUrl: String? = null
+    private var retainedSecurityPath: HnsPageSecurityPath? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -458,12 +462,18 @@ class MainActivity : ComponentActivity() {
         activityStopped = false
         gatewayInterceptionEnabled = true
         observeForegroundSync()
-        // Switching from WalletActivity does not background the process, so
-        // the process-owned scheduler may still be waiting on its ten-minute
-        // idle timer. Ask it for one lightweight freshness pass before calling
-        // a retained target "up to date" or admitting a new HNS navigation.
-        if ((application as? HnsDaneApplication)?.requestForegroundSyncRefresh() == true) {
+        // A real browser foreground entry requests a lightweight freshness
+        // pass. Returning from one of our own screens keeps the process-owned
+        // sync and the current page authority intact instead of restarting it.
+        val resumedFromInternalScreen = returningFromInternalScreen
+        returningFromInternalScreen = false
+        if (
+            !resumedFromInternalScreen &&
+            (application as? HnsDaneApplication)?.requestForegroundSyncRefresh() == true
+        ) {
             foregroundSyncPreparing = true
+        } else if (resumedFromInternalScreen) {
+            foregroundSyncPreparing = false
         }
         BrowserCookiePreferences.applyTo(webView)
         val resetReloadQueued = reconcileHeaderResetGeneration()
@@ -529,6 +539,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         activityDestroyed = true
         pendingNavigation = null
+        pendingHistoryTraversal = null
         proxyNavigationSubmittedGeneration = null
         failedMainFrameUrl = null
         gatewayInterceptionEnabled = false
@@ -1060,13 +1071,26 @@ class MainActivity : ComponentActivity() {
         val targetIndex = history.currentIndex + offset
         if (targetIndex !in 0 until history.size) return
         val url = history.getItemAtIndex(targetIndex).url ?: return
-        enqueueNavigation(classifier.classify(url)) { webView.goBackOrForward(offset) }
+        val statusSnapshot = mainFrameHnsStatusSnapshot()
+            ?.takeIf { isSameAdmittedMainFrameOrigin(activeMainFrameUrl, url) }
+        enqueueNavigation(
+            target = classifier.classify(url),
+            onGenerationStarted = { generation ->
+                pendingHistoryTraversal = PendingHistoryTraversal(generation, statusSnapshot)
+            },
+        ) { webView.goBackOrForward(offset) }
     }
 
-    private fun enqueueNavigation(target: BrowserTarget, load: () -> Unit) {
+    private fun enqueueNavigation(
+        target: BrowserTarget,
+        onGenerationStarted: (Long) -> Unit = {},
+        load: () -> Unit,
+    ) {
         navigationGeneration = navigationGeneration.wrappingIncrement()
         val generation = navigationGeneration
         pendingNavigation = null
+        pendingHistoryTraversal = null
+        onGenerationStarted(generation)
         proxyNavigationSubmittedGeneration = null
         failedMainFrameUrl = null
         if (::syncGateNotice.isInitialized) {
@@ -1307,10 +1331,46 @@ class MainActivity : ComponentActivity() {
         mainFrameHnsStatusCode = statusCode
         mainFrameHnsTlsPolicy = tlsPolicy
         mainFrameHnsResolverPolicy = resolverPolicy
-        mainFrameHnsSecurityPath = securityPath
+        val currentUrl = activeMainFrameUrl
+        val effectiveSecurityPath = retainedSecurityPathForWarmResolution(
+            reportedPath = securityPath,
+            retainedPath = retainedSecurityPath,
+            retainedUrl = retainedSecurityPathUrl,
+            currentUrl = currentUrl,
+            tlsPolicy = tlsPolicy,
+        )
+        mainFrameHnsSecurityPath = effectiveSecurityPath
         mainFrameHnsTraceJson = traceJson
-        mainFrameHnsStatusUrl = activeMainFrameUrl
+        mainFrameHnsStatusUrl = currentUrl
+        if (securityPath != null) {
+            retainedSecurityPath = securityPath
+            retainedSecurityPathUrl = currentUrl
+        }
         refreshSecurityState()
+    }
+
+    private fun mainFrameHnsStatusSnapshot(): MainFrameHnsStatusSnapshot? {
+        val statusCode = mainFrameHnsStatusCode ?: return null
+        return MainFrameHnsStatusSnapshot(
+            statusCode = statusCode,
+            tlsPolicy = mainFrameHnsTlsPolicy,
+            resolverPolicy = mainFrameHnsResolverPolicy,
+            securityPath = mainFrameHnsSecurityPath,
+            traceJson = mainFrameHnsTraceJson,
+        )
+    }
+
+    private fun restoreMainFrameHnsStatus(
+        snapshot: MainFrameHnsStatusSnapshot?,
+        url: String,
+    ) {
+        if (snapshot == null) return
+        mainFrameHnsStatusCode = snapshot.statusCode
+        mainFrameHnsTlsPolicy = snapshot.tlsPolicy
+        mainFrameHnsResolverPolicy = snapshot.resolverPolicy
+        mainFrameHnsSecurityPath = snapshot.securityPath
+        mainFrameHnsTraceJson = snapshot.traceJson
+        mainFrameHnsStatusUrl = url
     }
 
     private fun clearMainFrameHnsStatus() {
@@ -1453,6 +1513,9 @@ class MainActivity : ComponentActivity() {
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             if (pendingMainFrameUrl != null) return
+            pendingHistoryTraversal
+                ?.takeIf { it.generation == navigationGeneration }
+                ?.mainFrameLoadStarted = true
             val admittedUrl = admittedMainFrameUrl
             if (admittedUrl != null && admittedUrl.mainFrameMatchKey() != url.mainFrameMatchKey()) {
                 view.stopLoading()
@@ -1594,6 +1657,7 @@ class MainActivity : ComponentActivity() {
                 return
             }
             failedMainFrameUrl = requestUrl
+            pendingHistoryTraversal = null
             if (clearHistoryAfterTabNavigation) {
                 view.clearHistory()
                 clearHistoryAfterTabNavigation = false
@@ -1630,6 +1694,7 @@ class MainActivity : ComponentActivity() {
             }
             pageIsLoading = false
             pageLoadProgress = PAGE_PROGRESS_MAX
+            pendingHistoryTraversal = null
             browserTabs.updateActive(url, view.title)
             refreshTabButton()
             recordHistoryEntry(url, view.title)
@@ -1651,6 +1716,25 @@ class MainActivity : ComponentActivity() {
             currentTargetKind = target.kind
             browserTabs.updateActive(url, view.title)
             refreshTransportWarning()
+            val traversal = pendingHistoryTraversal
+            if (
+                traversal != null &&
+                shouldCompleteSameDocumentHistoryTraversal(
+                    traversalGeneration = traversal.generation,
+                    currentGeneration = navigationGeneration,
+                    mainFrameLoadStarted = traversal.mainFrameLoadStarted,
+                    admittedUrl = admittedUrl,
+                    visitedUrl = url,
+                )
+            ) {
+                restoreMainFrameHnsStatus(traversal.statusSnapshot, url)
+                pendingHistoryTraversal = null
+                failedMainFrameUrl = null
+                pageIsLoading = false
+                pageLoadProgress = PAGE_PROGRESS_MAX
+                refreshSecurityState()
+                refreshPageProgress()
+            }
         }
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
@@ -1685,7 +1769,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openResolverTrace() {
-        startActivity(
+        startInternalActivity(
             Intent(this, HnsResolverTraceActivity::class.java)
                 .putExtra(HnsResolverTraceActivity.EXTRA_URL, omniboxFullUrl)
                 .putExtra(HnsResolverTraceActivity.EXTRA_TRACE_JSON, mainFrameHnsTraceJson)
@@ -1697,14 +1781,22 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, SettingsActivity::class.java)
             .putExtra(SettingsActivity.EXTRA_DESTINATION, destination)
         currentPageUrl()?.let { intent.putExtra(SettingsActivity.EXTRA_CURRENT_URL, it) }
-        startActivity(intent)
+        mainFrameHnsTraceJson?.let { intent.putExtra(SettingsActivity.EXTRA_CURRENT_TRACE_JSON, it) }
+        securityStatusText.takeIf { it.isNotBlank() }
+            ?.let { intent.putExtra(SettingsActivity.EXTRA_CURRENT_SECURITY_STATUS, it) }
+        startInternalActivity(intent)
     }
 
     private fun openWallet() {
-        startActivity(
+        startInternalActivity(
             Intent(this, WalletActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
         )
+    }
+
+    private fun startInternalActivity(intent: Intent) {
+        returningFromInternalScreen = true
+        startActivity(intent)
     }
 
     private fun handleExternalMainFrameNavigation(uri: Uri, hasUserGesture: Boolean): Boolean {
@@ -2080,6 +2172,20 @@ private data class PendingNavigation(
     val load: () -> Unit,
 )
 
+private data class MainFrameHnsStatusSnapshot(
+    val statusCode: Int,
+    val tlsPolicy: HnsPageTlsPolicy?,
+    val resolverPolicy: HnsPageResolverPolicy?,
+    val securityPath: HnsPageSecurityPath?,
+    val traceJson: String?,
+)
+
+private data class PendingHistoryTraversal(
+    val generation: Long,
+    val statusSnapshot: MainFrameHnsStatusSnapshot?,
+    var mainFrameLoadStarted: Boolean = false,
+)
+
 private fun Long.wrappingIncrement(): Long = if (this == Long.MAX_VALUE) 1L else this + 1L
 
 internal fun isCurrentMainFrameFailure(
@@ -2130,6 +2236,51 @@ internal fun isSameAdmittedMainFrameOrigin(admittedUrl: String?, visitedUrl: Str
     val visitedOrigin = normalizedHttpOrigin(visitedUrl) ?: return false
     return admittedOrigin == visitedOrigin
 }
+
+internal fun shouldCompleteSameDocumentHistoryTraversal(
+    traversalGeneration: Long,
+    currentGeneration: Long,
+    mainFrameLoadStarted: Boolean,
+    admittedUrl: String?,
+    visitedUrl: String?,
+): Boolean =
+    traversalGeneration == currentGeneration &&
+        !mainFrameLoadStarted &&
+        isSameAdmittedMainFrameOrigin(admittedUrl, visitedUrl)
+
+internal fun retainedSecurityPathForWarmResolution(
+    reportedPath: HnsPageSecurityPath?,
+    retainedPath: HnsPageSecurityPath?,
+    retainedUrl: String?,
+    currentUrl: String?,
+    tlsPolicy: HnsPageTlsPolicy?,
+): HnsPageSecurityPath? {
+    if (reportedPath != null) return reportedPath
+    if (!isSameAdmittedMainFrameOrigin(retainedUrl, currentUrl)) return null
+    return retainedPath?.takeIf { path ->
+        when (tlsPolicy) {
+            HnsPageTlsPolicy.Dane -> path in DANE_SECURITY_PATHS
+            null -> path in HNS_SECURITY_PATHS
+            HnsPageTlsPolicy.WebPkiFallback -> false
+        }
+    }
+}
+
+private val DANE_SECURITY_PATHS = setOf(
+    HnsPageSecurityPath.DaneAuthoritativeDoh,
+    HnsPageSecurityPath.DaneAuthoritativeDns53,
+    HnsPageSecurityPath.DaneThirdPartyDoh,
+    HnsPageSecurityPath.StatelessDane,
+    HnsPageSecurityPath.DaneIcannDoh,
+    HnsPageSecurityPath.DaneP2pDnsRelay,
+)
+
+private val HNS_SECURITY_PATHS = setOf(
+    HnsPageSecurityPath.HnsAuthoritativeDoh,
+    HnsPageSecurityPath.HnsAuthoritativeDns53,
+    HnsPageSecurityPath.HnsThirdPartyDoh,
+    HnsPageSecurityPath.HnsP2pDnsRelay,
+)
 
 private data class NormalizedHttpOrigin(
     val scheme: String,

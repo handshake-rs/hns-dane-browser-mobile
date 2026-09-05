@@ -21,12 +21,6 @@ class HnsTlsaInspectorActivity : ComponentActivity() {
 
         setSecondaryScreen(
             title = getString(R.string.screen_tlsa_dane_inspector),
-            onSwipeLeft = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.TlsaInspector, forward = true, url, traceJson)
-            },
-            onSwipeRight = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.TlsaInspector, forward = false, url, traceJson)
-            },
         ) {
             addView(hnsDiagnosticTabs(HnsDiagnosticTool.TlsaInspector, url, traceJson))
             addView(screenSection(getString(R.string.section_summary)) {

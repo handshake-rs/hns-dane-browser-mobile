@@ -38,12 +38,6 @@ class HnsProofDetailsActivity : ComponentActivity() {
 
         setSecondaryScreen(
             title = if (isIcann) getString(R.string.screen_dnssec_details) else getString(R.string.screen_hns_proof_details),
-            onSwipeLeft = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.ProofDetails, forward = true, url, traceJson)
-            },
-            onSwipeRight = {
-                openAdjacentHnsDiagnostic(HnsDiagnosticTool.ProofDetails, forward = false, url, traceJson)
-            },
         ) {
             addView(hnsDiagnosticTabs(HnsDiagnosticTool.ProofDetails, url, traceJson))
             addView(screenSection(getString(R.string.section_summary)) {
