@@ -6,6 +6,9 @@ import Network
 @preconcurrency import AVFoundation
 import CoreImage
 
+private let defaultHnsMaximumFee = "1"
+private let defaultHnsMaximumFeeBaseUnits = "1000000"
+
 /// Native wallet-control surface.  Every HNS peer, consensus, block scan,
 /// signing, and broadcast operation remains in the Rust controller; UIKit
 /// only requests a local native action and displays its exact review result.
@@ -1421,6 +1424,9 @@ final class WalletViewController: UIViewController {
         )
         alert.addTextField { field in
             field.placeholder = "Maximum fee (\(unit))"
+            if !bitcoin {
+                field.text = defaultHnsMaximumFeeBaseUnits
+            }
             field.keyboardType = .numberPad
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
@@ -1548,6 +1554,7 @@ final class WalletViewController: UIViewController {
         )
         alert.addTextField { field in
             field.placeholder = "Maximum funding fee (dollarydoos)"
+            field.text = defaultHnsMaximumFeeBaseUnits
             field.keyboardType = .numberPad
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
@@ -1824,7 +1831,7 @@ final class WalletViewController: UIViewController {
         }
         let alert = UIAlertController(
             title: "Send HNS",
-            message: "A direct peer synchronization runs before review. The maximum fee is a cap; the wallet selects an HSD-compatible network fee at or below it. Use a cap of at least 0.05 HNS for the next mainnet test.",
+            message: "A direct peer synchronization runs before review. The maximum fee is a cap; the wallet selects an HSD-compatible network fee at or below it. The default cap is 1 HNS.",
             preferredStyle: .alert
         )
         alert.addTextField { field in
@@ -1858,10 +1865,10 @@ final class WalletViewController: UIViewController {
             Self.configureSendField(
                 field,
                 visibleLabel: "Fee cap (HNS)",
-                placeholder: "0.05",
+                placeholder: defaultHnsMaximumFee,
                 accessibilityLabel: "Maximum fee cap in HNS"
             )
-            field.text = "0.05"
+            field.text = defaultHnsMaximumFee
             field.keyboardType = .decimalPad
             field.textContentType = nil
             field.accessibilityIdentifier = "wallet.send.maximum-fee"
@@ -2560,7 +2567,12 @@ final class WalletViewController: UIViewController {
             fields: [
                 .init(label: "Exact name", placeholder: "name"),
                 .init(label: "Recipient", placeholder: "Recipient address"),
-                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
+                .init(
+                    label: "Maximum fee cap in HNS",
+                    placeholder: defaultHnsMaximumFee,
+                    numeric: true,
+                    initialValue: defaultHnsMaximumFee
+                ),
             ]
         ) { [weak self] values in
             guard let self,
@@ -2581,7 +2593,12 @@ final class WalletViewController: UIViewController {
             fields: [
                 .init(label: "Exact name", placeholder: "name"),
                 .init(label: "Expected recipient (optional)", placeholder: "Recipient address"),
-                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
+                .init(
+                    label: "Maximum fee cap in HNS",
+                    placeholder: defaultHnsMaximumFee,
+                    numeric: true,
+                    initialValue: defaultHnsMaximumFee
+                ),
             ]
         ) { [weak self] values in
             guard let self,
@@ -2625,7 +2642,12 @@ final class WalletViewController: UIViewController {
             fields: [
                 .init(label: "Exact name", placeholder: "name"),
                 .init(label: "Price in HNS", placeholder: "1", numeric: true),
-                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
+                .init(
+                    label: "Maximum fee cap in HNS",
+                    placeholder: defaultHnsMaximumFee,
+                    numeric: true,
+                    initialValue: defaultHnsMaximumFee
+                ),
                 .init(label: "Listing lifetime in seconds", placeholder: "86400", numeric: true, initialValue: "86400"),
             ]
         ) { [weak self] values in
@@ -2663,7 +2685,12 @@ final class WalletViewController: UIViewController {
             title: "Recover name from offer",
             fields: [
                 .init(label: "Seller session ID", placeholder: "64 lowercase hex characters"),
-                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
+                .init(
+                    label: "Maximum fee cap in HNS",
+                    placeholder: defaultHnsMaximumFee,
+                    numeric: true,
+                    initialValue: defaultHnsMaximumFee
+                ),
             ]
         ) { [weak self] values in
             guard let self,
@@ -2683,7 +2710,12 @@ final class WalletViewController: UIViewController {
             title: "Accept offer",
             fields: [
                 .init(label: "Listing ID", placeholder: "64 lowercase hex characters"),
-                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
+                .init(
+                    label: "Maximum fee cap in HNS",
+                    placeholder: defaultHnsMaximumFee,
+                    numeric: true,
+                    initialValue: defaultHnsMaximumFee
+                ),
             ]
         ) { [weak self] values in
             guard let self,
@@ -2701,7 +2733,12 @@ final class WalletViewController: UIViewController {
             title: "Finalize purchase",
             fields: [
                 .init(label: "Session ID", placeholder: "64 lowercase hex characters"),
-                .init(label: "Maximum fee cap in HNS", placeholder: "0.05", numeric: true),
+                .init(
+                    label: "Maximum fee cap in HNS",
+                    placeholder: defaultHnsMaximumFee,
+                    numeric: true,
+                    initialValue: defaultHnsMaximumFee
+                ),
             ]
         ) { [weak self] values in
             guard let self,
@@ -6449,7 +6486,8 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
 
         configure(nameField, placeholder: "Exact name", keyboard: .asciiCapable)
         nameField.accessibilityIdentifier = "wallet.name-records.name"
-        configure(feeField, placeholder: "Maximum fee cap in HNS (for example, 0.05)", keyboard: .decimalPad)
+        configure(feeField, placeholder: "Maximum fee cap in HNS", keyboard: .decimalPad)
+        feeField.text = defaultHnsMaximumFee
         feeField.accessibilityIdentifier = "wallet.name-records.maximum-fee"
 
         recordsView.delegate = self

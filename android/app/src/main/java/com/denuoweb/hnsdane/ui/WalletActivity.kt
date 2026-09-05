@@ -3936,7 +3936,11 @@ class WalletActivity : ComponentActivity() {
             builder.setPositiveButton(R.string.wallet_swap_fund_hns) { _, _ ->
                 showWalletActionForm(
                     R.string.wallet_swap_fund_hns,
-                    listOf(WalletActionInput(R.string.wallet_swap_hns_funding_fee_hint, numeric = true)),
+                    listOf(WalletActionInput(
+                        R.string.wallet_swap_hns_funding_fee_hint,
+                        numeric = true,
+                        initial = DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
+                    )),
                 ) { values ->
                     val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
                     if (fee == null) bitcoinStatusView.text = getString(R.string.wallet_swap_hns_funding_prepare_failed)
@@ -3969,6 +3973,7 @@ class WalletActivity : ComponentActivity() {
                         if (bitcoin) R.string.wallet_swap_settlement_btc_fee_hint
                         else R.string.wallet_swap_settlement_hns_fee_hint,
                         numeric = true,
+                        initial = if (bitcoin) "" else DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
                     )),
                 ) { values ->
                     val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
@@ -4566,7 +4571,11 @@ class WalletActivity : ComponentActivity() {
         listOf(
             WalletActionInput(R.string.wallet_action_name_hint),
             WalletActionInput(R.string.wallet_action_recipient_hint),
-            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+            WalletActionInput(
+                R.string.wallet_action_maximum_fee_hint,
+                numeric = true,
+                initial = DEFAULT_HNS_MAXIMUM_FEE,
+            ),
         ),
     ) { values ->
         val fee = parsePositiveHnsToBaseUnits(values[2])
@@ -4581,7 +4590,11 @@ class WalletActivity : ComponentActivity() {
         listOf(
             WalletActionInput(R.string.wallet_action_name_hint),
             WalletActionInput(R.string.wallet_action_expected_recipient_hint),
-            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+            WalletActionInput(
+                R.string.wallet_action_maximum_fee_hint,
+                numeric = true,
+                initial = DEFAULT_HNS_MAXIMUM_FEE,
+            ),
         ),
     ) { values ->
         val fee = parsePositiveHnsToBaseUnits(values[2])
@@ -4604,7 +4617,11 @@ class WalletActivity : ComponentActivity() {
                 multiline = true,
                 maxCharacters = MAX_RESOURCE_EDITOR_CHARACTERS,
             ),
-            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+            WalletActionInput(
+                R.string.wallet_action_maximum_fee_hint,
+                numeric = true,
+                initial = DEFAULT_HNS_MAXIMUM_FEE,
+            ),
         ),
     ) { values ->
         val fee = parsePositiveHnsToBaseUnits(values[2])
@@ -4619,7 +4636,11 @@ class WalletActivity : ComponentActivity() {
         listOf(
             WalletActionInput(R.string.wallet_action_name_hint),
             WalletActionInput(R.string.wallet_action_price_hint, numeric = true),
-            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+            WalletActionInput(
+                R.string.wallet_action_maximum_fee_hint,
+                numeric = true,
+                initial = DEFAULT_HNS_MAXIMUM_FEE,
+            ),
             WalletActionInput(
                 R.string.wallet_action_lifetime_hint,
                 numeric = true,
@@ -4654,7 +4675,11 @@ class WalletActivity : ComponentActivity() {
         R.string.row_wallet_accept_offer,
         listOf(
             WalletActionInput(R.string.wallet_action_listing_hint),
-            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+            WalletActionInput(
+                R.string.wallet_action_maximum_fee_hint,
+                numeric = true,
+                initial = DEFAULT_HNS_MAXIMUM_FEE,
+            ),
         ),
     ) { values ->
         val fee = parsePositiveHnsToBaseUnits(values[1])
@@ -4666,7 +4691,11 @@ class WalletActivity : ComponentActivity() {
         R.string.row_wallet_finalize_purchase,
         listOf(
             WalletActionInput(R.string.wallet_action_session_hint),
-            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+            WalletActionInput(
+                R.string.wallet_action_maximum_fee_hint,
+                numeric = true,
+                initial = DEFAULT_HNS_MAXIMUM_FEE,
+            ),
         ),
     ) { values ->
         val fee = parsePositiveHnsToBaseUnits(values[1])
@@ -4678,7 +4707,11 @@ class WalletActivity : ComponentActivity() {
         R.string.row_wallet_recover_name,
         listOf(
             WalletActionInput(R.string.wallet_action_seller_session_hint),
-            WalletActionInput(R.string.wallet_action_maximum_fee_hint, numeric = true),
+            WalletActionInput(
+                R.string.wallet_action_maximum_fee_hint,
+                numeric = true,
+                initial = DEFAULT_HNS_MAXIMUM_FEE,
+            ),
         ),
     ) { values ->
         val fee = parsePositiveHnsToBaseUnits(values[1])
@@ -7221,7 +7254,8 @@ class WalletActivity : ComponentActivity() {
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
         const val MAX_SEND_RECIPIENT_BYTES = 512
-        const val DEFAULT_HNS_MAXIMUM_FEE = "0.05"
+        const val DEFAULT_HNS_MAXIMUM_FEE = "1"
+        const val DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS = "1000000"
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
