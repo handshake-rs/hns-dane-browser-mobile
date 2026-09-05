@@ -959,25 +959,22 @@ class WalletActivity : ComponentActivity() {
             bottomMargin = uiDp(8)
         })
 
-        dashboardContent.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = settingsSurfaceDrawable(accent = themeColors().action)
-            setPadding(uiDp(12), uiDp(12), uiDp(12), uiDp(14))
-            val nameCard = MetallicNameCardView(this@WalletActivity).apply {
-                bind(
-                    name = selected?.name,
-                    state = state,
-                    sections = selected?.let(::walletNameCardSections).orEmpty(),
-                )
-                isEnabled = selected != null
-            }
-            addView(nameCard, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ))
-            fitNameCardToViewport(nameCard)
-        })
+        val nameCard = MetallicNameCardView(this).apply {
+            bind(
+                name = selected?.name,
+                state = state,
+                sections = selected?.let(::walletNameCardSections).orEmpty(),
+            )
+            isEnabled = selected != null
+        }
+        dashboardContent.addView(nameCard, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ))
         renderNamesGalleryFooter(actionsAvailable, total)
+        // The footer must be populated and visible before its window position
+        // can define the remaining card viewport.
+        fitNameCardToViewport(nameCard)
     }
 
     /**
@@ -992,9 +989,10 @@ class WalletActivity : ComponentActivity() {
             val footerPosition = IntArray(2)
             card.getLocationInWindow(cardPosition)
             namesGalleryFooter.getLocationInWindow(footerPosition)
-            // Account for the card container's lower inset and the screen's
-            // bottom content padding above the persistent footer.
-            val available = footerPosition[1] - cardPosition[1] - uiDp(34)
+            // Account only for the screen's bottom content padding above the
+            // persistent footer. The previous card wrapper consumed another
+            // 14 dp and made the collectible visibly shorter than its viewport.
+            val available = footerPosition[1] - cardPosition[1] - uiDp(20)
             if (available <= 0 || card.layoutParams.height == available) return
             card.layoutParams = card.layoutParams.apply { height = available }
         }

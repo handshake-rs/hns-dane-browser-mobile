@@ -296,12 +296,15 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         canvas.drawLine(left + 20f * density, dividerY, right - 20f * density, dividerY, fineLine)
 
         configureStatPaints()
+        canvas.save()
+        canvas.clipPath(cardPath)
         drawCardSections(
             canvas = canvas,
             left = left + 18f * density,
             top = dividerY + 7f * density,
             right = right - 18f * density,
         )
+        canvas.restore()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
