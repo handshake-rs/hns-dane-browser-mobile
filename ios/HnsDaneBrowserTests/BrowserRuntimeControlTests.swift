@@ -577,7 +577,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             }
             return nil
         }
-        XCTAssertNotNil(descendant(
+        XCTAssertNil(descendant(
             identified: "wallet.import-hns-name",
             in: controller.view
         ))
