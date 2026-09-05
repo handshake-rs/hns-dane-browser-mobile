@@ -1,5 +1,18 @@
 import Foundation
 
+enum WalletNetworkTransport: Equatable, Sendable {
+    case wifi
+    case cellular
+    case other
+}
+
+func walletCellularDataWarningVisible(
+    walletUnlocked: Bool,
+    transport: WalletNetworkTransport
+) -> Bool {
+    walletUnlocked && transport == .cellular
+}
+
 /// Selects one newly authenticated height for a pending-transaction refresh.
 /// A failed or no-op round cannot spin until strictly newer evidence arrives.
 func walletPendingOutgoingRefreshHeight(

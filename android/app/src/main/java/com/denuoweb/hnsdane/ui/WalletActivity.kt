@@ -12,6 +12,9 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.Settings
@@ -90,6 +93,7 @@ import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentationCache
 import com.denuoweb.hnsdane.wallet.WalletHnsLiveSyncPresentationLease
 import com.denuoweb.hnsdane.wallet.walletHnsPresentationMayAcquireStorage
 import com.denuoweb.hnsdane.wallet.WalletNameImportState
+import com.denuoweb.hnsdane.wallet.WalletNetworkTransport
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapAuthority
 import com.denuoweb.hnsdane.wallet.WalletReadBootstrapState
 import com.denuoweb.hnsdane.wallet.WalletStorageDeletionResult
@@ -110,6 +114,7 @@ import com.denuoweb.hnsdane.wallet.walletDeleteConfirmationMatches
 import com.denuoweb.hnsdane.wallet.walletDatabaseArtifacts
 import com.denuoweb.hnsdane.wallet.walletDashboardMode
 import com.denuoweb.hnsdane.wallet.walletControllerOperationMayBegin
+import com.denuoweb.hnsdane.wallet.walletCellularDataWarningVisible
 import com.denuoweb.hnsdane.wallet.walletDeletionMayProceed
 import com.denuoweb.hnsdane.wallet.walletNameImportMayBegin
 import com.denuoweb.hnsdane.wallet.walletNameImportMayPublish
@@ -173,6 +178,7 @@ class WalletActivity : ComponentActivity() {
     private lateinit var walletDatabaseFile: File
     private lateinit var walletStoragePath: String
     private lateinit var statusView: TextView
+    private lateinit var cellularDataWarningView: TextView
     private lateinit var accountView: TextView
     private lateinit var readStatusView: TextView
     private lateinit var balanceView: TextView
@@ -223,6 +229,19 @@ class WalletActivity : ComponentActivity() {
         }
     private var lifecycleEpoch = 0L
     private var foreground = false
+    private lateinit var connectivityManager: ConnectivityManager
+    private var walletNetworkCallbackRegistered = false
+    private var activeWalletNetworkTransport = WalletNetworkTransport.Other
+    private val walletNetworkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = refreshActiveWalletNetworkTransport()
+
+        override fun onCapabilitiesChanged(
+            network: Network,
+            networkCapabilities: NetworkCapabilities,
+        ) = publishActiveWalletNetworkTransport(classifyWalletNetworkTransport(networkCapabilities))
+
+        override fun onLost(network: Network) = refreshActiveWalletNetworkTransport()
+    }
     // Browsing remote content is a security-boundary transition, not an
     // ordinary configuration change. Do not leave an idle signing-capable
     // controller alive behind MainActivity merely for faster Back navigation.
@@ -359,8 +378,14 @@ class WalletActivity : ComponentActivity() {
         // key/file reconciliation before this hint can authorize any action.
         durableWalletStoragePresent = walletDatabaseFile.exists()
         keyStore = AndroidWalletKeyStore(applicationContext, walletNetwork.id)
+        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         statusView = preferenceSummary(
             text = getString(R.string.wallet_status_starting),
+            maxLines = Int.MAX_VALUE,
+            bold = true,
+        )
+        cellularDataWarningView = preferenceSummary(
+            text = getString(R.string.wallet_cellular_warning),
             maxLines = Int.MAX_VALUE,
             bold = true,
         )
@@ -508,6 +533,7 @@ class WalletActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         foreground = true
+        startWalletNetworkMonitoring()
         browserNavigationRequested = false
         startPendingOutgoingRefreshObserver()
         walletBackgroundRetirement?.set(false)
@@ -577,6 +603,7 @@ class WalletActivity : ComponentActivity() {
                 "busy=$busy",
         )
         foreground = false
+        stopWalletNetworkMonitoring()
         browserSyncObservation?.close()
         browserSyncObservation = null
         // An Unlock tap may be queued while the durable controller is still
@@ -628,6 +655,53 @@ class WalletActivity : ComponentActivity() {
         super.onStop()
     }
 
+    private fun startWalletNetworkMonitoring() {
+        refreshActiveWalletNetworkTransport()
+        if (walletNetworkCallbackRegistered) return
+        runCatching {
+            connectivityManager.registerDefaultNetworkCallback(walletNetworkCallback)
+            walletNetworkCallbackRegistered = true
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to monitor the active wallet network transport", error)
+        }
+    }
+
+    private fun stopWalletNetworkMonitoring() {
+        if (!walletNetworkCallbackRegistered) return
+        walletNetworkCallbackRegistered = false
+        runCatching { connectivityManager.unregisterNetworkCallback(walletNetworkCallback) }
+            .onFailure { error ->
+                Log.w(TAG, "Unable to stop wallet network transport monitoring", error)
+            }
+    }
+
+    private fun refreshActiveWalletNetworkTransport() {
+        val capabilities = connectivityManager.activeNetwork?.let(
+            connectivityManager::getNetworkCapabilities
+        )
+        publishActiveWalletNetworkTransport(classifyWalletNetworkTransport(capabilities))
+    }
+
+    private fun classifyWalletNetworkTransport(
+        capabilities: NetworkCapabilities?,
+    ): WalletNetworkTransport = when {
+        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true ->
+            WalletNetworkTransport.Cellular
+        capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true ->
+            WalletNetworkTransport.Wifi
+        else -> WalletNetworkTransport.Other
+    }
+
+    private fun publishActiveWalletNetworkTransport(transport: WalletNetworkTransport) {
+        runOnUiThread {
+            if (activeWalletNetworkTransport == transport) return@runOnUiThread
+            activeWalletNetworkTransport = transport
+            if (foreground && ::dashboardContent.isInitialized && !isFinishing && !isDestroyed) {
+                renderWalletDashboard()
+            }
+        }
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         outState.clear()
         super.onSaveInstanceState(outState)
@@ -651,7 +725,14 @@ class WalletActivity : ComponentActivity() {
         // not detach its nested children, so detach each reusable view before
         // placing it in a newly-created card. Without this, the second render
         // crashes with "The specified child already has a parent."
-        listOf(statusView, readStatusView, balanceView, sendStatusView, valueActionStatusView).forEach { view ->
+        listOf(
+            statusView,
+            cellularDataWarningView,
+            readStatusView,
+            balanceView,
+            sendStatusView,
+            valueActionStatusView,
+        ).forEach { view ->
             (view.parent as? ViewGroup)?.removeView(view)
         }
         // RecoveryPhraseView clears its secret whenever it leaves the real
@@ -787,10 +868,20 @@ class WalletActivity : ComponentActivity() {
         addWalletTiles(locked = true, actionsAvailable = !busy)
     }
 
+    private fun addCellularDataWarningIfNeeded(walletUnlocked: Boolean) {
+        if (!walletCellularDataWarningVisible(walletUnlocked, activeWalletNetworkTransport)) return
+        dashboardContent.addView(statusCard(
+            label = getString(R.string.wallet_cellular_warning_title),
+            detail = cellularDataWarningView,
+            healthy = false,
+        ))
+    }
+
     private fun renderUnlockedWalletDashboard(
         actionsAvailable: Boolean = true,
         synchronizationInProgress: Boolean = false,
     ) {
+        addCellularDataWarningIfNeeded(walletUnlocked = true)
         dashboardContent.addView(statusCard(
             label = getString(
                 if (synchronizationInProgress) {
@@ -837,6 +928,7 @@ class WalletActivity : ComponentActivity() {
             renderUnlockedWalletDashboard(actionsAvailable)
             return
         }
+        addCellularDataWarningIfNeeded(walletUnlocked = true)
         val total = snapshot.trackedNameCount
         if (total == 0) selectedTrackedNameIndex = 0
         val relativeIndex = selectedTrackedNameIndex - trackedNamePageOffset

@@ -2127,6 +2127,25 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertFalse(WalletHnsSyncPresentationCache.automaticSyncIsPaused(networkID: networkID))
     }
 
+    func testWalletCellularWarningRequiresUnlockedWalletOnCellularPath() {
+        XCTAssertTrue(walletCellularDataWarningVisible(
+            walletUnlocked: true,
+            transport: .cellular
+        ))
+        XCTAssertFalse(walletCellularDataWarningVisible(
+            walletUnlocked: false,
+            transport: .cellular
+        ))
+        XCTAssertFalse(walletCellularDataWarningVisible(
+            walletUnlocked: true,
+            transport: .wifi
+        ))
+        XCTAssertFalse(walletCellularDataWarningVisible(
+            walletUnlocked: true,
+            transport: .other
+        ))
+    }
+
     @MainActor
     func testWalletHnsLifecyclePausesForViewAndSceneThenReconnectsToProgress() {
         let progress = WalletHnsSyncProgress(

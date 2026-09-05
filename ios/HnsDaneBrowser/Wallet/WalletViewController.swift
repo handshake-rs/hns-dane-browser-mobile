@@ -2,6 +2,7 @@ import Security
 import UIKit
 import UniformTypeIdentifiers
 import LocalAuthentication
+import Network
 @preconcurrency import AVFoundation
 import CoreImage
 
@@ -97,8 +98,15 @@ final class WalletViewController: UIViewController {
     private var displayedHnsSyncStage: WalletHnsSyncStage?
     private var displayedHnsSyncStageSince: TimeInterval = 0
     private var hnsCatchupRetryPending = false
+    private var walletPathMonitor: NWPathMonitor?
+    private let walletPathMonitorQueue = DispatchQueue(
+        label: "com.denuoweb.hnsdane.wallet-network-path",
+        qos: .utility
+    )
+    private var activeWalletNetworkTransport: WalletNetworkTransport = .other
 
     private let statusLabel = UILabel()
+    private let cellularDataWarningLabel = UILabel()
     private let accountLabel = UILabel()
     private let readStatusLabel = UILabel()
     private let balanceLabel = UILabel()
@@ -208,6 +216,7 @@ final class WalletViewController: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         walletAuthorityRequested = true
+        startWalletNetworkMonitoring()
         if UIApplication.shared.applicationState == .active,
            UIApplication.shared.isProtectedDataAvailable,
            !Self.screenCaptureProtectionActive {
@@ -220,6 +229,7 @@ final class WalletViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         walletAuthorityRequested = false
+        stopWalletNetworkMonitoring()
         stopPendingOutgoingRefreshObserver()
         stopHnsSyncPresentationWatcher()
         protectWalletLifecycle()
@@ -229,6 +239,7 @@ final class WalletViewController: UIViewController {
     deinit {
         NotificationCenter.default.removeObserver(self)
         hnsSyncPresentationTimer?.invalidate()
+        walletPathMonitor?.cancel()
         directShakescapeServiceTimer?.invalidate()
         pendingHnsSendApproval?.actionToken.discard()
         pendingHnsSendApproval = nil
@@ -269,8 +280,45 @@ final class WalletViewController: UIViewController {
         }
     }
 
+    private func startWalletNetworkMonitoring() {
+        guard walletPathMonitor == nil else { return }
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            let transport: WalletNetworkTransport
+            if path.usesInterfaceType(.cellular) {
+                transport = .cellular
+            } else if path.usesInterfaceType(.wifi) {
+                transport = .wifi
+            } else {
+                transport = .other
+            }
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.activeWalletNetworkTransport != transport else { return }
+                self.activeWalletNetworkTransport = transport
+                if self.walletAuthorityRequested, self.isViewLoaded {
+                    self.renderWalletDashboard()
+                }
+            }
+        }
+        walletPathMonitor = monitor
+        monitor.start(queue: walletPathMonitorQueue)
+    }
+
+    private func stopWalletNetworkMonitoring() {
+        walletPathMonitor?.cancel()
+        walletPathMonitor = nil
+        activeWalletNetworkTransport = .other
+    }
+
     private func configureView() {
         configureSummaryLabel(statusLabel, identifier: "wallet.status")
+        configureSummaryLabel(
+            cellularDataWarningLabel,
+            identifier: "wallet.cellular-data-warning"
+        )
+        cellularDataWarningLabel.text = "This unlocked wallet is using a cellular connection. Header synchronization, wallet scanning, and direct peer traffic may use significant mobile data. Switch to Wi-Fi or lock the wallet to stop unlocked-wallet network activity."
+        cellularDataWarningLabel.textColor = .systemOrange
         configureSummaryLabel(accountLabel, identifier: "wallet.account")
         configureSummaryLabel(readStatusLabel, identifier: "wallet.read-status")
         configureSummaryLabel(balanceLabel, identifier: "wallet.balance")
@@ -446,7 +494,20 @@ final class WalletViewController: UIViewController {
         isOperating ? [walletOperationIndicator as UIView] + labels : labels
     }
 
+    private func addCellularDataWarningIfNeeded(walletUnlocked: Bool) {
+        guard walletCellularDataWarningVisible(
+            walletUnlocked: walletUnlocked,
+            transport: activeWalletNetworkTransport
+        ) else { return }
+        dashboardStack.addArrangedSubview(dashboardCard(
+            title: "CELLULAR DATA IN USE",
+            body: [cellularDataWarningLabel],
+            accent: .systemOrange
+        ))
+    }
+
     private func renderSynchronizingWalletDashboard() {
+        addCellularDataWarningIfNeeded(walletUnlocked: true)
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "● SYNCHRONIZING · \(network.title)",
             body: [statusLabel, accountLabel, readStatusLabel],
@@ -503,6 +564,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func renderUnlockedWalletDashboard() {
+        addCellularDataWarningIfNeeded(walletUnlocked: true)
         dashboardStack.addArrangedSubview(dashboardCard(
             title: isOperating ? "● WORKING · \(network.title)" : "● UNLOCKED · \(network.title)",
             body: walletStatusBody([statusLabel]),

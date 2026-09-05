@@ -405,6 +405,8 @@
     <string name="wallet_status_locked" translatable="false">Wallet is ready to unlock. Tap Unlock to continue.</string>
     <string name="wallet_status_device_locked" translatable="false">The existing wallet is locked while Android Keystore is unavailable. Unlock this device, then retry.</string>
     <string name="wallet_status_unlocked" translatable="false">Unlocked Shakescape wallet</string>
+    <string name="wallet_cellular_warning_title" translatable="false">CELLULAR DATA IN USE</string>
+    <string name="wallet_cellular_warning" translatable="false">This unlocked wallet is using a cellular connection. Header synchronization, wallet scanning, and direct peer traffic may use significant mobile data. Switch to Wi-Fi or lock the wallet to stop unlocked-wallet network activity.</string>
     <string name="wallet_status_unavailable" translatable="false">Native wallet status is unavailable; the controller failed closed.</string>
     <string name="wallet_status_open_failed" translatable="false">The wallet could not be opened.</string>
     <string name="wallet_status_create_failed" translatable="false">The wallet could not be created; incomplete files were removed.</string>
