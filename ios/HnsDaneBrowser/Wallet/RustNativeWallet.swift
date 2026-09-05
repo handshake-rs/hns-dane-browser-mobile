@@ -675,6 +675,108 @@ final class WalletExactHnsNameInput: @unchecked Sendable {
     }
 }
 
+struct NativeHnsCatchupProgress: Equatable, Sendable {
+    enum HeaderState: UInt8, Equatable, Sendable {
+        case current = 1
+        case syncing = 2
+        case degraded = 3
+    }
+
+    let headerState: HeaderState
+    let headerTipHeight: UInt64
+    let birthdayHeight: UInt64
+    let scannedHeight: UInt64?
+    let targetHeight: UInt64
+}
+
+enum NativeHnsSynchronization: Equatable, Sendable {
+    case ready(NativeHnsReadSnapshot)
+    case catchingUp(NativeHnsCatchupProgress)
+
+    static func decode(bundle: [UInt8]) throws -> NativeHnsSynchronization {
+        let headerLength = 12
+        let maximumBundleLength = headerLength + 12 + 4 * 1_024 * 1_024
+        guard bundle.count >= headerLength,
+              bundle.count <= maximumBundleLength,
+              Array(bundle[0..<4]) == Array("HNSY".utf8),
+              bundle[4] == 1,
+              bundle[6] == 0,
+              bundle[7] == 0 else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "invalid HNS synchronization bundle header"
+            )
+        }
+        let payloadLength = bundle[8..<12].reduce(UInt32(0)) { partial, byte in
+            (partial << 8) | UInt32(byte)
+        }
+        guard payloadLength > 0,
+              Int(payloadLength) == bundle.count - headerLength else {
+            throw NativeWalletBridgeError.invalidOutput(
+                "invalid HNS synchronization bundle length"
+            )
+        }
+        var payload = Array(bundle[headerLength...])
+        defer { WalletSecretBytes.wipe(&payload) }
+        switch bundle[5] {
+        case 1:
+            return .ready(try NativeHnsReadSnapshot.decode(bundle: payload))
+        case 2:
+            guard payload.count == 20,
+                  let headerState = NativeHnsCatchupProgress.HeaderState(rawValue: payload[0]),
+                  payload[1] <= 1,
+                  payload[2] == 0,
+                  payload[3] == 0 else {
+                throw NativeWalletBridgeError.invalidOutput(
+                    "invalid HNS catch-up progress"
+                )
+            }
+            func height(at offset: Int) -> UInt64 {
+                UInt64(payload[offset..<(offset + 4)].reduce(UInt32(0)) { partial, byte in
+                    (partial << 8) | UInt32(byte)
+                })
+            }
+            let headerTipHeight = height(at: 4)
+            let birthdayHeight = height(at: 8)
+            let encodedScannedHeight = height(at: 12)
+            let targetHeight = height(at: 16)
+            guard headerTipHeight == targetHeight else {
+                throw NativeWalletBridgeError.invalidOutput(
+                    "HNS catch-up target differs from its verified header tip"
+                )
+            }
+            let scannedHeight: UInt64?
+            if payload[1] == 1 {
+                guard birthdayHeight <= targetHeight,
+                      encodedScannedHeight >= birthdayHeight,
+                      encodedScannedHeight <= targetHeight else {
+                    throw NativeWalletBridgeError.invalidOutput(
+                        "HNS catch-up scan height is outside its verified range"
+                    )
+                }
+                scannedHeight = encodedScannedHeight
+            } else {
+                guard encodedScannedHeight == 0 else {
+                    throw NativeWalletBridgeError.invalidOutput(
+                        "HNS catch-up encoded an absent scan height"
+                    )
+                }
+                scannedHeight = nil
+            }
+            return .catchingUp(NativeHnsCatchupProgress(
+                headerState: headerState,
+                headerTipHeight: headerTipHeight,
+                birthdayHeight: birthdayHeight,
+                scannedHeight: scannedHeight,
+                targetHeight: targetHeight
+            ))
+        default:
+            throw NativeWalletBridgeError.invalidOutput(
+                "unknown HNS synchronization outcome"
+            )
+        }
+    }
+}
+
 struct NativeHnsReadSnapshot: Equatable, Sendable {
     struct Amount: Decodable, Equatable, Sendable {
         let asset: String
@@ -3317,14 +3419,14 @@ final class RustNativeWallet: @unchecked Sendable {
         try rejectHnsSend(actionToken)
     }
 
-    func synchronizeHnsReads() throws -> NativeHnsReadSnapshot {
+    func synchronizeHnsReads() throws -> NativeHnsSynchronization {
         var output = HnsBrowserBuffer()
         let result = hns_browser_wallet_synchronize_hns_reads(try liveHandle(), &output)
         defer { NativeWalletBridge.free(output) }
         try NativeWalletBridge.check(result, operation: "wallet HNS synchronization")
         var bundle = try NativeWalletBridge.bytes(copying: output)
         defer { WalletSecretBytes.wipe(&bundle) }
-        return try NativeHnsReadSnapshot.decode(bundle: bundle)
+        return try NativeHnsSynchronization.decode(bundle: bundle)
     }
 
     /// Reads only the native synchronizer's public progress mailbox. This call

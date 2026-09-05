@@ -96,6 +96,7 @@ final class WalletViewController: UIViewController {
     private var walletAuthenticationInProgress = false
     private var displayedHnsSyncStage: WalletHnsSyncStage?
     private var displayedHnsSyncStageSince: TimeInterval = 0
+    private var hnsCatchupRetryPending = false
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -3083,9 +3084,8 @@ final class WalletViewController: UIViewController {
             message: "\(statusLabel.text ?? "Status unavailable.")\n\n\(accountLabel.text ?? "Account unavailable.")",
             preferredStyle: .alert
         )
-        let canStopSynchronization = WalletHnsSyncPresentationCache.canRequestCancellation(
-            networkID: network.rawValue
-        )
+        let canStopSynchronization = hnsCatchupRetryPending ||
+            WalletHnsSyncPresentationCache.canRequestCancellation(networkID: network.rawValue)
         if canStopSynchronization {
             alert.addAction(UIAlertAction(
                 title: "Stop synchronization",
@@ -3469,11 +3469,23 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func synchronizeWalletReads() {
+        synchronizeWalletReads(resumeAutomaticSync: true)
+    }
+
+    private func synchronizeWalletReads(resumeAutomaticSync: Bool) {
         guard let lease = storageLease,
               let wallet,
               unconfirmedDatabaseKey == nil,
               synchronizedReadsAvailable,
               !isOperating else {
+            return
+        }
+        if resumeAutomaticSync {
+            WalletHnsSyncPresentationCache.resumeAutomaticSync(networkID: network.rawValue)
+            hnsCatchupRetryPending = false
+        } else if WalletHnsSyncPresentationCache.automaticSyncIsPaused(
+            networkID: network.rawValue
+        ) {
             return
         }
         isOperating = true
@@ -3488,12 +3500,13 @@ final class WalletViewController: UIViewController {
         DispatchQueue.global(qos: .userInitiated).async { [wallet, keychain] in
             let outcome: WalletHnsReadOutcome
             do {
-                outcome = .success(
-                    try Self.synchronizeDirectHnsReads(
+                switch try Self.synchronizeDirectHnsRound(
                         wallet: wallet,
                         keychain: keychain
-                    )
-                )
+                ) {
+                case .ready(let snapshot): outcome = .success(snapshot)
+                case .catchingUp(let progress): outcome = .catchingUp(progress)
+                }
             } catch let error as WalletProviderError where error.code == "walletSynchronizationCancelled" {
                 outcome = .cancelled
             } catch {
@@ -3519,6 +3532,20 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let snapshot):
                     self.publish(snapshot)
+                case .catchingUp(let progress):
+                    self.clearReadProjection()
+                    self.renderHnsCatchup(progress)
+                    // Keep every value action disabled across the bounded
+                    // checkpoint gap. This remains one logical sync until the
+                    // next round starts or lifecycle authority is revoked.
+                    self.isOperating = true
+                    self.hnsCatchupRetryPending = true
+                    self.scheduleHnsCatchupRetry(
+                        lease: lease,
+                        wallet: wallet,
+                        generation: generation,
+                        authorityGeneration: authorityGeneration
+                    )
                 case .cancelled:
                     self.readStatusLabel.text = "HNS synchronization stopped. Existing synchronized balances remain available."
                 case .failure(let detail):
@@ -3532,6 +3559,49 @@ final class WalletViewController: UIViewController {
         }
     }
 
+    private func renderHnsCatchup(_ progress: NativeHnsCatchupProgress) {
+        if progress.scannedHeight == nil,
+           progress.headerTipHeight < progress.birthdayHeight {
+            readStatusLabel.text = "Verified headers are at height \(progress.headerTipHeight), catching up to wallet birthday \(progress.birthdayHeight). Wallet scanning has not started."
+            return
+        }
+        let scanned = progress.scannedHeight ?? progress.birthdayHeight
+        switch progress.headerState {
+        case .current:
+            readStatusLabel.text = "Verified headers reached \(progress.headerTipHeight). Wallet scan checkpoint \(scanned) of \(progress.targetHeight); continuing automatically."
+        case .syncing:
+            readStatusLabel.text = "Verifying direct peer headers at \(progress.headerTipHeight). Wallet scan checkpoint \(scanned) of \(progress.targetHeight); continuing automatically."
+        case .degraded:
+            readStatusLabel.text = "Direct peers checkpointed at verified height \(progress.headerTipHeight). Retrying from the durable checkpoint."
+        }
+    }
+
+    private func scheduleHnsCatchupRetry(
+        lease: WalletStorageLeaseToken,
+        wallet: RustNativeWallet,
+        generation: UInt64,
+        authorityGeneration: UInt64
+    ) {
+        let walletIdentity = ObjectIdentifier(wallet)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self, weak wallet] in
+            guard let self, let wallet,
+                  !WalletHnsSyncPresentationCache.automaticSyncIsPaused(
+                      networkID: self.network.rawValue
+                  ),
+                  self.storageLease == lease,
+                  self.wallet.map({ ObjectIdentifier($0) }) == walletIdentity,
+                  self.readGeneration == generation,
+                  self.walletAuthorityGeneration == authorityGeneration,
+                  self.walletAuthorityRequested,
+                  self.viewIfLoaded?.window != nil,
+                  self.isOperating,
+                  self.hnsCatchupRetryPending else { return }
+            self.hnsCatchupRetryPending = false
+            self.isOperating = false
+            self.synchronizeWalletReads(resumeAutomaticSync: false)
+        }
+    }
+
     /// Runs one direct-peer synchronization while holding the platform's
     /// monotonic floor journal.  The commit deliberately occurs even when the
     /// native bounded round returns an error: a round can safely persist newer
@@ -3542,6 +3612,29 @@ final class WalletViewController: UIViewController {
         wallet: RustNativeWallet,
         keychain: WalletKeychainStore
     ) throws -> NativeHnsReadSnapshot {
+        try readyHnsSnapshot(
+            from: synchronizeDirectHnsRound(wallet: wallet, keychain: keychain)
+        )
+    }
+
+    nonisolated private static func readyHnsSnapshot(
+        from synchronization: NativeHnsSynchronization
+    ) throws -> NativeHnsReadSnapshot {
+        switch synchronization {
+        case .ready(let snapshot):
+            return snapshot
+        case .catchingUp(let progress):
+            throw WalletProviderError(
+                code: "walletSynchronizationCatchingUp",
+                message: "HNS wallet synchronization checkpointed at \(progress.scannedHeight ?? progress.birthdayHeight) of \(progress.targetHeight)"
+            )
+        }
+    }
+
+    nonisolated private static func synchronizeDirectHnsRound(
+        wallet: RustNativeWallet,
+        keychain: WalletKeychainStore
+    ) throws -> NativeHnsSynchronization {
         return try withDirectHnsFloorJournal(wallet: wallet, keychain: keychain) {
             let presentationLease = WalletHnsSyncPresentationCache.begin(
                 networkID: keychain.networkID,
@@ -3702,7 +3795,9 @@ final class WalletViewController: UIViewController {
                         let imported = try input.consume { exactBytes in
                             try wallet.importHnsNameExactText(&exactBytes)
                         }
-                        let refreshed = try wallet.synchronizeHnsReads()
+                        let refreshed = try Self.readyHnsSnapshot(
+                            from: wallet.synchronizeHnsReads()
+                        )
                         return (imported, refreshed)
                     }
                     guard walletNameImportRefreshMatches(
@@ -3841,7 +3936,7 @@ final class WalletViewController: UIViewController {
                         wallet: wallet,
                         keychain: keychain
                     ) {
-                        try wallet.synchronizeHnsReads()
+                        try Self.readyHnsSnapshot(from: wallet.synchronizeHnsReads())
                     }
                     guard importedCount == names.count,
                           refreshed.knownNameCount >= importedCount else {
@@ -3906,7 +4001,7 @@ final class WalletViewController: UIViewController {
 
     @objc private func requestConfirmedWalletDeletion() {
         guard presentedViewController == nil else { return }
-        if WalletHnsSyncPresentationCache.canRequestCancellation(
+        if hnsCatchupRetryPending || WalletHnsSyncPresentationCache.canRequestCancellation(
             networkID: network.rawValue
         ) {
             requestHnsSynchronizationCancellation()
@@ -3949,9 +4044,19 @@ final class WalletViewController: UIViewController {
             style: .destructive
         ) { [weak self] _ in
             guard let self else { return }
-            WalletHnsSyncPresentationCache.requestCancellation(
-                networkID: self.network.rawValue
-            )
+            if self.hnsCatchupRetryPending {
+                self.hnsCatchupRetryPending = false
+                self.isOperating = false
+                WalletHnsSyncPresentationCache.pauseAutomaticSync(
+                    networkID: self.network.rawValue
+                )
+                self.readStatusLabel.text =
+                    "HNS synchronization stopped at the last durable checkpoint."
+            } else {
+                WalletHnsSyncPresentationCache.requestCancellation(
+                    networkID: self.network.rawValue
+                )
+            }
             self.refreshState()
         })
         present(alert, animated: true)
@@ -4151,6 +4256,9 @@ final class WalletViewController: UIViewController {
             case .deleted:
                 self.encryptedOrphanCleanupPending = false
                 self.persistentWalletExists = false
+                WalletHnsSyncPresentationCache.resumeAutomaticSync(
+                    networkID: self.network.rawValue
+                )
                 WalletPendingOutgoingRecoveryStore.clear(networkID: self.network.rawValue)
             case .controllerCloseFailed:
                 self.encryptedOrphanCleanupPending = false
@@ -4257,7 +4365,7 @@ final class WalletViewController: UIViewController {
         !isOperating else { return }
         pendingOutgoingRefreshAttemptedHeight = refreshHeight
         readStatusLabel.text = "A new Handshake block was detected. Refreshing the pending transaction…"
-        synchronizeWalletReads()
+        synchronizeWalletReads(resumeAutomaticSync: false)
     }
 
     private func clearReadProjection() {
@@ -4726,20 +4834,21 @@ final class WalletViewController: UIViewController {
         importNameButton.isEnabled = importState.authority.map {
             walletNameImportMayStart(expected: $0, current: importState)
         } ?? false
-        let canStopSynchronization = WalletHnsSyncPresentationCache.canRequestCancellation(
-            networkID: network.rawValue
-        )
+        let canStopSynchronization = hnsCatchupRetryPending ||
+            WalletHnsSyncPresentationCache.canRequestCancellation(networkID: network.rawValue)
         let syncPresentation = WalletHnsSyncPresentationCache.latest(
             networkID: network.rawValue
         )
-        switch syncPresentation {
-        case .preparing where canStopSynchronization:
+        switch (hnsCatchupRetryPending, syncPresentation) {
+        case (true, _):
             deleteButton.configuration?.title = "Stop synchronization"
-        case .live(_) where canStopSynchronization:
+        case (false, .some(.preparing)) where canStopSynchronization:
             deleteButton.configuration?.title = "Stop synchronization"
-        case .cancelling:
+        case (false, .some(.live(_))) where canStopSynchronization:
+            deleteButton.configuration?.title = "Stop synchronization"
+        case (false, .some(.cancelling)):
             deleteButton.configuration?.title = "Stopping synchronization…"
-        case .terminal:
+        case (false, .some(.terminal)):
             deleteButton.configuration?.title = "Waiting for wallet protection…"
         default:
             deleteButton.configuration?.title = "Delete confirmed wallet"
@@ -5130,6 +5239,7 @@ final class WalletViewController: UIViewController {
         clearWalletNameImportPrompt(dismiss: true)
         readGeneration &+= 1
         isOperating = false
+        hnsCatchupRetryPending = false
         synchronizedReadsAvailable = false
         if isViewLoaded {
             clearReadProjection()
@@ -5477,6 +5587,7 @@ enum WalletHnsBalancePresenter {
 
 private enum WalletHnsReadOutcome: Sendable {
     case success(NativeHnsReadSnapshot)
+    case catchingUp(NativeHnsCatchupProgress)
     case cancelled
     case failure(String)
 }

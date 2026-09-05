@@ -112,6 +112,77 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ] + payload
     }
 
+    private func hnsSynchronizationCatchupBundle(
+        headerState: UInt8,
+        birthdayHeight: UInt32,
+        scannedHeight: UInt32?,
+        targetHeight: UInt32
+    ) -> [UInt8] {
+        func bytes(_ value: UInt32) -> [UInt8] {
+            [
+                UInt8((value >> 24) & 0xff),
+                UInt8((value >> 16) & 0xff),
+                UInt8((value >> 8) & 0xff),
+                UInt8(value & 0xff),
+            ]
+        }
+        let payload = [headerState, scannedHeight == nil ? 0 : 1, 0, 0] +
+            bytes(targetHeight) +
+            bytes(birthdayHeight) +
+            bytes(scannedHeight ?? 0) +
+            bytes(targetHeight)
+        return Array("HNSY".utf8) + [1, 2, 0, 0] + bytes(UInt32(payload.count)) + payload
+    }
+
+    func testHnsSynchronizationCatchupEnvelopeMatchesAndroidValidation() throws {
+        let bounded = try NativeHnsSynchronization.decode(bundle:
+            hnsSynchronizationCatchupBundle(
+                headerState: 1,
+                birthdayHeight: 1_000,
+                scannedHeight: 63_999,
+                targetHeight: 64_000
+            )
+        )
+        XCTAssertEqual(
+            bounded,
+            .catchingUp(NativeHnsCatchupProgress(
+                headerState: .current,
+                headerTipHeight: 64_000,
+                birthdayHeight: 1_000,
+                scannedHeight: 63_999,
+                targetHeight: 64_000
+            ))
+        )
+
+        let waitingForBirthday = try NativeHnsSynchronization.decode(bundle:
+            hnsSynchronizationCatchupBundle(
+                headerState: 2,
+                birthdayHeight: 70_000,
+                scannedHeight: nil,
+                targetHeight: 64_000
+            )
+        )
+        XCTAssertEqual(
+            waitingForBirthday,
+            .catchingUp(NativeHnsCatchupProgress(
+                headerState: .syncing,
+                headerTipHeight: 64_000,
+                birthdayHeight: 70_000,
+                scannedHeight: nil,
+                targetHeight: 64_000
+            ))
+        )
+
+        XCTAssertThrowsError(try NativeHnsSynchronization.decode(bundle:
+            hnsSynchronizationCatchupBundle(
+                headerState: 1,
+                birthdayHeight: 100,
+                scannedHeight: 99,
+                targetHeight: 200
+            )
+        ))
+    }
+
     private func hnsNameImportBundle(
         json: String,
         version: UInt8 = 1,
@@ -2032,6 +2103,28 @@ final class BrowserRuntimeControlTests: XCTestCase {
             ),
             .acquireStorage
         )
+    }
+
+    @MainActor
+    func testWalletHnsCancellationPausesAutomaticRetryUntilExplicitResume() {
+        let networkID = "pause-test-\(UUID().uuidString)"
+        defer {
+            WalletHnsSyncPresentationCache.clear(networkID: networkID)
+            WalletHnsSyncPresentationCache.resumeAutomaticSync(networkID: networkID)
+        }
+        let cancellation = WalletSyncCancellationProbe()
+        _ = WalletHnsSyncPresentationCache.begin(
+            networkID: networkID,
+            requestCancellation: { cancellation.record() }
+        )
+
+        XCTAssertFalse(WalletHnsSyncPresentationCache.automaticSyncIsPaused(networkID: networkID))
+        XCTAssertTrue(WalletHnsSyncPresentationCache.requestCancellation(networkID: networkID))
+        XCTAssertTrue(WalletHnsSyncPresentationCache.automaticSyncIsPaused(networkID: networkID))
+        XCTAssertEqual(cancellation.recordedCount, 1)
+
+        WalletHnsSyncPresentationCache.resumeAutomaticSync(networkID: networkID)
+        XCTAssertFalse(WalletHnsSyncPresentationCache.automaticSyncIsPaused(networkID: networkID))
     }
 
     @MainActor

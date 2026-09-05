@@ -198,6 +198,7 @@ private final class WalletHnsSyncPresentationState: @unchecked Sendable {
 
     let lock = NSLock()
     var entries: [String: Entry] = [:]
+    var automaticSyncPausedNetworks: Set<String> = []
 }
 
 /// Process-owned public presentation state. It never owns a wallet key,
@@ -272,6 +273,7 @@ enum WalletHnsSyncPresentationCache {
                 entry.presentation = .cancelling(entry.lastProgress)
                 entry.requestCancellation = nil
                 state.entries[networkID] = entry
+                state.automaticSyncPausedNetworks.insert(networkID)
                 request = cancellation
             case .cancelling, .terminal, nil:
                 request = nil
@@ -293,6 +295,24 @@ enum WalletHnsSyncPresentationCache {
     static func clear(networkID: String) {
         state.lock.lock()
         state.entries.removeValue(forKey: networkID)
+        state.lock.unlock()
+    }
+
+    static func automaticSyncIsPaused(networkID: String) -> Bool {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        return state.automaticSyncPausedNetworks.contains(networkID)
+    }
+
+    static func resumeAutomaticSync(networkID: String) {
+        state.lock.lock()
+        state.automaticSyncPausedNetworks.remove(networkID)
+        state.lock.unlock()
+    }
+
+    static func pauseAutomaticSync(networkID: String) {
+        state.lock.lock()
+        state.automaticSyncPausedNetworks.insert(networkID)
         state.lock.unlock()
     }
 
