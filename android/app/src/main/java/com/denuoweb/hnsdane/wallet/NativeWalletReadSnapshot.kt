@@ -190,6 +190,7 @@ internal object NativeWalletNameParser {
     )
     private val ownershipStatuses = setOf(
         "watchOnlyCanonicalStateDecoderUnavailable",
+        "watchOnlyOwnerTransactionUnavailable",
         "walletContextUnavailable",
         "noCurrentOwner",
         "notWalletOwned",

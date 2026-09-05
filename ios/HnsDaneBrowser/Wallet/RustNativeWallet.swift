@@ -957,7 +957,8 @@ struct NativeHnsReadSnapshot: Equatable, Sendable {
                 "canonicalOpaque",
             ]
             let ownershipStatuses: Set<String> = [
-                "watchOnlyCanonicalStateDecoderUnavailable", "walletContextUnavailable",
+                "watchOnlyCanonicalStateDecoderUnavailable", "watchOnlyOwnerTransactionUnavailable",
+                "walletContextUnavailable",
                 "noCurrentOwner", "notWalletOwned", "walletOwned", "incomingTransfer",
                 "outgoingTransfer",
             ]
