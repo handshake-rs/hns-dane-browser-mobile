@@ -266,7 +266,7 @@ final class WalletNamesGalleryViewController: UIViewController,
             query.isEmpty || $0.localizedCaseInsensitiveContains(query)
         }.prefix(12)
         searchField.searchSuggestions = candidates.map {
-            UISearchSuggestionItem(localizedSuggestion: $0)
+            UISearchSuggestionItem(localizedSuggestion: displayHandshakeNameText($0))
         }
     }
 
@@ -285,7 +285,8 @@ final class WalletNamesGalleryViewController: UIViewController,
     }
 
     private func selectName(named name: String) {
-        guard let index = names.firstIndex(where: { $0.name == name }) else {
+        let canonical = canonicalSearchText(name) ?? name
+        guard let index = names.firstIndex(where: { $0.name == canonical }) else {
             searchField.text = name
             UINotificationFeedbackGenerator().notificationOccurred(.error)
             return
@@ -299,16 +300,7 @@ final class WalletNamesGalleryViewController: UIViewController,
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .replacingOccurrences(of: "\\.$", with: "", options: .regularExpression)
-        let bytes = Array(value.utf8)
-        let reserved: Set<String> = ["example", "invalid", "local", "localhost", "test"]
-        guard (1...63).contains(bytes.count), !reserved.contains(value),
-              bytes.enumerated().allSatisfy({ index, byte in
-                  (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) ||
-                      (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte) ||
-                      (byte == UInt8(ascii: "-") || byte == UInt8(ascii: "_")) &&
-                          index != 0 && index + 1 != bytes.count
-              }) else { return nil }
-        return value
+        return canonicalHandshakeNameImportText(value)
     }
 }
 
@@ -405,7 +397,8 @@ private final class HolographicWalletNameCardView: UIView {
             return
         }
 
-        titleLabel.attributedText = tronTitle(name.name)
+        let displayedName = displayHandshakeNameText(name.name)
+        titleLabel.attributedText = tronTitle(displayedName)
         titleLabel.textAlignment = .center
         titleLabel.adjustsFontSizeToFitWidth = true
         titleLabel.minimumScaleFactor = 0.35
@@ -445,7 +438,7 @@ private final class HolographicWalletNameCardView: UIView {
              ("BYTES", name.rawResourceHex.map { String($0.utf8.count / 2) } ?? "UNKNOWN")],
             [("RAW RESOURCE HEX PREVIEW", resource.isEmpty ? "EMPTY" : resource)],
         ], singleLineRows: [1])
-        accessibilityLabel = "Tracked Handshake name \(name.name). \(ownershipLabel(name.ownershipStatus)), \(codeLabel(name.resourceStatus))"
+        accessibilityLabel = "Tracked Handshake name \(displayedName). \(ownershipLabel(name.ownershipStatus)), \(codeLabel(name.resourceStatus))"
     }
 
     private func addSection(
@@ -520,8 +513,11 @@ private final class HolographicWalletNameCardView: UIView {
     }
 
     private func tronTitle(_ text: String) -> NSAttributedString {
-        let font = UIFont(name: "AvenirNext-Heavy", size: 40)
-            ?? .systemFont(ofSize: 40, weight: .black)
+        let requiresSystemGlyphs = text.unicodeScalars.contains { $0.value >= 0x80 }
+        let font = requiresSystemGlyphs
+            ? UIFont.systemFont(ofSize: 40, weight: .black)
+            : (UIFont(name: "AvenirNext-Heavy", size: 40)
+                ?? .systemFont(ofSize: 40, weight: .black))
         return NSAttributedString(string: text, attributes: [
             .font: font,
             .foregroundColor: UIColor(red: 0.10, green: 1, blue: 0.91, alpha: 1),

@@ -74,6 +74,17 @@ final class BrowserAddressPresentationTests: XCTestCase {
         )
     }
 
+    func testUnicodeNameRemainsHumanReadableAfterCanonicalNavigation() {
+        XCTAssertEqual(
+            BrowserAddressPresentation.displayText(for: "https://xn--f8h/"),
+            "⚪"
+        )
+        XCTAssertEqual(
+            BrowserAddressPresentation.editingText(for: "https://xn--f8h/"),
+            "https://⚪/"
+        )
+    }
+
     func testIdleTextShowsHostPathQueryAndFragmentWithoutScheme() {
         XCTAssertEqual(
             BrowserAddressPresentation.displayText(
@@ -119,7 +130,7 @@ final class BrowserAddressPresentationTests: XCTestCase {
             BrowserAddressPresentation.displayText(
                 for: "https://app.xn--pokmon-dva/p/%F0%9F%8E%AE"
             ),
-            "app.xn--pokmon-dva/p/%F0%9F%8E%AE"
+            "app.pokémon/p/%F0%9F%8E%AE"
         )
     }
 

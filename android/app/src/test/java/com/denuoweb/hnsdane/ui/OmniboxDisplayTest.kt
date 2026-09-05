@@ -5,6 +5,13 @@ import org.junit.Test
 
 class OmniboxDisplayTest {
     @Test
+    fun unicodeNameRemainsHumanReadableAfterCanonicalNavigation() {
+        assertEquals("⚪", OmniboxDisplay.displayText("https://xn--f8h/"))
+        assertEquals("🤝/path", OmniboxDisplay.displayText("https://xn--5p9h/path"))
+        assertEquals("https://⚪/", OmniboxDisplay.editingText("https://xn--f8h/"))
+    }
+
+    @Test
     fun showsHostAndMeaningfulPathForWebUrls() {
         assertEquals("app.pirate", OmniboxDisplay.displayText("https://app.pirate/"))
         assertEquals(
@@ -27,9 +34,9 @@ class OmniboxDisplayTest {
     }
 
     @Test
-    fun keepsPunycodeHostsAndEncodedRoutesIntact() {
+    fun decodesPunycodeHostsAndKeepsEncodedRoutesIntact() {
         assertEquals(
-            "app.xn--pokmon-dva/p/%F0%9F%8E%AE",
+            "app.pokémon/p/%F0%9F%8E%AE",
             OmniboxDisplay.displayText("https://app.xn--pokmon-dva/p/%F0%9F%8E%AE"),
         )
     }

@@ -3913,7 +3913,7 @@ final class WalletViewController: UIViewController {
 
         let alert = UIAlertController(
             title: "Track exact HNS name",
-            message: "Enter one canonical Handshake name exactly as stored on chain. The app will not trim, lowercase, normalize, apply IDNA, or remove a trailing dot.",
+            message: "Enter one Handshake name in its Unicode or canonical ASCII spelling. Unicode is converted to the exact on-chain A-label; spaces and trailing dots are not accepted.",
             preferredStyle: .alert
         )
         alert.addTextField { [weak self] field in
@@ -3928,15 +3928,15 @@ final class WalletViewController: UIViewController {
         })
         alert.addAction(UIAlertAction(title: "Track name", style: .default) {
             [weak self, weak alert] _ in
-            let input = WalletExactHnsNameInput(
-                exactText: alert?.textFields?.first?.text
-            )
+            let canonical = alert?.textFields?.first?.text
+                .flatMap(canonicalHandshakeNameImportText)
+            let input = WalletExactHnsNameInput(exactText: canonical)
             alert?.textFields?.first?.text = nil
             guard let self else { return }
             self.clearWalletNameImportPrompt(dismiss: false)
             guard let input else {
                 self.nameImportStatusLabel.text =
-                    "Enter a nonempty HNS name no longer than 63 UTF-8 bytes. The text is used exactly as entered."
+                    "Enter one valid Unicode or canonical ASCII HNS name. Spaces and trailing dots are not accepted."
                 return
             }
             let rechecked = self.currentWalletNameImportState()
@@ -5722,7 +5722,7 @@ enum WalletReadPresenter {
             states.append(registered ? "registered" : "not registered")
         }
         return [
-            "\(name.name) · proof height \(name.proofHeight)",
+            "\(displayHandshakeNameText(name.name)) · proof height \(name.proofHeight)",
             states.joined(separator: " · "),
             name.nameHash,
         ].joined(separator: "\n")
@@ -5842,24 +5842,8 @@ let maximumMultipleWalletNameImports = 10_000
 let maximumMultipleWalletNameInputCharacters =
     maximumMultipleWalletNameImports * 63 + maximumMultipleWalletNameImports - 1
 
-private let reservedHandshakeNameTexts: Set<String> = [
-    "example", "invalid", "local", "localhost", "test",
-]
-
 func isCanonicalHandshakeNameText(_ name: String) -> Bool {
-    let bytes = Array(name.utf8)
-    guard (1...63).contains(bytes.count),
-          !reservedHandshakeNameTexts.contains(name) else {
-        return false
-    }
-    return bytes.indices.allSatisfy { index in
-        let byte = bytes[index]
-        let alphanumeric = (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) ||
-            (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte)
-        let interiorSeparator = (byte == UInt8(ascii: "-") || byte == UInt8(ascii: "_")) &&
-            index != bytes.startIndex && index != bytes.index(before: bytes.endIndex)
-        return alphanumeric || interiorSeparator
-    }
+    canonicalHandshakeNameImportText(name) == name
 }
 
 /// ASCII spaces are deliberately the only separators. Pasted commas, tabs,
@@ -5870,20 +5854,20 @@ func parseSpaceSeparatedWalletNames(_ text: String) -> [String]? {
           !text.contains(where: { $0.isWhitespace && $0 != " " }) else {
         return nil
     }
-    let names = text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
-    guard !names.isEmpty,
-          names.count <= maximumMultipleWalletNameImports,
-          Set(names).count == names.count,
-          names.allSatisfy(isCanonicalHandshakeNameText) else {
+    let enteredNames = text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+    guard !enteredNames.isEmpty,
+          enteredNames.count <= maximumMultipleWalletNameImports else {
         return nil
     }
+    let names = enteredNames.compactMap(canonicalHandshakeNameImportText)
+    guard names.count == enteredNames.count, Set(names).count == names.count else { return nil }
     return names
 }
 
 @MainActor
 func configureWalletNameImportTextField(_ field: UITextField) {
     field.placeholder = "exact-name"
-    field.keyboardType = .asciiCapable
+    field.keyboardType = .default
     field.autocapitalizationType = .none
     field.autocorrectionType = .no
     field.spellCheckingType = .no
@@ -6662,7 +6646,7 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
         instructions.numberOfLines = 0
         instructions.font = .preferredFont(forTextStyle: .body)
         instructions.text =
-            "Enter canonical Handshake names separated by spaces only. Up to 10,000 unique names may be imported at once. Commas, tabs, line breaks, uppercase letters, trailing dots, and duplicate names are rejected."
+            "Enter Unicode or canonical ASCII Handshake names separated by spaces only. Up to 10,000 unique on-chain names may be imported at once. Commas, tabs, line breaks, trailing dots, and duplicate identities are rejected."
 
         namesView.delegate = self
         namesView.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
@@ -6672,7 +6656,7 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
         namesView.smartDashesType = .no
         namesView.smartQuotesType = .no
         namesView.smartInsertDeleteType = .no
-        namesView.keyboardType = .asciiCapable
+        namesView.keyboardType = .default
         namesView.layer.borderColor = UIColor.separator.cgColor
         namesView.layer.borderWidth = 1
         namesView.layer.cornerRadius = 8
@@ -6727,7 +6711,7 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
         guard let names = parseSpaceSeparatedWalletNames(namesView.text ?? "") else {
             let alert = UIAlertController(
                 title: "Check the name list",
-                message: "Use 1–10,000 unique canonical names separated by ASCII spaces only. Each name may contain lowercase letters or digits, with hyphens and underscores only inside the name, and must be at most 63 bytes.",
+                message: "Use 1–10,000 unique Unicode or canonical ASCII Handshake names separated by ASCII spaces only. Each name must convert to one on-chain label of at most 63 bytes.",
                 preferredStyle: .alert
             )
             alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -6784,7 +6768,9 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
         list.isEditable = false
         list.isSelectable = true
         list.font = .monospacedSystemFont(ofSize: 14, weight: .regular)
-        list.text = names.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+        list.text = names.enumerated().map {
+            "\($0.offset + 1). \(displayHandshakeNameText($0.element))"
+        }.joined(separator: "\n")
         list.layer.borderColor = UIColor.separator.cgColor
         list.layer.borderWidth = 1
         list.layer.cornerRadius = 8

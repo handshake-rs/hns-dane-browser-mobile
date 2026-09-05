@@ -8,6 +8,8 @@ class HostnameAsciiTest {
     @Test
     fun emojiFallbackStillProducesBoundedPunycode() {
         assertEquals("xn--5p9h", HostnameAscii.toAscii("🤝"))
+        assertEquals("🤝", HostnameAscii.toUnicode("xn--5p9h"))
+        assertEquals("⚪", HostnameAscii.toUnicode("xn--f8h"))
     }
 
     @Test

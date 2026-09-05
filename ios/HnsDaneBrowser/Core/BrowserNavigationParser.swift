@@ -1,5 +1,139 @@
 import Foundation
 
+private let reservedHandshakeNameLabels: Set<String> = [
+    "example", "invalid", "local", "localhost", "test",
+]
+
+private func isCanonicalHandshakeASCIIName(_ value: String) -> Bool {
+    let bytes = Array(value.utf8)
+    guard (1...63).contains(bytes.count), !reservedHandshakeNameLabels.contains(value) else {
+        return false
+    }
+    return bytes.enumerated().allSatisfy { index, byte in
+        (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) ||
+            (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte) ||
+            (byte == UInt8(ascii: "-") || byte == UInt8(ascii: "_")) &&
+                index != bytes.startIndex && index != bytes.index(before: bytes.endIndex)
+    }
+}
+
+/// Converts a user-facing Unicode U-label to the exact ASCII A-label used by
+/// Handshake consensus and wallet name hashing.
+func canonicalHandshakeNameImportText(_ value: String) -> String? {
+    guard !value.isEmpty,
+          !value.contains(where: { $0 == "." || $0.isWhitespace }) else {
+        return nil
+    }
+    if value.unicodeScalars.allSatisfy({ $0.value < 0x80 }) {
+        return value.takeIf(isCanonicalHandshakeASCIIName)
+    }
+    guard let canonical = try? RustBrowserRuntime.canonicalHostText(value) else { return nil }
+    return canonical.takeIf(isCanonicalHandshakeASCIIName)
+}
+
+/// Decodes a canonical A-label only when Foundation can round-trip it back to
+/// the same protocol identity. Malformed or ordinary ASCII names stay intact.
+func displayHandshakeNameText(_ value: String) -> String {
+    guard value.contains("xn--") else { return value }
+    let platform = URLComponents(string: "https://\(value)/")?.host
+    let decoded = if let platform, platform != value {
+        platform
+    } else {
+        value.split(separator: ".", omittingEmptySubsequences: false).map { label in
+            let text = String(label)
+            guard text.hasPrefix("xn--") else { return text }
+            return decodePunycodeLabel(String(text.dropFirst(4))) ?? text
+        }.joined(separator: ".")
+    }
+    guard decoded != value,
+          (try? RustBrowserRuntime.canonicalHostText(decoded)) == value.lowercased() else {
+        return value
+    }
+    return decoded
+}
+
+private func decodePunycodeLabel(_ value: String) -> String? {
+    guard !value.isEmpty else { return nil }
+    let scalars = Array(value.unicodeScalars)
+    var output: [UInt32] = []
+    var cursor = 0
+    if let delimiter = scalars.lastIndex(where: { $0.value == 45 }) {
+        for scalar in scalars[..<delimiter] {
+            guard scalar.value < 128 else { return nil }
+            output.append(scalar.value)
+        }
+        cursor = delimiter + 1
+    }
+    var codePoint: UInt64 = 128
+    var insertion: UInt64 = 0
+    var bias: UInt64 = 72
+    while cursor < scalars.count {
+        let previousInsertion = insertion
+        var weight: UInt64 = 1
+        var k: UInt64 = 36
+        while true {
+            guard cursor < scalars.count,
+                  let digit = punycodeDigit(scalars[cursor].value) else { return nil }
+            cursor += 1
+            let (product, productOverflow) = UInt64(digit).multipliedReportingOverflow(by: weight)
+            let (nextInsertion, additionOverflow) = insertion.addingReportingOverflow(product)
+            guard !productOverflow, !additionOverflow else { return nil }
+            insertion = nextInsertion
+            let threshold: UInt64 = k <= bias + 1 ? 1 : (k >= bias + 26 ? 26 : k - bias)
+            if digit < threshold { break }
+            let (nextWeight, weightOverflow) = weight.multipliedReportingOverflow(by: 36 - threshold)
+            guard !weightOverflow else { return nil }
+            weight = nextWeight
+            k += 36
+        }
+        let outputSize = UInt64(output.count + 1)
+        bias = adaptPunycodeBias(
+            insertion - previousInsertion,
+            points: outputSize,
+            first: previousInsertion == 0
+        )
+        let (nextCodePoint, codePointOverflow) = codePoint.addingReportingOverflow(insertion / outputSize)
+        guard !codePointOverflow, nextCodePoint <= 0x10ffff,
+              !(0xd800...0xdfff).contains(nextCodePoint) else { return nil }
+        codePoint = nextCodePoint
+        insertion %= outputSize
+        output.insert(UInt32(codePoint), at: Int(insertion))
+        insertion += 1
+    }
+    var result = String.UnicodeScalarView()
+    for codePoint in output {
+        guard let scalar = UnicodeScalar(codePoint) else { return nil }
+        result.append(scalar)
+    }
+    return String(result)
+}
+
+private func punycodeDigit(_ scalar: UInt32) -> UInt64? {
+    switch scalar {
+    case 65...90: return UInt64(scalar - 65)
+    case 97...122: return UInt64(scalar - 97)
+    case 48...57: return UInt64(scalar - 48 + 26)
+    default: return nil
+    }
+}
+
+private func adaptPunycodeBias(_ value: UInt64, points: UInt64, first: Bool) -> UInt64 {
+    var delta = first ? value / 700 : value / 2
+    delta += delta / points
+    var k: UInt64 = 0
+    while delta > 455 {
+        delta /= 35
+        k += 36
+    }
+    return k + (36 * delta) / (delta + 38)
+}
+
+private extension String {
+    func takeIf(_ predicate: (String) -> Bool) -> String? {
+        predicate(self) ? self : nil
+    }
+}
+
 /// Keeps the exact admitted address separate from the compact text shown while
 /// the omnibox is idle. It also provides the fail-closed origin comparison used
 /// for WebKit URL observations that do not pass through navigation policy (for
@@ -30,7 +164,14 @@ struct BrowserAddressPresentation {
     }
 
     static func editingText(for canonicalAddress: String?) -> String {
-        canonicalAddress ?? ""
+        guard let canonicalAddress,
+              let address = parseWebAddress(canonicalAddress) else {
+            return canonicalAddress ?? ""
+        }
+        let port = address.explicitPort.map { ":\($0)" } ?? ""
+        let query = address.percentEncodedQuery.map { "?\($0)" } ?? ""
+        let fragment = address.percentEncodedFragment.map { "#\($0)" } ?? ""
+        return "\(address.scheme)://\(displayHandshakeNameText(address.displayHost))\(port)\(address.percentEncodedPath)\(query)\(fragment)"
     }
 
     static func displayText(for rawValue: String?) -> String {
@@ -56,7 +197,7 @@ struct BrowserAddressPresentation {
             : address.percentEncodedPath
         let query = address.percentEncodedQuery.map { "?\($0)" } ?? ""
         let fragment = address.percentEncodedFragment.map { "#\($0)" } ?? ""
-        return address.displayHost + port + path + query + fragment
+        return displayHandshakeNameText(address.displayHost) + port + path + query + fragment
     }
 
     static func isSameAdmittedWebOrigin(

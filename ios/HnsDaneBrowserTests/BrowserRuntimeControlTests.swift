@@ -2580,10 +2580,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
             ["alpha", "beta-2", "gamma_name"]
         )
         XCTAssertEqual(parseSpaceSeparatedWalletNames("  alpha   beta  "), ["alpha", "beta"])
+        XCTAssertEqual(parseSpaceSeparatedWalletNames("⚪"), ["xn--f8h"])
+        XCTAssertEqual(parseSpaceSeparatedWalletNames("alpha 🤝"), ["alpha", "xn--5p9h"])
+        XCTAssertNil(parseSpaceSeparatedWalletNames("⚪ xn--f8h"))
 
         for rejected in [
             "", "alpha\nbeta", "alpha\tbeta", "alpha,beta", "alpha alpha",
-            "Alpha", "alpha.", "-alpha", "alpha-", "example", "éclair",
+            "Alpha", "alpha.", "-alpha", "alpha-", "example",
         ] {
             XCTAssertNil(parseSpaceSeparatedWalletNames(rejected), rejected)
         }

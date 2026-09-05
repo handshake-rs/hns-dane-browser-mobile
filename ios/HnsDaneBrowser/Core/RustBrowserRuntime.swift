@@ -81,6 +81,16 @@ final class RustBrowserRuntime: BrowserRuntime {
         try? rustCanonicalHost(host)
     }
 
+    static func canonicalHostText(_ host: String) throws -> String {
+        var output = HnsBrowserBuffer()
+        let result = RustBridge.withUTF8Slice(host) { slice in
+            hns_browser_canonical_host(slice, &output)
+        }
+        defer { RustBridge.free(output) }
+        try RustBridge.check(result, operation: "host canonicalization")
+        return try RustBridge.string(copying: output)
+    }
+
     func startWholeWebKitProxy(hnsScopeRoot: String?) throws -> BrowserProxySession {
         let handle = try liveHandle()
         var proxyHandle: HnsBrowserProxyHandle = 0
@@ -275,13 +285,7 @@ final class RustBrowserRuntime: BrowserRuntime {
     }
 
     private func rustCanonicalHost(_ host: String) throws -> String {
-        var output = HnsBrowserBuffer()
-        let result = RustBridge.withUTF8Slice(host) { slice in
-            hns_browser_canonical_host(slice, &output)
-        }
-        defer { RustBridge.free(output) }
-        try RustBridge.check(result, operation: "host canonicalization")
-        return try RustBridge.string(copying: output)
+        try Self.canonicalHostText(host)
     }
 
     private func liveHandle() throws -> HnsBrowserRuntimeHandle {

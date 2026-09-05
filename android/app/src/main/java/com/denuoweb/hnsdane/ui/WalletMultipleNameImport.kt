@@ -1,5 +1,7 @@
 package com.denuoweb.hnsdane.ui
 
+import com.denuoweb.hnsdane.core.HostnameAscii
+
 internal const val MAX_MULTIPLE_WALLET_NAME_IMPORTS = 10_000
 internal const val MAX_CANONICAL_HANDSHAKE_NAME_BYTES = 63
 internal const val MAX_MULTIPLE_NAME_INPUT_CHARACTERS =
@@ -21,15 +23,26 @@ internal fun parseSpaceSeparatedWalletNames(text: String): List<String>? {
     ) {
         return null
     }
-    val names = text
+    val enteredNames = text
         .trim(' ')
         .split(' ')
         .filter(String::isNotEmpty)
-    return names.takeIf {
-        it.isNotEmpty() && it.size <= MAX_MULTIPLE_WALLET_NAME_IMPORTS &&
-            it.toSet().size == it.size && it.all(::isCanonicalHandshakeNameText)
+    if (enteredNames.isEmpty() || enteredNames.size > MAX_MULTIPLE_WALLET_NAME_IMPORTS) {
+        return null
     }
+    val canonicalNames = enteredNames.map { canonicalHandshakeNameImportText(it) ?: return null }
+    return canonicalNames.takeIf { it.toSet().size == it.size }
 }
+
+/** Converts one Unicode U-label to the exact ASCII A-label stored on chain. */
+internal fun canonicalHandshakeNameImportText(name: String): String? {
+    if (name.isEmpty() || name.any { it == '.' || it.isWhitespace() }) return null
+    if (name.all { it.code < 0x80 }) return name.takeIf(::isCanonicalHandshakeNameText)
+    val canonical = HostnameAscii.toAscii(name) ?: return null
+    return canonical.takeIf { '.' !in it && isCanonicalHandshakeNameText(it) }
+}
+
+internal fun displayHandshakeNameText(name: String): String = HostnameAscii.toUnicode(name)
 
 internal fun isCanonicalHandshakeNameText(name: String): Boolean {
     if (

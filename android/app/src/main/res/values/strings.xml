@@ -622,10 +622,10 @@
     <string name="wallet_name_import_waiting_for_wallet" translatable="false">Open and unlock a confirmed local wallet before importing a name.</string>
     <string name="wallet_name_import_recovery_unconfirmed" translatable="false">Confirm the recovery backup before a trusted name backend can be installed.</string>
     <string name="wallet_name_import_locked" translatable="false">Unlock the wallet before importing a name.</string>
-    <string name="wallet_name_import_ready" translatable="false">Enter exact canonical name text. The app does not trim, lowercase, normalize, apply IDNA, or edit a trailing dot.</string>
+    <string name="wallet_name_import_ready" translatable="false">Enter a Handshake name in its Unicode or canonical ASCII spelling. Unicode is converted to the exact on-chain A-label; spaces and trailing dots are not accepted.</string>
     <string name="wallet_name_import_unavailable" translatable="false">Trusted name import is unavailable because no verified wallet peer backend is ready.</string>
     <string name="wallet_name_import_importing" translatable="false">Importing exact name text and refreshing the tip-bound wallet rows…</string>
-    <string name="wallet_name_import_invalid" translatable="false">The exact text is not one canonical Handshake name. Nothing was imported and the wallet remains usable.</string>
+    <string name="wallet_name_import_invalid" translatable="false">The text is not one valid Unicode or canonical ASCII Handshake name. Nothing was imported and the wallet remains usable.</string>
     <string name="wallet_name_import_failed" translatable="false">Name import failed closed. Reopen and unlock the wallet before retrying.</string>
     <string name="wallet_name_import_success" translatable="false">Imported and refreshed:\n%1$s</string>
     <string name="wallet_name_import_success_refresh_failed" translatable="false">The import result could not be confirmed in the required fresh wallet rows. The wallet was locked and no imported row was published.</string>

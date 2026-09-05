@@ -15,12 +15,18 @@ class WalletMultipleNameImportTest {
         assertNull(parseSpaceSeparatedWalletNames("alpha\nbeta"))
         assertNull(parseSpaceSeparatedWalletNames("alpha\tbeta"))
         assertNull(parseSpaceSeparatedWalletNames("alpha,beta"))
+        assertEquals(listOf("xn--f8h"), parseSpaceSeparatedWalletNames("⚪"))
+        assertEquals(
+            listOf("alpha", "xn--5p9h"),
+            parseSpaceSeparatedWalletNames("alpha 🤝"),
+        )
     }
 
     @Test
     fun rejectsDuplicatesInvalidNamesAndTheCurrentCountLimitPlusOne() {
         assertNull(parseSpaceSeparatedWalletNames("alpha alpha"))
-        for (invalid in listOf("Alpha", "-alpha", "alpha-", "álpha", "example")) {
+        assertNull(parseSpaceSeparatedWalletNames("⚪ xn--f8h"))
+        for (invalid in listOf("Alpha", "-alpha", "alpha-", "example")) {
             assertNull(parseSpaceSeparatedWalletNames(invalid))
         }
         assertNull(

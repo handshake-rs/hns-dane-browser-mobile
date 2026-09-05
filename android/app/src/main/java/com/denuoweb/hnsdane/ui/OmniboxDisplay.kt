@@ -1,11 +1,26 @@
 package com.denuoweb.hnsdane.ui
 
+import com.denuoweb.hnsdane.core.HostnameAscii
 import java.net.URI
 import java.util.Locale
 
 /** Standard-browser presentation for the omnibox while it is not being edited. */
 internal object OmniboxDisplay {
     private const val START_PAGE_HOST = "appassets.androidplatform.net"
+
+    fun editingText(url: String?): String {
+        val value = url.orEmpty()
+        val uri = runCatching { URI(value) }.getOrNull() ?: return value
+        val host = uri.host ?: return value
+        val displayHost = HostnameAscii.toUnicode(host)
+        if (displayHost == host) return value
+        val authority = uri.rawAuthority ?: return value
+        val displayAuthority = authority.replaceFirst(host, displayHost)
+        val path = uri.rawPath.orEmpty()
+        val query = uri.rawQuery?.let { "?$it" }.orEmpty()
+        val fragment = uri.rawFragment?.let { "#$it" }.orEmpty()
+        return "${uri.scheme}://$displayAuthority$path$query$fragment"
+    }
 
     fun displayText(url: String?): String {
         val trimmed = url?.trim().orEmpty()
@@ -42,6 +57,7 @@ internal object OmniboxDisplay {
             .orEmpty()
         val query = uri.rawQuery?.let { "?$it" }.orEmpty()
         val fragment = uri.rawFragment?.let { "#$it" }.orEmpty()
-        return host.lowercase(Locale.US) + port + path + query + fragment
+        val displayHost = HostnameAscii.toUnicode(host.lowercase(Locale.US))
+        return displayHost + port + path + query + fragment
     }
 }

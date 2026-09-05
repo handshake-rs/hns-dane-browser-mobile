@@ -268,7 +268,7 @@ class MainActivity : ComponentActivity() {
             }
             setOnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) {
-                    setText(omniboxFullUrl)
+                    setText(OmniboxDisplay.editingText(omniboxFullUrl))
                     post { selectAll() }
                 } else {
                     setText(OmniboxDisplay.displayText(omniboxFullUrl))

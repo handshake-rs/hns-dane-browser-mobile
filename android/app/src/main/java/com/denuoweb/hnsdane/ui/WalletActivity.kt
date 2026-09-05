@@ -1717,7 +1717,7 @@ class WalletActivity : ComponentActivity() {
         input.setAdapter(ArrayAdapter(
             this,
             android.R.layout.simple_dropdown_item_1line,
-            names,
+            names.map(::displayHandshakeNameText),
         ))
     }
 
@@ -1995,7 +1995,8 @@ class WalletActivity : ComponentActivity() {
             .setView(input)
             .setNegativeButton(R.string.action_cancel, null)
             .setPositiveButton(R.string.action_import_wallet_name) { _, _ ->
-                val exactUtf8 = input.text?.let(::exactWalletNameUtf8)
+                val canonical = input.text?.toString()?.let(::canonicalHandshakeNameImportText)
+                val exactUtf8 = canonical?.let(::exactWalletNameUtf8)
                 clearNameImportInput()
                 importWalletName(exactUtf8)
             }
@@ -2038,7 +2039,9 @@ class WalletActivity : ComponentActivity() {
         val horizontalPadding = (20 * resources.displayMetrics.density).toInt()
         val verticalPadding = (12 * resources.displayMetrics.density).toInt()
         val list = TextView(this).apply {
-            text = names.mapIndexed { index, name -> "${index + 1}. $name" }.joinToString("\n")
+            text = names.mapIndexed { index, name ->
+                "${index + 1}. ${displayHandshakeNameText(name)}"
+            }.joinToString("\n")
             setTextIsSelectable(true)
             setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
@@ -5706,7 +5709,12 @@ class WalletActivity : ComponentActivity() {
             nameImportStatusView.text = getString(R.string.wallet_name_import_invalid)
             return
         }
-        importWalletNames(listOf(name))
+        val canonical = canonicalHandshakeNameImportText(name)
+        if (canonical == null) {
+            nameImportStatusView.text = getString(R.string.wallet_name_import_invalid)
+            return
+        }
+        importWalletNames(listOf(canonical))
     }
 
     private fun importWalletNames(names: List<String>) {
@@ -6954,7 +6962,7 @@ class WalletActivity : ComponentActivity() {
         ).joinToString(" · ")
         return getString(
             R.string.wallet_reads_name,
-            name.name,
+            displayHandshakeNameText(name.name),
             name.proofHeight,
             state,
             name.nameHash,

@@ -43,6 +43,24 @@ internal object HostnameAscii {
             ?.takeIf(::isValidAsciiHost)
     }
 
+    /** Human-facing Unicode spelling for a canonical ASCII DNS host. */
+    fun toUnicode(host: String): String {
+        val canonical = toAscii(host) ?: return host
+        val platform = runCatching { IDN.toUnicode(canonical) }.getOrNull()
+        val unicode = if (platform != null && platform != canonical) {
+            platform
+        } else {
+            val decodedLabels = mutableListOf<String>()
+            for (label in canonical.split('.')) {
+                decodedLabels += if (label.startsWith("xn--")) {
+                    punycodeDecode(label.removePrefix("xn--")) ?: return host
+                } else label
+            }
+            decodedLabels.joinToString(".")
+        }
+        return unicode.takeIf { it != canonical && toAscii(it) == canonical } ?: host
+    }
+
     private fun fallbackToAscii(labels: List<String>, trailingDot: Boolean): String? {
         val asciiLabels = ArrayList<String>(labels.size)
         labels.forEachIndexed { index, label ->
@@ -143,6 +161,63 @@ internal object HostnameAscii {
         }
 
         return output.toString()
+    }
+
+    private fun punycodeDecode(value: String): String? {
+        if (value.isEmpty()) return null
+        val output = mutableListOf<Int>()
+        var cursor = 0
+        val delimiter = value.lastIndexOf(DELIMITER)
+        if (delimiter >= 0) {
+            for (character in value.take(delimiter)) {
+                if (character.code >= ASCII_LIMIT || !isAsciiHostChar(character)) return null
+                output += character.lowercaseChar().code
+            }
+            cursor = delimiter + 1
+        }
+        var n = INITIAL_N.toLong()
+        var insertion = 0L
+        var bias = INITIAL_BIAS
+        while (cursor < value.length) {
+            val oldInsertion = insertion
+            var weight = 1L
+            var k = BASE
+            while (true) {
+                if (cursor >= value.length) return null
+                val digit = decodeDigit(value[cursor++]) ?: return null
+                insertion = runCatching {
+                    Math.addExact(insertion, Math.multiplyExact(digit.toLong(), weight))
+                }.getOrNull() ?: return null
+                val threshold = when {
+                    k <= bias + TMIN -> TMIN
+                    k >= bias + TMAX -> TMAX
+                    else -> k - bias
+                }
+                if (digit < threshold) break
+                weight = runCatching {
+                    Math.multiplyExact(weight, (BASE - threshold).toLong())
+                }.getOrNull() ?: return null
+                k += BASE
+            }
+            val outputSize = output.size + 1
+            bias = adapt(insertion - oldInsertion, outputSize, oldInsertion == 0L)
+            n = runCatching { Math.addExact(n, insertion / outputSize) }.getOrNull()
+                ?: return null
+            if (n > UNICODE_MAX || n in SURROGATE_MIN.toLong()..SURROGATE_MAX.toLong()) return null
+            insertion %= outputSize
+            output.add(insertion.toInt(), n.toInt())
+            insertion += 1
+        }
+        return buildString {
+            output.forEach(::appendCodePoint)
+        }
+    }
+
+    private fun decodeDigit(character: Char): Int? = when (character) {
+        in 'a'..'z' -> character.code - 'a'.code
+        in 'A'..'Z' -> character.code - 'A'.code
+        in '0'..'9' -> character.code - '0'.code + 26
+        else -> null
     }
 
     private fun adapt(deltaValue: Long, numPoints: Int, firstTime: Boolean): Int {

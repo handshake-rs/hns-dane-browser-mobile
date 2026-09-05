@@ -19,6 +19,10 @@ class WalletNameGalleryTest {
     fun searchIsForgivingWithoutChangingStoredNames() {
         assertEquals("alpha-name", canonicalTrackedNameSearchText("  ALPHA-NAME. "))
         assertEquals("gamma_name", canonicalTrackedNameSearchText("gamma_name"))
+        assertEquals("xn--f8h", canonicalTrackedNameSearchText("⚪"))
+        assertEquals("⚪", displayHandshakeNameText("xn--f8h"))
+        assertEquals(true, walletNameTitleRequiresSystemGlyphs("⚪"))
+        assertEquals(false, walletNameTitleRequiresSystemGlyphs("alpha"))
         assertNull(canonicalTrackedNameSearchText("two names"))
         assertNull(canonicalTrackedNameSearchText("-invalid"))
     }

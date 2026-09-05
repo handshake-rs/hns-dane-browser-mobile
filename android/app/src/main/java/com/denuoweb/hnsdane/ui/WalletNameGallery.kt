@@ -39,8 +39,11 @@ internal fun walletNamePageOffsetForIndex(index: Int, pageSize: Int, total: Int)
 
 internal fun canonicalTrackedNameSearchText(raw: String): String? {
     val candidate = raw.trim().lowercase().removeSuffix(".")
-    return candidate.takeIf(::isCanonicalHandshakeNameText)
+    return canonicalHandshakeNameImportText(candidate)
 }
+
+internal fun walletNameTitleRequiresSystemGlyphs(name: String): Boolean =
+    name.any { it.code >= 0x80 }
 
 /** A stable on-card fingerprint; the full value remains available to the records editor. */
 internal fun compactRawResourceHex(raw: String, maxCharacters: Int = 72): String {
@@ -70,6 +73,7 @@ internal class MetallicNameCardView @JvmOverloads constructor(
     }.getOrElse {
         Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
+    private val unicodeTitleTypeface = Typeface.create("sans-serif", Typeface.BOLD)
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -140,12 +144,12 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         state: String,
         sections: List<WalletNameCardSection> = emptyList(),
     ) {
-        displayedName = name ?: "—"
+        displayedName = name?.let(::displayHandshakeNameText) ?: "—"
         displayedSections = sections
         contentDescription = if (name == null) {
             "No tracked Handshake name"
         } else {
-            "Tracked Handshake name $name. $state"
+            "Tracked Handshake name ${displayHandshakeNameText(name)}. $state"
         }
         requestLayout()
         invalidate()
@@ -238,6 +242,11 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         canvas.drawPath(path, outline)
         fill.shader = null
 
+        titlePaint.typeface = if (walletNameTitleRequiresSystemGlyphs(displayedName)) {
+            unicodeTitleTypeface
+        } else {
+            orbitron
+        }
         titlePaint.textSize = 34f * density
         val available = width - 72f * density
         if (titlePaint.measureText(displayedName) > available) {
@@ -551,6 +560,10 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         val glyphs = Path().also { path ->
             titlePaint.getTextPath(displayedName, 0, displayedName.length, x, baseline, path)
         }
+        if (walletNameTitleRequiresSystemGlyphs(displayedName) || glyphs.isEmpty) {
+            drawUnicodeTitle(canvas, x, baseline)
+            return
+        }
 
         // Wide translucent strokes form an energy aura without a soft drop
         // shadow, keeping the lettering crisp and electronic.
@@ -597,6 +610,31 @@ internal class MetallicNameCardView @JvmOverloads constructor(
             titleEffectPaint,
         )
         canvas.restore()
+    }
+
+    /**
+     * Custom font paths cannot represent Android color-emoji or symbol glyphs.
+     * Draw Unicode through the system fallback stack while retaining the same
+     * neon outline and holographic fill used by the vector TRON title.
+     */
+    private fun drawUnicodeTitle(canvas: Canvas, x: Float, baseline: Float) {
+        titleEffectPaint.typeface = unicodeTitleTypeface
+        titleEffectPaint.textSize = titlePaint.textSize
+        titleEffectPaint.textAlign = Paint.Align.CENTER
+        titleEffectPaint.shader = null
+        titleEffectPaint.style = Paint.Style.STROKE
+        titleEffectPaint.strokeJoin = Paint.Join.ROUND
+        titleEffectPaint.color = brandCyan.withAlpha(110)
+        titleEffectPaint.strokeWidth = 9f * density
+        canvas.drawText(displayedName, x, baseline, titleEffectPaint)
+        titleEffectPaint.color = brandNavy
+        titleEffectPaint.strokeWidth = 5f * density
+        canvas.drawText(displayedName, x, baseline, titleEffectPaint)
+        titleEffectPaint.color = brandIce
+        titleEffectPaint.strokeWidth = 1.5f * density
+        canvas.drawText(displayedName, x, baseline, titleEffectPaint)
+        titlePaint.style = Paint.Style.FILL
+        canvas.drawText(displayedName, x, baseline, titlePaint)
     }
 
     private fun drawOutlinedText(
