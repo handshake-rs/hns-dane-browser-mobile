@@ -168,10 +168,16 @@ struct BrowserAddressPresentation {
               let address = parseWebAddress(canonicalAddress) else {
             return canonicalAddress ?? ""
         }
+        let displayHost = displayHandshakeNameText(address.displayHost)
+        // Keep the exact admitted address intact unless its canonical host is
+        // actually being converted from punycode for human-readable editing.
+        // Rebuilding every URL would otherwise lowercase an already admitted
+        // host and needlessly rewrite text the user did not enter.
+        guard displayHost != address.displayHost else { return canonicalAddress }
         let port = address.explicitPort.map { ":\($0)" } ?? ""
         let query = address.percentEncodedQuery.map { "?\($0)" } ?? ""
         let fragment = address.percentEncodedFragment.map { "#\($0)" } ?? ""
-        return "\(address.scheme)://\(displayHandshakeNameText(address.displayHost))\(port)\(address.percentEncodedPath)\(query)\(fragment)"
+        return "\(address.scheme)://\(displayHost)\(port)\(address.percentEncodedPath)\(query)\(fragment)"
     }
 
     static func displayText(for rawValue: String?) -> String {

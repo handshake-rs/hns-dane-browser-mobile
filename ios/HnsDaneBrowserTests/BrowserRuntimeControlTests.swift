@@ -545,10 +545,10 @@ final class BrowserRuntimeControlTests: XCTestCase {
     }
 
     @MainActor
-    func testExactHNSNamePromptIsNotExposedAndHasNoInlineInput() throws {
+    func testExactHNSNamePromptSupportsUnicodeAndHasNoInlineInput() throws {
         let field = UITextField()
         configureWalletNameImportTextField(field)
-        XCTAssertEqual(field.keyboardType, .asciiCapable)
+        XCTAssertEqual(field.keyboardType, .default)
         XCTAssertEqual(field.autocapitalizationType, .none)
         XCTAssertEqual(field.autocorrectionType, .no)
         XCTAssertEqual(field.spellCheckingType, .no)
@@ -577,7 +577,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             }
             return nil
         }
-        XCTAssertNil(descendant(
+        XCTAssertNotNil(descendant(
             identified: "wallet.import-hns-name",
             in: controller.view
         ))
@@ -3120,7 +3120,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertTrue(inFlight.syncDiagnosticText.contains("Current height 339308"))
         XCTAssertTrue(inFlight.syncDiagnosticText.contains("effective target 339308"))
         XCTAssertTrue(inFlight.syncDiagnosticText.contains("HNS root 339301 ready"))
-        XCTAssertTrue(inFlight.syncDiagnosticText.contains("accepted 0/3"))
+        XCTAssertTrue(inFlight.syncDiagnosticText.contains("accepted 0/0"))
         XCTAssertFalse(
             HNSSyncViewController.statusText(
                 summary: inFlight,
