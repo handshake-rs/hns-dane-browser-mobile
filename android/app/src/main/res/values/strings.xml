@@ -736,6 +736,7 @@
     <string name="wallet_name_previous" translatable="false">← PREVIOUS</string>
     <string name="wallet_name_next" translatable="false">NEXT →</string>
     <string name="wallet_name_options" translatable="false">OPTIONS</string>
+    <string name="wallet_name_search_button" translatable="false">SEARCH</string>
     <string name="wallet_name_search_omnibar_hint" translatable="false">Search tracked names…</string>
     <string name="wallet_name_search_action" translatable="false">Search names</string>
     <string name="wallet_name_search_title" translatable="false">Find a tracked name</string>

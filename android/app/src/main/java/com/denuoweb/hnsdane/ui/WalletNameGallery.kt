@@ -18,6 +18,7 @@ internal data class WalletNameCardStat(
     val label: String,
     val value: String,
     val monospace: Boolean = false,
+    val singleLine: Boolean = false,
 )
 
 internal data class WalletNameCardRow(val stats: List<WalletNameCardStat>) {
@@ -97,13 +98,6 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         strokeJoin = Paint.Join.ROUND
         strokeMiter = 2f
     }
-    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = brandIce.withAlpha(225)
-        typeface = orbitron
-        isFakeBoldText = true
-        textAlign = Paint.Align.CENTER
-        letterSpacing = 0.12f
-    }
     private val sectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = brandYellow
         typeface = orbitron
@@ -126,7 +120,6 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         color = brandNavy.withAlpha(155)
     }
     private var displayedName = "—"
-    private var displayedState = "NO TRACKED NAME"
     private var displayedSections: List<WalletNameCardSection> = emptyList()
     private var highlightX = 0.5f
     private var highlightY = 0.5f
@@ -148,7 +141,6 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         sections: List<WalletNameCardSection> = emptyList(),
     ) {
         displayedName = name ?: "—"
-        displayedState = state.uppercase()
         displayedSections = sections
         contentDescription = if (name == null) {
             "No tracked Handshake name"
@@ -161,15 +153,13 @@ internal class MetallicNameCardView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
-        labelPaint.textSize = 9f * density
         configureStatPaints()
         val textWidth = (width - 48f * density).coerceAtLeast(1f)
-        val statusLineCount = fittedStatusLines(displayedState, textWidth).size
         val bodyHeight = cardSectionsHeight(textWidth)
         val desiredHeight = maxOf(
             minimumHeight,
             (width * 1.4f).toInt(),
-            (112f * density + statusLineCount * 12f * density + bodyHeight).toInt(),
+            (91f * density + bodyHeight).toInt(),
         )
         setMeasuredDimension(
             resolveSize(width, widthMeasureSpec),
@@ -274,22 +264,11 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         drawTronTitle(canvas, titleX, titleY)
         titlePaint.shader = null
 
-        labelPaint.textSize = 8.7f * density
-        val statusLines = fittedStatusLines(displayedState, right - left - 52f * density)
-        val statusLineHeight = 12f * density
-        val firstBaseline = top + 80f * density
-        statusLines.forEachIndexed { index, line ->
-            drawOutlinedText(
-                canvas,
-                line,
-                width / 2f,
-                firstBaseline + index * statusLineHeight,
-                labelPaint,
-                1.8f * density,
-            )
-        }
-
-        val dividerY = firstBaseline + statusLines.size * statusLineHeight + 5f * density
+        // Ownership, resource, registration, and expiration are already shown
+        // in the card's structured fields. Omitting the duplicated subtitle
+        // gives short phones enough room to render every field above the
+        // persistent navigation controls.
+        val dividerY = top + 70f * density
         fineLine.shader = null
         fineLine.color = brandCyan.withAlpha(150)
         fineLine.strokeWidth = 0.8f * density
@@ -638,31 +617,6 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         canvas.drawText(text, x, y, paint)
     }
 
-    private fun fittedStatusLines(text: String, maxWidth: Float): List<String> {
-        if (labelPaint.measureText(text) <= maxWidth) return listOf(text)
-        val parts = text.split(" · ")
-        if (parts.size == 1) return listOf(ellipsizeToWidth(text, maxWidth))
-
-        val lines = mutableListOf<String>()
-        var partIndex = 0
-        while (partIndex < parts.size && lines.size < 2) {
-            var line = parts[partIndex]
-            partIndex += 1
-            while (partIndex < parts.size) {
-                val candidate = "$line · ${parts[partIndex]}"
-                if (labelPaint.measureText(candidate) > maxWidth) break
-                line = candidate
-                partIndex += 1
-            }
-            if (lines.size == 1 && partIndex < parts.size) {
-                line += " · " + parts.subList(partIndex, parts.size).joinToString(" · ")
-                partIndex = parts.size
-            }
-            lines += ellipsizeToWidth(line, maxWidth)
-        }
-        return lines.ifEmpty { listOf(ellipsizeToWidth(text, maxWidth)) }
-    }
-
     private fun configureStatPaints() {
         sectionPaint.textSize = 10.5f * density
         statLabelPaint.textSize = 9.5f * density
@@ -690,7 +644,7 @@ internal class MetallicNameCardView @JvmOverloads constructor(
             statValuePaint.typeface = if (stat.monospace) Typeface.MONOSPACE else {
                 Typeface.create("sans-serif", Typeface.BOLD)
             }
-            wrapToWidth(stat.value, valueWidth, statValuePaint).size
+            if (stat.singleLine) 1 else wrapToWidth(stat.value, valueWidth, statValuePaint).size
         }
         return 36f * density + (valueLines - 1) * 16f * density
     }
@@ -746,11 +700,14 @@ internal class MetallicNameCardView @JvmOverloads constructor(
                     statValuePaint.typeface = if (stat.monospace) Typeface.MONOSPACE else {
                         Typeface.create("sans-serif", Typeface.BOLD)
                     }
-                    val valueLines = wrapToWidth(
-                        stat.value,
-                        cellWidth - 20f * density,
-                        statValuePaint,
-                    )
+                    val valueWidth = cellWidth - 20f * density
+                    val configuredTextSize = statValuePaint.textSize
+                    val valueLines = if (stat.singleLine) {
+                        fitPaintToSingleLine(stat.value, valueWidth, statValuePaint)
+                        listOf(stat.value)
+                    } else {
+                        wrapToWidth(stat.value, valueWidth, statValuePaint)
+                    }
                     valueLines.forEachIndexed { lineIndex, line ->
                         drawOutlinedText(
                             canvas,
@@ -761,6 +718,7 @@ internal class MetallicNameCardView @JvmOverloads constructor(
                             1.55f * density,
                         )
                     }
+                    statValuePaint.textSize = configuredTextSize
                 }
                 cursorY += rowHeight + 5f * density
             }
@@ -783,20 +741,11 @@ internal class MetallicNameCardView @JvmOverloads constructor(
         return lines
     }
 
-    private fun ellipsizeToWidth(text: String, maxWidth: Float): String {
-        if (labelPaint.measureText(text) <= maxWidth) return text
-        val suffix = "…"
-        var low = 0
-        var high = text.length
-        while (low < high) {
-            val middle = (low + high + 1) / 2
-            if (labelPaint.measureText(text.substring(0, middle) + suffix) <= maxWidth) {
-                low = middle
-            } else {
-                high = middle - 1
-            }
+    private fun fitPaintToSingleLine(text: String, maxWidth: Float, paint: Paint) {
+        val measured = paint.measureText(text)
+        if (measured > maxWidth && measured > 0f) {
+            paint.textSize = (paint.textSize * maxWidth / measured).coerceAtLeast(7f * density)
         }
-        return text.substring(0, low).trimEnd() + suffix
     }
 
     private fun Int.withAlpha(alpha: Int): Int =
