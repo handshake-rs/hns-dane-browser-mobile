@@ -5,6 +5,7 @@ import Security
 /// The key is create-only: this type never replaces an existing identity.
 final class WalletKeychainStore {
     private let service = "com.denuoweb.hnsdane.wallet.database-key.v1"
+    private let recoveryService = "com.denuoweb.hnsdane.wallet.recovery-phrase.v1"
     /// The direct HNS coordinator keeps this separate from the encrypted
     /// wallet database. Restoring an older database backup must never restore
     /// an older chain-authority floor along with it.
@@ -83,6 +84,82 @@ final class WalletKeychainStore {
         return true
     }
 
+    /// Stores the confirmed recovery phrase under the same device-only user-
+    /// presence policy as the database key. This is create-only so a caller
+    /// cannot silently replace recovery material for an existing identity.
+    func storeRecoveryPhrase(_ phrase: UnsafeRawBufferPointer) throws {
+        guard phrase.count > 0, phrase.count <= 256,
+              let baseAddress = phrase.baseAddress,
+              phrase.contains(where: { $0 != 0 }) else {
+            throw WalletProviderError(
+                code: "invalidSecret",
+                message: "Wallet recovery phrase is invalid"
+            )
+        }
+        var accessError: Unmanaged<CFError>?
+        guard let access = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            [.userPresence],
+            &accessError
+        ) else {
+            if let error = accessError?.takeRetainedValue() { throw error }
+            throw WalletProviderError(
+                code: "keychainUnavailable",
+                message: "Keychain access control is unavailable"
+            )
+        }
+        let value = NSMutableData(bytes: baseAddress, length: phrase.count)
+        defer { value.resetBytes(in: NSRange(location: 0, length: value.length)) }
+        let status = SecItemAdd([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: recoveryService,
+            kSecAttrAccount: account,
+            kSecUseDataProtectionKeychain: true,
+            kSecAttrAccessControl: access,
+            kSecValueData: value,
+        ] as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            throw WalletProviderError(
+                code: "walletAlreadyExists",
+                message: "Wallet recovery material already exists on this device"
+            )
+        }
+        guard status == errSecSuccess else { throw keychainError(status) }
+    }
+
+    func hasRecoveryPhrase() throws -> Bool {
+        let status = SecItemCopyMatching([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: recoveryService,
+            kSecAttrAccount: account,
+            kSecUseDataProtectionKeychain: true,
+            kSecMatchLimit: kSecMatchLimitOne,
+        ] as CFDictionary, nil)
+        if status == errSecItemNotFound { return false }
+        guard status == errSecSuccess else { throw keychainError(status) }
+        return true
+    }
+
+    func copyRecoveryPhrase(prompt: String) throws -> [UInt8]? {
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: recoveryService,
+            kSecAttrAccount: account,
+            kSecUseDataProtectionKeychain: true,
+            kSecUseOperationPrompt: prompt,
+            kSecReturnData: true,
+            kSecMatchLimit: kSecMatchLimitOne,
+        ] as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data,
+              !data.isEmpty, data.count <= 256 else {
+            throw keychainError(status)
+        }
+        return [UInt8](data)
+    }
+
     /// Authenticates user presence and lends a process-local borrowed key view
     /// only for the duration of `body`. Every mutable copy is explicitly wiped.
     func withDatabaseKey<T>(
@@ -95,6 +172,7 @@ final class WalletKeychainStore {
     }
 
     func deleteDatabaseKey() throws {
+        try deleteRecoveryPhrase()
         let status = SecItemDelete([
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
@@ -105,6 +183,18 @@ final class WalletKeychainStore {
             throw keychainError(status)
         }
         try deleteDirectHnsRollbackFloor()
+    }
+
+    private func deleteRecoveryPhrase() throws {
+        let status = SecItemDelete([
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: recoveryService,
+            kSecAttrAccount: account,
+            kSecUseDataProtectionKeychain: true,
+        ] as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw keychainError(status)
+        }
     }
 
     /// A Keychain error does not prove that `SecItemDelete` left the item in

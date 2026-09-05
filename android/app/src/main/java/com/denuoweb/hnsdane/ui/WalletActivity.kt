@@ -1,6 +1,7 @@
 package com.denuoweb.hnsdane.ui
 
 import android.app.AlertDialog
+import android.app.Activity
 import android.app.KeyguardManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -13,6 +14,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.SystemClock
+import android.provider.Settings
 import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
@@ -29,6 +31,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
+import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -260,6 +263,19 @@ class WalletActivity : ComponentActivity() {
     private var pendingOutgoingRefreshAttemptedHeight: Long? = null
     private var latestObservedBrowserHeaderHeight: Long? = null
     private var pendingQrBitmap: Bitmap? = null
+    private var displayedLiveHnsSyncStage: NativeWalletHnsLiveSyncProgress.Stage? = null
+    private var displayedLiveHnsSyncStageSinceMillis = 0L
+    private var pendingWalletAuthentication: (() -> Unit)? = null
+    private var cancelledWalletAuthentication: (() -> Unit)? = null
+    private val walletAuthentication = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val approved = pendingWalletAuthentication
+        val cancelled = cancelledWalletAuthentication
+        pendingWalletAuthentication = null
+        cancelledWalletAuthentication = null
+        if (result.resultCode == Activity.RESULT_OK) approved?.invoke() else cancelled?.invoke()
+    }
     private val handshakeQrScanner = registerForActivityResult(ScanContract()) { result ->
         val request = result.contents?.let(HandshakePaymentUri::parse)
         if (result.contents == null) {
@@ -1089,7 +1105,16 @@ class WalletActivity : ComponentActivity() {
                 val phrase = takeRestoreInput(phraseInput)
                 if (restoreInput === phraseInput) restoreInput = null
                 dialog.dismiss()
-                restoreWallet(phrase, birthday)
+                if (phrase == null) {
+                    restoreWallet(null, birthday)
+                } else {
+                    requireWalletAuthentication(
+                        getString(R.string.wallet_auth_restore_title),
+                        getString(R.string.wallet_auth_restore_message),
+                        action = { restoreWallet(phrase, birthday) },
+                        cancelled = { phrase.fill('\u0000') },
+                    )
+                }
             }
         }
         dialog.setOnDismissListener {
@@ -1325,6 +1350,9 @@ class WalletActivity : ComponentActivity() {
                 },
             )
             if (unlocked) {
+                if (runCatching { keyStore.hasRecoveryPhrase() }.getOrDefault(false)) {
+                    add(getString(R.string.row_wallet_view_recovery) to ::requestRecoveryPhraseDisplay)
+                }
                 add(getString(R.string.row_wallet_delete) to ::requestWalletDeletion)
             }
         }
@@ -2096,6 +2124,14 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun createWallet() {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_create_title),
+            getString(R.string.wallet_auth_create_message),
+            action = ::createWalletAfterAuthentication,
+        )
+    }
+
+    private fun createWalletAfterAuthentication() {
         val lease = currentStorageLease() ?: return
         if (
             !canStartNewWallet(lease) ||
@@ -2191,6 +2227,7 @@ class WalletActivity : ComponentActivity() {
                 if (!current || restored == INVALID_HANDLE) {
                     val controllerClosed = destroyWalletController(restored)
                     databaseKey.fill(0)
+                    phrase.fill('\u0000')
                     if (controllerClosed) deleteWalletFiles()
                     if (current) {
                         if (controllerClosed) {
@@ -2207,9 +2244,10 @@ class WalletActivity : ComponentActivity() {
 
                 val stored = runCatching {
                     ProcessWalletStorageOwnership.commitIfCurrent(lease.owner, lease) {
-                        keyStore.storeDatabaseKey(databaseKey)
+                        keyStore.storeDatabaseKey(databaseKey, phrase)
                     }
                 }.getOrDefault(false)
+                phrase.fill('\u0000')
                 databaseKey.fill(0)
                 if (!stored) {
                     val controllerClosed = destroyWalletController(restored)
@@ -2258,66 +2296,206 @@ class WalletActivity : ComponentActivity() {
 
     private fun confirmRecoverySaved() {
         if (unconfirmedDatabaseKey == null) return
-        if (!recoveryView.hasSecret()) return
-        AlertDialog.Builder(this)
-            .setTitle(R.string.wallet_recovery_confirm_title)
-            .setMessage(R.string.wallet_recovery_confirm_message)
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_saved_wallet_recovery) { _, _ ->
-                val databaseKey = unconfirmedDatabaseKey ?: return@setPositiveButton
-                val lease = currentStorageLease()
-                val stored = lease != null && runCatching {
-                    ProcessWalletStorageOwnership.commitIfCurrent(lease.owner, lease) {
-                        keyStore.storeDatabaseKey(databaseKey)
-                    }
-                }.getOrDefault(false)
-                databaseKey.fill(0)
-                unconfirmedDatabaseKey = null
-                recoveryView.clearSecret()
-                if (stored) {
-                    if (currentStorageLease() === lease) {
+        val phrase = recoveryView.copySecret() ?: return
+        showRecoveryConfirmationQuiz(phrase) { confirmedPhrase ->
+            persistConfirmedRecovery(confirmedPhrase)
+        }
+    }
+
+    private fun persistConfirmedRecovery(confirmedPhrase: CharArray) {
+        val databaseKey = unconfirmedDatabaseKey
+        if (databaseKey == null) {
+            confirmedPhrase.fill('\u0000')
+            return
+        }
+        val lease = currentStorageLease()
+        val stored = lease != null && runCatching {
+            ProcessWalletStorageOwnership.commitIfCurrent(lease.owner, lease) {
+                keyStore.storeDatabaseKey(databaseKey, confirmedPhrase)
+            }
+        }.getOrDefault(false)
+        confirmedPhrase.fill('\u0000')
+        databaseKey.fill(0)
+        unconfirmedDatabaseKey = null
+        recoveryView.clearSecret()
+        if (stored) {
+            if (currentStorageLease() === lease) {
                         // The recovery confirmation made this wallet durable.
                         // Reopen the controller from that exact durable state
                         // before installing direct HNS reads/value authority.
                         // This preserves the durable-open admission boundary
                         // while making first funding usable without an app
                         // restart.
-                        if (destroyController()) {
-                            openExistingWallet()
-                            renderWalletDashboard()
-                        } else {
-                            showControllerRetirementUncertain()
-                        }
-                    } else {
-                        destroyController()
-                        releaseStorageLease(checkNotNull(lease))
-                    }
+                if (destroyController()) {
+                    openExistingWallet()
+                    renderWalletDashboard()
                 } else {
-                    val controllerClosed = destroyController()
-                    if (lease != null) {
-                        if (
-                            controllerClosed &&
-                            runCatching { keyStore.deleteDatabaseKey() }.isSuccess
-                        ) {
-                            deleteWalletFiles()
-                        }
-                        if (!ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)) {
-                            releaseStorageLease(lease)
-                        }
-                    }
-                    if (controllerClosed) {
-                        statusView.text = getString(R.string.wallet_status_key_store_failed)
-                        accountView.text = getString(R.string.wallet_account_unavailable)
-                        renderWalletDashboard()
+                    showControllerRetirementUncertain()
+                }
+            } else {
+                destroyController()
+                releaseStorageLease(checkNotNull(lease))
+            }
+        } else {
+            val controllerClosed = destroyController()
+            if (lease != null) {
+                if (
+                    controllerClosed &&
+                    runCatching { keyStore.deleteDatabaseKey() }.isSuccess
+                ) {
+                    deleteWalletFiles()
+                }
+                if (!ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)) {
+                    releaseStorageLease(lease)
+                }
+            }
+            if (controllerClosed) {
+                statusView.text = getString(R.string.wallet_status_key_store_failed)
+                accountView.text = getString(R.string.wallet_account_unavailable)
+                renderWalletDashboard()
+            } else {
+                showControllerRetirementUncertain()
+            }
+        }
+    }
+
+    private fun showRecoveryConfirmationQuiz(
+        phrase: CharArray,
+        onConfirmed: (CharArray) -> Unit,
+    ) {
+        val words = String(phrase).trim().split(Regex("\\s+")).filter(String::isNotBlank)
+        if (words.size != RECOVERY_WORD_COUNT) {
+            phrase.fill('\u0000')
+            Toast.makeText(this, R.string.wallet_recovery_quiz_invalid, Toast.LENGTH_LONG).show()
+            return
+        }
+        var index = 0
+        var incorrectChoice = false
+        val random = SecureRandom()
+        val prompt = TextView(this).apply {
+            textSize = 16f
+            setTextColor(themeColors().primaryText)
+            setPadding(0, 0, 0, uiDp(12))
+        }
+        val buttons = List(RECOVERY_CHOICE_COUNT) {
+            Button(this).apply { isAllCaps = false }
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(20), uiDp(8), uiDp(20), 0)
+            addView(prompt)
+            buttons.forEach { button ->
+                addView(button, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ))
+            }
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_recovery_quiz_title)
+            .setMessage(R.string.wallet_recovery_quiz_message)
+            .setView(content)
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        fun renderQuestion() {
+            prompt.text = getString(R.string.wallet_recovery_quiz_word, index + 1, words.size)
+            val choices = recoveryWordChoices(words, index, random)
+            buttons.forEachIndexed { choiceIndex, button ->
+                button.text = choices[choiceIndex]
+                button.setOnClickListener {
+                    if (choices[choiceIndex] != words[index]) incorrectChoice = true
+                    index += 1
+                    if (index < words.size) {
+                        renderQuestion()
                     } else {
-                        showControllerRetirementUncertain()
+                        dialog.setOnDismissListener(null)
+                        dialog.dismiss()
+                        if (incorrectChoice) {
+                            phrase.fill('\u0000')
+                            AlertDialog.Builder(this)
+                                .setTitle(R.string.wallet_recovery_quiz_failed_title)
+                                .setMessage(R.string.wallet_recovery_quiz_failed_message)
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                        } else {
+                            onConfirmed(phrase)
+                        }
                     }
                 }
             }
-            .show()
+        }
+        dialog.setOnDismissListener { phrase.fill('\u0000') }
+        dialog.setOnShowListener { renderQuestion() }
+        dialog.show()
+    }
+
+    private fun requestRecoveryPhraseDisplay() {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_recovery_title),
+            getString(R.string.wallet_auth_recovery_message),
+            action = ::showStoredRecoveryPhrase,
+        )
+    }
+
+    private fun showStoredRecoveryPhrase() {
+        val phrase = runCatching { keyStore.loadRecoveryPhrase() }.getOrNull()
+        if (phrase == null) {
+            Toast.makeText(this, R.string.wallet_recovery_unavailable, Toast.LENGTH_LONG).show()
+            return
+        }
+        val view = RecoveryPhraseView(this).apply { showSecret(phrase) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.row_wallet_view_recovery)
+            .setMessage(R.string.wallet_recovery_display_warning)
+            .setView(view)
+            .setPositiveButton(android.R.string.ok, null)
+            .create()
+            .apply {
+                setOnDismissListener { view.clearSecret() }
+                show()
+                window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+    }
+
+    private fun requireWalletAuthentication(
+        title: String,
+        message: String,
+        action: () -> Unit,
+        cancelled: () -> Unit = {},
+    ) {
+        if (pendingWalletAuthentication != null) return
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        if (keyguard?.isDeviceSecure != true) {
+            cancelled()
+            AlertDialog.Builder(this)
+                .setTitle(R.string.wallet_auth_required_title)
+                .setMessage(R.string.wallet_auth_required_message)
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.wallet_auth_open_settings) { _, _ ->
+                    startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+                }
+                .show()
+            return
+        }
+        val intent = keyguard.createConfirmDeviceCredentialIntent(title, message)
+        if (intent == null) {
+            action()
+            return
+        }
+        pendingWalletAuthentication = action
+        cancelledWalletAuthentication = cancelled
+        walletAuthentication.launch(intent)
     }
 
     private fun unlockWallet() {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_unlock_title),
+            getString(R.string.wallet_auth_unlock_message),
+            action = ::unlockWalletAfterAuthentication,
+        )
+    }
+
+    private fun unlockWalletAfterAuthentication() {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
         if (handle == INVALID_HANDLE || unconfirmedDatabaseKey != null) return
@@ -3589,6 +3767,23 @@ class WalletActivity : ComponentActivity() {
         bitcoin: Boolean,
         maximumFee: Long,
     ) {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = {
+                prepareSwapSettlementAfterAuthentication(
+                    execution, action, bitcoin, maximumFee,
+                )
+            },
+        )
+    }
+
+    private fun prepareSwapSettlementAfterAuthentication(
+        execution: NativeShakescapeExecutionSummary,
+        action: String,
+        bitcoin: Boolean,
+        maximumFee: Long,
+    ) {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
         if (!beginOperation(lease, getString(R.string.wallet_swap_settlement_preparing), resetReads = false)) return
@@ -3667,6 +3862,17 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareBtcForHnsFunding(execution: NativeShakescapeExecutionSummary, maximumFeeSats: Long) {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = { prepareBtcForHnsFundingAfterAuthentication(execution, maximumFeeSats) },
+        )
+    }
+
+    private fun prepareBtcForHnsFundingAfterAuthentication(
+        execution: NativeShakescapeExecutionSummary,
+        maximumFeeSats: Long,
+    ) {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
         if (!beginOperation(lease, getString(R.string.wallet_swap_funding_preparing), resetReads = false)) return
@@ -3736,6 +3942,19 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareHnsForBtcFunding(
+        execution: NativeShakescapeExecutionSummary,
+        maximumFeeDollarydoos: Long,
+    ) {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = {
+                prepareHnsForBtcFundingAfterAuthentication(execution, maximumFeeDollarydoos)
+            },
+        )
+    }
+
+    private fun prepareHnsForBtcFundingAfterAuthentication(
         execution: NativeShakescapeExecutionSummary,
         maximumFeeDollarydoos: Long,
     ) {
@@ -3840,6 +4059,26 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareBtcForHnsOffer(
+        btcAmountSats: Long,
+        hnsAmountDollarydoos: Long,
+        bitcoinFeeReserveSats: Long,
+        listingLifetimeSeconds: Long,
+    ) {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = {
+                prepareBtcForHnsOfferAfterAuthentication(
+                    btcAmountSats,
+                    hnsAmountDollarydoos,
+                    bitcoinFeeReserveSats,
+                    listingLifetimeSeconds,
+                )
+            },
+        )
+    }
+
+    private fun prepareBtcForHnsOfferAfterAuthentication(
         btcAmountSats: Long,
         hnsAmountDollarydoos: Long,
         bitcoinFeeReserveSats: Long,
@@ -3950,6 +4189,18 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareBitcoinSend(destination: String, amountSats: Long, maximumFeeSats: Long) {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = { prepareBitcoinSendAfterAuthentication(destination, amountSats, maximumFeeSats) },
+        )
+    }
+
+    private fun prepareBitcoinSendAfterAuthentication(
+        destination: String,
+        amountSats: Long,
+        maximumFeeSats: Long,
+    ) {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
         if (!walletBitcoinOperationMayStart(
@@ -4426,6 +4677,14 @@ class WalletActivity : ComponentActivity() {
     ) && operationIsCurrent(epoch, lease)
 
     private fun prepareWalletValueAction(intent: NativeHnsValueIntent) {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = { prepareWalletValueActionAfterAuthentication(intent) },
+        )
+    }
+
+    private fun prepareWalletValueActionAfterAuthentication(intent: NativeHnsValueIntent) {
         val requiresShakedex = when (intent) {
             is NativeHnsValueIntent.TransferName,
             is NativeHnsValueIntent.FinalizeName,
@@ -4716,16 +4975,24 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun prepareWalletSend(request: WalletHnsSendInput?) {
-        val lease = currentStorageLease() ?: run {
-            Log.w(TAG, "HNS send review was not started: no current storage lease")
-            return
-        }
-        val handle = walletHandle
         val validRequest = request ?: run {
             Log.w(TAG, "HNS send review was rejected locally: invalid form input")
             sendStatusView.text = getString(R.string.wallet_send_invalid)
             return
         }
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = { prepareWalletSendAfterAuthentication(validRequest) },
+        )
+    }
+
+    private fun prepareWalletSendAfterAuthentication(validRequest: WalletHnsSendInput) {
+        val lease = currentStorageLease() ?: run {
+            Log.w(TAG, "HNS send review was not started: no current storage lease")
+            return
+        }
+        val handle = walletHandle
         val status = NativeWalletBridge.status(handle)
         if (
             handle == INVALID_HANDLE || status == null || status.locked ||
@@ -6189,7 +6456,19 @@ class WalletActivity : ComponentActivity() {
 
     private fun renderLiveHnsSyncProgress(progress: NativeWalletHnsLiveSyncProgress) {
         walletHnsJourney.catchupObserved()
+        val now = SystemClock.elapsedRealtime()
+        val displayedStage = displayedLiveHnsSyncStage
+        if (
+            displayedStage != null && displayedStage != progress.stage &&
+                now - displayedLiveHnsSyncStageSinceMillis < MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS
+        ) {
+            return
+        }
         showReadProjectionSynchronizationPendingIfNeeded()
+        if (displayedStage != progress.stage) {
+            displayedLiveHnsSyncStage = progress.stage
+            displayedLiveHnsSyncStageSinceMillis = now
+        }
         readStatusView.text = when (progress.stage) {
             NativeWalletHnsLiveSyncProgress.Stage.Connecting -> getString(
                 R.string.wallet_reads_live_connecting,
@@ -6705,6 +6984,8 @@ class WalletActivity : ComponentActivity() {
         const val INVALID_HANDLE = 0L
         const val DATABASE_KEY_BYTES = 32
         const val MAX_RECOVERY_CHARACTERS = 256
+        const val RECOVERY_WORD_COUNT = 24
+        const val RECOVERY_CHOICE_COUNT = 4
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
         const val MAX_SEND_RECIPIENT_BYTES = 512
@@ -6717,6 +6998,7 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS = 20
         const val DIRECT_SHAKESCAPE_LISTEN_PORT = 12_038
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
+        const val MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS = 3_000L
         const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L
         const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L
         const val HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS = 3
@@ -6727,6 +7009,26 @@ class WalletActivity : ComponentActivity() {
         const val PENDING_OUTGOING_ACCOUNT = "account_id"
         const val PENDING_OUTGOING_HEIGHT = "snapshot_height"
     }
+}
+
+internal fun recoveryWordChoices(
+    words: List<String>,
+    correctIndex: Int,
+    random: SecureRandom,
+): List<String> {
+    require(correctIndex in words.indices)
+    val correct = words[correctIndex]
+    val pool = (words + listOf("abandon", "ability", "able", "about", "above", "absent"))
+        .filter { it != correct }
+        .distinct()
+        .toMutableList()
+    val choices = mutableListOf(correct)
+    while (choices.size < 4 && pool.isNotEmpty()) {
+        choices += pool.removeAt(random.nextInt(pool.size))
+    }
+    require(choices.size == 4)
+    java.util.Collections.shuffle(choices, random)
+    return choices
 }
 
 /**
@@ -6891,6 +7193,8 @@ private class RecoveryPhraseView(context: Context) : View(context) {
     }
 
     fun hasSecret(): Boolean = secret?.isNotEmpty() == true
+
+    fun copySecret(): CharArray? = secret?.copyOf()
 
     fun clearSecret() {
         secret?.fill('\u0000')

@@ -2475,6 +2475,12 @@ final class WalletRecoverySecret {
         return value
     }
 
+    func withUnsafeBytes<T>(
+        _ body: (UnsafeRawBufferPointer) throws -> T
+    ) rethrows -> T {
+        try bytes.withUnsafeBytes(body)
+    }
+
     func clear() {
         WalletSecretBytes.wipe(&bytes)
     }

@@ -10,7 +10,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** Wraps only a wallet database key. Recovery phrases and chain private keys never enter WebView. */
+/** Wraps wallet secrets for native UI use only; none of this material ever enters WebView. */
 internal class AndroidWalletKeyStore(context: Context, networkId: String) {
     private val namespace = walletStorageNamespace(networkId)
     private val preferences = context.getSharedPreferences(
@@ -21,7 +21,7 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
     private val wrappingContext = namespace.wrappingContext.toByteArray(Charsets.UTF_8)
 
     /** Stores the first database key only; replacing an existing wallet key is never implicit. */
-    fun storeDatabaseKey(value: ByteArray) = synchronized(STORAGE_LOCK) {
+    fun storeDatabaseKey(value: ByteArray, recoveryPhrase: CharArray? = null) = synchronized(STORAGE_LOCK) {
         require(value.size == 32) { "Wallet database key must be 32 bytes" }
         require(value.any { it != 0.toByte() }) { "Wallet database key must be nonzero" }
         check(!walletDeletionPendingLocked()) { "Wallet deletion cleanup is pending" }
@@ -35,6 +35,9 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
         var createdWrappingKey = false
         var iv = ByteArray(0)
         var ciphertext = ByteArray(0)
+        var recoveryIv = ByteArray(0)
+        var recoveryCiphertext = ByteArray(0)
+        var recoveryBytes = ByteArray(0)
         try {
             val wrappingKey = createWrappingKey()
             createdWrappingKey = true
@@ -43,18 +46,76 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
             cipher.updateAAD(wrappingContext)
             ciphertext = cipher.doFinal(value)
             iv = cipher.iv
-            val stored = preferences.edit()
+            if (recoveryPhrase != null) {
+                require(recoveryPhrase.isNotEmpty()) { "Recovery phrase must not be empty" }
+                recoveryBytes = String(recoveryPhrase).toByteArray(Charsets.UTF_8)
+                val recoveryCipher = Cipher.getInstance(TRANSFORMATION)
+                recoveryCipher.init(Cipher.ENCRYPT_MODE, wrappingKey)
+                recoveryCipher.updateAAD(recoveryWrappingContext)
+                recoveryCiphertext = recoveryCipher.doFinal(recoveryBytes)
+                recoveryIv = recoveryCipher.iv
+            }
+            val editor = preferences.edit()
                 .putString(IV_KEY, Base64.encodeToString(iv, Base64.NO_WRAP))
                 .putString(CIPHERTEXT_KEY, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
-                .commit()
+            if (recoveryPhrase != null) {
+                editor
+                    .putString(RECOVERY_IV_KEY, Base64.encodeToString(recoveryIv, Base64.NO_WRAP))
+                    .putString(
+                        RECOVERY_CIPHERTEXT_KEY,
+                        Base64.encodeToString(recoveryCiphertext, Base64.NO_WRAP),
+                    )
+            }
+            val stored = editor.commit()
             check(stored) { "Wallet database key could not be stored durably" }
         } catch (error: Throwable) {
-            preferences.edit().remove(IV_KEY).remove(CIPHERTEXT_KEY).commit()
+            preferences.edit()
+                .remove(IV_KEY)
+                .remove(CIPHERTEXT_KEY)
+                .remove(RECOVERY_IV_KEY)
+                .remove(RECOVERY_CIPHERTEXT_KEY)
+                .commit()
             if (createdWrappingKey && keyStore.containsAlias(namespace.keyAlias)) {
                 keyStore.deleteEntry(namespace.keyAlias)
             }
             throw error
         } finally {
+            iv.fill(0)
+            ciphertext.fill(0)
+            recoveryIv.fill(0)
+            recoveryCiphertext.fill(0)
+            recoveryBytes.fill(0)
+        }
+    }
+
+    fun hasRecoveryPhrase(): Boolean = synchronized(STORAGE_LOCK) {
+        !walletDeletionPendingLocked() &&
+            preferences.contains(RECOVERY_IV_KEY) &&
+            preferences.contains(RECOVERY_CIPHERTEXT_KEY)
+    }
+
+    /** Returns a caller-owned recovery copy; callers must wipe it immediately after display. */
+    fun loadRecoveryPhrase(): CharArray? = synchronized(STORAGE_LOCK) {
+        if (walletDeletionPendingLocked()) return@synchronized null
+        val iv = preferences.getString(RECOVERY_IV_KEY, null)?.let(::decode)
+            ?: return@synchronized null
+        val ciphertext = preferences.getString(RECOVERY_CIPHERTEXT_KEY, null)?.let(::decode) ?: run {
+            iv.fill(0)
+            return@synchronized null
+        }
+        var plaintext = ByteArray(0)
+        try {
+            val wrappingKey = keyStore.getKey(namespace.keyAlias, null) as? SecretKey
+                ?: return@synchronized null
+            plaintext = Cipher.getInstance(TRANSFORMATION).run {
+                init(Cipher.DECRYPT_MODE, wrappingKey, GCMParameterSpec(128, iv))
+                updateAAD(recoveryWrappingContext)
+                doFinal(ciphertext)
+            }
+            val phrase = plaintext.toString(Charsets.UTF_8).toCharArray()
+            return@synchronized phrase.takeIf { it.isNotEmpty() }
+        } finally {
+            plaintext.fill(0)
             iv.fill(0)
             ciphertext.fill(0)
         }
@@ -195,6 +256,8 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
             preferences.edit()
                 .remove(IV_KEY)
                 .remove(CIPHERTEXT_KEY)
+                .remove(RECOVERY_IV_KEY)
+                .remove(RECOVERY_CIPHERTEXT_KEY)
                 .remove(DIRECT_HNS_FLOOR_IV_KEY)
                 .remove(DIRECT_HNS_FLOOR_CIPHERTEXT_KEY)
                 .commit(),
@@ -236,6 +299,8 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
                 preferences.edit()
                     .remove(IV_KEY)
                     .remove(CIPHERTEXT_KEY)
+                    .remove(RECOVERY_IV_KEY)
+                    .remove(RECOVERY_CIPHERTEXT_KEY)
                     .remove(DIRECT_HNS_FLOOR_IV_KEY)
                     .remove(DIRECT_HNS_FLOOR_CIPHERTEXT_KEY)
                     .putBoolean(DELETION_REQUESTED_KEY, true)
@@ -261,6 +326,8 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
             preferences.edit()
                 .remove(IV_KEY)
                 .remove(CIPHERTEXT_KEY)
+                .remove(RECOVERY_IV_KEY)
+                .remove(RECOVERY_CIPHERTEXT_KEY)
                 .remove(DIRECT_HNS_FLOOR_IV_KEY)
                 .remove(DIRECT_HNS_FLOOR_CIPHERTEXT_KEY)
                 .putBoolean(DELETION_REQUESTED_KEY, true)
@@ -288,6 +355,8 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
     private fun hasAnyDatabaseKeyMaterialLocked(): Boolean =
         preferences.contains(IV_KEY) ||
             preferences.contains(CIPHERTEXT_KEY) ||
+            preferences.contains(RECOVERY_IV_KEY) ||
+            preferences.contains(RECOVERY_CIPHERTEXT_KEY) ||
             preferences.contains(DIRECT_HNS_FLOOR_IV_KEY) ||
             preferences.contains(DIRECT_HNS_FLOOR_CIPHERTEXT_KEY) ||
             keyStore.containsAlias(namespace.keyAlias)
@@ -420,6 +489,8 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
     private companion object {
         const val IV_KEY = "database-key-iv"
         const val CIPHERTEXT_KEY = "database-key-ciphertext"
+        const val RECOVERY_IV_KEY = "recovery-phrase-iv"
+        const val RECOVERY_CIPHERTEXT_KEY = "recovery-phrase-ciphertext"
         const val DIRECT_HNS_FLOOR_IV_KEY = "direct-hns-floor-iv"
         const val DIRECT_HNS_FLOOR_CIPHERTEXT_KEY = "direct-hns-floor-ciphertext"
         const val DIRECT_HNS_FLOOR_RECORD_VERSION: Byte = 1
@@ -434,6 +505,8 @@ internal class AndroidWalletKeyStore(context: Context, networkId: String) {
 
     private val directHnsFloorWrappingContext =
         "${namespace.wrappingContext}:direct-hns-header-floor-v1".toByteArray(Charsets.UTF_8)
+    private val recoveryWrappingContext =
+        "${namespace.wrappingContext}:recovery-phrase-v1".toByteArray(Charsets.UTF_8)
 
     private data class DirectHnsFloorRecord(
         val state: DirectHnsFloorState,

@@ -1,6 +1,7 @@
 import Security
 import UIKit
 import UniformTypeIdentifiers
+import LocalAuthentication
 @preconcurrency import AVFoundation
 import CoreImage
 
@@ -92,6 +93,9 @@ final class WalletViewController: UIViewController {
     private var pendingOutgoingSnapshotHeight: UInt64?
     private var pendingOutgoingRefreshAttemptedHeight: UInt64?
     private var latestObservedBrowserHeaderHeight: UInt64?
+    private var walletAuthenticationInProgress = false
+    private var displayedHnsSyncStage: WalletHnsSyncStage?
+    private var displayedHnsSyncStageSince: TimeInterval = 0
 
     private let statusLabel = UILabel()
     private let accountLabel = UILabel()
@@ -283,7 +287,7 @@ final class WalletViewController: UIViewController {
 
         recoveryTitle.font = .preferredFont(forTextStyle: .headline)
         recoveryTitle.adjustsFontForContentSizeCategory = true
-        recoveryTitle.text = "One-time recovery phrase — record it now"
+        recoveryTitle.text = "Recovery phrase — record it offline now"
         recoveryTitle.isHidden = true
 
         recoveryTextView.font = .preferredFont(forTextStyle: .body)
@@ -303,7 +307,7 @@ final class WalletViewController: UIViewController {
         configureButton(lockButton, title: "Lock", action: #selector(lockWallet))
         configureButton(
             confirmRecoveryButton,
-            title: "I saved the recovery phrase",
+            title: "Verify recovery phrase",
             action: #selector(confirmRecoverySaved)
         )
         configureButton(refreshButton, title: "Refresh status", action: #selector(refreshWallet))
@@ -933,30 +937,52 @@ final class WalletViewController: UIViewController {
             [weak self, weak alert, weak wallet] _ in
             guard let self, let wallet, self.wallet === wallet,
                   let fields = alert?.textFields, fields.count == 3 else { return }
-            var destination = Array((fields[0].text ?? "").utf8)
-            var amount = Array((fields[1].text ?? "").utf8)
-            var fee = Array((fields[2].text ?? "").utf8)
-            self.statusLabel.text = "Preparing exact Bitcoin send…"
-            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
-                let outcome = Result {
-                    try wallet.prepareBitcoinSend(
-                        destination: &destination,
-                        amountSats: &amount,
-                        maximumFeeSats: &fee
-                    )
-                }
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, self.wallet === wallet else { return }
-                    switch outcome {
-                    case .success(let approval): self.presentBitcoinSendApproval(approval, wallet: wallet)
-                    case .failure(let error):
-                        self.refreshState()
-                        self.showError(error)
-                    }
-                }
+            let destination = fields[0].text ?? ""
+            let amount = fields[1].text ?? ""
+            let fee = fields[2].text ?? ""
+            self.authenticateWalletAction(
+                reason: "Authenticate before preparing this Bitcoin transaction"
+            ) { [weak self, weak wallet] in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.prepareBitcoinSendAfterAuthentication(
+                    wallet: wallet,
+                    destination: destination,
+                    amount: amount,
+                    maximumFee: fee
+                )
             }
         })
         present(alert, animated: true)
+    }
+
+    private func prepareBitcoinSendAfterAuthentication(
+        wallet: RustNativeWallet,
+        destination: String,
+        amount: String,
+        maximumFee: String
+    ) {
+        var destinationBytes = Array(destination.utf8)
+        var amountBytes = Array(amount.utf8)
+        var feeBytes = Array(maximumFee.utf8)
+        statusLabel.text = "Preparing exact Bitcoin send…"
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result {
+                try wallet.prepareBitcoinSend(
+                    destination: &destinationBytes,
+                    amountSats: &amountBytes,
+                    maximumFeeSats: &feeBytes
+                )
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                switch outcome {
+                case .success(let approval): self.presentBitcoinSendApproval(approval, wallet: wallet)
+                case .failure(let error):
+                    self.refreshState()
+                    self.showError(error)
+                }
+            }
+        }
     }
 
     private func presentBitcoinSendApproval(
@@ -1007,6 +1033,14 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func showBtcForHnsOfferForm() {
+        authenticateWalletAction(
+            reason: "Authenticate before creating a signed Bitcoin-for-HNS offer"
+        ) { [weak self] in
+            self?.showBtcForHnsOfferFormAfterAuthentication()
+        }
+    }
+
+    private func showBtcForHnsOfferFormAfterAuthentication() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress, !isOperating else { return }
         let alert = UIAlertController(
@@ -1260,6 +1294,17 @@ final class WalletViewController: UIViewController {
     private func showSwapSettlementActions(
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
+        authenticateWalletAction(
+            reason: "Authenticate before preparing an atomic-swap settlement transaction"
+        ) { [weak self, weak wallet] in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            self.showSwapSettlementActionsAfterAuthentication(execution, wallet: wallet)
+        }
+    }
+
+    private func showSwapSettlementActionsAfterAuthentication(
+        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
+    ) {
         let alert = UIAlertController(
             title: "Redeem or refund",
             message: "Only the action authorized for this wallet role and verified chain state can be prepared. Refunds remain unavailable until their signed timeout is mature.",
@@ -1407,6 +1452,17 @@ final class WalletViewController: UIViewController {
     private func showHnsForBtcFundingFee(
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
+        authenticateWalletAction(
+            reason: "Authenticate before preparing an HNS funding transaction"
+        ) { [weak self, weak wallet] in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            self.showHnsForBtcFundingFeeAfterAuthentication(execution, wallet: wallet)
+        }
+    }
+
+    private func showHnsForBtcFundingFeeAfterAuthentication(
+        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
+    ) {
         let alert = UIAlertController(
             title: "Prepare HNS funding",
             message: "Enter a maximum HNS fee within the reserve signed into this accepted session.",
@@ -1510,6 +1566,17 @@ final class WalletViewController: UIViewController {
     }
 
     private func showBtcForHnsFundingFee(
+        _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
+    ) {
+        authenticateWalletAction(
+            reason: "Authenticate before preparing a Bitcoin funding transaction"
+        ) { [weak self, weak wallet] in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            self.showBtcForHnsFundingFeeAfterAuthentication(execution, wallet: wallet)
+        }
+    }
+
+    private func showBtcForHnsFundingFeeAfterAuthentication(
         _ execution: NativeShakescapeExecutionSummary, wallet: RustNativeWallet
     ) {
         let alert = UIAlertController(
@@ -1888,6 +1955,14 @@ final class WalletViewController: UIViewController {
     }
 
     private func beginHnsSendReview(_ request: WalletHnsSendRequest) {
+        authenticateWalletAction(
+            reason: "Authenticate before preparing this Handshake transaction"
+        ) { [weak self] in
+            self?.beginHnsSendReviewAfterAuthentication(request)
+        }
+    }
+
+    private func beginHnsSendReviewAfterAuthentication(_ request: WalletHnsSendRequest) {
         guard !isOperating,
               let lease = storageLease,
               let wallet,
@@ -2668,6 +2743,14 @@ final class WalletViewController: UIViewController {
     }
 
     private func beginHnsValueAction(_ intent: NativeHnsValueIntent) {
+        authenticateWalletAction(
+            reason: "Authenticate before preparing this Handshake transaction"
+        ) { [weak self] in
+            self?.beginHnsValueActionAfterAuthentication(intent)
+        }
+    }
+
+    private func beginHnsValueActionAfterAuthentication(_ intent: NativeHnsValueIntent) {
         guard hnsValueActionMayStart,
               !intent.requiresShakedex || shakedexAvailable,
               let lease = storageLease,
@@ -3019,6 +3102,12 @@ final class WalletViewController: UIViewController {
                 self?.openOrUnlockWallet()
             })
         }
+        if walletIsUnlocked,
+           (try? keychain.hasRecoveryPhrase()) == true {
+            alert.addAction(UIAlertAction(title: "View recovery phrase", style: .default) {
+                [weak self] _ in self?.showStoredRecoveryPhrase()
+            })
+        }
         if deleteButton.isEnabled && !canStopSynchronization {
             alert.addAction(UIAlertAction(title: "Delete wallet", style: .destructive) { [weak self] _ in
                 self?.requestConfirmedWalletDeletion()
@@ -3029,6 +3118,14 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func createWallet() {
+        authenticateWalletAction(
+            reason: "Authenticate before generating and protecting a new Handshake wallet"
+        ) { [weak self] in
+            self?.createWalletAfterAuthentication()
+        }
+    }
+
+    private func createWalletAfterAuthentication() {
         performWalletOperation {
             guard try self.canStartNewWallet() else { return }
             let path = try self.walletDatabasePath()
@@ -3105,39 +3202,60 @@ final class WalletViewController: UIViewController {
                 self.showErrorMessage("Enter a bounded recovery phrase and a valid birthday height.")
                 return
             }
-            self.performWalletOperation {
-                defer { WalletSecretBytes.wipe(&phrase) }
-                guard try self.canStartNewWallet() else { return }
-                let path = try self.walletDatabasePath()
-                var key = try Self.randomDatabaseKey()
-                defer { WalletSecretBytes.wipe(&key) }
-                let controller = try key.withUnsafeBytes { databaseKey in
-                    try phrase.withUnsafeBytes { recoveryPhrase in
-                        try RustNativeWallet.restore(
-                            databasePath: path,
-                            databaseKey: databaseKey,
-                            network: self.network,
-                            birthdayHeight: birthdayHeight,
-                            recoveryPhrase: recoveryPhrase
-                        )
-                    }
-                }
-                do {
-                    try key.withUnsafeBytes { databaseKey in
-                        try self.keychain.storeDatabaseKey(databaseKey)
-                    }
-                    self.wallet = controller
-                    self.walletAuthorityGeneration &+= 1
-                    self.walletWasReopenedFromDurableStorage = false
-                    self.persistentWalletExists = true
-                } catch {
-                    controller.close()
-                    try? Self.deleteWalletFiles(databasePath: path)
-                    throw error
-                }
+            let recoveryBytes = phrase
+            WalletSecretBytes.wipe(&phrase)
+            self.authenticateWalletAction(
+                reason: "Authenticate before importing and protecting this Handshake wallet"
+            ) { [weak self] in
+                self?.restoreWalletAfterAuthentication(
+                    recoveryBytes: recoveryBytes,
+                    birthdayHeight: birthdayHeight
+                )
             }
         })
         present(alert, animated: true)
+    }
+
+    private func restoreWalletAfterAuthentication(
+        recoveryBytes: [UInt8],
+        birthdayHeight: UInt64
+    ) {
+        var phrase = recoveryBytes
+        performWalletOperation {
+            defer { WalletSecretBytes.wipe(&phrase) }
+            guard try self.canStartNewWallet() else { return }
+            let path = try self.walletDatabasePath()
+            var key = try Self.randomDatabaseKey()
+            defer { WalletSecretBytes.wipe(&key) }
+            let controller = try key.withUnsafeBytes { databaseKey in
+                try phrase.withUnsafeBytes { recoveryPhrase in
+                    try RustNativeWallet.restore(
+                        databasePath: path,
+                        databaseKey: databaseKey,
+                        network: self.network,
+                        birthdayHeight: birthdayHeight,
+                        recoveryPhrase: recoveryPhrase
+                    )
+                }
+            }
+            do {
+                try key.withUnsafeBytes { databaseKey in
+                    try self.keychain.storeDatabaseKey(databaseKey)
+                }
+                try phrase.withUnsafeBytes { recoveryPhrase in
+                    try self.keychain.storeRecoveryPhrase(recoveryPhrase)
+                }
+                self.wallet = controller
+                self.walletAuthorityGeneration &+= 1
+                self.walletWasReopenedFromDurableStorage = false
+                self.persistentWalletExists = true
+            } catch {
+                controller.close()
+                try? self.keychain.deleteDatabaseKey()
+                try? Self.deleteWalletFiles(databasePath: path)
+                throw error
+            }
+        }
     }
 
     @objc private func openOrUnlockWallet() {
@@ -3193,16 +3311,48 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func confirmRecoverySaved() {
-        guard unconfirmedDatabaseKey != nil, recoverySecret != nil else { return }
+        guard unconfirmedDatabaseKey != nil, let recoverySecret,
+              let phrase = try? recoverySecret.displayText() else { return }
+        let words = phrase.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard words.count == 24 else {
+            showErrorMessage("The generated recovery phrase did not contain exactly 24 words.")
+            return
+        }
+        showRecoveryConfirmationQuestion(words: words, index: 0, hadIncorrectChoice: false)
+    }
+
+    private func showRecoveryConfirmationQuestion(
+        words: [String],
+        index: Int,
+        hadIncorrectChoice: Bool
+    ) {
+        guard index < words.count else {
+            if hadIncorrectChoice {
+                showErrorMessage(
+                    "Recovery phrase verification failed. Review the phrase and retry all 24 words."
+                )
+            } else {
+                persistConfirmedWallet()
+            }
+            return
+        }
         let alert = UIAlertController(
-            title: "Recovery phrase saved?",
-            message: "Confirm only after recording all 24 words. This phrase will not be shown again.",
+            title: "Verify word \(index + 1) of \(words.count)",
+            message: "Tap the word in position \(index + 1). Incorrect choices are reported only after the final word.",
             preferredStyle: .alert
         )
+        for choice in walletRecoveryWordChoices(words: words, correctIndex: index) {
+            alert.addAction(UIAlertAction(title: choice, style: .default) { [weak self] _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                    self?.showRecoveryConfirmationQuestion(
+                        words: words,
+                        index: index + 1,
+                        hadIncorrectChoice: hadIncorrectChoice || choice != words[index]
+                    )
+                }
+            })
+        }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "I saved it", style: .default) { [weak self] _ in
-            self?.persistConfirmedWallet()
-        })
         present(alert, animated: true)
     }
 
@@ -3216,11 +3366,82 @@ final class WalletViewController: UIViewController {
                 try key.withUnsafeBytes { databaseKey in
                     try keychain.storeDatabaseKey(databaseKey)
                 }
+                guard let recoverySecret else {
+                    throw WalletProviderError(
+                        code: "missingRecoveryPhrase",
+                        message: "Recovery phrase is unavailable"
+                    )
+                }
+                try recoverySecret.withUnsafeBytes { recoveryPhrase in
+                    try keychain.storeRecoveryPhrase(recoveryPhrase)
+                }
                 persistentWalletExists = true
                 clearRecoveryDisplay()
             } catch {
                 discardWalletAndFiles()
                 throw error
+            }
+        }
+    }
+
+    private func showStoredRecoveryPhrase() {
+        do {
+            guard var phrase = try keychain.copyRecoveryPhrase(
+                prompt: "Authenticate to view your Handshake recovery phrase"
+            ) else {
+                showErrorMessage(
+                    "Recovery phrase display is unavailable for wallets created before protected recovery storage was enabled."
+                )
+                return
+            }
+            defer { WalletSecretBytes.wipe(&phrase) }
+            guard let text = String(bytes: phrase, encoding: .utf8) else {
+                throw WalletProviderError(
+                    code: "invalidRecoveryPhrase",
+                    message: "Stored recovery phrase is invalid"
+                )
+            }
+            let alert = UIAlertController(
+                title: "Recovery phrase",
+                message: "Keep this private. Anyone with these words can spend the wallet.\n\n\(text)",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+            present(alert, animated: true)
+        } catch {
+            showError(error)
+        }
+    }
+
+    private func authenticateWalletAction(
+        reason: String,
+        authorized: @escaping @MainActor @Sendable () -> Void
+    ) {
+        guard !walletAuthenticationInProgress else { return }
+        let context = LAContext()
+        var policyError: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &policyError) else {
+            showErrorMessage(
+                "Set a device passcode and biometric authentication in iOS Settings before using wallet keys."
+            )
+            return
+        }
+        walletAuthenticationInProgress = true
+        context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) {
+            [weak self] approved, error in
+            let errorCode = (error as? LAError)?.code
+            let errorMessage = error?.localizedDescription
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.walletAuthenticationInProgress = false
+                if approved {
+                    authorized()
+                } else if errorCode != .userCancel,
+                          errorCode != .systemCancel,
+                          errorCode != .appCancel {
+                    self.showErrorMessage(errorMessage ?? "Wallet authentication failed.")
+                }
+                self.refreshButtonStates()
             }
         }
     }
@@ -3698,7 +3919,7 @@ final class WalletViewController: UIViewController {
                 message: """
                 \(walletDeletionIdentitySummary(authority))
 
-                This permanently deletes this device's confirmed wallet. The recovery phrase cannot be shown again by this app. Without a saved recovery phrase, the wallet cannot be recovered. This action is irreversible.
+                This permanently deletes this device's confirmed wallet, including its protected recovery-phrase copy. Without a separately saved recovery phrase, the wallet cannot be recovered. This action is irreversible.
                 """,
                 preferredStyle: .alert
             )
@@ -3751,7 +3972,7 @@ final class WalletViewController: UIViewController {
             message: """
             \(walletDeletionIdentitySummary(authority))
 
-            Deletion is irreversible, and the recovery phrase cannot be shown again. Type DELETE exactly to continue.
+            Deletion is irreversible and erases the protected recovery-phrase copy on this device. Type DELETE exactly to continue.
             """,
             preferredStyle: .alert
         )
@@ -4841,6 +5062,8 @@ final class WalletViewController: UIViewController {
         ) else { return false }
         switch presentation {
         case .preparing:
+            displayedHnsSyncStage = nil
+            displayedHnsSyncStageSince = 0
             statusLabel.text = "Keeping the existing HNS synchronization connected."
             accountLabel.text = "Account controls return after synchronization protection finishes."
             readStatusLabel.text = "Preparing direct HNS synchronization…"
@@ -4853,7 +5076,20 @@ final class WalletViewController: UIViewController {
                 readStatusLabel.text = "Verified headers are at height \(progress.verifiedHeaderHeight) and are catching up toward this restored wallet’s birthday height \(progress.birthdayHeight). Wallet activity scanning has not started."
                 break
             }
-            switch progress.stage {
+            let now = ProcessInfo.processInfo.systemUptime
+            let visibleStage: WalletHnsSyncStage
+            if let displayedHnsSyncStage,
+               displayedHnsSyncStage != progress.stage,
+               now - displayedHnsSyncStageSince < 3 {
+                visibleStage = displayedHnsSyncStage
+            } else {
+                visibleStage = progress.stage
+                if displayedHnsSyncStage != progress.stage {
+                    displayedHnsSyncStage = progress.stage
+                    displayedHnsSyncStageSince = now
+                }
+            }
+            switch visibleStage {
             case .connecting:
                 readStatusLabel.text = "Connecting verified HNS peers. Verified headers are currently at height \(progress.verifiedHeaderHeight)."
             case .headers:
@@ -4873,6 +5109,8 @@ final class WalletViewController: UIViewController {
                 return "Last verified header height \($0.verifiedHeaderHeight); wallet birthday height \($0.birthdayHeight); wallet scanning has not started."
             } ?? "No additional synchronization batch will start; the active atomic call is unwinding."
         case .terminal(let progress):
+            displayedHnsSyncStage = nil
+            displayedHnsSyncStageSince = 0
             statusLabel.text = "HNS synchronization finished. Wallet protection is releasing."
             accountLabel.text = "Account controls will return automatically."
             readStatusLabel.text = progress.map {
@@ -4957,6 +5195,22 @@ final class WalletViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
     }
+}
+
+func walletRecoveryWordChoices(words: [String], correctIndex: Int) -> [String] {
+    precondition(words.indices.contains(correctIndex))
+    let correct = words[correctIndex]
+    var pool = Array(Set(
+        (words + ["abandon", "ability", "able", "about", "above", "absent"])
+            .filter { $0 != correct }
+    ))
+    var choices = [correct]
+    while choices.count < 4, !pool.isEmpty {
+        choices.append(pool.remove(at: Int.random(in: pool.indices)))
+    }
+    precondition(choices.count == 4)
+    choices.shuffle()
+    return choices
 }
 
 struct WalletReadPresentation: Equatable, Sendable {

@@ -310,11 +310,11 @@
     <string name="row_wallet_status" translatable="false">Status</string>
     <string name="row_wallet_account" translatable="false">Account identity</string>
     <string name="row_wallet_create" translatable="false">Create wallet</string>
-    <string name="row_wallet_create_summary" translatable="false">Create one native HNS account and save its one-time recovery phrase offline.</string>
+    <string name="row_wallet_create_summary" translatable="false">Create one native HNS account, verify its recovery phrase, and save it offline.</string>
     <string name="row_wallet_restore" translatable="false">Restore wallet</string>
     <string name="row_wallet_restore_summary" translatable="false">Restore exactly 24 English words with an optional HNS birthday block.</string>
     <string name="row_wallet_recovery_confirm" translatable="false">Confirm offline backup</string>
-    <string name="row_wallet_recovery_confirm_summary" translatable="false">The wallet key is not retained until you confirm the one-time recovery display is saved.</string>
+    <string name="row_wallet_recovery_confirm_summary" translatable="false">The wallet is not retained until you correctly verify all 24 recovery words.</string>
     <string name="row_wallet_unlock" translatable="false">Unlock</string>
     <string name="row_wallet_unlock_summary" translatable="false">Unwrap the database key from Android Keystore for this foreground session.</string>
     <string name="row_wallet_lock" translatable="false">Lock</string>
@@ -643,10 +643,32 @@
     <string name="wallet_status_importing_name" translatable="false">Importing exact Handshake name…</string>
     <string name="wallet_account_identity" translatable="false">%1$s\nModule: %2$s\nAccount: %3$s</string>
     <string name="wallet_recovery_confirm_title" translatable="false">Recovery phrase saved?</string>
-    <string name="wallet_recovery_confirm_message" translatable="false">Confirm only after storing all 24 words offline. The phrase cannot be shown again.</string>
+    <string name="wallet_recovery_quiz_title" translatable="false">Confirm all 24 recovery words</string>
+    <string name="wallet_recovery_quiz_message" translatable="false">For each position, tap the word you recorded. Results are shown only after all 24 choices.</string>
+    <string name="wallet_recovery_quiz_word" translatable="false">Word %1$d of %2$d</string>
+    <string name="wallet_recovery_quiz_failed_title" translatable="false">Recovery confirmation did not match</string>
+    <string name="wallet_recovery_quiz_failed_message" translatable="false">At least one choice was incorrect. Review the displayed phrase and repeat all 24 words before the wallet can be saved.</string>
+    <string name="wallet_recovery_quiz_invalid" translatable="false">The generated recovery phrase was not exactly 24 words. This wallet cannot be confirmed.</string>
+    <string name="row_wallet_view_recovery" translatable="false">View recovery phrase</string>
+    <string name="wallet_recovery_display_warning" translatable="false">Private recovery material. Make sure nobody can see your screen. Close this dialog as soon as you finish checking the phrase.</string>
+    <string name="wallet_recovery_unavailable" translatable="false">This wallet predates protected recovery storage, so its phrase is not available for redisplay. Restore it into a new wallet profile to enable this feature.</string>
+    <string name="wallet_auth_create_title" translatable="false">Protect the new wallet</string>
+    <string name="wallet_auth_create_message" translatable="false">Confirm your device password, PIN, or pattern before generating wallet keys.</string>
+    <string name="wallet_auth_restore_title" translatable="false">Protect the restored wallet</string>
+    <string name="wallet_auth_restore_message" translatable="false">Confirm your device password, PIN, or pattern before importing recovery material.</string>
+    <string name="wallet_auth_unlock_title" translatable="false">Unlock wallet</string>
+    <string name="wallet_auth_unlock_message" translatable="false">Confirm your device password, PIN, or pattern to enable signing authority.</string>
+    <string name="wallet_auth_transaction_title" translatable="false">Authorize wallet transaction</string>
+    <string name="wallet_auth_transaction_message" translatable="false">Confirm your device password, PIN, or pattern before preparing this transaction for approval.</string>
+    <string name="wallet_auth_recovery_title" translatable="false">View recovery phrase</string>
+    <string name="wallet_auth_recovery_message" translatable="false">Confirm your device password, PIN, or pattern to reveal the recovery phrase.</string>
+    <string name="wallet_auth_required_title" translatable="false">Set a device password first</string>
+    <string name="wallet_auth_required_message" translatable="false">Wallet creation, restore, signing, and recovery display require a secure device screen lock. Set a password, PIN, or pattern in Android settings, then try again.</string>
+    <string name="wallet_auth_open_settings" translatable="false">Open security settings</string>
+    <string name="wallet_recovery_confirm_message" translatable="false">Verify all 24 words after storing the phrase offline.</string>
     <string name="wallet_delete_requires_unlocked_confirmed_wallet" translatable="false">Unlock a confirmed persistent wallet before deleting it.</string>
     <string name="wallet_delete_first_title" translatable="false">Delete this HNS wallet?</string>
-    <string name="wallet_delete_first_message" translatable="false">Network: %1$s (%2$s)\nAccount ID: %3$s\n\nThe recovery phrase cannot be shown again. Deleting the local key and encrypted database is irreversible unless you already saved that phrase offline.</string>
+    <string name="wallet_delete_first_message" translatable="false">Network: %1$s (%2$s)\nAccount ID: %3$s\n\nDeletion erases the device’s protected recovery copy, local key, and encrypted database. It is irreversible unless you already saved the phrase offline.</string>
     <string name="wallet_delete_typed_title" translatable="false">Type DELETE to confirm</string>
     <string name="wallet_delete_typed_message" translatable="false">Network: %1$s (%2$s)\nAccount ID: %3$s\n\nThis irreversible action deletes only this exact network/account wallet. Type DELETE exactly to continue.</string>
     <string name="wallet_delete_type_delete_error" translatable="false">Type DELETE exactly.</string>
