@@ -312,7 +312,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
         let versionThreeJSON = versionTwoJSON.replacingOccurrences(
             of: "\"knownNames\":[],",
-            with: "\"knownNames\":[],\"knownNameCount\":2,\"knownNamesComplete\":false,\"finalizeNotices\":[{\"name\":\"alpha\",\"transactionId\":\"(String(repeating: "c", count: 64))\",\"phase\":\"finalizeWaiting\",\"currentHeight\":42,\"finalizeEligibleHeight\":100}],"
+            with: "\"knownNames\":[],\"knownNameCount\":2,\"knownNamesComplete\":false,\"finalizeNotices\":[{\"name\":\"alpha\",\"transactionId\":\"\(String(repeating: "c", count: 64))\",\"phase\":\"finalizeWaiting\",\"currentHeight\":42,\"finalizeEligibleHeight\":100}],"
         )
         let versionThree = try NativeHnsReadSnapshot.decode(
             bundle: hnsReadBundle(json: versionThreeJSON, version: 3)

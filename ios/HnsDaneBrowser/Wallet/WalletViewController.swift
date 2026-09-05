@@ -369,7 +369,7 @@ final class WalletViewController: UIViewController {
         configureButton(
             synchronizeButton,
             title: "Synchronize HNS wallet",
-            action: #selector(synchronizeWalletReads)
+            action: #selector(synchronizeWalletReadsFromUserAction)
         )
         configureButton(
             bitcoinReceiveButton,
@@ -609,7 +609,7 @@ final class WalletViewController: UIViewController {
         scan.accessibilityLabel = "Scan Handshake payment QR code"
         let sync = dashboardButton(
             title: "Sync",
-            action: #selector(synchronizeWalletReads),
+            action: #selector(synchronizeWalletReadsFromUserAction),
             enabled: synchronizeButton.isEnabled
         )
         dashboardStack.addArrangedSubview(dashboardCard(
@@ -1938,7 +1938,7 @@ final class WalletViewController: UIViewController {
             case .unlock:
                 self.openOrUnlockWallet()
             case .synchronize:
-                self.synchronizeWalletReads()
+                self.synchronizeWalletReadsFromUserAction()
             case .present:
                 guard let request = self.pendingHandshakePayment else { return }
                 self.pendingHandshakePayment = nil
@@ -3651,13 +3651,13 @@ final class WalletViewController: UIViewController {
             return
         }
         let operationWasAlreadyInFlight = isOperating
-        synchronizeWalletReads()
+        synchronizeWalletReadsFromUserAction()
         if operationWasAlreadyInFlight || !isOperating {
             walletRefreshControl.endRefreshing()
         }
     }
 
-    @objc private func synchronizeWalletReads() {
+    @objc private func synchronizeWalletReadsFromUserAction() {
         synchronizeWalletReads(resumeAutomaticSync: true)
     }
 
