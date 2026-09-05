@@ -639,6 +639,10 @@
     <string name="wallet_name_bulk_import_success" translatable="false">Imported and authenticated %1$d names. The wallet refreshed once.</string>
     <string name="wallet_name_bulk_import_catching_up" translatable="false">Imported %1$d names atomically. Name indexing is catching up; the previously verified balance remains available.</string>
     <string name="wallet_name_bulk_import_refresh_pending" translatable="false">Imported %1$d names atomically. A fresh name projection is pending; the previously verified balance remains available.</string>
+    <plurals name="wallet_name_card_importing" translatable="false">
+        <item quantity="one">IMPORTING %1$d NAME…</item>
+        <item quantity="other">IMPORTING %1$d NAMES…</item>
+    </plurals>
     <string name="wallet_name_page_failed" translatable="false">The next authenticated name page is unavailable.</string>
     <string name="wallet_name_page_position" translatable="false">Showing names %1$d–%2$d of %3$d.</string>
     <string name="wallet_activity_page_position" translatable="false">Showing activity %1$d–%2$d of %3$d.</string>

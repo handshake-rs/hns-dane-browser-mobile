@@ -273,6 +273,7 @@ class WalletActivity : ComponentActivity() {
     private var trackedNameSearchIndexCount = -1
     private var trackedNameSearchIndexInFlight = false
     private var trackedNameSearchInput: AutoCompleteTextView? = null
+    private var walletNameImportInProgressCount = 0
     private var recentActivityPageOffset: Int = 0
     private var pendingHandshakePayment: HandshakePaymentRequest? = null
     private var pendingPaymentPresentationScheduled = false
@@ -611,6 +612,7 @@ class WalletActivity : ComponentActivity() {
         // reopening. Never carry that user-presence request off this screen.
         walletUnlockRequested = false
         walletUnlockAuthenticationGranted = false
+        walletNameImportInProgressCount = 0
         cachedHnsSyncPresentationWatcher?.set(false)
         if (retainInAppSession) {
             // Android calls the departing Activity's onStop before it reports
@@ -751,7 +753,8 @@ class WalletActivity : ComponentActivity() {
         // so never wait for its status mutex on Android's main thread.
         val hnsSynchronizationActive = hasActiveWalletHnsSynchronization()
         val controllerUnlocked = hasController && (
-            hnsSynchronizationActive || NativeWalletBridge.status(walletHandle)?.locked == false
+            hnsSynchronizationActive || walletNameImportInProgressCount > 0 ||
+                NativeWalletBridge.status(walletHandle)?.locked == false
         )
         when (
             walletDashboardMode(
@@ -1786,7 +1789,13 @@ class WalletActivity : ComponentActivity() {
     private fun renderNamesGalleryFooter(actionsAvailable: Boolean, total: Int) {
         namesGalleryFooter.visibility = View.VISIBLE
         namesGalleryFooter.addView(TextView(this).apply {
-            text = if (total == 0) {
+            text = if (walletNameImportInProgressCount > 0) {
+                resources.getQuantityString(
+                    R.plurals.wallet_name_card_importing,
+                    walletNameImportInProgressCount,
+                    walletNameImportInProgressCount,
+                )
+            } else if (total == 0) {
                 getString(R.string.wallet_name_card_position_empty)
             } else {
                 getString(
@@ -5588,6 +5597,7 @@ class WalletActivity : ComponentActivity() {
             nameImportStatusView.text = getString(R.string.wallet_name_import_invalid)
             return
         }
+        walletNameImportInProgressCount = names.size
         if (
             !walletNameImportMayBegin(expected, walletNameImportState(lease)) ||
             !beginOperation(
@@ -5596,6 +5606,7 @@ class WalletActivity : ComponentActivity() {
                 resetReads = false,
             )
         ) {
+            walletNameImportInProgressCount = 0
             return
         }
         nameImportStatusView.text = getString(R.string.wallet_name_bulk_import_importing, names.size)
@@ -5610,6 +5621,7 @@ class WalletActivity : ComponentActivity() {
                 synchronizeHnsReadsWithRollbackFloor(handle)
             } else null
             runOnUiThread {
+                walletNameImportInProgressCount = 0
                 val current = walletNameImportState(lease)
                 val mayPublish = walletNameImportMayPublish(
                     expected = expected,
@@ -5625,22 +5637,27 @@ class WalletActivity : ComponentActivity() {
                 when {
                     importedCount != names.size -> {
                         refreshControllerState()
-                        nameImportStatusView.text =
-                            getString(R.string.wallet_name_import_failed)
+                        val message = getString(R.string.wallet_name_import_failed)
+                        nameImportStatusView.text = message
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                     }
                     synchronization?.snapshot != null -> {
                         refreshControllerState(resetReads = false)
                         renderReadSnapshot(synchronization.snapshot)
-                        nameImportStatusView.text =
+                        val message =
                             getString(R.string.wallet_name_bulk_import_success, importedCount)
+                        nameImportStatusView.text = message
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                     }
                     synchronization?.catchup != null -> {
                         refreshControllerState(resetReads = false)
                         renderReadCatchup(synchronization.catchup)
-                        nameImportStatusView.text = getString(
+                        val message = getString(
                             R.string.wallet_name_bulk_import_catching_up,
                             importedCount,
                         )
+                        nameImportStatusView.text = message
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                         scheduleHnsCatchupRetry(
                             lease,
                             handle,
@@ -5651,10 +5668,12 @@ class WalletActivity : ComponentActivity() {
                     else -> {
                         refreshControllerState(resetReads = false)
                         retainReadProjectionAfterRefreshFailure()
-                        nameImportStatusView.text = getString(
+                        val message = getString(
                             R.string.wallet_name_bulk_import_refresh_pending,
                             importedCount,
                         )
+                        nameImportStatusView.text = message
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                     }
                 }
             }
