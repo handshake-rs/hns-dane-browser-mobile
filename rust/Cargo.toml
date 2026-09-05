@@ -9,7 +9,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "1.0.0"
+version = "1.0.1"
 license = "PolyForm-Noncommercial-1.0.0"
 rust-version = "1.92"
 publish = false
@@ -32,11 +32,11 @@ hns-browser-observability = "=0.3.0"
 hns-browser-runtime = "=0.2.2"
 hns-icann-dane = "=0.2.2"
 hns-loopback-proxy = { package = "hns-browser-loopback-proxy", version = "=0.2.3", default-features = false, features = ["mobile"] }
-# The release candidate consumes the complete checksum-bearing wallet 0.2.2
+# The release candidate consumes the complete checksum-bearing wallet 0.2.3
 # cohort from crates.io. Keep all direct entry crates on the same exact version.
-hns-wallet-ffi = "=0.2.2"
-hns-wallet-mobile = "=0.2.2"
-hns-wallet-types = "=0.2.2"
+hns-wallet-ffi = "=0.2.3"
+hns-wallet-mobile = "=0.2.3"
+hns-wallet-types = "=0.2.3"
 hns-mobile-platform-runtime = { path = "crates/hns-mobile-platform-runtime" }
 hns-namespace-resolution = "=0.2.3"
 hns-resolution-policy = "=0.3.0"
@@ -84,18 +84,3 @@ panic = "abort"
 [profile.ios-release]
 inherits = "release"
 panic = "unwind"
-
-[patch.crates-io]
-hns-wallet-bitcoin-kyoto = { path = "../../hns-wallet-rs/crates/hns-wallet-bitcoin-kyoto" }
-hns-wallet-chain-api = { path = "../../hns-wallet-rs/crates/hns-wallet-chain-api" }
-hns-wallet-ethereum = { path = "../../hns-wallet-rs/crates/hns-wallet-ethereum" }
-hns-wallet-ffi = { path = "../../hns-wallet-rs/crates/hns-wallet-ffi" }
-hns-wallet-hns = { path = "../../hns-wallet-rs/crates/hns-wallet-hns" }
-hns-wallet-host = { path = "../../hns-wallet-rs/crates/hns-wallet-host" }
-hns-wallet-market = { path = "../../hns-wallet-rs/crates/hns-wallet-market" }
-hns-wallet-mobile = { path = "../../hns-wallet-rs/crates/hns-wallet-mobile" }
-hns-wallet-provider = { path = "../../hns-wallet-rs/crates/hns-wallet-provider" }
-hns-wallet-service = { path = "../../hns-wallet-rs/crates/hns-wallet-service" }
-hns-wallet-shakedex = { path = "../../hns-wallet-rs/crates/hns-wallet-shakedex" }
-hns-wallet-store = { path = "../../hns-wallet-rs/crates/hns-wallet-store" }
-hns-wallet-types = { path = "../../hns-wallet-rs/crates/hns-wallet-types" }

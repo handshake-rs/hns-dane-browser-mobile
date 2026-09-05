@@ -13,9 +13,9 @@ fi
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
 track_name="${PLAY_TRACK:-}"
 release_status="${PLAY_RELEASE_STATUS:-draft}"
-aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.4-play-upload-signed.aab}"
-release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.4}"
-release_notes="${PLAY_RELEASE_NOTES:-1.0.4 fixes DNSSEC-signed sites routed through unsigned CDN endpoints while retaining strict dual-root validation and native-wallet protections.}"
+aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.5-play-upload-signed.aab}"
+release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.5}"
+release_notes="${PLAY_RELEASE_NOTES:-1.0.5 improves wallet synchronization and name tracking, including Unicode Handshake names, lifecycle status, raw records, and clearer native name controls.}"
 update_listing="${PLAY_UPDATE_LISTING:-false}"
 listing_language="${PLAY_LISTING_LANGUAGE:-en-US}"
 

@@ -1,13 +1,14 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-09-02
+Last audited: 2026-09-05
 
-Current release source coordinates Android `1.0.4` / code `56`, the embedded
-non-publishable Rust workspace `1.0.0`, and iOS `1.0.4` / build `65`. It uses
+Current release source coordinates Android `1.0.5` / code `57`, the embedded
+non-publishable Rust workspace `1.0.1`, and iOS `1.0.4` / build `65`. It uses
 the published `hns-rs 0.4.1`, exact public engine/browser-adapter releases
 (including the coherent light-client `0.2.3` patch cohort), and
-the complete exact published `hns-wallet-rs 0.2.1` closure. Registry
-dependencies retain checksums throughout the lockfile, as
+the complete exact published `hns-wallet-rs 0.2.3` closure from release commit
+`0a0558c6df8ceb4f8d8318821cd16981f248a22b`. Registry dependencies retain
+checksums throughout the lockfile, as
 documented in [released-dependency-cohort.md](released-dependency-cohort.md).
 
 The reviewed protocol → wallet → mobile source sequence is complete. Source policy,
@@ -190,7 +191,7 @@ with manual release after build `64` was withdrawn.
   not the Play AAB or unchanged iOS build.
 - Current source consumes released `0.4.1` HNS, the exact engine and
   browser-adapter releases (including the four light-client crates at `0.2.3`),
-  and the complete exact wallet `0.2.1` registry cohort. All external packages
+  and the complete exact wallet `0.2.3` registry cohort. All external packages
   retain Cargo checksums; no Git, branch, local-path, or patch exception is
   admitted. The standalone facade is not a mobile input.
   [released-dependency-cohort.md](released-dependency-cohort.md) records the

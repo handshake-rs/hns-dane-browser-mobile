@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-09-02.
+Audit date: 2026-09-05.
 
 This table records the independently versioned current release candidates.
 It is not evidence that signed artifacts were built or published. Android
@@ -10,10 +10,10 @@ into the app.
 
 | Component | Pinned | Audit source |
 | --- | --- | --- |
-| Android app | `1.0.4` / code `56` | `android/app/build.gradle.kts` |
-| Embedded Rust workspace | `1.0.0` (`publish = false`) | `rust/Cargo.toml` |
+| Android app | `1.0.5` / code `57` | `android/app/build.gradle.kts` |
+| Embedded Rust workspace | `1.0.1` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.4` / build `65` | `ios/project.yml` |
-| Native wallet controller | exact published `0.2.1` registry cohort | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
+| Native wallet controller | exact published `0.2.3` registry cohort | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.4.1` | `rust/Cargo.lock` |
 | Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
 | Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
@@ -111,7 +111,7 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses the exact published wallet `0.2.1`
+- The mobile dependency sequence uses the exact published wallet `0.2.3`
   registry cohort, published HNS `0.4.1`, and
   exact engine/browser-adapter releases. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).

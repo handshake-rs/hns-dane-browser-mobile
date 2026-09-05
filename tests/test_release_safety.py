@@ -32,8 +32,8 @@ APP_STORE_VALIDATOR = ROOT / "store-assets" / "app-store" / "validate.py"
 class ReleaseCandidateMetadataTests(unittest.TestCase):
     def test_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
-        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.4\"$")
-        self.assertRegex(gradle, r"(?m)^\s*versionCode = 56$")
+        self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.5\"$")
+        self.assertRegex(gradle, r"(?m)^\s*versionCode = 57$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a", "x86_64")',
             gradle,
@@ -58,14 +58,14 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
-        self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.0")
+        self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.1")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet, "=0.2.1")
+        self.assertEqual(wallet, "=0.2.3")
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
         self.assertIn(
-            'name = "hns-wallet-mobile"\nversion = "0.2.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
+            'name = "hns-wallet-mobile"\nversion = "0.2.3"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         self.assertIn(

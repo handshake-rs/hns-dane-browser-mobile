@@ -12,11 +12,11 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [Apple App Store](https://apps.apple.com/us/app/hns-dane-browser/id6791914326)
 - [GitHub Release v1.0.3](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
 
-Android `1.0.4` / code `56`, iOS `1.0.4` / build `65`, and embedded Rust
-`1.0.0` are the current source versions. Both platform builds contain the
-complete signed-origin/unsigned-CDN fix. Android retains its default-browser
-registration; the replacement iOS build deliberately omits Apple's still-
-unapproved managed default-browser entitlement.
+Android `1.0.5` / code `57` and embedded Rust `1.0.1` are the current pending
+Google Play source versions. iOS remains independently versioned at `1.0.4` /
+build `65` while that submission awaits review. Android retains its
+default-browser registration; the replacement iOS build deliberately omits
+Apple's still-unapproved managed default-browser entitlement.
 
 GitHub Release [`v1.0.3`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
 publishes the signed universal Android APK. The exact Android `1.0.4` / code
@@ -36,13 +36,13 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 `31485234945`. The `1.0.4` submission workflows reconciled and read back the
 current store metadata while preserving the existing screenshots.
 
-Current source coordinates Android `1.0.4` / code `56`, iOS `1.0.4` / build
-`65`, and the embedded non-publishable Rust workspace at `1.0.0`. It directly pins
+Current source coordinates Android `1.0.5` / code `57`, iOS `1.0.4` / build
+`65`, and the embedded non-publishable Rust workspace at `1.0.1`. It directly pins
 published `hns-rs 0.4.1`, the `hns-dane-engine` light-client `0.2.3` patch
 cohort, the remaining exact engine/browser-adapter releases, and
-the complete published `hns-wallet-rs 0.2.1` closure. The browser adapters are
+the complete checksum-bearing published `hns-wallet-rs 0.2.3` cohort. The browser adapters are
 also exact published `0.2.2` packages; the source tags, registry checks, and
-wallet release provenance is recorded in
+wallet release status are recorded in
 [the released dependency cohort](docs/released-dependency-cohort.md).
 Both native shells expose local create, restore, open, status, unlock, lock, and
 one-account identity controls. The current local `main` stack also composes a

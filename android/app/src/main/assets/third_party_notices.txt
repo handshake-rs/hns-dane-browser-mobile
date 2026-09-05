@@ -27,8 +27,8 @@ Generated input SHA-256:
   scripts/mit-0-license.txt = 0ffe1339d2b91556bf0c380453d8504e972f066adcfda678bd9ddd2986a57c58
   android/app/src/main/assets/fonts/Orbitron-VariableFont_wght.ttf = f42db2dd16e642258e35782916eceb1dcdbea06fb958d77ad71dc5963587e8fd
   android/app/src/main/assets/fonts/OFL-Orbitron.txt = dd6fdb6716fd179d1fe891759efb3f9200753fdf6abf513b55b712c4ae16e512
-  rust/Cargo.toml = 16d195a300d2b4e298ee8866ac17c411079e3a5b76ab0af57503a2935e551c7d
-  rust/Cargo.lock = a031413b87a4f974f2dee871c6150a96cf1a8a964590bceb8768e8129270b2ae
+  rust/Cargo.toml = 4120ee8caeae90f0f1243ff3547de5123c2c7a6fcc884cd14707458b631b6462
+  rust/Cargo.lock = 2d68d96dabccc6ed8d53fb8abe1dbc15348a16e4b407e8808941bba500336d64
   android/gradle/libs.versions.toml = e25f060e2f5576dda953dbf2a1f9f9af014b58139c51bf0e28ee4a2aff247157
   android/app/gradle.lockfile = 2e5e0e404dbc7fead474e763ee4bb0d561d7e3b9da18fc4424942f1d5ef95ffd
   android/gradle/verification-metadata.xml = 820aff3630df91450b0198f0c9058cd88dbeca8ac73252615322281dd3cf5ca6
@@ -90,8 +90,8 @@ RUST COMPONENTS (294)
   asn1-rs-impl 0.2.0 | MIT/Apache-2.0
   atomic-waker 1.1.2 | Apache-2.0 OR MIT
   autocfg 1.5.1 | Apache-2.0 OR MIT
-  aws-lc-rs 1.18.0 | ISC AND (Apache-2.0 OR ISC)
-  aws-lc-sys 0.44.0 | ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)
+  aws-lc-rs 1.18.1 | ISC AND (Apache-2.0 OR ISC)
+  aws-lc-sys 0.45.0 | ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)
   base16ct 0.2.0 | Apache-2.0 OR MIT
   base58ck 0.1.101 | CC0-1.0
   base64 0.21.7 | MIT OR Apache-2.0
@@ -181,7 +181,7 @@ RUST COMPONENTS (294)
   hashbrown 0.17.1 | MIT OR Apache-2.0
   hashlink 0.11.1 | MIT OR Apache-2.0
   hex 0.4.3 | MIT OR Apache-2.0
-  hex-conservative 0.2.2 | CC0-1.0
+  hex-conservative 0.2.3 | CC0-1.0
   hex-conservative 0.3.2 | CC0-1.0
   hex-conservative 1.2.0 | CC0-1.0
   hex_lit 0.1.1 | MITNFA
@@ -191,7 +191,7 @@ RUST COMPONENTS (294)
   hns-browser-dane 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-dnssec 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-gateway 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
-  hns-browser-loopback-proxy 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
+  hns-browser-loopback-proxy 0.2.3 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-observability 0.3.0 | MIT OR Apache-2.0
   hns-browser-p2p 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
   hns-browser-primitives 0.2.2 | declared license file LICENSE-POLYFORM-NONCOMMERCIAL
@@ -221,18 +221,18 @@ RUST COMPONENTS (294)
   hns-swap 0.4.1 | MIT OR Apache-2.0
   hns-transaction 0.4.1 | MIT OR Apache-2.0
   hns-urkel-proof 0.4.1 | MIT OR Apache-2.0
-  hns-wallet-bitcoin-kyoto 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-chain-api 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-ffi 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-hns 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-host 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-market 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-mobile 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-provider 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-service 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-shakedex 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-store 0.2.1 | MIT OR Apache-2.0
-  hns-wallet-types 0.2.1 | MIT OR Apache-2.0
+  hns-wallet-bitcoin-kyoto 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-chain-api 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-ffi 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-hns 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-host 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-market 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-mobile 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-provider 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-service 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-shakedex 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-store 0.2.3 | MIT OR Apache-2.0
+  hns-wallet-types 0.2.3 | MIT OR Apache-2.0
   http 1.5.0 | MIT OR Apache-2.0
   httparse 1.10.1 | MIT OR Apache-2.0
   icu_collections 2.3.0 | Unicode-3.0
@@ -264,7 +264,7 @@ RUST COMPONENTS (294)
   memchr 2.8.3 | Unlicense OR MIT
   minimal-lexical 0.2.1 | MIT/Apache-2.0
   miniscript 12.3.7 | CC0-1.0
-  mio 1.2.2 | MIT
+  mio 1.2.3 | MIT
   nom 7.1.3 | MIT
   num-bigint 0.4.8 | MIT OR Apache-2.0
   num-conv 0.2.2 | MIT OR Apache-2.0
@@ -321,7 +321,7 @@ RUST COMPONENTS (294)
   shlex 2.0.1 | MIT OR Apache-2.0
   signature 2.2.0 | Apache-2.0 OR MIT
   slab 0.4.12 | MIT
-  smallvec 1.15.2 | MIT OR Apache-2.0
+  smallvec 1.16.0 | MIT OR Apache-2.0
   socket2 0.6.5 | MIT OR Apache-2.0
   spki 0.7.3 | Apache-2.0 OR MIT
   stable_deref_trait 1.2.1 | MIT OR Apache-2.0
@@ -337,7 +337,7 @@ RUST COMPONENTS (294)
   time-core 0.1.9 | MIT OR Apache-2.0
   time-macros 0.2.32 | MIT OR Apache-2.0
   tinystr 0.8.4 | Unicode-3.0
-  tinyvec 1.12.0 | Zlib OR Apache-2.0 OR MIT
+  tinyvec 1.13.2 | Zlib OR Apache-2.0 OR MIT
   tinyvec_macros 0.1.1 | MIT OR Apache-2.0 OR Zlib
   tokio 1.53.1 | MIT
   tokio-macros 2.7.2 | MIT
@@ -598,7 +598,7 @@ Applies to:
   - Rust crate hns-browser-dane 0.2.2
   - Rust crate hns-browser-dnssec 0.2.2
   - Rust crate hns-browser-gateway 0.2.3
-  - Rust crate hns-browser-loopback-proxy 0.2.2
+  - Rust crate hns-browser-loopback-proxy 0.2.3
   - Rust crate hns-browser-p2p 0.2.2
   - Rust crate hns-browser-primitives 0.2.2
   - Rust crate hns-browser-resolver 0.2.2
@@ -1651,7 +1651,7 @@ Applies to:
   - Rust crate quinn 0.11.11
   - Rust crate quinn-proto 0.11.17
   - Rust crate quinn-udp 0.5.15
-  - Rust crate tinyvec 1.12.0
+  - Rust crate tinyvec 1.13.2
   - Rust crate utf8_iter 1.0.4
   - Rust crate zeroize 1.9.0
   - Rust crate zeroize_derive 1.5.0
@@ -2401,18 +2401,18 @@ Applies to:
   - Rust crate hns-swap 0.4.1
   - Rust crate hns-transaction 0.4.1
   - Rust crate hns-urkel-proof 0.4.1
-  - Rust crate hns-wallet-bitcoin-kyoto 0.2.1
-  - Rust crate hns-wallet-chain-api 0.2.1
-  - Rust crate hns-wallet-ffi 0.2.1
-  - Rust crate hns-wallet-hns 0.2.1
-  - Rust crate hns-wallet-host 0.2.1
-  - Rust crate hns-wallet-market 0.2.1
-  - Rust crate hns-wallet-mobile 0.2.1
-  - Rust crate hns-wallet-provider 0.2.1
-  - Rust crate hns-wallet-service 0.2.1
-  - Rust crate hns-wallet-shakedex 0.2.1
-  - Rust crate hns-wallet-store 0.2.1
-  - Rust crate hns-wallet-types 0.2.1
+  - Rust crate hns-wallet-bitcoin-kyoto 0.2.3
+  - Rust crate hns-wallet-chain-api 0.2.3
+  - Rust crate hns-wallet-ffi 0.2.3
+  - Rust crate hns-wallet-hns 0.2.3
+  - Rust crate hns-wallet-host 0.2.3
+  - Rust crate hns-wallet-market 0.2.3
+  - Rust crate hns-wallet-mobile 0.2.3
+  - Rust crate hns-wallet-provider 0.2.3
+  - Rust crate hns-wallet-service 0.2.3
+  - Rust crate hns-wallet-shakedex 0.2.3
+  - Rust crate hns-wallet-store 0.2.3
+  - Rust crate hns-wallet-types 0.2.3
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -3174,7 +3174,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ================================================================================
 Notice SHA-256: 49f5cc2a2e4db6cc86cc1c853cbf00af70abd12c55dae8d6561f26ccd1bfd162
 Applies to:
-  - Rust crate aws-lc-sys 0.44.0
+  - Rust crate aws-lc-sys 0.45.0
 Source file names:
   - aws-lc/LICENSE
   - LICENSE
@@ -4665,7 +4665,7 @@ Applies to:
   - Rust crate bitcoin_hashes 0.20.0
   - Rust crate chacha20-poly1305 0.1.2
   - Rust crate dunce 1.0.5
-  - Rust crate hex-conservative 0.2.2
+  - Rust crate hex-conservative 0.2.3
   - Rust crate hex-conservative 0.3.2
   - Rust crate hex-conservative 1.2.0
   - Rust crate miniscript 12.3.7
@@ -5815,18 +5815,18 @@ limitations under the License.
 ================================================================================
 Notice SHA-256: 7ee1222d909b6a4479b5845d6ae89574a8dde1a3832ea04b6952b075a491ec71
 Applies to:
-  - Rust crate hns-wallet-bitcoin-kyoto 0.2.1
-  - Rust crate hns-wallet-chain-api 0.2.1
-  - Rust crate hns-wallet-ffi 0.2.1
-  - Rust crate hns-wallet-hns 0.2.1
-  - Rust crate hns-wallet-host 0.2.1
-  - Rust crate hns-wallet-market 0.2.1
-  - Rust crate hns-wallet-mobile 0.2.1
-  - Rust crate hns-wallet-provider 0.2.1
-  - Rust crate hns-wallet-service 0.2.1
-  - Rust crate hns-wallet-shakedex 0.2.1
-  - Rust crate hns-wallet-store 0.2.1
-  - Rust crate hns-wallet-types 0.2.1
+  - Rust crate hns-wallet-bitcoin-kyoto 0.2.3
+  - Rust crate hns-wallet-chain-api 0.2.3
+  - Rust crate hns-wallet-ffi 0.2.3
+  - Rust crate hns-wallet-hns 0.2.3
+  - Rust crate hns-wallet-host 0.2.3
+  - Rust crate hns-wallet-market 0.2.3
+  - Rust crate hns-wallet-mobile 0.2.3
+  - Rust crate hns-wallet-provider 0.2.3
+  - Rust crate hns-wallet-service 0.2.3
+  - Rust crate hns-wallet-shakedex 0.2.3
+  - Rust crate hns-wallet-store 0.2.3
+  - Rust crate hns-wallet-types 0.2.3
 Source file names:
   - LICENSE-APACHE
 --------------------------------------------------------------------------------
@@ -5851,7 +5851,7 @@ Apache License
 ================================================================================
 Notice SHA-256: 7f194ae45c2525a57443f7edabd392e8218109ee81a4bce70d385104c87c1a71
 Applies to:
-  - Rust crate smallvec 1.15.2
+  - Rust crate smallvec 1.16.0
 Source file names:
   - LICENSE-MIT
 --------------------------------------------------------------------------------
@@ -6649,7 +6649,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: 943f36fd309fb5ea67a82f577433f4ed3bc877e5b00f9b874e2f8b7f72bf0bdc
 Applies to:
-  - Rust crate tinyvec 1.12.0
+  - Rust crate tinyvec 1.13.2
 Source file names:
   - LICENSE-ZLIB.md
 --------------------------------------------------------------------------------
@@ -6748,7 +6748,7 @@ Applies to:
   - Rust crate rusticata-macros 4.1.0
   - Rust crate rustix 1.1.4
   - Rust crate rustls 0.23.43
-  - Rust crate smallvec 1.15.2
+  - Rust crate smallvec 1.16.0
   - Rust crate socket2 0.6.5
   - Rust crate stable_deref_trait 1.2.1
   - Rust crate unicode-normalization 0.1.25
@@ -9041,7 +9041,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 ================================================================================
 Notice SHA-256: bccaa8b6c09f94e81f06696e179dbe058464bbdfbc823b6d49cada1d71e84ac3
 Applies to:
-  - Rust crate tinyvec 1.12.0
+  - Rust crate tinyvec 1.13.2
 Source file names:
   - LICENSE-MIT.md
 --------------------------------------------------------------------------------
@@ -9279,7 +9279,7 @@ DEALINGS IN THE SOFTWARE.
 ================================================================================
 Notice SHA-256: c804065b0956d00a65ce119456ec48ee456f5446b904b07ee85225ba5a88ce41
 Applies to:
-  - Rust crate mio 1.2.2
+  - Rust crate mio 1.2.3
 Source file names:
   - LICENSE
 --------------------------------------------------------------------------------
@@ -9306,7 +9306,7 @@ THE SOFTWARE.
 ================================================================================
 Notice SHA-256: c86c0f590ac954babf892ba6b03c50c00cdf326ddfd0ad31ed0ec16abdaada52
 Applies to:
-  - Rust crate aws-lc-sys 0.44.0
+  - Rust crate aws-lc-sys 0.45.0
 Source file names:
   - aws-lc/third_party/fiat/LICENSE
 --------------------------------------------------------------------------------
@@ -10462,7 +10462,7 @@ for the license to code that was sourced from the once_cell project.
 ================================================================================
 Notice SHA-256: efbbbcefb4b8588630bec285cd7372a4dc3eb208a6c457d4313f62cb10f87aa3
 Applies to:
-  - Rust crate aws-lc-rs 1.18.0
+  - Rust crate aws-lc-rs 1.18.1
 Source file names:
   - LICENSE
 --------------------------------------------------------------------------------

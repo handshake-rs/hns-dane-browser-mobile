@@ -3705,8 +3705,7 @@ impl BrowserRuntime {
                 "wallet header export is only available for mainnet".to_owned(),
             ));
         }
-        if target_height < WALLET_MAINNET_CHECKPOINT_HEIGHT
-            || target_height > HEADER_SNAPSHOT_MAX_HEIGHT
+        if !(WALLET_MAINNET_CHECKPOINT_HEIGHT..=HEADER_SNAPSHOT_MAX_HEIGHT).contains(&target_height)
         {
             return Err(RuntimeError::InvalidConfiguration(
                 "wallet header export target is outside the supported range".to_owned(),
@@ -21887,7 +21886,9 @@ mod tests {
         assert_eq!(DEFAULT_GATEWAY_PROOF_PEERS, 8);
         assert_eq!(DEFAULT_GATEWAY_PROOF_TIMEOUT, Duration::from_secs(10));
         assert_eq!(LIVE_PROOF_CONNECT_ATTEMPT_TIMEOUT, Duration::from_secs(2));
-        assert!(DEFAULT_GATEWAY_PROOF_PEERS > LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS);
+        const {
+            assert!(DEFAULT_GATEWAY_PROOF_PEERS > LOCAL_CHAIN_TARGET_MIN_PEER_GROUPS);
+        }
         assert!(LIVE_PROOF_CONNECT_ATTEMPT_TIMEOUT < DEFAULT_GATEWAY_PROOF_TIMEOUT);
     }
 

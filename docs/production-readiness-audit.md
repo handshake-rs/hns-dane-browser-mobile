@@ -1,9 +1,11 @@
 # Production Readiness Audit
 
-Last audited: 2026-09-02
+Last audited: 2026-09-05
 
-Current source coordinates Android `1.0.4` / code `56`, embedded
-non-publishable Rust `1.0.0`, and iOS `1.0.4` / build `65`. Earlier
+Current source coordinates Android `1.0.5` / code `57`, embedded
+non-publishable Rust `1.0.1`, and iOS `1.0.4` / build `65`. The Android/Rust
+coordinates are an unbuilt, unsigned, unuploaded candidate; iOS remains an
+independently pending submission. Earlier
 HNWR-v2/ECH-and-sync-telemetry code-bearing source
 `986accb7d86d220af63187031e629a9ce69d71e5` passed exact-source CI and the
 complete Android and Apple platform matrix in run `31807520618`; that evidence
@@ -75,7 +77,7 @@ credential/backend/data boundary.
 
 | Area | Status | Finding |
 | --- | --- | --- |
-| Current source identity | Exact dependency cohort; platform candidates independent | Android `1.0.4` / code `56`, iOS `1.0.4` / build `65`, and embedded Rust `1.0.0` use the exact checksum-bearing published HNS, engine, and wallet dependencies, including the complete wallet `0.2.1` cohort. [released-dependency-cohort.md](released-dependency-cohort.md) binds that policy. |
+| Current source identity | Exact published dependency cohort; platform candidates independent | Android `1.0.5` / code `57`, iOS `1.0.4` / build `65`, and embedded Rust `1.0.1` use exact checksum-bearing published HNS, engine, and wallet dependencies, including the complete wallet `0.2.3` cohort from release commit `0a0558c6df8ceb4f8d8318821cd16981f248a22b`. [released-dependency-cohort.md](released-dependency-cohort.md) binds that policy. |
 | Android compatibility | Code 48, GitHub APK only | Android `0.5.7` lowers the application and native NDK floor from API 34 to API 30. Search encoding remains explicitly UTF-8 through the compatible `URLEncoder` overload, with Unicode and query-delimiter regression coverage. |
 | Android release build | Code 47 signed and published | Shipping source `417af67efd68198de4871c0a339d1e456b60cb68` produced the 51,323,995-byte APK (SHA-256 `46022ec141aa5e700592ab6f81d4d246c71b6a2fb80c2e30139f42fa24effeeb`) and 60,276,192-byte AAB (SHA-256 `de668002cbcf803a5704028f06331a57c29998d6f9540dd8ccdeede545cb7b69`). Both passed their signed-package gates. GitHub Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) contains only the verified APK; the Play AAB and unchanged iOS build are not attached. |
 | Public Play listing | Code 56 committed to production | Android Publisher edit `13709111796723000294` uploaded Android `1.0.4` / code `56`, assigned it to production with status `completed`, and committed. `generatedApks/56` returned HTTP `200`; Google controls remaining review and propagation. |

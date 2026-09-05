@@ -1,1 +1,1 @@
-1.0.4 fixes DNSSEC-signed sites routed through unsigned CDN endpoints while retaining strict dual-root validation and native-wallet protections.
+1.0.5 improves wallet synchronization and name tracking, including Unicode Handshake names, lifecycle status, raw records, and clearer native name controls.
