@@ -3393,7 +3393,13 @@ class WalletActivity : ComponentActivity() {
                         // token before rendering so the dashboard remains one
                         // continuous synchronization with value actions
                         // disabled throughout the short checkpoint gap.
-                        scheduleHnsCatchupRetry(lease, handle, epoch, authorityGeneration)
+                        scheduleHnsCatchupRetry(
+                            lease,
+                            handle,
+                            epoch,
+                            authorityGeneration,
+                            synchronization.catchup.headerState,
+                        )
                         statusView.text = getString(R.string.wallet_status_syncing_reads)
                         renderReadCatchup(synchronization.catchup)
                     }
@@ -3426,6 +3432,7 @@ class WalletActivity : ComponentActivity() {
         handle: Long,
         epoch: Long,
         authorityGeneration: Long,
+        headerState: NativeWalletHnsCatchupProgress.HeaderState,
     ) {
         hnsCatchupRetry?.set(false)
         val retry = AtomicBoolean(true)
@@ -3433,7 +3440,7 @@ class WalletActivity : ComponentActivity() {
         Log.i(TAG, "Scheduling the next bounded direct HNS catch-up round")
         thread(name = "hns-wallet-catchup-retry") {
             try {
-                Thread.sleep(HNS_CATCHUP_RETRY_DELAY_MILLIS)
+                Thread.sleep(directHnsCatchupRetryDelayMillis(headerState))
             } catch (_: InterruptedException) {
                 retry.set(false)
             }
@@ -6063,6 +6070,7 @@ class WalletActivity : ComponentActivity() {
                             handle,
                             epoch,
                             expected.authorityGeneration,
+                            synchronization.catchup.headerState,
                         )
                     }
                     else -> {
@@ -7538,7 +7546,6 @@ class WalletActivity : ComponentActivity() {
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS = 3_000L
         const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L
-        const val HNS_CATCHUP_RETRY_DELAY_MILLIS = 2_000L
         const val HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS = 3
         const val HNS_POST_BROADCAST_VERIFICATION_INTERVAL_MILLIS = 1_000L
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
@@ -7548,6 +7555,23 @@ class WalletActivity : ComponentActivity() {
         const val PENDING_OUTGOING_HEIGHT = "snapshot_height"
     }
 }
+
+internal const val HNS_CATCHUP_PROGRESS_RETRY_DELAY_MILLIS = 2_000L
+internal const val HNS_CATCHUP_DEGRADED_RETRY_DELAY_MILLIS = 30_000L
+
+/**
+ * A checkpoint that advanced authenticated state can resume promptly. A
+ * degraded checkpoint means transport is unavailable, so retry on the same
+ * cadence as peer maintenance instead of spinning every two seconds.
+ */
+internal fun directHnsCatchupRetryDelayMillis(
+    headerState: NativeWalletHnsCatchupProgress.HeaderState,
+): Long =
+    if (headerState == NativeWalletHnsCatchupProgress.HeaderState.Degraded) {
+        HNS_CATCHUP_DEGRADED_RETRY_DELAY_MILLIS
+    } else {
+        HNS_CATCHUP_PROGRESS_RETRY_DELAY_MILLIS
+    }
 
 internal fun recoveryWordChoices(
     words: List<String>,

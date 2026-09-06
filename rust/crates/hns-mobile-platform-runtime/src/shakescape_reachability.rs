@@ -407,7 +407,8 @@ async fn acquire_explicit_mapping(
     local_port: NonZeroU16,
 ) -> Option<ExplicitMappingLease> {
     let gateway = GatewayAddress::from(route.gateway_ipv4);
-    let options = explicit_mapping_options();
+    let preferred_external_port = preferred_external_port(route, local_port);
+    let options = explicit_mapping_options(preferred_external_port);
 
     if let Ok(Ok(mapping)) = tokio::time::timeout(
         EXPLICIT_MAPPING_PROTOCOL_TIMEOUT,
@@ -455,12 +456,13 @@ async fn acquire_explicit_mapping(
         });
     }
 
-    acquire_upnp_mapping(route.local_ipv4, local_port).await
+    acquire_upnp_mapping(route.local_ipv4, local_port, preferred_external_port).await
 }
 
 async fn acquire_upnp_mapping(
     local_ipv4: Ipv4Addr,
     local_port: NonZeroU16,
+    preferred_external_port: NonZeroU16,
 ) -> Option<ExplicitMappingLease> {
     let search = async_igd::tokio::search_gateway(SearchOptions {
         bind_addr: SocketAddr::V4(SocketAddrV4::new(local_ipv4, 0)),
@@ -482,7 +484,7 @@ async fn acquire_upnp_mapping(
             _ => return None,
         };
     let local_address = SocketAddr::V4(SocketAddrV4::new(local_ipv4, local_port.get()));
-    let preferred_port = local_port.get();
+    let preferred_port = preferred_external_port.get();
     let external_port = if gateway
         .add_port(
             PortMappingProtocol::TCP,
@@ -522,12 +524,31 @@ fn explicit_timeout_config() -> TimeoutConfig {
     }
 }
 
-fn explicit_mapping_options() -> PortMappingOptions {
+fn explicit_mapping_options(external_port: NonZeroU16) -> PortMappingOptions {
     PortMappingOptions {
-        external_port: None,
+        external_port: Some(external_port),
         lifetime_seconds: Some(MAPPING_LEASE_SECONDS),
         timeout_config: Some(explicit_timeout_config()),
     }
+}
+
+/// Pick a stable per-LAN-address port from the IANA dynamic range instead of
+/// reusing the local Handshake port. Some consumer routers implement LAN
+/// hairpin redirects too broadly: mapping external port 12038 can then capture
+/// the mobile's unrelated outbound connections to every stock HSD peer. The
+/// advertised ADDR record carries the actual router-returned port, so the
+/// external port has no protocol requirement to equal the listener port.
+fn preferred_external_port(route: ShakescapeRouterRoute, local_port: NonZeroU16) -> NonZeroU16 {
+    const DYNAMIC_PORT_START: u16 = 49_152;
+    const DYNAMIC_PORT_COUNT: u16 = 16_384;
+
+    let octets = route.local_ipv4.octets();
+    let address_component = u16::from_be_bytes([octets[2], octets[3]]);
+    let offset = address_component
+        .wrapping_mul(257)
+        .wrapping_add(local_port.get())
+        % DYNAMIC_PORT_COUNT;
+    NonZeroU16::new(DYNAMIC_PORT_START + offset).expect("the dynamic port range is nonzero")
 }
 
 /// Reject private, carrier-NAT, link-local, documentation, multicast, and
@@ -697,5 +718,31 @@ mod tests {
             !ShakescapeRouterRoute::new("192.168.8.106".parse().unwrap(), Ipv4Addr::LOCALHOST)
                 .usable()
         );
+    }
+
+    #[test]
+    fn router_mapping_never_requests_the_standard_handshake_port_externally() {
+        let local_port = NonZeroU16::new(12_038).unwrap();
+        let first = preferred_external_port(
+            ShakescapeRouterRoute::new(
+                "192.168.8.106".parse().unwrap(),
+                "192.168.8.1".parse().unwrap(),
+            ),
+            local_port,
+        );
+        let second = preferred_external_port(
+            ShakescapeRouterRoute::new(
+                "192.168.8.242".parse().unwrap(),
+                "192.168.8.1".parse().unwrap(),
+            ),
+            local_port,
+        );
+
+        assert!((49_152..=u16::MAX).contains(&first.get()));
+        assert!((49_152..=u16::MAX).contains(&second.get()));
+        assert_ne!(first.get(), local_port.get());
+        assert_ne!(second.get(), local_port.get());
+        assert_ne!(first, second);
+        assert_eq!(explicit_mapping_options(first).external_port, Some(first));
     }
 }
