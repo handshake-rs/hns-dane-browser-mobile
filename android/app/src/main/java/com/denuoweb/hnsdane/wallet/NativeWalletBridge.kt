@@ -1,5 +1,6 @@
 package com.denuoweb.hnsdane.wallet
 
+import android.util.Log
 import com.denuoweb.hnsdane.net.NativeBridge
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -529,13 +530,28 @@ internal object NativeWalletBridge {
         handle: Long,
         intent: NativeHnsValueIntent,
     ): NativeHnsValueApproval? {
-        val intentJson = intent.encodeJson() ?: return null
+        val intentJson = intent.encodeJson() ?: run {
+            Log.e(TAG, "HNS value preparation rejected its closed Kotlin intent")
+            return null
+        }
         return try {
-            if (!isAvailable || !isValidHandle(handle)) return null
+            if (!isAvailable || !isValidHandle(handle)) {
+                Log.e(TAG, "HNS value preparation has no valid native wallet handle")
+                return null
+            }
             val bundle = runCatching { nativePrepareHnsValueAction(handle, intentJson) }
-                .getOrNull() ?: return null
+                .onFailure { error ->
+                    Log.e(TAG, "HNS value preparation JNI call threw", error)
+                }
+                .getOrNull() ?: run {
+                Log.e(TAG, "HNS value preparation JNI boundary returned no approval bundle")
+                return null
+            }
             val approval = parseAndWipeHnsValueApprovalBundle(bundle)
-            if (approval == null) lock(handle)
+            if (approval == null) {
+                Log.e(TAG, "HNS value preparation rejected its native approval projection")
+                lock(handle)
+            }
             approval
         } finally {
             intentJson.fill(0)
@@ -1374,6 +1390,7 @@ internal object NativeWalletBridge {
     @JvmStatic
     private external fun nativeDestroy(handle: Long): Boolean
 
+    private const val TAG = "NativeWalletBridge"
     private const val INVALID_HANDLE = 0L
     private const val DATABASE_KEY_BYTES = 32
     private const val WALLET_ID_BYTES = 16

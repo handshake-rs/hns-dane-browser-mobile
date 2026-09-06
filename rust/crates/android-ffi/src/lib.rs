@@ -2257,6 +2257,7 @@ fn prepare_hns_value_action<B: HnsBackend>(
     let bundle = wallet_value_approval_bundle(json.as_slice());
     json.fill(0);
     if bundle.is_none() {
+        android_log_error("wallet HNS value approval failed its JNI bundle projection");
         let _ = controller.lock();
     }
     bundle
@@ -7242,32 +7243,64 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     handle: jlong,
     intent_json: JByteArray<'_>,
 ) -> jbyteArray {
-    catch_unwind(AssertUnwindSafe(|| {
-        let mut json = android_wallet_consumed_bytes(
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let Some(mut json) = android_wallet_consumed_bytes(
             &mut env,
             &intent_json,
             MAX_ANDROID_WALLET_VALUE_INTENT_JSON_BYTES,
-        )?;
+        ) else {
+            android_log_error("wallet HNS value JNI preparation rejected its input bytes");
+            return None;
+        };
         let intent = if json.first() == Some(&b'{') && json.last() == Some(&b'}') {
-            serde_json::from_slice::<MobileHnsValueIntent>(json.as_slice()).ok()
+            match serde_json::from_slice::<MobileHnsValueIntent>(json.as_slice()) {
+                Ok(intent) => Some(intent),
+                Err(error) => {
+                    android_log_error(&format!(
+                        "wallet HNS value JNI preparation rejected its closed intent: {error}"
+                    ));
+                    None
+                }
+            }
         } else {
+            android_log_error("wallet HNS value JNI preparation rejected non-object intent bytes");
             None
         };
         json.fill(0);
         let intent = intent?;
-        let record = wallet_from_handle(handle)?;
-        let mut controller = record.controller_if_active()?;
+        let Some(record) = wallet_from_handle(handle) else {
+            android_log_error("wallet HNS value JNI preparation could not resolve its handle");
+            return None;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            android_log_error(
+                "wallet HNS value JNI preparation could not acquire its active controller",
+            );
+            return None;
+        };
         let mut bundle = controller.prepare_hns_value_action(intent)?;
-        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        let array = match env.byte_array_from_slice(bundle.as_slice()) {
+            Ok(array) => Some(array),
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet HNS value JNI preparation could not publish its bundle: {error}"
+                ));
+                None
+            }
+        };
         bundle.fill(0);
         if array.is_none() {
             let _ = controller.lock();
         }
         array.map(JByteArray::into_raw)
-    }))
-    .ok()
-    .flatten()
-    .unwrap_or(std::ptr::null_mut())
+    }));
+    match result {
+        Ok(array) => array.unwrap_or(std::ptr::null_mut()),
+        Err(_) => {
+            android_log_error("wallet HNS value JNI preparation panicked and failed closed");
+            std::ptr::null_mut()
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
