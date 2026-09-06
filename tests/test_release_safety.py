@@ -35,7 +35,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.5\"$")
         self.assertRegex(gradle, r"(?m)^\s*versionCode = 57$")
         self.assertIn(
-            '?: listOf("armeabi-v7a", "arm64-v8a", "x86_64")',
+            '?: listOf("armeabi-v7a", "arm64-v8a")',
             gradle,
         )
         self.assertIn(
@@ -46,7 +46,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn(
-            "HNS_RUST_ANDROID_ABIS:-armeabi-v7a,arm64-v8a,x86_64",
+            "HNS_RUST_ANDROID_ABIS:-armeabi-v7a,arm64-v8a",
             android_builder,
         )
         self.assertIn("max-page-size=16384", android_builder)

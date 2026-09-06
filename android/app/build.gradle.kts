@@ -31,7 +31,6 @@ private val MAX_BUNDLE_ENTRY_SIZE = 256L * 1024L * 1024L
 private val REQUIRED_NATIVE_LIBRARIES = setOf(
     "base/lib/armeabi-v7a/libhns_dane_browser_ffi.so",
     "base/lib/arm64-v8a/libhns_dane_browser_ffi.so",
-    "base/lib/x86_64/libhns_dane_browser_ffi.so",
 )
 
 private data class ElfSection(
@@ -555,7 +554,7 @@ private fun verifyReleaseBundleStructure(bundle: java.io.File, forbiddenPathPref
             .sortedBy(ZipEntry::getName)
             .toList()
         val nativeLibraries = nativeLibraryEntries.map(ZipEntry::getName)
-        val allowedAbis = setOf("armeabi-v7a", "arm64-v8a", "x86_64")
+        val allowedAbis = setOf("armeabi-v7a", "arm64-v8a")
         val bundledAbis = nativeLibraries
             .map { name -> name.removePrefix("base/lib/").substringBefore('/') }
             .toSet()
@@ -615,7 +614,7 @@ val androidAbis = providers.gradleProperty("hns.androidAbis").orNull
     ?.split(',')
     ?.map(String::trim)
     ?.filter(String::isNotEmpty)
-    ?: listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+    ?: listOf("armeabi-v7a", "arm64-v8a")
 require(androidAbis.isNotEmpty() && androidAbis.toSet().size == androidAbis.size) {
     "hns.androidAbis must select unique Android ABIs"
 }

@@ -5,7 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${1:-$ROOT_DIR/android/app/build/generated/rustJniLibs}"
 PROFILE="${HNS_RUST_ANDROID_PROFILE:-release}"
 EXPECTED_NDK_VERSION="${HNS_ANDROID_NDK_VERSION:-28.2.13676358}"
-ANDROID_ABIS_CSV="${HNS_RUST_ANDROID_ABIS:-armeabi-v7a,arm64-v8a,x86_64}"
+# Physical-device builds are the safe default on every host. x86_64 remains
+# available only through an explicit HNS_RUST_ANDROID_ABIS override for the CI
+# emulator; an ordinary local Gradle invocation must never silently add it.
+ANDROID_ABIS_CSV="${HNS_RUST_ANDROID_ABIS:-armeabi-v7a,arm64-v8a}"
 RUST_TOOLCHAIN="1.92.0"
 CARGO=(cargo "+$RUST_TOOLCHAIN")
 RUSTC=(rustc "+$RUST_TOOLCHAIN")
