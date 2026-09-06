@@ -1691,6 +1691,13 @@ struct NativeDirectShakescapeStatus: Equatable, Sendable {
     let unlocked: Bool
     let listenerPort: UInt16?
     let peerEndpoint: String?
+    let peerCount: UInt8
+    let candidateCount: UInt8
+    let publiclyReachable: Bool
+    let publicIpv6: Bool
+    let routerMapped: Bool
+    let advertised: Bool
+    let networkServiceReady: Bool
 }
 
 struct NativeDirectShakescapeConnectResult: Equatable, Sendable {
@@ -1712,25 +1719,54 @@ enum NativeDirectShakescapeBundle {
     private static let maximumEndpointBytes = 128
 
     static func status(_ bundle: [UInt8]) throws -> NativeDirectShakescapeStatus {
-        let endpoint = try validated(bundle, magic: Array("HNDS".utf8), lengthOffset: 10)
+        let endpoint = try validated(
+            bundle,
+            magic: Array("HNDS".utf8),
+            version: 2,
+            lengthOffset: 10,
+            reservedCounters: false
+        )
         let flags = bundle[5]
-        guard flags & ~UInt8(0b111) == 0 else { throw invalid() }
+        guard flags & ~UInt8(0b1111_1111) == 0 else { throw invalid() }
         let unlocked = flags & 1 != 0
         let listening = flags & 2 != 0
         let paired = flags & 4 != 0
+        let publiclyReachable = flags & 8 != 0
+        let publicIpv6 = flags & 16 != 0
+        let routerMapped = flags & 32 != 0
+        let advertised = flags & 64 != 0
+        let networkServiceReady = flags & 128 != 0
+        let peerCount = bundle[6]
+        let candidateCount = bundle[7]
         let port = UInt16(bundle[8]) << 8 | UInt16(bundle[9])
-        guard unlocked || (!listening && !paired),
+        guard unlocked || (!listening && !paired && !publiclyReachable && !advertised && !networkServiceReady),
               (port != 0) == listening,
-              (!endpoint.isEmpty) == paired else { throw invalid() }
+              (!endpoint.isEmpty) == paired,
+              (peerCount != 0) == paired,
+              !routerMapped || publiclyReachable,
+              !advertised || (publiclyReachable && networkServiceReady) else { throw invalid() }
         return NativeDirectShakescapeStatus(
             unlocked: unlocked,
             listenerPort: listening ? port : nil,
-            peerEndpoint: paired ? endpoint : nil
+            peerEndpoint: paired ? endpoint : nil,
+            peerCount: peerCount,
+            candidateCount: candidateCount,
+            publiclyReachable: publiclyReachable,
+            publicIpv6: publicIpv6,
+            routerMapped: routerMapped,
+            advertised: advertised,
+            networkServiceReady: networkServiceReady
         )
     }
 
     static func connect(_ bundle: [UInt8]) throws -> NativeDirectShakescapeConnectResult {
-        let endpoint = try validated(bundle, magic: Array("HNDC".utf8), lengthOffset: 8)
+        let endpoint = try validated(
+            bundle,
+            magic: Array("HNDC".utf8),
+            version: 1,
+            lengthOffset: 8,
+            reservedCounters: true
+        )
         guard let outcome = NativeDirectShakescapeConnectResult.Outcome(rawValue: bundle[5]),
               (bundle[10] == 0 && bundle[11] == 0) else { throw invalid() }
         let success = outcome == .connected || outcome == .replaced
@@ -1744,14 +1780,15 @@ enum NativeDirectShakescapeBundle {
     private static func validated(
         _ bundle: [UInt8],
         magic: [UInt8],
-        lengthOffset: Int
+        version: UInt8,
+        lengthOffset: Int,
+        reservedCounters: Bool
     ) throws -> String {
         guard bundle.count >= headerBytes,
               bundle.count <= headerBytes + maximumEndpointBytes,
               Array(bundle[0..<4]) == magic,
-              bundle[4] == 1,
-              bundle[6] == 0,
-              bundle[7] == 0 else { throw invalid() }
+              bundle[4] == version,
+              !reservedCounters || (bundle[6] == 0 && bundle[7] == 0) else { throw invalid() }
         let length = Int(UInt16(bundle[lengthOffset]) << 8 | UInt16(bundle[lengthOffset + 1]))
         guard bundle.count == headerBytes + length else { throw invalid() }
         let bytes = Array(bundle[headerBytes...])

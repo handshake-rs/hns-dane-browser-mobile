@@ -8,6 +8,7 @@ import CoreImage
 
 private let defaultHnsMaximumFee = "1"
 private let defaultHnsMaximumFeeBaseUnits = "1000000"
+private let directShakescapeNetworkMaintenanceTicks = 30
 
 /// Native wallet-control surface.  Every HNS peer, consensus, block scan,
 /// signing, and broadcast operation remains in the Rust controller; UIKit
@@ -73,6 +74,7 @@ final class WalletViewController: UIViewController {
     private var pendingHnsValueApproval: NativeHnsValueApproval?
     private var directShakescapeServiceTimer: Timer?
     private var directShakescapeServiceInFlight = false
+    private var directShakescapeServiceTicks = 0
     private var directShakescapeStatusSnapshot: NativeDirectShakescapeStatus?
     private var hnsSyncPresentationTimer: Timer?
     private var bitcoinSyncInProgress = false
@@ -659,6 +661,21 @@ final class WalletViewController: UIViewController {
             action: { [weak self] in self?.showWalletManagement() }
         )
         dashboardStack.addArrangedSubview(dashboardTileRow(namesTile, walletTile))
+        let bitcoinTile = dashboardTile(
+            title: "Bitcoin",
+            summary: bitcoinValueAvailable ? "Ready" : "Synchronize to update",
+            enabled: !isOperating,
+            action: { [weak self] in self?.showBitcoinDashboard() }
+        )
+        let shakedexTile = dashboardTile(
+            title: "Shakedex",
+            summary: directShakescapeStatusSnapshot?.peerEndpoint == nil
+                ? "No board peer connected"
+                : "Board peer connected",
+            enabled: !isOperating,
+            action: { [weak self] in self?.showShakedexDashboard() }
+        )
+        dashboardStack.addArrangedSubview(dashboardTileRow(bitcoinTile, shakedexTile))
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "Recent activity",
             body: [historyLabel, dashboardButton(
@@ -2449,7 +2466,24 @@ final class WalletViewController: UIViewController {
                 ?? "listener unavailable"
             let peer = shakescapeStatus.peerEndpoint.map { "paired with \($0)" }
                 ?? "no paired peer"
-            transportLine = "\(listener); \(peer)."
+            let reachability: String
+            if shakescapeStatus.advertised {
+                let route = shakescapeStatus.publicIpv6
+                    ? "public IPv6"
+                    : (shakescapeStatus.routerMapped ? "router TCP mapping" : "public TCP")
+                reachability = "public endpoint candidate from \(route); advertised through stock HSD"
+            } else if shakescapeStatus.publiclyReachable && shakescapeStatus.networkServiceReady {
+                reachability = "public endpoint candidate and verified NETWORK service ready; reconnecting stock HSD peers for ADDR publication"
+            } else if shakescapeStatus.publiclyReachable {
+                reachability = "public endpoint candidate found; waiting for fresh verified NETWORK service"
+            } else if shakescapeStatus.publicIpv6 {
+                reachability = "global IPv6 candidate found; external inbound TCP verification is required before ADDR publication"
+            } else if shakescapeStatus.networkServiceReady {
+                reachability = "NETWORK service ready; checking public IPv6 candidates and trying PCP/NAT-PMP/UPnP"
+            } else {
+                reachability = "waiting for fresh verified headers before NETWORK advertisement"
+            }
+            transportLine = "\(listener); \(peer); \(reachability); \(shakescapeStatus.peerCount) board peers and \(shakescapeStatus.candidateCount) discovery candidates."
         } else {
             transportLine = "P2P swap connection unavailable while locked or unsynchronized."
         }
@@ -2900,6 +2934,7 @@ final class WalletViewController: UIViewController {
         if !shouldRun {
             directShakescapeServiceTimer?.invalidate()
             directShakescapeServiceTimer = nil
+            directShakescapeServiceTicks = 0
             directShakescapeStatusSnapshot = nil
             return
         }
@@ -2928,6 +2963,13 @@ final class WalletViewController: UIViewController {
                       self.walletAuthorityGeneration == authority,
                       self.wallet.map({ ObjectIdentifier($0) }) == identity else { return }
                 self.directShakescapeStatusSnapshot = status
+                self.directShakescapeServiceTicks =
+                    (self.directShakescapeServiceTicks + 1) % directShakescapeNetworkMaintenanceTicks
+                if self.directShakescapeServiceTicks == 0,
+                   status?.publiclyReachable == true,
+                   status?.networkServiceReady == false {
+                    self.synchronizeWalletReads(resumeAutomaticSync: false)
+                }
             }
         }
     }
@@ -5166,6 +5208,7 @@ final class WalletViewController: UIViewController {
     @objc private func protectWalletLifecycle() {
         directShakescapeServiceTimer?.invalidate()
         directShakescapeServiceTimer = nil
+        directShakescapeServiceTicks = 0
         clearWalletNameImportPrompt(dismiss: true)
         dismissPendingHnsSendApproval(rejectNatively: true)
         dismissPendingHnsValueApproval(rejectNatively: true)

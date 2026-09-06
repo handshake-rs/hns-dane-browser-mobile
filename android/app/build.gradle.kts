@@ -654,7 +654,6 @@ val buildRustAndroid = tasks.register<Exec>("buildRustAndroid") {
     )
     inputs.property("rustAndroidProfile", "release")
     inputs.property("rustAndroidAbis", androidAbis)
-    inputs.property("cargoNdkVersion", System.getenv("HNS_CARGO_NDK_VERSION") ?: "4.1.2")
     inputs.property(
         "androidNdkVersion",
         System.getenv("HNS_ANDROID_NDK_VERSION") ?: "28.2.13676358",
@@ -747,6 +746,17 @@ android {
     sourceSets {
         getByName("main") {
             jniLibs.directories.add(rustJniLibsDirFile.absolutePath)
+        }
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        if (variant.debuggable) {
+            // AGP's Linux host-tag resolver assumes linux-x86_64 even when
+            // Gradle runs natively on ARM64. Device-test variants retain the
+            // release-profile Rust symbols and therefore need no AGP strip.
+            variant.packaging.jniLibs.keepDebugSymbols.add("**/libhns_dane_browser_ffi.so")
         }
     }
 }

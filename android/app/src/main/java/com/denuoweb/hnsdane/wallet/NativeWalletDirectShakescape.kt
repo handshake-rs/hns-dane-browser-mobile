@@ -3,11 +3,18 @@ package com.denuoweb.hnsdane.wallet
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** Operational state for a direct Shakescape listener and its one active peer. */
+/** Operational state for the bounded direct ShakeScape node and discovery cascade. */
 internal data class NativeWalletDirectShakescapeStatus(
     val unlocked: Boolean,
     val listenerPort: Int?,
     val peerEndpoint: String?,
+    val peerCount: Int,
+    val candidateCount: Int,
+    val publiclyReachable: Boolean,
+    val publicIpv6: Boolean,
+    val routerMapped: Boolean,
+    val advertised: Boolean,
+    val networkServiceReady: Boolean,
 ) {
     companion object {
         fun parse(bundle: ByteArray): NativeWalletDirectShakescapeStatus? =
@@ -66,23 +73,42 @@ private object NativeWalletDirectShakescapeParser {
         require(bundle.size in HEADER_BYTES..(HEADER_BYTES + MAX_ENDPOINT_BYTES))
         require(statusMagic.indices.all { index -> bundle[index] == statusMagic[index] })
         val input = ByteBuffer.wrap(bundle, 4, HEADER_BYTES - 4).order(ByteOrder.BIG_ENDIAN)
-        require(input.get().toInt() and 0xff == VERSION)
+        require(input.get().toInt() and 0xff == STATUS_VERSION)
         val flags = input.get().toInt() and 0xff
         require(flags and STATUS_SUPPORTED_FLAGS == flags)
-        require(input.short.toInt() == 0)
+        val peerCount = input.get().toInt() and 0xff
+        val candidateCount = input.get().toInt() and 0xff
         val port = input.short.toInt() and 0xffff
         val endpointLength = input.short.toInt() and 0xffff
         require(bundle.size == HEADER_BYTES + endpointLength)
         val unlocked = flags and STATUS_UNLOCKED != 0
         val listening = flags and STATUS_LISTENING != 0
         val paired = flags and STATUS_PAIRED != 0
-        require(unlocked || (!listening && !paired))
+        val publiclyReachable = flags and STATUS_REACHABLE != 0
+        val publicIpv6 = flags and STATUS_PUBLIC_IPV6 != 0
+        val routerMapped = flags and STATUS_ROUTER_MAPPED != 0
+        val advertised = flags and STATUS_ADVERTISED != 0
+        val networkServiceReady = flags and STATUS_NETWORK_READY != 0
+        require(
+            unlocked ||
+                (!listening && !paired && !publiclyReachable && !advertised && !networkServiceReady),
+        )
         require((port != 0) == listening)
         require((endpointLength != 0) == paired)
+        require((peerCount != 0) == paired)
+        require(!routerMapped || publiclyReachable)
+        require(!advertised || (publiclyReachable && networkServiceReady))
         NativeWalletDirectShakescapeStatus(
             unlocked = unlocked,
             listenerPort = port.takeIf { listening },
             peerEndpoint = endpoint(bundle, endpointLength).takeIf { paired },
+            peerCount = peerCount,
+            candidateCount = candidateCount,
+            publiclyReachable = publiclyReachable,
+            publicIpv6 = publicIpv6,
+            routerMapped = routerMapped,
+            advertised = advertised,
+            networkServiceReady = networkServiceReady,
         )
     }.getOrNull()
 
@@ -90,7 +116,7 @@ private object NativeWalletDirectShakescapeParser {
         require(bundle.size in HEADER_BYTES..(HEADER_BYTES + MAX_ENDPOINT_BYTES))
         require(connectMagic.indices.all { index -> bundle[index] == connectMagic[index] })
         val input = ByteBuffer.wrap(bundle, 4, HEADER_BYTES - 4).order(ByteOrder.BIG_ENDIAN)
-        require(input.get().toInt() and 0xff == VERSION)
+        require(input.get().toInt() and 0xff == CONNECT_VERSION)
         val outcome = when (input.get().toInt() and 0xff) {
             CONNECTED -> NativeWalletDirectShakescapeConnectResult.Outcome.Connected
             REPLACED -> NativeWalletDirectShakescapeConnectResult.Outcome.Replaced
@@ -127,14 +153,21 @@ private object NativeWalletDirectShakescapeParser {
         }
     }
 
-    private const val VERSION = 1
+    private const val STATUS_VERSION = 2
+    private const val CONNECT_VERSION = 1
     private const val HEADER_BYTES = 12
     private const val MAX_ENDPOINT_BYTES = 128
     private const val STATUS_UNLOCKED = 1
     private const val STATUS_LISTENING = 1 shl 1
     private const val STATUS_PAIRED = 1 shl 2
+    private const val STATUS_REACHABLE = 1 shl 3
+    private const val STATUS_PUBLIC_IPV6 = 1 shl 4
+    private const val STATUS_ROUTER_MAPPED = 1 shl 5
+    private const val STATUS_ADVERTISED = 1 shl 6
+    private const val STATUS_NETWORK_READY = 1 shl 7
     private const val STATUS_SUPPORTED_FLAGS =
-        STATUS_UNLOCKED or STATUS_LISTENING or STATUS_PAIRED
+        STATUS_UNLOCKED or STATUS_LISTENING or STATUS_PAIRED or STATUS_REACHABLE or
+            STATUS_PUBLIC_IPV6 or STATUS_ROUTER_MAPPED or STATUS_ADVERTISED or STATUS_NETWORK_READY
     private const val CONNECTED = 1
     private const val REPLACED = 2
     private const val UNAVAILABLE = 3

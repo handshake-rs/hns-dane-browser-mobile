@@ -1,5 +1,6 @@
 package com.denuoweb.hnsdane.ui
 
+import android.Manifest
 import android.app.AlertDialog
 import android.app.Activity
 import android.app.KeyguardManager
@@ -15,8 +16,11 @@ import android.graphics.Typeface
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputFilter
@@ -45,6 +49,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import java.net.Inet4Address
 import com.denuoweb.hnsdane.BuildConfig
 import com.denuoweb.hnsdane.HnsDaneApplication
 import com.denuoweb.hnsdane.R
@@ -290,6 +295,16 @@ class WalletActivity : ComponentActivity() {
     private var displayedLiveHnsSyncStageSinceMillis = 0L
     private var pendingWalletAuthentication: (() -> Unit)? = null
     private var cancelledWalletAuthentication: (() -> Unit)? = null
+    private var localNetworkPermissionRequestInFlight = false
+    private val localNetworkPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        localNetworkPermissionRequestInFlight = false
+        if (!granted) {
+            Log.w(TAG, "Local-network permission denied; router discovery and LAN inbound tests remain unavailable")
+        }
+        refreshDirectShakescapeStatus()
+    }
     private val walletAuthentication = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -1138,6 +1153,18 @@ class WalletActivity : ComponentActivity() {
             ) { showNamesDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
             walletTile,
         ))
+        if (!locked) {
+            dashboardContent.addView(walletTileRow(
+                dashboardTile(
+                    title = getString(R.string.wallet_dashboard_bitcoin),
+                    summary = bitcoinSummary(),
+                ) { showBitcoinDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
+                dashboardTile(
+                    title = getString(R.string.wallet_dashboard_shakedex),
+                    summary = shakedexSummary(),
+                ) { showShakedexDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
+            ))
+        }
     }
 
     private fun <T : View> T.disabledWhenWalletHandoff(disabled: Boolean): T = apply {
@@ -2752,6 +2779,7 @@ class WalletActivity : ComponentActivity() {
                     refreshControllerState()
                     localReceiveTarget?.let(::renderLocalPaymentReceiveTarget)
                     if (NativeWalletBridge.directHnsRollbackFloor(handle) != null) {
+                        requestLocalNetworkPermissionForDirectShakescape()
                         startWalletOwnedDirectShakescapeWorker(handle, lease, epoch)
                     }
                     // A direct controller is installed locked. Once the user
@@ -2807,12 +2835,40 @@ class WalletActivity : ComponentActivity() {
         if (directShakescapeWorkerHandle == handle) return
         directShakescapeWorkerHandle = handle
         thread(name = "hns-wallet-direct-shakescape") {
+            // Android filters multicast delivery unless the foreground owner
+            // holds this lock. UPnP discovery needs SSDP responses; PCP and
+            // NAT-PMP remain ordinary unicast and continue if Wi-Fi or the
+            // lock is unavailable.
+            val multicastLock = runCatching {
+                (applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
+                    ?.createMulticastLock("hns-shakescape-upnp")
+                    ?.apply {
+                        setReferenceCounted(false)
+                        acquire()
+                    }
+            }.getOrNull()
             try {
                 var serviceTicks = 0
+                var installedRouterRoute: Pair<String, String>? = null
+                var routerRouteInitialized = false
                 while (
                     walletSessionIsActive() && operationIsCurrent(epoch, lease) && walletHandle == handle &&
                         (NativeWalletBridge.status(handle)?.locked == false)
                 ) {
+                    if (
+                        !routerRouteInitialized ||
+                            serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0
+                    ) {
+                        val route = currentDirectShakescapeRouterRoute()
+                        if (!routerRouteInitialized || route != installedRouterRoute) {
+                            NativeWalletBridge.updateWalletOwnedDirectShakescapeRouterRoute(
+                                handle,
+                                route,
+                            )
+                            installedRouterRoute = route
+                            routerRouteInitialized = true
+                        }
+                    }
                     NativeWalletBridge.serviceWalletOwnedDirectShakescape(handle)
                     serviceTicks += 1
                     if (serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0) {
@@ -2825,15 +2881,91 @@ class WalletActivity : ComponentActivity() {
                             }
                         }
                     }
+                    if (serviceTicks % DIRECT_SHAKESCAPE_NETWORK_MAINTENANCE_TICKS == 0) {
+                        runOnUiThread {
+                            val status = NativeWalletBridge
+                                .walletOwnedDirectShakescapeStatus(handle)
+                            if (
+                                status?.publiclyReachable == true &&
+                                    !status.networkServiceReady &&
+                                    !busy && !walletHnsSyncInProgress &&
+                                    !WalletHnsLiveSyncPresentationCache
+                                        .automaticSyncIsPaused(walletNetwork.id) &&
+                                    operationIsCurrent(epoch, lease) && walletHandle == handle
+                            ) {
+                                Log.i(
+                                    TAG,
+                                    "Refreshing authenticated HNS state for the active public listener",
+                                )
+                                synchronizeWalletReads()
+                            }
+                        }
+                    }
                     Thread.sleep(DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS)
                 }
             } finally {
+                if (multicastLock?.isHeld == true) multicastLock.release()
                 if (directShakescapeWorkerHandle == handle) {
                     directShakescapeWorkerHandle = INVALID_HANDLE
                 }
             }
         }
     }
+
+    /**
+     * Android restricts the route-netlink query used by portable Rust port
+     * mappers. LinkProperties is the supported source for the active LAN's
+     * exact local IPv4/default-gateway pair.
+     */
+    private fun currentDirectShakescapeRouterRoute(): Pair<String, String>? = runCatching {
+        val connectivity = applicationContext
+            .getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return@runCatching null
+        val network = connectivity.activeNetwork ?: return@runCatching null
+        val capabilities = connectivity.getNetworkCapabilities(network) ?: return@runCatching null
+        if (
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+                (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                    !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+        ) {
+            return@runCatching null
+        }
+        val properties = connectivity.getLinkProperties(network) ?: return@runCatching null
+        val local = properties.linkAddresses
+            .asSequence()
+            .map { it.address }
+            .filterIsInstance<Inet4Address>()
+            .firstOrNull { !it.isAnyLocalAddress && !it.isLoopbackAddress && !it.isMulticastAddress }
+            ?: return@runCatching null
+        val gateway = properties.routes
+            .asSequence()
+            .filter { it.isDefaultRoute }
+            .mapNotNull { it.gateway as? Inet4Address }
+            .firstOrNull { !it.isAnyLocalAddress && !it.isLoopbackAddress && !it.isMulticastAddress }
+            ?: return@runCatching null
+        val localAddress = local.hostAddress ?: return@runCatching null
+        val gatewayAddress = gateway.hostAddress ?: return@runCatching null
+        localAddress to gatewayAddress
+    }.getOrNull()
+
+    /**
+     * Android 17 gates LAN ingress and router-discovery traffic behind this
+     * runtime permission. Internet peer traffic and public IPv6 remain valid
+     * without it, so denial must not disable the direct Handshake service.
+     */
+    private fun requestLocalNetworkPermissionForDirectShakescape() {
+        if (
+            Build.VERSION.SDK_INT < 37 || hasLocalNetworkPermission() ||
+                localNetworkPermissionRequestInFlight
+        ) return
+        localNetworkPermissionRequestInFlight = true
+        localNetworkPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+    }
+
+    private fun hasLocalNetworkPermission(): Boolean =
+        Build.VERSION.SDK_INT < 37 ||
+            checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) ==
+            PackageManager.PERMISSION_GRANTED
 
     private fun requestWalletDeletion() {
         if (busy) {
@@ -3538,6 +3670,44 @@ class WalletActivity : ComponentActivity() {
 
     private fun refreshDirectShakescapeStatus() {
         val status = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
+        val reachability = status?.let { current ->
+            when {
+                current.advertised -> getString(
+                    R.string.wallet_direct_shakescape_reachability_advertised,
+                    when {
+                        current.publicIpv6 -> "public IPv6"
+                        current.routerMapped -> "router TCP mapping"
+                        else -> "public TCP"
+                    },
+                    current.peerCount,
+                    current.candidateCount,
+                )
+                current.publiclyReachable && current.networkServiceReady -> getString(
+                    R.string.wallet_direct_shakescape_reachability_waiting_hsd_peer,
+                    current.candidateCount,
+                )
+                current.publiclyReachable -> getString(
+                    R.string.wallet_direct_shakescape_reachability_waiting_network,
+                    current.candidateCount,
+                )
+                current.publicIpv6 -> getString(
+                    R.string.wallet_direct_shakescape_reachability_ipv6_verification,
+                    current.candidateCount,
+                )
+                current.networkServiceReady -> getString(
+                    if (hasLocalNetworkPermission()) {
+                        R.string.wallet_direct_shakescape_reachability_mapping
+                    } else {
+                        R.string.wallet_direct_shakescape_reachability_local_network_permission
+                    },
+                    current.candidateCount,
+                )
+                else -> getString(
+                    R.string.wallet_direct_shakescape_reachability_syncing,
+                    current.candidateCount,
+                )
+            }
+        }.orEmpty()
         directShakescapeStatusView.text = when {
             status == null -> getString(R.string.wallet_direct_shakescape_unavailable)
             !status.unlocked -> getString(R.string.wallet_direct_shakescape_locked)
@@ -3545,18 +3715,21 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_direct_shakescape_host_unavailable,
                 DIRECT_SHAKESCAPE_LISTEN_PORT,
                 status.peerEndpoint ?: getString(R.string.wallet_direct_shakescape_peer_none),
+                reachability,
             )
 
             status.peerEndpoint == null -> getString(
                 R.string.wallet_direct_shakescape_host_listening,
                 status.listenerPort,
                 getString(R.string.wallet_direct_shakescape_peer_none),
+                reachability,
             )
 
             else -> getString(
                 R.string.wallet_direct_shakescape_host_listening,
                 status.listenerPort,
                 getString(R.string.wallet_direct_shakescape_peer_connected, status.peerEndpoint),
+                reachability,
             )
         }
     }
@@ -7270,6 +7443,7 @@ class WalletActivity : ComponentActivity() {
         const val DEFAULT_OFFER_PAGE_SIZE = 32
         const val DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS = 250L
         const val DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS = 20
+        const val DIRECT_SHAKESCAPE_NETWORK_MAINTENANCE_TICKS = 120
         const val DIRECT_SHAKESCAPE_LISTEN_PORT = 12_038
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS = 3_000L

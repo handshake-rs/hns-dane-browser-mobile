@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${1:-$ROOT_DIR/android/app/build/generated/rustJniLibs}"
 PROFILE="${HNS_RUST_ANDROID_PROFILE:-release}"
-EXPECTED_CARGO_NDK_VERSION="${HNS_CARGO_NDK_VERSION:-4.1.2}"
 EXPECTED_NDK_VERSION="${HNS_ANDROID_NDK_VERSION:-28.2.13676358}"
 ANDROID_ABIS_CSV="${HNS_RUST_ANDROID_ABIS:-armeabi-v7a,arm64-v8a,x86_64}"
 RUST_TOOLCHAIN="1.92.0"
@@ -60,17 +59,6 @@ if [[ "$installed_rustc_version" != "rustc $RUST_TOOLCHAIN "* ]]; then
   exit 2
 fi
 
-if ! command -v cargo-ndk >/dev/null 2>&1; then
-  echo "ERROR: cargo-ndk is required. Install with: cargo +$RUST_TOOLCHAIN install cargo-ndk --version $EXPECTED_CARGO_NDK_VERSION --locked" >&2
-  exit 2
-fi
-
-installed_cargo_ndk_version="$("${CARGO[@]}" ndk --version 2>/dev/null || true)"
-if [[ "$installed_cargo_ndk_version" != "cargo-ndk $EXPECTED_CARGO_NDK_VERSION" ]]; then
-  echo "ERROR: cargo-ndk $EXPECTED_CARGO_NDK_VERSION is required; found '${installed_cargo_ndk_version:-unknown}'." >&2
-  exit 2
-fi
-
 NDK_DIR="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}"
 if [[ -z "$NDK_DIR" ]]; then
   echo "ERROR: ANDROID_NDK_HOME or ANDROID_NDK_ROOT must point to the Android NDK." >&2
@@ -93,6 +81,57 @@ if [[ -n "$EXPECTED_NDK_VERSION" && "$installed_ndk_version" != "$EXPECTED_NDK_V
   exit 2
 fi
 
+# Select the NDK's real host tag. Do not provide a misleading linux-x86_64
+# alias on ARM64 merely to satisfy tools that hard-code Google's usual host
+# package name: every invoked host binary must come from linux-arm64.
+host_system="$(uname -s)"
+host_arch="$(uname -m)"
+case "$host_system:$host_arch" in
+  Linux:aarch64|Linux:arm64)
+    ndk_host_tag="linux-arm64"
+    expected_clang_machine="AArch64"
+    ;;
+  Linux:x86_64|Linux:amd64)
+    ndk_host_tag="linux-x86_64"
+    expected_clang_machine="Advanced Micro Devices X86-64"
+    ;;
+  Darwin:arm64|Darwin:aarch64)
+    ndk_host_tag="darwin-arm64"
+    expected_clang_machine=""
+    ;;
+  Darwin:x86_64|Darwin:amd64)
+    ndk_host_tag="darwin-x86_64"
+    expected_clang_machine=""
+    ;;
+  *)
+    echo "ERROR: unsupported Android-build host: $host_system $host_arch" >&2
+    exit 2
+    ;;
+esac
+
+NDK_TOOLCHAIN_BIN="$NDK_DIR/toolchains/llvm/prebuilt/$ndk_host_tag/bin"
+host_clang="$NDK_TOOLCHAIN_BIN/clang"
+if [[ ! -x "$host_clang" ]]; then
+  echo "ERROR: native Android NDK host compiler is missing: $host_clang" >&2
+  exit 2
+fi
+if [[ "$host_system" == "Linux" ]]; then
+  if ! command -v readelf >/dev/null 2>&1; then
+    echo "ERROR: readelf is required to verify that the Android NDK compiler is host-native." >&2
+    exit 2
+  fi
+  actual_clang_machine="$(
+    LC_ALL=C readelf -h "$(realpath -- "$host_clang")" 2>/dev/null \
+      | sed -n 's/^[[:space:]]*Machine:[[:space:]]*//p' \
+      | head -n 1
+  )"
+  if [[ "$actual_clang_machine" != "$expected_clang_machine" ]]; then
+    echo "ERROR: refusing emulated Android NDK compiler on $host_arch." >&2
+    echo "ERROR: expected host-native ELF machine '$expected_clang_machine'; found '${actual_clang_machine:-unknown}' at $(realpath -- "$host_clang")." >&2
+    exit 2
+  fi
+fi
+
 mkdir -p -- "$OUT_DIR"
 OUT_DIR="$(cd "$OUT_DIR" && pwd -P)"
 case "$OUT_DIR" in
@@ -104,19 +143,10 @@ case "$OUT_DIR" in
 esac
 find "$OUT_DIR" -type f -name '*.so' -delete
 
-ARGS=(ndk)
-for abi in "${ANDROID_ABIS[@]}"; do
-  ARGS+=( -t "$abi" )
-done
-ARGS+=(
-  -P 28
-  -o "$OUT_DIR"
-  build
-  -p android-ffi
-)
+CARGO_PROFILE_ARGS=()
 
 if [[ "$PROFILE" == "release" ]]; then
-  ARGS+=(--release)
+  CARGO_PROFILE_ARGS+=(--release)
 
   # Keep enough DWARF for AGP to produce Play Console native debug symbols.
   # Stable remapped paths avoid leaking the builder's checkout and tool homes.
@@ -189,12 +219,53 @@ if SCCACHE_BIN="$(command -v sccache 2>/dev/null)" && [[ -n "$SCCACHE_BIN" ]]; t
 fi
 
 cd "$ROOT_DIR/rust"
-"${CARGO[@]}" "${ARGS[@]}" --locked
+ANDROID_CARGO_TARGET_DIR="$ROOT_DIR/android/app/build/rustTarget"
+for abi in "${ANDROID_ABIS[@]}"; do
+  case "$abi" in
+    armeabi-v7a)
+      rust_target="armv7-linux-androideabi"
+      clang_target="armv7a-linux-androideabi"
+      ;;
+    arm64-v8a)
+      rust_target="aarch64-linux-android"
+      clang_target="aarch64-linux-android"
+      ;;
+    x86_64)
+      rust_target="x86_64-linux-android"
+      clang_target="x86_64-linux-android"
+      ;;
+  esac
+  target_env="$(printf '%s' "$rust_target" | tr '[:lower:]-' '[:upper:]_')"
+  target_suffix="$(printf '%s' "$rust_target" | tr '-' '_')"
+  target_cc="$NDK_TOOLCHAIN_BIN/${clang_target}28-clang"
+  target_cxx="$NDK_TOOLCHAIN_BIN/${clang_target}28-clang++"
+  for tool in "$target_cc" "$target_cxx" "$NDK_TOOLCHAIN_BIN/llvm-ar" "$NDK_TOOLCHAIN_BIN/llvm-ranlib"; do
+    if [[ ! -x "$tool" ]]; then
+      echo "ERROR: required native NDK tool is missing or not executable: $tool" >&2
+      exit 2
+    fi
+  done
+
+  export "CC_$target_suffix=$target_cc"
+  export "CXX_$target_suffix=$target_cxx"
+  export "AR_$target_suffix=$NDK_TOOLCHAIN_BIN/llvm-ar"
+  export "RANLIB_$target_suffix=$NDK_TOOLCHAIN_BIN/llvm-ranlib"
+  export "CARGO_TARGET_${target_env}_LINKER=$target_cc"
+  export "BINDGEN_EXTRA_CLANG_ARGS_$target_suffix=--sysroot=$NDK_DIR/toolchains/llvm/prebuilt/$ndk_host_tag/sysroot"
+
+  echo "Building $abi ($rust_target) with native NDK host tag $ndk_host_tag"
+  CARGO_TARGET_DIR="$ANDROID_CARGO_TARGET_DIR" \
+    "${CARGO[@]}" build -p android-ffi --target "$rust_target" \
+      "${CARGO_PROFILE_ARGS[@]}" --locked
+  mkdir -p -- "$OUT_DIR/$abi"
+  cp -- "$ANDROID_CARGO_TARGET_DIR/$rust_target/$PROFILE/libhns_dane_browser_ffi.so" \
+    "$OUT_DIR/$abi/libhns_dane_browser_ffi.so"
+done
 
 for abi in "${ANDROID_ABIS[@]}"; do
   library="$OUT_DIR/$abi/libhns_dane_browser_ffi.so"
   if [[ ! -s "$library" ]]; then
-    echo "ERROR: cargo-ndk did not produce the required library: $library" >&2
+    echo "ERROR: Cargo did not produce the required Android library: $library" >&2
     exit 1
   fi
   if [[ "$PROFILE" == "release" ]] && \

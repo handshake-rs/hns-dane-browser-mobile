@@ -19,6 +19,7 @@ import com.denuoweb.hnsdane.net.HnsSyncScheduler
 import com.denuoweb.hnsdane.net.HnsSyncProgress
 import com.denuoweb.hnsdane.net.HnsSyncSnapshot
 import com.denuoweb.hnsdane.net.LocalBrowserProxyFactory
+import com.denuoweb.hnsdane.net.NativeBridge
 import com.denuoweb.hnsdane.net.RustBrowserProxy
 import com.denuoweb.hnsdane.ui.BrowserThemePreferences
 import com.denuoweb.hnsdane.ui.HnsResolutionPreferences
@@ -75,6 +76,9 @@ class HnsDaneApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        check(NativeBridge.initializeAndroidContext(this)) {
+            "Native Android networking context initialization failed"
+        }
         HnsResolutionPreferences.migrateProhibitedHnsFallbackSettings(this)
         browserProxyCoordinator = BrowserProxyCoordinator(
             overrideController = HnsProxyController(this),

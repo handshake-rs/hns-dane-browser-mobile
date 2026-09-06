@@ -12,23 +12,26 @@ use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
     EmbeddedHnsBackend, HnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
     HnsDirectPeerCoordinator, HnsDirectPeerError, HnsDirectShakescapeListener,
-    HnsDirectShakescapeMessage, HnsDirectShakescapePeer, HnsLightFloor, HnsNetwork,
-    HnsNodeRpcBackend, HnsNodeRpcConfig, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
-    MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
-    MobileDatabaseKey, MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent,
-    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
-    MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
-    MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
+    HnsDirectShakescapeMessage, HnsDirectShakescapePeer, HnsInboundMobilePeer,
+    HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
+    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES,
+    MobileBitcoinDirectConfig, MobileBitcoinValueController, MobileDatabaseKey,
+    MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
+    MobileRecoveryPhrase, MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit,
+    MobileShakescapeBitcoinWatchPermit, MobileShakescapeSessionController, MobileWalletController,
+    MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use jni::JNIEnv;
+#[cfg(target_os = "android")]
+use jni::objects::{GlobalRef, JObject};
 use jni::objects::{JByteArray, JCharArray, JClass, JString};
 use jni::sys::{jboolean, jbyteArray, jcharArray, jint, jlong, jstring};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, Read};
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::os::fd::{FromRawFd, RawFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
@@ -52,6 +55,10 @@ const MAX_PROXY_STATUS_RETAINED_TRACE_BYTES: usize = 64 * 1024;
 const MAX_ANDROID_PROXY_HANDLES: usize = 8;
 static NEXT_PROXY_HANDLE: AtomicU64 = AtomicU64::new(1);
 static PROXY_HANDLES: OnceLock<Mutex<HashMap<jlong, Arc<AndroidProxyRecord>>>> = OnceLock::new();
+#[cfg(target_os = "android")]
+static ANDROID_CONTEXT_INITIALIZATION: Mutex<()> = Mutex::new(());
+#[cfg(target_os = "android")]
+static ANDROID_APPLICATION_CONTEXT: OnceLock<GlobalRef> = OnceLock::new();
 const MAX_ANDROID_WALLET_HANDLES: usize = 4;
 const MAX_ANDROID_WALLET_PATH_BYTES: usize = 4_096;
 const MAX_ANDROID_WALLET_RPC_AUTHORIZATION_CHARACTERS: usize = 4_096;
@@ -124,11 +131,16 @@ const MAX_ANDROID_WALLET_NAME_BYTES: usize = 63;
 const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
 const MAX_ANDROID_SHAKESCAPE_ENDPOINT_BYTES: usize = 128;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
-const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION: u8 = 1;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION: u8 = 2;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES: usize = 12;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_UNLOCKED: u8 = 1;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_LISTENING: u8 = 1 << 1;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_PAIRED: u8 = 1 << 2;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_REACHABLE: u8 = 1 << 3;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_PUBLIC_IPV6: u8 = 1 << 4;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_ROUTER_MAPPED: u8 = 1 << 5;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_ADVERTISED: u8 = 1 << 6;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_NETWORK_READY: u8 = 1 << 7;
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_MAGIC: &[u8; 4] = b"HNDC";
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_VERSION: u8 = 1;
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_HEADER_BYTES: usize = 12;
@@ -187,6 +199,9 @@ const ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 /// Keep one accepted wallet-peer service tick short enough that a lock or
 /// controller retirement never waits behind a long-lived peer exchange.
 const ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
+const ANDROID_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
+const MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS: usize = 8;
+const MAX_ANDROID_INBOUND_NETWORK_PEERS: usize = 8;
 const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
@@ -326,7 +341,12 @@ enum AndroidWalletController {
         controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
         shakescape_sessions: MobileShakescapeSessionController,
         shakescape_listener: Option<HnsDirectShakescapeListener>,
+        shakescape_reachability: Option<Box<ShakescapeReachabilityCascade>>,
+        shakescape_public_endpoint: Option<SocketAddr>,
+        shakescape_last_peer_maintenance_at: Option<u64>,
         shakescape_peer: Option<HnsDirectShakescapePeer>,
+        shakescape_replication_peers: Vec<HnsDirectShakescapePeer>,
+        inbound_network_peers: Vec<HnsInboundNetworkPeer>,
     },
     Failed,
 }
@@ -473,13 +493,25 @@ impl AndroidWalletController {
         // A direct board socket must never outlive the unlocked controller
         // that owns its local validation and durable state.
         if let Self::DirectValue {
+            coordinator,
             shakescape_listener,
+            shakescape_reachability,
+            shakescape_public_endpoint,
+            shakescape_last_peer_maintenance_at,
             shakescape_peer,
+            shakescape_replication_peers,
+            inbound_network_peers,
             ..
         } = self
         {
             shakescape_peer.take();
+            shakescape_replication_peers.clear();
+            inbound_network_peers.clear();
+            shakescape_public_endpoint.take();
+            shakescape_last_peer_maintenance_at.take();
+            shakescape_reachability.take();
             shakescape_listener.take();
+            let _ = coordinator.retire_shakescape_advertisement();
         }
         match self {
             Self::Lifecycle(controller) => controller.lock().is_ok(),
@@ -670,7 +702,12 @@ impl AndroidWalletController {
                     controller: Box::new(controller),
                     shakescape_sessions,
                     shakescape_listener: None,
+                    shakescape_reachability: None,
+                    shakescape_public_endpoint: None,
+                    shakescape_last_peer_maintenance_at: None,
                     shakescape_peer: None,
+                    shakescape_replication_peers: Vec::new(),
+                    inbound_network_peers: Vec::new(),
                 };
                 Some(bitcoin)
             }
@@ -709,6 +746,7 @@ impl AndroidWalletController {
         let Self::DirectValue {
             controller,
             shakescape_listener,
+            shakescape_reachability,
             ..
         } = self
         else {
@@ -722,11 +760,33 @@ impl AndroidWalletController {
         }
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
         config.connect_timeout = ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT;
-        match HnsDirectShakescapeListener::bind(
-            config,
-            SocketAddr::from((Ipv4Addr::UNSPECIFIED, ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT)),
-        ) {
+        let ipv6_bind =
+            SocketAddr::from((Ipv6Addr::UNSPECIFIED, ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT));
+        let ipv4_bind =
+            SocketAddr::from((Ipv4Addr::UNSPECIFIED, ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT));
+        match HnsDirectShakescapeListener::bind(config.clone(), ipv6_bind)
+            .or_else(|_| HnsDirectShakescapeListener::bind(config, ipv4_bind))
+        {
             Ok(listener) => {
+                let listener_port = match listener.local_addr() {
+                    Ok(address) => address.port(),
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "wallet-owned Shakescape listener address unavailable: {error}"
+                        ));
+                        return false;
+                    }
+                };
+                *shakescape_reachability = match ShakescapeReachabilityCascade::start(listener_port)
+                {
+                    Ok(reachability) => Some(Box::new(reachability)),
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "wallet-owned Shakescape reachability cascade unavailable: {error}"
+                        ));
+                        None
+                    }
+                };
                 *shakescape_listener = Some(listener);
                 true
             }
@@ -744,9 +804,14 @@ impl AndroidWalletController {
     /// lets the UI distinguish a local bind failure from an unpaired wallet.
     fn direct_shakescape_status_bundle(&mut self) -> Option<Vec<u8>> {
         let Self::DirectValue {
+            coordinator,
             controller,
             shakescape_listener,
+            shakescape_reachability,
+            shakescape_public_endpoint,
             shakescape_peer,
+            shakescape_replication_peers,
+            inbound_network_peers: _,
             ..
         } = self
         else {
@@ -759,8 +824,53 @@ impl AndroidWalletController {
             .map(|address| address.port());
         let peer_endpoint = shakescape_peer
             .as_ref()
+            .or_else(|| shakescape_replication_peers.first())
             .map(HnsDirectShakescapePeer::address);
-        wallet_direct_shakescape_status_bundle(unlocked, listener_port, peer_endpoint)
+        let reachability = shakescape_reachability
+            .as_mut()
+            .map(|reachability| reachability.snapshot());
+        *shakescape_public_endpoint = reachability.and_then(|snapshot| snapshot.endpoint);
+        let now_unix = HnsReadSystemClock.now_unix().ok();
+        let discovery =
+            now_unix.and_then(|now_unix| coordinator.shakescape_discovery_status(now_unix).ok());
+        let network_ready = now_unix.is_some_and(|now_unix| {
+            coordinator
+                .minimal_network_service_ready(now_unix)
+                .unwrap_or(false)
+        });
+        wallet_direct_shakescape_status_bundle(
+            unlocked,
+            listener_port,
+            peer_endpoint,
+            usize::from(shakescape_peer.is_some())
+                .saturating_add(shakescape_replication_peers.len()),
+            discovery
+                .as_ref()
+                .map_or(0, |status| status.candidates_known),
+            reachability.is_some_and(|snapshot| snapshot.endpoint.is_some()),
+            reachability.is_some_and(|snapshot| snapshot.public_ipv6.is_some()),
+            reachability.is_some_and(|snapshot| snapshot.mapped_ipv4.is_some()),
+            discovery.is_some_and(|status| status.self_advertisement_active),
+            network_ready,
+        )
+    }
+
+    fn update_direct_shakescape_router_route(
+        &mut self,
+        route: Option<ShakescapeRouterRoute>,
+    ) -> bool {
+        let Self::DirectValue {
+            shakescape_reachability,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Some(reachability) = shakescape_reachability.as_mut() else {
+            return false;
+        };
+        reachability.update_router_route(route);
+        true
     }
 
     fn prepare_btc_for_hns_offer(
@@ -1223,12 +1333,17 @@ impl AndroidWalletController {
     /// chain state.
     fn disconnect_direct_shakescape_peer(&mut self) -> bool {
         let Self::DirectValue {
-            shakescape_peer, ..
+            shakescape_peer,
+            shakescape_replication_peers,
+            ..
         } = self
         else {
             return false;
         };
-        shakescape_peer.take().is_some()
+        let disconnected =
+            shakescape_peer.take().is_some() || !shakescape_replication_peers.is_empty();
+        shakescape_replication_peers.clear();
+        disconnected
     }
 
     fn resume_approved_hns_settlements(&self) -> bool {
@@ -1250,7 +1365,12 @@ impl AndroidWalletController {
             controller,
             shakescape_sessions,
             shakescape_listener,
+            shakescape_reachability,
+            shakescape_public_endpoint,
+            shakescape_last_peer_maintenance_at,
             shakescape_peer,
+            shakescape_replication_peers,
+            inbound_network_peers,
             ..
         } = self
         else {
@@ -1265,33 +1385,160 @@ impl AndroidWalletController {
                 return false;
             }
         };
-        if let Some(peer) = shakescape_peer.as_mut() {
-            match peer.receive_shakescape_message(now_unix) {
-                Ok(HnsDirectShakescapeMessage::NameMarket {
-                    request_id,
-                    message,
-                }) => {
-                    if controller
-                        .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                        .is_ok()
-                    {
-                        return true;
-                    }
-                }
-                Ok(HnsDirectShakescapeMessage::CrossChain { envelope }) => {
-                    if shakescape_sessions
-                        .service_direct_envelope(peer, envelope.as_slice(), now_unix)
-                        .is_ok()
-                    {
-                        return true;
-                    }
-                }
+        let connected_hsd_peers = coordinator
+            .shakescape_discovery_status(now_unix)
+            .map_or(0, |status| status.hsd_peers_connected);
+        let peer_maintenance_due = connected_hsd_peers
+            < coordinator.pool().config().minimum_block_views
+            && shakescape_last_peer_maintenance_at.is_none_or(|last| {
+                now_unix
+                    >= last.saturating_add(ANDROID_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS)
+            });
+        if peer_maintenance_due {
+            *shakescape_last_peer_maintenance_at = Some(now_unix);
+            match coordinator.connect_available(now_unix) {
+                Ok(connected) => android_log_info(
+                    "hns-shakescape",
+                    &format!(
+                        "stock-HSD peer maintenance completed: before={connected_hsd_peers} newly_connected={}",
+                        connected.len()
+                    ),
+                ),
                 Err(error) => android_log_error(&format!(
-                    "wallet-owned Shakescape peer message was rejected: {error}"
+                    "wallet-owned stock-HSD peer maintenance was unavailable: {error}"
                 )),
             }
-            shakescape_peer.take();
-            return false;
+        }
+        let automatic_endpoint = shakescape_reachability
+            .as_mut()
+            .and_then(|reachability| reachability.snapshot().endpoint);
+        *shakescape_public_endpoint = automatic_endpoint;
+        let network_service_ready = match coordinator.minimal_network_service_ready(now_unix) {
+            Ok(ready) => ready,
+            Err(error) => {
+                android_log_error(&format!(
+                    "wallet-owned minimal NETWORK readiness failed: {error}"
+                ));
+                false
+            }
+        };
+        if let Some(endpoint) = automatic_endpoint.filter(|_| network_service_ready) {
+            match coordinator.advertise_shakescape_endpoint(endpoint, now_unix) {
+                Ok(_) | Err(HnsDirectPeerError::NoReadyPeers) => {}
+                Err(error) => android_log_error(&format!(
+                    "wallet-owned ShakeScape endpoint advertisement failed: {error}"
+                )),
+            }
+        } else {
+            let _ = coordinator.retire_shakescape_advertisement();
+        }
+        if network_service_ready {
+            let mut network_index = 0usize;
+            while network_index < inbound_network_peers.len() {
+                match inbound_network_peers[network_index]
+                    .try_service(coordinator.backend(), now_unix)
+                {
+                    Ok(false) => network_index = network_index.saturating_add(1),
+                    Ok(true) => return true,
+                    Err(_) => {
+                        inbound_network_peers.swap_remove(network_index);
+                    }
+                }
+            }
+        } else {
+            inbound_network_peers.clear();
+        }
+        match coordinator.refresh_shakescape_discovery(now_unix) {
+            Ok(_) | Err(HnsDirectPeerError::NoReadyPeers) => {}
+            Err(error) => android_log_error(&format!(
+                "wallet-owned ShakeScape address discovery failed: {error}"
+            )),
+        }
+        if let Some(peer) = shakescape_peer.as_mut() {
+            let mut board_changed = false;
+            let accepted = match peer.try_receive_shakescape_message(now_unix) {
+                Ok(None) => None,
+                Ok(Some(HnsDirectShakescapeMessage::NameMarket {
+                    request_id,
+                    message,
+                })) => Some(
+                    controller
+                        .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+                        .is_ok_and(|report| {
+                            board_changed =
+                                report.offers_admitted != 0 || report.cancellations_admitted != 0;
+                            true
+                        }),
+                ),
+                Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
+                    shakescape_sessions
+                        .service_direct_envelope(peer, envelope.as_slice(), now_unix)
+                        .is_ok(),
+                ),
+                Err(error) => {
+                    android_log_error(&format!(
+                        "wallet-owned Shakescape peer message was rejected: {error}"
+                    ));
+                    Some(false)
+                }
+            };
+            if accepted == Some(false) {
+                shakescape_peer.take();
+            } else if accepted == Some(true) {
+                if board_changed {
+                    for peer in shakescape_replication_peers.iter_mut() {
+                        let _ = controller.begin_wallet_owned_direct_shakedex(peer);
+                    }
+                }
+                return true;
+            }
+        }
+        let mut replication_index = 0usize;
+        while replication_index < shakescape_replication_peers.len() {
+            let mut board_changed = false;
+            let accepted = {
+                let peer = &mut shakescape_replication_peers[replication_index];
+                match peer.try_receive_shakescape_message(now_unix) {
+                    Ok(None) => None,
+                    Ok(Some(HnsDirectShakescapeMessage::NameMarket {
+                        request_id,
+                        message,
+                    })) => Some(
+                        controller
+                            .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+                            .is_ok_and(|report| {
+                                board_changed = report.offers_admitted != 0
+                                    || report.cancellations_admitted != 0;
+                                true
+                            }),
+                    ),
+                    Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
+                        shakescape_sessions
+                            .service_direct_envelope(peer, envelope.as_slice(), now_unix)
+                            .is_ok(),
+                    ),
+                    Err(_) => Some(false),
+                }
+            };
+            match accepted {
+                None => replication_index = replication_index.saturating_add(1),
+                Some(false) => {
+                    shakescape_replication_peers.swap_remove(replication_index);
+                }
+                Some(true) => {
+                    if board_changed {
+                        if let Some(peer) = shakescape_peer.as_mut() {
+                            let _ = controller.begin_wallet_owned_direct_shakedex(peer);
+                        }
+                        for (index, peer) in shakescape_replication_peers.iter_mut().enumerate() {
+                            if index != replication_index {
+                                let _ = controller.begin_wallet_owned_direct_shakedex(peer);
+                            }
+                        }
+                    }
+                    return true;
+                }
+            }
         }
         let Some(listener) = shakescape_listener.as_ref() else {
             return false;
@@ -1305,14 +1552,61 @@ impl AndroidWalletController {
                 return false;
             }
         };
-        let mut peer = match listener.accept_next(height, now_unix) {
+        let peer_count = usize::from(shakescape_peer.is_some())
+            .saturating_add(shakescape_replication_peers.len());
+        if peer_count < MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS {
+            match coordinator.connect_next_discovered_shakescape_peer(height, now_unix) {
+                Ok(Some(mut peer)) => {
+                    if controller
+                        .begin_wallet_owned_direct_shakedex(&mut peer)
+                        .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+                        .and_then(|_| {
+                            shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix)
+                        })
+                        .is_ok()
+                    {
+                        if shakescape_peer.is_none() {
+                            *shakescape_peer = Some(peer);
+                        } else {
+                            shakescape_replication_peers.push(peer);
+                        }
+                        return true;
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => android_log_error(&format!(
+                    "wallet-owned discovered ShakeScape peer was unavailable: {error}"
+                )),
+            }
+        }
+        if !network_service_ready {
+            return false;
+        }
+        let admitted = match listener.accept_next_mobile(height, now_unix) {
             Ok(Some(peer)) => peer,
             Ok(None) => return false,
             Err(error) => {
-                android_log_error(&format!("wallet-owned Shakescape peer rejected: {error}"));
+                android_log_error(&format!(
+                    "wallet-owned inbound NETWORK peer rejected: {error}"
+                ));
                 return false;
             }
         };
+        let mut peer = match admitted {
+            HnsInboundMobilePeer::Network(peer) => {
+                if inbound_network_peers.len() < MAX_ANDROID_INBOUND_NETWORK_PEERS {
+                    inbound_network_peers.push(peer);
+                    return true;
+                }
+                return false;
+            }
+            HnsInboundMobilePeer::Shakescape(peer) => peer,
+        };
+        if usize::from(shakescape_peer.is_some()).saturating_add(shakescape_replication_peers.len())
+            >= MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS
+        {
+            return false;
+        }
         if controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
@@ -1321,7 +1615,11 @@ impl AndroidWalletController {
         {
             return false;
         }
-        *shakescape_peer = Some(peer);
+        if shakescape_peer.is_none() {
+            *shakescape_peer = Some(peer);
+        } else {
+            shakescape_replication_peers.push(peer);
+        }
         true
     }
 
@@ -3518,12 +3816,36 @@ fn wallet_hns_live_progress_bundle(progress: AndroidHnsLiveSyncProgress) -> Opti
     (bundle.len() == WALLET_HNS_LIVE_PROGRESS_BUNDLE_BYTES).then_some(bundle)
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the fixed native status record mirrors ten independently validated ABI fields"
+)]
 fn wallet_direct_shakescape_status_bundle(
     unlocked: bool,
     listener_port: Option<u16>,
     peer_endpoint: Option<SocketAddr>,
+    peer_count: usize,
+    candidate_count: usize,
+    reachable: bool,
+    public_ipv6: bool,
+    router_mapped: bool,
+    advertised: bool,
+    network_ready: bool,
 ) -> Option<Vec<u8>> {
-    if !unlocked && (listener_port.is_some() || peer_endpoint.is_some()) {
+    if advertised && (!reachable || !network_ready) {
+        return None;
+    }
+    if !unlocked
+        && (listener_port.is_some()
+            || peer_endpoint.is_some()
+            || peer_count != 0
+            || candidate_count != 0
+            || reachable
+            || public_ipv6
+            || router_mapped
+            || advertised
+            || network_ready)
+    {
         return None;
     }
     let peer_endpoint = peer_endpoint
@@ -3548,13 +3870,31 @@ fn wallet_direct_shakescape_status_bundle(
     if !peer_endpoint.is_empty() {
         flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_PAIRED;
     }
+    if reachable {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_REACHABLE;
+    }
+    if public_ipv6 {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_PUBLIC_IPV6;
+    }
+    if router_mapped {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_ROUTER_MAPPED;
+    }
+    if advertised {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_ADVERTISED;
+    }
+    if network_ready {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_NETWORK_READY;
+    }
+    let peer_count = u8::try_from(peer_count).ok()?;
+    let candidate_count = u8::try_from(candidate_count.min(u8::MAX.into())).ok()?;
     let mut bundle = Vec::with_capacity(
         WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES + peer_endpoint.len(),
     );
     bundle.extend_from_slice(WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC);
     bundle.push(WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION);
     bundle.push(flags);
-    bundle.extend_from_slice(&[0, 0]);
+    bundle.push(peer_count);
+    bundle.push(candidate_count);
     bundle.extend_from_slice(&listener_port.unwrap_or(0).to_be_bytes());
     bundle.extend_from_slice(&peer_length.to_be_bytes());
     bundle.extend_from_slice(peer_endpoint.as_bytes());
@@ -4015,6 +4355,11 @@ fn android_log_error(message: &str) {
 }
 
 #[cfg(not(target_os = "android"))]
+fn android_log_info(tag: &str, message: &str) {
+    eprintln!("{tag}: {message}");
+}
+
+#[cfg(not(target_os = "android"))]
 fn android_log_request_metrics(message: &str) {
     eprintln!("hns-request-metrics: {message}");
 }
@@ -4270,6 +4615,48 @@ struct RuntimeGatewayPolicyInput<'local> {
     stateless_dane_certificates: jboolean,
     experimental_p2p_dns_relay: jboolean,
     legacy_hns_doh_compatibility: jboolean,
+}
+
+/// Install the process-lifetime Android application context required by
+/// Android-aware networking crates such as `netdev` and `portmapper`.
+///
+/// The Java caller supplies `Application.getApplicationContext()` during
+/// `Application.onCreate`, before any browser runtime or ShakeScape mapping
+/// worker can start. The global reference intentionally lives until process
+/// exit; JNI does not provide a reliable application-destruction boundary.
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_net_NativeBridge_nativeInitializeAndroidContext(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    context: JObject<'_>,
+) -> jboolean {
+    let Ok(_initialization) = ANDROID_CONTEXT_INITIALIZATION.lock() else {
+        return 0;
+    };
+    if ANDROID_APPLICATION_CONTEXT.get().is_some() {
+        return 1;
+    }
+
+    let Ok(java_vm) = env.get_java_vm() else {
+        return 0;
+    };
+    let Ok(global_context) = env.new_global_ref(context) else {
+        return 0;
+    };
+    let java_vm_pointer = java_vm.get_java_vm_pointer().cast();
+    let context_pointer = global_context.as_obj().as_raw().cast();
+
+    // SAFETY: both pointers originate from this live JVM. `global_context` is
+    // retained in the process-lifetime OnceLock below, and the mutex plus the
+    // preceding emptiness check guarantee this one-time initialization.
+    unsafe {
+        ndk_context::initialize_android_context(java_vm_pointer, context_pointer);
+    }
+    ANDROID_APPLICATION_CONTEXT
+        .set(global_context)
+        .is_ok()
+        .into()
 }
 
 #[unsafe(no_mangle)]
@@ -5579,6 +5966,49 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     .ok()
     .flatten()
     .unwrap_or(std::ptr::null_mut())
+}
+
+/// Install the active Android Wi-Fi/Ethernet IPv4 route for explicit
+/// PCP/NAT-PMP/UPnP mapping. Empty strings clear the route when Android moves
+/// to cellular or loses the network. The router's returned external address is
+/// still independently rejected unless it is publicly routable.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeUpdateWalletOwnedDirectShakescapeRouterRoute(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    local_ipv4: JString<'_>,
+    gateway_ipv4: JString<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let local_ipv4 = env
+            .get_string(&local_ipv4)
+            .ok()?
+            .to_string_lossy()
+            .into_owned();
+        let gateway_ipv4 = env
+            .get_string(&gateway_ipv4)
+            .ok()?
+            .to_string_lossy()
+            .into_owned();
+        let route = if local_ipv4.is_empty() && gateway_ipv4.is_empty() {
+            None
+        } else {
+            Some(ShakescapeRouterRoute::new(
+                local_ipv4.parse::<Ipv4Addr>().ok()?,
+                gateway_ipv4.parse::<Ipv4Addr>().ok()?,
+            ))
+        };
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        controller
+            .update_direct_shakescape_router_route(route)
+            .then_some(())
+    }))
+    .ok()
+    .flatten()
+    .is_some()
+    .into()
 }
 
 /// Retry a previously unavailable direct Shakescape listener without reopening or
@@ -7616,11 +8046,24 @@ mod tests {
     #[test]
     fn direct_shakescape_transport_bundles_preserve_listener_peer_and_replace_outcomes() {
         let listener = "198.51.100.7:12038".parse().expect("socket endpoint");
-        let status = wallet_direct_shakescape_status_bundle(true, Some(12_038), Some(listener))
-            .expect("direct Shakescape status bundle");
+        let status = wallet_direct_shakescape_status_bundle(
+            true,
+            Some(12_038),
+            Some(listener),
+            3,
+            4,
+            true,
+            true,
+            true,
+            true,
+            true,
+        )
+        .expect("direct Shakescape status bundle");
         assert_eq!(&status[..4], WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC);
         assert_eq!(status[4], WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION);
-        assert_eq!(status[5], 0b111);
+        assert_eq!(status[5], 0b1111_1111);
+        assert_eq!(status[6], 3);
+        assert_eq!(status[7], 4);
         assert_eq!(
             u16::from_be_bytes(status[8..10].try_into().expect("listener port")),
             12_038
@@ -7629,6 +8072,26 @@ mod tests {
             std::str::from_utf8(&status[WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES..])
                 .expect("visible endpoint"),
             "198.51.100.7:12038"
+        );
+        let ipv6_candidate = wallet_direct_shakescape_status_bundle(
+            true,
+            Some(12_038),
+            None,
+            0,
+            0,
+            false,
+            true,
+            false,
+            false,
+            true,
+        )
+        .expect("unverified public IPv6 candidate status");
+        assert_eq!(
+            ipv6_candidate[5],
+            WALLET_DIRECT_SHAKESCAPE_STATUS_UNLOCKED
+                | WALLET_DIRECT_SHAKESCAPE_STATUS_LISTENING
+                | WALLET_DIRECT_SHAKESCAPE_STATUS_PUBLIC_IPV6
+                | WALLET_DIRECT_SHAKESCAPE_STATUS_NETWORK_READY
         );
 
         let replacement =
@@ -7654,7 +8117,21 @@ mod tests {
             })
             .is_none()
         );
-        assert!(wallet_direct_shakescape_status_bundle(false, Some(12_038), None).is_none());
+        assert!(
+            wallet_direct_shakescape_status_bundle(
+                false,
+                Some(12_038),
+                None,
+                0,
+                0,
+                false,
+                false,
+                false,
+                false,
+                false,
+            )
+            .is_none()
+        );
     }
 
     #[test]

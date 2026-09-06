@@ -50,7 +50,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Scan a Handshake payment QR code into the HNS send review form.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Connect directly to a Handshake wallet peer you explicitly pair for local Shakedex offer exchange.</string>
+	<string>Discover router reachability and connect directly to Handshake wallet peers for local Shakedex offer exchange.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

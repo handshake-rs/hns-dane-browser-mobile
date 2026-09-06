@@ -233,6 +233,21 @@ internal object NativeWalletBridge {
             runCatching { nativeServiceWalletOwnedDirectShakescape(handle) }.getOrDefault(false)
 
     /**
+     * Supplies the active Android LAN route without relying on restricted
+     * route-netlink access. Null clears router mapping on cellular/no network.
+     */
+    fun updateWalletOwnedDirectShakescapeRouterRoute(
+        handle: Long,
+        route: Pair<String, String>?,
+    ): Boolean = isValidHandle(handle) && isAvailable && runCatching {
+        nativeUpdateWalletOwnedDirectShakescapeRouterRoute(
+            handle,
+            route?.first.orEmpty(),
+            route?.second.orEmpty(),
+        )
+    }.getOrDefault(false)
+
+    /**
      * Opens one exact user-paired direct board socket. The native boundary
      * accepts only IPv4:port or [IPv6]:port and never resolves a hostname.
      */
@@ -1113,6 +1128,13 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeServiceWalletOwnedDirectShakescape(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeUpdateWalletOwnedDirectShakescapeRouterRoute(
+        handle: Long,
+        localIpv4: String,
+        gatewayIpv4: String,
+    ): Boolean
 
     @JvmStatic
     private external fun nativeWalletOwnedDirectShakescapeStatus(handle: Long): ByteArray?

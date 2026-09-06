@@ -15,15 +15,16 @@ use hns_mobile_platform_runtime::{
     BrowserNameClass, BrowserProxy, BrowserProxyResolverPolicy, BrowserProxySecurityPath,
     BrowserProxyStatus, BrowserProxyStatusObserver, BrowserProxyTlsPolicy, BrowserRuntime,
     DEFAULT_RESOURCE_CACHE_LIMIT_BYTES, MAX_HNS_DOH_RECOVERY_URL_BYTES, NetworkKind,
-    ResolutionMode, RuntimeConfiguration, RuntimePolicy, SyncOptions, browser_hns_root_label,
-    canonical_browser_host, classify_browser_name, core_version, diagnostics_json,
-    normalize_hns_doh_recovery_url,
+    ResolutionMode, RuntimeConfiguration, RuntimePolicy, ShakescapeReachabilityCascade,
+    SyncOptions, browser_hns_root_label, canonical_browser_host, classify_browser_name,
+    core_version, diagnostics_json, normalize_hns_doh_recovery_url,
 };
 use hns_wallet_ffi::ServiceErrorCode;
 use hns_wallet_mobile::{
     EmbeddedHnsBackend, HnsBootstrapPolicy, HnsClock, HnsDirectPeerConfig,
-    HnsDirectPeerCoordinator, HnsDirectShakescapeListener, HnsDirectShakescapeMessage,
-    HnsDirectShakescapePeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
+    HnsDirectPeerCoordinator, HnsDirectPeerError, HnsDirectShakescapeListener,
+    HnsDirectShakescapeMessage, HnsDirectShakescapePeer, HnsInboundMobilePeer,
+    HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
     HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES,
     MobileBitcoinDirectConfig, MobileBitcoinValueController, MobileDatabaseKey,
     MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot, MobileHnsValueController,
@@ -37,7 +38,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::{BufReader, Read};
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::ptr;
@@ -146,11 +147,17 @@ const MAX_WALLET_SHAKEDEX_RESULT_JSON_BYTES: usize = 256 * 1024;
 const MAX_WALLET_SHAKESCAPE_ENDPOINT_BYTES: usize = 128;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_MAGIC: &[u8; 4] = b"HNDC";
-const WALLET_DIRECT_SHAKESCAPE_BUNDLE_VERSION: u8 = 1;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION: u8 = 2;
+const WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_VERSION: u8 = 1;
 const WALLET_DIRECT_SHAKESCAPE_BUNDLE_HEADER_BYTES: usize = 12;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_UNLOCKED: u8 = 1;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_LISTENING: u8 = 1 << 1;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_PAIRED: u8 = 1 << 2;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_REACHABLE: u8 = 1 << 3;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_PUBLIC_IPV6: u8 = 1 << 4;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_ROUTER_MAPPED: u8 = 1 << 5;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_ADVERTISED: u8 = 1 << 6;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_NETWORK_READY: u8 = 1 << 7;
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_CONNECTED: u8 = 1;
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_REPLACED: u8 = 2;
 const WALLET_DIRECT_SHAKESCAPE_CONNECT_UNAVAILABLE: u8 = 3;
@@ -175,6 +182,9 @@ const WALLET_HNS_SYNC_SCANNING: u8 = 3;
 const WALLET_HNS_SYNC_FINALIZING: u8 = 4;
 const IOS_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 const IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
+const IOS_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
+const MAX_IOS_DIRECT_SHAKESCAPE_PEERS: usize = 8;
+const MAX_IOS_INBOUND_NETWORK_PEERS: usize = 8;
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
 const WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -777,7 +787,12 @@ enum NativeWalletController {
         controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
         shakescape_sessions: MobileShakescapeSessionController,
         shakescape_listener: Option<HnsDirectShakescapeListener>,
+        shakescape_reachability: Option<Box<ShakescapeReachabilityCascade>>,
+        shakescape_public_endpoint: Option<SocketAddr>,
+        shakescape_last_peer_maintenance_at: Option<u64>,
         shakescape_peer: Option<HnsDirectShakescapePeer>,
+        shakescape_replication_peers: Vec<HnsDirectShakescapePeer>,
+        inbound_network_peers: Vec<HnsInboundNetworkPeer>,
     },
     Failed,
 }
@@ -847,14 +862,24 @@ impl NativeWalletController {
                 controller,
                 shakescape_sessions,
                 shakescape_listener,
+                shakescape_reachability,
+                shakescape_public_endpoint,
+                shakescape_last_peer_maintenance_at,
                 shakescape_peer,
+                shakescape_replication_peers,
+                inbound_network_peers,
             } => {
                 *self = Self::DirectHnsValue {
                     coordinator,
                     controller,
                     shakescape_sessions,
                     shakescape_listener,
+                    shakescape_reachability,
+                    shakescape_public_endpoint,
+                    shakescape_last_peer_maintenance_at,
                     shakescape_peer,
+                    shakescape_replication_peers,
+                    inbound_network_peers,
                 };
                 Err(MobileWalletError::ControllerFailed)
             }
@@ -949,7 +974,12 @@ impl NativeWalletController {
             controller: Box::new(controller),
             shakescape_sessions,
             shakescape_listener: None,
+            shakescape_reachability: None,
+            shakescape_public_endpoint: None,
+            shakescape_last_peer_maintenance_at: None,
             shakescape_peer: None,
+            shakescape_replication_peers: Vec::new(),
+            inbound_network_peers: Vec::new(),
         };
         Ok(bitcoin)
     }
@@ -966,6 +996,7 @@ impl NativeWalletController {
         let Self::DirectHnsValue {
             controller,
             shakescape_listener,
+            shakescape_reachability,
             ..
         } = self
         else {
@@ -979,11 +1010,21 @@ impl NativeWalletController {
         }
         let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
         config.connect_timeout = IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT;
-        match HnsDirectShakescapeListener::bind(
-            config,
-            SocketAddr::from((Ipv4Addr::UNSPECIFIED, IOS_DIRECT_SHAKESCAPE_LISTEN_PORT)),
-        ) {
+        let ipv6_bind =
+            SocketAddr::from((Ipv6Addr::UNSPECIFIED, IOS_DIRECT_SHAKESCAPE_LISTEN_PORT));
+        let ipv4_bind =
+            SocketAddr::from((Ipv4Addr::UNSPECIFIED, IOS_DIRECT_SHAKESCAPE_LISTEN_PORT));
+        match HnsDirectShakescapeListener::bind(config.clone(), ipv6_bind)
+            .or_else(|_| HnsDirectShakescapeListener::bind(config, ipv4_bind))
+        {
             Ok(listener) => {
+                let Ok(listener_address) = listener.local_addr() else {
+                    return false;
+                };
+                *shakescape_reachability =
+                    ShakescapeReachabilityCascade::start(listener_address.port())
+                        .ok()
+                        .map(Box::new);
                 *shakescape_listener = Some(listener);
                 true
             }
@@ -993,21 +1034,38 @@ impl NativeWalletController {
 
     fn clear_direct_shakescape_transport(&mut self) {
         if let Self::DirectHnsValue {
+            coordinator,
             shakescape_listener,
+            shakescape_reachability,
+            shakescape_public_endpoint,
+            shakescape_last_peer_maintenance_at,
             shakescape_peer,
+            shakescape_replication_peers,
+            inbound_network_peers,
             ..
         } = self
         {
             shakescape_peer.take();
+            shakescape_replication_peers.clear();
+            inbound_network_peers.clear();
+            shakescape_public_endpoint.take();
+            shakescape_last_peer_maintenance_at.take();
+            shakescape_reachability.take();
             shakescape_listener.take();
+            let _ = coordinator.retire_shakescape_advertisement();
         }
     }
 
     fn direct_shakescape_status(&mut self) -> Option<Vec<u8>> {
         let Self::DirectHnsValue {
+            coordinator,
             controller,
             shakescape_listener,
+            shakescape_reachability,
+            shakescape_public_endpoint,
             shakescape_peer,
+            shakescape_replication_peers,
+            inbound_network_peers: _,
             ..
         } = self
         else {
@@ -1020,8 +1078,35 @@ impl NativeWalletController {
             .map(|address| address.port());
         let peer_endpoint = shakescape_peer
             .as_ref()
+            .or_else(|| shakescape_replication_peers.first())
             .map(HnsDirectShakescapePeer::address);
-        wallet_direct_shakescape_status_bundle(unlocked, listener_port, peer_endpoint)
+        let reachability = shakescape_reachability
+            .as_mut()
+            .map(|reachability| reachability.snapshot());
+        *shakescape_public_endpoint = reachability.and_then(|snapshot| snapshot.endpoint);
+        let now_unix = HnsReadSystemClock.now_unix().ok();
+        let discovery =
+            now_unix.and_then(|now_unix| coordinator.shakescape_discovery_status(now_unix).ok());
+        let network_ready = now_unix.is_some_and(|now_unix| {
+            coordinator
+                .minimal_network_service_ready(now_unix)
+                .unwrap_or(false)
+        });
+        wallet_direct_shakescape_status_bundle(
+            unlocked,
+            listener_port,
+            peer_endpoint,
+            usize::from(shakescape_peer.is_some())
+                .saturating_add(shakescape_replication_peers.len()),
+            discovery
+                .as_ref()
+                .map_or(0, |status| status.candidates_known),
+            reachability.is_some_and(|snapshot| snapshot.endpoint.is_some()),
+            reachability.is_some_and(|snapshot| snapshot.public_ipv6.is_some()),
+            reachability.is_some_and(|snapshot| snapshot.mapped_ipv4.is_some()),
+            discovery.is_some_and(|status| status.self_advertisement_active),
+            network_ready,
+        )
     }
 
     fn prepare_btc_for_hns_offer(
@@ -1382,12 +1467,17 @@ impl NativeWalletController {
 
     fn disconnect_direct_shakescape_peer(&mut self) -> bool {
         let Self::DirectHnsValue {
-            shakescape_peer, ..
+            shakescape_peer,
+            shakescape_replication_peers,
+            ..
         } = self
         else {
             return false;
         };
-        shakescape_peer.take().is_some()
+        let disconnected =
+            shakescape_peer.take().is_some() || !shakescape_replication_peers.is_empty();
+        shakescape_replication_peers.clear();
+        disconnected
     }
 
     fn resume_approved_hns_settlements(&self) -> bool {
@@ -1405,7 +1495,13 @@ impl NativeWalletController {
             controller,
             shakescape_sessions,
             shakescape_listener,
+            shakescape_reachability,
+            shakescape_public_endpoint,
+            shakescape_last_peer_maintenance_at,
             shakescape_peer,
+            shakescape_replication_peers,
+            inbound_network_peers,
+            ..
         } = self
         else {
             return false;
@@ -1413,24 +1509,134 @@ impl NativeWalletController {
         let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
             return false;
         };
+        let connected_hsd_peers = coordinator
+            .shakescape_discovery_status(now_unix)
+            .map_or(0, |status| status.hsd_peers_connected);
+        let peer_maintenance_due = connected_hsd_peers
+            < coordinator.pool().config().minimum_block_views
+            && shakescape_last_peer_maintenance_at.is_none_or(|last| {
+                now_unix
+                    >= last.saturating_add(IOS_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS)
+            });
+        if peer_maintenance_due {
+            *shakescape_last_peer_maintenance_at = Some(now_unix);
+            let _ = coordinator.connect_available(now_unix);
+        }
+        let automatic_endpoint = shakescape_reachability
+            .as_mut()
+            .and_then(|reachability| reachability.snapshot().endpoint);
+        *shakescape_public_endpoint = automatic_endpoint;
+        let network_service_ready = coordinator
+            .minimal_network_service_ready(now_unix)
+            .unwrap_or(false);
+        if let Some(endpoint) = automatic_endpoint.filter(|_| network_service_ready) {
+            match coordinator.advertise_shakescape_endpoint(endpoint, now_unix) {
+                Ok(_) | Err(HnsDirectPeerError::NoReadyPeers) => {}
+                Err(_) => return false,
+            }
+        } else {
+            let _ = coordinator.retire_shakescape_advertisement();
+        }
+        if network_service_ready {
+            let mut network_index = 0usize;
+            while network_index < inbound_network_peers.len() {
+                match inbound_network_peers[network_index]
+                    .try_service(coordinator.backend(), now_unix)
+                {
+                    Ok(false) => network_index = network_index.saturating_add(1),
+                    Ok(true) => return true,
+                    Err(_) => {
+                        inbound_network_peers.swap_remove(network_index);
+                    }
+                }
+            }
+        } else {
+            inbound_network_peers.clear();
+        }
+        match coordinator.refresh_shakescape_discovery(now_unix) {
+            Ok(_) | Err(HnsDirectPeerError::NoReadyPeers) => {}
+            Err(_) => return false,
+        }
         if let Some(peer) = shakescape_peer.as_mut() {
-            let accepted = match peer.receive_shakescape_message(now_unix) {
-                Ok(HnsDirectShakescapeMessage::NameMarket {
+            let mut board_changed = false;
+            let accepted = match peer.try_receive_shakescape_message(now_unix) {
+                Ok(None) => None,
+                Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                     request_id,
                     message,
-                }) => controller
-                    .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                    .is_ok(),
-                Ok(HnsDirectShakescapeMessage::CrossChain { envelope }) => shakescape_sessions
-                    .service_direct_envelope(peer, envelope.as_slice(), now_unix)
-                    .is_ok(),
-                Err(_) => false,
+                })) => Some(
+                    controller
+                        .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+                        .is_ok_and(|report| {
+                            board_changed =
+                                report.offers_admitted != 0 || report.cancellations_admitted != 0;
+                            true
+                        }),
+                ),
+                Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
+                    shakescape_sessions
+                        .service_direct_envelope(peer, envelope.as_slice(), now_unix)
+                        .is_ok(),
+                ),
+                Err(_) => Some(false),
             };
-            if accepted {
+            if accepted == Some(false) {
+                shakescape_peer.take();
+            } else if accepted == Some(true) {
+                if board_changed {
+                    for peer in shakescape_replication_peers.iter_mut() {
+                        let _ = controller.begin_wallet_owned_direct_shakedex(peer);
+                    }
+                }
                 return true;
             }
-            shakescape_peer.take();
-            return false;
+        }
+        let mut replication_index = 0usize;
+        while replication_index < shakescape_replication_peers.len() {
+            let mut board_changed = false;
+            let accepted = {
+                let peer = &mut shakescape_replication_peers[replication_index];
+                match peer.try_receive_shakescape_message(now_unix) {
+                    Ok(None) => None,
+                    Ok(Some(HnsDirectShakescapeMessage::NameMarket {
+                        request_id,
+                        message,
+                    })) => Some(
+                        controller
+                            .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+                            .is_ok_and(|report| {
+                                board_changed = report.offers_admitted != 0
+                                    || report.cancellations_admitted != 0;
+                                true
+                            }),
+                    ),
+                    Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
+                        shakescape_sessions
+                            .service_direct_envelope(peer, envelope.as_slice(), now_unix)
+                            .is_ok(),
+                    ),
+                    Err(_) => Some(false),
+                }
+            };
+            match accepted {
+                None => replication_index = replication_index.saturating_add(1),
+                Some(false) => {
+                    shakescape_replication_peers.swap_remove(replication_index);
+                }
+                Some(true) => {
+                    if board_changed {
+                        if let Some(peer) = shakescape_peer.as_mut() {
+                            let _ = controller.begin_wallet_owned_direct_shakedex(peer);
+                        }
+                        for (index, peer) in shakescape_replication_peers.iter_mut().enumerate() {
+                            if index != replication_index {
+                                let _ = controller.begin_wallet_owned_direct_shakedex(peer);
+                            }
+                        }
+                    }
+                    return true;
+                }
+            }
         }
         let Some(listener) = shakescape_listener.as_ref() else {
             return false;
@@ -1438,10 +1644,48 @@ impl NativeWalletController {
         let Ok(floor) = coordinator.rollback_floor() else {
             return false;
         };
-        let mut peer = match listener.accept_next(floor.height, now_unix) {
+        let peer_count = usize::from(shakescape_peer.is_some())
+            .saturating_add(shakescape_replication_peers.len());
+        if peer_count < MAX_IOS_DIRECT_SHAKESCAPE_PEERS
+            && let Ok(Some(mut peer)) =
+                coordinator.connect_next_discovered_shakescape_peer(floor.height, now_unix)
+            && controller
+                .begin_wallet_owned_direct_shakedex(&mut peer)
+                .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+                .and_then(|_| {
+                    shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix)
+                })
+                .is_ok()
+        {
+            if shakescape_peer.is_none() {
+                *shakescape_peer = Some(peer);
+            } else {
+                shakescape_replication_peers.push(peer);
+            }
+            return true;
+        }
+        if !network_service_ready {
+            return false;
+        }
+        let admitted = match listener.accept_next_mobile(floor.height, now_unix) {
             Ok(Some(peer)) => peer,
             Ok(None) | Err(_) => return false,
         };
+        let mut peer = match admitted {
+            HnsInboundMobilePeer::Network(peer) => {
+                if inbound_network_peers.len() < MAX_IOS_INBOUND_NETWORK_PEERS {
+                    inbound_network_peers.push(peer);
+                    return true;
+                }
+                return false;
+            }
+            HnsInboundMobilePeer::Shakescape(peer) => peer,
+        };
+        if usize::from(shakescape_peer.is_some()).saturating_add(shakescape_replication_peers.len())
+            >= MAX_IOS_DIRECT_SHAKESCAPE_PEERS
+        {
+            return false;
+        }
         if controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
@@ -1450,7 +1694,11 @@ impl NativeWalletController {
         {
             return false;
         }
-        *shakescape_peer = Some(peer);
+        if shakescape_peer.is_none() {
+            *shakescape_peer = Some(peer);
+        } else {
+            shakescape_replication_peers.push(peer);
+        }
         true
     }
 
@@ -1532,13 +1780,23 @@ impl NativeWalletController {
                 let _ = controller.lock();
             }
             Self::DirectHnsValue {
+                coordinator,
                 controller,
                 shakescape_listener,
+                shakescape_reachability,
+                shakescape_public_endpoint,
                 shakescape_peer,
+                shakescape_replication_peers,
+                inbound_network_peers,
                 ..
             } => {
                 shakescape_peer.take();
+                shakescape_replication_peers.clear();
+                inbound_network_peers.clear();
+                shakescape_public_endpoint.take();
+                shakescape_reachability.take();
                 shakescape_listener.take();
+                let _ = coordinator.retire_shakescape_advertisement();
                 let _ = controller.lock();
             }
             Self::Failed => {}
@@ -2632,12 +2890,36 @@ unsafe fn wallet_shakescape_endpoint(slice: HnsBrowserSlice) -> Result<SocketAdd
         })
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the fixed native status record mirrors ten independently validated ABI fields"
+)]
 fn wallet_direct_shakescape_status_bundle(
     unlocked: bool,
     listener_port: Option<u16>,
     peer_endpoint: Option<SocketAddr>,
+    peer_count: usize,
+    candidate_count: usize,
+    reachable: bool,
+    public_ipv6: bool,
+    router_mapped: bool,
+    advertised: bool,
+    network_ready: bool,
 ) -> Option<Vec<u8>> {
-    if !unlocked && (listener_port.is_some() || peer_endpoint.is_some()) {
+    if advertised && (!reachable || !network_ready) {
+        return None;
+    }
+    if !unlocked
+        && (listener_port.is_some()
+            || peer_endpoint.is_some()
+            || peer_count != 0
+            || candidate_count != 0
+            || reachable
+            || public_ipv6
+            || router_mapped
+            || advertised
+            || network_ready)
+    {
         return None;
     }
     let endpoint = peer_endpoint
@@ -2660,12 +2942,30 @@ fn wallet_direct_shakescape_status_bundle(
     if !endpoint.is_empty() {
         flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_PAIRED;
     }
+    if reachable {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_REACHABLE;
+    }
+    if public_ipv6 {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_PUBLIC_IPV6;
+    }
+    if router_mapped {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_ROUTER_MAPPED;
+    }
+    if advertised {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_ADVERTISED;
+    }
+    if network_ready {
+        flags |= WALLET_DIRECT_SHAKESCAPE_STATUS_NETWORK_READY;
+    }
+    let peer_count = u8::try_from(peer_count).ok()?;
+    let candidate_count = u8::try_from(candidate_count.min(u8::MAX.into())).ok()?;
     let mut bundle =
         Vec::with_capacity(WALLET_DIRECT_SHAKESCAPE_BUNDLE_HEADER_BYTES + endpoint.len());
     bundle.extend_from_slice(WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC);
-    bundle.push(WALLET_DIRECT_SHAKESCAPE_BUNDLE_VERSION);
+    bundle.push(WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION);
     bundle.push(flags);
-    bundle.extend_from_slice(&[0, 0]);
+    bundle.push(peer_count);
+    bundle.push(candidate_count);
     bundle.extend_from_slice(&listener_port.unwrap_or(0).to_be_bytes());
     bundle.extend_from_slice(&endpoint_length.to_be_bytes());
     bundle.extend_from_slice(endpoint.as_bytes());
@@ -2708,7 +3008,7 @@ fn wallet_direct_shakescape_connect_bundle(
     let mut bundle =
         Vec::with_capacity(WALLET_DIRECT_SHAKESCAPE_BUNDLE_HEADER_BYTES + endpoint.len());
     bundle.extend_from_slice(WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_MAGIC);
-    bundle.push(WALLET_DIRECT_SHAKESCAPE_BUNDLE_VERSION);
+    bundle.push(WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_VERSION);
     bundle.push(code);
     bundle.extend_from_slice(&[0, 0]);
     bundle.extend_from_slice(&endpoint_length.to_be_bytes());
@@ -7130,11 +7430,44 @@ mod tests {
         }
 
         let endpoint = "198.51.100.7:12038".parse().expect("socket endpoint");
-        let status = wallet_direct_shakescape_status_bundle(true, Some(12_038), Some(endpoint))
-            .expect("status bundle");
+        let status = wallet_direct_shakescape_status_bundle(
+            true,
+            Some(12_038),
+            Some(endpoint),
+            3,
+            4,
+            true,
+            true,
+            true,
+            true,
+            true,
+        )
+        .expect("status bundle");
         assert_eq!(&status[..4], WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC);
-        assert_eq!(status[5], 0b111);
+        assert_eq!(status[5], 0b1111_1111);
+        assert_eq!(status[6], 3);
+        assert_eq!(status[7], 4);
         assert_eq!(&status[12..], b"198.51.100.7:12038");
+        let ipv6_candidate = wallet_direct_shakescape_status_bundle(
+            true,
+            Some(12_038),
+            None,
+            0,
+            0,
+            false,
+            true,
+            false,
+            false,
+            true,
+        )
+        .expect("unverified public IPv6 candidate status");
+        assert_eq!(
+            ipv6_candidate[5],
+            WALLET_DIRECT_SHAKESCAPE_STATUS_UNLOCKED
+                | WALLET_DIRECT_SHAKESCAPE_STATUS_LISTENING
+                | WALLET_DIRECT_SHAKESCAPE_STATUS_PUBLIC_IPV6
+                | WALLET_DIRECT_SHAKESCAPE_STATUS_NETWORK_READY
+        );
         let connected = wallet_direct_shakescape_connect_bundle(IosDirectShakescapeConnectResult {
             outcome: IosDirectShakescapeConnectOutcome::Connected,
             peer_endpoint: Some(endpoint),
@@ -7145,7 +7478,21 @@ mod tests {
             WALLET_DIRECT_SHAKESCAPE_CONNECT_BUNDLE_MAGIC
         );
         assert_eq!(connected[5], WALLET_DIRECT_SHAKESCAPE_CONNECT_CONNECTED);
-        assert!(wallet_direct_shakescape_status_bundle(false, Some(12_038), None).is_none());
+        assert!(
+            wallet_direct_shakescape_status_bundle(
+                false,
+                Some(12_038),
+                None,
+                0,
+                0,
+                false,
+                false,
+                false,
+                false,
+                false,
+            )
+            .is_none()
+        );
         assert!(
             wallet_direct_shakescape_connect_bundle(IosDirectShakescapeConnectResult {
                 outcome: IosDirectShakescapeConnectOutcome::ConnectionFailed,

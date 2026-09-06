@@ -8,7 +8,6 @@ Review these moving version sources before dependency upgrades:
 - Gradle: https://gradle.org/releases/
 - Kotlin: https://kotlinlang.org/docs/releases.html
 - UniFFI: https://crates.io/crates/uniffi
-- cargo-ndk: https://crates.io/crates/cargo-ndk
 - rustls: https://crates.io/crates/rustls
 - ring: https://crates.io/crates/ring
 - webpki-roots: https://crates.io/crates/webpki-roots

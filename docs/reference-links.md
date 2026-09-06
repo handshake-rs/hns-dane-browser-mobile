@@ -65,8 +65,6 @@ Use these for current Kotlin/Gradle/NDK setup.
 - [Gradle releases](https://gradle.org/releases/)
 - [Kotlin Gradle configuration](https://kotlinlang.org/docs/gradle-configure-project.html)
 - [Android NDK docs](https://developer.android.com/ndk)
-- [cargo-ndk](https://github.com/bbqsrc/cargo-ndk)
-- [cargo-ndk crate](https://crates.io/crates/cargo-ndk)
 - [UniFFI user guide](https://mozilla.github.io/uniffi-rs/)
 - [UniFFI crate docs](https://docs.rs/uniffi)
 - [JNI spec](https://docs.oracle.com/en/java/javase/21/docs/specs/jni/)
@@ -316,10 +314,6 @@ At project creation, verify current versions here:
 
 - <https://crates.io/crates/uniffi>
 - <https://mozilla.github.io/uniffi-rs/>
-
-### cargo-ndk
-
-- <https://crates.io/crates/cargo-ndk>
 
 ### rustls
 

@@ -17,7 +17,18 @@ class NativeWalletDirectSynchronizationTest {
         assertEquals(
             NativeWalletDirectShakescapeControls(retryListener = false, disconnectPeer = false),
             directShakescapeControls(
-                NativeWalletDirectShakescapeStatus(true, listenerPort = 12_038, peerEndpoint = null),
+                NativeWalletDirectShakescapeStatus(
+                    unlocked = true,
+                    listenerPort = 12_038,
+                    peerEndpoint = null,
+                    peerCount = 0,
+                    candidateCount = 0,
+                    publiclyReachable = false,
+                    publicIpv6 = false,
+                    routerMapped = false,
+                    advertised = false,
+                    networkServiceReady = false,
+                ),
             ),
         )
         assertEquals(
@@ -27,6 +38,13 @@ class NativeWalletDirectSynchronizationTest {
                     true,
                     listenerPort = 12_038,
                     peerEndpoint = "198.51.100.7:12038",
+                    peerCount = 1,
+                    candidateCount = 0,
+                    publiclyReachable = false,
+                    publicIpv6 = false,
+                    routerMapped = false,
+                    advertised = false,
+                    networkServiceReady = false,
                 ),
             ),
         )
@@ -151,6 +169,19 @@ class NativeWalletDirectSynchronizationTest {
         assertEquals("198.51.100.7:12038", status?.peerEndpoint)
         assertTrue(statusBundle.all { it == 0.toByte() })
 
+        val ipv6CandidateBundle = directShakescapeStatusBundle(
+            flags = 0b1001_0011,
+            listenerPort = 12_038,
+            endpoint = "",
+            peerCount = 0,
+        )
+        val ipv6Candidate = NativeWalletBridge
+            .parseAndWipeWalletOwnedDirectShakescapeStatusBundle(ipv6CandidateBundle)
+        assertTrue(ipv6Candidate?.publicIpv6 == true)
+        assertTrue(ipv6Candidate?.publiclyReachable == false)
+        assertTrue(ipv6Candidate?.advertised == false)
+        assertTrue(ipv6CandidateBundle.all { it == 0.toByte() })
+
         val replacementBundle = directShakescapeConnectBundle(
             code = 2,
             endpoint = "[2001:db8::7]:12038",
@@ -213,13 +244,16 @@ class NativeWalletDirectSynchronizationTest {
         flags: Int,
         listenerPort: Int,
         endpoint: String,
+        peerCount: Int = 1,
+        candidateCount: Int = 0,
     ): ByteArray {
         val endpointBytes = endpoint.toByteArray(Charsets.US_ASCII)
         return ByteBuffer.allocate(12 + endpointBytes.size).order(ByteOrder.BIG_ENDIAN).apply {
             put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'D'.code.toByte(), 'S'.code.toByte()))
-            put(1)
+            put(2)
             put(flags.toByte())
-            putShort(0)
+            put(peerCount.toByte())
+            put(candidateCount.toByte())
             putShort(listenerPort.toShort())
             putShort(endpointBytes.size.toShort())
             put(endpointBytes)

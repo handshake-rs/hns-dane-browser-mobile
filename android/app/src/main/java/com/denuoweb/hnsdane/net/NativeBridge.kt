@@ -1,5 +1,6 @@
 package com.denuoweb.hnsdane.net
 
+import android.content.Context
 import android.os.ParcelFileDescriptor
 import com.denuoweb.hnsdane.core.BrowserNamespaceClass
 import com.denuoweb.hnsdane.core.BrowserNamespacePolicy
@@ -157,6 +158,20 @@ object NativeBridge :
     val isLoaded: Boolean = runCatching {
         System.loadLibrary("hns_dane_browser_ffi")
     }.isSuccess
+
+    @Volatile
+    private var androidContextInitialized = false
+
+    /** Must run from Application.onCreate before any native networking worker starts. */
+    @Synchronized
+    fun initializeAndroidContext(context: Context): Boolean {
+        if (androidContextInitialized) return true
+        if (!isLoaded) return false
+        androidContextInitialized = runCatching {
+            nativeInitializeAndroidContext(context.applicationContext)
+        }.getOrDefault(false)
+        return androidContextInitialized
+    }
 
     fun version(): String = if (isLoaded) {
         nativeVersion()
@@ -525,6 +540,8 @@ object NativeBridge :
             block = block,
         )
     }
+
+    private external fun nativeInitializeAndroidContext(context: Context): Boolean
 
     private external fun nativeVersion(): String
 

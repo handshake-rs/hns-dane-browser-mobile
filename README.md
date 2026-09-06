@@ -286,7 +286,7 @@ signed physical-device qualification matrix.
 
 Debug/demo builds are unsigned beyond the default Android debug key and are intended for testing only. The diagnostics screen identifies Denuo Web, LLC as publisher, shows the build channel and license, and states that donations are optional and unlock no app features.
 
-The Android build runs `scripts/build-rust-android.sh` through Gradle and builds `android-ffi` with pinned `cargo-ndk`. Release JNI outputs retain line-table debug information long enough for the Android Gradle Plugin to strip the shipping libraries and package native symbols; the libraries ship under `lib/<abi>/libhns_dane_browser_ffi.so`.
+The Android build runs `scripts/build-rust-android.sh` through Gradle and builds `android-ffi` with the pinned NDK's host-native toolchain. The script selects `linux-arm64` on an ARM64 Linux builder and refuses a foreign host compiler instead of relying on a misleading `linux-x86_64` compatibility alias. Release JNI outputs retain line-table debug information long enough for the Android Gradle Plugin to strip the shipping libraries and package native symbols; the libraries ship under `lib/<abi>/libhns_dane_browser_ffi.so`.
 
 ## Support
 

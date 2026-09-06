@@ -10,6 +10,12 @@
 )]
 
 mod icann_locked_names;
+pub mod shakescape_reachability;
+
+pub use shakescape_reachability::{
+    ShakescapeReachabilityCascade, ShakescapeReachabilityError, ShakescapeReachabilityMethod,
+    ShakescapeReachabilitySnapshot, ShakescapeRouterRoute,
+};
 
 use hns_browser_observability::{
     BrowserStatus as CanonicalBrowserStatus, IcannTlsAction as CanonicalIcannTlsAction,

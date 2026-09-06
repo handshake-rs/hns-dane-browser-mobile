@@ -28,7 +28,6 @@ into the app.
 | AndroidX Activity | `1.13.0` | https://developer.android.com/jetpack/androidx/releases/activity |
 | AndroidX Core | `1.18.0` | https://developer.android.com/jetpack/androidx/releases/core |
 | AndroidX WebKit | `1.16.0` | https://developer.android.com/jetpack/androidx/releases/webkit |
-| cargo-ndk | `4.1.2` | https://crates.io/crates/cargo-ndk/versions |
 | rustls | `0.23.41` | https://crates.io/crates/rustls |
 | webpki-roots | `1.0.8` | https://crates.io/crates/webpki-roots |
 | rcgen | `0.14.8` | https://crates.io/crates/rcgen |

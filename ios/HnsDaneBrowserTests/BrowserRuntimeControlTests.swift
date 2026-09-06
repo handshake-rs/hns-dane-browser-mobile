@@ -4296,14 +4296,38 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     func testNativeDirectShakescapeBundlesRejectTransportShapeDrift() throws {
         let endpoint = Array("198.51.100.7:12038".utf8)
-        var status = Array("HNDS".utf8) + [1, 0b111, 0, 0, 0x2f, 0x06]
+        var status = Array("HNDS".utf8) + [2, 0b111, 1, 0, 0x2f, 0x06]
         status += [UInt8(endpoint.count >> 8), UInt8(endpoint.count & 0xff)] + endpoint
         XCTAssertEqual(
             try NativeDirectShakescapeBundle.status(status),
             NativeDirectShakescapeStatus(
                 unlocked: true,
                 listenerPort: 12_038,
-                peerEndpoint: "198.51.100.7:12038"
+                peerEndpoint: "198.51.100.7:12038",
+                peerCount: 1,
+                candidateCount: 0,
+                publiclyReachable: false,
+                publicIpv6: false,
+                routerMapped: false,
+                advertised: false,
+                networkServiceReady: false
+            )
+        )
+
+        let ipv6Candidate = Array("HNDS".utf8) + [2, 0b1001_0011, 0, 0, 0x2f, 0x06, 0, 0]
+        XCTAssertEqual(
+            try NativeDirectShakescapeBundle.status(ipv6Candidate),
+            NativeDirectShakescapeStatus(
+                unlocked: true,
+                listenerPort: 12_038,
+                peerEndpoint: nil,
+                peerCount: 0,
+                candidateCount: 0,
+                publiclyReachable: false,
+                publicIpv6: true,
+                routerMapped: false,
+                advertised: false,
+                networkServiceReady: true
             )
         )
 
@@ -4316,9 +4340,9 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 peerEndpoint: "198.51.100.7:12038"
             )
         )
-        var unknownFlags = status
-        unknownFlags[5] = 0x80
-        XCTAssertThrowsError(try NativeDirectShakescapeBundle.status(unknownFlags))
+        var unknownVersion = status
+        unknownVersion[4] = 3
+        XCTAssertThrowsError(try NativeDirectShakescapeBundle.status(unknownVersion))
         var badReserved = connected
         badReserved[11] = 1
         XCTAssertThrowsError(try NativeDirectShakescapeBundle.connect(badReserved))
