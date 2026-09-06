@@ -3592,7 +3592,7 @@ fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
                 | HnsDirectPeerError::PeerRejected(_)
                 | HnsDirectPeerError::FilteredBlockUnavailable
                 | HnsDirectPeerError::InsufficientBlockViews { .. }
-                | HnsDirectPeerError::NoValidNameProof
+                | HnsDirectPeerError::NoValidNameProof { .. }
         )
 }
 
@@ -7837,7 +7837,11 @@ mod tests {
             }
         ));
         assert!(direct_hns_transport_error_is_retryable(
-            &HnsDirectPeerError::NoValidNameProof
+            &HnsDirectPeerError::NoValidNameProof {
+                invalid_proofs: 1,
+                response_failures: 2,
+                last_failure: "bounded test diagnostic".to_owned(),
+            }
         ));
         assert!(!direct_hns_transport_error_is_retryable(
             &HnsDirectPeerError::InvalidConfiguration
