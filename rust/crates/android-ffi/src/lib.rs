@@ -1913,13 +1913,21 @@ impl AndroidWalletController {
                 );
                 ensure_android_hns_sync_not_cancelled(sync_record)?;
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_start");
-                if let Err(error) = coordinator.refresh_mempool(now_unix) {
+                // A block scan can run for minutes on a restored wallet, and
+                // Android may briefly interrupt its foreground presentation.
+                // Do not arm finalization requests with the timestamp captured
+                // before that scan: the peer state machine would correctly
+                // classify every later response as past an already-expired
+                // deadline. Each network stage receives a fresh trusted time.
+                let mempool_now_unix = HnsReadSystemClock.now_unix()?;
+                if let Err(error) = coordinator.refresh_mempool(mempool_now_unix) {
                     return direct_hns_transport_catchup(coordinator, "mempool refresh", error);
                 }
                 ensure_android_hns_sync_not_cancelled(sync_record)?;
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=mempool_complete");
+                let name_proof_now_unix = HnsReadSystemClock.now_unix()?;
                 let refreshed_name_proofs =
-                    match coordinator.synchronize_wallet_name_proofs(now_unix) {
+                    match coordinator.synchronize_wallet_name_proofs(name_proof_now_unix) {
                         Ok(count) => count,
                         Err(error) => {
                             return direct_hns_transport_catchup(
