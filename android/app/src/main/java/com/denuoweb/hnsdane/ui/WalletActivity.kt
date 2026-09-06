@@ -5246,6 +5246,7 @@ class WalletActivity : ComponentActivity() {
                         refreshControllerState(resetReads = false)
                         valueActionStatusView.text =
                             getString(R.string.wallet_value_actions_prepare_failed)
+                        showValuePreparationFailure()
                     }
                 } else {
                     snapshot?.let(::renderReadSnapshot)
@@ -5253,6 +5254,20 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun showValuePreparationFailure() {
+        dismissValueApproval(rejectNative = false)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_auth_transaction_title)
+            .setMessage(R.string.wallet_value_actions_prepare_failed)
+            .setPositiveButton(android.R.string.ok, null)
+            .create()
+        valueApprovalDialog = dialog
+        dialog.setOnDismissListener {
+            if (valueApprovalDialog === dialog) valueApprovalDialog = null
+        }
+        dialog.show()
     }
 
     private fun showValueApproval(

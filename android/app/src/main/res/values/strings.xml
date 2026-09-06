@@ -576,7 +576,7 @@
     <string name="wallet_value_actions_sync_failed" translatable="false">Current verified HNS wallet state could not be obtained. Synchronize before reviewing this action.</string>
     <string name="wallet_value_actions_catchup" translatable="false">HNS action review is waiting for wallet scan catch-up (%1$d of %2$d). Continue synchronization before reviewing the action.</string>
     <string name="wallet_value_actions_preparing" translatable="false">Preparing the exact native action and approval summary…</string>
-    <string name="wallet_value_actions_prepare_failed" translatable="false">The action could not be prepared from the current synchronized state.</string>
+    <string name="wallet_value_actions_prepare_failed" translatable="false">The action could not be prepared from the current synchronized state. No transaction was approved or broadcast.</string>
     <string name="wallet_value_actions_expires" translatable="false">Approval expires: %1$s</string>
     <string name="wallet_value_actions_executing" translatable="false">Executing the exact approved native action…</string>
     <string name="wallet_value_actions_result_ambiguous" translatable="false">No complete result could be returned. The wallet was locked; synchronize before deciding whether to retry.</string>
