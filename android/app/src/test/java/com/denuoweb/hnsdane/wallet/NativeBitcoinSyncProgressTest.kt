@@ -32,9 +32,26 @@ class NativeBitcoinSyncProgressTest {
     }
 
     @Test
+    fun parses_bounded_phase_timings_from_a_synchronization_receipt() {
+        val synchronization = NativeBitcoinWalletBundle.synchronization(bundle(
+            """{"snapshot":{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2},"sequence":8,"checkpointHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2,"networkMs":2000,"walletApplyMs":30,"chainValidationMs":20,"reconciliationMs":10,"totalMs":2100}""",
+        ))
+        requireNotNull(synchronization)
+        assertEquals(2000L, synchronization.networkMs)
+        assertEquals(30L, synchronization.walletApplyMs)
+        assertEquals(20L, synchronization.chainValidationMs)
+        assertEquals(10L, synchronization.reconciliationMs)
+        assertEquals(2100L, synchronization.totalMs)
+
+        assertNull(NativeBitcoinWalletBundle.synchronization(bundle(
+            """{"snapshot":{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2},"sequence":8,"checkpointHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2,"networkMs":2101,"walletApplyMs":30,"chainValidationMs":20,"reconciliationMs":10,"totalMs":2100}""",
+        )))
+    }
+
+    @Test
     fun parses_the_closed_bounded_progress_projection() {
         val progress = NativeBitcoinWalletBundle.syncProgress(bundle(
-            """{"successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":4,"peerTimeouts":1,"incompatiblePeers":2,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":7200}""",
+            """{"stage":"syncing_filters","successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":4,"peerTimeouts":1,"incompatiblePeers":2,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":7200,"processedFilterCount":1200,"matchedFilterCount":2,"downloadedBlockCount":1,"cycleElapsedMs":4000}""",
         ))
         requireNotNull(progress)
         assertEquals(2, progress.successfulHandshakes)
@@ -44,15 +61,26 @@ class NativeBitcoinSyncProgressTest {
         assertEquals(2, progress.incompatiblePeers)
         assertEquals(910000L, progress.chainHeight)
         assertEquals(7200L, progress.completionBasisPoints)
+        assertEquals("syncing_filters", progress.stage)
+        assertEquals(1200L, progress.processedFilterCount)
+        assertEquals(2L, progress.matchedFilterCount)
+        assertEquals(1L, progress.downloadedBlockCount)
+        assertEquals(4000L, progress.cycleElapsedMs)
     }
 
     @Test
     fun rejects_impossible_or_extended_progress() {
         assertNull(NativeBitcoinWalletBundle.syncProgress(bundle(
-            """{"successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":0,"peerTimeouts":0,"incompatiblePeers":0,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":10001}""",
+            """{"stage":"syncing_filters","successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":0,"peerTimeouts":0,"incompatiblePeers":0,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":10001,"processedFilterCount":20,"matchedFilterCount":0,"downloadedBlockCount":0,"cycleElapsedMs":1}""",
         )))
         assertNull(NativeBitcoinWalletBundle.syncProgress(bundle(
-            """{"successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":0,"peerTimeouts":0,"incompatiblePeers":0,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":20,"peer":"untrusted"}""",
+            """{"stage":"syncing_filters","successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":0,"peerTimeouts":0,"incompatiblePeers":0,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":20,"processedFilterCount":20,"matchedFilterCount":0,"downloadedBlockCount":0,"cycleElapsedMs":1,"peer":"untrusted"}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.syncProgress(bundle(
+            """{"stage":"unknown","successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":0,"peerTimeouts":0,"incompatiblePeers":0,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":20,"processedFilterCount":20,"matchedFilterCount":0,"downloadedBlockCount":0,"cycleElapsedMs":1}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.syncProgress(bundle(
+            """{"stage":"fetching_blocks","successfulHandshakes":2,"requiredPeerCount":3,"connectionFailures":0,"peerTimeouts":0,"incompatiblePeers":0,"connectionsMet":true,"chainHeight":910000,"completionBasisPoints":20,"processedFilterCount":20,"matchedFilterCount":1,"downloadedBlockCount":2,"cycleElapsedMs":1}""",
         )))
     }
 

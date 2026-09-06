@@ -3587,6 +3587,7 @@ class WalletActivity : ComponentActivity() {
                         synchronization.checkpointHeight,
                         synchronization.connectedPeerCount,
                         synchronization.requiredPeerCount,
+                        formatBitcoinSyncDuration(synchronization.totalMs),
                     )
                 }
             }
@@ -3653,7 +3654,6 @@ class WalletActivity : ComponentActivity() {
                         ) {
                             bitcoinStatusView.text = bitcoinSyncProgressText(
                                 progress,
-                                now - startedAt,
                                 etaMillis,
                             )
                         }
@@ -3670,11 +3670,10 @@ class WalletActivity : ComponentActivity() {
 
     private fun bitcoinSyncProgressText(
         progress: NativeBitcoinSyncProgress,
-        elapsedMillis: Long,
         etaMillis: Long?,
     ): String {
-        val elapsed = formatBitcoinSyncDuration(elapsedMillis)
-        if (!progress.connectionsMet) {
+        val elapsed = formatBitcoinSyncDuration(progress.cycleElapsedMs)
+        if (progress.stage == "connecting") {
             return getString(
                 R.string.wallet_bitcoin_sync_connecting,
                 progress.successfulHandshakes,
@@ -3685,8 +3684,34 @@ class WalletActivity : ComponentActivity() {
                 elapsed,
             )
         }
+        when (progress.stage) {
+            "fetching_blocks" -> return getString(
+                R.string.wallet_bitcoin_sync_fetching_blocks,
+                progress.downloadedBlockCount,
+                progress.matchedFilterCount,
+                elapsed,
+            )
+            "applying_wallet" -> return getString(
+                R.string.wallet_bitcoin_sync_applying_wallet,
+                elapsed,
+            )
+            "validating_chain" -> return getString(
+                R.string.wallet_bitcoin_sync_validating_chain,
+                elapsed,
+            )
+            "reconciling" -> return getString(
+                R.string.wallet_bitcoin_sync_reconciling,
+                elapsed,
+            )
+            "ready" -> return getString(R.string.wallet_bitcoin_ready)
+            "failed" -> return getString(R.string.wallet_bitcoin_sync_failed)
+        }
         if (progress.completionBasisPoints <= 0L) {
-            return getString(R.string.wallet_bitcoin_sync_discovering, elapsed)
+            return getString(
+                R.string.wallet_bitcoin_sync_discovering,
+                progress.processedFilterCount,
+                elapsed,
+            )
         }
         val percentTenths = progress.completionBasisPoints.coerceIn(0L, 10_000L) / 10L
         val chainHeight = progress.chainHeight?.toString() ?: getString(R.string.common_unknown)
@@ -3699,6 +3724,8 @@ class WalletActivity : ComponentActivity() {
             chainHeight,
             elapsed,
             eta,
+            progress.processedFilterCount,
+            progress.matchedFilterCount,
         )
     }
 

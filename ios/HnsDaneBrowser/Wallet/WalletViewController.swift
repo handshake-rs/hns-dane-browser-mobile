@@ -953,7 +953,8 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let synchronization):
                     self.renderBitcoinSnapshot(synchronization.snapshot)
-                    self.bitcoinStatusLabel.text = "Bitcoin synchronized at height \(synchronization.checkpointHeight) with \(synchronization.connectedPeerCount)/\(synchronization.requiredPeerCount) peers."
+                    let elapsed = String(format: "%.2fs", Double(synchronization.totalMs) / 1_000)
+                    self.bitcoinStatusLabel.text = "Bitcoin synchronized at height \(synchronization.checkpointHeight) with \(synchronization.connectedPeerCount)/\(synchronization.requiredPeerCount) peers in \(elapsed)."
                 case .failure where stopped:
                     self.bitcoinStatusLabel.text = "Bitcoin synchronization stopped at the last durable checkpoint."
                     if let snapshot = try? wallet.bitcoinSnapshot() {
@@ -1001,9 +1002,27 @@ final class WalletViewController: UIViewController {
                           self.bitcoinSyncInProgress, let progress else { return }
                     let percent = Double(progress.completionBasisPoints) / 100
                     let height = progress.chainHeight.map { " · chain height \($0)" } ?? ""
-                    self.bitcoinStatusLabel.text = progress.connectionsMet
-                        ? "Scanning Bitcoin compact filters · \(String(format: "%.2f", percent))%\(height)"
-                        : "Connecting to Bitcoin peers · \(progress.successfulHandshakes)/\(progress.requiredPeerCount) handshakes\(height)"
+                    let elapsed = String(format: "%.1fs", Double(progress.cycleElapsedMs) / 1_000)
+                    switch progress.stage {
+                    case "connecting":
+                        self.bitcoinStatusLabel.text = "Connecting to Bitcoin peers · \(progress.successfulHandshakes)/\(progress.requiredPeerCount) handshakes\(height) · \(elapsed)"
+                    case "syncing_filters":
+                        self.bitcoinStatusLabel.text = "Scanning Bitcoin compact filters · \(String(format: "%.2f", percent))%\(height) · \(progress.processedFilterCount) processed, \(progress.matchedFilterCount) matched · \(elapsed)"
+                    case "fetching_blocks":
+                        self.bitcoinStatusLabel.text = "Downloading matched Bitcoin blocks · \(progress.downloadedBlockCount)/\(progress.matchedFilterCount) · \(elapsed)"
+                    case "applying_wallet":
+                        self.bitcoinStatusLabel.text = "Applying verified Bitcoin blocks to the encrypted wallet · \(elapsed)"
+                    case "validating_chain":
+                        self.bitcoinStatusLabel.text = "Validating the Bitcoin checkpoint and reorganization boundary · \(elapsed)"
+                    case "reconciling":
+                        self.bitcoinStatusLabel.text = "Reconciling the encrypted Bitcoin transaction and output view · \(elapsed)"
+                    case "ready":
+                        self.bitcoinStatusLabel.text = "Bitcoin synchronization is ready at the durable checkpoint."
+                    case "failed":
+                        self.bitcoinStatusLabel.text = "Bitcoin synchronization did not complete."
+                    default:
+                        self.bitcoinStatusLabel.text = "Bitcoin synchronization progress is unavailable."
+                    }
                 }
             }
         }

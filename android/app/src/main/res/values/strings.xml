@@ -507,8 +507,12 @@
     <string name="wallet_bitcoin_ready" translatable="false">Direct Kyoto compact-filter wallet ready. Synchronize before relying on its balance.</string>
     <string name="wallet_bitcoin_syncing" translatable="false">Synchronizing through the wallet\'s direct Bitcoin peer set…</string>
     <string name="wallet_bitcoin_sync_connecting" translatable="false">Connecting to direct Bitcoin peers… %1$d/%2$d successful handshakes. Failed connections: %3$d; peer timeouts: %4$d; peers without compact filters: %5$d. The first peer may still be synchronizing headers before compact-filter quorum. Elapsed %6$s; ETA waits for filter scan progress.</string>
-    <string name="wallet_bitcoin_sync_discovering" translatable="false">Bitcoin peer quorum is ready. Discovering and validating the chain/filter range… Elapsed %1$s; ETA waits for scan progress.</string>
-    <string name="wallet_bitcoin_sync_progress" translatable="false">Bitcoin compact-filter scan %1$d.%2$d%% at validated chain height %3$s. Elapsed %4$s; ETA %5$s.</string>
+    <string name="wallet_bitcoin_sync_discovering" translatable="false">Bitcoin peer quorum is ready. Discovering and validating the chain/filter range… %1$d filters processed. Elapsed %2$s; ETA waits for scan progress.</string>
+    <string name="wallet_bitcoin_sync_progress" translatable="false">Bitcoin compact-filter scan %1$d.%2$d%% at validated chain height %3$s. Elapsed %4$s; ETA %5$s. %6$d filters processed; %7$d matched.</string>
+    <string name="wallet_bitcoin_sync_fetching_blocks" translatable="false">Downloading matched Bitcoin blocks… %1$d downloaded for %2$d matched filters. Elapsed %3$s.</string>
+    <string name="wallet_bitcoin_sync_applying_wallet" translatable="false">Applying verified Bitcoin blocks to the encrypted wallet… Elapsed %1$s.</string>
+    <string name="wallet_bitcoin_sync_validating_chain" translatable="false">Validating the synchronized Bitcoin checkpoint and reorganization boundary… Elapsed %1$s.</string>
+    <string name="wallet_bitcoin_sync_reconciling" translatable="false">Reconciling the encrypted Bitcoin transaction and output view… Elapsed %1$s.</string>
     <string name="wallet_bitcoin_sync_eta_calculating" translatable="false">calculating after more progress</string>
     <string name="wallet_bitcoin_sync_already_running" translatable="false">Bitcoin synchronization is already running. HNS wallet functions remain available.</string>
     <string name="wallet_bitcoin_sync_operation_busy" translatable="false">Wait for Bitcoin synchronization to finish before starting another Bitcoin operation. HNS wallet functions remain available.</string>
@@ -518,7 +522,7 @@
     <string name="wallet_bitcoin_sync_stopping" translatable="false">Stopping direct Bitcoin synchronization now…</string>
     <string name="wallet_bitcoin_sync_stopped" translatable="false">Bitcoin synchronization stopped. The last completed durable checkpoint was retained; you can derive a receive address or synchronize again.</string>
     <string name="wallet_bitcoin_sync_stop_failed" translatable="false">Bitcoin synchronization could not be interrupted because no active native synchronization was found.</string>
-    <string name="wallet_bitcoin_synchronized" translatable="false">Verified Bitcoin state at height %1$d with %2$d/%3$d direct peers.</string>
+    <string name="wallet_bitcoin_synchronized" translatable="false">Verified Bitcoin state at height %1$d with %2$d/%3$d direct peers in %4$s.</string>
     <string name="wallet_bitcoin_balance_unavailable" translatable="false">No local Bitcoin snapshot yet.</string>
     <string name="wallet_bitcoin_balance" translatable="false">Confirmed: %1$d sats&#10;Trusted pending: %2$d sats&#10;Untrusted pending: %3$d sats&#10;Immature: %4$d sats&#10;Total: %5$d sats&#10;Bitcoin birthday: %6$s&#10;Durable scan height: %7$d</string>
     <string name="wallet_bitcoin_receive_unavailable" translatable="false">Unlock the direct wallet to derive a local Bitcoin receive address.</string>

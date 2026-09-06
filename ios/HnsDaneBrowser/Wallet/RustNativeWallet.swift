@@ -110,9 +110,15 @@ struct NativeBitcoinSynchronization: Decodable, Equatable, Sendable {
     let checkpointHeight: UInt64
     let connectedPeerCount: UInt8
     let requiredPeerCount: UInt8
+    let networkMs: UInt64
+    let walletApplyMs: UInt64
+    let chainValidationMs: UInt64
+    let reconciliationMs: UInt64
+    let totalMs: UInt64
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case snapshot, sequence, checkpointHeight, connectedPeerCount, requiredPeerCount
+        case networkMs, walletApplyMs, chainValidationMs, reconciliationMs, totalMs
     }
 
     init(from decoder: Decoder) throws {
@@ -122,16 +128,26 @@ struct NativeBitcoinSynchronization: Decodable, Equatable, Sendable {
         checkpointHeight = try container.decode(UInt64.self, forKey: .checkpointHeight)
         connectedPeerCount = try container.decode(UInt8.self, forKey: .connectedPeerCount)
         requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
+        networkMs = try container.decode(UInt64.self, forKey: .networkMs)
+        walletApplyMs = try container.decode(UInt64.self, forKey: .walletApplyMs)
+        chainValidationMs = try container.decode(UInt64.self, forKey: .chainValidationMs)
+        reconciliationMs = try container.decode(UInt64.self, forKey: .reconciliationMs)
+        totalMs = try container.decode(UInt64.self, forKey: .totalMs)
         guard sequence > 0,
               checkpointHeight == snapshot.synchronizedHeight,
               connectedPeerCount == snapshot.connectedPeerCount,
-              requiredPeerCount == snapshot.requiredPeerCount else {
+              requiredPeerCount == snapshot.requiredPeerCount,
+              networkMs <= totalMs,
+              walletApplyMs <= totalMs,
+              chainValidationMs <= totalMs,
+              reconciliationMs <= totalMs else {
             throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin synchronization")
         }
     }
 }
 
 struct NativeBitcoinSyncProgress: Decodable, Equatable, Sendable {
+    let stage: String
     let successfulHandshakes: UInt8
     let requiredPeerCount: UInt8
     let connectionFailures: UInt16
@@ -140,14 +156,20 @@ struct NativeBitcoinSyncProgress: Decodable, Equatable, Sendable {
     let connectionsMet: Bool
     let chainHeight: UInt64?
     let completionBasisPoints: UInt16
+    let processedFilterCount: UInt32
+    let matchedFilterCount: UInt32
+    let downloadedBlockCount: UInt32
+    let cycleElapsedMs: UInt64
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case successfulHandshakes, requiredPeerCount, connectionFailures, peerTimeouts
+        case stage, successfulHandshakes, requiredPeerCount, connectionFailures, peerTimeouts
         case incompatiblePeers, connectionsMet, chainHeight, completionBasisPoints
+        case processedFilterCount, matchedFilterCount, downloadedBlockCount, cycleElapsedMs
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        stage = try container.decode(String.self, forKey: .stage)
         successfulHandshakes = try container.decode(UInt8.self, forKey: .successfulHandshakes)
         requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
         connectionFailures = try container.decode(UInt16.self, forKey: .connectionFailures)
@@ -156,7 +178,19 @@ struct NativeBitcoinSyncProgress: Decodable, Equatable, Sendable {
         connectionsMet = try container.decode(Bool.self, forKey: .connectionsMet)
         chainHeight = try container.decodeIfPresent(UInt64.self, forKey: .chainHeight)
         completionBasisPoints = try container.decode(UInt16.self, forKey: .completionBasisPoints)
-        guard requiredPeerCount > 0, completionBasisPoints <= 10_000 else {
+        processedFilterCount = try container.decode(UInt32.self, forKey: .processedFilterCount)
+        matchedFilterCount = try container.decode(UInt32.self, forKey: .matchedFilterCount)
+        downloadedBlockCount = try container.decode(UInt32.self, forKey: .downloadedBlockCount)
+        cycleElapsedMs = try container.decode(UInt64.self, forKey: .cycleElapsedMs)
+        let stages = Set([
+            "connecting", "syncing_filters", "fetching_blocks", "applying_wallet",
+            "validating_chain", "reconciling", "ready", "failed",
+        ])
+        guard stages.contains(stage),
+              requiredPeerCount > 0,
+              completionBasisPoints <= 10_000,
+              matchedFilterCount <= processedFilterCount,
+              downloadedBlockCount <= matchedFilterCount else {
             throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin progress")
         }
     }

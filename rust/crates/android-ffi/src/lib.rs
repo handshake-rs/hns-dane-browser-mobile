@@ -2550,6 +2550,11 @@ fn android_synchronize_bitcoin(
         "checkpointHeight": receipt.checkpoint.height,
         "connectedPeerCount": receipt.connected_peer_count,
         "requiredPeerCount": receipt.required_peer_count,
+        "networkMs": receipt.timings.network_ms,
+        "walletApplyMs": receipt.timings.wallet_apply_ms,
+        "chainValidationMs": receipt.timings.chain_validation_ms,
+        "reconciliationMs": receipt.timings.reconciliation_ms,
+        "totalMs": receipt.timings.total_ms,
     }))
     .map_err(|_| MobileWalletError::InvalidBitcoinAction)?;
     let bundle =

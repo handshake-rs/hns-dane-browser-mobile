@@ -35,9 +35,15 @@ internal data class NativeBitcoinSynchronization(
     val checkpointHeight: Long,
     val connectedPeerCount: Int,
     val requiredPeerCount: Int,
+    val networkMs: Long,
+    val walletApplyMs: Long,
+    val chainValidationMs: Long,
+    val reconciliationMs: Long,
+    val totalMs: Long,
 )
 
 internal data class NativeBitcoinSyncProgress(
+    val stage: String,
     val successfulHandshakes: Int,
     val requiredPeerCount: Int,
     val connectionFailures: Int,
@@ -46,6 +52,10 @@ internal data class NativeBitcoinSyncProgress(
     val connectionsMet: Boolean,
     val chainHeight: Long?,
     val completionBasisPoints: Long,
+    val processedFilterCount: Long,
+    val matchedFilterCount: Long,
+    val downloadedBlockCount: Long,
+    val cycleElapsedMs: Long,
 )
 
 internal data class NativeBitcoinSendApproval(
@@ -237,6 +247,7 @@ internal object NativeBitcoinWalletBundle {
         if (
             !hasExactKeys(json, setOf(
                 "snapshot", "sequence", "checkpointHeight", "connectedPeerCount", "requiredPeerCount",
+                "networkMs", "walletApplyMs", "chainValidationMs", "reconciliationMs", "totalMs",
             ))
         ) return@parse null
         val snapshot = parseSnapshot(json.optJSONObject("snapshot") ?: return@parse null)
@@ -245,10 +256,17 @@ internal object NativeBitcoinWalletBundle {
         val checkpointHeight = nonnegativeLong(json, "checkpointHeight") ?: return@parse null
         val connectedPeerCount = peerCount(json, "connectedPeerCount") ?: return@parse null
         val requiredPeerCount = peerCount(json, "requiredPeerCount") ?: return@parse null
+        val networkMs = nonnegativeLong(json, "networkMs") ?: return@parse null
+        val walletApplyMs = nonnegativeLong(json, "walletApplyMs") ?: return@parse null
+        val chainValidationMs = nonnegativeLong(json, "chainValidationMs") ?: return@parse null
+        val reconciliationMs = nonnegativeLong(json, "reconciliationMs") ?: return@parse null
+        val totalMs = nonnegativeLong(json, "totalMs") ?: return@parse null
         if (
             checkpointHeight != snapshot.synchronizedHeight ||
             connectedPeerCount != snapshot.connectedPeerCount ||
-            requiredPeerCount != snapshot.requiredPeerCount
+            requiredPeerCount != snapshot.requiredPeerCount ||
+            networkMs > totalMs || walletApplyMs > totalMs || chainValidationMs > totalMs ||
+            reconciliationMs > totalMs
         ) return@parse null
         NativeBitcoinSynchronization(
             snapshot,
@@ -256,15 +274,27 @@ internal object NativeBitcoinWalletBundle {
             checkpointHeight,
             connectedPeerCount,
             requiredPeerCount,
+            networkMs,
+            walletApplyMs,
+            chainValidationMs,
+            reconciliationMs,
+            totalMs,
         )
     }
 
     fun syncProgress(bundle: ByteArray): NativeBitcoinSyncProgress? = parse(bundle) { json ->
         if (!hasExactKeys(json, setOf(
-            "successfulHandshakes", "requiredPeerCount", "connectionFailures",
+            "stage", "successfulHandshakes", "requiredPeerCount", "connectionFailures",
             "peerTimeouts", "incompatiblePeers", "connectionsMet", "chainHeight",
-            "completionBasisPoints",
+            "completionBasisPoints", "processedFilterCount", "matchedFilterCount",
+            "downloadedBlockCount", "cycleElapsedMs",
         ))) return@parse null
+        val stage = json.optString("stage", "").takeIf {
+            it in setOf(
+                "connecting", "syncing_filters", "fetching_blocks", "applying_wallet",
+                "validating_chain", "reconciling", "ready", "failed",
+            )
+        } ?: return@parse null
         val handshakes = json.optInt("successfulHandshakes", -1).takeIf { it in 0..255 }
             ?: return@parse null
         val requiredPeers = json.optInt("requiredPeerCount", -1).takeIf { it in 1..255 }
@@ -284,7 +314,13 @@ internal object NativeBitcoinWalletBundle {
             nonnegativeLong(json, "chainHeight") ?: return@parse null
         val completion = nonnegativeLong(json, "completionBasisPoints")
             ?.takeIf { it <= 10_000L } ?: return@parse null
+        val processedFilters = nonnegativeLong(json, "processedFilterCount") ?: return@parse null
+        val matchedFilters = nonnegativeLong(json, "matchedFilterCount") ?: return@parse null
+        val downloadedBlocks = nonnegativeLong(json, "downloadedBlockCount") ?: return@parse null
+        val cycleElapsedMs = nonnegativeLong(json, "cycleElapsedMs") ?: return@parse null
+        if (matchedFilters > processedFilters || downloadedBlocks > matchedFilters) return@parse null
         NativeBitcoinSyncProgress(
+            stage,
             handshakes,
             requiredPeers,
             connectionFailures,
@@ -293,6 +329,10 @@ internal object NativeBitcoinWalletBundle {
             connectionsMet,
             chainHeight,
             completion,
+            processedFilters,
+            matchedFilters,
+            downloadedBlocks,
+            cycleElapsedMs,
         )
     }
 

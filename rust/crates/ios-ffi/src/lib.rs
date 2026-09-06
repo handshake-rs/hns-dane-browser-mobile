@@ -5935,6 +5935,11 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_bitcoin(
             "checkpointHeight": receipt.checkpoint.height,
             "connectedPeerCount": receipt.connected_peer_count,
             "requiredPeerCount": receipt.required_peer_count,
+            "networkMs": receipt.timings.network_ms,
+            "walletApplyMs": receipt.timings.wallet_apply_ms,
+            "chainValidationMs": receipt.timings.chain_validation_ms,
+            "reconciliationMs": receipt.timings.reconciliation_ms,
+            "totalMs": receipt.timings.total_ms,
         }))?;
         let output = allocate_output(&bundle.0, true)?;
         // SAFETY: Null was rejected above.
