@@ -350,6 +350,7 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshotHandle = INVALID_HANDLE
     private var latestReadSnapshotAuthorityGeneration = 0L
     private var latestReadSnapshotEpoch = 0L
+    @Volatile
     private var walletHnsSyncInProgress = false
     private var walletBitcoinSyncInProgress = false
     private var bitcoinSnapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot? = null
@@ -2778,9 +2779,10 @@ class WalletActivity : ComponentActivity() {
                     walletHnsJourney.walletUnlocked()
                     refreshControllerState()
                     localReceiveTarget?.let(::renderLocalPaymentReceiveTarget)
-                    if (NativeWalletBridge.directHnsRollbackFloor(handle) != null) {
+                    val directHnsAvailable =
+                        NativeWalletBridge.directHnsRollbackFloor(handle) != null
+                    if (directHnsAvailable) {
                         requestLocalNetworkPermissionForDirectShakescape()
-                        startWalletOwnedDirectShakescapeWorker(handle, lease, epoch)
                     }
                     // A direct controller is installed locked. Once the user
                     // has explicitly unlocked it, take one bounded, verified
@@ -2791,6 +2793,8 @@ class WalletActivity : ComponentActivity() {
                             NativeWalletBridge.hasHnsReads(handle)
                     ) {
                         synchronizeWalletReads()
+                    } else if (directHnsAvailable) {
+                        startWalletOwnedDirectShakescapeWorker(handle, lease, epoch)
                     }
                 }
             }
@@ -2855,6 +2859,16 @@ class WalletActivity : ComponentActivity() {
                     walletSessionIsActive() && operationIsCurrent(epoch, lease) && walletHandle == handle &&
                         (NativeWalletBridge.status(handle)?.locked == false)
                 ) {
+                    // The HNS synchronization call and ShakeScape service
+                    // share one native controller exclusion domain. Yield as
+                    // soon as the UI has authorized a verified wallet round;
+                    // otherwise a reachability or peer-maintenance tick can
+                    // make the non-blocking sync preflight look spuriously
+                    // locked and force a second Unlock/Sync tap.
+                    if (busy || walletHnsSyncInProgress) {
+                        Thread.sleep(DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS)
+                        continue
+                    }
                     if (
                         !routerRouteInitialized ||
                             serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0
@@ -3362,6 +3376,12 @@ class WalletActivity : ComponentActivity() {
                         refreshControllerState(resetReads = false)
                         retainReadProjectionAfterRefreshFailure()
                     }
+                }
+                if (
+                    synchronization?.catchup == null &&
+                        NativeWalletBridge.directHnsRollbackFloor(handle) != null
+                ) {
+                    startWalletOwnedDirectShakescapeWorker(handle, lease, epoch)
                 }
                 finishWalletForegroundSyncIfIdle()
             }

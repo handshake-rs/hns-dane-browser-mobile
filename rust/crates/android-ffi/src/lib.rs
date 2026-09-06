@@ -3592,6 +3592,7 @@ fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
                 | HnsDirectPeerError::PeerRejected(_)
                 | HnsDirectPeerError::FilteredBlockUnavailable
                 | HnsDirectPeerError::InsufficientBlockViews { .. }
+                | HnsDirectPeerError::NoValidNameProof
         )
 }
 
@@ -7834,6 +7835,9 @@ mod tests {
                 required: 2,
                 actual: 1,
             }
+        ));
+        assert!(direct_hns_transport_error_is_retryable(
+            &HnsDirectPeerError::NoValidNameProof
         ));
         assert!(!direct_hns_transport_error_is_retryable(
             &HnsDirectPeerError::InvalidConfiguration
