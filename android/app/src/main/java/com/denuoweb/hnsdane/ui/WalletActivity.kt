@@ -6147,10 +6147,11 @@ class WalletActivity : ComponentActivity() {
                         )
                     } == true
                 }
-                // Existing wallets open directly from their encrypted,
+                // Existing wallets normally open directly from their encrypted,
                 // rollback-fenced birthday checkpoint. Export browser headers
-                // only when native reports that a pristine restore still
-                // needs the segment after the pinned block-300,000 anchor.
+                // when native reports that either a pristine restore or the
+                // bounded pre-birthday FINALIZE-header migration needs the
+                // segment after the pinned block-300,000 anchor.
                 if (configure("")) {
                     true
                 } else {
