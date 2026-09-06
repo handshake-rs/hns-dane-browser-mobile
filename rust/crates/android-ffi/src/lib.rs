@@ -1763,7 +1763,12 @@ impl AndroidWalletController {
                         header_agreement_recoveries,
                         coordinator,
                     );
-                    let progress = match coordinator.synchronize_headers_once(now_unix) {
+                    // Connecting and rotating a public peer pool can consume
+                    // most of a mobile I/O interval. Arm the header round from
+                    // the time it actually starts, not from before connection
+                    // establishment.
+                    let header_now_unix = HnsReadSystemClock.now_unix()?;
+                    let progress = match coordinator.synchronize_headers_once(header_now_unix) {
                         Ok(progress) => progress,
                         Err(error)
                             if error.is_temporary_header_agreement_unavailable()
@@ -1852,9 +1857,10 @@ impl AndroidWalletController {
                     // backend, so Android never publishes a speculative scan
                     // height while still receiving a responsive live update.
                     let progress_coordinator = coordinator.clone();
+                    let scan_now_unix = HnsReadSystemClock.now_unix()?;
                     let progress = match coordinator.scan_wallet_blocks_with_progress(
                         DIRECT_HNS_SCAN_BLOCKS_PER_CHUNK,
-                        now_unix,
+                        scan_now_unix,
                         |progress| {
                             if let Some(telemetry) = progress.batch_telemetry {
                                 android_log_wallet_scan_metrics(&format!(
