@@ -25,11 +25,11 @@ use hns_wallet_mobile::{
     HnsDirectPeerCoordinator, HnsDirectPeerError, HnsDirectShakescapeListener,
     HnsDirectShakescapeMessage, HnsDirectShakescapePeer, HnsInboundMobilePeer,
     HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MOBILE_DATABASE_KEY_BYTES,
-    MobileBitcoinDirectConfig, MobileBitcoinValueController, MobileDatabaseKey,
-    MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot, MobileHnsValueController,
-    MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
-    MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
+    HnsPublicPeerSessions, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
+    MOBILE_DATABASE_KEY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
+    MobileDatabaseKey, MobileHnsNameSummary, MobileHnsReadController, MobileHnsReadSnapshot,
+    MobileHnsValueController, MobileHnsValueIntent, MobilePlatform, MobileRecoveryPhrase,
+    MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
     MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
@@ -44,7 +44,7 @@ use std::path::{Component, Path, PathBuf};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, TryLockError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub const HNS_BROWSER_ABI_VERSION: u32 = 1;
 
@@ -95,6 +95,7 @@ const MAX_RESOURCE_CACHE_LIMIT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_RUNTIME_HANDLES: usize = 16;
 const MAX_PROXY_HANDLES: usize = 64;
 const MAX_WALLET_HANDLES: usize = 8;
+const IOS_PUBLIC_HNS_SESSION_RETENTION: Duration = Duration::from_secs(5 * 60);
 const MAX_MAIN_FRAME_STATUSES: usize = 64;
 const MAX_ALLOCATIONS: usize = 256;
 const MAX_ALLOCATED_BYTES: usize = 8 * 1024 * 1024;
@@ -772,6 +773,7 @@ struct WalletEntry {
     controller: NativeWalletController,
     pending_recovery_phrase: Option<SensitiveBytes>,
     hns_reads_installable: bool,
+    database_path: PathBuf,
     bitcoin_data_dir: PathBuf,
     active: bool,
 }
@@ -896,6 +898,7 @@ impl NativeWalletController {
         database_key: &MobileDatabaseKey,
         rollback_floor: HnsLightFloor,
         bootstrap_segment_path: Option<&Path>,
+        wallet_scope: &Path,
         bitcoin_data_dir: PathBuf,
     ) -> Result<MobileBitcoinValueController, MobileWalletError> {
         let Self::Lifecycle(lifecycle) = self else {
@@ -914,6 +917,7 @@ impl NativeWalletController {
         } else {
             None
         };
+        let public_peer_sessions = take_cached_public_hns_sessions(wallet_scope, account_network);
         // Opening the coordinator can fail for transient filesystem, peer
         // bootstrap, or rollback-floor reasons.  Keep the lifecycle
         // controller intact until that step succeeds so a caller can report
@@ -924,8 +928,18 @@ impl NativeWalletController {
                 return Err(MobileWalletError::ControllerFailed);
             };
             let peer_config = direct_hns_peer_config(lifecycle.account_config().network);
-            match bootstrap {
-                Some(bootstrap) => lifecycle
+            match (bootstrap, public_peer_sessions) {
+                (Some(bootstrap), Some(sessions)) => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor_checkpoint_and_public_peer_sessions(
+                        database_key,
+                        peer_config,
+                        rollback_floor,
+                        bootstrap.target_height,
+                        bootstrap.target_hash,
+                        bootstrap.headers_after_checkpoint,
+                        sessions,
+                    )?,
+                (Some(bootstrap), None) => lifecycle
                     .open_direct_hns_peer_coordinator_with_floor_and_checkpoint_bootstrap(
                         database_key,
                         peer_config,
@@ -934,7 +948,28 @@ impl NativeWalletController {
                         bootstrap.target_hash,
                         bootstrap.headers_after_checkpoint,
                     )?,
-                None => lifecycle
+                (None, Some(sessions)) => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor_and_public_peer_sessions(
+                        database_key,
+                        peer_config,
+                        rollback_floor,
+                        sessions,
+                    )
+                    .and_then(|coordinator| {
+                        let birthday_requires_checkpoint = account_network == HnsNetwork::Mainnet
+                            && account_birthday >= u64::from(IOS_MAINNET_WALLET_CHECKPOINT_HEIGHT);
+                        let anchor_installed = coordinator
+                            .backend()
+                            .header_sync_status()
+                            .map(|status| u64::from(status.tip.height().get()) >= account_birthday)
+                            .unwrap_or(false);
+                        if birthday_requires_checkpoint && !anchor_installed {
+                            Err(MobileWalletError::ControllerFailed)
+                        } else {
+                            Ok(coordinator)
+                        }
+                    })?,
+                (None, None) => lifecycle
                     .open_direct_hns_peer_coordinator_with_floor(
                         database_key,
                         peer_config,
@@ -1053,6 +1088,48 @@ impl NativeWalletController {
             shakescape_reachability.take();
             shakescape_listener.take();
             let _ = coordinator.retire_shakescape_advertisement();
+        }
+    }
+
+    /// Consume a retired private wallet controller and return only sanitized
+    /// standard HSD sessions. Direct board transports and signing authority
+    /// are always dropped before the public session handle can escape.
+    fn into_public_hns_sessions_for_retirement(self) -> Option<HnsPublicPeerSessions> {
+        match self {
+            Self::DirectHnsValue {
+                coordinator,
+                mut controller,
+                shakescape_sessions,
+                shakescape_listener,
+                shakescape_reachability,
+                shakescape_public_endpoint: _,
+                shakescape_last_peer_maintenance_at: _,
+                shakescape_peer,
+                shakescape_replication_peers,
+                inbound_network_peers,
+            } => {
+                let _ = coordinator.retire_shakescape_advertisement();
+                drop(shakescape_peer);
+                drop(shakescape_replication_peers);
+                drop(inbound_network_peers);
+                drop(shakescape_reachability);
+                drop(shakescape_listener);
+                drop(shakescape_sessions);
+                if controller.lock().is_err() {
+                    return None;
+                }
+                drop(controller);
+                coordinator.into_public_peer_sessions().ok()
+            }
+            Self::Lifecycle(mut controller) => {
+                let _ = controller.lock();
+                None
+            }
+            Self::HnsReads(mut controller) => {
+                let _ = controller.lock();
+                None
+            }
+            Self::Failed => None,
         }
     }
 
@@ -1989,13 +2066,85 @@ impl Drop for WalletHnsSyncActivity {
     }
 }
 
+struct CachedPublicHnsSessions {
+    generation: u64,
+    expires_at: Instant,
+    sessions: HnsPublicPeerSessions,
+}
+
 static HANDLES: OnceLock<Mutex<HandleRegistry>> = OnceLock::new();
+static IOS_PUBLIC_HNS_SESSIONS: OnceLock<Mutex<HashMap<PathBuf, CachedPublicHnsSessions>>> =
+    OnceLock::new();
 // Runtime, proxy, and wallet handles share one monotonic namespace so
 // accidental cross-type use cannot alias a simultaneously live object.
 static NEXT_OBJECT_HANDLE: AtomicU64 = AtomicU64::new(1);
+static NEXT_PUBLIC_HNS_SESSION_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 fn handle_registry() -> &'static Mutex<HandleRegistry> {
     HANDLES.get_or_init(|| Mutex::new(HandleRegistry::default()))
+}
+
+fn public_hns_session_cache() -> &'static Mutex<HashMap<PathBuf, CachedPublicHnsSessions>> {
+    IOS_PUBLIC_HNS_SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn take_cached_public_hns_sessions(
+    wallet_scope: &Path,
+    network: HnsNetwork,
+) -> Option<HnsPublicPeerSessions> {
+    let cached = public_hns_session_cache()
+        .lock()
+        .ok()?
+        .remove(wallet_scope)?;
+    (cached.expires_at > Instant::now() && cached.sessions.network() == network)
+        .then_some(cached.sessions)
+}
+
+fn retain_cached_public_hns_sessions(
+    wallet_scope: PathBuf,
+    sessions: HnsPublicPeerSessions,
+) -> bool {
+    if sessions.connected_peer_count() == 0 {
+        return false;
+    }
+    let Some(generation) = NEXT_PUBLIC_HNS_SESSION_GENERATION
+        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+            (current < u64::MAX).then_some(current + 1)
+        })
+        .ok()
+    else {
+        return false;
+    };
+    let expires_at = Instant::now() + IOS_PUBLIC_HNS_SESSION_RETENTION;
+    let Ok(mut cache) = public_hns_session_cache().lock() else {
+        return false;
+    };
+    cache.insert(
+        wallet_scope.clone(),
+        CachedPublicHnsSessions {
+            generation,
+            expires_at,
+            sessions,
+        },
+    );
+    drop(cache);
+    std::mem::drop(std::thread::spawn(move || {
+        std::thread::sleep(IOS_PUBLIC_HNS_SESSION_RETENTION);
+        if let Ok(mut cache) = public_hns_session_cache().lock()
+            && cache
+                .get(wallet_scope.as_path())
+                .is_some_and(|cached| cached.generation == generation)
+        {
+            cache.remove(wallet_scope.as_path());
+        }
+    }));
+    true
+}
+
+fn purge_cached_public_hns_sessions(wallet_scope: &Path) {
+    if let Ok(mut cache) = public_hns_session_cache().lock() {
+        cache.remove(wallet_scope);
+    }
 }
 
 fn runtime_entry(handle: HnsBrowserRuntimeHandle) -> Result<Arc<RuntimeEntry>, FfiFailure> {
@@ -3871,6 +4020,7 @@ pub unsafe extern "C" fn hns_browser_wallet_create(
                 controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: Some(recovery_phrase),
                 hns_reads_installable: false,
+                database_path: path,
                 bitcoin_data_dir,
                 active: true,
             },
@@ -3919,6 +4069,7 @@ pub unsafe extern "C" fn hns_browser_wallet_restore(
                 controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: None,
                 hns_reads_installable: true,
+                database_path: path,
                 bitcoin_data_dir,
                 active: true,
             },
@@ -3959,6 +4110,7 @@ pub unsafe extern "C" fn hns_browser_wallet_open(
                 controller: NativeWalletController::Lifecycle(controller),
                 pending_recovery_phrase: None,
                 hns_reads_installable: true,
+                database_path: path,
                 bitcoin_data_dir,
                 active: true,
             },
@@ -4233,10 +4385,17 @@ pub unsafe extern "C" fn hns_browser_wallet_configure_direct_hns_value(
                 "direct HNS wallet requires a reopened durable controller",
             ));
         }
+        let database_path = entry.database_path.clone();
         let bitcoin_data_dir = entry.bitcoin_data_dir.clone();
         let mut bitcoin = entry
             .controller
-            .enable_direct_hns_value(&key, floor, snapshot_path.as_deref(), bitcoin_data_dir)
+            .enable_direct_hns_value(
+                &key,
+                floor,
+                snapshot_path.as_deref(),
+                database_path.as_path(),
+                bitcoin_data_dir,
+            )
             .map_err(|_| {
                 wallet_runtime_failure("unable to install direct HNS and Bitcoin wallet")
             })?;
@@ -6444,45 +6603,65 @@ pub unsafe extern "C" fn hns_browser_wallet_take_recovery_phrase(
 
 #[unsafe(no_mangle)]
 pub extern "C" fn hns_browser_wallet_destroy(wallet: HnsBrowserWalletHandle) -> HnsBrowserResult {
-    ffi_call(|| {
-        // Removal prevents new lookups. A caller that cloned the Arc before removal
-        // either finishes first while we wait on this mutex, or observes `active =
-        // false` after we acquire it; teardown therefore completes before return.
-        let (entry, bitcoin_control) = {
-            let mut registry = handle_registry()
-                .lock()
-                .map_err(|_| FfiFailure::internal())?;
-            let entry = registry.wallets.remove(&wallet).ok_or_else(|| {
-                FfiFailure::new(
-                    HNS_BROWSER_RESULT_NOT_FOUND,
-                    "wallet handle is invalid or stale",
-                )
-            })?;
-            registry.wallet_hns_sync_controls.remove(&wallet);
-            let bitcoin_control = registry
-                .wallet_bitcoin_controls
-                .remove(&wallet)
-                .ok_or_else(FfiFailure::internal)?;
-            (entry, bitcoin_control)
-        };
-        bitcoin_control.request_shutdown();
-        if let Ok(mut bitcoin) = bitcoin_control.controller.lock() {
-            if let Some(controller) = bitcoin.as_mut() {
-                let _ = controller.deactivate();
-            }
-            bitcoin.take();
+    ffi_call(|| destroy_ios_wallet(wallet, false))
+}
+
+/// Retires every private controller while briefly retaining sanitized
+/// standard HSD sessions for a reopen of the exact same iOS wallet path.
+#[unsafe(no_mangle)]
+pub extern "C" fn hns_browser_wallet_destroy_retaining_public_hns_sessions(
+    wallet: HnsBrowserWalletHandle,
+) -> HnsBrowserResult {
+    ffi_call(|| destroy_ios_wallet(wallet, true))
+}
+
+fn destroy_ios_wallet(
+    wallet: HnsBrowserWalletHandle,
+    retain_public_hns_sessions: bool,
+) -> Result<(), FfiFailure> {
+    // Removal prevents new lookups. A caller that cloned the Arc before removal
+    // either finishes first while we wait on this mutex, or observes `active =
+    // false` after we acquire it; teardown therefore completes before return.
+    let (entry, bitcoin_control) = {
+        let mut registry = handle_registry()
+            .lock()
+            .map_err(|_| FfiFailure::internal())?;
+        let entry = registry.wallets.remove(&wallet).ok_or_else(|| {
+            FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_FOUND,
+                "wallet handle is invalid or stale",
+            )
+        })?;
+        registry.wallet_hns_sync_controls.remove(&wallet);
+        let bitcoin_control = registry
+            .wallet_bitcoin_controls
+            .remove(&wallet)
+            .ok_or_else(FfiFailure::internal)?;
+        (entry, bitcoin_control)
+    };
+    bitcoin_control.request_shutdown();
+    if let Ok(mut bitcoin) = bitcoin_control.controller.lock() {
+        if let Some(controller) = bitcoin.as_mut() {
+            let _ = controller.deactivate();
         }
-        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
-        entry.active = false;
-        drop(entry.pending_recovery_phrase.take());
-        let _ = entry.controller.with_mut(
-            |controller| controller.lock(),
-            |controller| controller.lock(),
-            |controller| controller.lock(),
-        );
-        entry.controller = NativeWalletController::Failed;
-        Ok(())
-    })
+        bitcoin.take();
+    }
+    let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+    entry.active = false;
+    drop(entry.pending_recovery_phrase.take());
+    let database_path = entry.database_path.clone();
+    if !retain_public_hns_sessions {
+        purge_cached_public_hns_sessions(database_path.as_path());
+    }
+    let controller = std::mem::replace(&mut entry.controller, NativeWalletController::Failed);
+    if retain_public_hns_sessions {
+        if let Some(sessions) = controller.into_public_hns_sessions_for_retirement() {
+            let _ = retain_cached_public_hns_sessions(database_path, sessions);
+        }
+    } else {
+        drop(controller);
+    }
+    Ok(())
 }
 
 #[unsafe(no_mangle)]
@@ -7044,6 +7223,7 @@ mod tests {
             "hns_browser_wallet_lock",
             "hns_browser_wallet_take_recovery_phrase",
             "hns_browser_wallet_destroy",
+            "hns_browser_wallet_destroy_retaining_public_hns_sessions",
             "hns_browser_proxy_start",
             "hns_browser_proxy_endpoint",
             "hns_browser_proxy_matches_instance",

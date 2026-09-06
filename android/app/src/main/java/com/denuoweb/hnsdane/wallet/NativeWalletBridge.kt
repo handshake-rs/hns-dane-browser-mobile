@@ -985,6 +985,15 @@ internal object NativeWalletBridge {
         isValidHandle(handle) && isAvailable &&
             runCatching { nativeDestroy(handle) }.getOrDefault(false)
 
+    /**
+     * Retires all private wallet authority while retaining only sanitized
+     * standard HSD sessions for a short reopen of this exact wallet path.
+     */
+    fun destroyRetainingPublicHnsSessions(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeDestroyRetainingPublicHnsSessions(handle) }
+                .getOrDefault(false)
+
     private inline fun <T> consumeDatabaseKey(
         databaseKey: ByteArray,
         block: (ByteArray) -> T,
@@ -1389,6 +1398,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeDestroy(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeDestroyRetainingPublicHnsSessions(handle: Long): Boolean
 
     private const val TAG = "NativeWalletBridge"
     private const val INVALID_HANDLE = 0L

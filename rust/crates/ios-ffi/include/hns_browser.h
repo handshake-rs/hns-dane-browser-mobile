@@ -567,6 +567,8 @@ HnsBrowserResult hns_browser_wallet_take_recovery_phrase(
     HnsBrowserBuffer *out_recovery_phrase);
 HnsBrowserResult hns_browser_wallet_destroy(
     HnsBrowserWalletHandle wallet);
+HnsBrowserResult hns_browser_wallet_destroy_retaining_public_hns_sessions(
+    HnsBrowserWalletHandle wallet);
 
 /*
  * Starts an authenticated whole-WebKit loopback proxy generation. A null

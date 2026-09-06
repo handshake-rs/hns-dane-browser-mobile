@@ -3762,7 +3762,7 @@ final class RustNativeWallet: @unchecked Sendable {
         handle = 0
         handleLock.unlock()
         if current != 0 {
-            _ = hns_browser_wallet_destroy(current)
+            _ = hns_browser_wallet_destroy_retaining_public_hns_sessions(current)
         }
     }
 

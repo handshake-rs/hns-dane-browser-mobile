@@ -6689,7 +6689,7 @@ class WalletActivity : ComponentActivity() {
         }
         detachWalletController()
         thread(name = "hns-wallet-controller-retire") {
-            destroyWalletController(handle)
+            destroyWalletController(handle, retainPublicHnsSessions = true)
             ProcessWalletStorageOwnership.release(lease)
             runOnUiThread {
                 if (storageLease === lease) storageLease = null
@@ -7333,12 +7333,19 @@ class WalletActivity : ComponentActivity() {
         val handle = detachWalletController()
         if (handle == INVALID_HANDLE) return true
         NativeWalletBridge.lock(handle)
-        return destroyWalletController(handle)
+        return destroyWalletController(handle, retainPublicHnsSessions = true)
     }
 
-    private fun destroyWalletController(handle: Long): Boolean {
+    private fun destroyWalletController(
+        handle: Long,
+        retainPublicHnsSessions: Boolean = false,
+    ): Boolean {
         if (handle == INVALID_HANDLE) return true
-        val destroyed = NativeWalletBridge.destroy(handle)
+        val destroyed = if (retainPublicHnsSessions) {
+            NativeWalletBridge.destroyRetainingPublicHnsSessions(handle)
+        } else {
+            NativeWalletBridge.destroy(handle)
+        }
         if (!destroyed) {
             ProcessWalletControllerRetirementFailures.mark(walletStoragePath)
         }

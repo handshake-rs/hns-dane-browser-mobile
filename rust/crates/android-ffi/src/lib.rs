@@ -14,12 +14,12 @@ use hns_wallet_mobile::{
     HnsDirectPeerCoordinator, HnsDirectPeerError, HnsDirectShakescapeListener,
     HnsDirectShakescapeMessage, HnsDirectShakescapePeer, HnsInboundMobilePeer,
     HnsInboundNetworkPeer, HnsLightFloor, HnsNetwork, HnsNodeRpcBackend, HnsNodeRpcConfig,
-    HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES, MAX_MOBILE_SHAKEDEX_POLICY_BYTES,
-    MobileBitcoinDirectConfig, MobileBitcoinValueController, MobileDatabaseKey,
-    MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent, MobilePlatform,
-    MobileRecoveryPhrase, MobileShakedexQuery, MobileShakescapeBitcoinFundingPermit,
-    MobileShakescapeBitcoinWatchPermit, MobileShakescapeSessionController, MobileWalletController,
-    MobileWalletError,
+    HnsPublicPeerSessions, HnsReadSystemClock, MAX_MOBILE_RECOVERY_PHRASE_BYTES,
+    MAX_MOBILE_SHAKEDEX_POLICY_BYTES, MobileBitcoinDirectConfig, MobileBitcoinValueController,
+    MobileDatabaseKey, MobileHnsReadController, MobileHnsValueController, MobileHnsValueIntent,
+    MobilePlatform, MobileRecoveryPhrase, MobileShakedexQuery,
+    MobileShakescapeBitcoinFundingPermit, MobileShakescapeBitcoinWatchPermit,
+    MobileShakescapeSessionController, MobileWalletController, MobileWalletError,
 };
 use hns_wallet_types::{BaseUnits, SessionId};
 use jni::JNIEnv;
@@ -37,7 +37,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const MAX_LOCAL_CERTIFICATE_DER_BYTES: usize = 64 * 1024;
 const MAX_BROWSER_NAMESPACE_INPUT_BYTES: usize = 1_024;
@@ -60,6 +60,7 @@ static ANDROID_CONTEXT_INITIALIZATION: Mutex<()> = Mutex::new(());
 #[cfg(target_os = "android")]
 static ANDROID_APPLICATION_CONTEXT: OnceLock<GlobalRef> = OnceLock::new();
 const MAX_ANDROID_WALLET_HANDLES: usize = 4;
+const ANDROID_PUBLIC_HNS_SESSION_RETENTION: Duration = Duration::from_secs(5 * 60);
 const MAX_ANDROID_WALLET_PATH_BYTES: usize = 4_096;
 const MAX_ANDROID_WALLET_RPC_AUTHORIZATION_CHARACTERS: usize = 4_096;
 const ANDROID_WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -224,6 +225,15 @@ const WALLET_SHAKEDEX_QUERY_BUNDLE_FLAGS: u8 = 0;
 const WALLET_SHAKEDEX_QUERY_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_SHAKEDEX_QUERY_RESULT_JSON_BYTES: usize = 256 * 1024;
 static WALLET_HANDLES: OnceLock<BoundedMonotonicRegistry<AndroidWalletRecord>> = OnceLock::new();
+static ANDROID_PUBLIC_HNS_SESSIONS: OnceLock<Mutex<HashMap<PathBuf, CachedPublicHnsSessions>>> =
+    OnceLock::new();
+static NEXT_PUBLIC_HNS_SESSION_GENERATION: AtomicU64 = AtomicU64::new(1);
+
+struct CachedPublicHnsSessions {
+    generation: u64,
+    expires_at: Instant,
+    sessions: HnsPublicPeerSessions,
+}
 const MAX_STREAMING_GATEWAY_REQUESTS: usize = 8;
 static STREAMING_GATEWAY_REQUESTS: StreamingGatewayLimiter =
     StreamingGatewayLimiter::new(MAX_STREAMING_GATEWAY_REQUESTS);
@@ -522,6 +532,53 @@ impl AndroidWalletController {
         }
     }
 
+    /// Consume a retired wallet controller and return only scrubbed standard
+    /// HSD sessions. Every wallet-owned listener, direct board connection,
+    /// private session controller, backend clone, and value controller is
+    /// dropped before the transport-only handle is published to the cache.
+    fn into_public_hns_sessions_for_retirement(self) -> Option<HnsPublicPeerSessions> {
+        match self {
+            Self::DirectValue {
+                coordinator,
+                mut controller,
+                shakescape_sessions,
+                shakescape_listener,
+                shakescape_reachability,
+                shakescape_public_endpoint: _,
+                shakescape_last_peer_maintenance_at: _,
+                shakescape_peer,
+                shakescape_replication_peers,
+                inbound_network_peers,
+            } => {
+                let _ = coordinator.retire_shakescape_advertisement();
+                drop(shakescape_peer);
+                drop(shakescape_replication_peers);
+                drop(inbound_network_peers);
+                drop(shakescape_reachability);
+                drop(shakescape_listener);
+                drop(shakescape_sessions);
+                if controller.lock().is_err() {
+                    return None;
+                }
+                drop(controller);
+                coordinator.into_public_peer_sessions().ok()
+            }
+            Self::Lifecycle(mut controller) => {
+                let _ = controller.lock();
+                None
+            }
+            Self::Reads(mut controller) => {
+                let _ = controller.lock();
+                None
+            }
+            Self::Value(mut controller) => {
+                let _ = controller.lock();
+                None
+            }
+            Self::Failed => None,
+        }
+    }
+
     fn install_hns_reads(&mut self, backend: HnsNodeRpcBackend) -> bool {
         if !matches!(self, Self::Lifecycle(_)) {
             return false;
@@ -583,6 +640,7 @@ impl AndroidWalletController {
         database_key: &MobileDatabaseKey,
         rollback_floor: HnsLightFloor,
         bootstrap_snapshot_path: Option<&Path>,
+        wallet_scope: &Path,
         bitcoin_data_dir: PathBuf,
     ) -> Option<MobileBitcoinValueController> {
         if !matches!(self, Self::Lifecycle(_)) {
@@ -593,6 +651,16 @@ impl AndroidWalletController {
         };
         let account_network = lifecycle.account_config().network;
         let account_birthday = lifecycle.account_config().birthday_height;
+        let public_peer_sessions = take_cached_public_hns_sessions(wallet_scope, account_network);
+        if let Some(sessions) = public_peer_sessions.as_ref() {
+            android_log_info(
+                "hns-wallet-scan",
+                &format!(
+                    "wallet_hns_public_sessions stage=reusing peers={}",
+                    sessions.connected_peer_count()
+                ),
+            );
+        }
         let bootstrap = if let Some(path) = bootstrap_snapshot_path {
             if account_network == HnsNetwork::Mainnet {
                 match load_android_mainnet_checkpoint_segment(path, account_birthday) {
@@ -620,8 +688,18 @@ impl AndroidWalletController {
                 return None;
             };
             let peer_config = android_direct_hns_peer_config(lifecycle.account_config().network);
-            match bootstrap {
-                Some(bootstrap) => lifecycle
+            let opened = match (bootstrap, public_peer_sessions) {
+                (Some(bootstrap), Some(sessions)) => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor_checkpoint_and_public_peer_sessions(
+                        database_key,
+                        peer_config,
+                        rollback_floor,
+                        bootstrap.target_height,
+                        bootstrap.target_hash,
+                        bootstrap.headers_after_checkpoint,
+                        sessions,
+                    ),
+                (Some(bootstrap), None) => lifecycle
                     .open_direct_hns_peer_coordinator_with_floor_and_checkpoint_bootstrap(
                         database_key,
                         peer_config,
@@ -630,13 +708,20 @@ impl AndroidWalletController {
                         bootstrap.target_hash,
                         bootstrap.headers_after_checkpoint,
                     ),
-                None => lifecycle
-                    .open_direct_hns_peer_coordinator_with_floor(
+                (None, Some(sessions)) => lifecycle
+                    .open_direct_hns_peer_coordinator_with_floor_and_public_peer_sessions(
                         database_key,
                         peer_config,
                         rollback_floor,
-                    )
-                    .and_then(|coordinator| {
+                        sessions,
+                    ),
+                (None, None) => lifecycle.open_direct_hns_peer_coordinator_with_floor(
+                    database_key,
+                    peer_config,
+                    rollback_floor,
+                ),
+            };
+            opened.and_then(|coordinator| {
                         let birthday_requires_checkpoint =
                             account_network == HnsNetwork::Mainnet
                                 && account_birthday
@@ -656,8 +741,7 @@ impl AndroidWalletController {
                         } else {
                             Ok(coordinator)
                         }
-                    }),
-            }
+                    })
         };
         let coordinator = match coordinator_result {
             Ok(coordinator) => coordinator,
@@ -2618,6 +2702,9 @@ fn android_approve_bitcoin_send(
 struct AndroidWalletRecord {
     active: AtomicBool,
     controller: Arc<Mutex<AndroidWalletController>>,
+    // Process-local scope used only to prevent sanitized public peer sessions
+    // from crossing between distinct wallet databases.
+    database_path: PathBuf,
     // Kyoto and Bitcoin value state have an independent exclusion domain.
     // A compact-filter scan may hold this mutex for a bounded cycle without
     // preventing HNS reads, names, sends, or Shakescape service from acquiring the
@@ -2704,6 +2791,7 @@ impl AndroidWalletRecord {
     fn new(
         controller: MobileWalletController,
         recovery: Option<SensitiveUtf16>,
+        database_path: PathBuf,
         bitcoin_data_dir: PathBuf,
     ) -> Self {
         // A newly generated wallet cannot acquire a network read backend until
@@ -2714,6 +2802,7 @@ impl AndroidWalletRecord {
         Self {
             active: AtomicBool::new(true),
             controller: Arc::new(Mutex::new(AndroidWalletController::Lifecycle(controller))),
+            database_path,
             bitcoin_controller: Mutex::new(None),
             pending_recovery: Mutex::new(recovery),
             hns_live_sync_progress: Mutex::new(None),
@@ -3031,6 +3120,69 @@ fn wallet_registry() -> &'static BoundedMonotonicRegistry<AndroidWalletRecord> {
 
 fn wallet_from_handle(handle: jlong) -> Option<Arc<AndroidWalletRecord>> {
     wallet_registry().get(handle)
+}
+
+fn public_hns_session_cache() -> &'static Mutex<HashMap<PathBuf, CachedPublicHnsSessions>> {
+    ANDROID_PUBLIC_HNS_SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn take_cached_public_hns_sessions(
+    wallet_scope: &Path,
+    network: HnsNetwork,
+) -> Option<HnsPublicPeerSessions> {
+    let cached = public_hns_session_cache()
+        .lock()
+        .ok()?
+        .remove(wallet_scope)?;
+    (cached.expires_at > Instant::now() && cached.sessions.network() == network)
+        .then_some(cached.sessions)
+}
+
+fn retain_cached_public_hns_sessions(
+    wallet_scope: PathBuf,
+    sessions: HnsPublicPeerSessions,
+) -> bool {
+    if sessions.connected_peer_count() == 0 {
+        return false;
+    }
+    let Some(generation) = NEXT_PUBLIC_HNS_SESSION_GENERATION
+        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+            (current < u64::MAX).then_some(current + 1)
+        })
+        .ok()
+    else {
+        return false;
+    };
+    let expires_at = Instant::now() + ANDROID_PUBLIC_HNS_SESSION_RETENTION;
+    let Ok(mut cache) = public_hns_session_cache().lock() else {
+        return false;
+    };
+    cache.insert(
+        wallet_scope.clone(),
+        CachedPublicHnsSessions {
+            generation,
+            expires_at,
+            sessions,
+        },
+    );
+    drop(cache);
+    std::mem::drop(std::thread::spawn(move || {
+        std::thread::sleep(ANDROID_PUBLIC_HNS_SESSION_RETENTION);
+        if let Ok(mut cache) = public_hns_session_cache().lock()
+            && cache
+                .get(wallet_scope.as_path())
+                .is_some_and(|cached| cached.generation == generation)
+        {
+            cache.remove(wallet_scope.as_path());
+        }
+    }));
+    true
+}
+
+fn purge_cached_public_hns_sessions(wallet_scope: &Path) {
+    if let Ok(mut cache) = public_hns_session_cache().lock() {
+        cache.remove(wallet_scope);
+    }
 }
 
 fn wipe_string(value: &mut String) {
@@ -5545,6 +5697,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             .finish(AndroidWalletRecord::new(
                 controller,
                 Some(recovery),
+                path,
                 bitcoin_data_dir,
             ))
             .unwrap_or_else(|| {
@@ -5611,7 +5764,12 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             }
         };
         reservation
-            .finish(AndroidWalletRecord::new(controller, None, bitcoin_data_dir))
+            .finish(AndroidWalletRecord::new(
+                controller,
+                None,
+                path,
+                bitcoin_data_dir,
+            ))
             .unwrap_or_else(|| {
                 android_log_error("wallet restore failed: native wallet registration failed");
                 0
@@ -5654,7 +5812,12 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             }
         };
         reservation
-            .finish(AndroidWalletRecord::new(controller, None, bitcoin_data_dir))
+            .finish(AndroidWalletRecord::new(
+                controller,
+                None,
+                path,
+                bitcoin_data_dir,
+            ))
             .unwrap_or_else(|| {
                 android_log_error("wallet open failed: native wallet registration failed");
                 0
@@ -5862,6 +6025,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             &database_key,
             rollback_floor,
             bootstrap_snapshot_path.as_deref(),
+            record.database_path.as_path(),
             record.bitcoin_data_dir.clone(),
         );
         drop(controller);
@@ -7518,28 +7682,59 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     _class: JClass<'_>,
     handle: jlong,
 ) -> jboolean {
-    catch_unwind(AssertUnwindSafe(|| {
-        let Some(record) = wallet_registry().remove(handle) else {
-            return false;
-        };
-        record.deactivate();
-        record.request_bitcoin_shutdown();
-        if let Ok(mut bitcoin) = record.bitcoin_controller.lock() {
-            if let Some(bitcoin) = bitcoin.as_mut() {
-                let _ = bitcoin.deactivate();
+    catch_unwind(AssertUnwindSafe(|| destroy_android_wallet(handle, false)))
+        .unwrap_or(false)
+        .into()
+}
+
+/// Retire every private controller while briefly retaining sanitized standard
+/// HSD sessions for a reopen of the exact same Android wallet path.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeDestroyRetainingPublicHnsSessions(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| destroy_android_wallet(handle, true)))
+        .unwrap_or(false)
+        .into()
+}
+
+fn destroy_android_wallet(handle: jlong, retain_public_hns_sessions: bool) -> bool {
+    let Some(record) = wallet_registry().remove(handle) else {
+        return false;
+    };
+    record.deactivate();
+    record.request_bitcoin_shutdown();
+    if let Ok(mut bitcoin) = record.bitcoin_controller.lock() {
+        if let Some(bitcoin) = bitcoin.as_mut() {
+            let _ = bitcoin.deactivate();
+        }
+        bitcoin.take();
+    }
+    if let Ok(mut pending) = record.pending_recovery.lock() {
+        pending.take();
+    }
+    if !retain_public_hns_sessions {
+        purge_cached_public_hns_sessions(record.database_path.as_path());
+    }
+    if let Ok(mut controller) = record.controller.lock() {
+        let controller = std::mem::replace(&mut *controller, AndroidWalletController::Failed);
+        if retain_public_hns_sessions {
+            if let Some(sessions) = controller.into_public_hns_sessions_for_retirement() {
+                let peers = sessions.connected_peer_count();
+                if retain_cached_public_hns_sessions(record.database_path.clone(), sessions) {
+                    android_log_info(
+                        "hns-wallet-scan",
+                        &format!("wallet_hns_public_sessions stage=retained peers={peers}"),
+                    );
+                }
             }
-            bitcoin.take();
+        } else {
+            drop(controller);
         }
-        if let Ok(mut pending) = record.pending_recovery.lock() {
-            pending.take();
-        }
-        if let Ok(mut controller) = record.controller.lock() {
-            let _ = controller.lock();
-        }
-        true
-    }))
-    .unwrap_or(false)
-    .into()
+    }
+    true
 }
 
 #[unsafe(no_mangle)]
