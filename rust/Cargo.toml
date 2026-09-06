@@ -95,3 +95,11 @@ panic = "unwind"
 # used by the wallet workspace. This remains hns-light-p2p 0.2.3 and changes
 # only how already-decoded inbound standard requests reach the service owner.
 hns-light-p2p = { path = "../../hns-dane-engine/crates/hns-light-p2p" }
+# Ship the adjacent HSD-compatible FINALIZE constructor that treats the
+# NameState expiration bit as historical resource-retention metadata. Keep its
+# foundational HNS types on the same source to preserve one Cargo type identity
+# throughout the mobile dependency graph.
+hns-covenants = { path = "../../hns-rs/crates/hns-covenants" }
+hns-encoding = { path = "../../hns-rs/crates/hns-encoding" }
+hns-primitives = { path = "../../hns-rs/crates/hns-primitives" }
+hns-transaction = { path = "../../hns-rs/crates/hns-transaction" }
