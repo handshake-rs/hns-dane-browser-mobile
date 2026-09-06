@@ -39,8 +39,11 @@ internal class WalletHnsJourney {
     }
 
     fun walletUnlocked() {
+        // A status refresh may confirm the same unlocked controller many
+        // times. Only the locked -> unlocked transition invalidates an older
+        // verified snapshot; repeated confirmation must not revoke it.
+        if (!unlocked) verifiedSnapshot = false
         unlocked = true
-        verifiedSnapshot = false
     }
 
     fun walletLocked() {
@@ -61,6 +64,9 @@ internal class WalletHnsJourney {
     }
 
     fun mayReviewHnsSend(): Boolean = unlocked && verifiedSnapshot
+
+    /** Last lock state positively confirmed for the current controller. */
+    fun isConfirmedUnlocked(): Boolean = unlocked
 
     fun directControllerIsInstalled(): Boolean = directControllerInstalled
 }

@@ -45,4 +45,19 @@ class WalletHnsJourneyTest {
         journey.walletLocked()
         assertFalse(journey.mayReviewHnsSend())
     }
+
+    @Test
+    fun repeatedUnlockedConfirmationPreservesVerifiedSnapshot() {
+        val journey = WalletHnsJourney()
+        journey.controllerPublished(reopenedDurable = true)
+        journey.walletUnlocked()
+        journey.verifiedSnapshotObserved()
+
+        // Dashboard status polling can positively confirm the same state
+        // after synchronization. It must not make the snapshot unverified.
+        journey.walletUnlocked()
+
+        assertTrue(journey.isConfirmedUnlocked())
+        assertTrue(journey.mayReviewHnsSend())
+    }
 }

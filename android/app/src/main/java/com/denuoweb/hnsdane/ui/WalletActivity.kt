@@ -773,10 +773,32 @@ class WalletActivity : ComponentActivity() {
         // bounded network round. Its public progress has a separate mailbox,
         // so never wait for its status mutex on Android's main thread.
         val hnsSynchronizationActive = hasActiveWalletHnsSynchronization()
+        val controllerStatus = if (
+            hasController && !hnsSynchronizationActive && walletNameImportInProgressCount == 0
+        ) {
+            NativeWalletBridge.status(walletHandle)
+        } else {
+            null
+        }
+        // status() deliberately uses a non-blocking native mutex. A direct
+        // ShakeScape service tick can therefore make it temporarily return
+        // null even though this exact controller remains unlocked. Record
+        // only positive lock/unlock observations and preserve the last
+        // confirmed state across contention; never turn "busy right now"
+        // into a visible wallet lock.
+        when (controllerStatus?.locked) {
+            true -> walletHnsJourney.walletLocked()
+            false -> walletHnsJourney.walletUnlocked()
+            null -> Unit
+        }
         val controllerUnlocked = hasController && (
             hnsSynchronizationActive || walletNameImportInProgressCount > 0 ||
-                NativeWalletBridge.status(walletHandle)?.locked == false
+                walletHnsJourney.isConfirmedUnlocked()
         )
+        // Presentation may safely retain a confirmed unlocked state while a
+        // read-only worker owns the mutex. Value actions still require a
+        // fresh, available native status observation.
+        val controllerAvailableForActions = controllerStatus?.locked == false
         when (
             walletDashboardMode(
                 hasUnconfirmedRecovery =
@@ -795,10 +817,14 @@ class WalletActivity : ComponentActivity() {
             WalletDashboardMode.LockedWallet -> renderLockedWalletDashboard()
             WalletDashboardMode.UnlockedWallet ->
                 if (showingNamesPage && latestReadSnapshot != null) {
-                    renderNamesPage(actionsAvailable = !busy && !hnsSynchronizationActive)
+                    renderNamesPage(
+                        actionsAvailable = !busy && !hnsSynchronizationActive &&
+                            controllerAvailableForActions,
+                    )
                 } else {
                     renderUnlockedWalletDashboard(
-                        actionsAvailable = !busy && !hnsSynchronizationActive,
+                        actionsAvailable = !busy && !hnsSynchronizationActive &&
+                            controllerAvailableForActions,
                         synchronizationInProgress = hnsSynchronizationActive,
                     )
                 }
@@ -1511,16 +1537,14 @@ class WalletActivity : ComponentActivity() {
             )
             return
         }
-        val unlocked = NativeWalletBridge.status(walletHandle)?.locked == false
+        val locked = NativeWalletBridge.status(walletHandle)?.locked
         val actions = mutableListOf<Pair<String, () -> Unit>>().apply {
-            add(
-                if (unlocked) {
-                    getString(R.string.row_wallet_lock) to ::lockWallet
-                } else {
-                    getString(R.string.row_wallet_unlock) to ::unlockWallet
-                },
-            )
-            if (unlocked) {
+            when (locked) {
+                false -> add(getString(R.string.row_wallet_lock) to ::lockWallet)
+                true -> add(getString(R.string.row_wallet_unlock) to ::unlockWallet)
+                null -> Unit
+            }
+            if (locked == false) {
                 if (runCatching { keyStore.hasRecoveryPhrase() }.getOrDefault(false)) {
                     add(getString(R.string.row_wallet_view_recovery) to ::requestRecoveryPhraseDisplay)
                 }
