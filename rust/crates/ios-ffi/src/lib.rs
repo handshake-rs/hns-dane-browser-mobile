@@ -2626,7 +2626,7 @@ fn synchronize_wallet_owned_direct_hns(
             .now_unix()
             .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
         coordinator
-            .connect_available(now_unix)
+            .connect_sync_quorum_available(now_unix)
             .map_err(|_| direct_hns_not_ready("direct HNS peers are unavailable"))?;
         ensure_wallet_hns_sync_not_cancelled(sync_control)?;
         publish_direct_hns_public_progress(sync_control, WALLET_HNS_SYNC_HEADERS, coordinator);

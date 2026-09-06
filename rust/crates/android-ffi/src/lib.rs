@@ -1752,7 +1752,7 @@ impl AndroidWalletController {
                         coordinator,
                     );
                     let now_unix = HnsReadSystemClock.now_unix()?;
-                    if let Err(error) = coordinator.connect_available(now_unix) {
+                    if let Err(error) = coordinator.connect_sync_quorum_available(now_unix) {
                         return direct_hns_transport_catchup(coordinator, "connection", error);
                     }
                     ensure_android_hns_sync_not_cancelled(sync_record)?;
