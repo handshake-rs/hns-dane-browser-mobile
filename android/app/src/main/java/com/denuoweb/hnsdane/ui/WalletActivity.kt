@@ -79,6 +79,7 @@ import com.denuoweb.hnsdane.wallet.NativeWalletHnsSynchronization
 import com.denuoweb.hnsdane.wallet.NativeWalletName
 import com.denuoweb.hnsdane.wallet.NativeWalletPaymentReceiveTarget
 import com.denuoweb.hnsdane.wallet.NativeWalletReadSnapshot
+import com.denuoweb.hnsdane.wallet.NativeWalletStatus
 import com.denuoweb.hnsdane.wallet.NativeWalletTransaction
 import com.denuoweb.hnsdane.wallet.HandshakePaymentRequest
 import com.denuoweb.hnsdane.wallet.HandshakePaymentUri
@@ -5112,16 +5113,29 @@ class WalletActivity : ComponentActivity() {
         val lease = currentStorageLease() ?: return null
         val handle = walletHandle
         val snapshot = latestReadSnapshot
-        val status = NativeWalletBridge.status(handle)
+        val status = freshValueActionStatus(handle)
         return (lease to handle).takeIf {
             handle != INVALID_HANDLE && snapshot != null && status != null && !status.locked &&
                 status.hnsValueEnabled && (!requiresShakedex || status.shakedexEnabled) &&
-                NativeWalletBridge.hasHnsValue(handle) &&
                 latestReadSnapshotHandle == handle &&
                 latestReadSnapshotAuthorityGeneration == walletAuthorityGeneration &&
                 latestReadSnapshotEpoch == lifecycleEpoch &&
                 unconfirmedDatabaseKey == null
         }
+    }
+
+    /**
+     * A direct peer/service tick deliberately makes native status non-blocking,
+     * so one `try_lock` miss is not evidence that an authenticated value wallet
+     * disappeared. Retry that read for one short bounded UI interval. The
+     * eventual native preparation remains the signing/ownership authority.
+     */
+    private fun freshValueActionStatus(handle: Long): NativeWalletStatus? {
+        repeat(5) { attempt ->
+            NativeWalletBridge.status(handle)?.let { return it }
+            if (attempt < 4) Thread.sleep(10)
+        }
+        return null
     }
 
     private fun directShakescapeContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
@@ -5172,6 +5186,8 @@ class WalletActivity : ComponentActivity() {
         }
         val (lease, handle) = valueActionContext(requiresShakedex) ?: run {
             valueActionStatusView.text = getString(R.string.wallet_value_actions_requires_sync)
+            Log.w(TAG, "Value action stopped before native preparation because fresh wallet authority was unavailable")
+            showValueActionUnavailable()
             return
         }
         if (!beginOperation(
@@ -5261,6 +5277,20 @@ class WalletActivity : ComponentActivity() {
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.wallet_auth_transaction_title)
             .setMessage(R.string.wallet_value_actions_prepare_failed)
+            .setPositiveButton(android.R.string.ok, null)
+            .create()
+        valueApprovalDialog = dialog
+        dialog.setOnDismissListener {
+            if (valueApprovalDialog === dialog) valueApprovalDialog = null
+        }
+        dialog.show()
+    }
+
+    private fun showValueActionUnavailable() {
+        dismissValueApproval(rejectNative = false)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_auth_transaction_title)
+            .setMessage(R.string.wallet_value_actions_requires_sync)
             .setPositiveButton(android.R.string.ok, null)
             .create()
         valueApprovalDialog = dialog
