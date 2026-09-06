@@ -5385,12 +5385,39 @@ class WalletActivity : ComponentActivity() {
         pendingValueApproval = null
         valueActionStatusView.text = getString(R.string.wallet_value_actions_executing)
         val handle = walletHandle
+        val pendingRefreshFloor = latestReadSnapshot?.height
+        val pendingRecoveryAccountId = NativeWalletBridge.account(handle)?.accountId
         thread(name = "hns-wallet-value-execute") {
             val result = NativeWalletBridge.approveHnsValueActionResult(
                 handle,
                 approval.actionToken,
             )
             approval.close()
+            if (result != null) {
+                // The peer-submission result is already authoritative for
+                // whether native execution began. Persist recovery before any
+                // follow-up network read, then show that receipt immediately;
+                // the potentially slow mempool/history refresh must not hide
+                // a successful broadcast behind a generic busy indicator.
+                persistPendingOutgoingRecovery(pendingRecoveryAccountId, pendingRefreshFloor)
+                runOnUiThread {
+                    val mayPresent = walletReadMayPublish(
+                        expectedEpoch = epoch,
+                        currentEpoch = lifecycleEpoch,
+                        foreground = foreground,
+                        ownsCurrentLease = currentStorageLease() === lease,
+                        expectedHandle = handle,
+                        currentHandle = walletHandle,
+                        expectedAuthorityGeneration = authorityGeneration,
+                        currentAuthorityGeneration = walletAuthorityGeneration,
+                    ) && operationIsCurrent(epoch, lease)
+                    if (mayPresent) {
+                        valueActionStatusView.text =
+                            getString(R.string.wallet_value_actions_submitted_reconciling)
+                        showSubmittedValueActionResult(result.displayJson)
+                    }
+                }
+            }
             val snapshot = result?.let { synchronizeHnsSnapshotWithRollbackFloor(handle) }
             runOnUiThread {
                 val mayPublish = walletReadMayPublish(
@@ -5415,15 +5442,16 @@ class WalletActivity : ComponentActivity() {
                 } else {
                     getString(R.string.wallet_value_actions_result, result.displayJson)
                 }
-                if (result != null) {
-                    AlertDialog.Builder(this)
-                        .setTitle(R.string.wallet_value_actions_result_title)
-                        .setMessage(getString(R.string.wallet_value_actions_result, result.displayJson))
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show()
-                }
             }
         }
+    }
+
+    private fun showSubmittedValueActionResult(displayJson: String) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_value_actions_result_title)
+            .setMessage(getString(R.string.wallet_value_actions_result, displayJson))
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun rejectPreparedValueAction(
