@@ -351,6 +351,7 @@ class WalletActivity : ComponentActivity() {
     private var latestReadSnapshotHandle = INVALID_HANDLE
     private var latestReadSnapshotAuthorityGeneration = 0L
     private var latestReadSnapshotEpoch = 0L
+    private var latestReadSnapshotObservedAtElapsedMillis = 0L
     @Volatile
     private var walletHnsSyncInProgress = false
     private var walletBitcoinSyncInProgress = false
@@ -5197,13 +5198,36 @@ class WalletActivity : ComponentActivity() {
             showValueActionUnavailable()
             return
         }
+        val reusableSnapshot = latestReadSnapshot?.takeIf { snapshot ->
+            walletValueActionMayReuseVerifiedSnapshot(
+                hasCurrentAuthority = hasCurrentWalletReadSnapshot(handle),
+                snapshotObservedAtElapsedMillis = latestReadSnapshotObservedAtElapsedMillis,
+                nowElapsedMillis = SystemClock.elapsedRealtime(),
+                snapshotHeight = snapshot.height,
+                latestObservedHeaderHeight = latestObservedBrowserHeaderHeight,
+            )
+        }
         if (!beginOperation(
                 lease,
                 getString(R.string.wallet_status_preparing_value_action),
                 resetReads = false,
             )
         ) return
-        valueActionStatusView.text = getString(R.string.wallet_value_actions_syncing)
+        valueActionStatusView.text = getString(
+            if (reusableSnapshot != null) {
+                R.string.wallet_value_actions_preparing_from_recent_snapshot
+            } else {
+                R.string.wallet_value_actions_syncing
+            },
+        )
+        Log.i(
+            TAG,
+            if (reusableSnapshot != null) {
+                "HNS value review is reusing its recent verified wallet snapshot"
+            } else {
+                "HNS value review needs a fresh verified wallet snapshot"
+            },
+        )
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
         val expectedKind = when (intent) {
@@ -5218,8 +5242,12 @@ class WalletActivity : ComponentActivity() {
                 NativeHnsValueApprovalKind.NAME_MARKET_PURCHASE
         }
         thread(name = "hns-wallet-value-prepare") {
-            val synchronization = synchronizeHnsReadsWithRollbackFloor(handle)
-            val snapshot = synchronization?.snapshot
+            val synchronization = if (reusableSnapshot == null) {
+                synchronizeHnsReadsWithRollbackFloor(handle)
+            } else {
+                null
+            }
+            val snapshot = reusableSnapshot ?: synchronization?.snapshot
             val approval = snapshot?.let {
                 NativeWalletBridge.prepareHnsValueAction(handle, intent)
             }
@@ -5265,14 +5293,14 @@ class WalletActivity : ComponentActivity() {
                             )
                         }
                     } else {
-                        renderReadSnapshot(snapshot)
+                        if (reusableSnapshot == null) renderReadSnapshot(snapshot)
                         refreshControllerState(resetReads = false)
                         valueActionStatusView.text =
                             getString(R.string.wallet_value_actions_prepare_failed)
                         showValuePreparationFailure()
                     }
                 } else {
-                    snapshot?.let(::renderReadSnapshot)
+                    if (reusableSnapshot == null) snapshot?.let(::renderReadSnapshot)
                     showValueApproval(exact, lease, epoch, authorityGeneration)
                 }
             }
@@ -6746,6 +6774,7 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshotHandle = INVALID_HANDLE
         latestReadSnapshotAuthorityGeneration = 0L
         latestReadSnapshotEpoch = 0L
+        latestReadSnapshotObservedAtElapsedMillis = 0L
         readStatusView.text = getString(status)
         balanceView.text = getString(R.string.wallet_reads_balance_unavailable)
         paymentReceiveView.text = localPaymentReceiveTarget?.let { target ->
@@ -6832,6 +6861,7 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshotHandle = INVALID_HANDLE
         latestReadSnapshotAuthorityGeneration = 0L
         latestReadSnapshotEpoch = 0L
+        latestReadSnapshotObservedAtElapsedMillis = 0L
     }
 
     private fun retainReadProjectionAfterRefreshFailure() {
@@ -7090,6 +7120,7 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshotHandle = walletHandle
         latestReadSnapshotAuthorityGeneration = walletAuthorityGeneration
         latestReadSnapshotEpoch = lifecycleEpoch
+        latestReadSnapshotObservedAtElapsedMillis = SystemClock.elapsedRealtime()
         readStatusView.text = getString(R.string.wallet_reads_ready, snapshot.height)
         val balance = snapshot.hnsBalanceProjection()
         if (balance.hasPendingOutgoing) {
@@ -7558,6 +7589,28 @@ class WalletActivity : ComponentActivity() {
 
 internal const val HNS_CATCHUP_PROGRESS_RETRY_DELAY_MILLIS = 2_000L
 internal const val HNS_CATCHUP_DEGRADED_RETRY_DELAY_MILLIS = 30_000L
+internal const val WALLET_VALUE_ACTION_SNAPSHOT_REUSE_MILLIS = 60_000L
+
+/**
+ * A value-action review may skip a redundant network round only while its
+ * authenticated projection still belongs to the exact live wallet authority,
+ * is recent on the monotonic clock, and is not behind a newer header already
+ * observed by the browser. Native preparation still revalidates the complete
+ * name/coin evidence and constructs the exact transaction from this snapshot.
+ */
+internal fun walletValueActionMayReuseVerifiedSnapshot(
+    hasCurrentAuthority: Boolean,
+    snapshotObservedAtElapsedMillis: Long,
+    nowElapsedMillis: Long,
+    snapshotHeight: Long,
+    latestObservedHeaderHeight: Long?,
+): Boolean =
+    hasCurrentAuthority &&
+        snapshotObservedAtElapsedMillis > 0L &&
+        nowElapsedMillis >= snapshotObservedAtElapsedMillis &&
+        nowElapsedMillis - snapshotObservedAtElapsedMillis <=
+        WALLET_VALUE_ACTION_SNAPSHOT_REUSE_MILLIS &&
+        (latestObservedHeaderHeight == null || snapshotHeight >= latestObservedHeaderHeight)
 
 /**
  * A checkpoint that advanced authenticated state can resume promptly. A

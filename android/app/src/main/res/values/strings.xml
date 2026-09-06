@@ -573,6 +573,7 @@
     <string name="wallet_value_actions_ready" translatable="false">All native HNS name and Shakedex actions are ready at height %1$d.</string>
     <string name="wallet_value_actions_invalid" translatable="false">The action fields are not canonical. HNS amounts support at most 6 decimal places.</string>
     <string name="wallet_value_actions_syncing" translatable="false">Synchronizing direct HNS state before preparing the exact native action…</string>
+    <string name="wallet_value_actions_preparing_from_recent_snapshot" translatable="false">Preparing from the recent verified HNS snapshot…</string>
     <string name="wallet_value_actions_sync_failed" translatable="false">Current verified HNS wallet state could not be obtained. Synchronize before reviewing this action.</string>
     <string name="wallet_value_actions_catchup" translatable="false">HNS action review is waiting for wallet scan catch-up (%1$d of %2$d). Continue synchronization before reviewing the action.</string>
     <string name="wallet_value_actions_preparing" translatable="false">Preparing the exact native action and approval summary…</string>
