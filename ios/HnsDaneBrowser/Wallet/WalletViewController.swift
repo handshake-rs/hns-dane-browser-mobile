@@ -817,10 +817,11 @@ final class WalletViewController: UIViewController {
     private func showBitcoinDashboard() {
         guard presentedViewController == nil else { return }
         let activitySummary: String
-        if let activity = bitcoinSnapshot?.recentActivity {
-            activitySummary = activity.isEmpty
+        if let snapshot = bitcoinSnapshot {
+            let count = Int(snapshot.recentActivityTotal)
+            activitySummary = count == 0
                 ? "No Bitcoin activity found in the synchronized recovery range."
-                : "\(activity.count) recent Bitcoin transaction\(activity.count == 1 ? "" : "s")"
+                : "\(count) recent Bitcoin transaction\(count == 1 ? "" : "s")"
         } else {
             activitySummary = "Synchronize Bitcoin to load recent activity."
         }
@@ -884,18 +885,42 @@ final class WalletViewController: UIViewController {
 
     private func showBitcoinActivity() {
         guard presentedViewController == nil else { return }
-        let activity = bitcoinSnapshot?.recentActivity ?? []
+        guard let snapshot = bitcoinSnapshot else {
+            showErrorMessage("Synchronize Bitcoin to load recent activity.")
+            return
+        }
         let pageSize = 20
-        let lastPageOffset = activity.isEmpty ? 0 : ((activity.count - 1) / pageSize) * pageSize
+        let total = Int(snapshot.recentActivityTotal)
+        let lastPageOffset = total == 0 ? 0 : ((total - 1) / pageSize) * pageSize
         bitcoinActivityPageOffset = min(max(bitcoinActivityPageOffset, 0), lastPageOffset)
-        let page = Array(activity.dropFirst(bitcoinActivityPageOffset).prefix(pageSize))
+        let page: [NativeBitcoinActivity]
+        let pageTotal: Int
+        let hasMore: Bool
+        if bitcoinActivityPageOffset == 0 {
+            page = snapshot.recentActivity
+            pageTotal = total
+            hasMore = page.count < total
+        } else {
+            guard let wallet,
+                  let loaded = try? wallet.bitcoinActivityPage(
+                      offset: UInt32(bitcoinActivityPageOffset)
+                  ) else {
+                showErrorMessage(
+                    "The next authenticated Bitcoin activity page is temporarily unavailable."
+                )
+                return
+            }
+            page = loaded.activity
+            pageTotal = Int(loaded.total)
+            hasMore = loaded.hasMore
+        }
         let message: String
         if page.isEmpty {
             message = "No Bitcoin activity found in the synchronized recovery range."
         } else {
             let first = bitcoinActivityPageOffset + 1
             let last = bitcoinActivityPageOffset + page.count
-            message = "Showing Bitcoin activity \(first)–\(last) of \(activity.count).\n\n" +
+            message = "Showing Bitcoin activity \(first)–\(last) of \(pageTotal).\n\n" +
                 formatBitcoinActivity(page)
         }
         let alert = UIAlertController(
@@ -910,7 +935,7 @@ final class WalletViewController: UIViewController {
                 DispatchQueue.main.async { self.showBitcoinActivity() }
             })
         }
-        if bitcoinActivityPageOffset + page.count < activity.count {
+        if hasMore {
             alert.addAction(UIAlertAction(title: "Next", style: .default) { [weak self] _ in
                 guard let self else { return }
                 self.bitcoinActivityPageOffset += pageSize

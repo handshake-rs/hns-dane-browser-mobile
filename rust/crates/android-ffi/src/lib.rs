@@ -122,6 +122,7 @@ const WALLET_BITCOIN_BUNDLE_VERSION: u8 = 1;
 const WALLET_BITCOIN_BUNDLE_FLAGS: u8 = 0;
 const WALLET_BITCOIN_BUNDLE_HEADER_BYTES: usize = 12;
 const MAX_WALLET_BITCOIN_JSON_BYTES: usize = 16 * 1024;
+const WALLET_BITCOIN_ACTIVITY_PAGE_SIZE: u32 = 20;
 /// Product floor for a direct Bitcoin send's user-selected maximum fee.
 ///
 /// This is a fee-policy floor, not a payment-amount floor. The transaction
@@ -2526,6 +2527,22 @@ fn android_bitcoin_snapshot(controller: &MobileBitcoinValueController) -> Option
         })
         .ok()?;
     let mut json = serde_json::to_vec(&snapshot).ok()?;
+    let bundle = bitcoin_json_bundle(json.as_slice());
+    json.fill(0);
+    bundle
+}
+
+fn android_bitcoin_activity_page(
+    controller: &MobileBitcoinValueController,
+    offset: u32,
+) -> Option<Vec<u8>> {
+    let page = controller
+        .activity_page(offset, WALLET_BITCOIN_ACTIVITY_PAGE_SIZE)
+        .map_err(|error| {
+            android_log_error(&format!("wallet Bitcoin activity page failed: {error}"));
+        })
+        .ok()?;
+    let mut json = serde_json::to_vec(&page).ok()?;
     let bundle = bitcoin_json_bundle(json.as_slice());
     json.fill(0);
     bundle
@@ -6583,6 +6600,27 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let record = wallet_from_handle(handle)?;
         let bitcoin = record.bitcoin_try_if_active()?;
         let mut bundle = android_bitcoin_snapshot(bitcoin.as_ref()?)?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeBitcoinActivityPage(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    offset: jint,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let offset = u32::try_from(offset).ok()?;
+        let record = wallet_from_handle(handle)?;
+        let bitcoin = record.bitcoin_try_if_active()?;
+        let mut bundle = android_bitcoin_activity_page(bitcoin.as_ref()?, offset)?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)

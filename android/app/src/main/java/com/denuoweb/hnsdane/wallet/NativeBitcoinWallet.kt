@@ -23,6 +23,7 @@ internal data class NativeBitcoinWalletSnapshot(
     val connectedPeerCount: Int,
     val requiredPeerCount: Int,
     val recentActivity: List<NativeBitcoinActivity>,
+    val recentActivityTotal: Int,
 )
 
 internal data class NativeBitcoinActivity(
@@ -34,6 +35,13 @@ internal data class NativeBitcoinActivity(
     val blockHeight: Long?,
     val confirmationCount: Long?,
     val lastChangedAtUnix: Long,
+)
+
+internal data class NativeBitcoinActivityPage(
+    val offset: Int,
+    val total: Int,
+    val activity: List<NativeBitcoinActivity>,
+    val hasMore: Boolean,
 )
 
 internal data class NativeBitcoinReceiveAddress(
@@ -239,13 +247,40 @@ internal data class NativeShakescapeExecutionStatus(
 internal object NativeBitcoinWalletBundle {
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 16 * 1024
-    private const val MAX_RECENT_ACTIVITY = 40
+    private const val MAX_RECENT_ACTIVITY = 20
+    private const val MAX_RETAINED_ACTIVITY = 4_096
     private const val MAX_DISPLAY_UNIX = 253_402_300_799L
     private const val VERSION = 1
     private val magic = byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'B'.code.toByte(), 'W'.code.toByte())
 
     fun snapshot(bundle: ByteArray): NativeBitcoinWalletSnapshot? = parse(bundle) { json ->
         parseSnapshot(json)
+    }
+
+    fun activityPage(bundle: ByteArray): NativeBitcoinActivityPage? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf("offset", "total", "activity", "hasMore"))) {
+            return@parse null
+        }
+        val offset = json.optInt("offset", -1).takeIf { it >= 0 } ?: return@parse null
+        val total = json.optInt("total", -1)
+            .takeIf { it in 0..MAX_RETAINED_ACTIVITY } ?: return@parse null
+        if (offset > total) return@parse null
+        val itemsJson = json.optJSONArray("activity") ?: return@parse null
+        if (itemsJson.length() > MAX_RECENT_ACTIVITY) return@parse null
+        val activity = ArrayList<NativeBitcoinActivity>(itemsJson.length())
+        for (index in 0 until itemsJson.length()) {
+            val item = parseActivity(itemsJson.optJSONObject(index) ?: return@parse null)
+                ?: return@parse null
+            if (activity.any { it.txid == item.txid }) return@parse null
+            activity.add(item)
+        }
+        if (activity.size != minOf(MAX_RECENT_ACTIVITY, total - offset) ||
+            activity.zipWithNext().any { (left, right) ->
+                left.lastChangedAtUnix < right.lastChangedAtUnix
+            }) return@parse null
+        val hasMore = exactBoolean(json, "hasMore") ?: return@parse null
+        if (hasMore != (offset + activity.size < total)) return@parse null
+        NativeBitcoinActivityPage(offset, total, activity, hasMore)
     }
 
     fun receive(bundle: ByteArray): NativeBitcoinReceiveAddress? = parse(bundle) { json ->
@@ -729,7 +764,7 @@ internal object NativeBitcoinWalletBundle {
                 "network", "receiveAddress", "confirmedSats", "trustedPendingSats",
                 "untrustedPendingSats", "immatureSats", "totalSats", "synchronizedHeight",
                 "birthdayHeight", "birthdayState", "connectedPeerCount", "requiredPeerCount",
-                "recentActivity",
+                "recentActivity", "recentActivityTotal",
             ))
         ) return null
         val network = json.optString("network", "")
@@ -753,6 +788,9 @@ internal object NativeBitcoinWalletBundle {
         if (recentActivity.zipWithNext().any { (left, right) ->
                 left.lastChangedAtUnix < right.lastChangedAtUnix
             }) return null
+        val recentActivityTotal = json.optInt("recentActivityTotal", -1)
+            .takeIf { it in recentActivity.size..MAX_RETAINED_ACTIVITY } ?: return null
+        if (recentActivity.size != minOf(recentActivityTotal, MAX_RECENT_ACTIVITY)) return null
         return NativeBitcoinWalletSnapshot(
             network,
             receiveAddress,
@@ -772,6 +810,7 @@ internal object NativeBitcoinWalletBundle {
             peerCount(json, "connectedPeerCount") ?: return null,
             peerCount(json, "requiredPeerCount") ?: return null,
             recentActivity,
+            recentActivityTotal,
         )
     }
 

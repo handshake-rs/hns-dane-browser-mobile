@@ -126,6 +126,7 @@ const WALLET_HNS_RECEIVE_BUNDLE_VERSION: u8 = 1;
 const WALLET_BITCOIN_BUNDLE_MAGIC: &[u8; 4] = b"HNBW";
 const WALLET_BITCOIN_BUNDLE_VERSION: u8 = 1;
 const MAX_WALLET_BITCOIN_JSON_BYTES: usize = 16 * 1024;
+const WALLET_BITCOIN_ACTIVITY_PAGE_SIZE: u32 = 20;
 const MAX_WALLET_BITCOIN_ADDRESS_BYTES: usize = 128;
 const MAX_WALLET_BITCOIN_SATS_BYTES: usize = 20;
 const WALLET_VALUE_APPROVAL_BUNDLE_MAGIC: &[u8; 4] = b"HNVP";
@@ -5796,6 +5797,42 @@ pub unsafe extern "C" fn hns_browser_wallet_bitcoin_snapshot(
 }
 
 #[unsafe(no_mangle)]
+/// Returns one authenticated page from the complete retained Bitcoin history.
+///
+/// # Safety
+/// `out_page_bundle` must point to one writable owned-buffer value.
+pub unsafe extern "C" fn hns_browser_wallet_bitcoin_activity_page(
+    wallet: HnsBrowserWalletHandle,
+    offset: u32,
+    out_page_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_page_bundle)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_page_bundle, HnsBrowserBuffer::empty()) };
+        let control = wallet_bitcoin_control_entry(wallet)?;
+        let slot = control.controller.try_lock().map_err(|error| match error {
+            TryLockError::WouldBlock => {
+                direct_hns_not_ready("direct Bitcoin synchronization is active")
+            }
+            TryLockError::Poisoned(_) => FfiFailure::internal(),
+        })?;
+        let controller = slot
+            .as_ref()
+            .filter(|controller| controller.is_active())
+            .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?;
+        let page = controller
+            .activity_page(offset, WALLET_BITCOIN_ACTIVITY_PAGE_SIZE)
+            .map_err(|_| wallet_runtime_failure("direct Bitcoin activity page failed"))?;
+        let bundle = wallet_bitcoin_bundle(&page)?;
+        let output = allocate_output(&bundle.0, true)?;
+        // SAFETY: Null was rejected above.
+        unsafe { write_output(out_page_bundle, output) };
+        Ok(())
+    })
+}
+
+#[unsafe(no_mangle)]
 /// Explicitly resets an incomplete Bitcoin recovery scan to the validated
 /// predecessor of `earliest_transaction_height`.
 ///
@@ -7216,6 +7253,7 @@ mod tests {
             "hns_browser_wallet_cancel_hns_sync",
             "hns_browser_wallet_has_bitcoin_value",
             "hns_browser_wallet_bitcoin_snapshot",
+            "hns_browser_wallet_bitcoin_activity_page",
             "hns_browser_wallet_set_bitcoin_birthday_height",
             "hns_browser_wallet_next_bitcoin_receive_address",
             "hns_browser_wallet_synchronize_bitcoin",

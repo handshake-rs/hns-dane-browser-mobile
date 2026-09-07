@@ -530,6 +530,7 @@
     <string name="wallet_bitcoin_receive_failed" translatable="false">A new Bitcoin receive address could not be derived and persisted locally.</string>
     <string name="wallet_bitcoin_recent_activity" translatable="false">Bitcoin recent activity</string>
     <string name="wallet_bitcoin_activity_unavailable" translatable="false">Synchronize Bitcoin to load recent activity.</string>
+    <string name="wallet_bitcoin_activity_page_failed" translatable="false">The next authenticated Bitcoin activity page is temporarily unavailable.</string>
     <string name="wallet_bitcoin_activity_empty" translatable="false">No Bitcoin activity found in the synchronized recovery range.</string>
     <string name="wallet_bitcoin_activity_incoming" translatable="false">Received: +%1$d sats</string>
     <string name="wallet_bitcoin_activity_outgoing" translatable="false">Sent: −%1$d sats</string>

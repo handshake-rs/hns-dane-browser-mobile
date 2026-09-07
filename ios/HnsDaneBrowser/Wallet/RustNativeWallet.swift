@@ -71,6 +71,35 @@ struct NativeBitcoinActivity: Decodable, Equatable, Sendable {
     }
 }
 
+struct NativeBitcoinActivityPage: Decodable, Equatable, Sendable {
+    let offset: UInt32
+    let total: UInt32
+    let activity: [NativeBitcoinActivity]
+    let hasMore: Bool
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case offset, total, activity, hasMore
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        offset = try container.decode(UInt32.self, forKey: .offset)
+        total = try container.decode(UInt32.self, forKey: .total)
+        activity = try container.decode([NativeBitcoinActivity].self, forKey: .activity)
+        hasMore = try container.decode(Bool.self, forKey: .hasMore)
+        let consumed = UInt64(offset) + UInt64(activity.count)
+        guard total <= 4_096, offset <= total, activity.count <= 20,
+              activity.count == min(20, Int(total - offset)),
+              consumed <= UInt64(total), hasMore == (consumed < UInt64(total)),
+              Set(activity.map(\.txid)).count == activity.count,
+              zip(activity, activity.dropFirst()).allSatisfy({ pair in
+                  pair.0.lastChangedAtUnix >= pair.1.lastChangedAtUnix
+              }) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin activity page")
+        }
+    }
+}
+
 struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
     let network: String
     let receiveAddress: String
@@ -85,12 +114,13 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
     let connectedPeerCount: UInt8
     let requiredPeerCount: UInt8
     let recentActivity: [NativeBitcoinActivity]
+    let recentActivityTotal: UInt32
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case network, receiveAddress, confirmedSats, trustedPendingSats
         case untrustedPendingSats, immatureSats, totalSats, birthdayHeight, birthdayState
         case synchronizedHeight
-        case connectedPeerCount, requiredPeerCount, recentActivity
+        case connectedPeerCount, requiredPeerCount, recentActivity, recentActivityTotal
     }
 
     init(from decoder: Decoder) throws {
@@ -108,6 +138,7 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
         connectedPeerCount = try container.decode(UInt8.self, forKey: .connectedPeerCount)
         requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
         recentActivity = try container.decode([NativeBitcoinActivity].self, forKey: .recentActivity)
+        recentActivityTotal = try container.decode(UInt32.self, forKey: .recentActivityTotal)
         let subtotal = confirmedSats.addingReportingOverflow(trustedPendingSats)
         let subtotal2 = subtotal.partialValue.addingReportingOverflow(untrustedPendingSats)
         let expected = subtotal2.partialValue.addingReportingOverflow(immatureSats)
@@ -118,7 +149,10 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
               ["awaitingCreationTip", "recoveryUnknown", "recoveryPendingValidation", "validated"]
                 .contains(birthdayState),
               connectedPeerCount <= 8, requiredPeerCount <= 8,
-              recentActivity.count <= 40,
+              recentActivity.count <= 20,
+              UInt64(recentActivityTotal) >= UInt64(recentActivity.count),
+              recentActivityTotal <= 4_096,
+              recentActivity.count == min(Int(recentActivityTotal), 20),
               Set(recentActivity.map(\.txid)).count == recentActivity.count,
               zip(recentActivity, recentActivity.dropFirst()).allSatisfy({ pair in
                   pair.0.lastChangedAtUnix >= pair.1.lastChangedAtUnix
@@ -3019,6 +3053,12 @@ final class RustNativeWallet: @unchecked Sendable {
     func bitcoinSnapshot() throws -> NativeBitcoinWalletSnapshot {
         try decodeBitcoinBundle(operation: "wallet Bitcoin snapshot") { handle, output in
             hns_browser_wallet_bitcoin_snapshot(handle, output)
+        }
+    }
+
+    func bitcoinActivityPage(offset: UInt32) throws -> NativeBitcoinActivityPage {
+        try decodeBitcoinBundle(operation: "wallet Bitcoin activity page") { handle, output in
+            hns_browser_wallet_bitcoin_activity_page(handle, offset, output)
         }
     }
 

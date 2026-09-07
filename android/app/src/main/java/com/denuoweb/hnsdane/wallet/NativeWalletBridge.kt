@@ -681,6 +681,19 @@ internal object NativeWalletBridge {
             null
         }
 
+    fun bitcoinActivityPage(handle: Long, offset: Int): NativeBitcoinActivityPage? =
+        if (isValidHandle(handle) && isAvailable && offset >= 0) {
+            runCatching { nativeBitcoinActivityPage(handle, offset) }.getOrNull()?.let { bundle ->
+                try {
+                    NativeBitcoinWalletBundle.activityPage(bundle)
+                } finally {
+                    bundle.fill(0)
+                }
+            }
+        } else {
+            null
+        }
+
     /**
      * Resets an incomplete recovery scan to the locally validated predecessor
      * of the earliest block that may contain wallet activity.
@@ -1214,6 +1227,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeBitcoinSnapshot(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeBitcoinActivityPage(handle: Long, offset: Int): ByteArray?
 
     @JvmStatic
     private external fun nativeSetBitcoinBirthdayHeight(

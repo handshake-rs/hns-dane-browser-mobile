@@ -64,6 +64,7 @@ import com.denuoweb.hnsdane.wallet.NativeHnsValueIntent
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSendApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSendPreparationFailure
 import com.denuoweb.hnsdane.wallet.NativeBitcoinActivity
+import com.denuoweb.hnsdane.wallet.NativeBitcoinActivityPage
 import com.denuoweb.hnsdane.wallet.NativeBitcoinHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
@@ -1243,7 +1244,7 @@ class WalletActivity : ComponentActivity() {
         resources.getQuantityString(R.plurals.wallet_dashboard_transactions, count, count)
     } ?: getString(R.string.wallet_dashboard_no_synced_activity)
 
-    private fun bitcoinActivitySummary(): String = bitcoinSnapshot?.recentActivity?.size?.let { count ->
+    private fun bitcoinActivitySummary(): String = bitcoinSnapshot?.recentActivityTotal?.let { count ->
         if (count == 0) getString(R.string.wallet_bitcoin_activity_empty) else {
             resources.getQuantityString(R.plurals.wallet_bitcoin_transactions, count, count)
         }
@@ -2180,26 +2181,47 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showBitcoinActivityDetails() {
-        val activity = bitcoinSnapshot?.recentActivity
+        val snapshot = bitcoinSnapshot
+        val total = snapshot?.recentActivityTotal ?: 0
         bitcoinActivityPageOffset = walletPageOffset(
             requestedOffset = bitcoinActivityPageOffset,
-            totalItems = activity?.size ?: 0,
+            totalItems = total,
             pageSize = MAX_VISIBLE_READ_ITEMS,
         )
-        val page = activity.orEmpty()
-            .drop(bitcoinActivityPageOffset)
-            .take(MAX_VISIBLE_READ_ITEMS)
+        val loadedPage = when {
+            snapshot == null -> null
+            bitcoinActivityPageOffset == 0 -> NativeBitcoinActivityPage(
+                offset = 0,
+                total = snapshot.recentActivityTotal,
+                activity = snapshot.recentActivity,
+                hasMore = snapshot.recentActivity.size < snapshot.recentActivityTotal,
+            )
+            else -> NativeWalletBridge.bitcoinActivityPage(
+                walletHandle,
+                bitcoinActivityPageOffset,
+            )
+        }
+        if (snapshot != null && loadedPage == null) {
+            Toast.makeText(
+                this,
+                R.string.wallet_bitcoin_activity_page_failed,
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        val page = loadedPage?.activity.orEmpty()
+        val pageTotal = loadedPage?.total ?: 0
         val message = when {
-            activity == null -> getString(R.string.wallet_bitcoin_activity_unavailable)
+            snapshot == null -> getString(R.string.wallet_bitcoin_activity_unavailable)
             page.isEmpty() -> getString(R.string.wallet_bitcoin_activity_empty)
             else -> {
-                val first = bitcoinActivityPageOffset + 1
-                val last = bitcoinActivityPageOffset + page.size
+                val first = (loadedPage?.offset ?: 0) + 1
+                val last = (loadedPage?.offset ?: 0) + page.size
                 getString(
                     R.string.wallet_activity_page_position,
                     first,
                     last,
-                    activity.size,
+                    pageTotal,
                 ) + "\n\n" + formatBitcoinActivity(page)
             }
         }
@@ -2243,7 +2265,7 @@ class WalletActivity : ComponentActivity() {
                 window.decorView.post(::showBitcoinActivityDetails)
             }
         }
-        if (activity != null && bitcoinActivityPageOffset + page.size < activity.size) {
+        if (loadedPage?.hasMore == true) {
             dialog.setPositiveButton(R.string.action_next_wallet_activity) { _, _ ->
                 bitcoinActivityPageOffset += MAX_VISIBLE_READ_ITEMS
                 window.decorView.post(::showBitcoinActivityDetails)
