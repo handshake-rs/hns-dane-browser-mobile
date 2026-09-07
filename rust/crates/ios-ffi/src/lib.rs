@@ -820,9 +820,17 @@ impl NativeWalletController {
         match self {
             Self::Lifecycle(controller) => Ok(controller.account_config().birthday_height),
             Self::HnsReads(controller) => Ok(controller.account_config().birthday_height),
-            Self::DirectHnsValue { controller, .. } => {
-                Ok(controller.account_config().birthday_height)
-            }
+            Self::DirectHnsValue {
+                coordinator,
+                controller,
+                ..
+            } => Ok(coordinator
+                .backend()
+                .light_scan_status()
+                .ok()
+                .map_or(controller.account_config().birthday_height, |status| {
+                    u64::from(status.birthday_height)
+                })),
             Self::Failed => Err(MobileWalletError::ControllerFailed),
         }
     }
@@ -2871,6 +2879,12 @@ fn synchronize_wallet_owned_direct_hns(
             .synchronize()
             .map_err(|_| direct_hns_not_ready("resubmitted HNS send refresh is unavailable"))?;
     }
+    let birthday_now_unix = HnsReadSystemClock
+        .now_unix()
+        .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+    coordinator
+        .finalize_unknown_wallet_birthday(birthday_now_unix)
+        .map_err(|_| wallet_runtime_failure("direct HNS birthday finalization failed"))?;
     Ok(snapshot)
 }
 

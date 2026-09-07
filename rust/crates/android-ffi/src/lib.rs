@@ -413,9 +413,16 @@ impl AndroidWalletController {
             Self::Lifecycle(controller) => Some(controller.account_config().birthday_height),
             Self::Reads(controller) => Some(controller.account_config().birthday_height),
             Self::Value(controller) => Some(controller.account_config().birthday_height),
-            Self::DirectValue { controller, .. } => {
-                Some(controller.account_config().birthday_height)
-            }
+            Self::DirectValue {
+                coordinator,
+                controller,
+                ..
+            } => coordinator
+                .backend()
+                .light_scan_status()
+                .ok()
+                .map(|status| u64::from(status.birthday_height))
+                .or_else(|| Some(controller.account_config().birthday_height)),
             Self::Failed => None,
         }
     }
@@ -2078,6 +2085,15 @@ impl AndroidWalletController {
                         "wallet_hns_finalization stage=post_rebroadcast_mempool_complete",
                     );
                     snapshot = controller.synchronize()?;
+                }
+                let birthday_now_unix = HnsReadSystemClock.now_unix()?;
+                if let Some(height) = coordinator
+                    .finalize_unknown_wallet_birthday(birthday_now_unix)
+                    .map_err(MobileWalletError::DirectHns)?
+                {
+                    android_log_wallet_scan_metrics(&format!(
+                        "wallet_hns_finalization stage=birthday_set height={height}"
+                    ));
                 }
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_complete");
                 Ok(AndroidHnsSynchronization::Ready(Box::new(snapshot)))
