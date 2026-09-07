@@ -228,11 +228,17 @@ impl ShakescapeReachabilityCascade {
         let Some(mut task) = self.explicit_mapping_task.take() else {
             return;
         };
-        if self
-            .mapping_runtime
-            .block_on(tokio::time::timeout(MAPPING_RELEASE_TIMEOUT, &mut task))
-            .is_err()
-        {
+        // Construct the Tokio timer only after `block_on` has entered the
+        // private mapping runtime. Building `timeout` as the argument to
+        // `block_on` consults the caller thread's runtime first; Android
+        // lifecycle and wallet-lock callbacks do not have one and would abort
+        // the process while releasing an otherwise healthy mapping.
+        let release_timed_out = self.mapping_runtime.block_on(async {
+            tokio::time::timeout(MAPPING_RELEASE_TIMEOUT, &mut task)
+                .await
+                .is_err()
+        });
+        if release_timed_out {
             task.abort();
             let _ = self.mapping_runtime.block_on(task);
         }
