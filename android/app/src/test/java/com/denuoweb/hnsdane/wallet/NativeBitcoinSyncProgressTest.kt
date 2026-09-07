@@ -10,31 +10,33 @@ class NativeBitcoinSyncProgressTest {
     @Test
     fun parses_the_validated_birthday_height_in_a_snapshot() {
         val snapshot = NativeBitcoinWalletBundle.snapshot(bundle(
-            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3}""",
+            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3,"recentActivity":[{"txid":"1111111111111111111111111111111111111111111111111111111111111111","direction":"incoming","amountSats":5000,"feeSats":null,"status":"confirmed","blockHeight":855120,"confirmationCount":4,"lastChangedAtUnix":1700000000}]}""",
         ))
         requireNotNull(snapshot)
         assertEquals(855000L, snapshot.birthdayHeight)
         assertEquals(855123L, snapshot.synchronizedHeight)
+        assertEquals(1, snapshot.recentActivity.size)
+        assertEquals(5000L, snapshot.recentActivity.single().amountSats)
     }
 
     @Test
     fun rejects_a_snapshot_that_omits_the_birthday_height() {
         assertNull(NativeBitcoinWalletBundle.snapshot(bundle(
-            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3}""",
+            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":3,"requiredPeerCount":3,"recentActivity":[]}""",
         )))
     }
 
     @Test
     fun rejects_an_unknown_birthday_lifecycle_state() {
         assertNull(NativeBitcoinWalletBundle.snapshot(bundle(
-            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":0,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":0,"birthdayHeight":0,"birthdayState":"peerGuessed","synchronizedHeight":0,"connectedPeerCount":0,"requiredPeerCount":3}""",
+            """{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":0,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":0,"birthdayHeight":0,"birthdayState":"peerGuessed","synchronizedHeight":0,"connectedPeerCount":0,"requiredPeerCount":3,"recentActivity":[]}""",
         )))
     }
 
     @Test
     fun parses_bounded_phase_timings_from_a_synchronization_receipt() {
         val synchronization = NativeBitcoinWalletBundle.synchronization(bundle(
-            """{"snapshot":{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2},"sequence":8,"checkpointHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2,"networkMs":2000,"walletApplyMs":30,"chainValidationMs":20,"reconciliationMs":10,"totalMs":2100}""",
+            """{"snapshot":{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2,"recentActivity":[]},"sequence":8,"checkpointHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2,"networkMs":2000,"walletApplyMs":30,"chainValidationMs":20,"reconciliationMs":10,"totalMs":2100}""",
         ))
         requireNotNull(synchronization)
         assertEquals(2000L, synchronization.networkMs)
@@ -44,7 +46,7 @@ class NativeBitcoinSyncProgressTest {
         assertEquals(2100L, synchronization.totalMs)
 
         assertNull(NativeBitcoinWalletBundle.synchronization(bundle(
-            """{"snapshot":{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2},"sequence":8,"checkpointHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2,"networkMs":2101,"walletApplyMs":30,"chainValidationMs":20,"reconciliationMs":10,"totalMs":2100}""",
+            """{"snapshot":{"network":"mainnet","receiveAddress":"bc1qexample","confirmedSats":10000,"trustedPendingSats":0,"untrustedPendingSats":0,"immatureSats":0,"totalSats":10000,"birthdayHeight":855000,"birthdayState":"validated","synchronizedHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2,"recentActivity":[]},"sequence":8,"checkpointHeight":855123,"connectedPeerCount":2,"requiredPeerCount":2,"networkMs":2101,"walletApplyMs":30,"chainValidationMs":20,"reconciliationMs":10,"totalMs":2100}""",
         )))
     }
 

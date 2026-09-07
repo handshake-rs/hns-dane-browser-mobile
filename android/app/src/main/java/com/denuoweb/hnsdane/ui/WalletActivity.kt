@@ -63,6 +63,7 @@ import com.denuoweb.hnsdane.wallet.NativeHnsValueApprovalKind
 import com.denuoweb.hnsdane.wallet.NativeHnsValueIntent
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSendApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSendPreparationFailure
+import com.denuoweb.hnsdane.wallet.NativeBitcoinActivity
 import com.denuoweb.hnsdane.wallet.NativeBitcoinHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
@@ -208,6 +209,7 @@ class WalletActivity : ComponentActivity() {
     private lateinit var bitcoinStatusView: TextView
     private lateinit var bitcoinBalanceView: TextView
     private lateinit var bitcoinReceiveView: TextView
+    private lateinit var bitcoinActivityView: TextView
     private lateinit var valueActionStatusView: TextView
     private lateinit var shakedexQueryStatusView: TextView
     private lateinit var directShakescapeStatusView: TextView
@@ -431,6 +433,7 @@ class WalletActivity : ComponentActivity() {
         bitcoinReceiveView = walletReadSummary(R.string.wallet_bitcoin_receive_unavailable).apply {
             setTextIsSelectable(true)
         }
+        bitcoinActivityView = walletReadSummary(R.string.wallet_bitcoin_activity_unavailable)
         valueActionStatusView = walletReadSummary(R.string.wallet_value_actions_unavailable)
         shakedexQueryStatusView = walletReadSummary(R.string.wallet_shakedex_queries_unavailable)
         directShakescapeStatusView = walletReadSummary(R.string.wallet_direct_shakescape_unavailable)
@@ -1238,6 +1241,12 @@ class WalletActivity : ComponentActivity() {
     private fun recentActivitySummary(): String = latestReadSnapshot?.transactions?.size?.let { count ->
         resources.getQuantityString(R.plurals.wallet_dashboard_transactions, count, count)
     } ?: getString(R.string.wallet_dashboard_no_synced_activity)
+
+    private fun bitcoinActivitySummary(): String = bitcoinSnapshot?.recentActivity?.size?.let { count ->
+        if (count == 0) getString(R.string.wallet_bitcoin_activity_empty) else {
+            resources.getQuantityString(R.plurals.wallet_bitcoin_transactions, count, count)
+        }
+    } ?: getString(R.string.wallet_bitcoin_activity_unavailable)
 
     private fun formatFinalizeNotice(notice: com.denuoweb.hnsdane.wallet.NativeHnsFinalizeNotice): String =
         when (notice.phase) {
@@ -2153,6 +2162,7 @@ class WalletActivity : ComponentActivity() {
             )
         }
         actions.add(getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm)
+        actions.add(getString(R.string.wallet_bitcoin_recent_activity) to ::showBitcoinActivityDetails)
         actions.add(getString(R.string.wallet_swap_sell_btc) to ::showBtcForHnsOfferForm)
         actions.add(getString(R.string.wallet_swap_active_offers) to ::showActiveBtcForHnsOffers)
         actions.add(getString(R.string.wallet_swap_executions) to ::showShakescapeExecutions)
@@ -2162,10 +2172,77 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.row_wallet_bitcoin_status) to bitcoinStatusView,
                 getString(R.string.row_wallet_bitcoin_balance) to bitcoinBalanceView,
                 getString(R.string.row_wallet_bitcoin_receive) to bitcoinReceiveView,
+                getString(R.string.wallet_bitcoin_recent_activity) to bitcoinActivityView,
             ),
             actions = actions,
         )
     }
+
+    private fun showBitcoinActivityDetails() {
+        val activity = bitcoinSnapshot?.recentActivity
+        val message = when {
+            activity == null -> getString(R.string.wallet_bitcoin_activity_unavailable)
+            activity.isEmpty() -> getString(R.string.wallet_bitcoin_activity_empty)
+            else -> formatBitcoinActivity(activity)
+        }
+        val content = TextView(this).apply {
+            text = message
+            textSize = 14f
+            typeface = Typeface.MONOSPACE
+            setTextColor(themeColors().primaryText)
+            setTextIsSelectable(true)
+            setPadding(uiDp(24), uiDp(14), uiDp(24), uiDp(14))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_bitcoin_recent_activity)
+            .setView(ScrollView(this).apply { addView(content) })
+            .setNegativeButton(R.string.action_cancel, null)
+        if (!activity.isNullOrEmpty()) {
+            dialog.setPositiveButton(R.string.wallet_dashboard_copy_activity) { _, _ ->
+                getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                    ClipData.newPlainText(
+                        getString(R.string.wallet_bitcoin_recent_activity),
+                        message,
+                    ),
+                )
+                Toast.makeText(this, R.string.common_copied, Toast.LENGTH_SHORT).show()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun formatBitcoinActivity(activity: List<NativeBitcoinActivity>): String =
+        activity.joinToString("\n\n") { item ->
+            val amount = when (item.direction) {
+                "incoming" -> getString(R.string.wallet_bitcoin_activity_incoming, item.amountSats)
+                "outgoing" -> getString(R.string.wallet_bitcoin_activity_outgoing, item.amountSats)
+                else -> getString(R.string.wallet_bitcoin_activity_self_transfer)
+            }
+            val status = when (item.status) {
+                "confirmed" -> getString(
+                    R.string.wallet_bitcoin_activity_confirmed,
+                    item.blockHeight,
+                    item.confirmationCount,
+                )
+                "unconfirmed" -> getString(R.string.wallet_bitcoin_activity_unconfirmed)
+                "prepared" -> getString(R.string.wallet_bitcoin_activity_prepared)
+                "submissionStarted" -> getString(R.string.wallet_bitcoin_activity_submission_started)
+                "submitted" -> getString(R.string.wallet_bitcoin_activity_submitted)
+                else -> getString(R.string.wallet_bitcoin_activity_not_observed)
+            }
+            buildList {
+                add(amount)
+                item.feeSats?.let {
+                    add(getString(R.string.wallet_bitcoin_activity_fee, it))
+                }
+                add(status)
+                add(getString(R.string.wallet_bitcoin_activity_txid, item.txid))
+                add(getString(
+                    R.string.wallet_bitcoin_activity_updated,
+                    DateFormat.getDateTimeInstance().format(Date(item.lastChangedAtUnix * 1000L)),
+                ))
+            }.joinToString("\n")
+        }
 
     /**
      * Bitcoin synchronization reports progress independently from the HNS UI
@@ -3733,6 +3810,7 @@ class WalletActivity : ComponentActivity() {
         bitcoinSnapshot = null
         bitcoinBalanceView.text = getString(R.string.wallet_bitcoin_balance_unavailable)
         bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive_unavailable)
+        bitcoinActivityView.text = getString(R.string.wallet_bitcoin_activity_unavailable)
         val status = NativeWalletBridge.status(walletHandle)
         if (status?.locked == false && NativeWalletBridge.hasBitcoinValue(walletHandle)) {
             NativeWalletBridge.bitcoinSnapshot(walletHandle)?.let { snapshot ->
@@ -3836,6 +3914,7 @@ class WalletActivity : ComponentActivity() {
             snapshot.synchronizedHeight,
         )
         bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive, snapshot.receiveAddress)
+        bitcoinActivityView.text = bitcoinActivitySummary()
     }
 
     private fun showBitcoinBirthdayForm() {

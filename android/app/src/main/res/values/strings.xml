@@ -528,6 +528,21 @@
     <string name="wallet_bitcoin_receive_unavailable" translatable="false">Unlock the direct wallet to derive a local Bitcoin receive address.</string>
     <string name="wallet_bitcoin_receive" translatable="false">%1$s</string>
     <string name="wallet_bitcoin_receive_failed" translatable="false">A new Bitcoin receive address could not be derived and persisted locally.</string>
+    <string name="wallet_bitcoin_recent_activity" translatable="false">Bitcoin recent activity</string>
+    <string name="wallet_bitcoin_activity_unavailable" translatable="false">Synchronize Bitcoin to load recent activity.</string>
+    <string name="wallet_bitcoin_activity_empty" translatable="false">No Bitcoin activity found in the synchronized recovery range.</string>
+    <string name="wallet_bitcoin_activity_incoming" translatable="false">Received: +%1$d sats</string>
+    <string name="wallet_bitcoin_activity_outgoing" translatable="false">Sent: −%1$d sats</string>
+    <string name="wallet_bitcoin_activity_self_transfer" translatable="false">Self-transfer</string>
+    <string name="wallet_bitcoin_activity_fee" translatable="false">Fee: %1$d sats</string>
+    <string name="wallet_bitcoin_activity_confirmed" translatable="false">Confirmed in block %1$d · %2$d confirmations</string>
+    <string name="wallet_bitcoin_activity_unconfirmed" translatable="false">Unconfirmed in the verified local wallet view</string>
+    <string name="wallet_bitcoin_activity_prepared" translatable="false">Prepared locally; not submitted</string>
+    <string name="wallet_bitcoin_activity_submission_started" translatable="false">Submission started; peer outcome is not yet known</string>
+    <string name="wallet_bitcoin_activity_submitted" translatable="false">Submitted to peers; not yet observed in the local chain view</string>
+    <string name="wallet_bitcoin_activity_not_observed" translatable="false">No longer observed in the verified local chain view</string>
+    <string name="wallet_bitcoin_activity_txid" translatable="false">Transaction: %1$s</string>
+    <string name="wallet_bitcoin_activity_updated" translatable="false">Updated: %1$s</string>
     <string name="wallet_bitcoin_birthday_title" translatable="false">Set Bitcoin recovery birthday</string>
     <string name="wallet_bitcoin_birthday_hint" translatable="false">Earliest possible Bitcoin transaction block</string>
     <string name="wallet_bitcoin_birthday_message" translatable="false">For a restored wallet, enter the earliest Bitcoin block that could contain its activity. This requested height is stored now. The next synchronization establishes the validated Bitcoin chain, authenticates the preceding block, and includes the entered block in the recovery scan. HNS birthday height is unrelated.</string>
@@ -834,6 +849,10 @@
     <plurals name="wallet_dashboard_transactions" translatable="false">
         <item quantity="one">%d synchronized transaction</item>
         <item quantity="other">%d synchronized transactions</item>
+    </plurals>
+    <plurals name="wallet_bitcoin_transactions" translatable="false">
+        <item quantity="one">%d recent Bitcoin transaction</item>
+        <item quantity="other">%d recent Bitcoin transactions</item>
     </plurals>
 
     <string name="history_empty_status">No browsing history yet.</string>

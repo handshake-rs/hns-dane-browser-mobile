@@ -30,6 +30,47 @@ struct NativeWalletAccount: Decodable, Equatable {
     let receiveDisplay: String?
 }
 
+struct NativeBitcoinActivity: Decodable, Equatable, Sendable {
+    let txid: String
+    let direction: String
+    let amountSats: UInt64
+    let feeSats: UInt64?
+    let status: String
+    let blockHeight: UInt32?
+    let confirmationCount: UInt32?
+    let lastChangedAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case txid, direction, amountSats, feeSats, status, blockHeight
+        case confirmationCount, lastChangedAtUnix
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        txid = try container.decode(String.self, forKey: .txid)
+        direction = try container.decode(String.self, forKey: .direction)
+        amountSats = try container.decode(UInt64.self, forKey: .amountSats)
+        feeSats = try container.decodeIfPresent(UInt64.self, forKey: .feeSats)
+        status = try container.decode(String.self, forKey: .status)
+        blockHeight = try container.decodeIfPresent(UInt32.self, forKey: .blockHeight)
+        confirmationCount = try container.decodeIfPresent(UInt32.self, forKey: .confirmationCount)
+        lastChangedAtUnix = try container.decode(UInt64.self, forKey: .lastChangedAtUnix)
+        let confirmedShape = status == "confirmed"
+            ? blockHeight != nil && confirmationCount.map { $0 > 0 } == true
+            : blockHeight == nil && confirmationCount == nil
+        guard NativeBitcoinHtlcFundingReceipt.validHash(txid),
+              ["incoming", "outgoing", "selfTransfer"].contains(direction),
+              (direction == "selfTransfer") == (amountSats == 0),
+              direction != "incoming" || feeSats == nil,
+              ["notObserved", "prepared", "submissionStarted", "submitted", "unconfirmed", "confirmed"]
+                .contains(status),
+              confirmedShape,
+              lastChangedAtUnix <= 253_402_300_799 else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Bitcoin activity")
+        }
+    }
+}
+
 struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
     let network: String
     let receiveAddress: String
@@ -43,12 +84,13 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
     let synchronizedHeight: UInt64
     let connectedPeerCount: UInt8
     let requiredPeerCount: UInt8
+    let recentActivity: [NativeBitcoinActivity]
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case network, receiveAddress, confirmedSats, trustedPendingSats
         case untrustedPendingSats, immatureSats, totalSats, birthdayHeight, birthdayState
         case synchronizedHeight
-        case connectedPeerCount, requiredPeerCount
+        case connectedPeerCount, requiredPeerCount, recentActivity
     }
 
     init(from decoder: Decoder) throws {
@@ -65,6 +107,7 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
         synchronizedHeight = try container.decode(UInt64.self, forKey: .synchronizedHeight)
         connectedPeerCount = try container.decode(UInt8.self, forKey: .connectedPeerCount)
         requiredPeerCount = try container.decode(UInt8.self, forKey: .requiredPeerCount)
+        recentActivity = try container.decode([NativeBitcoinActivity].self, forKey: .recentActivity)
         let subtotal = confirmedSats.addingReportingOverflow(trustedPendingSats)
         let subtotal2 = subtotal.partialValue.addingReportingOverflow(untrustedPendingSats)
         let expected = subtotal2.partialValue.addingReportingOverflow(immatureSats)
@@ -74,7 +117,12 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
               expected.partialValue == totalSats,
               ["awaitingCreationTip", "recoveryUnknown", "recoveryPendingValidation", "validated"]
                 .contains(birthdayState),
-              connectedPeerCount <= 8, requiredPeerCount <= 8 else {
+              connectedPeerCount <= 8, requiredPeerCount <= 8,
+              recentActivity.count <= 20,
+              Set(recentActivity.map(\.txid)).count == recentActivity.count,
+              zip(recentActivity, recentActivity.dropFirst()).allSatisfy({ pair in
+                  pair.0.lastChangedAtUnix >= pair.1.lastChangedAtUnix
+              }) else {
             throw NativeWalletBridgeError.invalidOutput("invalid direct Bitcoin snapshot")
         }
     }

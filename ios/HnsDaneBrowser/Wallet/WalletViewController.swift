@@ -813,6 +813,125 @@ final class WalletViewController: UIViewController {
         present(alert, animated: true)
     }
 
+    private func showBitcoinDashboard() {
+        guard presentedViewController == nil else { return }
+        let activitySummary: String
+        if let activity = bitcoinSnapshot?.recentActivity {
+            activitySummary = activity.isEmpty
+                ? "No Bitcoin activity found in the synchronized recovery range."
+                : "\(activity.count) recent Bitcoin transaction\(activity.count == 1 ? "" : "s")"
+        } else {
+            activitySummary = "Synchronize Bitcoin to load recent activity."
+        }
+        let alert = UIAlertController(
+            title: "Bitcoin",
+            message: "\(bitcoinStatusLabel.text ?? "Status unavailable.")\n\n\(bitcoinBalanceLabel.text ?? "Balance unavailable.")\n\n\(bitcoinReceiveLabel.text ?? "Receive address unavailable.")\n\nRecent activity\n\(activitySummary)",
+            preferredStyle: .alert
+        )
+        if bitcoinReceiveButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "New receive address", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.nextBitcoinReceiveAddress() }
+            })
+        }
+        if bitcoinSyncButton.isEnabled {
+            alert.addAction(UIAlertAction(
+                title: bitcoinSyncInProgress ? "Stop synchronization" : "Synchronize Bitcoin",
+                style: .default
+            ) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.toggleBitcoinSynchronization() }
+            })
+        }
+        if bitcoinBirthdayButton.isEnabled && !bitcoinBirthdayButton.isHidden {
+            alert.addAction(UIAlertAction(title: "Set recovery birthday", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showBitcoinBirthdayForm() }
+            })
+        }
+        if bitcoinSendButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Send Bitcoin", style: .default) { [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showBitcoinSendForm() }
+            })
+        }
+        if bitcoinSnapshot != nil {
+            alert.addAction(UIAlertAction(title: "View recent activity", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showBitcoinActivity() }
+            })
+        }
+        if bitcoinSellForHnsButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Sell BTC for HNS", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showBtcForHnsOfferForm() }
+            })
+        }
+        if bitcoinOffersButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Active BTC-for-HNS offers", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showActiveBtcForHnsOffers() }
+            })
+        }
+        if bitcoinExecutionsButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Atomic swap executions", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showShakescapeExecutions() }
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func showBitcoinActivity() {
+        guard presentedViewController == nil else { return }
+        let activity = bitcoinSnapshot?.recentActivity ?? []
+        let message = activity.isEmpty
+            ? "No Bitcoin activity found in the synchronized recovery range."
+            : formatBitcoinActivity(activity)
+        let alert = UIAlertController(
+            title: "Bitcoin recent activity",
+            message: message,
+            preferredStyle: .alert
+        )
+        if !activity.isEmpty {
+            alert.addAction(UIAlertAction(title: "Copy activity", style: .default) { _ in
+                UIPasteboard.general.setItems(
+                    [[UTType.plainText.identifier: message]],
+                    options: [.localOnly: true]
+                )
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    private func formatBitcoinActivity(_ activity: [NativeBitcoinActivity]) -> String {
+        activity.map { item in
+            let amount: String
+            switch item.direction {
+            case "incoming": amount = "Received: +\(item.amountSats) sats"
+            case "outgoing": amount = "Sent: −\(item.amountSats) sats"
+            default: amount = "Self-transfer"
+            }
+            let status: String
+            switch item.status {
+            case "confirmed":
+                status = "Confirmed in block \(item.blockHeight ?? 0) · \(item.confirmationCount ?? 0) confirmations"
+            case "unconfirmed": status = "Unconfirmed in the verified local wallet view"
+            case "prepared": status = "Prepared locally; not submitted"
+            case "submissionStarted": status = "Submission started; peer outcome is not yet known"
+            case "submitted": status = "Submitted to peers; not yet observed in the local chain view"
+            default: status = "No longer observed in the verified local chain view"
+            }
+            var lines = [amount]
+            if let fee = item.feeSats { lines.append("Fee: \(fee) sats") }
+            lines.append(status)
+            lines.append("Transaction: \(item.txid)")
+            let date = Date(timeIntervalSince1970: TimeInterval(item.lastChangedAtUnix))
+            lines.append("Updated: \(DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .short))")
+            return lines.joined(separator: "\n")
+        }.joined(separator: "\n\n")
+    }
+
     @objc private func nextBitcoinReceiveAddress() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress else { return }

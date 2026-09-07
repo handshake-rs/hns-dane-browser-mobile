@@ -22,6 +22,18 @@ internal data class NativeBitcoinWalletSnapshot(
     val synchronizedHeight: Long,
     val connectedPeerCount: Int,
     val requiredPeerCount: Int,
+    val recentActivity: List<NativeBitcoinActivity>,
+)
+
+internal data class NativeBitcoinActivity(
+    val txid: String,
+    val direction: String,
+    val amountSats: Long,
+    val feeSats: Long?,
+    val status: String,
+    val blockHeight: Long?,
+    val confirmationCount: Long?,
+    val lastChangedAtUnix: Long,
 )
 
 internal data class NativeBitcoinReceiveAddress(
@@ -227,6 +239,8 @@ internal data class NativeShakescapeExecutionStatus(
 internal object NativeBitcoinWalletBundle {
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 16 * 1024
+    private const val MAX_RECENT_ACTIVITY = 20
+    private const val MAX_DISPLAY_UNIX = 253_402_300_799L
     private const val VERSION = 1
     private val magic = byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'B'.code.toByte(), 'W'.code.toByte())
 
@@ -715,6 +729,7 @@ internal object NativeBitcoinWalletBundle {
                 "network", "receiveAddress", "confirmedSats", "trustedPendingSats",
                 "untrustedPendingSats", "immatureSats", "totalSats", "synchronizedHeight",
                 "birthdayHeight", "birthdayState", "connectedPeerCount", "requiredPeerCount",
+                "recentActivity",
             ))
         ) return null
         val network = json.optString("network", "")
@@ -726,6 +741,18 @@ internal object NativeBitcoinWalletBundle {
         val immature = nonnegativeLong(json, "immatureSats") ?: return null
         val total = nonnegativeLong(json, "totalSats") ?: return null
         if (total != confirmed + trusted + untrusted + immature) return null
+        val recentActivityJson = json.optJSONArray("recentActivity") ?: return null
+        if (recentActivityJson.length() > MAX_RECENT_ACTIVITY) return null
+        val recentActivity = ArrayList<NativeBitcoinActivity>(recentActivityJson.length())
+        for (index in 0 until recentActivityJson.length()) {
+            val item = parseActivity(recentActivityJson.optJSONObject(index) ?: return null)
+                ?: return null
+            if (recentActivity.any { it.txid == item.txid }) return null
+            recentActivity.add(item)
+        }
+        if (recentActivity.zipWithNext().any { (left, right) ->
+                left.lastChangedAtUnix < right.lastChangedAtUnix
+            }) return null
         return NativeBitcoinWalletSnapshot(
             network,
             receiveAddress,
@@ -744,6 +771,50 @@ internal object NativeBitcoinWalletBundle {
             nonnegativeLong(json, "synchronizedHeight") ?: return null,
             peerCount(json, "connectedPeerCount") ?: return null,
             peerCount(json, "requiredPeerCount") ?: return null,
+            recentActivity,
+        )
+    }
+
+    private fun parseActivity(json: JSONObject): NativeBitcoinActivity? {
+        if (!hasExactKeys(json, setOf(
+                "txid", "direction", "amountSats", "feeSats", "status", "blockHeight",
+                "confirmationCount", "lastChangedAtUnix",
+            ))) return null
+        val direction = json.optString("direction", "")
+            .takeIf { it in setOf("incoming", "outgoing", "selfTransfer") } ?: return null
+        val amount = nonnegativeLong(json, "amountSats") ?: return null
+        if ((direction == "selfTransfer") != (amount == 0L)) return null
+        val fee = if (json.isNull("feeSats")) null else {
+            nonnegativeLong(json, "feeSats") ?: return null
+        }
+        if (direction == "incoming" && fee != null) return null
+        val status = json.optString("status", "").takeIf {
+            it in setOf(
+                "notObserved", "prepared", "submissionStarted", "submitted",
+                "unconfirmed", "confirmed",
+            )
+        } ?: return null
+        val blockHeight = if (json.isNull("blockHeight")) null else {
+            nonnegativeLong(json, "blockHeight") ?: return null
+        }
+        val confirmationCount = if (json.isNull("confirmationCount")) null else {
+            positiveLong(json, "confirmationCount") ?: return null
+        }
+        if (status == "confirmed") {
+            if (blockHeight == null || confirmationCount == null) return null
+        } else if (blockHeight != null || confirmationCount != null) {
+            return null
+        }
+        return NativeBitcoinActivity(
+            txid = hexHash(json.optString("txid", "")) ?: return null,
+            direction = direction,
+            amountSats = amount,
+            feeSats = fee,
+            status = status,
+            blockHeight = blockHeight,
+            confirmationCount = confirmationCount,
+            lastChangedAtUnix = nonnegativeLong(json, "lastChangedAtUnix")
+                ?.takeIf { it <= MAX_DISPLAY_UNIX } ?: return null,
         )
     }
 
