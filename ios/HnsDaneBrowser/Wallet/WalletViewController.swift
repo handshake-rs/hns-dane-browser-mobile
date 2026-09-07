@@ -50,6 +50,7 @@ final class WalletViewController: UIViewController {
     private var recentTransactions: [NativeHnsReadSnapshot.Transaction]?
     private var finalizeNotices: [NativeHnsReadSnapshot.FinalizeNotice] = []
     private var recentActivityPageOffset = 0
+    private var bitcoinActivityPageOffset = 0
     /// Native-validated receive targets are retained separately from their
     /// human-readable labels. Pasteboard actions must never copy headings or
     /// derivation metadata as though those bytes were part of an address.
@@ -884,15 +885,39 @@ final class WalletViewController: UIViewController {
     private func showBitcoinActivity() {
         guard presentedViewController == nil else { return }
         let activity = bitcoinSnapshot?.recentActivity ?? []
-        let message = activity.isEmpty
-            ? "No Bitcoin activity found in the synchronized recovery range."
-            : formatBitcoinActivity(activity)
+        let pageSize = 20
+        let lastPageOffset = activity.isEmpty ? 0 : ((activity.count - 1) / pageSize) * pageSize
+        bitcoinActivityPageOffset = min(max(bitcoinActivityPageOffset, 0), lastPageOffset)
+        let page = Array(activity.dropFirst(bitcoinActivityPageOffset).prefix(pageSize))
+        let message: String
+        if page.isEmpty {
+            message = "No Bitcoin activity found in the synchronized recovery range."
+        } else {
+            let first = bitcoinActivityPageOffset + 1
+            let last = bitcoinActivityPageOffset + page.count
+            message = "Showing Bitcoin activity \(first)–\(last) of \(activity.count).\n\n" +
+                formatBitcoinActivity(page)
+        }
         let alert = UIAlertController(
             title: "Bitcoin recent activity",
             message: message,
             preferredStyle: .alert
         )
-        if !activity.isEmpty {
+        if bitcoinActivityPageOffset > 0 {
+            alert.addAction(UIAlertAction(title: "Previous", style: .default) { [weak self] _ in
+                guard let self else { return }
+                self.bitcoinActivityPageOffset -= pageSize
+                DispatchQueue.main.async { self.showBitcoinActivity() }
+            })
+        }
+        if bitcoinActivityPageOffset + page.count < activity.count {
+            alert.addAction(UIAlertAction(title: "Next", style: .default) { [weak self] _ in
+                guard let self else { return }
+                self.bitcoinActivityPageOffset += pageSize
+                DispatchQueue.main.async { self.showBitcoinActivity() }
+            })
+        }
+        if !page.isEmpty {
             alert.addAction(UIAlertAction(title: "Copy activity", style: .default) { _ in
                 UIPasteboard.general.setItems(
                     [[UTType.plainText.identifier: message]],
@@ -1954,6 +1979,7 @@ final class WalletViewController: UIViewController {
 
     private func renderBitcoinSnapshot(_ snapshot: NativeBitcoinWalletSnapshot) {
         bitcoinSnapshot = snapshot
+        bitcoinActivityPageOffset = 0
         bitcoinBalanceLabel.text = "Confirmed: \(snapshot.confirmedSats) sats · pending: \(snapshot.trustedPendingSats + snapshot.untrustedPendingSats) sats · total: \(snapshot.totalSats) sats"
         let birthday: String
         switch snapshot.birthdayState {
@@ -4825,6 +4851,7 @@ final class WalletViewController: UIViewController {
         bitcoinBirthdayResetInProgress = false
         bitcoinValueAvailable = false
         bitcoinSnapshot = nil
+        bitcoinActivityPageOffset = 0
         bitcoinBirthdayButton.isHidden = true
         try? wallet?.lock()
         wallet?.close()

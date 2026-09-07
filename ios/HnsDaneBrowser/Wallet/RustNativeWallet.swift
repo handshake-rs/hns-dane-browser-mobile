@@ -118,7 +118,7 @@ struct NativeBitcoinWalletSnapshot: Decodable, Equatable, Sendable {
               ["awaitingCreationTip", "recoveryUnknown", "recoveryPendingValidation", "validated"]
                 .contains(birthdayState),
               connectedPeerCount <= 8, requiredPeerCount <= 8,
-              recentActivity.count <= 20,
+              recentActivity.count <= 40,
               Set(recentActivity.map(\.txid)).count == recentActivity.count,
               zip(recentActivity, recentActivity.dropFirst()).allSatisfy({ pair in
                   pair.0.lastChangedAtUnix >= pair.1.lastChangedAtUnix

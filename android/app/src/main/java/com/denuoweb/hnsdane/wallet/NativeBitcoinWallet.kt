@@ -239,7 +239,7 @@ internal data class NativeShakescapeExecutionStatus(
 internal object NativeBitcoinWalletBundle {
     private const val HEADER_BYTES = 12
     private const val MAX_JSON_BYTES = 16 * 1024
-    private const val MAX_RECENT_ACTIVITY = 20
+    private const val MAX_RECENT_ACTIVITY = 40
     private const val MAX_DISPLAY_UNIX = 253_402_300_799L
     private const val VERSION = 1
     private val magic = byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'B'.code.toByte(), 'W'.code.toByte())

@@ -286,6 +286,7 @@ class WalletActivity : ComponentActivity() {
     private var trackedNameSearchInput: AutoCompleteTextView? = null
     private var walletNameImportInProgressCount = 0
     private var recentActivityPageOffset: Int = 0
+    private var bitcoinActivityPageOffset: Int = 0
     private var pendingHandshakePayment: HandshakePaymentRequest? = null
     private var pendingPaymentPresentationScheduled = false
     private var scannedPaymentShouldResumeAfterUnlock = false
@@ -2180,32 +2181,72 @@ class WalletActivity : ComponentActivity() {
 
     private fun showBitcoinActivityDetails() {
         val activity = bitcoinSnapshot?.recentActivity
+        bitcoinActivityPageOffset = walletPageOffset(
+            requestedOffset = bitcoinActivityPageOffset,
+            totalItems = activity?.size ?: 0,
+            pageSize = MAX_VISIBLE_READ_ITEMS,
+        )
+        val page = activity.orEmpty()
+            .drop(bitcoinActivityPageOffset)
+            .take(MAX_VISIBLE_READ_ITEMS)
         val message = when {
             activity == null -> getString(R.string.wallet_bitcoin_activity_unavailable)
-            activity.isEmpty() -> getString(R.string.wallet_bitcoin_activity_empty)
-            else -> formatBitcoinActivity(activity)
+            page.isEmpty() -> getString(R.string.wallet_bitcoin_activity_empty)
+            else -> {
+                val first = bitcoinActivityPageOffset + 1
+                val last = bitcoinActivityPageOffset + page.size
+                getString(
+                    R.string.wallet_activity_page_position,
+                    first,
+                    last,
+                    activity.size,
+                ) + "\n\n" + formatBitcoinActivity(page)
+            }
         }
-        val content = TextView(this).apply {
-            text = message
-            textSize = 14f
-            typeface = Typeface.MONOSPACE
-            setTextColor(themeColors().primaryText)
-            setTextIsSelectable(true)
-            setPadding(uiDp(24), uiDp(14), uiDp(24), uiDp(14))
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
+            addView(TextView(this@WalletActivity).apply {
+                text = message
+                textSize = 14f
+                typeface = Typeface.MONOSPACE
+                setTextColor(themeColors().primaryText)
+                setTextIsSelectable(true)
+                setPadding(0, uiDp(8), 0, uiDp(12))
+            })
+            if (page.isNotEmpty()) {
+                addView(dashboardActionButton(
+                    getString(R.string.wallet_dashboard_copy_activity),
+                    secondary = true,
+                ) {
+                    getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                        ClipData.newPlainText(
+                            getString(R.string.wallet_bitcoin_recent_activity),
+                            message,
+                        ),
+                    )
+                    Toast.makeText(
+                        this@WalletActivity,
+                        R.string.common_copied,
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                })
+            }
         }
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.wallet_bitcoin_recent_activity)
             .setView(ScrollView(this).apply { addView(content) })
             .setNegativeButton(R.string.action_cancel, null)
-        if (!activity.isNullOrEmpty()) {
-            dialog.setPositiveButton(R.string.wallet_dashboard_copy_activity) { _, _ ->
-                getSystemService(ClipboardManager::class.java).setPrimaryClip(
-                    ClipData.newPlainText(
-                        getString(R.string.wallet_bitcoin_recent_activity),
-                        message,
-                    ),
-                )
-                Toast.makeText(this, R.string.common_copied, Toast.LENGTH_SHORT).show()
+        if (bitcoinActivityPageOffset > 0) {
+            dialog.setNeutralButton(R.string.action_previous_wallet_activity) { _, _ ->
+                bitcoinActivityPageOffset -= MAX_VISIBLE_READ_ITEMS
+                window.decorView.post(::showBitcoinActivityDetails)
+            }
+        }
+        if (activity != null && bitcoinActivityPageOffset + page.size < activity.size) {
+            dialog.setPositiveButton(R.string.action_next_wallet_activity) { _, _ ->
+                bitcoinActivityPageOffset += MAX_VISIBLE_READ_ITEMS
+                window.decorView.post(::showBitcoinActivityDetails)
             }
         }
         dialog.show()
@@ -3808,6 +3849,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun resetBitcoinProjection() {
         bitcoinSnapshot = null
+        bitcoinActivityPageOffset = 0
         bitcoinBalanceView.text = getString(R.string.wallet_bitcoin_balance_unavailable)
         bitcoinReceiveView.text = getString(R.string.wallet_bitcoin_receive_unavailable)
         bitcoinActivityView.text = getString(R.string.wallet_bitcoin_activity_unavailable)
@@ -3894,6 +3936,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun renderBitcoinSnapshot(snapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot) {
         bitcoinSnapshot = snapshot
+        bitcoinActivityPageOffset = 0
         val birthday = when (snapshot.birthdayState) {
             "awaitingCreationTip" -> getString(R.string.wallet_bitcoin_birthday_creation_pending)
             "recoveryUnknown" -> getString(R.string.wallet_bitcoin_birthday_recovery_unknown)
