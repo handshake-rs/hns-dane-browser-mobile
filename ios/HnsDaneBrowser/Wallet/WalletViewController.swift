@@ -861,24 +861,6 @@ final class WalletViewController: UIViewController {
                 self?.afterWalletMenuDismissal { [weak self] in self?.showBitcoinActivity() }
             })
         }
-        if bitcoinSellForHnsButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Sell BTC for HNS", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showBtcForHnsOfferForm() }
-            })
-        }
-        if bitcoinOffersButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Active BTC-for-HNS offers", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showActiveBtcForHnsOffers() }
-            })
-        }
-        if bitcoinExecutionsButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Atomic swap executions", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showShakescapeExecutions() }
-            })
-        }
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
         present(alert, animated: true)
     }
@@ -2683,6 +2665,24 @@ final class WalletViewController: UIViewController {
                 : "Unlock and synchronize the direct HNS wallet before querying offers or preparing a purchase step.",
             preferredStyle: .alert
         )
+        if bitcoinSellForHnsButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Sell BTC for HNS", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showBtcForHnsOfferForm() }
+            })
+        }
+        if bitcoinOffersButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Active BTC-for-HNS offers", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showActiveBtcForHnsOffers() }
+            })
+        }
+        if bitcoinExecutionsButton.isEnabled {
+            alert.addAction(UIAlertAction(title: "Atomic swap executions", style: .default) {
+                [weak self] _ in
+                self?.afterWalletMenuDismissal { [weak self] in self?.showShakescapeExecutions() }
+            })
+        }
         if shakedexActionMayStart {
             alert.addAction(UIAlertAction(title: "Create fixed-price offer", style: .default) { [weak self] _ in
                 self?.afterWalletMenuDismissal { [weak self] in self?.showCreateOfferForm() }

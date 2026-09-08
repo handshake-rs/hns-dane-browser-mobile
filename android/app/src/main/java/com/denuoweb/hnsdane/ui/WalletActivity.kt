@@ -2165,9 +2165,6 @@ class WalletActivity : ComponentActivity() {
         }
         actions.add(getString(R.string.wallet_dashboard_send_bitcoin) to ::showBitcoinSendForm)
         actions.add(getString(R.string.wallet_bitcoin_recent_activity) to ::showBitcoinActivityDetails)
-        actions.add(getString(R.string.wallet_swap_sell_btc) to ::showBtcForHnsOfferForm)
-        actions.add(getString(R.string.wallet_swap_active_offers) to ::showActiveBtcForHnsOffers)
-        actions.add(getString(R.string.wallet_swap_executions) to ::showShakescapeExecutions)
         walletLiveDetailDialog(
             title = getString(R.string.wallet_dashboard_bitcoin),
             rows = listOf(
@@ -2369,6 +2366,9 @@ class WalletActivity : ComponentActivity() {
             getString(R.string.row_wallet_list_offers) to ::showListOffersForm,
             getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
             getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
+            getString(R.string.wallet_swap_sell_btc) to ::showBtcForHnsOfferForm,
+            getString(R.string.wallet_swap_active_offers) to ::showActiveBtcForHnsOffers,
+            getString(R.string.wallet_swap_executions) to ::showShakescapeExecutions,
             getString(R.string.row_wallet_pair_direct_shakescape) to ::showPairDirectShakescapeForm,
             getString(R.string.row_wallet_get_session) to ::showGetSessionForm,
         ).apply {
