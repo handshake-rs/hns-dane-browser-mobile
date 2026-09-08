@@ -150,8 +150,6 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Error, ErrorKind, Read, Seek, SeekFrom, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, UdpSocket};
 use std::num::{NonZeroU16, NonZeroUsize};
-#[cfg(target_os = "android")]
-use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{
@@ -1983,55 +1981,14 @@ struct HeaderStateFileLock {
     file: File,
 }
 
-// Rust's standard file-locking implementation did not include Android until
-// rust-lang/rust#157038 (Rust 1.98). Keep the equivalent target-local shim
-// while this workspace remains on Rust 1.92.
-#[cfg(target_os = "android")]
-fn android_advisory_lock(file: &File, operation: libc::c_int) -> Result<(), Error> {
-    loop {
-        // SAFETY: `file` owns a live descriptor for the duration of this call,
-        // and Android's bionic `flock` accepts the LOCK_* operation constants
-        // supplied by the same libc target.
-        if unsafe { libc::flock(file.as_raw_fd(), operation) } == 0 {
-            return Ok(());
-        }
-        let error = Error::last_os_error();
-        if error.kind() != ErrorKind::Interrupted {
-            return Err(error);
-        }
-    }
-}
-
-#[cfg(target_os = "android")]
-fn advisory_lock_shared(file: &File) -> Result<(), Error> {
-    android_advisory_lock(file, libc::LOCK_SH)
-}
-
-#[cfg(not(target_os = "android"))]
 fn advisory_lock_shared(file: &File) -> Result<(), Error> {
     file.lock_shared()
 }
 
-#[cfg(target_os = "android")]
-fn advisory_lock_exclusive(file: &File) -> Result<(), Error> {
-    android_advisory_lock(file, libc::LOCK_EX)
-}
-
-#[cfg(not(target_os = "android"))]
 fn advisory_lock_exclusive(file: &File) -> Result<(), Error> {
     file.lock()
 }
 
-#[cfg(target_os = "android")]
-fn advisory_try_lock_shared(file: &File) -> Result<bool, Error> {
-    match android_advisory_lock(file, libc::LOCK_SH | libc::LOCK_NB) {
-        Ok(()) => Ok(true),
-        Err(error) if error.kind() == ErrorKind::WouldBlock => Ok(false),
-        Err(error) => Err(error),
-    }
-}
-
-#[cfg(not(target_os = "android"))]
 fn advisory_try_lock_shared(file: &File) -> Result<bool, Error> {
     match file.try_lock_shared() {
         Ok(()) => Ok(true),
@@ -2040,12 +1997,6 @@ fn advisory_try_lock_shared(file: &File) -> Result<bool, Error> {
     }
 }
 
-#[cfg(target_os = "android")]
-fn advisory_unlock(file: &File) -> Result<(), Error> {
-    android_advisory_lock(file, libc::LOCK_UN)
-}
-
-#[cfg(not(target_os = "android"))]
 fn advisory_unlock(file: &File) -> Result<(), Error> {
     file.unlock()
 }

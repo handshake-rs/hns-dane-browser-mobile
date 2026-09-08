@@ -1,14 +1,14 @@
 # Build and Supply-Chain Audit
 
-Last audited: 2026-09-05
+Last audited: 2026-09-07
 
 Current release source coordinates Android `1.0.5` / code `57`, the embedded
-non-publishable Rust workspace `1.0.1`, and iOS `1.0.5` / build `66`. It uses
-the published `hns-rs 0.4.1`, exact public engine/browser-adapter releases
-(including the coherent light-client `0.2.3` patch cohort), and
-the complete exact published `hns-wallet-rs 0.2.3` closure from release commit
-`0a0558c6df8ceb4f8d8318821cd16981f248a22b`. Registry dependencies retain
-checksums throughout the lockfile, as
+non-publishable Rust workspace `1.0.2`, and iOS `1.0.5` / build `66`. It uses
+the reviewed `hns-rs 0.4.1` graph, exact public engine releases (including the
+coherent light-client `0.2.3` patch cohort), adjacent publication-ready
+SQLite-backed browser adapters at `0.2.3`, and the adjacent prepared
+`hns-wallet-rs 0.2.3` closure. Registry dependencies retain checksums
+throughout the lockfile and adjacent packages retain exact path identities, as
 documented in [released-dependency-cohort.md](released-dependency-cohort.md).
 
 The reviewed protocol → wallet → mobile source sequence is complete. Source policy,
@@ -89,10 +89,10 @@ with manual release after build `64` was withdrawn.
   fatal; the historical `0.5.5` set cannot satisfy the candidate schema or
   commit gate.
 - Dependabot watches GitHub Actions, Gradle, and all three Cargo lockfile roots weekly.
-- Rust uses toolchain `1.92.0`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Published HNS, engine, browser-adapter, and wallet packages carry Cargo checksums.
+- Rust uses toolchain `1.98.1`; build, clippy, test, metadata, Android cross-compile, and cargo-deny commands use committed lockfiles with `--locked`. Published HNS packages carry Cargo checksums, while the coordinated adapter and wallet updates use explicit adjacent paths until their next publication.
 - cargo-deny covers all three manifests. The fuzz and exporter packages now declare the repository license. `NCSA` is allowed specifically because `libfuzzer-sys` combines its MIT/Apache-2.0 code with LLVM libFuzzer code under the University of Illinois/NCSA license.
-- Gradle 9.6.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
-- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. Cargo-deny enforces the registry-only external-source policy. Root-invoked Rust scripts explicitly select toolchain `1.92.0` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
+- Gradle 9.7.1 has an official distribution checksum in `gradle-wrapper.properties`; the checked-in wrapper JAR is independently compared with the official wrapper-JAR SHA-256. Android dependency locking runs in strict mode, and Gradle verification metadata pins SHA-256 hashes for resolved artifacts and metadata.
+- `scripts/verify-supply-chain.sh` checks the exact wrapper distribution URL and hashes, required lock/verification files, Cargo lock consistency, shell syntax, immutable Action references, tracked secret-bearing filenames, and high-confidence secret patterns. Cargo-deny enforces the admitted-source policy. Root-invoked Rust scripts explicitly select toolchain `1.98.1` instead of relying on rustup to discover a toolchain file beside a manifest in another directory.
 - Android JNI release builds reject unknown profiles, compiler/linker/profile overrides, and unexpected NDK versions; use `--locked`; force the release profile; require every selected ABI output; and restrict cleanup to `android/app/build`. The script derives the real NDK host tag from the build machine, selects `linux-arm64` on ARM64 Linux, and rejects a foreign host compiler by ELF machine instead of exposing a `linux-x86_64` alias. Path-prefix maps remove checkout, home, Cargo, Rustup, and NDK paths while retaining line-table debug information for AGP. Gradle pins AGP to NDK `28.2.13676358`, treats the NDK location and `source.properties` as incremental inputs, and includes Rust `.txt` data files such as the ICANN TLD snapshot.
 - The required Android job now enables KVM and runs the focused fresh-runtime
   regression plus paired HNS/ICANN Proof Details activity instrumentation on a
@@ -154,7 +154,7 @@ with manual release after build `64` was withdrawn.
   `BrowserRuntime::open` therefore failed during header-state initialization,
   JNI returned no runtime handle, and the Kotlin fallback exposed unknown
   height/target/freshness values.
-- The hotfix keeps Rust 1.92 and routes Android lock operations through
+- The historical hotfix kept Rust 1.92 and routed Android lock operations through
   `libc::flock`, including EINTR retry and explicit WouldBlock handling for the
   nonblocking shared probe. `libc 0.2.186` was already checksum-locked and
   present in the shipping dependency inventory, so the direct target
@@ -189,10 +189,11 @@ with manual release after build `64` was withdrawn.
   edit `07330408575596336357`; `generatedApks/47` returned HTTP `200`. GitHub
   Release [`v0.5.6`](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v0.5.6) publishes only the verified APK,
   not the Play AAB or unchanged iOS build.
-- Current source consumes released `0.4.1` HNS, the exact engine and
-  browser-adapter releases (including the four light-client crates at `0.2.3`),
-  and the complete exact wallet `0.2.3` registry cohort. All external packages
-  retain Cargo checksums; no Git, branch, local-path, or patch exception is
+- Current source consumes reviewed `0.4.1` HNS, exact engine releases
+  (including the light-client crates at `0.2.3`), adjacent
+  publication-ready SQLite-backed adapters, and the complete adjacent prepared
+  wallet `0.2.3` cohort. Registry packages retain Cargo checksums; the admitted
+  path patches are exact local publication sources and no Git dependency is
   admitted. The standalone facade is not a mobile input.
   [released-dependency-cohort.md](released-dependency-cohort.md) records the
   enforced boundary.

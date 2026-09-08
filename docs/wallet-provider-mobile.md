@@ -7,13 +7,13 @@ This checkout contains two deliberately separate surfaces:
 - a website-facing wallet-provider projection that remains dormant and cannot
   mutate WebView or WKWebView.
 
-That wallet source consumes published `hns-rs 0.4.1` and the coherent engine
-light-client `0.2.3` patch cohort. The lockfile and generated
+That wallet source consumes the reviewed `hns-rs 0.4.1` graph and the coherent
+engine light-client `0.2.3` patch cohort. The lockfile and generated
 notices bind the complete protocol → wallet chain;
 [released-dependency-cohort.md](released-dependency-cohort.md) records the
-published source tags and registry checksums.
+published checksums and adjacent publication-source identities.
 
-The configured Android `1.0.5` candidate is code `57`, with embedded Rust `1.0.1`,
+The configured Android `1.0.5` candidate is code `57`, with embedded Rust `1.0.2`,
 and the configured iOS `1.0.5` candidate is build `66`. Historical `0.5.8` application source
 `f21bee1c3afccd06604dc99fccb51528e2441055` passed exact Required CI run
 `31402758394`, including Android build/unit/native instrumentation,

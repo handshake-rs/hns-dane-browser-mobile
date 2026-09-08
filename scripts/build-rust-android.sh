@@ -9,7 +9,7 @@ EXPECTED_NDK_VERSION="${HNS_ANDROID_NDK_VERSION:-28.2.13676358}"
 # available only through an explicit HNS_RUST_ANDROID_ABIS override for the CI
 # emulator; an ordinary local Gradle invocation must never silently add it.
 ANDROID_ABIS_CSV="${HNS_RUST_ANDROID_ABIS:-armeabi-v7a,arm64-v8a}"
-RUST_TOOLCHAIN="1.92.0"
+RUST_TOOLCHAIN="1.98.1"
 CARGO=(cargo "+$RUST_TOOLCHAIN")
 RUSTC=(rustc "+$RUST_TOOLCHAIN")
 

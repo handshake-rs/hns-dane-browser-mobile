@@ -19,6 +19,22 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Keep the Android and iOS application identities at `1.0.5` (Android code
+  `57`, iOS build `66`) while advancing the embedded Rust workspace to `1.0.2`
+  on pinned Rust `1.98.1`.
+- Complete the Rust 1.92-to-1.98.1 migration. Android file locking now uses
+  the standard library support delivered by Rust 1.98, so the target-specific
+  `libc::flock` shim and direct `libc` dependency are removed. The intervening
+  Rust release notes were reviewed for new lints, ABI checks, target changes,
+  and symbol-mangling behavior; no other affected source pattern is present.
+- Advance the coordinated SQLite graph to `rusqlite 0.40.2` and
+  `libsqlite3-sys 0.38.2`, including the adjacent publication-ready
+  `hns-browser-chain`, `hns-browser-p2p`, and `hns-browser-resolver 0.2.3`
+  adapters and the prepared `hns-wallet-rs 0.2.3` source.
+- Update Android to Gradle `9.7.1`, Android Gradle Plugin `9.4.0`, AndroidX
+  Core `1.19.0`, AndroidX WebKit `1.17.0`, and `org.json 20260814`; regenerate
+  the wrapper, dependency locks, verification metadata, and third-party
+  notices from those exact inputs.
 - Align the next-release Android wallet surface with iOS: both locked
   dashboards expose only wallet management, and both unlocked HNS balance
   cards provide direct payment-QR scanning beside Receive, Send, and Sync.
@@ -28,7 +44,7 @@ All notable changes to this project will be documented in this file.
 ## 1.0.5 - 2026-09-05
 
 Android `1.0.5` / code `57` and iOS `1.0.5` / build `66` are the current store
-candidates. They embed Rust workspace `1.0.1` and the complete published
+candidates. They embed Rust workspace `1.0.2` and the complete prepared
 `hns-wallet-rs 0.2.3` cohort. The prior iOS `1.0.4` submission is retained only
 as release history.
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUST_TOOLCHAIN="1.92.0"
+RUST_TOOLCHAIN="1.98.1"
 
 for shared_crate in hns-mobile-platform-runtime; do
   shared_dir="$ROOT_DIR/rust/crates/$shared_crate"

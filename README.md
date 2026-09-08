@@ -13,7 +13,7 @@ uses the stable iOS 26.5 SDK with Xcode 26.5 or 26.6.
 - [GitHub Release v1.0.3](https://github.com/handshake-rs/hns-dane-browser-mobile/releases/tag/v1.0.3)
 
 Android `1.0.5` / code `57`, iOS `1.0.5` / build `66`, and embedded Rust
-`1.0.1` are the current release-source versions. Android retains its
+`1.0.2` are the current release-source versions. Android retains its
 default-browser registration; the iOS candidate deliberately omits
 Apple's still-unapproved managed default-browser entitlement.
 
@@ -35,12 +35,13 @@ back for the historical `0.5.8` candidate. Version-neutral read-boundary source
 current store metadata while preserving the existing screenshots.
 
 Current source coordinates Android `1.0.5` / code `57`, iOS `1.0.5` / build
-`66`, and the embedded non-publishable Rust workspace at `1.0.1`. It directly pins
-published `hns-rs 0.4.1`, the `hns-dane-engine` light-client `0.2.3` patch
-cohort, the remaining exact engine/browser-adapter releases, and
-the complete checksum-bearing published `hns-wallet-rs 0.2.3` cohort. The browser adapters are
-also exact published `0.2.2` packages; the source tags, registry checks, and
-wallet release status are recorded in
+`66`, and the embedded non-publishable Rust workspace at `1.0.2`. It directly pins
+the reviewed `hns-rs 0.4.1` graph, the published `hns-dane-engine`
+light-client `0.2.3` patch cohort, and the remaining exact engine releases.
+The SQLite-backed chain, P2P, and resolver adapters use adjacent
+publication-ready `0.2.3` source, and the complete prepared
+`hns-wallet-rs 0.2.3` cohort is likewise linked from its adjacent workspace.
+The source and registry boundaries are recorded in
 [the released dependency cohort](docs/released-dependency-cohort.md).
 Both native shells expose local create, restore, open, status, unlock, lock, and
 one-account identity controls. The current local `main` stack also composes a

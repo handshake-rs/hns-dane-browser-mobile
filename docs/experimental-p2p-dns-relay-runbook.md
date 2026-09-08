@@ -169,11 +169,11 @@ project.
 The existing local cryptographic coverage should still be run independently:
 
 ```sh
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-dnssec
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-resolver
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-transport
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-browser-p2p
-cargo +1.92.0 test --locked --manifest-path rust/Cargo.toml -p hns-mobile-platform-runtime
+cargo +1.98.1 test --locked --manifest-path rust/Cargo.toml -p hns-browser-dnssec
+cargo +1.98.1 test --locked --manifest-path rust/Cargo.toml -p hns-browser-resolver
+cargo +1.98.1 test --locked --manifest-path rust/Cargo.toml -p hns-browser-transport
+cargo +1.98.1 test --locked --manifest-path rust/Cargo.toml -p hns-browser-p2p
+cargo +1.98.1 test --locked --manifest-path rust/Cargo.toml -p hns-mobile-platform-runtime
 ```
 
 These tests are necessary but do not by themselves convert the fast topology

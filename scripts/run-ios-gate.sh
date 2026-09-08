@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUST_TOOLCHAIN="1.92.0"
+RUST_TOOLCHAIN="1.98.1"
 IOS_SDK_VERSION="26.5"
 APPLE_TARGETS=(
   aarch64-apple-ios

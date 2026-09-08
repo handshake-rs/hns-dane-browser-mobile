@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPECTED_CARGO_DENY_VERSION="${HNS_CARGO_DENY_VERSION:-0.19.9}"
-RUST_TOOLCHAIN="1.92.0"
+RUST_TOOLCHAIN="1.98.1"
 CARGO=(cargo "+$RUST_TOOLCHAIN")
 
 "$ROOT_DIR/scripts/verify-supply-chain.sh"

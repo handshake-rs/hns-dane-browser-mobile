@@ -58,23 +58,25 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
-        self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.1")
+        self.assertEqual(manifest["workspace"]["package"]["version"], "1.0.2")
         self.assertFalse(manifest["workspace"]["package"]["publish"])
         wallet = manifest["workspace"]["dependencies"]["hns-wallet-mobile"]
-        self.assertEqual(wallet, "=0.2.3")
+        self.assertEqual(wallet["version"], "=0.2.3")
+        self.assertEqual(wallet["path"], "../../hns-wallet-rs/crates/hns-wallet-mobile")
+
+        with (ROOT / "rust/Cargo.lock").open("rb") as source:
+            locked_packages = tomllib.load(source)["package"]
+        locked_by_name = {package["name"]: package for package in locked_packages}
+        self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.2.3")
+        self.assertNotIn("source", locked_by_name["hns-wallet-mobile"])
 
         lockfile = (ROOT / "rust/Cargo.lock").read_text(encoding="utf-8")
-        self.assertIn(
-            'name = "hns-wallet-mobile"\nversion = "0.2.3"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
-            lockfile,
-        )
         self.assertIn(
             'name = "hns-header-consensus"\nversion = "0.4.1"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
             lockfile,
         )
         for package in (
             "hns-light-chain",
-            "hns-light-p2p",
             "hns-light-sync",
             "hns-light-wallet",
         ):
@@ -82,6 +84,14 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
                 f'name = "{package}"\nversion = "0.2.3"\nsource = "registry+https://github.com/rust-lang/crates.io-index"',
                 lockfile,
             )
+        for package in (
+            "hns-browser-chain",
+            "hns-browser-p2p",
+            "hns-browser-resolver",
+            "hns-light-p2p",
+        ):
+            self.assertEqual(locked_by_name[package]["version"], "0.2.3")
+            self.assertNotIn("source", locked_by_name[package])
         self.assertNotIn("f83d42363305de04bfa955f864cb1e9136c4d648", lockfile)
         self.assertNotIn("abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2", lockfile)
         self.assertNotIn("2229be849557d58a8eb723bcc03349f0f2df9796", lockfile)

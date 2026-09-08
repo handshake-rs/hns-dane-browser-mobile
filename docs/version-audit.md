@@ -1,6 +1,6 @@
 # Version Audit
 
-Audit date: 2026-09-05.
+Audit date: 2026-09-07.
 
 This table records the independently versioned current release candidates.
 It is not evidence that signed artifacts were built or published. Android
@@ -11,29 +11,29 @@ into the app.
 | Component | Pinned | Audit source |
 | --- | --- | --- |
 | Android app | `1.0.5` / code `57` | `android/app/build.gradle.kts` |
-| Embedded Rust workspace | `1.0.1` (`publish = false`) | `rust/Cargo.toml` |
+| Embedded Rust workspace | `1.0.2` (`publish = false`) | `rust/Cargo.toml` |
 | iOS app | `1.0.5` / build `66` | `ios/project.yml` |
-| Native wallet controller | exact published `0.2.3` registry cohort | `rust/Cargo.toml`, checksum-bearing `rust/Cargo.lock` |
+| Native wallet controller | adjacent prepared `0.2.3` cohort | `rust/Cargo.toml`, `rust/Cargo.lock` |
 | Wallet protocol closure | published `hns-rs 0.4.1` | `rust/Cargo.lock` |
-| Rust toolchain | `1.92.0` | `rust/rust-toolchain.toml` |
-| Android file-lock shim | `libc 0.2.186` | `rust/Cargo.lock` |
+| Rust toolchain | `1.98.1` | `rust/rust-toolchain.toml` |
+| Android file locking | Rust standard-library `File` locks | `rust/crates/hns-mobile-platform-runtime/src/lib.rs` |
 | Public engine contracts | published exact engine crates, with the light-client cohort and `hns-namespace-resolution` at `0.2.3` | Cargo manifests and checksum-bearing locks |
-| Browser engine adapters | published exact `hns-browser-* 0.2.2` packages, with `hns-browser-gateway 0.2.3` | Cargo manifests and all three locks |
+| Browser engine adapters | exact releases plus adjacent publication-ready `hns-browser-chain`, `hns-browser-p2p`, and `hns-browser-resolver 0.2.3` | Cargo manifests and locks |
 | Standalone engine facade | Not in the mobile graph; upstream mobile-safe dependency boundary required | Cargo manifests and target-filtered metadata |
 | Android SDK | compile/target `37`, minimum `30` | `android/app/build.gradle.kts` |
 | Android NDK | `28.2.13676358`, application platform `30` | `scripts/build-rust-android.sh` |
 | iOS deployment floor | `17.0` | `ios/project.yml` |
-| Android Gradle Plugin | `9.2.1` | https://developer.android.com/build/releases/agp-9-2-0-release-notes |
-| Gradle distribution | `9.6.1` | https://gradle.org/releases/ |
+| Android Gradle Plugin | `9.4.0` | https://developer.android.com/build/releases/gradle-plugin |
+| Gradle distribution | `9.7.1` | https://gradle.org/releases/ |
 | AndroidX Activity | `1.13.0` | https://developer.android.com/jetpack/androidx/releases/activity |
-| AndroidX Core | `1.18.0` | https://developer.android.com/jetpack/androidx/releases/core |
-| AndroidX WebKit | `1.16.0` | https://developer.android.com/jetpack/androidx/releases/webkit |
-| rustls | `0.23.41` | https://crates.io/crates/rustls |
+| AndroidX Core | `1.19.0` | https://developer.android.com/jetpack/androidx/releases/core |
+| AndroidX WebKit | `1.17.0` | https://developer.android.com/jetpack/androidx/releases/webkit |
+| rustls | `0.23.44` | https://crates.io/crates/rustls |
 | webpki-roots | `1.0.8` | https://crates.io/crates/webpki-roots |
 | rcgen | `0.14.8` | https://crates.io/crates/rcgen |
 | quinn | `0.11.11` | https://crates.io/crates/quinn/versions |
 | h3 | `0.0.8` | https://crates.io/crates/h3/versions |
-| rusqlite | `0.39.0` | https://crates.io/crates/rusqlite |
+| rusqlite | `0.40.2` | https://crates.io/crates/rusqlite |
 | p256 | `0.13.2` | https://crates.io/crates/p256 |
 | ring | `0.17.14` | https://crates.io/crates/ring |
 
@@ -110,9 +110,9 @@ Notes:
   application profile. No requester, transport adapter, endpoint/profile
   validator, provider role, FFI, UI, or native control is instantiated by this
   candidate, and its dedicated release gate remains false.
-- The mobile dependency sequence uses the exact published wallet `0.2.3`
-  registry cohort, published HNS `0.4.1`, and
-  exact engine/browser-adapter releases. The complete source and checksum
+- The mobile dependency sequence uses the adjacent prepared wallet `0.2.3`
+  cohort, reviewed HNS `0.4.1`, exact engine releases, and adjacent
+  publication-ready SQLite-backed browser adapters. The complete source and checksum
   policy is documented in [released-dependency-cohort.md](released-dependency-cohort.md).
   Earlier run `31807520618` qualified only HNWR-v2 source
   `986accb7d86d220af63187031e629a9ce69d71e5`. Exact current application source
@@ -130,8 +130,8 @@ Notes:
   lowers both the application and NDK platform floor to API 30, retains
   explicit UTF-8 form encoding through the older `URLEncoder` overload, and
   leaves the shared Rust engine and iOS app unchanged.
-- AndroidX Activity, Core, and WebKit are pinned to their stable lines. The Gradle lock resolves Core to the same declared `1.18.0` version instead of relying on Activity's transitive upgrade.
-- Gradle is pinned to the current `9.6.1` stable patch release, with both distribution and wrapper-JAR checksums verified. AGP is pinned to the current `9.2.1` stable patch release.
+- AndroidX Activity, Core, and WebKit are pinned to their stable lines. The Gradle lock resolves Core to the same declared `1.19.0` version instead of relying on Activity's transitive upgrade.
+- Gradle is pinned to the current `9.7.1` stable patch release, with both distribution and wrapper-JAR checksums verified. AGP is pinned to the current `9.4.0` stable release.
 - AGP 9 has built-in Kotlin support, so the Android module intentionally does not apply `org.jetbrains.kotlin.android`. See https://developer.android.com/build/migrate-to-built-in-kotlin.
 - DNSSEC RSA/SHA-1 compatibility, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, RSA/SHA-256, RSA/SHA-512, Ed25519, SHA-1/SHA-256/SHA-384 DS/DNSKEY delegation-link validation, RRSIG signed-data, signed DNSKEY RRset, delegated-chain, NSEC no-data/name-range/name-error validation, RFC 5155 NSEC3 no-data/name-error/DS/wildcard/referral validation, RFC 4034 canonical RDATA name handling, and RFC 9460 SVCB/HTTPS RDATA primitives are implemented locally. Remaining DNSSEC algorithms and unknown NSEC3 hash algorithms stay fail-closed until full algorithm and advisory review is complete.
 - The wire parser expands RFC 1035-compressible CNAME, NS, and SOA names before
@@ -171,8 +171,9 @@ Notes:
   Android `flock` for shared, exclusive, nonblocking, and unlock operations.
 - The equivalent standard-library Android support was merged upstream in
   [rust-lang/rust#157038](https://github.com/rust-lang/rust/pull/157038) for
-  Rust 1.98. This project remains pinned to Rust 1.92, so the target-local shim
-  remains necessary until a separately reviewed toolchain upgrade removes it.
+  Rust 1.98. Current source is pinned to Rust 1.98.1 and uses those standard
+  `File` lock operations; the target-local shim is retained only in historical
+  release descriptions.
 - Android Proof Details now chooses HNS proof versus ICANN DNSSEC presentation
   only from Rust's outcome-consistent retained `namespaceResolution` decision.
   Native-gateway routing is deliberately not namespace evidence because every
@@ -208,4 +209,6 @@ Notes:
 - `rustls` is pinned to the stable `0.23.41` line with the `ring` provider for Android-oriented builds. `cargo search` currently advertises `0.24.0-dev.0` as latest, but this project avoids dev prereleases for transport security code.
 - `ring` is pinned to `0.17.14` and reused for DNSSEC RSA, ECDSA P-384/SHA-384, and Ed25519 verification because it is already the rustls crypto provider in this workspace.
 - `p256` is pinned to the stable `0.13.2` line because the current crates.io latest advertised by `cargo search` is a `0.14.0-rc` prerelease.
-- `rusqlite` is pinned to `0.39.0` in this workspace because `0.40.1` currently pulls a `libsqlite3-sys` build script that fails on the available Rust 1.92 toolchain with an unstable `cfg_select` feature.
+- `rusqlite` is pinned to `0.40.2` throughout the mobile, prepared wallet, and
+  publication-ready browser-adapter graph. Every shipping closure therefore
+  resolves the matching single `libsqlite3-sys 0.38.2` native link target.

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUST_TOOLCHAIN="1.92.0"
+RUST_TOOLCHAIN="1.98.1"
 MANIFEST="$ROOT_DIR/rust/Cargo.toml"
 CRATE_DIR="$ROOT_DIR/rust/crates/ios-ffi"
 HEADER="$CRATE_DIR/include/hns_browser.h"

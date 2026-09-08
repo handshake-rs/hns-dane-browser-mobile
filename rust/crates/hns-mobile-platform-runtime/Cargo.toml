@@ -33,6 +33,3 @@ rusqlite.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-
-[target.'cfg(target_os = "android")'.dependencies]
-libc.workspace = true

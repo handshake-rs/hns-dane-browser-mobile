@@ -65,7 +65,9 @@ RUST_LICENSE_FILE_FALLBACKS = {
 # texts from a checksum-verified package in the locked shipping closure.
 DECLARED_LICENSE_FILE_FALLBACKS = {
     "CC0-1.0": ("bip39", "2.2.2"),
+    "MIT": ("rusqlite", "0.40.2"),
     "MIT OR Apache-2.0": ("quinn", "0.11.11"),
+    "Zlib OR Apache-2.0 OR MIT": ("tinyvec", "1.13.2"),
 }
 
 # hex_lit 0.1.1 declares MITNFA but its registry archive and declared upstream
@@ -179,7 +181,7 @@ def check_committed_asset() -> int:
 def cargo_metadata(target: str) -> dict:
     command = [
         "cargo",
-        "+1.92.0",
+        "+1.98.1",
         "metadata",
         "--offline",
         "--locked",
@@ -485,7 +487,9 @@ def generate() -> str:
     notice_groups: dict[str, dict[str, object]] = {}
 
     def add_notice(applies_to: str, source_name: str, content: str) -> None:
-        normalized = content.replace("\r\n", "\n").strip()
+        normalized = "\n".join(
+            line.rstrip() for line in content.replace("\r\n", "\n").strip().splitlines()
+        )
         digest = sha256_bytes(normalized.encode("utf-8"))
         group = notice_groups.setdefault(
             digest,

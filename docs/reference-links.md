@@ -6,7 +6,7 @@ Paste-ready research and implementation checklist for an Android WebView-based H
 
 ## Baseline Rule
 
-Before coding, re-check every “latest” package/API link. As of 2026-07-10, the configured Android build uses stable AndroidX Activity 1.13.0, Core 1.18.0, WebKit 1.16.0, AGP 9.2.1, and Gradle 9.6.1. Research links for optional or future components are not claims that those components are currently used.
+Before coding, re-check every “latest” package/API link. As of 2026-09-07, the configured Android build uses stable AndroidX Activity 1.13.0, Core 1.19.0, WebKit 1.17.0, AGP 9.4.0, and Gradle 9.7.1. Research links for optional or future components are not claims that those components are currently used.
 
 ## Android Browser Shell
 
