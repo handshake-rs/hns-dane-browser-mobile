@@ -1151,6 +1151,15 @@ class WalletActivity : ComponentActivity() {
                 }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = uiDp(8)
                 })
+                addView(dashboardActionButton("", secondary = true) {
+                    scanHandshakePaymentQr()
+                }.apply {
+                    contentDescription = getString(R.string.wallet_scan_payment_qr)
+                    setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_camera, 0, 0, 0)
+                    compoundDrawablesRelative.firstOrNull()?.setTint(themeColors().secondaryAction)
+                }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    leftMargin = uiDp(8)
+                })
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_sync)) {
                     synchronizeWalletReads()
                 }.disabledWhenWalletHandoff(!actionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
@@ -1183,36 +1192,43 @@ class WalletActivity : ComponentActivity() {
             summary = if (locked) getString(R.string.wallet_dashboard_locked_short)
             else getString(R.string.wallet_dashboard_unlocked_short),
         ) { showWalletDetails() }.disabledWhenWalletHandoff(!actionsAvailable)
+        if (locked) {
+            dashboardContent.addView(
+                walletTile,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = uiDp(8) },
+            )
+            return
+        }
         dashboardContent.addView(walletTileRow(
             dashboardTile(
                 title = getString(R.string.wallet_dashboard_names),
-                summary = if (locked) getString(R.string.wallet_dashboard_locked_short)
-                else namesSummary(),
+                summary = namesSummary(),
             ) { showNamesDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
             walletTile,
         ))
-        if (!locked) {
-            val bitcoinTile = dashboardTile(
-                title = getString(R.string.wallet_dashboard_bitcoin),
-                summary = bitcoinSummary(),
-            ) { showBitcoinDashboard() }.disabledWhenWalletHandoff(!actionsAvailable)
-            if (SHOW_SHAKEDEX_WALLET_CARD) {
-                dashboardContent.addView(walletTileRow(
-                    bitcoinTile,
-                    dashboardTile(
-                        title = getString(R.string.wallet_dashboard_shakedex),
-                        summary = shakedexSummary(),
-                    ) { showShakedexDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
-                ))
-            } else {
-                dashboardContent.addView(
-                    bitcoinTile,
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { bottomMargin = uiDp(8) },
-                )
-            }
+        val bitcoinTile = dashboardTile(
+            title = getString(R.string.wallet_dashboard_bitcoin),
+            summary = bitcoinSummary(),
+        ) { showBitcoinDashboard() }.disabledWhenWalletHandoff(!actionsAvailable)
+        if (SHOW_SHAKEDEX_WALLET_CARD) {
+            dashboardContent.addView(walletTileRow(
+                bitcoinTile,
+                dashboardTile(
+                    title = getString(R.string.wallet_dashboard_shakedex),
+                    summary = shakedexSummary(),
+                ) { showShakedexDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
+            ))
+        } else {
+            dashboardContent.addView(
+                bitcoinTile,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = uiDp(8) },
+            )
         }
     }
 

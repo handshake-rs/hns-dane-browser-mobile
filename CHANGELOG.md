@@ -19,6 +19,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Align the next-release Android wallet surface with iOS: both locked
+  dashboards expose only wallet management, and both unlocked HNS balance
+  cards provide direct payment-QR scanning beside Receive, Send, and Sync.
+  The release boundary check now also prevents the hidden Shakedex card gate
+  from diverging between platforms.
+
 ## 1.0.5 - 2026-09-05
 
 Android `1.0.5` / code `57` and iOS `1.0.5` / build `66` are the current store

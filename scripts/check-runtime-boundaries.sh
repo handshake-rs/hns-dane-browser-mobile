@@ -159,6 +159,22 @@ ios_wallet_controller="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletViewController.
 ios_header_bootstrapper="$ROOT_DIR/ios/HnsDaneBrowser/Core/HeaderSnapshotBootstrapper.swift"
 ios_wallet_protocol="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletProviderProtocol.swift"
 
+android_shakedex_wallet_card_gate="$(sed -n \
+  's/^private const val SHOW_SHAKEDEX_WALLET_CARD = \(true\|false\)$/\1/p' \
+  "$android_wallet_activity")"
+ios_shakedex_wallet_card_gate="$(sed -n \
+  's/^private let showShakedexWalletCard = \(true\|false\)$/\1/p' \
+  "$ios_wallet_controller")"
+if [[ -z "$android_shakedex_wallet_card_gate" || -z "$ios_shakedex_wallet_card_gate" ||
+  "$android_shakedex_wallet_card_gate" != "$ios_shakedex_wallet_card_gate" ]]; then
+  echo "ERROR: Android and iOS must use the same next-release Shakedex wallet-card gate." >&2
+  exit 1
+fi
+if [[ "$android_shakedex_wallet_card_gate" != "false" ]]; then
+  echo "ERROR: the next release must keep the Shakedex wallet card hidden on both platforms." >&2
+  exit 1
+fi
+
 require_source_contains "$android_trace" \
   'optJSONObject("namespaceResolution")' \
   "Android WebPKI fallback must read the retained namespace-resolution decision."
