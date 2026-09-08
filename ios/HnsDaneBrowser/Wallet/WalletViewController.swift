@@ -619,8 +619,6 @@ final class WalletViewController: UIViewController {
                 hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
             )
         )
-        receive.configuration?.image = UIImage(systemName: "qrcode")
-        receive.configuration?.imagePadding = 5
         let send = dashboardButton(
             title: "Send",
             action: #selector(showHnsSendForm),
@@ -630,19 +628,6 @@ final class WalletViewController: UIViewController {
                 hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
             )
         )
-        send.configuration?.image = UIImage(systemName: "qrcode")
-        send.configuration?.imagePadding = 5
-        let scan = dashboardButton(
-            title: "",
-            action: #selector(scanHandshakePaymentQr),
-            accent: .systemIndigo,
-            enabled: walletHnsPaymentActionsAvailable(
-                baseAvailable: synchronizedReadsAvailable && directHnsValueAvailable && !isOperating,
-                hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
-            )
-        )
-        scan.configuration?.image = UIImage(systemName: "camera.viewfinder")
-        scan.accessibilityLabel = "Scan Handshake payment QR code"
         let sync = dashboardButton(
             title: "Sync",
             action: #selector(synchronizeWalletReadsFromUserAction),
@@ -650,7 +635,7 @@ final class WalletViewController: UIViewController {
         )
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "HNS balance",
-            body: [balanceLabel, dashboardButtonRow([receive, send, scan, sync])],
+            body: [balanceLabel, dashboardButtonRow([receive, send, sync])],
             accent: .systemCyan
         ))
 
@@ -1692,6 +1677,14 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let offers) where offers.isEmpty:
                     self.bitcoinStatusLabel.text = "There are no available counterparty offers."
+                    self.presentWalletMenu(
+                        title: "Available BTC/HNS swap offers",
+                        rows: [WalletMenuRow(
+                            title: "No offers available",
+                            detail: "No active authenticated offers from another connected swap peer have been received yet."
+                        )],
+                        actions: []
+                    )
                 case .success(let offers):
                     self.presentWalletMenu(
                         title: "Available direct offers",
@@ -2383,6 +2376,19 @@ final class WalletViewController: UIViewController {
             field.isSecureTextEntry = false
             field.accessibilityIdentifier = "wallet.send.recipient"
             field.text = prefill?.address
+            let scanButton = UIButton(type: .system)
+            scanButton.frame = CGRect(x: 0, y: 0, width: 36, height: 36)
+            scanButton.setImage(UIImage(systemName: "qrcode.viewfinder"), for: .normal)
+            scanButton.accessibilityLabel = "Scan Handshake payment QR code"
+            scanButton.addAction(UIAction { [weak self, weak alert] _ in
+                guard let self, let alert else { return }
+                self.clearHnsSendForm(alert)
+                alert.dismiss(animated: true) { [weak self] in
+                    self?.scanHandshakePaymentQr()
+                }
+            }, for: .touchUpInside)
+            field.rightView = scanButton
+            field.rightViewMode = .always
         }
         alert.addTextField { field in
             Self.configureSendField(
@@ -3012,10 +3018,10 @@ final class WalletViewController: UIViewController {
             actions.append(WalletMenuAction(title: "Sell HNS for BTC") { [weak self] in
                 self?.showHnsForBtcOfferForm()
             })
-            actions.append(WalletMenuAction(title: "Available direct offers") { [weak self] in
+            actions.append(WalletMenuAction(title: "Available BTC/HNS swap offers") { [weak self] in
                 self?.showAvailableDirectOffers()
             })
-            actions.append(WalletMenuAction(title: "My direct offers") { [weak self] in
+            actions.append(WalletMenuAction(title: "My active BTC/HNS swap offers") { [weak self] in
                 self?.showMyDirectOffers()
             })
         }
@@ -3028,7 +3034,7 @@ final class WalletViewController: UIViewController {
             actions.append(WalletMenuAction(title: "Create fixed-price offer") { [weak self] in self?.showCreateOfferForm() })
             actions.append(WalletMenuAction(title: "Cancel offer") { [weak self] in self?.showCancelOfferForm() })
             actions.append(WalletMenuAction(title: "Recover name from offer") { [weak self] in self?.showRecoverNameForm() })
-            actions.append(WalletMenuAction(title: "List offers") { [weak self] in self?.showListOffersForm() })
+            actions.append(WalletMenuAction(title: "List Handshake name-sale offers") { [weak self] in self?.showListOffersForm() })
             actions.append(WalletMenuAction(title: "Get session") { [weak self] in self?.showGetSessionForm() })
             actions.append(WalletMenuAction(title: "Accept offer") { [weak self] in self?.showAcceptOfferForm() })
             actions.append(WalletMenuAction(title: "Finalize purchase") { [weak self] in self?.showFinalizePurchaseForm() })
@@ -3504,7 +3510,11 @@ final class WalletViewController: UIViewController {
                 guard self.walletAuthorityRequested,
                       self.walletAuthorityGeneration == authority,
                       self.wallet.map({ ObjectIdentifier($0) }) == identity else { return }
+                let previousPeerEndpoint = self.directShakescapeStatusSnapshot?.peerEndpoint
                 self.directShakescapeStatusSnapshot = status
+                if previousPeerEndpoint != status?.peerEndpoint {
+                    self.renderWalletDashboard()
+                }
                 self.directShakescapeServiceTicks =
                     (self.directShakescapeServiceTicks + 1) % directShakescapeNetworkMaintenanceTicks
                 if self.directShakescapeServiceTicks == 0,

@@ -202,6 +202,11 @@ const ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 /// controller retirement never waits behind a long-lived peer exchange.
 const ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const ANDROID_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
+/// Reconcile the small, bounded direct-offer inventory often enough that a
+/// relay restart or a replaced primary socket cannot strand an active offer.
+/// An inventory contains only opaque offer IDs and the peer requests any
+/// missing signed records through the existing correlated exchange.
+const ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 15;
 const MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS: usize = 8;
 const MAX_ANDROID_INBOUND_NETWORK_PEERS: usize = 8;
 const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
@@ -355,6 +360,7 @@ enum AndroidWalletController {
         shakescape_reachability: Option<Box<ShakescapeReachabilityCascade>>,
         shakescape_public_endpoint: Option<SocketAddr>,
         shakescape_last_peer_maintenance_at: Option<u64>,
+        shakescape_last_offer_inventory_at: Option<u64>,
         shakescape_peer: Option<HnsDirectShakescapePeer>,
         shakescape_replication_peers: Vec<HnsDirectShakescapePeer>,
         inbound_network_peers: Vec<HnsInboundNetworkPeer>,
@@ -516,6 +522,7 @@ impl AndroidWalletController {
             shakescape_reachability,
             shakescape_public_endpoint,
             shakescape_last_peer_maintenance_at,
+            shakescape_last_offer_inventory_at,
             shakescape_peer,
             shakescape_replication_peers,
             inbound_network_peers,
@@ -527,6 +534,7 @@ impl AndroidWalletController {
             inbound_network_peers.clear();
             shakescape_public_endpoint.take();
             shakescape_last_peer_maintenance_at.take();
+            shakescape_last_offer_inventory_at.take();
             shakescape_reachability.take();
             shakescape_listener.take();
             let _ = coordinator.retire_shakescape_advertisement();
@@ -554,6 +562,7 @@ impl AndroidWalletController {
                 shakescape_reachability,
                 shakescape_public_endpoint: _,
                 shakescape_last_peer_maintenance_at: _,
+                shakescape_last_offer_inventory_at: _,
                 shakescape_peer,
                 shakescape_replication_peers,
                 inbound_network_peers,
@@ -797,6 +806,7 @@ impl AndroidWalletController {
                     shakescape_reachability: None,
                     shakescape_public_endpoint: None,
                     shakescape_last_peer_maintenance_at: None,
+                    shakescape_last_offer_inventory_at: None,
                     shakescape_peer: None,
                     shakescape_replication_peers: Vec::new(),
                     inbound_network_peers: Vec::new(),
@@ -1035,6 +1045,7 @@ impl AndroidWalletController {
         let Self::DirectValue {
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -1045,9 +1056,10 @@ impl AndroidWalletController {
             .approve_btc_for_hns_offer(action_token, now_unix)
             .ok()?;
         if let Some(peer) = shakescape_peer.as_mut() {
-            shakescape_sessions
-                .announce_direct_offer_inventory(peer, now_unix)
-                .ok()?;
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
+        }
+        for peer in shakescape_replication_peers {
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
         }
         let mut json = serde_json::to_vec(&summary).ok()?;
         let bundle = bitcoin_json_bundle(json.as_slice());
@@ -1059,6 +1071,7 @@ impl AndroidWalletController {
         let Self::DirectValue {
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -1069,9 +1082,10 @@ impl AndroidWalletController {
             .approve_hns_for_btc_offer(action_token, now_unix)
             .ok()?;
         if let Some(peer) = shakescape_peer.as_mut() {
-            shakescape_sessions
-                .announce_direct_offer_inventory(peer, now_unix)
-                .ok()?;
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
+        }
+        for peer in shakescape_replication_peers {
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
         }
         let mut json = serde_json::to_vec(&summary).ok()?;
         let bundle = bitcoin_json_bundle(json.as_slice());
@@ -1697,6 +1711,7 @@ impl AndroidWalletController {
             shakescape_reachability,
             shakescape_public_endpoint,
             shakescape_last_peer_maintenance_at,
+            shakescape_last_offer_inventory_at,
             shakescape_peer,
             shakescape_replication_peers,
             inbound_network_peers,
@@ -1736,6 +1751,34 @@ impl AndroidWalletController {
                 Err(error) => android_log_error(&format!(
                     "wallet-owned stock-HSD peer maintenance was unavailable: {error}"
                 )),
+            }
+        }
+        if shakescape_last_offer_inventory_at.is_none_or(|last| {
+            now_unix >= last.saturating_add(ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS)
+        }) {
+            *shakescape_last_offer_inventory_at = Some(now_unix);
+            let mut announced = 0usize;
+            if let Some(peer) = shakescape_peer.as_mut() {
+                if shakescape_sessions
+                    .announce_direct_offer_inventory(peer, now_unix)
+                    .is_ok()
+                {
+                    announced = announced.saturating_add(1);
+                }
+            }
+            for peer in shakescape_replication_peers.iter_mut() {
+                if shakescape_sessions
+                    .announce_direct_offer_inventory(peer, now_unix)
+                    .is_ok()
+                {
+                    announced = announced.saturating_add(1);
+                }
+            }
+            if announced != 0 {
+                android_log_info(
+                    "hns-shakescape",
+                    &format!("reconciled direct-offer inventory with {announced} board peers"),
+                );
             }
         }
         let automatic_endpoint = shakescape_reachability
@@ -1785,7 +1828,9 @@ impl AndroidWalletController {
         }
         if let Some(peer) = shakescape_peer.as_mut() {
             let mut board_changed = false;
-            let accepted = match peer.try_receive_shakescape_message(now_unix) {
+            let accepted = match peer
+                .try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix)
+            {
                 Ok(None) => None,
                 Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                     request_id,
@@ -1827,7 +1872,9 @@ impl AndroidWalletController {
             let mut board_changed = false;
             let accepted = {
                 let peer = &mut shakescape_replication_peers[replication_index];
-                match peer.try_receive_shakescape_message(now_unix) {
+                match peer
+                    .try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix)
+                {
                     Ok(None) => None,
                     Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                         request_id,

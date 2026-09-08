@@ -185,6 +185,7 @@ const WALLET_HNS_SYNC_FINALIZING: u8 = 4;
 const IOS_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 const IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const IOS_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
+const IOS_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 15;
 const MAX_IOS_DIRECT_SHAKESCAPE_PEERS: usize = 8;
 const MAX_IOS_INBOUND_NETWORK_PEERS: usize = 8;
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
@@ -793,6 +794,7 @@ enum NativeWalletController {
         shakescape_reachability: Option<Box<ShakescapeReachabilityCascade>>,
         shakescape_public_endpoint: Option<SocketAddr>,
         shakescape_last_peer_maintenance_at: Option<u64>,
+        shakescape_last_offer_inventory_at: Option<u64>,
         shakescape_peer: Option<HnsDirectShakescapePeer>,
         shakescape_replication_peers: Vec<HnsDirectShakescapePeer>,
         inbound_network_peers: Vec<HnsInboundNetworkPeer>,
@@ -876,6 +878,7 @@ impl NativeWalletController {
                 shakescape_reachability,
                 shakescape_public_endpoint,
                 shakescape_last_peer_maintenance_at,
+                shakescape_last_offer_inventory_at,
                 shakescape_peer,
                 shakescape_replication_peers,
                 inbound_network_peers,
@@ -888,6 +891,7 @@ impl NativeWalletController {
                     shakescape_reachability,
                     shakescape_public_endpoint,
                     shakescape_last_peer_maintenance_at,
+                    shakescape_last_offer_inventory_at,
                     shakescape_peer,
                     shakescape_replication_peers,
                     inbound_network_peers,
@@ -1021,6 +1025,7 @@ impl NativeWalletController {
             shakescape_reachability: None,
             shakescape_public_endpoint: None,
             shakescape_last_peer_maintenance_at: None,
+            shakescape_last_offer_inventory_at: None,
             shakescape_peer: None,
             shakescape_replication_peers: Vec::new(),
             inbound_network_peers: Vec::new(),
@@ -1083,6 +1088,7 @@ impl NativeWalletController {
             shakescape_reachability,
             shakescape_public_endpoint,
             shakescape_last_peer_maintenance_at,
+            shakescape_last_offer_inventory_at,
             shakescape_peer,
             shakescape_replication_peers,
             inbound_network_peers,
@@ -1094,6 +1100,7 @@ impl NativeWalletController {
             inbound_network_peers.clear();
             shakescape_public_endpoint.take();
             shakescape_last_peer_maintenance_at.take();
+            shakescape_last_offer_inventory_at.take();
             shakescape_reachability.take();
             shakescape_listener.take();
             let _ = coordinator.retire_shakescape_advertisement();
@@ -1113,6 +1120,7 @@ impl NativeWalletController {
                 shakescape_reachability,
                 shakescape_public_endpoint: _,
                 shakescape_last_peer_maintenance_at: _,
+                shakescape_last_offer_inventory_at: _,
                 shakescape_peer,
                 shakescape_replication_peers,
                 inbound_network_peers,
@@ -1255,6 +1263,7 @@ impl NativeWalletController {
         let Self::DirectHnsValue {
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -1263,7 +1272,10 @@ impl NativeWalletController {
         let now_unix = HnsReadSystemClock.now_unix()?;
         let summary = shakescape_sessions.approve_btc_for_hns_offer(action_token, now_unix)?;
         if let Some(peer) = shakescape_peer.as_mut() {
-            shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)?;
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
+        }
+        for peer in shakescape_replication_peers {
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
         }
         Ok(summary)
     }
@@ -1275,6 +1287,7 @@ impl NativeWalletController {
         let Self::DirectHnsValue {
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -1283,7 +1296,10 @@ impl NativeWalletController {
         let now_unix = HnsReadSystemClock.now_unix()?;
         let summary = shakescape_sessions.approve_hns_for_btc_offer(action_token, now_unix)?;
         if let Some(peer) = shakescape_peer.as_mut() {
-            shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)?;
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
+        }
+        for peer in shakescape_replication_peers {
+            let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
         }
         Ok(summary)
     }
@@ -1731,6 +1747,7 @@ impl NativeWalletController {
             shakescape_reachability,
             shakescape_public_endpoint,
             shakescape_last_peer_maintenance_at,
+            shakescape_last_offer_inventory_at,
             shakescape_peer,
             shakescape_replication_peers,
             inbound_network_peers,
@@ -1754,6 +1771,17 @@ impl NativeWalletController {
         if peer_maintenance_due {
             *shakescape_last_peer_maintenance_at = Some(now_unix);
             let _ = coordinator.connect_available(now_unix);
+        }
+        if shakescape_last_offer_inventory_at.is_none_or(|last| {
+            now_unix >= last.saturating_add(IOS_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS)
+        }) {
+            *shakescape_last_offer_inventory_at = Some(now_unix);
+            if let Some(peer) = shakescape_peer.as_mut() {
+                let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
+            }
+            for peer in shakescape_replication_peers.iter_mut() {
+                let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
+            }
         }
         let automatic_endpoint = shakescape_reachability
             .as_mut()
@@ -1792,7 +1820,9 @@ impl NativeWalletController {
         }
         if let Some(peer) = shakescape_peer.as_mut() {
             let mut board_changed = false;
-            let accepted = match peer.try_receive_shakescape_message(now_unix) {
+            let accepted = match peer
+                .try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix)
+            {
                 Ok(None) => None,
                 Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                     request_id,
@@ -1829,7 +1859,9 @@ impl NativeWalletController {
             let mut board_changed = false;
             let accepted = {
                 let peer = &mut shakescape_replication_peers[replication_index];
-                match peer.try_receive_shakescape_message(now_unix) {
+                match peer
+                    .try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix)
+                {
                     Ok(None) => None,
                     Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                         request_id,

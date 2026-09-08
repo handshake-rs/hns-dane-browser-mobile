@@ -13,6 +13,16 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
+    fun transient_native_status_contention_waits_without_retiring_the_board_worker() {
+        assertEquals(false, walletDirectShakescapeWorkerMustStop(null))
+        assertEquals(false, walletDirectShakescapeWorkerMayService(null))
+        assertEquals(false, walletDirectShakescapeWorkerMustStop(false))
+        assertEquals(true, walletDirectShakescapeWorkerMayService(false))
+        assertEquals(true, walletDirectShakescapeWorkerMustStop(true))
+        assertEquals(false, walletDirectShakescapeWorkerMayService(true))
+    }
+
+    @Test
     fun wallet_pull_to_sync_requires_an_unobscured_window() {
         assertTrue(walletPullToSyncMayStart(windowHasFocus = true, knownDialogVisible = false))
         assertEquals(

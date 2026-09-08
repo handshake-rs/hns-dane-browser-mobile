@@ -301,6 +301,7 @@ class WalletActivity : ComponentActivity() {
     private var pendingOutgoingSnapshotHeight: Long? = null
     private var pendingOutgoingRefreshAttemptedHeight: Long? = null
     private var latestObservedBrowserHeaderHeight: Long? = null
+    private var directShakescapePeerEndpoint: String? = null
     private var pendingQrBitmap: Bitmap? = null
     private var displayedLiveHnsSyncStage: NativeWalletHnsLiveSyncProgress.Stage? = null
     private var displayedLiveHnsSyncStageSinceMillis = 0L
@@ -1152,26 +1153,9 @@ class WalletActivity : ComponentActivity() {
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_receive)) {
                     showReceiveWalletDialog()
-                }.apply {
-                    setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_qr_code, 0, 0, 0)
-                    compoundDrawablePadding = uiDp(5)
-                    compoundDrawablesRelative.firstOrNull()?.setTint(themeColors().action)
                 }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_send), secondary = true) {
                     showHnsSendDialog()
-                }.apply {
-                    setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_qr_code, 0, 0, 0)
-                    compoundDrawablePadding = uiDp(5)
-                    compoundDrawablesRelative.firstOrNull()?.setTint(themeColors().secondaryAction)
-                }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                    leftMargin = uiDp(8)
-                })
-                addView(dashboardActionButton("", secondary = true) {
-                    scanHandshakePaymentQr()
-                }.apply {
-                    contentDescription = getString(R.string.wallet_scan_payment_qr)
-                    setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_camera, 0, 0, 0)
-                    compoundDrawablesRelative.firstOrNull()?.setTint(themeColors().secondaryAction)
                 }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = uiDp(8)
                 })
@@ -1280,7 +1264,7 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun shakedexSummary(): String =
-        if (NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)?.peerEndpoint != null) {
+        if (directShakescapePeerEndpoint != null) {
             getString(R.string.wallet_dashboard_connected)
         } else {
             getString(R.string.wallet_dashboard_not_connected)
@@ -2357,17 +2341,17 @@ class WalletActivity : ComponentActivity() {
         val transport = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
         val transportControls = directShakescapeControls(transport)
         val actions = mutableListOf<Pair<String, () -> Unit>>(
+            getString(R.string.wallet_swap_sell_btc) to ::showBtcForHnsOfferForm,
+            getString(R.string.wallet_swap_sell_hns) to ::showHnsForBtcOfferForm,
+            getString(R.string.wallet_swap_available_offers) to ::showAvailableDirectOffers,
+            getString(R.string.wallet_swap_my_offers) to ::showMyDirectOffers,
+            getString(R.string.wallet_swap_executions) to ::showShakescapeExecutions,
             getString(R.string.row_wallet_create_offer) to ::showCreateOfferForm,
             getString(R.string.row_wallet_cancel_offer) to ::showCancelOfferForm,
             getString(R.string.row_wallet_recover_name) to ::showRecoverNameForm,
             getString(R.string.row_wallet_list_offers) to ::showListOffersForm,
             getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
             getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
-            getString(R.string.wallet_swap_sell_btc) to ::showBtcForHnsOfferForm,
-            getString(R.string.wallet_swap_sell_hns) to ::showHnsForBtcOfferForm,
-            getString(R.string.wallet_swap_available_offers) to ::showAvailableDirectOffers,
-            getString(R.string.wallet_swap_my_offers) to ::showMyDirectOffers,
-            getString(R.string.wallet_swap_executions) to ::showShakescapeExecutions,
             getString(R.string.row_wallet_pair_direct_shakescape) to ::showPairDirectShakescapeForm,
             getString(R.string.row_wallet_get_session) to ::showGetSessionForm,
         ).apply {
@@ -3214,8 +3198,7 @@ class WalletActivity : ComponentActivity() {
                 var installedRouterRoute: Pair<String, String>? = null
                 var routerRouteInitialized = false
                 while (
-                    walletSessionIsActive() && operationIsCurrent(epoch, lease) && walletHandle == handle &&
-                        (NativeWalletBridge.status(handle)?.locked == false)
+                    walletSessionIsActive() && operationIsCurrent(epoch, lease) && walletHandle == handle
                 ) {
                     // The HNS synchronization call and ShakeScape service
                     // share one native controller exclusion domain. Yield as
@@ -3226,6 +3209,18 @@ class WalletActivity : ComponentActivity() {
                     if (busy || walletHnsSyncInProgress) {
                         Thread.sleep(DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS)
                         continue
+                    }
+                    // `status()` is deliberately non-blocking. Contention is
+                    // a temporary scheduling result, not evidence that this
+                    // worker or wallet session ended. Only an affirmative
+                    // native lock observation may stop the active worker.
+                    val nativeLocked = NativeWalletBridge.status(handle)?.locked
+                    when {
+                        walletDirectShakescapeWorkerMustStop(nativeLocked) -> break
+                        !walletDirectShakescapeWorkerMayService(nativeLocked) -> {
+                            Thread.sleep(DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS)
+                            continue
+                        }
                     }
                     if (
                         !routerRouteInitialized ||
@@ -3249,7 +3244,9 @@ class WalletActivity : ComponentActivity() {
                                 directShakescapeWorkerHandle == handle &&
                                     operationIsCurrent(epoch, lease) && walletHandle == handle
                             ) {
-                                refreshDirectShakescapeStatus()
+                                if (refreshDirectShakescapeStatus()) {
+                                    renderWalletDashboard()
+                                }
                             }
                         }
                     }
@@ -4082,8 +4079,15 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
-    private fun refreshDirectShakescapeStatus() {
+    /** Refresh live transport state and report whether the dashboard's peer
+     * projection changed. Historical pairing text is never connection proof. */
+    private fun refreshDirectShakescapeStatus(): Boolean {
         val status = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
+        val previousPeerEndpoint = directShakescapePeerEndpoint
+        directShakescapePeerEndpoint = status?.peerEndpoint
+        if (previousPeerEndpoint != null && directShakescapePeerEndpoint == null) {
+            shakedexQueryStatusView.text = getString(R.string.wallet_direct_shakescape_no_peer)
+        }
         val reachability = status?.let { current ->
             when {
                 current.advertised -> getString(
@@ -4146,6 +4150,7 @@ class WalletActivity : ComponentActivity() {
                 reachability,
             )
         }
+        return previousPeerEndpoint != directShakescapePeerEndpoint
     }
 
     private fun renderBitcoinSnapshot(snapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot) {
@@ -4530,8 +4535,18 @@ class WalletActivity : ComponentActivity() {
                 if (walletHandle != handle) return@runOnUiThread
                 if (offers == null) {
                     bitcoinStatusView.text = getString(R.string.wallet_swap_available_failed)
+                    walletAlertDialogBuilder()
+                        .setTitle(R.string.wallet_swap_available_offers)
+                        .setMessage(R.string.wallet_swap_available_failed)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
                 } else if (offers.isEmpty()) {
                     bitcoinStatusView.text = getString(R.string.wallet_swap_no_available_offers)
+                    walletAlertDialogBuilder()
+                        .setTitle(R.string.wallet_swap_available_offers)
+                        .setMessage(R.string.wallet_swap_no_available_offers)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
                 } else {
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_available_offers)
@@ -8484,6 +8499,12 @@ internal fun estimateBitcoinSyncRemainingMillis(
 
 internal fun walletBitcoinOperationMayStart(bitcoinSyncInProgress: Boolean): Boolean =
     !bitcoinSyncInProgress
+
+internal fun walletDirectShakescapeWorkerMustStop(nativeLocked: Boolean?): Boolean =
+    nativeLocked == true
+
+internal fun walletDirectShakescapeWorkerMayService(nativeLocked: Boolean?): Boolean =
+    nativeLocked == false
 
 internal fun walletPullToSyncMayStart(
     windowHasFocus: Boolean,
