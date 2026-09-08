@@ -145,6 +145,8 @@ import java.io.Closeable
 import java.security.SecureRandom
 import java.text.DateFormat
 import java.util.Date
+import java.util.Collections
+import java.util.WeakHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.math.ceil
@@ -284,6 +286,12 @@ class WalletActivity : ComponentActivity() {
     private var walletDeletionDialog: AlertDialog? = null
     private var sendFormDialog: AlertDialog? = null
     private var sendApprovalDialog: AlertDialog? = null
+    // Every wallet-owned AlertDialog is registered weakly at the shared
+    // builder boundary. A confirmed lock dismisses all of them, including
+    // Bitcoin/Shakedex sheets that are otherwise unrelated to the explicit
+    // send/value approval fields below.
+    private val walletPopupDialogs: MutableSet<AlertDialog> =
+        Collections.newSetFromMap(WeakHashMap())
     private var pendingSendApproval: NativeHnsSendApproval? = null
     private var valueApprovalDialog: AlertDialog? = null
     private var pendingValueApproval: NativeHnsValueApproval? = null
@@ -656,6 +664,7 @@ class WalletActivity : ComponentActivity() {
         walletUnlockAuthenticationGranted = false
         walletNameImportInProgressCount = 0
         cachedHnsSyncPresentationWatcher?.set(false)
+        dismissWalletPopupsForLock()
         if (retainInAppSession) {
             // Android calls the departing Activity's onStop before it reports
             // whether the process has actually gone background. Preserve the
@@ -2414,6 +2423,7 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun frameWalletPopup(dialog: AlertDialog): AlertDialog = dialog.apply {
+        walletPopupDialogs.add(dialog)
         window?.setBackgroundDrawable(
             settingsSurfaceDrawable(
                 accent = themeColors().secondaryAction,
@@ -2421,6 +2431,25 @@ class WalletActivity : ComponentActivity() {
                 cornerRadius = 24,
             ),
         )
+    }
+
+    /** A locked native wallet must never remain visually covered by wallet data. */
+    private fun dismissWalletPopupsForLock() {
+        // Detach approval listeners before the general sweep. Native lock or
+        // controller retirement already invalidates their one-time tokens;
+        // dismissing UI must not start a competing rejection operation.
+        dismissSendApproval(rejectNative = false)
+        dismissValueApproval(rejectNative = false)
+        val dialogs = walletPopupDialogs.toList()
+        walletPopupDialogs.clear()
+        dialogs.forEach { dialog ->
+            if (dialog.isShowing) dialog.dismiss()
+        }
+        // Drop strong references held for specialized cleanup paths as well.
+        walletDeletionDialog = null
+        sendFormDialog = null
+        clearNameImportInput()
+        clearSendInputs()
     }
 
     private fun showWalletFormDialog(
@@ -3158,6 +3187,7 @@ class WalletActivity : ComponentActivity() {
             handle == INVALID_HANDLE ||
             !beginOperation(lease, getString(R.string.wallet_status_locking))
         ) return
+        dismissWalletPopupsForLock()
         val epoch = lifecycleEpoch
         thread(name = "hns-wallet-lock") {
             val locked = NativeWalletBridge.lock(handle)
@@ -6937,6 +6967,7 @@ class WalletActivity : ComponentActivity() {
             return
         }
         if (status.locked) {
+            dismissWalletPopupsForLock()
             walletHnsJourney.walletLocked()
             localPaymentReceiveTarget = null
             statusView.text = getString(R.string.wallet_status_locked)

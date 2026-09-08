@@ -209,6 +209,16 @@ const ANDROID_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
 const ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 15;
 const MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS: usize = 8;
 const MAX_ANDROID_INBOUND_NETWORK_PEERS: usize = 8;
+
+/// Keep the first live board transport in the canonical request/reply slot.
+/// A failed primary must not make signing actions report "not connected"
+/// while an authenticated replication connection is still operational.
+fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut Vec<T>) -> bool {
+    if primary.is_none() && !replicas.is_empty() {
+        *primary = Some(replicas.swap_remove(0));
+    }
+    primary.is_some()
+}
 const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
@@ -1163,25 +1173,54 @@ impl AndroidWalletController {
             controller,
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
             return None;
         };
-        if shakescape_peer.is_none() {
+        if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
+            android_log_error("direct-offer take preparation has no authenticated board peer");
             return None;
         }
-        let confirmed_hns_dollarydoos =
-            u64::try_from(controller.synchronize().ok()?.balance.base_units.get()).ok()?;
-        let approval = shakescape_sessions
-            .prepare_direct_offer_take(
-                offer_id,
-                confirmed_btc_sats,
-                confirmed_hns_dollarydoos,
-                received_fee_reserve,
-                HnsReadSystemClock.now_unix().ok()?,
-            )
-            .ok()?;
+        let synchronized = match controller.synchronize() {
+            Ok(synchronized) => synchronized,
+            Err(error) => {
+                android_log_error(&format!(
+                    "direct-offer take HNS synchronization failed: {error}"
+                ));
+                return None;
+            }
+        };
+        let confirmed_hns_dollarydoos = match u64::try_from(synchronized.balance.base_units.get()) {
+            Ok(balance) => balance,
+            Err(_) => {
+                android_log_error("direct-offer take HNS balance is outside the supported range");
+                return None;
+            }
+        };
+        let now_unix = match HnsReadSystemClock.now_unix() {
+            Ok(now_unix) => now_unix,
+            Err(error) => {
+                android_log_error(&format!("direct-offer take clock failed: {error}"));
+                return None;
+            }
+        };
+        let approval = match shakescape_sessions.prepare_direct_offer_take(
+            offer_id,
+            confirmed_btc_sats,
+            confirmed_hns_dollarydoos,
+            received_fee_reserve,
+            now_unix,
+        ) {
+            Ok(approval) => approval,
+            Err(error) => {
+                android_log_error(&format!(
+                    "direct-offer take policy rejected preparation: {error}; confirmed_btc_sats={confirmed_btc_sats} confirmed_hns_dollarydoos={confirmed_hns_dollarydoos} received_fee_reserve={received_fee_reserve}"
+                ));
+                return None;
+            }
+        };
         let mut json = serde_json::to_vec(&approval).ok()?;
         let bundle = bitcoin_json_bundle(json.as_slice());
         json.fill(0);
@@ -1192,18 +1231,27 @@ impl AndroidWalletController {
         let Self::DirectValue {
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
             return None;
         };
-        let summary = shakescape_sessions
-            .approve_direct_offer_take(
-                action_token,
-                shakescape_peer.as_mut()?,
-                HnsReadSystemClock.now_unix().ok()?,
-            )
-            .ok()?;
+        if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
+            android_log_error("direct-offer take approval has no authenticated board peer");
+            return None;
+        }
+        let summary = match shakescape_sessions.approve_direct_offer_take(
+            action_token,
+            shakescape_peer.as_mut()?,
+            HnsReadSystemClock.now_unix().ok()?,
+        ) {
+            Ok(summary) => summary,
+            Err(error) => {
+                android_log_error(&format!("direct-offer take approval failed: {error}"));
+                return None;
+            }
+        };
         let mut json = serde_json::to_vec(&summary).ok()?;
         let bundle = bitcoin_json_bundle(json.as_slice());
         json.fill(0);
@@ -1858,6 +1906,7 @@ impl AndroidWalletController {
             };
             if accepted == Some(false) {
                 shakescape_peer.take();
+                promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers);
             } else if accepted == Some(true) {
                 if board_changed {
                     for peer in shakescape_replication_peers.iter_mut() {
@@ -9441,5 +9490,23 @@ mod tests {
         for invalid in ["", ".", "-welcome", "welcome-", "wel_come", "a..b"] {
             assert!(canonical_proxy_status_host(invalid).is_none(), "{invalid}");
         }
+    }
+
+    #[test]
+    fn surviving_board_replica_is_promoted_to_primary() {
+        let mut primary = None;
+        let mut replicas = vec![7_u8, 9_u8];
+        assert!(promote_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas
+        ));
+        assert_eq!(primary, Some(7));
+        assert_eq!(replicas, vec![9]);
+        assert!(promote_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas
+        ));
+        assert_eq!(primary, Some(7));
+        assert_eq!(replicas, vec![9]);
     }
 }

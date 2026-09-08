@@ -188,6 +188,15 @@ const IOS_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
 const IOS_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 15;
 const MAX_IOS_DIRECT_SHAKESCAPE_PEERS: usize = 8;
 const MAX_IOS_INBOUND_NETWORK_PEERS: usize = 8;
+
+/// Keep an authenticated surviving board connection in the canonical
+/// request/reply slot when the former primary transport is lost.
+fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut Vec<T>) -> bool {
+    if primary.is_none() && !replicas.is_empty() {
+        *primary = Some(replicas.swap_remove(0));
+    }
+    primary.is_some()
+}
 const WALLET_RPC_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const WALLET_RPC_READ_TIMEOUT: Duration = Duration::from_secs(20);
 const WALLET_RPC_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
@@ -1362,12 +1371,13 @@ impl NativeWalletController {
             controller,
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
-        if shakescape_peer.is_none() {
+        if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
             return Err(MobileWalletError::ControllerFailed);
         }
         let confirmed_hns_dollarydoos =
@@ -1389,11 +1399,15 @@ impl NativeWalletController {
         let Self::DirectHnsValue {
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
             return Err(MobileWalletError::ControllerFailed);
         };
+        if !promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers) {
+            return Err(MobileWalletError::ControllerFailed);
+        }
         shakescape_sessions.approve_direct_offer_take(
             action_token,
             shakescape_peer
@@ -1845,6 +1859,7 @@ impl NativeWalletController {
             };
             if accepted == Some(false) {
                 shakescape_peer.take();
+                promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers);
             } else if accepted == Some(true) {
                 if board_changed {
                     for peer in shakescape_replication_peers.iter_mut() {
@@ -9024,5 +9039,17 @@ mod tests {
             u32::from_be_bytes([bundle.0[8], bundle.0[9], bundle.0[10], bundle.0[11]]) as usize,
             bundle.0.len() - WALLET_JSON_BUNDLE_HEADER_BYTES
         );
+    }
+
+    #[test]
+    fn surviving_board_replica_is_promoted_to_primary() {
+        let mut primary = None;
+        let mut replicas = vec![7_u8, 9_u8];
+        assert!(promote_direct_shakescape_primary(
+            &mut primary,
+            &mut replicas
+        ));
+        assert_eq!(primary, Some(7));
+        assert_eq!(replicas, vec![9]);
     }
 }

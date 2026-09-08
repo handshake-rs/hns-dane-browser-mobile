@@ -4086,11 +4086,18 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func lockWallet() {
+        dismissWalletPopupForLock()
         performWalletOperation {
             guard let wallet, unconfirmedDatabaseKey == nil else { return }
             try wallet.lock()
             clearRecoveryDisplay()
         }
+    }
+
+    /// No wallet-owned sheet may remain visible after signing authority locks.
+    /// This includes Bitcoin and Shakedex menus as well as approval alerts.
+    private func dismissWalletPopupForLock() {
+        presentedViewController?.dismiss(animated: false)
     }
 
     @objc private func confirmRecoverySaved() {
@@ -5533,6 +5540,7 @@ final class WalletViewController: UIViewController {
             shakedexAvailable = status.shakedexEnabled && !status.locked
             updateDirectShakescapeServiceTimer()
             if status.locked {
+                dismissWalletPopupForLock()
                 accountLabel.text = "Account: unlock to view the local HNS account identity."
                 setReadAvailability(false, message: hasHnsReads
                     ? "Direct HNS synchronization is configured; unlock the wallet to synchronize."
