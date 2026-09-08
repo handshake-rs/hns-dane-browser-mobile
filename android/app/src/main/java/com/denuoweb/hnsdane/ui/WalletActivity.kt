@@ -187,6 +187,14 @@ internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
 
 private const val SHOW_SHAKEDEX_WALLET_CARD = true
 
+/** Exact received-asset commitment signed by a direct-offer taker. */
+internal fun directOfferTakeRequiredFunding(receivedAmount: Long, feeReserve: Long): Long? =
+    if (receivedAmount > 0L && feeReserve > 0L) {
+        runCatching { Math.addExact(receivedAmount, feeReserve) }.getOrNull()
+    } else {
+        null
+    }
+
 /** Dedicated native controller for one complete Handshake wallet and Shakedex account. */
 class WalletActivity : ComponentActivity() {
     private lateinit var keyStore: AndroidWalletKeyStore
@@ -4478,7 +4486,7 @@ class WalletActivity : ComponentActivity() {
                 WalletActionInput(R.string.wallet_swap_btc_requested_hint, numeric = true),
                 WalletActionInput(
                     R.string.wallet_swap_hns_fee_reserve_hint,
-                    initial = DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
+                    initial = DEFAULT_HNS_MAXIMUM_FEE,
                 ),
                 WalletActionInput(
                     R.string.wallet_swap_lifetime_hours_hint,
@@ -4576,7 +4584,7 @@ class WalletActivity : ComponentActivity() {
                 else R.string.wallet_swap_take_hns_fee_reserve_hint,
                 numeric = bitcoin,
                 initial = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_MAXIMUM_FEE_SATS.toString()
-                else DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
+                else DEFAULT_HNS_MAXIMUM_FEE,
             )),
         ) { values ->
             val reserve = if (bitcoin) values.single().toLongOrNull()
@@ -4584,7 +4592,47 @@ class WalletActivity : ComponentActivity() {
             if (reserve == null || reserve <= 0L) {
                 bitcoinStatusView.text = getString(R.string.wallet_swap_take_prepare_failed)
             } else {
-                prepareDirectOfferTake(offer, reserve)
+                val available = if (bitcoin) {
+                    bitcoinSnapshot?.confirmedSats
+                } else {
+                    latestReadSnapshot
+                        ?.takeIf {
+                            latestReadSnapshotHandle == walletHandle &&
+                                latestReadSnapshotAuthorityGeneration == walletAuthorityGeneration &&
+                                latestReadSnapshotEpoch == lifecycleEpoch
+                        }
+                        ?.hnsBalanceProjection()
+                        ?.spendableBaseUnits
+                        ?.toLongOrNull()
+                }
+                val required = directOfferTakeRequiredFunding(offer.receivedAmount, reserve)
+                if (required != null && available != null && required > available) {
+                    val message = if (bitcoin) {
+                        getString(
+                            R.string.wallet_swap_take_insufficient_btc,
+                            offer.receivedAmount,
+                            reserve,
+                            required,
+                            available,
+                        )
+                    } else {
+                        getString(
+                            R.string.wallet_swap_take_insufficient_hns,
+                            formatHnsBaseUnits(offer.receivedAmount.toString()),
+                            formatHnsBaseUnits(reserve.toString()),
+                            formatHnsBaseUnits(required.toString()),
+                            formatHnsBaseUnits(available.toString()),
+                        )
+                    }
+                    bitcoinStatusView.text = message
+                    walletAlertDialogBuilder()
+                        .setTitle(R.string.wallet_swap_take_offer)
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                } else {
+                    prepareDirectOfferTake(offer, reserve)
+                }
             }
         }
     }
@@ -5185,6 +5233,8 @@ class WalletActivity : ComponentActivity() {
                             }
                             busy = false
                             bitcoinStatusView.text = getString(R.string.wallet_swap_take_prepare_failed)
+                            statusView.text = getString(R.string.wallet_status_unlocked)
+                            renderWalletDashboard()
                             releaseStorageLeaseAfterOperation(lease)
                         } else {
                             showDirectOfferTakeApproval(approval, lease, epoch)

@@ -23,6 +23,12 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
+    fun direct_offer_take_funding_includes_the_received_asset_and_fee_reserve() {
+        assertEquals(150_000L, directOfferTakeRequiredFunding(100_000L, 50_000L))
+        assertNull(directOfferTakeRequiredFunding(Long.MAX_VALUE, 1L))
+    }
+
+    @Test
     fun wallet_pull_to_sync_requires_an_unobscured_window() {
         assertTrue(walletPullToSyncMayStart(windowHasFocus = true, knownDialogVisible = false))
         assertEquals(
