@@ -68,7 +68,7 @@ final class WalletViewController: UIViewController {
     private var encryptedOrphanCleanupPending = false
     private var confirmedDeletionAccountID: String?
     private weak var restorePhraseField: UITextField?
-    private weak var walletNameImportAlert: UIAlertController?
+    private weak var walletNameImportAlert: UIViewController?
     private weak var walletNameImportField: UITextField?
     private weak var namesGalleryViewController: WalletNamesGalleryViewController?
     private weak var hnsSendFormAlert: UIAlertController?
@@ -832,44 +832,44 @@ final class WalletViewController: UIViewController {
         } else {
             activitySummary = "Synchronize Bitcoin to load recent activity."
         }
-        let alert = UIAlertController(
-            title: "Bitcoin",
-            message: "\(bitcoinStatusLabel.text ?? "Status unavailable.")\n\n\(bitcoinBalanceLabel.text ?? "Balance unavailable.")\n\n\(bitcoinReceiveLabel.text ?? "Receive address unavailable.")\n\nRecent activity\n\(activitySummary)",
-            preferredStyle: .alert
-        )
+        var actions: [WalletMenuAction] = []
         if bitcoinReceiveButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "New receive address", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.nextBitcoinReceiveAddress() }
+            actions.append(WalletMenuAction(title: "New receive address") { [weak self] in
+                self?.nextBitcoinReceiveAddress()
             })
         }
         if bitcoinSyncButton.isEnabled {
-            alert.addAction(UIAlertAction(
-                title: bitcoinSyncInProgress ? "Stop synchronization" : "Synchronize Bitcoin",
-                style: .default
-            ) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.toggleBitcoinSynchronization() }
+            actions.append(WalletMenuAction(
+                title: bitcoinSyncInProgress ? "Stop synchronization" : "Synchronize Bitcoin"
+            ) { [weak self] in
+                self?.toggleBitcoinSynchronization()
             })
         }
         if bitcoinBirthdayButton.isEnabled && !bitcoinBirthdayButton.isHidden {
-            alert.addAction(UIAlertAction(title: "Set recovery birthday", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showBitcoinBirthdayForm() }
+            actions.append(WalletMenuAction(title: "Set recovery birthday") { [weak self] in
+                self?.showBitcoinBirthdayForm()
             })
         }
         if bitcoinSendButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Send Bitcoin", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showBitcoinSendForm() }
+            actions.append(WalletMenuAction(title: "Send Bitcoin") { [weak self] in
+                self?.showBitcoinSendForm()
             })
         }
         if bitcoinSnapshot != nil {
-            alert.addAction(UIAlertAction(title: "View recent activity", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showBitcoinActivity() }
+            actions.append(WalletMenuAction(title: "View recent activity") { [weak self] in
+                self?.showBitcoinActivity()
             })
         }
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        presentWalletMenu(
+            title: "Bitcoin",
+            rows: [
+                WalletMenuRow(title: "Status", detail: bitcoinStatusLabel.text ?? "Status unavailable."),
+                WalletMenuRow(title: "Balance", detail: bitcoinBalanceLabel.text ?? "Balance unavailable."),
+                WalletMenuRow(title: "Receive address", detail: bitcoinReceiveLabel.text ?? "Receive address unavailable."),
+                WalletMenuRow(title: "Recent activity", detail: activitySummary),
+            ],
+            actions: actions
+        )
     }
 
     private func showBitcoinActivity() {
@@ -912,35 +912,34 @@ final class WalletViewController: UIViewController {
             message = "Showing Bitcoin activity \(first)–\(last) of \(pageTotal).\n\n" +
                 formatBitcoinActivity(page)
         }
-        let alert = UIAlertController(
-            title: "Bitcoin recent activity",
-            message: message,
-            preferredStyle: .alert
-        )
+        var actions: [WalletMenuAction] = []
         if bitcoinActivityPageOffset > 0 {
-            alert.addAction(UIAlertAction(title: "Previous", style: .default) { [weak self] _ in
+            actions.append(WalletMenuAction(title: "Previous") { [weak self] in
                 guard let self else { return }
                 self.bitcoinActivityPageOffset -= pageSize
-                DispatchQueue.main.async { self.showBitcoinActivity() }
+                self.showBitcoinActivity()
             })
         }
         if hasMore {
-            alert.addAction(UIAlertAction(title: "Next", style: .default) { [weak self] _ in
+            actions.append(WalletMenuAction(title: "Next") { [weak self] in
                 guard let self else { return }
                 self.bitcoinActivityPageOffset += pageSize
-                DispatchQueue.main.async { self.showBitcoinActivity() }
+                self.showBitcoinActivity()
             })
         }
         if !page.isEmpty {
-            alert.addAction(UIAlertAction(title: "Copy activity", style: .default) { _ in
+            actions.append(WalletMenuAction(title: "Copy activity") {
                 UIPasteboard.general.setItems(
                     [[UTType.plainText.identifier: message]],
                     options: [.localOnly: true]
                 )
             })
         }
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        presentWalletMenu(
+            title: "Bitcoin recent activity",
+            rows: [WalletMenuRow(title: "Transactions", detail: message)],
+            actions: actions
+        )
     }
 
     private func formatBitcoinActivity(_ activity: [NativeBitcoinActivity]) -> String {
@@ -994,20 +993,16 @@ final class WalletViewController: UIViewController {
     }
 
     private func presentBitcoinReceiveAddress(_ address: String) {
-        let alert = UIAlertController(
+        presentWalletMenu(
             title: "Receive Bitcoin",
-            message: "Bitcoin address",
-            preferredStyle: .alert
+            rows: [WalletMenuRow(title: "Bitcoin address", detail: address)],
+            actions: [WalletMenuAction(title: "Copy address") {
+                UIPasteboard.general.setItems(
+                    [[UTType.plainText.identifier: address]],
+                    options: [.localOnly: true]
+                )
+            }]
         )
-        addFittingAddress(address, label: "Bitcoin receive address", to: alert)
-        alert.addAction(UIAlertAction(title: "Copy address", style: .default) { _ in
-            UIPasteboard.general.setItems(
-                [[UTType.plainText.identifier: address]],
-                options: [.localOnly: true]
-            )
-        })
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
     }
 
     private func addFittingAddress(
@@ -1033,27 +1028,26 @@ final class WalletViewController: UIViewController {
               let bitcoinSnapshot,
               ["recoveryUnknown", "recoveryPendingValidation"]
                 .contains(bitcoinSnapshot.birthdayState) else { return }
-        let alert = UIAlertController(
+        presentWalletForm(
             title: "Set Bitcoin recovery birthday",
             message: "For a restored wallet, enter the earliest Bitcoin block that could contain activity. The request is stored now; the next Bitcoin synchronization validates its predecessor and begins recovery from the entered block. The HNS birthday is unrelated.",
-            preferredStyle: .alert
-        )
-        alert.addTextField { field in
-            field.placeholder = "Earliest possible transaction block"
-            field.keyboardType = .numberPad
-        }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Apply", style: .destructive) {
-            [weak self, weak alert, weak wallet] _ in
+            fields: [WalletSheetFormField(
+                label: "Recovery start",
+                placeholder: "Earliest possible transaction block",
+                keyboardType: .numberPad,
+                accessibilityIdentifier: "wallet.bitcoin.birthday"
+            )],
+            primaryTitle: "Apply",
+            primaryStyle: .destructive
+        ) { [weak self, weak wallet] values in
             guard let self, let wallet, self.wallet === wallet,
-                  let text = alert?.textFields?.first?.text,
+                  let text = values.first,
                   let height = UInt32(text), height > 0 else {
                 self?.showErrorMessage("Enter a nonzero Bitcoin block height.")
                 return
             }
             self.setBitcoinBirthdayHeight(height, wallet: wallet)
-        })
-        present(alert, animated: true)
+        }
     }
 
     private func setBitcoinBirthdayHeight(
@@ -1189,45 +1183,44 @@ final class WalletViewController: UIViewController {
     @objc private func showBitcoinSendForm() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress else { return }
-        let alert = UIAlertController(
+        presentWalletForm(
             title: "Send Bitcoin",
             message: "Enter a native Bitcoin address, amount in satoshis, and an absolute fee cap. The native wallet will show the exact selected fee before signing.",
-            preferredStyle: .alert
-        )
-        alert.addTextField { field in
-            field.placeholder = "Bitcoin address"
-            field.autocapitalizationType = .none
-            field.autocorrectionType = .no
-        }
-        alert.addTextField { field in
-            field.placeholder = "Amount (sats)"
-            field.keyboardType = .numberPad
-        }
-        alert.addTextField { field in
-            field.placeholder = "Maximum fee (sats)"
-            field.keyboardType = .numberPad
-        }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Review send", style: .default) {
-            [weak self, weak alert, weak wallet] _ in
+            fields: [
+                WalletSheetFormField(
+                    label: "Destination",
+                    placeholder: "Bitcoin address",
+                    accessibilityIdentifier: "wallet.bitcoin.destination"
+                ),
+                WalletSheetFormField(
+                    label: "Amount",
+                    placeholder: "Amount (sats)",
+                    keyboardType: .numberPad,
+                    accessibilityIdentifier: "wallet.bitcoin.amount"
+                ),
+                WalletSheetFormField(
+                    label: "Fee cap",
+                    placeholder: "Maximum fee (sats)",
+                    keyboardType: .numberPad,
+                    accessibilityIdentifier: "wallet.bitcoin.maximum-fee"
+                ),
+            ],
+            primaryTitle: "Review send"
+        ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet,
-                  let fields = alert?.textFields, fields.count == 3 else { return }
-            let destination = fields[0].text ?? ""
-            let amount = fields[1].text ?? ""
-            let fee = fields[2].text ?? ""
+                  fields.count == 3 else { return }
             self.authenticateWalletAction(
                 reason: "Authenticate before preparing this Bitcoin transaction"
             ) { [weak self, weak wallet] in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.prepareBitcoinSendAfterAuthentication(
                     wallet: wallet,
-                    destination: destination,
-                    amount: amount,
-                    maximumFee: fee
+                    destination: fields[0],
+                    amount: fields[1],
+                    maximumFee: fields[2]
                 )
             }
-        })
-        present(alert, animated: true)
+        }
     }
 
     private func prepareBitcoinSendAfterAuthentication(
@@ -1318,38 +1311,33 @@ final class WalletViewController: UIViewController {
     private func showBtcForHnsOfferFormAfterAuthentication() {
         guard let wallet, bitcoinValueAvailable, !bitcoinSyncInProgress,
               !bitcoinBirthdayResetInProgress, !isOperating else { return }
-        let alert = UIAlertController(
+        presentWalletForm(
             title: "Sell BTC for HNS",
             message: "Create one exact, indivisible direct-board offer. Confirmed Bitcoin must cover the principal, active offers, and the separate fee reserve.",
-            preferredStyle: .alert
-        )
-        for (placeholder, keyboard, value) in [
-            ("BTC offered (sats)", UIKeyboardType.numberPad, nil),
-            ("HNS requested", UIKeyboardType.decimalPad, nil),
-            ("Bitcoin fee reserve (sats)", UIKeyboardType.numberPad, nil),
-            ("Listing lifetime (hours, 1–168)", UIKeyboardType.numberPad, "24"),
-        ] {
-            alert.addTextField { field in
-                field.placeholder = placeholder
-                field.keyboardType = keyboard
-                field.text = value
-            }
-        }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Review offer", style: .default) {
-            [weak self, weak alert, weak wallet] _ in
+            fields: [
+                WalletSheetFormField(label: "BTC offered", placeholder: "Satoshis", keyboardType: .numberPad),
+                WalletSheetFormField(label: "HNS requested", placeholder: "HNS", keyboardType: .decimalPad),
+                WalletSheetFormField(label: "Bitcoin fee reserve", placeholder: "Satoshis", keyboardType: .numberPad),
+                WalletSheetFormField(
+                    label: "Listing lifetime",
+                    placeholder: "Hours (1–168)",
+                    keyboardType: .numberPad,
+                    initialValue: "24"
+                ),
+            ],
+            primaryTitle: "Review offer"
+        ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet,
-                  let fields = alert?.textFields, fields.count == 4,
-                  let btc = UInt64(fields[0].text ?? ""), btc > 0,
-                  let hnsText = Self.positiveHnsBaseUnits(fields[1].text ?? ""),
+                  fields.count == 4,
+                  let btc = UInt64(fields[0]), btc > 0,
+                  let hnsText = Self.positiveHnsBaseUnits(fields[1]),
                   let hns = UInt64(hnsText), hns > 0,
-                  let reserve = UInt64(fields[2].text ?? ""), reserve > 0,
-                  let hours = UInt64(fields[3].text ?? ""), (1...168).contains(hours),
+                  let reserve = UInt64(fields[2]), reserve > 0,
+                  let hours = UInt64(fields[3]), (1...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
                 self?.showErrorMessage("Enter positive BTC sats, HNS with at most six decimals, a positive fee reserve, and 1–168 hours.")
                 return
             }
-            fields.forEach { $0.text = nil }
             self.isOperating = true
             self.bitcoinStatusLabel.text = "Preparing exact BTC-for-HNS listing…"
             self.refreshButtonStates()
@@ -1375,8 +1363,7 @@ final class WalletViewController: UIViewController {
                     self.refreshButtonStates()
                 }
             }
-        })
-        present(alert, animated: true)
+        }
     }
 
     private func presentBtcForHnsOfferApproval(
@@ -2575,30 +2562,28 @@ final class WalletViewController: UIViewController {
 
     private func showTrackedNameOptionsMenu() {
         guard presentedViewController == nil else { return }
-        let alert = UIAlertController(
-            title: "Name options",
-            message: nameImportStatusLabel.text,
-            preferredStyle: .alert
-        )
+        var actions: [WalletMenuAction] = []
         if importNameButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Track exact HNS name", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in
-                    self?.requestExactHnsNameImport()
-                }
+            actions.append(WalletMenuAction(title: "Track exact HNS name") { [weak self] in
+                self?.requestExactHnsNameImport()
             })
-            alert.addAction(UIAlertAction(title: "Import multiple names", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in
-                    self?.requestMultipleHnsNameImport()
-                }
+            actions.append(WalletMenuAction(title: "Import multiple names") { [weak self] in
+                self?.requestMultipleHnsNameImport()
             })
         }
         if hnsValueActionMayStart {
-            alert.addAction(UIAlertAction(title: "Name actions", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showNameActionMenu() }
+            actions.append(WalletMenuAction(title: "Name actions") { [weak self] in
+                self?.showNameActionMenu()
             })
         }
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        presentWalletMenu(
+            title: "Name options",
+            rows: [WalletMenuRow(
+                title: "Tracked names",
+                detail: nameImportStatusLabel.text ?? "Name import status unavailable."
+            )],
+            actions: actions
+        )
     }
 
     private var hnsValueActionMayStart: Bool {
@@ -2617,22 +2602,18 @@ final class WalletViewController: UIViewController {
 
     private func showNameActionMenu() {
         guard hnsValueActionMayStart, presentedViewController == nil else { return }
-        let alert = UIAlertController(
+        presentWalletMenu(
             title: "Name actions",
-            message: "Every action runs one fresh direct-peer synchronization and shows the exact native review before broadcast.",
-            preferredStyle: .alert
+            rows: [WalletMenuRow(
+                title: "Direct wallet review",
+                detail: "Every action runs one fresh direct-peer synchronization and shows the exact native review before broadcast."
+            )],
+            actions: [
+                WalletMenuAction(title: "Transfer name") { [weak self] in self?.showTransferNameForm() },
+                WalletMenuAction(title: "Finalize transfer") { [weak self] in self?.showFinalizeNameForm() },
+                WalletMenuAction(title: "Set records") { [weak self] in self?.showSetNameRecordsForm() },
+            ]
         )
-        alert.addAction(UIAlertAction(title: "Transfer name", style: .default) { [weak self] _ in
-            self?.afterWalletMenuDismissal { [weak self] in self?.showTransferNameForm() }
-        })
-        alert.addAction(UIAlertAction(title: "Finalize transfer", style: .default) { [weak self] _ in
-            self?.afterWalletMenuDismissal { [weak self] in self?.showFinalizeNameForm() }
-        })
-        alert.addAction(UIAlertAction(title: "Set records", style: .default) { [weak self] _ in
-            self?.afterWalletMenuDismissal { [weak self] in self?.showSetNameRecordsForm() }
-        })
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
     }
 
     private func showShakedexDashboard() {
@@ -2665,82 +2646,102 @@ final class WalletViewController: UIViewController {
         } else {
             transportLine = "P2P swap connection unavailable while locked or unsynchronized."
         }
-        let alert = UIAlertController(
-            title: "Shakedex",
-            message: shakedexActionMayStart
-                ? "Offers and purchase steps remain in the direct native HNS controller. \(transportLine) No page or provider can request them."
-                : "Unlock and synchronize the direct HNS wallet before querying offers or preparing a purchase step.",
-            preferredStyle: .alert
-        )
+        let summary = shakedexActionMayStart
+            ? "Offers and purchase steps remain in the direct native HNS controller. No page or provider can request them."
+            : "Unlock and synchronize the direct HNS wallet before querying offers or preparing a purchase step."
+        var actions: [WalletMenuAction] = []
         if bitcoinSellForHnsButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Sell BTC for HNS", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showBtcForHnsOfferForm() }
+            actions.append(WalletMenuAction(title: "Sell BTC for HNS") { [weak self] in
+                self?.showBtcForHnsOfferForm()
             })
         }
         if bitcoinOffersButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Active BTC-for-HNS offers", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showActiveBtcForHnsOffers() }
+            actions.append(WalletMenuAction(title: "Active BTC-for-HNS offers") { [weak self] in
+                self?.showActiveBtcForHnsOffers()
             })
         }
         if bitcoinExecutionsButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Atomic swap executions", style: .default) {
-                [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showShakescapeExecutions() }
+            actions.append(WalletMenuAction(title: "Atomic swap executions") { [weak self] in
+                self?.showShakescapeExecutions()
             })
         }
         if shakedexActionMayStart {
-            alert.addAction(UIAlertAction(title: "Create fixed-price offer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showCreateOfferForm() }
-            })
-            alert.addAction(UIAlertAction(title: "Cancel offer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showCancelOfferForm() }
-            })
-            alert.addAction(UIAlertAction(title: "Recover name from offer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showRecoverNameForm() }
-            })
-            alert.addAction(UIAlertAction(title: "List offers", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showListOffersForm() }
-            })
-            alert.addAction(UIAlertAction(title: "Get session", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showGetSessionForm() }
-            })
-            alert.addAction(UIAlertAction(title: "Accept offer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showAcceptOfferForm() }
-            })
-            alert.addAction(UIAlertAction(title: "Finalize purchase", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showFinalizePurchaseForm() }
-            })
-            alert.addAction(UIAlertAction(title: "Pair direct peer", style: .default) { [weak self] _ in
-                self?.afterWalletMenuDismissal { [weak self] in self?.showPairDirectShakescapeForm() }
-            })
+            actions.append(WalletMenuAction(title: "Create fixed-price offer") { [weak self] in self?.showCreateOfferForm() })
+            actions.append(WalletMenuAction(title: "Cancel offer") { [weak self] in self?.showCancelOfferForm() })
+            actions.append(WalletMenuAction(title: "Recover name from offer") { [weak self] in self?.showRecoverNameForm() })
+            actions.append(WalletMenuAction(title: "List offers") { [weak self] in self?.showListOffersForm() })
+            actions.append(WalletMenuAction(title: "Get session") { [weak self] in self?.showGetSessionForm() })
+            actions.append(WalletMenuAction(title: "Accept offer") { [weak self] in self?.showAcceptOfferForm() })
+            actions.append(WalletMenuAction(title: "Finalize purchase") { [weak self] in self?.showFinalizePurchaseForm() })
+            actions.append(WalletMenuAction(title: "Pair direct peer") { [weak self] in self?.showPairDirectShakescapeForm() })
             if shakescapeStatus?.listenerPort == nil {
-                alert.addAction(UIAlertAction(title: "Retry listener", style: .default) { [weak self] _ in
+                actions.append(WalletMenuAction(title: "Retry listener") { [weak self] in
                     self?.retryDirectShakescapeListener()
                 })
             }
             if shakescapeStatus?.peerEndpoint != nil {
-                alert.addAction(UIAlertAction(title: "Disconnect peer", style: .destructive) { [weak self] _ in
+                actions.append(WalletMenuAction(title: "Disconnect peer", style: .destructive) { [weak self] in
                     self?.disconnectDirectShakescapePeer()
                 })
             }
         }
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        presentWalletMenu(
+            title: "Shakedex",
+            rows: [
+                WalletMenuRow(title: "Native control", detail: summary),
+                WalletMenuRow(title: "Direct transport", detail: transportLine),
+            ],
+            actions: actions
+        )
     }
 
-    private func afterWalletMenuDismissal(_ action: @escaping () -> Void) {
-        guard presentedViewController != nil else {
-            action()
-            return
+    private func presentWalletMenu(
+        title: String,
+        rows: [WalletMenuRow],
+        actions: [WalletMenuAction]
+    ) {
+        guard presentedViewController == nil else { return }
+        let menu = WalletMenuViewController(title: title, rows: rows, actions: actions)
+        menu.modalPresentationStyle = .pageSheet
+        if let sheet = menu.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+            sheet.preferredCornerRadius = 24
         }
-        dismiss(animated: true, completion: action)
+        present(menu, animated: true)
     }
 
-    /// UIKit alerts are intentionally collected one field at a time. This
-    /// avoids an oversized alert form and guarantees a Cancel clears the
-    /// current text before any direct wallet operation begins.
+    @discardableResult
+    private func presentWalletForm(
+        title: String,
+        message: String? = nil,
+        fields: [WalletSheetFormField],
+        primaryTitle: String,
+        primaryStyle: WalletMenuActionStyle = .standard,
+        onSubmit: @escaping @MainActor ([String]) -> Void
+    ) -> WalletFormViewController? {
+        guard presentedViewController == nil else { return nil }
+        let form = WalletFormViewController(
+            title: title,
+            message: message,
+            fields: fields,
+            primaryTitle: primaryTitle,
+            primaryStyle: primaryStyle,
+            onSubmit: onSubmit
+        )
+        form.modalPresentationStyle = .pageSheet
+        if let sheet = form.sheetPresentationController {
+            sheet.detents = fields.count > 2 ? [.large()] : [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+            sheet.preferredCornerRadius = 24
+        }
+        present(form, animated: true)
+        return form
+    }
+
+    /// Fields remain one-at-a-time so each step fits at large Dynamic Type
+    /// sizes. The wallet-styled sheet clears its text before advancing or
+    /// cancelling, before any direct wallet operation begins.
     private func collectHnsValueForm(
         title: String,
         fields: [WalletHnsValueFormField],
@@ -2754,41 +2755,27 @@ final class WalletViewController: UIViewController {
         }
         guard presentedViewController == nil else { return }
         let fieldDefinition = fields[index]
-        let alert = UIAlertController(
+        presentWalletForm(
             title: title,
-            message: "\(index + 1) of \(fields.count): \(fieldDefinition.label)",
-            preferredStyle: .alert
-        )
-        alert.addTextField { field in
-            field.placeholder = fieldDefinition.placeholder
-            field.text = fieldDefinition.initialValue
-            field.keyboardType = fieldDefinition.numeric ? .decimalPad : .asciiCapable
-            field.autocapitalizationType = .none
-            field.autocorrectionType = .no
-            field.spellCheckingType = .no
-            field.textContentType = nil
-            field.accessibilityIdentifier = "wallet.hns-value.\(index)"
+            message: "Step \(index + 1) of \(fields.count)",
+            fields: [WalletSheetFormField(
+                label: fieldDefinition.label,
+                placeholder: fieldDefinition.placeholder,
+                keyboardType: fieldDefinition.numeric ? .decimalPad : .asciiCapable,
+                initialValue: fieldDefinition.initialValue,
+                accessibilityIdentifier: "wallet.hns-value.\(index)"
+            )],
+            primaryTitle: index + 1 == fields.count ? "Review" : "Next"
+        ) { [weak self] submitted in
+            guard let self, let text = submitted.first else { return }
+            self.collectHnsValueForm(
+                title: title,
+                fields: fields,
+                index: index + 1,
+                values: values + [text],
+                completion: completion
+            )
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
-            alert.textFields?.forEach { $0.text = nil; $0.resignFirstResponder() }
-        })
-        alert.addAction(UIAlertAction(title: index + 1 == fields.count ? "Review" : "Next", style: .default) { [weak self, weak alert] _ in
-            guard let self, let alert else { return }
-            let text = alert.textFields?.first?.text ?? ""
-            alert.textFields?.first?.text = nil
-            alert.textFields?.first?.resignFirstResponder()
-            let nextValues = values + [text]
-            self.afterWalletMenuDismissal {
-                self.collectHnsValueForm(
-                    title: title,
-                    fields: fields,
-                    index: index + 1,
-                    values: nextValues,
-                    completion: completion
-                )
-            }
-        })
-        present(alert, animated: true)
     }
 
     private func showTransferNameForm() {
@@ -3506,42 +3493,45 @@ final class WalletViewController: UIViewController {
     }
 
     private func showWalletManagement() {
-        let alert = UIAlertController(
-            title: "Wallet",
-            message: "\(statusLabel.text ?? "Status unavailable.")\n\n\(accountLabel.text ?? "Account unavailable.")",
-            preferredStyle: .alert
-        )
+        guard presentedViewController == nil else { return }
+        var actions: [WalletMenuAction] = []
         let canStopSynchronization = hnsCatchupRetryPending ||
             WalletHnsSyncPresentationCache.canRequestCancellation(networkID: network.rawValue)
         if canStopSynchronization {
-            alert.addAction(UIAlertAction(
+            actions.append(WalletMenuAction(
                 title: "Stop synchronization",
                 style: .destructive
-            ) { [weak self] _ in
+            ) { [weak self] in
                 self?.requestHnsSynchronizationCancellation()
             })
         } else if walletIsUnlocked {
-            alert.addAction(UIAlertAction(title: "Lock", style: .default) { [weak self] _ in
+            actions.append(WalletMenuAction(title: "Lock") { [weak self] in
                 self?.lockWallet()
             })
         } else if openButton.isEnabled {
-            alert.addAction(UIAlertAction(title: "Unlock", style: .default) { [weak self] _ in
+            actions.append(WalletMenuAction(title: "Unlock") { [weak self] in
                 self?.openOrUnlockWallet()
             })
         }
         if walletIsUnlocked,
            (try? keychain.hasRecoveryPhrase()) == true {
-            alert.addAction(UIAlertAction(title: "View recovery phrase", style: .default) {
-                [weak self] _ in self?.showStoredRecoveryPhrase()
+            actions.append(WalletMenuAction(title: "View recovery phrase") { [weak self] in
+                self?.showStoredRecoveryPhrase()
             })
         }
         if deleteButton.isEnabled && !canStopSynchronization {
-            alert.addAction(UIAlertAction(title: "Delete wallet", style: .destructive) { [weak self] _ in
+            actions.append(WalletMenuAction(title: "Delete wallet", style: .destructive) { [weak self] in
                 self?.requestConfirmedWalletDeletion()
             })
         }
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        presentWalletMenu(
+            title: "Wallet",
+            rows: [
+                WalletMenuRow(title: "Status", detail: statusLabel.text ?? "Status unavailable."),
+                WalletMenuRow(title: "Account", detail: accountLabel.text ?? "Account unavailable."),
+            ],
+            actions: actions
+        )
     }
 
     @objc private func createWallet() {
@@ -4149,27 +4139,22 @@ final class WalletViewController: UIViewController {
             return
         }
 
-        let alert = UIAlertController(
+        let form = presentWalletForm(
             title: "Track exact HNS name",
             message: "Enter one Handshake name in its Unicode or canonical ASCII spelling. Unicode is converted to the exact on-chain A-label; spaces and trailing dots are not accepted.",
-            preferredStyle: .alert
-        )
-        alert.addTextField { [weak self] field in
-            configureWalletNameImportTextField(field)
-            self?.walletNameImportField = field
-        }
-        walletNameImportAlert = alert
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) {
-            [weak self, weak alert] _ in
-            alert?.textFields?.first?.text = nil
-            self?.clearWalletNameImportPrompt(dismiss: false)
-        })
-        alert.addAction(UIAlertAction(title: "Track name", style: .default) {
-            [weak self, weak alert] _ in
-            let canonical = alert?.textFields?.first?.text
-                .flatMap(canonicalHandshakeNameImportText)
+            fields: [WalletSheetFormField(
+                label: "Handshake name",
+                placeholder: "exact-name",
+                accessibilityIdentifier: "wallet.import-hns-name.text",
+                configure: { [weak self] field in
+                    configureWalletNameImportTextField(field)
+                    self?.walletNameImportField = field
+                }
+            )],
+            primaryTitle: "Track name"
+        ) { [weak self] values in
+            let canonical = values.first.flatMap(canonicalHandshakeNameImportText)
             let input = WalletExactHnsNameInput(exactText: canonical)
-            alert?.textFields?.first?.text = nil
             guard let self else { return }
             self.clearWalletNameImportPrompt(dismiss: false)
             guard let input else {
@@ -4187,8 +4172,8 @@ final class WalletViewController: UIViewController {
                 return
             }
             self.beginExactHnsNameImport(input: input, authority: expected)
-        })
-        present(alert, animated: true)
+        }
+        walletNameImportAlert = form
     }
 
     private func beginExactHnsNameImport(
@@ -5754,6 +5739,414 @@ final class WalletViewController: UIViewController {
     }
 }
 
+private struct WalletMenuRow {
+    let title: String
+    let detail: String
+}
+
+private enum WalletMenuActionStyle: Equatable {
+    case standard
+    case destructive
+}
+
+private struct WalletSheetFormField {
+    let label: String
+    let placeholder: String
+    let keyboardType: UIKeyboardType
+    let initialValue: String?
+    let accessibilityIdentifier: String?
+    let configure: (@MainActor (UITextField) -> Void)?
+
+    init(
+        label: String,
+        placeholder: String,
+        keyboardType: UIKeyboardType = .asciiCapable,
+        initialValue: String? = nil,
+        accessibilityIdentifier: String? = nil,
+        configure: (@MainActor (UITextField) -> Void)? = nil
+    ) {
+        self.label = label
+        self.placeholder = placeholder
+        self.keyboardType = keyboardType
+        self.initialValue = initialValue
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.configure = configure
+    }
+}
+
+private struct WalletMenuAction {
+    let title: String
+    let style: WalletMenuActionStyle
+    let handler: @MainActor () -> Void
+
+    init(
+        title: String,
+        style: WalletMenuActionStyle = .standard,
+        handler: @escaping @MainActor () -> Void
+    ) {
+        self.title = title
+        self.style = style
+        self.handler = handler
+    }
+}
+
+@MainActor
+private final class WalletMenuViewController: UIViewController {
+    private let menuTitle: String
+    private let rows: [WalletMenuRow]
+    private let actions: [WalletMenuAction]
+
+    init(title: String, rows: [WalletMenuRow], actions: [WalletMenuAction]) {
+        menuTitle = title
+        self.rows = rows
+        self.actions = actions
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemGroupedBackground
+
+        let scrollView = UIScrollView()
+        scrollView.alwaysBounceVertical = true
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scrollView)
+
+        let content = UIStackView()
+        content.axis = .vertical
+        content.spacing = 10
+        content.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(content)
+
+        let heading = UILabel()
+        heading.text = menuTitle
+        heading.font = .preferredFont(forTextStyle: .title2)
+        heading.adjustsFontForContentSizeCategory = true
+        heading.textColor = .label
+        heading.numberOfLines = 0
+        heading.accessibilityTraits = .header
+        content.addArrangedSubview(heading)
+        content.setCustomSpacing(16, after: heading)
+
+        rows.forEach { content.addArrangedSubview(detailCard(for: $0)) }
+
+        if !actions.isEmpty {
+            let actionHeading = sectionHeading("Actions")
+            content.addArrangedSubview(actionHeading)
+            content.setCustomSpacing(8, after: actionHeading)
+        }
+
+        for (index, action) in actions.enumerated() {
+            content.addArrangedSubview(actionButton(for: action, emphasized: index == 0))
+        }
+
+        let done = actionButton(
+            for: WalletMenuAction(title: "Done") { [weak self] in
+                self?.dismiss(animated: true)
+            },
+            emphasized: false,
+            dismissBeforeAction: false
+        )
+        if let previous = content.arrangedSubviews.last {
+            content.setCustomSpacing(16, after: previous)
+        }
+        content.addArrangedSubview(done)
+
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            content.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 18),
+            content.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -18),
+            content.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 18),
+            content.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -18),
+            content.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -36),
+        ])
+    }
+
+    private func detailCard(for row: WalletMenuRow) -> UIView {
+        let card = UIStackView()
+        card.axis = .vertical
+        card.spacing = 7
+        card.isLayoutMarginsRelativeArrangement = true
+        card.directionalLayoutMargins = NSDirectionalEdgeInsets(
+            top: 13,
+            leading: 15,
+            bottom: 14,
+            trailing: 15
+        )
+        card.backgroundColor = .secondarySystemGroupedBackground
+        card.layer.cornerRadius = 16
+        card.layer.masksToBounds = true
+
+        let label = sectionHeading(row.title)
+        label.textColor = .systemCyan
+        card.addArrangedSubview(label)
+
+        let detail = UILabel()
+        detail.text = row.detail
+        detail.font = .preferredFont(forTextStyle: .body)
+        detail.adjustsFontForContentSizeCategory = true
+        detail.textColor = .label
+        detail.numberOfLines = 0
+        card.addArrangedSubview(detail)
+        return card
+    }
+
+    private func sectionHeading(_ text: String) -> UILabel {
+        let label = UILabel()
+        label.text = text.uppercased()
+        label.font = .preferredFont(forTextStyle: .caption1)
+        label.adjustsFontForContentSizeCategory = true
+        label.textColor = .secondaryLabel
+        label.numberOfLines = 0
+        label.accessibilityTraits = .header
+        return label
+    }
+
+    private func actionButton(
+        for action: WalletMenuAction,
+        emphasized: Bool,
+        dismissBeforeAction: Bool = true
+    ) -> UIButton {
+        var configuration = emphasized && action.style == .standard
+            ? UIButton.Configuration.filled()
+            : UIButton.Configuration.tinted()
+        configuration.title = action.title
+        configuration.titleAlignment = .leading
+        configuration.cornerStyle = .medium
+        configuration.contentInsets = NSDirectionalEdgeInsets(
+            top: 13,
+            leading: 14,
+            bottom: 13,
+            trailing: 14
+        )
+        switch action.style {
+        case .standard:
+            configuration.baseBackgroundColor = emphasized ? .systemCyan : .systemIndigo
+            configuration.baseForegroundColor = emphasized ? .black : .label
+        case .destructive:
+            configuration.baseBackgroundColor = .systemRed
+            configuration.baseForegroundColor = .systemRed
+        }
+        let button = UIButton(type: .system)
+        button.configuration = configuration
+        button.contentHorizontalAlignment = .leading
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+        button.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            if dismissBeforeAction {
+                self.dismiss(animated: true, completion: action.handler)
+            } else {
+                action.handler()
+            }
+        }, for: .touchUpInside)
+        return button
+    }
+}
+
+@MainActor
+private final class WalletFormViewController: UIViewController {
+    private let formTitle: String
+    private let message: String?
+    private let fields: [WalletSheetFormField]
+    private let primaryTitle: String
+    private let primaryStyle: WalletMenuActionStyle
+    private let onSubmit: @MainActor ([String]) -> Void
+    private var textFields: [UITextField] = []
+
+    init(
+        title: String,
+        message: String?,
+        fields: [WalletSheetFormField],
+        primaryTitle: String,
+        primaryStyle: WalletMenuActionStyle,
+        onSubmit: @escaping @MainActor ([String]) -> Void
+    ) {
+        formTitle = title
+        self.message = message
+        self.fields = fields
+        self.primaryTitle = primaryTitle
+        self.primaryStyle = primaryStyle
+        self.onSubmit = onSubmit
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemGroupedBackground
+
+        let scrollView = UIScrollView()
+        scrollView.alwaysBounceVertical = true
+        scrollView.keyboardDismissMode = .interactive
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scrollView)
+
+        let content = UIStackView()
+        content.axis = .vertical
+        content.spacing = 10
+        content.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(content)
+
+        let heading = UILabel()
+        heading.text = formTitle
+        heading.font = .preferredFont(forTextStyle: .title2)
+        heading.adjustsFontForContentSizeCategory = true
+        heading.textColor = .label
+        heading.numberOfLines = 0
+        heading.accessibilityTraits = .header
+        content.addArrangedSubview(heading)
+        content.setCustomSpacing(16, after: heading)
+
+        if let message, !message.isEmpty {
+            let explanation = UILabel()
+            explanation.text = message
+            explanation.font = .preferredFont(forTextStyle: .body)
+            explanation.adjustsFontForContentSizeCategory = true
+            explanation.textColor = .label
+            explanation.numberOfLines = 0
+            content.addArrangedSubview(card(title: "Details", content: explanation))
+        }
+
+        for definition in fields {
+            let field = UITextField()
+            field.placeholder = definition.placeholder
+            field.text = definition.initialValue
+            field.keyboardType = definition.keyboardType
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.spellCheckingType = .no
+            field.textContentType = nil
+            field.clearButtonMode = .whileEditing
+            field.font = .preferredFont(forTextStyle: .body)
+            field.adjustsFontForContentSizeCategory = true
+            field.accessibilityIdentifier = definition.accessibilityIdentifier
+            definition.configure?(field)
+            field.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            textFields.append(field)
+            content.addArrangedSubview(card(title: definition.label, content: field))
+        }
+
+        let actionHeading = sectionHeading("Actions")
+        content.addArrangedSubview(actionHeading)
+        content.setCustomSpacing(8, after: actionHeading)
+
+        let submit = button(title: primaryTitle, style: primaryStyle, emphasized: true)
+        submit.addAction(UIAction { [weak self] _ in self?.submit() }, for: .touchUpInside)
+        content.addArrangedSubview(submit)
+
+        let cancel = button(title: "Cancel", style: .standard, emphasized: false)
+        cancel.addAction(UIAction { [weak self] _ in self?.cancel() }, for: .touchUpInside)
+        content.addArrangedSubview(cancel)
+
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            content.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 18),
+            content.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -18),
+            content.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 18),
+            content.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -18),
+            content.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -36),
+        ])
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        textFields.first?.becomeFirstResponder()
+    }
+
+    private func card(title: String, content: UIView) -> UIView {
+        let card = UIStackView(arrangedSubviews: [sectionHeading(title), content])
+        card.axis = .vertical
+        card.spacing = 7
+        card.isLayoutMarginsRelativeArrangement = true
+        card.directionalLayoutMargins = NSDirectionalEdgeInsets(
+            top: 13,
+            leading: 15,
+            bottom: 13,
+            trailing: 15
+        )
+        card.backgroundColor = .secondarySystemGroupedBackground
+        card.layer.cornerRadius = 16
+        card.layer.masksToBounds = true
+        return card
+    }
+
+    private func sectionHeading(_ text: String) -> UILabel {
+        let label = UILabel()
+        label.text = text.uppercased()
+        label.font = .preferredFont(forTextStyle: .caption1)
+        label.adjustsFontForContentSizeCategory = true
+        label.textColor = .systemCyan
+        label.numberOfLines = 0
+        label.accessibilityTraits = .header
+        return label
+    }
+
+    private func button(
+        title: String,
+        style: WalletMenuActionStyle,
+        emphasized: Bool
+    ) -> UIButton {
+        var configuration = emphasized && style == .standard
+            ? UIButton.Configuration.filled()
+            : UIButton.Configuration.tinted()
+        configuration.title = title
+        configuration.titleAlignment = .leading
+        configuration.cornerStyle = .medium
+        configuration.contentInsets = NSDirectionalEdgeInsets(
+            top: 13,
+            leading: 14,
+            bottom: 13,
+            trailing: 14
+        )
+        switch style {
+        case .standard:
+            configuration.baseBackgroundColor = emphasized ? .systemCyan : .systemIndigo
+            configuration.baseForegroundColor = emphasized ? .black : .label
+        case .destructive:
+            configuration.baseBackgroundColor = .systemRed
+            configuration.baseForegroundColor = .systemRed
+        }
+        let button = UIButton(type: .system)
+        button.configuration = configuration
+        button.contentHorizontalAlignment = .leading
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+        return button
+    }
+
+    private func submit() {
+        let values = textFields.map { $0.text ?? "" }
+        clearFields()
+        dismiss(animated: true) { [onSubmit] in onSubmit(values) }
+    }
+
+    private func cancel() {
+        clearFields()
+        dismiss(animated: true)
+    }
+
+    private func clearFields() {
+        textFields.forEach {
+            $0.text = nil
+            $0.resignFirstResponder()
+        }
+    }
+}
+
 func walletRecoveryWordChoices(words: [String], correctIndex: Int) -> [String] {
     precondition(words.indices.contains(correctIndex))
     let correct = words[correctIndex]
@@ -6695,7 +7088,7 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Set records"
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .systemGroupedBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel,
             target: self,
@@ -6756,6 +7149,16 @@ private final class NameRecordsEditorViewController: UIViewController, UITextVie
         ])
         stack.axis = .vertical
         stack.spacing = 10
+        stack.isLayoutMarginsRelativeArrangement = true
+        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(
+            top: 16,
+            leading: 16,
+            bottom: 16,
+            trailing: 16
+        )
+        stack.backgroundColor = .secondarySystemGroupedBackground
+        stack.layer.cornerRadius = 16
+        stack.layer.masksToBounds = true
         stack.setCustomSpacing(20, after: nameField)
         stack.setCustomSpacing(20, after: characterCountLabel)
 
@@ -6869,7 +7272,7 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Import multiple names"
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .systemGroupedBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel,
             target: self,
@@ -6911,6 +7314,16 @@ private final class WalletMultipleNameImportEditorViewController: UIViewControll
         let stack = UIStackView(arrangedSubviews: [instructions, namesView, characterCountLabel])
         stack.axis = .vertical
         stack.spacing = 12
+        stack.isLayoutMarginsRelativeArrangement = true
+        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(
+            top: 16,
+            leading: 16,
+            bottom: 16,
+            trailing: 16
+        )
+        stack.backgroundColor = .secondarySystemGroupedBackground
+        stack.layer.cornerRadius = 16
+        stack.layer.masksToBounds = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -6985,7 +7398,7 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Review \(names.count) names"
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .systemGroupedBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .cancel,
             target: self,
@@ -7020,6 +7433,16 @@ private final class WalletMultipleNameImportReviewViewController: UIViewControll
         let stack = UIStackView(arrangedSubviews: [summary, list])
         stack.axis = .vertical
         stack.spacing = 12
+        stack.isLayoutMarginsRelativeArrangement = true
+        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(
+            top: 16,
+            leading: 16,
+            bottom: 16,
+            trailing: 16
+        )
+        stack.backgroundColor = .secondarySystemGroupedBackground
+        stack.layer.cornerRadius = 16
+        stack.layer.masksToBounds = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
         NSLayoutConstraint.activate([

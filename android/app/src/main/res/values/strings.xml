@@ -753,6 +753,10 @@
     <string name="wallet_qr_save_failed" translatable="false">The QR code could not be saved</string>
     <string name="wallet_dashboard_send_form_notice" translatable="false">The maximum fee cap is the most the wallet may pay in network fees; the default is 1 HNS. A fresh verified wallet snapshot is required before the transaction is prepared.</string>
     <string name="wallet_dashboard_name_actions" translatable="false">Name actions</string>
+    <string name="wallet_modal_details" translatable="false">Details</string>
+    <string name="wallet_modal_actions" translatable="false">Actions</string>
+    <string name="wallet_modal_done" translatable="false">Done</string>
+    <string name="wallet_name_actions_description" translatable="false">Import tracked names or prepare an exact native name transaction from current synchronized wallet state.</string>
     <string name="wallet_name_action_status_heading" translatable="false">NAME ACTION STATUS</string>
     <string name="wallet_name_card_active" translatable="false">Active</string>
     <string name="wallet_name_card_expired" translatable="false">Expired</string>

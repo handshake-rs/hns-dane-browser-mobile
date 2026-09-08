@@ -40,6 +40,12 @@ All notable changes to this project will be documented in this file.
   cards provide direct payment-QR scanning beside Receive, Send, and Sync.
   The release boundary check now also prevents the hidden Shakedex card gate
   from diverging between platforms.
+- Refresh the Android and iOS wallet detail flows with the same grouped,
+  rounded-card visual system as the wallet dashboard. Wallet, Names, Bitcoin,
+  and the gated Shakedex menus now use scrollable detail sheets with clearer
+  action hierarchy, while linked name and Bitcoin forms, name-import review,
+  and paginated Bitcoin activity retain their existing behavior in the new
+  cross-platform presentation.
 
 ## 1.0.5 - 2026-09-05
 

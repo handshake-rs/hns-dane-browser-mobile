@@ -2086,97 +2086,88 @@ class WalletActivity : ComponentActivity() {
     private fun showNameImportDialog() {
         val input = exactNameImportInput()
         nameImportInput = input
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.row_wallet_name_import)
-            .setView(input)
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_import_wallet_name) { _, _ ->
+        showWalletFormDialog(
+            title = getString(R.string.row_wallet_name_import),
+            fields = listOf(getString(R.string.wallet_name_import_hint) to input),
+            primaryLabel = getString(R.string.action_import_wallet_name),
+            onPrimary = { dialog ->
                 val canonical = input.text?.toString()?.let(::canonicalHandshakeNameImportText)
                 val exactUtf8 = canonical?.let(::exactWalletNameUtf8)
                 clearNameImportInput()
+                dialog.dismiss()
                 importWalletName(exactUtf8)
-            }
-            .create()
-        dialog.setOnDismissListener {
-            if (nameImportInput === input) clearNameImportInput()
-        }
-        dialog.show()
+            },
+            onDismiss = { if (nameImportInput === input) clearNameImportInput() },
+        )
     }
 
     private fun showMultipleNameImportDialog() {
         val input = multipleNameImportInput()
         nameImportInput = input
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.action_import_multiple_wallet_names)
-            .setMessage(R.string.wallet_name_multiple_import_hint)
-            .setView(input)
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_review_wallet_names, null)
-            .create()
-        dialog.setOnDismissListener {
-            if (nameImportInput === input) clearNameImportInput()
-        }
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        showWalletFormDialog(
+            title = getString(R.string.action_import_multiple_wallet_names),
+            message = getString(R.string.wallet_name_multiple_import_hint),
+            fields = listOf(getString(R.string.action_import_multiple_wallet_names) to input),
+            primaryLabel = getString(R.string.action_review_wallet_names),
+            onPrimary = { dialog ->
                 val names = parseSpaceSeparatedWalletNames(input.text?.toString().orEmpty())
                 if (names == null) {
                     input.error = getString(R.string.wallet_name_multiple_import_invalid)
-                    return@setOnClickListener
+                } else {
+                    clearNameImportInput()
+                    dialog.dismiss()
+                    window.decorView.post { showMultipleNameImportReview(names) }
                 }
-                clearNameImportInput()
-                dialog.dismiss()
-                window.decorView.post { showMultipleNameImportReview(names) }
-            }
-        }
-        dialog.show()
+            },
+            onDismiss = { if (nameImportInput === input) clearNameImportInput() },
+        )
     }
 
     private fun showMultipleNameImportReview(names: List<String>) {
-        val horizontalPadding = (20 * resources.displayMetrics.density).toInt()
-        val verticalPadding = (12 * resources.displayMetrics.density).toInt()
         val list = TextView(this).apply {
             text = names.mapIndexed { index, name ->
                 "${index + 1}. ${displayHandshakeNameText(name)}"
             }.joinToString("\n")
             setTextIsSelectable(true)
-            setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setTextColor(themeColors().primaryText)
+            typeface = Typeface.MONOSPACE
             contentDescription = getString(R.string.wallet_name_multiple_import_review_list)
         }
-        val scroll = ScrollView(this).apply {
-            addView(list)
-        }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.wallet_name_multiple_import_review_title)
-            .setMessage(getString(R.string.wallet_name_multiple_import_review_message, names.size))
-            .setView(scroll)
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_import_multiple_wallet_names) { _, _ ->
-                importWalletNames(names)
-            }
-            .show()
+        showWalletModal(
+            title = getString(R.string.wallet_name_multiple_import_review_title),
+            rows = listOf(
+                getString(R.string.wallet_modal_details) to TextView(this).apply {
+                    text = getString(R.string.wallet_name_multiple_import_review_message, names.size)
+                    textSize = 14f
+                    setTextColor(themeColors().primaryText)
+                },
+                getString(R.string.wallet_name_multiple_import_review_list) to list,
+            ),
+            actions = listOf(
+                getString(R.string.action_import_multiple_wallet_names) to {
+                    importWalletNames(names)
+                },
+            ),
+        )
     }
 
     private fun showNameActionMenu() {
-        val labels = arrayOf(
-            getString(R.string.action_import_wallet_name),
-            getString(R.string.action_import_multiple_wallet_names),
-            getString(R.string.row_wallet_transfer_name),
-            getString(R.string.row_wallet_finalize_name),
-            getString(R.string.row_wallet_set_records),
+        walletDetailDialog(
+            title = getString(R.string.wallet_dashboard_name_actions),
+            rows = listOf(
+                getString(R.string.wallet_modal_details) to
+                    getString(R.string.wallet_name_actions_description),
+                getString(R.string.row_wallet_name_import) to nameImportStatusView.text.toString(),
+            ),
+            actions = listOf(
+                getString(R.string.action_import_wallet_name) to ::showNameImportDialog,
+                getString(R.string.action_import_multiple_wallet_names) to ::showMultipleNameImportDialog,
+                getString(R.string.row_wallet_transfer_name) to ::showTransferNameForm,
+                getString(R.string.row_wallet_finalize_name) to ::showFinalizeNameForm,
+                getString(R.string.row_wallet_set_records) to ::showSetNameRecordsForm,
+            ),
         )
-        AlertDialog.Builder(this)
-            .setTitle(R.string.wallet_dashboard_name_actions)
-            .setItems(labels) { _, which ->
-                when (which) {
-                    0 -> showNameImportDialog()
-                    1 -> showMultipleNameImportDialog()
-                    2 -> showTransferNameForm()
-                    3 -> showFinalizeNameForm()
-                    else -> showSetNameRecordsForm()
-                }
-            }
-            .show()
     }
 
     private fun showBitcoinDashboard() {
@@ -2253,22 +2244,21 @@ class WalletActivity : ComponentActivity() {
                 ) + "\n\n" + formatBitcoinActivity(page)
             }
         }
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
-            addView(TextView(this@WalletActivity).apply {
-                text = message
-                textSize = 14f
-                typeface = Typeface.MONOSPACE
-                setTextColor(themeColors().primaryText)
-                setTextIsSelectable(true)
-                setPadding(0, uiDp(8), 0, uiDp(12))
-            })
+        val actions = buildList<Pair<String, () -> Unit>> {
+            if (bitcoinActivityPageOffset > 0) {
+                add(getString(R.string.action_previous_wallet_activity) to {
+                    bitcoinActivityPageOffset -= MAX_VISIBLE_READ_ITEMS
+                    showBitcoinActivityDetails()
+                })
+            }
+            if (loadedPage?.hasMore == true) {
+                add(getString(R.string.action_next_wallet_activity) to {
+                    bitcoinActivityPageOffset += MAX_VISIBLE_READ_ITEMS
+                    showBitcoinActivityDetails()
+                })
+            }
             if (page.isNotEmpty()) {
-                addView(dashboardActionButton(
-                    getString(R.string.wallet_dashboard_copy_activity),
-                    secondary = true,
-                ) {
+                add(getString(R.string.wallet_dashboard_copy_activity) to {
                     getSystemService(ClipboardManager::class.java).setPrimaryClip(
                         ClipData.newPlainText(
                             getString(R.string.wallet_bitcoin_recent_activity),
@@ -2283,23 +2273,19 @@ class WalletActivity : ComponentActivity() {
                 })
             }
         }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.wallet_bitcoin_recent_activity)
-            .setView(ScrollView(this).apply { addView(content) })
-            .setNegativeButton(R.string.action_cancel, null)
-        if (bitcoinActivityPageOffset > 0) {
-            dialog.setNeutralButton(R.string.action_previous_wallet_activity) { _, _ ->
-                bitcoinActivityPageOffset -= MAX_VISIBLE_READ_ITEMS
-                window.decorView.post(::showBitcoinActivityDetails)
-            }
-        }
-        if (loadedPage?.hasMore == true) {
-            dialog.setPositiveButton(R.string.action_next_wallet_activity) { _, _ ->
-                bitcoinActivityPageOffset += MAX_VISIBLE_READ_ITEMS
-                window.decorView.post(::showBitcoinActivityDetails)
-            }
-        }
-        dialog.show()
+        showWalletModal(
+            title = getString(R.string.wallet_bitcoin_recent_activity),
+            rows = listOf(
+                getString(R.string.wallet_bitcoin_recent_activity) to TextView(this).apply {
+                    text = message
+                    textSize = 14f
+                    typeface = Typeface.MONOSPACE
+                    setTextColor(themeColors().primaryText)
+                    setTextIsSelectable(true)
+                },
+            ),
+            actions = actions,
+        )
     }
 
     private fun formatBitcoinActivity(activity: List<NativeBitcoinActivity>): String =
@@ -2346,45 +2332,18 @@ class WalletActivity : ComponentActivity() {
         rows: List<Pair<String, TextView>>,
         actions: List<Pair<String, () -> Unit>>,
     ) {
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
-            rows.forEach { (label, detail) ->
-                (detail.parent as? ViewGroup)?.removeView(detail)
-                addView(TextView(this@WalletActivity).apply {
-                    text = label
-                    textSize = 14f
-                    typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(themeColors().primaryText)
-                    setPadding(0, uiDp(8), 0, 0)
-                })
-                addView(detail.apply {
-                    textSize = 14f
-                    setTextColor(themeColors().primaryText)
-                    setPadding(0, uiDp(3), 0, uiDp(12))
-                })
-            }
-            actions.forEach { (label, action) ->
-                addView(
-                    dashboardActionButton(label, secondary = true, action = action),
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { bottomMargin = uiDp(8) },
-                )
-            }
+        rows.forEach { (_, detail) ->
+            (detail.parent as? ViewGroup)?.removeView(detail)
         }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(title)
-            .setView(content)
-            .setNegativeButton(R.string.action_cancel, null)
-            .create()
-        dialog.setOnDismissListener {
+        showWalletModal(
+            title = title,
+            rows = rows.map { (label, detail) -> label to detail },
+            actions = actions,
+        ) {
             rows.forEach { (_, detail) ->
                 (detail.parent as? ViewGroup)?.removeView(detail)
             }
         }
-        dialog.show()
     }
 
     private fun showShakedexDashboard() {
@@ -2431,26 +2390,144 @@ class WalletActivity : ComponentActivity() {
         rows: List<Pair<String, String>>,
         actions: List<Pair<String, () -> Unit>> = emptyList(),
     ) {
+        showWalletModal(
+            title = title,
+            rows = rows.map { (label, detail) ->
+                label to TextView(this).apply {
+                    text = detail
+                    textSize = 14f
+                    setTextColor(themeColors().primaryText)
+                    setTextIsSelectable(true)
+                }
+            },
+            actions = actions,
+        )
+    }
+
+    private fun showWalletFormDialog(
+        title: String,
+        message: String? = null,
+        fields: List<Pair<String, View>>,
+        primaryLabel: String,
+        onPrimary: (AlertDialog) -> Unit,
+        onDismiss: () -> Unit = {},
+    ) {
         lateinit var dialog: AlertDialog
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
-            rows.forEach { (label, detail) ->
-                addView(TextView(this@WalletActivity).apply {
-                    text = "$label\n$detail"
-                    textSize = 14f
-                    setTextColor(themeColors().primaryText)
-                    setPadding(0, uiDp(8), 0, uiDp(12))
-                })
-            }
-            actions.forEach { (label, action) ->
+            setPadding(uiDp(18), uiDp(18), uiDp(18), uiDp(12))
+            setBackgroundColor(themeColors().background)
+            addView(TextView(this@WalletActivity).apply {
+                text = title
+                textSize = 24f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(themeColors().primaryText)
+                setPadding(uiDp(2), 0, uiDp(2), uiDp(14))
+                accessibilityHeading = true
+            })
+            message?.takeIf { it.isNotBlank() }?.let { detail ->
                 addView(
-                    dashboardActionButton(label, secondary = true) {
-                        // The operation status belongs to the dashboard. Do
-                        // not leave a stale detail sheet covering its working
-                        // state after an action such as Unlock begins.
+                    walletModalDetailCard(
+                        getString(R.string.wallet_modal_details),
+                        TextView(this@WalletActivity).apply {
+                            text = detail
+                            textSize = 14f
+                            setTextColor(themeColors().primaryText)
+                        },
+                    ),
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { bottomMargin = uiDp(10) },
+                )
+            }
+            fields.forEach { (label, field) ->
+                addView(
+                    walletModalDetailCard(label, field),
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { bottomMargin = uiDp(10) },
+                )
+            }
+            addView(walletModalSectionHeading(getString(R.string.wallet_modal_actions)))
+            addView(
+                dashboardActionButton(primaryLabel) { onPrimary(dialog) }.apply {
+                    minimumHeight = uiDp(48)
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = uiDp(8) },
+            )
+            addView(
+                dashboardActionButton(getString(R.string.action_cancel), secondary = true) {
+                    dialog.dismiss()
+                }.apply { minimumHeight = uiDp(48) },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        dialog = AlertDialog.Builder(this)
+            .setView(ScrollView(this).apply {
+                isFillViewport = true
+                addView(content)
+            })
+            .create()
+        dialog.setOnDismissListener { onDismiss() }
+        dialog.setOnShowListener {
+            dialog.window?.setBackgroundDrawable(
+                settingsSurfaceDrawable(
+                    accent = themeColors().divider,
+                    fill = themeColors().background,
+                    cornerRadius = 24,
+                ),
+            )
+        }
+        dialog.show()
+    }
+
+    private fun showWalletModal(
+        title: String,
+        rows: List<Pair<String, View>>,
+        actions: List<Pair<String, () -> Unit>>,
+        onDismiss: () -> Unit = {},
+    ) {
+        lateinit var dialog: AlertDialog
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(uiDp(18), uiDp(18), uiDp(18), uiDp(12))
+            setBackgroundColor(themeColors().background)
+            addView(TextView(this@WalletActivity).apply {
+                text = title
+                textSize = 24f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(themeColors().primaryText)
+                setPadding(uiDp(2), 0, uiDp(2), uiDp(14))
+                accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            })
+            rows.forEach { (label, detail) ->
+                addView(
+                    walletModalDetailCard(label, detail),
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { bottomMargin = uiDp(10) },
+                )
+            }
+            if (actions.isNotEmpty()) {
+                addView(walletModalSectionHeading(getString(R.string.wallet_modal_actions)))
+            }
+            actions.forEachIndexed { index, (label, action) ->
+                addView(
+                    dashboardActionButton(label, secondary = index != 0) {
                         dialog.dismiss()
                         action()
+                    }.apply {
+                        textSize = 14f
+                        minimumHeight = uiDp(48)
                     },
                     LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
@@ -2458,14 +2535,71 @@ class WalletActivity : ComponentActivity() {
                     ).apply { bottomMargin = uiDp(8) },
                 )
             }
+            addView(
+                dashboardActionButton(
+                    getString(R.string.wallet_modal_done),
+                    secondary = true,
+                ) { dialog.dismiss() }.apply {
+                    textSize = 14f
+                    minimumHeight = uiDp(48)
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = uiDp(4) },
+            )
+        }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(content)
         }
         dialog = AlertDialog.Builder(this)
-            .setTitle(title)
-            .setView(content)
-            .setNegativeButton(R.string.action_cancel, null)
+            .setView(scroll)
             .create()
+        dialog.setOnDismissListener { onDismiss() }
+        dialog.setOnShowListener {
+            dialog.window?.setBackgroundDrawable(
+                settingsSurfaceDrawable(
+                    accent = themeColors().divider,
+                    fill = themeColors().background,
+                    cornerRadius = 24,
+                ),
+            )
+        }
         dialog.show()
     }
+
+    private fun walletModalDetailCard(label: String, detail: View): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = settingsSurfaceDrawable()
+            setPadding(uiDp(15), uiDp(13), uiDp(15), uiDp(14))
+            addView(TextView(this@WalletActivity).apply {
+                text = label.uppercase()
+                textSize = 11f
+                typeface = Typeface.DEFAULT_BOLD
+                letterSpacing = 0.08f
+                setTextColor(themeColors().action)
+            })
+            addView(
+                detail,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = uiDp(7) },
+            )
+        }
+
+    private fun walletModalSectionHeading(label: String): TextView =
+        TextView(this).apply {
+            text = label.uppercase()
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.08f
+            setTextColor(themeColors().secondaryText)
+            setPadding(uiDp(3), uiDp(5), uiDp(3), uiDp(8))
+            accessibilityHeading = true
+        }
 
     private fun openExistingWallet() {
         val lease = currentStorageLease() ?: return
@@ -4032,28 +4166,24 @@ class WalletActivity : ComponentActivity() {
             filters = arrayOf(InputFilter.LengthFilter(10))
             setSingleLine(true)
         }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.wallet_bitcoin_birthday_title)
-            .setMessage(R.string.wallet_bitcoin_birthday_message)
-            .setView(input)
-            .setNegativeButton(R.string.action_cancel) { _, _ -> wipeEditable(input.text) }
-            .setPositiveButton(R.string.action_apply, null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        showWalletFormDialog(
+            title = getString(R.string.wallet_bitcoin_birthday_title),
+            message = getString(R.string.wallet_bitcoin_birthday_message),
+            fields = listOf(getString(R.string.wallet_bitcoin_birthday_hint) to input),
+            primaryLabel = getString(R.string.action_apply),
+            onPrimary = { dialog ->
                 val height = input.text?.toString()?.toLongOrNull()
                     ?.takeIf { it in 1..Int.MAX_VALUE.toLong() }
                 if (height == null) {
                     input.error = getString(R.string.wallet_bitcoin_birthday_invalid_height)
-                    return@setOnClickListener
+                } else {
+                    wipeEditable(input.text)
+                    dialog.dismiss()
+                    setBitcoinBirthdayHeight(height)
                 }
-                wipeEditable(input.text)
-                dialog.dismiss()
-                setBitcoinBirthdayHeight(height)
-            }
-        }
-        dialog.setOnDismissListener { wipeEditable(input.text) }
-        dialog.show()
+            },
+            onDismiss = { wipeEditable(input.text) },
+        )
     }
 
     private fun bitcoinBirthdayMayStart(): Boolean {
@@ -4150,10 +4280,19 @@ class WalletActivity : ComponentActivity() {
             showWalletBusyFeedback()
             return
         }
+        lateinit var dialog: AlertDialog
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            val inset = (16 * resources.displayMetrics.density).toInt()
-            setPadding(inset, inset / 2, inset, 0)
+            setPadding(uiDp(18), uiDp(18), uiDp(18), uiDp(12))
+            setBackgroundColor(themeColors().background)
+            addView(TextView(this@WalletActivity).apply {
+                text = getString(title)
+                textSize = 24f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(themeColors().primaryText)
+                setPadding(uiDp(2), 0, uiDp(2), uiDp(14))
+                accessibilityHeading = true
+            })
         }
         val inputs = fields.map { field ->
             EditText(this).apply {
@@ -4173,24 +4312,58 @@ class WalletActivity : ComponentActivity() {
                     gravity = Gravity.TOP or Gravity.START
                 }
                 if (field.initial.isNotEmpty()) setText(field.initial)
+                setTextColor(themeColors().primaryText)
+                setHintTextColor(themeColors().secondaryText)
+            }.also { input ->
                 layout.addView(
-                    this,
+                    walletModalDetailCard(getString(field.hint), input),
                     LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ),
+                    ).apply { bottomMargin = uiDp(10) },
                 )
             }
         }
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setView(layout)
-            .setNegativeButton(R.string.action_cancel, null)
-            .setPositiveButton(R.string.action_prepare) { _, _ ->
-                submit(inputs.map { it.text?.toString().orEmpty() })
+        layout.addView(walletModalSectionHeading(getString(R.string.wallet_modal_actions)))
+        layout.addView(
+            dashboardActionButton(getString(R.string.action_prepare)) {
+                val values = inputs.map { it.text?.toString().orEmpty() }
                 inputs.forEach { wipeEditable(it.text) }
-            }
-            .show()
+                dialog.dismiss()
+                submit(values)
+            }.apply { minimumHeight = uiDp(48) },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { bottomMargin = uiDp(8) },
+        )
+        layout.addView(
+            dashboardActionButton(getString(R.string.action_cancel), secondary = true) {
+                dialog.dismiss()
+            }.apply { minimumHeight = uiDp(48) },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(layout)
+        }
+        dialog = AlertDialog.Builder(this)
+            .setView(scroll)
+            .create()
+        dialog.setOnDismissListener { inputs.forEach { wipeEditable(it.text) } }
+        dialog.setOnShowListener {
+            dialog.window?.setBackgroundDrawable(
+                settingsSurfaceDrawable(
+                    accent = themeColors().divider,
+                    fill = themeColors().background,
+                    cornerRadius = 24,
+                ),
+            )
+        }
+        dialog.show()
     }
 
     private fun showBitcoinSendForm() {
