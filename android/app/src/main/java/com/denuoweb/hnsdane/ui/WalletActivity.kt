@@ -785,8 +785,10 @@ class WalletActivity : ComponentActivity() {
         // bounded network round. Its public progress has a separate mailbox,
         // so never wait for its status mutex on Android's main thread.
         val hnsSynchronizationActive = hasActiveWalletHnsSynchronization()
+        val readOnlySynchronizationActive =
+            hnsSynchronizationActive || walletBitcoinSyncInProgress
         val controllerStatus = if (
-            hasController && !hnsSynchronizationActive && walletNameImportInProgressCount == 0
+            hasController && !readOnlySynchronizationActive && walletNameImportInProgressCount == 0
         ) {
             NativeWalletBridge.status(walletHandle)
         } else {
@@ -804,13 +806,20 @@ class WalletActivity : ComponentActivity() {
             null -> Unit
         }
         val controllerUnlocked = hasController && (
-            hnsSynchronizationActive || walletNameImportInProgressCount > 0 ||
+            readOnlySynchronizationActive || walletNameImportInProgressCount > 0 ||
                 walletHnsJourney.isConfirmedUnlocked()
         )
         // Presentation may safely retain a confirmed unlocked state while a
         // read-only worker owns the mutex. Value actions still require a
         // fresh, available native status observation.
         val controllerAvailableForActions = controllerStatus?.locked == false
+        val availability = walletDashboardAvailability(
+            busy = busy,
+            hnsSynchronizationActive = hnsSynchronizationActive,
+            bitcoinSynchronizationActive = walletBitcoinSyncInProgress,
+            controllerUnlocked = controllerUnlocked,
+            controllerAvailableForActions = controllerAvailableForActions,
+        )
         when (
             walletDashboardMode(
                 hasUnconfirmedRecovery =
@@ -830,13 +839,12 @@ class WalletActivity : ComponentActivity() {
             WalletDashboardMode.UnlockedWallet ->
                 if (showingNamesPage && latestReadSnapshot != null) {
                     renderNamesPage(
-                        actionsAvailable = !busy && !hnsSynchronizationActive &&
-                            controllerAvailableForActions,
+                        actionsAvailable = availability.mutations,
                     )
                 } else {
                     renderUnlockedWalletDashboard(
-                        actionsAvailable = !busy && !hnsSynchronizationActive &&
-                            controllerAvailableForActions,
+                        actionsAvailable = availability.mutations,
+                        navigationAvailable = availability.navigation,
                         synchronizationInProgress = hnsSynchronizationActive,
                     )
                 }
@@ -943,6 +951,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun renderUnlockedWalletDashboard(
         actionsAvailable: Boolean = true,
+        navigationAvailable: Boolean = actionsAvailable,
         synchronizationInProgress: Boolean = false,
     ) {
         addCellularDataWarningIfNeeded(walletUnlocked = true)
@@ -976,12 +985,12 @@ class WalletActivity : ComponentActivity() {
                 healthy = notices.any { it.phase == "finalizeAvailable" },
             ))
         }
-        addWalletTiles(locked = false, actionsAvailable = actionsAvailable)
+        addWalletTiles(locked = false, actionsAvailable = navigationAvailable)
         dashboardContent.addView(settingsGroup(getString(R.string.wallet_dashboard_recent_activity)) {
             addSettingsRow(navRow(
                 title = getString(R.string.wallet_dashboard_recent_activity),
                 summary = recentActivitySummary(),
-            ) { showActivityDetails() }.disabledWhenWalletHandoff(!actionsAvailable))
+            ) { showActivityDetails() }.disabledWhenWalletHandoff(!navigationAvailable))
         })
         if (actionsAvailable) schedulePendingPaymentPresentation()
     }
@@ -8167,6 +8176,26 @@ internal fun walletBackgroundSynchronizationMayRetain(
     foregroundServiceActive: Boolean,
 ): Boolean =
     foregroundServiceActive && (hasActiveReadOnlyHnsSync || hasActiveReadOnlyBitcoinSync)
+
+internal data class WalletDashboardAvailability(
+    val navigation: Boolean,
+    val mutations: Boolean,
+)
+
+internal fun walletDashboardAvailability(
+    busy: Boolean,
+    hnsSynchronizationActive: Boolean,
+    bitcoinSynchronizationActive: Boolean,
+    controllerUnlocked: Boolean,
+    controllerAvailableForActions: Boolean,
+): WalletDashboardAvailability = WalletDashboardAvailability(
+    // A Bitcoin sync owns the native mutex but exposes progress separately.
+    // Safe detail navigation must remain available after scanner/app lifecycle
+    // transitions so the user can inspect or stop that sync.
+    navigation = !busy && !hnsSynchronizationActive && controllerUnlocked,
+    mutations = !busy && !hnsSynchronizationActive && !bitcoinSynchronizationActive &&
+        controllerAvailableForActions,
+)
 
 internal fun formatBitcoinSyncDuration(milliseconds: Long): String {
     val seconds = (milliseconds.coerceAtLeast(0L) / 1_000L)

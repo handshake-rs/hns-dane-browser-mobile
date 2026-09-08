@@ -34,6 +34,30 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
+    fun bitcoin_sync_keeps_safe_dashboard_navigation_but_gates_mutations() {
+        assertEquals(
+            WalletDashboardAvailability(navigation = true, mutations = false),
+            walletDashboardAvailability(
+                busy = false,
+                hnsSynchronizationActive = false,
+                bitcoinSynchronizationActive = true,
+                controllerUnlocked = true,
+                controllerAvailableForActions = false,
+            ),
+        )
+        assertEquals(
+            WalletDashboardAvailability(navigation = true, mutations = true),
+            walletDashboardAvailability(
+                busy = false,
+                hnsSynchronizationActive = false,
+                bitcoinSynchronizationActive = false,
+                controllerUnlocked = true,
+                controllerAvailableForActions = true,
+            ),
+        )
+    }
+
+    @Test
     fun app_switch_retention_is_useful_but_bounded() {
         assertTrue(WALLET_APP_SWITCH_RETENTION_MILLIS >= 15_000L)
         assertTrue(WALLET_APP_SWITCH_RETENTION_MILLIS <= 60_000L)
