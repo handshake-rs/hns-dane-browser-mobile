@@ -185,9 +185,7 @@ internal fun newWalletBirthdayHeight(
 internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
     "com.denuoweb.hnsdane.extra.HANDSHAKE_PAYMENT_URI"
 
-// Immutable next-release UI gate. The native Shakedex runtime remains wired
-// so the dashboard card can be restored without a wallet migration.
-private const val SHOW_SHAKEDEX_WALLET_CARD = false
+private const val SHOW_SHAKEDEX_WALLET_CARD = true
 
 /** Dedicated native controller for one complete Handshake wallet and Shakedex account. */
 class WalletActivity : ComponentActivity() {
@@ -1161,6 +1159,10 @@ class WalletActivity : ComponentActivity() {
                 }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 addView(dashboardActionButton(getString(R.string.wallet_dashboard_send), secondary = true) {
                     showHnsSendDialog()
+                }.apply {
+                    setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_qr_code, 0, 0, 0)
+                    compoundDrawablePadding = uiDp(5)
+                    compoundDrawablesRelative.firstOrNull()?.setTint(themeColors().secondaryAction)
                 }.disabledWhenWalletHandoff(!paymentActionsAvailable), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     leftMargin = uiDp(8)
                 })
@@ -1341,7 +1343,7 @@ class WalletActivity : ComponentActivity() {
                 setPadding(0, uiDp(8), 0, 0)
             })
         }
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.row_wallet_restore)
             .setMessage(R.string.wallet_dashboard_restore_dialog_summary)
             .setView(form)
@@ -1415,7 +1417,7 @@ class WalletActivity : ComponentActivity() {
                 showNameReceiveDialog()
             })
         }
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_dashboard_receive)
             .setView(content)
             .setNegativeButton(R.string.action_cancel, null)
@@ -1437,7 +1439,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun showNameReceiveDialog() {
         val address = latestReadSnapshot?.hnsReceiveTargets()?.nameTransferAddress.orEmpty()
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_dashboard_name_transfer)
             .setView(walletAddressDialogText(address))
             .setNegativeButton(R.string.action_cancel, null)
@@ -1520,7 +1522,7 @@ class WalletActivity : ComponentActivity() {
                 setPadding(0, uiDp(8), 0, 0)
             })
         }
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_dashboard_send)
             .setView(form)
             .setNegativeButton(R.string.action_cancel, null)
@@ -1621,11 +1623,12 @@ class WalletActivity : ComponentActivity() {
     private fun showActivityDetails() {
         val snapshot = latestReadSnapshot
         if (snapshot == null) {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.wallet_dashboard_recent_activity)
-                .setMessage(historyView.text)
-                .setNegativeButton(R.string.action_cancel, null)
-                .show()
+            walletDetailDialog(
+                title = getString(R.string.wallet_dashboard_recent_activity),
+                rows = listOf(
+                    getString(R.string.wallet_activity_transactions) to historyView.text.toString(),
+                ),
+            )
             return
         }
         val transactions = snapshot.transactions
@@ -1647,56 +1650,47 @@ class WalletActivity : ComponentActivity() {
                 transactions.size,
             ) + "\n\n" + formatWalletTransactions(page)
         }
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(uiDp(24), uiDp(6), uiDp(24), 0)
-            addView(TextView(this@WalletActivity).apply {
-                text = message
-                textSize = 14f
-                typeface = Typeface.MONOSPACE
-                setTextColor(themeColors().primaryText)
-                setTextIsSelectable(true)
-                setPadding(0, uiDp(8), 0, uiDp(12))
-            })
-            if (page.isNotEmpty()) {
-                addView(dashboardActionButton(
-                    getString(R.string.wallet_dashboard_copy_activity),
-                    secondary = true,
-                ) {
-                    getSystemService(ClipboardManager::class.java).setPrimaryClip(
-                        ClipData.newPlainText(
-                            getString(R.string.wallet_dashboard_recent_activity),
-                            message,
-                        ),
-                    )
-                    Toast.makeText(
-                        this@WalletActivity,
-                        R.string.common_copied,
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                })
-            }
-        }
-        val scrollableContent = ScrollView(this).apply {
-            addView(content)
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.wallet_dashboard_recent_activity)
-            .setView(scrollableContent)
-            .setNegativeButton(R.string.action_cancel, null)
+        val actions = mutableListOf<Pair<String, () -> Unit>>()
         if (recentActivityPageOffset > 0) {
-            dialog.setNeutralButton(R.string.action_previous_wallet_activity) { _, _ ->
+            actions += getString(R.string.action_previous_wallet_activity) to {
                 recentActivityPageOffset -= MAX_VISIBLE_READ_ITEMS
                 window.decorView.post(::showActivityDetails)
             }
         }
         if (recentActivityPageOffset + page.size < transactions.size) {
-            dialog.setPositiveButton(R.string.action_next_wallet_activity) { _, _ ->
+            actions += getString(R.string.action_next_wallet_activity) to {
                 recentActivityPageOffset += MAX_VISIBLE_READ_ITEMS
                 window.decorView.post(::showActivityDetails)
             }
         }
-        dialog.show()
+        if (page.isNotEmpty()) {
+            actions += getString(R.string.wallet_dashboard_copy_activity) to {
+                getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                    ClipData.newPlainText(
+                        getString(R.string.wallet_dashboard_recent_activity),
+                        message,
+                    ),
+                )
+                Toast.makeText(
+                    this@WalletActivity,
+                    R.string.common_copied,
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+        showWalletModal(
+            title = getString(R.string.wallet_dashboard_recent_activity),
+            rows = listOf(
+                getString(R.string.wallet_activity_transactions) to TextView(this).apply {
+                    text = message
+                    textSize = 14f
+                    typeface = Typeface.MONOSPACE
+                    setTextColor(themeColors().primaryText)
+                    setTextIsSelectable(true)
+                },
+            ),
+            actions = actions,
+        )
     }
 
     private fun formatWalletTransactions(transactions: List<NativeWalletTransaction>): String =
@@ -2419,6 +2413,24 @@ class WalletActivity : ComponentActivity() {
         )
     }
 
+    /** Applies the same visible perimeter used by wallet action controls to every popup. */
+    private fun walletAlertDialogBuilder(): AlertDialog.Builder =
+        object : AlertDialog.Builder(this) {
+            override fun create(): AlertDialog = super.create().also(::frameWalletPopup)
+
+            override fun show(): AlertDialog = super.show().also(::frameWalletPopup)
+        }
+
+    private fun frameWalletPopup(dialog: AlertDialog): AlertDialog = dialog.apply {
+        window?.setBackgroundDrawable(
+            settingsSurfaceDrawable(
+                accent = themeColors().secondaryAction,
+                fill = themeColors().background,
+                cornerRadius = 24,
+            ),
+        )
+    }
+
     private fun showWalletFormDialog(
         title: String,
         message: String? = null,
@@ -2485,7 +2497,7 @@ class WalletActivity : ComponentActivity() {
                 ),
             )
         }
-        dialog = AlertDialog.Builder(this)
+        dialog = walletAlertDialogBuilder()
             .setView(ScrollView(this).apply {
                 isFillViewport = true
                 addView(content)
@@ -2495,7 +2507,7 @@ class WalletActivity : ComponentActivity() {
         dialog.setOnShowListener {
             dialog.window?.setBackgroundDrawable(
                 settingsSurfaceDrawable(
-                    accent = themeColors().divider,
+                    accent = themeColors().secondaryAction,
                     fill = themeColors().background,
                     cornerRadius = 24,
                 ),
@@ -2568,14 +2580,14 @@ class WalletActivity : ComponentActivity() {
             isFillViewport = true
             addView(content)
         }
-        dialog = AlertDialog.Builder(this)
+        dialog = walletAlertDialogBuilder()
             .setView(scroll)
             .create()
         dialog.setOnDismissListener { onDismiss() }
         dialog.setOnShowListener {
             dialog.window?.setBackgroundDrawable(
                 settingsSurfaceDrawable(
-                    accent = themeColors().divider,
+                    accent = themeColors().secondaryAction,
                     fill = themeColors().background,
                     cornerRadius = 24,
                 ),
@@ -2990,7 +3002,7 @@ class WalletActivity : ComponentActivity() {
                 ))
             }
         }
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_recovery_quiz_title)
             .setMessage(R.string.wallet_recovery_quiz_message)
             .setView(content)
@@ -3011,7 +3023,7 @@ class WalletActivity : ComponentActivity() {
                         dialog.dismiss()
                         if (incorrectChoice) {
                             phrase.fill('\u0000')
-                            AlertDialog.Builder(this)
+                            walletAlertDialogBuilder()
                                 .setTitle(R.string.wallet_recovery_quiz_failed_title)
                                 .setMessage(R.string.wallet_recovery_quiz_failed_message)
                                 .setPositiveButton(android.R.string.ok, null)
@@ -3043,7 +3055,7 @@ class WalletActivity : ComponentActivity() {
             return
         }
         val view = RecoveryPhraseView(this).apply { showSecret(phrase) }
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.row_wallet_view_recovery)
             .setMessage(R.string.wallet_recovery_display_warning)
             .setView(view)
@@ -3066,7 +3078,7 @@ class WalletActivity : ComponentActivity() {
         val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
         if (keyguard?.isDeviceSecure != true) {
             cancelled()
-            AlertDialog.Builder(this)
+            walletAlertDialogBuilder()
                 .setTitle(R.string.wallet_auth_required_title)
                 .setMessage(R.string.wallet_auth_required_message)
                 .setNegativeButton(R.string.action_cancel, null)
@@ -3343,7 +3355,7 @@ class WalletActivity : ComponentActivity() {
         }
         val (scope, lease) = captured
         dismissWalletDeletionDialog()
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_delete_first_title)
             .setMessage(walletDeletionWarning(R.string.wallet_delete_first_message, scope))
             .setNegativeButton(R.string.action_cancel, null)
@@ -3367,7 +3379,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun requestHnsSyncCancellation() {
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_stop_sync_title)
             .setMessage(R.string.wallet_stop_sync_message)
             .setNegativeButton(R.string.action_keep_synchronizing, null)
@@ -3396,7 +3408,7 @@ class WalletActivity : ComponentActivity() {
             isSaveEnabled = false
             freezesText = false
         }
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_delete_typed_title)
             .setMessage(walletDeletionWarning(R.string.wallet_delete_typed_message, scope))
             .setView(confirmation)
@@ -3916,7 +3928,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun requestBitcoinSyncCancellation() {
         if (!walletBitcoinSyncInProgress || bitcoinSyncStopRequested) return
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_stop_bitcoin_sync_title)
             .setMessage(R.string.wallet_stop_bitcoin_sync_message)
             .setNegativeButton(R.string.action_keep_synchronizing, null)
@@ -4365,7 +4377,7 @@ class WalletActivity : ComponentActivity() {
             isFillViewport = true
             addView(layout)
         }
-        dialog = AlertDialog.Builder(this)
+        dialog = walletAlertDialogBuilder()
             .setView(scroll)
             .create()
         dialog.setOnDismissListener { inputs.forEach { wipeEditable(it.text) } }
@@ -4498,7 +4510,7 @@ class WalletActivity : ComponentActivity() {
                     bitcoinStatusView.text = getString(R.string.wallet_swap_no_active_offers)
                 } else {
                     val labels = offers.map(::directOfferLabel).toTypedArray()
-                    AlertDialog.Builder(this)
+                    walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_my_offers)
                         .setItems(labels) { _, index -> confirmCancelDirectOffer(offers[index]) }
                         .setNegativeButton(R.string.action_cancel, null)
@@ -4521,7 +4533,7 @@ class WalletActivity : ComponentActivity() {
                 } else if (offers.isEmpty()) {
                     bitcoinStatusView.text = getString(R.string.wallet_swap_no_available_offers)
                 } else {
-                    AlertDialog.Builder(this)
+                    walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_available_offers)
                         .setItems(offers.map(::directOfferLabel).toTypedArray()) { _, index ->
                             showDirectOfferTakeForm(offers[index])
@@ -4581,7 +4593,7 @@ class WalletActivity : ComponentActivity() {
                 val labels = offers.map {
                     "${it.btcAmountSats} sats → ${formatHnsBaseUnits(it.hnsAmountDollarydoos.toString())} HNS · ${it.offerId.take(12)}…"
                 }.toTypedArray()
-                AlertDialog.Builder(this)
+                walletAlertDialogBuilder()
                     .setTitle(R.string.wallet_swap_active_offers)
                     .setItems(labels) { _, index -> confirmCancelBtcForHnsOffer(offers[index]) }
                     .setNegativeButton(R.string.action_cancel, null)
@@ -4608,7 +4620,7 @@ class WalletActivity : ComponentActivity() {
                     val labels = status.executions.map {
                         "${it.state.replace('_', ' ')} · ${it.offeredAmount} ${it.offeredAsset.uppercase()} → ${it.receivedAmount} ${it.receivedAsset.uppercase()} · ${it.sessionId.take(12)}…"
                     }.toTypedArray()
-                    AlertDialog.Builder(this)
+                    walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_executions)
                         .setMessage(bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))
                         .setItems(labels) { _, index -> showShakescapeExecution(status.executions[index]) }
@@ -4645,7 +4657,7 @@ class WalletActivity : ComponentActivity() {
             execution.firstFundingConfirmed.toString(),
             execution.secondFundingConfirmed.toString(),
         )
-        val builder = AlertDialog.Builder(this)
+        val builder = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_execution_title)
             .setMessage(message)
             .setNegativeButton(R.string.action_cancel, null)
@@ -4695,7 +4707,7 @@ class WalletActivity : ComponentActivity() {
             getString(R.string.wallet_swap_refund_hns),
             getString(R.string.wallet_swap_refund_bitcoin),
         )
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_settlement_actions)
             .setItems(actions) { _, index ->
                 val bitcoin = index == 1 || index == 3
@@ -4786,7 +4798,7 @@ class WalletActivity : ComponentActivity() {
             }
         }
         val unit = if (bitcoin) "sats" else "dollarydoos"
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(getString(R.string.wallet_swap_settlement_approval_title, approval.action))
             .setMessage(getString(
                 R.string.wallet_swap_settlement_approval_message,
@@ -4869,7 +4881,7 @@ class WalletActivity : ComponentActivity() {
                 runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
             }
         }
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_funding_approval_title)
             .setMessage(getString(
                 R.string.wallet_swap_funding_approval_message,
@@ -4954,7 +4966,7 @@ class WalletActivity : ComponentActivity() {
                 runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
             }
         }
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_hns_funding_approval_title)
             .setMessage(getString(
                 R.string.wallet_swap_hns_funding_approval_message,
@@ -4991,7 +5003,7 @@ class WalletActivity : ComponentActivity() {
     private fun confirmCancelBtcForHnsOffer(
         offer: com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferSummary,
     ) {
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_cancel_title)
             .setMessage(getString(
                 R.string.wallet_swap_cancel_message,
@@ -5019,7 +5031,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun confirmCancelDirectOffer(offer: NativeDirectOfferSummary) {
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_cancel_title)
             .setMessage(getString(
                 R.string.wallet_swap_cancel_direct_message,
@@ -5097,7 +5109,7 @@ class WalletActivity : ComponentActivity() {
                 runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
             }
         }
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_hns_approval_title)
             .setMessage(getString(
                 R.string.wallet_swap_hns_approval_message,
@@ -5182,7 +5194,7 @@ class WalletActivity : ComponentActivity() {
                 runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
             }
         }
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_take_approval_title)
             .setMessage(getString(
                 R.string.wallet_swap_take_approval_message,
@@ -5309,7 +5321,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_approval_title)
             .setMessage(getString(
                 R.string.wallet_swap_approval_message,
@@ -5463,7 +5475,7 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_bitcoin_send_approval_title)
             .setMessage(getString(
                 R.string.wallet_bitcoin_send_approval_message,
@@ -6012,7 +6024,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun showValuePreparationFailure() {
         dismissValueApproval(rejectNative = false)
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_auth_transaction_title)
             .setMessage(R.string.wallet_value_actions_prepare_failed)
             .setPositiveButton(android.R.string.ok, null)
@@ -6026,7 +6038,7 @@ class WalletActivity : ComponentActivity() {
 
     private fun showValueActionUnavailable() {
         dismissValueApproval(rejectNative = false)
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_auth_transaction_title)
             .setMessage(R.string.wallet_value_actions_requires_sync)
             .setPositiveButton(android.R.string.ok, null)
@@ -6055,7 +6067,7 @@ class WalletActivity : ComponentActivity() {
             R.string.wallet_value_actions_expires,
             expires,
         )).joinToString("\n\n")
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(approval.title)
             .setMessage(message)
             .setNegativeButton(R.string.action_reject) { _, _ ->
@@ -6150,7 +6162,7 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showSubmittedValueActionResult(displayJson: String) {
-        AlertDialog.Builder(this)
+        walletAlertDialogBuilder()
             .setTitle(R.string.wallet_value_actions_result_title)
             .setMessage(getString(R.string.wallet_value_actions_result, displayJson))
             .setPositiveButton(android.R.string.ok, null)
@@ -6525,7 +6537,7 @@ class WalletActivity : ComponentActivity() {
             getString(R.string.wallet_send_warning_fee_change),
             expires,
         )
-        val dialog = AlertDialog.Builder(this)
+        val dialog = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_send_approval_title)
             .setMessage(message)
             .setNegativeButton(R.string.action_reject) { _, _ ->

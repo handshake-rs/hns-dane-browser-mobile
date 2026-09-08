@@ -9,9 +9,7 @@ import CoreImage
 private let defaultHnsMaximumFee = "1"
 private let defaultHnsMaximumFeeBaseUnits = "1000000"
 private let directShakescapeNetworkMaintenanceTicks = 30
-// Immutable next-release UI gate. The native Shakedex runtime remains wired
-// so the dashboard card can be restored without a wallet migration.
-private let showShakedexWalletCard = false
+private let showShakedexWalletCard = true
 
 /// Native wallet-control surface.  Every HNS peer, consensus, block scan,
 /// signing, and broadcast operation remains in the Rust controller; UIKit
@@ -27,6 +25,28 @@ final class WalletViewController: UIViewController {
         #else
         UIScreen.main.isCaptured
         #endif
+    }
+
+    override func present(
+        _ viewControllerToPresent: UIViewController,
+        animated flag: Bool,
+        completion: (() -> Void)? = nil
+    ) {
+        if viewControllerToPresent is UIAlertController ||
+            viewControllerToPresent is WalletMenuViewController ||
+            viewControllerToPresent is WalletFormViewController {
+            Self.frameWalletPopup(viewControllerToPresent)
+        }
+        super.present(viewControllerToPresent, animated: flag, completion: completion)
+    }
+
+    private static func frameWalletPopup(_ controller: UIViewController) {
+        controller.loadViewIfNeeded()
+        controller.view.layer.cornerRadius = 24
+        controller.view.layer.cornerCurve = .continuous
+        controller.view.layer.borderWidth = 1
+        controller.view.layer.borderColor = UIColor.systemIndigo.cgColor
+        controller.view.layer.masksToBounds = true
     }
 
     private let network: BrowserHandshakeNetwork
@@ -91,6 +111,10 @@ final class WalletViewController: UIViewController {
     private var pendingBitcoinSendApproval: NativeBitcoinSendApproval?
     private weak var btcForHnsOfferApprovalAlert: UIAlertController?
     private var pendingBtcForHnsOfferApproval: NativeBtcForHnsOfferApproval?
+    private weak var hnsForBtcOfferApprovalAlert: UIAlertController?
+    private var pendingHnsForBtcOfferApproval: NativeHnsForBtcOfferApproval?
+    private weak var directOfferTakeApprovalAlert: UIAlertController?
+    private var pendingDirectOfferTakeApproval: NativeDirectOfferTakeApproval?
     private weak var btcForHnsFundingApprovalAlert: UIAlertController?
     private var pendingBtcForHnsFundingApproval: NativeBitcoinHtlcFundingApproval?
     private weak var hnsForBtcFundingApprovalAlert: UIAlertController?
@@ -261,6 +285,10 @@ final class WalletViewController: UIViewController {
         pendingBitcoinSendApproval = nil
         pendingBtcForHnsOfferApproval?.actionToken.discard()
         pendingBtcForHnsOfferApproval = nil
+        pendingHnsForBtcOfferApproval?.actionToken.discard()
+        pendingHnsForBtcOfferApproval = nil
+        pendingDirectOfferTakeApproval?.actionToken.discard()
+        pendingDirectOfferTakeApproval = nil
         pendingBtcForHnsFundingApproval?.actionToken.discard()
         pendingBtcForHnsFundingApproval = nil
         pendingHnsForBtcFundingApproval?.actionToken.discard()
@@ -602,6 +630,8 @@ final class WalletViewController: UIViewController {
                 hasPendingOutgoing: pendingOutgoingSnapshotHeight != nil
             )
         )
+        send.configuration?.image = UIImage(systemName: "qrcode")
+        send.configuration?.imagePadding = 5
         let scan = dashboardButton(
             title: "",
             action: #selector(scanHandshakePaymentQr),
@@ -1463,6 +1493,329 @@ final class WalletViewController: UIViewController {
                 }
             }
         }
+    }
+
+    private func showHnsForBtcOfferForm() {
+        authenticateWalletAction(
+            reason: "Authenticate before creating a signed HNS-for-BTC offer"
+        ) { [weak self] in
+            self?.showHnsForBtcOfferFormAfterAuthentication()
+        }
+    }
+
+    private func showHnsForBtcOfferFormAfterAuthentication() {
+        guard let wallet, shakedexActionMayStart, bitcoinValueAvailable else { return }
+        presentWalletForm(
+            title: "Sell HNS for BTC",
+            message: "Create one exact, indivisible direct-board offer. Confirmed HNS must cover the principal, active offers, and the separate fee reserve.",
+            fields: [
+                WalletSheetFormField(label: "HNS offered", placeholder: "HNS", keyboardType: .decimalPad),
+                WalletSheetFormField(label: "BTC requested", placeholder: "Satoshis", keyboardType: .numberPad),
+                WalletSheetFormField(
+                    label: "HNS fee reserve", placeholder: "HNS", keyboardType: .decimalPad,
+                    initialValue: defaultHnsMaximumFee
+                ),
+                WalletSheetFormField(
+                    label: "Listing lifetime", placeholder: "Hours (1–168)", keyboardType: .numberPad,
+                    initialValue: "24"
+                ),
+            ],
+            primaryTitle: "Review offer"
+        ) { [weak self, weak wallet] fields in
+            guard let self, let wallet, self.wallet === wallet, fields.count == 4,
+                  let hnsText = Self.positiveHnsBaseUnits(fields[0]),
+                  let hns = UInt64(hnsText), hns > 0,
+                  let btc = UInt64(fields[1]), btc > 0,
+                  let reserveText = Self.positiveHnsBaseUnits(fields[2]),
+                  let reserve = UInt64(reserveText), reserve > 0,
+                  let hours = UInt64(fields[3]), (1...168).contains(hours) else {
+                self?.showErrorMessage("Enter positive HNS with at most six decimals, positive BTC sats, a positive HNS fee reserve, and 1–168 hours.")
+                return
+            }
+            self.isOperating = true
+            self.bitcoinStatusLabel.text = "Preparing exact HNS-for-BTC listing…"
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result {
+                    try wallet.prepareHnsForBtcOffer(
+                        hnsAmountDollarydoos: hns,
+                        btcAmountSats: btc,
+                        hnsFeeReserveDollarydoos: reserve,
+                        listingLifetimeSeconds: hours * 3_600
+                    )
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let approval):
+                        self.presentHnsForBtcOfferApproval(approval, wallet: wallet)
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The HNS-for-BTC listing was not prepared."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        }
+    }
+
+    private func presentHnsForBtcOfferApproval(
+        _ approval: NativeHnsForBtcOfferApproval,
+        wallet: RustNativeWallet
+    ) {
+        pendingHnsForBtcOfferApproval?.actionToken.discard()
+        pendingHnsForBtcOfferApproval = approval
+        let offered = WalletReadPresenter.formatHnsBaseUnits(String(approval.hnsAmountDollarydoos))
+        let reserve = WalletReadPresenter.formatHnsBaseUnits(String(approval.hnsFeeReserveDollarydoos))
+        let total = WalletReadPresenter.formatHnsBaseUnits(String(approval.totalHnsCommitmentDollarydoos))
+        let message = """
+        Offer exactly: \(offered) HNS
+        Receive exactly: \(approval.btcAmountSats) sats
+        HNS fee reserve: \(reserve) HNS
+        Total HNS commitment: \(total) HNS
+
+        Publishing signs and shares fixed terms. It does not broadcast an HNS funding transaction. Settlement requires a connected swap peer and a separately approved atomic-swap session.
+        """
+        let alert = UIAlertController(
+            title: "Publish HNS-for-BTC offer?", message: message, preferredStyle: .alert
+        )
+        hnsForBtcOfferApprovalAlert = alert
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingHnsForBtcOfferApproval else { return }
+            self.pendingHnsForBtcOfferApproval = nil
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? wallet.rejectHnsForBtcOffer(pending.actionToken)
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Publish offer", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingHnsForBtcOfferApproval else { return }
+            self.pendingHnsForBtcOfferApproval = nil
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.approveHnsForBtcOffer(pending.actionToken) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let summary):
+                        self.bitcoinStatusLabel.text = "HNS-for-BTC offer \(summary.offerId.prefix(12))… is active and will be announced to a connected swap peer."
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The HNS-for-BTC offer was not published."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func directOfferLabel(_ offer: NativeDirectOfferSummary) -> String {
+        if offer.makerSellsHns {
+            return "\(WalletReadPresenter.formatHnsBaseUnits(String(offer.hnsAmountDollarydoos))) HNS → \(offer.btcAmountSats) sats · \(offer.offerId.prefix(12))…"
+        }
+        return "\(offer.btcAmountSats) sats → \(WalletReadPresenter.formatHnsBaseUnits(String(offer.hnsAmountDollarydoos))) HNS · \(offer.offerId.prefix(12))…"
+    }
+
+    private func showMyDirectOffers() {
+        guard let wallet, shakedexActionMayStart else { return }
+        bitcoinStatusLabel.text = "Loading authenticated local direct offers…"
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result { try wallet.localDirectOffers() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                switch outcome {
+                case .success(let offers) where offers.isEmpty:
+                    self.bitcoinStatusLabel.text = "There are no active local direct offers."
+                case .success(let offers):
+                    self.presentWalletMenu(
+                        title: "My direct offers",
+                        rows: [WalletMenuRow(title: "Offers", detail: "Select an offer to review cancellation.")],
+                        actions: offers.map { offer in
+                            WalletMenuAction(title: self.directOfferLabel(offer)) { [weak self, weak wallet] in
+                                guard let self, let wallet, self.wallet === wallet else { return }
+                                self.confirmCancelDirectOffer(offer, wallet: wallet)
+                            }
+                        }
+                    )
+                case .failure(let error):
+                    self.bitcoinStatusLabel.text = "Local direct offers could not be authenticated."
+                    self.showError(error)
+                }
+            }
+        }
+    }
+
+    private func confirmCancelDirectOffer(
+        _ offer: NativeDirectOfferSummary,
+        wallet: RustNativeWallet
+    ) {
+        let alert = UIAlertController(
+            title: "Cancel direct offer?",
+            message: "\(directOfferLabel(offer))\n\nOffer ID: \(offer.offerId)",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Keep offer", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel offer", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.cancelBtcForHnsOffer(offerId: offer.offerId) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    switch outcome {
+                    case .success:
+                        self.bitcoinStatusLabel.text = "Direct offer cancelled."
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The direct offer was not cancelled."
+                        self.showError(error)
+                    }
+                }
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    private func showAvailableDirectOffers() {
+        guard let wallet, shakedexActionMayStart else { return }
+        bitcoinStatusLabel.text = "Loading available direct offers…"
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result { try wallet.availableDirectOffers() }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                switch outcome {
+                case .success(let offers) where offers.isEmpty:
+                    self.bitcoinStatusLabel.text = "There are no available counterparty offers."
+                case .success(let offers):
+                    self.presentWalletMenu(
+                        title: "Available direct offers",
+                        rows: [WalletMenuRow(title: "Offers", detail: "Select an offer to review an exact atomic take.")],
+                        actions: offers.map { offer in
+                            WalletMenuAction(title: self.directOfferLabel(offer)) { [weak self] in
+                                self?.showDirectOfferTakeForm(offer)
+                            }
+                        }
+                    )
+                case .failure(let error):
+                    self.bitcoinStatusLabel.text = "Available direct offers could not be authenticated."
+                    self.showError(error)
+                }
+            }
+        }
+    }
+
+    private func showDirectOfferTakeForm(_ offer: NativeDirectOfferSummary) {
+        let reserveIsBitcoin = offer.receivedAsset == "btc"
+        presentWalletForm(
+            title: "Take direct offer",
+            message: directOfferLabel(offer),
+            fields: [WalletSheetFormField(
+                label: reserveIsBitcoin ? "Bitcoin fee reserve" : "HNS fee reserve",
+                placeholder: reserveIsBitcoin ? "Satoshis" : "HNS",
+                keyboardType: reserveIsBitcoin ? .numberPad : .decimalPad,
+                initialValue: reserveIsBitcoin ? "1000" : defaultHnsMaximumFee
+            )],
+            primaryTitle: "Review take"
+        ) { [weak self] fields in
+            guard let self, let value = fields.first else { return }
+            let reserve = reserveIsBitcoin
+                ? UInt64(value)
+                : Self.positiveHnsBaseUnits(value).flatMap { UInt64($0) }
+            guard let reserve, reserve > 0 else {
+                self.showErrorMessage("Enter a positive fee reserve in the received asset.")
+                return
+            }
+            self.authenticateWalletAction(reason: "Authenticate before accepting a direct swap offer") {
+                [weak self] in self?.prepareDirectOfferTake(offer, feeReserve: reserve)
+            }
+        }
+    }
+
+    private func prepareDirectOfferTake(_ offer: NativeDirectOfferSummary, feeReserve: UInt64) {
+        guard let wallet, shakedexActionMayStart else { return }
+        isOperating = true
+        bitcoinStatusLabel.text = "Preparing exact direct-offer take…"
+        refreshButtonStates()
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome = Result {
+                try wallet.prepareDirectOfferTake(
+                    offerId: offer.offerId, receivedFeeReserve: feeReserve
+                )
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wallet === wallet else { return }
+                self.isOperating = false
+                switch outcome {
+                case .success(let approval) where approval.offer.offerId == offer.offerId:
+                    self.presentDirectOfferTakeApproval(approval, wallet: wallet)
+                case .success(let approval):
+                    try? wallet.rejectDirectOfferTake(approval.actionToken)
+                    self.showErrorMessage("The native offer review did not match the selected offer.")
+                case .failure(let error):
+                    self.bitcoinStatusLabel.text = "The direct-offer take was not prepared."
+                    self.showError(error)
+                }
+                self.refreshButtonStates()
+            }
+        }
+    }
+
+    private func presentDirectOfferTakeApproval(
+        _ approval: NativeDirectOfferTakeApproval,
+        wallet: RustNativeWallet
+    ) {
+        pendingDirectOfferTakeApproval?.actionToken.discard()
+        pendingDirectOfferTakeApproval = approval
+        let message = """
+        \(directOfferLabel(approval.offer))
+        Fee reserve: \(approval.receivedFeeReserve) \(approval.offer.receivedAsset.uppercased())
+        Total commitment: \(approval.totalReceivedAssetCommitment) \(approval.offer.receivedAsset.uppercased())
+
+        Accepting sends an exact signed take to the connected peer and creates durable atomic-swap state. Funding still requires separate transaction approval.
+        """
+        let alert = UIAlertController(
+            title: "Accept direct offer?", message: message, preferredStyle: .alert
+        )
+        directOfferTakeApprovalAlert = alert
+        alert.addAction(UIAlertAction(title: "Reject", style: .cancel) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingDirectOfferTakeApproval else { return }
+            self.pendingDirectOfferTakeApproval = nil
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? wallet.rejectDirectOfferTake(pending.actionToken)
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Accept offer", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet,
+                  let pending = self.pendingDirectOfferTakeApproval else { return }
+            self.pendingDirectOfferTakeApproval = nil
+            self.isOperating = true
+            self.refreshButtonStates()
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result { try wallet.approveDirectOfferTake(pending.actionToken) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    self.isOperating = false
+                    switch outcome {
+                    case .success(let summary):
+                        self.bitcoinStatusLabel.text = "Direct offer \(summary.offerId.prefix(12))… accepted; atomic funding approvals are now available."
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The direct offer was not accepted."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        present(alert, animated: true)
     }
 
     @objc private func showShakescapeExecutions() {
@@ -2655,9 +3008,15 @@ final class WalletViewController: UIViewController {
                 self?.showBtcForHnsOfferForm()
             })
         }
-        if bitcoinOffersButton.isEnabled {
-            actions.append(WalletMenuAction(title: "Active BTC-for-HNS offers") { [weak self] in
-                self?.showActiveBtcForHnsOffers()
+        if shakedexActionMayStart {
+            actions.append(WalletMenuAction(title: "Sell HNS for BTC") { [weak self] in
+                self?.showHnsForBtcOfferForm()
+            })
+            actions.append(WalletMenuAction(title: "Available direct offers") { [weak self] in
+                self?.showAvailableDirectOffers()
+            })
+            actions.append(WalletMenuAction(title: "My direct offers") { [weak self] in
+                self?.showMyDirectOffers()
             })
         }
         if bitcoinExecutionsButton.isEnabled {
@@ -3449,13 +3808,11 @@ final class WalletViewController: UIViewController {
 
     @objc private func showWalletActivity() {
         guard let recentTransactions else {
-            let alert = UIAlertController(
+            presentWalletMenu(
                 title: "Recent activity",
-                message: historyLabel.text,
-                preferredStyle: .alert
+                rows: [WalletMenuRow(title: "Transactions", detail: historyLabel.text ?? "")],
+                actions: []
             )
-            alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-            present(alert, animated: true)
             return
         }
         let page = WalletReadPresenter.presentTransactionPage(
@@ -3463,33 +3820,32 @@ final class WalletViewController: UIViewController {
             requestedOffset: recentActivityPageOffset
         )
         recentActivityPageOffset = page.offset
-        let alert = UIAlertController(
-            title: "Recent activity",
-            message: page.text,
-            preferredStyle: .alert
-        )
+        var actions: [WalletMenuAction] = []
         if page.hasPrevious {
-            alert.addAction(UIAlertAction(title: "Previous", style: .default) { [weak self] _ in
+            actions.append(WalletMenuAction(title: "Previous") { [weak self] in
                 guard let self else { return }
                 self.recentActivityPageOffset -= page.pageSize
                 DispatchQueue.main.async { self.showWalletActivity() }
             })
         }
         if page.hasNext {
-            alert.addAction(UIAlertAction(title: "Next", style: .default) { [weak self] _ in
+            actions.append(WalletMenuAction(title: "Next") { [weak self] in
                 guard let self else { return }
                 self.recentActivityPageOffset += page.pageSize
                 DispatchQueue.main.async { self.showWalletActivity() }
             })
         }
-        alert.addAction(UIAlertAction(title: "Copy activity", style: .default) { _ in
+        actions.append(WalletMenuAction(title: "Copy activity") {
             UIPasteboard.general.setItems(
                 [[UTType.plainText.identifier: page.text]],
                 options: [.localOnly: true]
             )
         })
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        presentWalletMenu(
+            title: "Recent activity",
+            rows: [WalletMenuRow(title: "Transactions", detail: page.text)],
+            actions: actions
+        )
     }
 
     private func showWalletManagement() {
@@ -4851,6 +5207,12 @@ final class WalletViewController: UIViewController {
         pendingBtcForHnsOfferApproval?.actionToken.discard()
         pendingBtcForHnsOfferApproval = nil
         btcForHnsOfferApprovalAlert?.dismiss(animated: false)
+        pendingHnsForBtcOfferApproval?.actionToken.discard()
+        pendingHnsForBtcOfferApproval = nil
+        hnsForBtcOfferApprovalAlert?.dismiss(animated: false)
+        pendingDirectOfferTakeApproval?.actionToken.discard()
+        pendingDirectOfferTakeApproval = nil
+        directOfferTakeApprovalAlert?.dismiss(animated: false)
         pendingBtcForHnsFundingApproval?.actionToken.discard()
         pendingBtcForHnsFundingApproval = nil
         btcForHnsFundingApprovalAlert?.dismiss(animated: false)
@@ -5811,6 +6173,11 @@ private final class WalletMenuViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
+        view.layer.cornerRadius = 24
+        view.layer.cornerCurve = .continuous
+        view.layer.borderWidth = 1
+        view.layer.borderColor = UIColor.systemIndigo.cgColor
+        view.layer.masksToBounds = true
 
         let scrollView = UIScrollView()
         scrollView.alwaysBounceVertical = true
@@ -5986,6 +6353,11 @@ private final class WalletFormViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
+        view.layer.cornerRadius = 24
+        view.layer.cornerCurve = .continuous
+        view.layer.borderWidth = 1
+        view.layer.borderColor = UIColor.systemIndigo.cgColor
+        view.layer.masksToBounds = true
 
         let scrollView = UIScrollView()
         scrollView.alwaysBounceVertical = true

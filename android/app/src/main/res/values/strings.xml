@@ -728,6 +728,7 @@
     <string name="wallet_dashboard_hns_balance" translatable="false">HNS BALANCE</string>
     <string name="wallet_dashboard_receive" translatable="false">RECEIVE</string>
     <string name="wallet_dashboard_send" translatable="false">SEND</string>
+    <string name="wallet_activity_transactions" translatable="false">Transactions</string>
     <string name="wallet_dashboard_sync" translatable="false">SYNC</string>
     <string name="wallet_dashboard_sync_attention" translatable="false">SYNC NEEDS ATTENTION</string>
     <string name="wallet_dashboard_synchronizing" translatable="false">Synchronizing %1$s wallet</string>

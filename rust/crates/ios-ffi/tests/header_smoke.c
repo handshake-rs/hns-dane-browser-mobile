@@ -61,6 +61,15 @@ static void typecheck_api(void) {
                                            HnsBrowserSlice,
                                            HnsBrowserBuffer *) =
         hns_browser_wallet_import_hns_name_exact_text;
+    HnsBrowserResult (*wallet_prepare_hns_offer)(
+        HnsBrowserWalletHandle, uint64_t, uint64_t, uint64_t, uint64_t,
+        HnsBrowserBuffer *) = hns_browser_wallet_prepare_hns_for_btc_offer;
+    HnsBrowserResult (*wallet_available_direct_offers)(
+        HnsBrowserWalletHandle, HnsBrowserBuffer *) =
+        hns_browser_wallet_available_direct_offers;
+    HnsBrowserResult (*wallet_prepare_direct_take)(
+        HnsBrowserWalletHandle, HnsBrowserSlice, uint64_t,
+        HnsBrowserBuffer *) = hns_browser_wallet_prepare_direct_offer_take;
     HnsBrowserResult (*wallet_unlock)(HnsBrowserWalletHandle, HnsBrowserSlice) =
         hns_browser_wallet_unlock;
     HnsBrowserResult (*wallet_lock)(HnsBrowserWalletHandle) = hns_browser_wallet_lock;
@@ -86,6 +95,9 @@ static void typecheck_api(void) {
     (void)wallet_sync_progress;
     (void)wallet_cancel_sync;
     (void)wallet_import_name;
+    (void)wallet_prepare_hns_offer;
+    (void)wallet_available_direct_offers;
+    (void)wallet_prepare_direct_take;
     (void)wallet_unlock;
     (void)wallet_lock;
     (void)wallet_recovery;

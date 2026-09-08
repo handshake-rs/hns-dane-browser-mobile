@@ -1220,6 +1220,34 @@ impl NativeWalletController {
         )
     }
 
+    fn prepare_hns_for_btc_offer(
+        &mut self,
+        hns_amount_dollarydoos: u64,
+        btc_amount_sats: u64,
+        hns_fee_reserve_dollarydoos: u64,
+        listing_lifetime_seconds: u64,
+    ) -> Result<hns_wallet_mobile::MobileHnsForBtcOfferApproval, MobileWalletError> {
+        let Self::DirectHnsValue {
+            controller,
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        let confirmed_dollarydoos =
+            u64::try_from(controller.synchronize()?.balance.base_units.get())
+                .map_err(|_| MobileWalletError::ControllerFailed)?;
+        shakescape_sessions.prepare_hns_for_btc_offer(
+            confirmed_dollarydoos,
+            hns_amount_dollarydoos,
+            btc_amount_sats,
+            hns_fee_reserve_dollarydoos,
+            listing_lifetime_seconds,
+            HnsReadSystemClock.now_unix()?,
+        )
+    }
+
     fn approve_btc_for_hns_offer(
         &mut self,
         action_token: &str,
@@ -1240,6 +1268,26 @@ impl NativeWalletController {
         Ok(summary)
     }
 
+    fn approve_hns_for_btc_offer(
+        &mut self,
+        action_token: &str,
+    ) -> Result<hns_wallet_mobile::MobileDirectOfferSummary, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        let now_unix = HnsReadSystemClock.now_unix()?;
+        let summary = shakescape_sessions.approve_hns_for_btc_offer(action_token, now_unix)?;
+        if let Some(peer) = shakescape_peer.as_mut() {
+            shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)?;
+        }
+        Ok(summary)
+    }
+
     fn reject_btc_for_hns_offer(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
@@ -1249,6 +1297,105 @@ impl NativeWalletController {
             return Err(MobileWalletError::ControllerFailed);
         };
         shakescape_sessions.reject_btc_for_hns_offer(action_token)
+    }
+
+    fn reject_hns_for_btc_offer(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions.reject_hns_for_btc_offer(action_token)
+    }
+
+    fn local_direct_offers(
+        &self,
+    ) -> Result<Vec<hns_wallet_mobile::MobileDirectOfferSummary>, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions.local_direct_offers(HnsReadSystemClock.now_unix()?)
+    }
+
+    fn available_direct_offers(
+        &self,
+    ) -> Result<Vec<hns_wallet_mobile::MobileDirectOfferSummary>, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions.available_direct_offers(HnsReadSystemClock.now_unix()?)
+    }
+
+    fn prepare_direct_offer_take(
+        &mut self,
+        offer_id: &str,
+        confirmed_btc_sats: u64,
+        received_fee_reserve: u64,
+    ) -> Result<hns_wallet_mobile::MobileDirectOfferTakeApproval, MobileWalletError> {
+        let Self::DirectHnsValue {
+            controller,
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        if shakescape_peer.is_none() {
+            return Err(MobileWalletError::ControllerFailed);
+        }
+        let confirmed_hns_dollarydoos =
+            u64::try_from(controller.synchronize()?.balance.base_units.get())
+                .map_err(|_| MobileWalletError::ControllerFailed)?;
+        shakescape_sessions.prepare_direct_offer_take(
+            offer_id,
+            confirmed_btc_sats,
+            confirmed_hns_dollarydoos,
+            received_fee_reserve,
+            HnsReadSystemClock.now_unix()?,
+        )
+    }
+
+    fn approve_direct_offer_take(
+        &mut self,
+        action_token: &str,
+    ) -> Result<hns_wallet_mobile::MobileDirectOfferTakeSummary, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions.approve_direct_offer_take(
+            action_token,
+            shakescape_peer
+                .as_mut()
+                .ok_or(MobileWalletError::ControllerFailed)?,
+            HnsReadSystemClock.now_unix()?,
+        )
+    }
+
+    fn reject_direct_offer_take(&mut self, action_token: &str) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions.reject_direct_offer_take(action_token)
     }
 
     fn local_btc_for_hns_offers(
@@ -5008,6 +5155,219 @@ pub unsafe extern "C" fn hns_browser_wallet_reject_btc_for_hns_offer(
     })
 }
 
+/// Prepares fixed HNS-for-BTC terms without signing or reserving chain inputs.
+///
+/// # Safety
+/// `out_approval_bundle` must point to one writable owned-buffer value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_for_btc_offer(
+    wallet: HnsBrowserWalletHandle,
+    hns_amount_dollarydoos: u64,
+    btc_amount_sats: u64,
+    hns_fee_reserve_dollarydoos: u64,
+    listing_lifetime_seconds: u64,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let approval = entry
+            .controller
+            .prepare_hns_for_btc_offer(
+                hns_amount_dollarydoos,
+                btc_amount_sats,
+                hns_fee_reserve_dollarydoos,
+                listing_lifetime_seconds,
+            )
+            .map_err(|_| wallet_runtime_failure("HNS-for-BTC offer preparation failed"))?;
+        let bundle = wallet_bitcoin_bundle(&approval)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+/// # Safety
+/// `action_token` must remain readable and `out_summary_bundle` writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_approve_hns_for_btc_offer(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_summary_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_summary_bundle)?;
+        unsafe { write_output(out_summary_bundle, HnsBrowserBuffer::empty()) };
+        let action_token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let summary = entry
+            .controller
+            .approve_hns_for_btc_offer(&action_token)
+            .map_err(|_| wallet_runtime_failure("HNS-for-BTC offer publication failed"))?;
+        let bundle = wallet_bitcoin_bundle(&summary)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_summary_bundle, output) };
+        Ok(())
+    })
+}
+
+/// # Safety
+/// `action_token` must remain readable for its declared length.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_reject_hns_for_btc_offer(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let action_token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .reject_hns_for_btc_offer(&action_token)
+            .map_err(|_| wallet_runtime_failure("HNS-for-BTC offer rejection failed"))
+    })
+}
+
+/// # Safety
+/// `out_offers_bundle` must point to one writable owned-buffer value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_local_direct_offers(
+    wallet: HnsBrowserWalletHandle,
+    out_offers_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_offers_bundle)?;
+        unsafe { write_output(out_offers_bundle, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let offers = entry
+            .controller
+            .local_direct_offers()
+            .map_err(|_| wallet_runtime_failure("direct offer listing failed"))?;
+        let bundle = wallet_bitcoin_bundle(&json!({ "offers": offers }))?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_offers_bundle, output) };
+        Ok(())
+    })
+}
+
+/// # Safety
+/// `out_offers_bundle` must point to one writable owned-buffer value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_available_direct_offers(
+    wallet: HnsBrowserWalletHandle,
+    out_offers_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_offers_bundle)?;
+        unsafe { write_output(out_offers_bundle, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let offers = entry
+            .controller
+            .available_direct_offers()
+            .map_err(|_| wallet_runtime_failure("available direct offer listing failed"))?;
+        let bundle = wallet_bitcoin_bundle(&json!({ "offers": offers }))?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_offers_bundle, output) };
+        Ok(())
+    })
+}
+
+/// # Safety
+/// `offer_id` must remain readable and `out_approval_bundle` writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_prepare_direct_offer_take(
+    wallet: HnsBrowserWalletHandle,
+    offer_id: HnsBrowserSlice,
+    received_fee_reserve: u64,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        let offer_id = unsafe { wallet_action_token(offer_id) }?;
+        let confirmed_btc_sats = {
+            let control = wallet_bitcoin_control_entry(wallet)?;
+            let slot = control.controller.try_lock().map_err(|error| match error {
+                TryLockError::WouldBlock => direct_hns_not_ready("direct Bitcoin wallet is busy"),
+                TryLockError::Poisoned(_) => FfiFailure::internal(),
+            })?;
+            slot.as_ref()
+                .filter(|controller| controller.is_active())
+                .ok_or_else(|| direct_hns_not_ready("direct Bitcoin wallet is not active"))?
+                .snapshot()
+                .map_err(|_| wallet_runtime_failure("direct Bitcoin snapshot failed"))?
+                .confirmed_sats
+        };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let approval = entry
+            .controller
+            .prepare_direct_offer_take(&offer_id, confirmed_btc_sats, received_fee_reserve)
+            .map_err(|_| wallet_runtime_failure("direct offer take preparation failed"))?;
+        let bundle = wallet_bitcoin_bundle(&approval)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
+/// # Safety
+/// `action_token` must remain readable and `out_summary_bundle` writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_approve_direct_offer_take(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+    out_summary_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_summary_bundle)?;
+        unsafe { write_output(out_summary_bundle, HnsBrowserBuffer::empty()) };
+        let action_token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let summary = entry
+            .controller
+            .approve_direct_offer_take(&action_token)
+            .map_err(|_| wallet_runtime_failure("direct offer take approval failed"))?;
+        let bundle = wallet_bitcoin_bundle(&summary)?;
+        let output = allocate_output(&bundle.0, true)?;
+        unsafe { write_output(out_summary_bundle, output) };
+        Ok(())
+    })
+}
+
+/// # Safety
+/// `action_token` must remain readable for its declared length.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_reject_direct_offer_take(
+    wallet: HnsBrowserWalletHandle,
+    action_token: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let action_token = unsafe { wallet_action_token(action_token) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .reject_direct_offer_take(&action_token)
+            .map_err(|_| wallet_runtime_failure("direct offer take rejection failed"))
+    })
+}
+
 #[unsafe(no_mangle)]
 /// # Safety
 /// `out_offers_bundle` must point to one writable owned-buffer value.
@@ -7276,6 +7636,18 @@ mod tests {
             "hns_browser_wallet_connect_direct_shakescape",
             "hns_browser_wallet_disconnect_direct_shakescape",
             "hns_browser_wallet_service_direct_shakescape",
+            "hns_browser_wallet_prepare_btc_for_hns_offer",
+            "hns_browser_wallet_approve_btc_for_hns_offer",
+            "hns_browser_wallet_reject_btc_for_hns_offer",
+            "hns_browser_wallet_prepare_hns_for_btc_offer",
+            "hns_browser_wallet_approve_hns_for_btc_offer",
+            "hns_browser_wallet_reject_hns_for_btc_offer",
+            "hns_browser_wallet_local_direct_offers",
+            "hns_browser_wallet_available_direct_offers",
+            "hns_browser_wallet_prepare_direct_offer_take",
+            "hns_browser_wallet_approve_direct_offer_take",
+            "hns_browser_wallet_reject_direct_offer_take",
+            "hns_browser_wallet_shakescape_executions",
             "hns_browser_wallet_unlock",
             "hns_browser_wallet_lock",
             "hns_browser_wallet_take_recovery_phrase",

@@ -170,8 +170,8 @@ if [[ -z "$android_shakedex_wallet_card_gate" || -z "$ios_shakedex_wallet_card_g
   echo "ERROR: Android and iOS must use the same next-release Shakedex wallet-card gate." >&2
   exit 1
 fi
-if [[ "$android_shakedex_wallet_card_gate" != "false" ]]; then
-  echo "ERROR: the next release must keep the Shakedex wallet card hidden on both platforms." >&2
+if [[ "$android_shakedex_wallet_card_gate" != "true" ]]; then
+  echo "ERROR: the next release must expose the Shakedex wallet card on both platforms." >&2
   exit 1
 fi
 

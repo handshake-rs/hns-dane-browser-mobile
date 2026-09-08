@@ -547,6 +547,38 @@ HnsBrowserResult hns_browser_wallet_approve_btc_for_hns_offer(
 HnsBrowserResult hns_browser_wallet_reject_btc_for_hns_offer(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice action_token);
+HnsBrowserResult hns_browser_wallet_prepare_hns_for_btc_offer(
+    HnsBrowserWalletHandle wallet,
+    uint64_t hns_amount_dollarydoos,
+    uint64_t btc_amount_sats,
+    uint64_t hns_fee_reserve_dollarydoos,
+    uint64_t listing_lifetime_seconds,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_hns_for_btc_offer(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_summary_bundle);
+HnsBrowserResult hns_browser_wallet_reject_hns_for_btc_offer(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
+HnsBrowserResult hns_browser_wallet_local_direct_offers(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_offers_bundle);
+HnsBrowserResult hns_browser_wallet_available_direct_offers(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_offers_bundle);
+HnsBrowserResult hns_browser_wallet_prepare_direct_offer_take(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice offer_id,
+    uint64_t received_fee_reserve,
+    HnsBrowserBuffer *out_approval_bundle);
+HnsBrowserResult hns_browser_wallet_approve_direct_offer_take(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token,
+    HnsBrowserBuffer *out_summary_bundle);
+HnsBrowserResult hns_browser_wallet_reject_direct_offer_take(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice action_token);
 HnsBrowserResult hns_browser_wallet_local_btc_for_hns_offers(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_offers_bundle);
