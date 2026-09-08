@@ -166,15 +166,16 @@ class NativeBitcoinSyncProgressTest {
         val sessionId = "44".repeat(32)
         val txid = "55".repeat(32)
         val receipt = NativeBitcoinWalletBundle.htlcFundingReceipt(bundle(
-            """{"sessionId":"$sessionId","txid":"$txid","attemptCount":2,"submittedAtUnix":1700000000}""",
+            """{"sessionId":"$sessionId","txid":"$txid","outputIndex":1,"attemptCount":2,"submittedAtUnix":1700000000}""",
         ))
         requireNotNull(receipt)
         assertEquals(sessionId, receipt.sessionId)
         assertEquals(txid, receipt.txid)
+        assertEquals(1, receipt.outputIndex)
         assertEquals(2, receipt.attemptCount)
 
         assertNull(NativeBitcoinWalletBundle.htlcFundingReceipt(bundle(
-            """{"sessionId":"${"0".repeat(64)}","txid":"$txid","attemptCount":2,"submittedAtUnix":1700000000}""",
+            """{"sessionId":"${"0".repeat(64)}","txid":"$txid","outputIndex":1,"attemptCount":2,"submittedAtUnix":1700000000}""",
         )))
     }
 
@@ -199,12 +200,13 @@ class NativeBitcoinSyncProgressTest {
         )))
 
         val receipt = NativeBitcoinWalletBundle.hnsHtlcFundingReceipt(bundle(
-            """{"sessionId":"$sessionId","transactionId":"$transactionId","acceptedAtUnix":1700000000}""",
+            """{"sessionId":"$sessionId","transactionId":"$transactionId","outputIndex":0,"acceptedAtUnix":1700000000}""",
         ))
         requireNotNull(receipt)
         assertEquals(transactionId, receipt.transactionId)
+        assertEquals(0, receipt.outputIndex)
         assertNull(NativeBitcoinWalletBundle.hnsHtlcFundingReceipt(bundle(
-            """{"sessionId":"${"0".repeat(64)}","transactionId":"$transactionId","acceptedAtUnix":1700000000}""",
+            """{"sessionId":"${"0".repeat(64)}","transactionId":"$transactionId","outputIndex":0,"acceptedAtUnix":1700000000}""",
         )))
     }
 

@@ -69,6 +69,9 @@ import com.denuoweb.hnsdane.wallet.NativeBitcoinActivityPage
 import com.denuoweb.hnsdane.wallet.NativeBitcoinHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeBitcoinSyncProgress
 import com.denuoweb.hnsdane.wallet.NativeBtcForHnsOfferApproval
+import com.denuoweb.hnsdane.wallet.NativeDirectOfferSummary
+import com.denuoweb.hnsdane.wallet.NativeDirectOfferTakeApproval
+import com.denuoweb.hnsdane.wallet.NativeHnsForBtcOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeHnsHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeSwapSettlementApproval
@@ -2367,7 +2370,9 @@ class WalletActivity : ComponentActivity() {
             getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
             getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
             getString(R.string.wallet_swap_sell_btc) to ::showBtcForHnsOfferForm,
-            getString(R.string.wallet_swap_active_offers) to ::showActiveBtcForHnsOffers,
+            getString(R.string.wallet_swap_sell_hns) to ::showHnsForBtcOfferForm,
+            getString(R.string.wallet_swap_available_offers) to ::showAvailableDirectOffers,
+            getString(R.string.wallet_swap_my_offers) to ::showMyDirectOffers,
             getString(R.string.wallet_swap_executions) to ::showShakescapeExecutions,
             getString(R.string.row_wallet_pair_direct_shakescape) to ::showPairDirectShakescapeForm,
             getString(R.string.row_wallet_get_session) to ::showGetSessionForm,
@@ -4448,6 +4453,115 @@ class WalletActivity : ComponentActivity() {
         }
     }
 
+    private fun showHnsForBtcOfferForm() {
+        showWalletActionForm(
+            R.string.wallet_swap_sell_hns,
+            listOf(
+                WalletActionInput(R.string.wallet_swap_hns_offered_hint),
+                WalletActionInput(R.string.wallet_swap_btc_requested_hint, numeric = true),
+                WalletActionInput(
+                    R.string.wallet_swap_hns_fee_reserve_hint,
+                    initial = DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
+                ),
+                WalletActionInput(
+                    R.string.wallet_swap_lifetime_hours_hint,
+                    initial = "24",
+                    numeric = true,
+                ),
+            ),
+        ) { values ->
+            val hns = parsePositiveHnsToBaseUnits(values[0])?.toLongOrNull()?.takeIf { it > 0L }
+            val btc = values[1].toLongOrNull()?.takeIf { it > 0L }
+            val reserve = parsePositiveHnsToBaseUnits(values[2])?.toLongOrNull()?.takeIf { it > 0L }
+            val lifetime = values[3].toLongOrNull()
+                ?.takeIf { it in 1L..168L }
+                ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
+            if (hns == null || btc == null || reserve == null || lifetime == null) {
+                bitcoinStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)
+                return@showWalletActionForm
+            }
+            prepareHnsForBtcOffer(hns, btc, reserve, lifetime)
+        }
+    }
+
+    private fun showMyDirectOffers() {
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE || busy) return
+        bitcoinStatusView.text = getString(R.string.wallet_swap_loading_my_offers)
+        thread(name = "direct-offer-list") {
+            val offers = NativeWalletBridge.localDirectOffers(handle)
+            runOnUiThread {
+                if (walletHandle != handle) return@runOnUiThread
+                if (offers == null) {
+                    bitcoinStatusView.text = getString(R.string.wallet_swap_list_failed)
+                } else if (offers.isEmpty()) {
+                    bitcoinStatusView.text = getString(R.string.wallet_swap_no_active_offers)
+                } else {
+                    val labels = offers.map(::directOfferLabel).toTypedArray()
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.wallet_swap_my_offers)
+                        .setItems(labels) { _, index -> confirmCancelDirectOffer(offers[index]) }
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    private fun showAvailableDirectOffers() {
+        val handle = walletHandle
+        if (handle == INVALID_HANDLE || busy) return
+        bitcoinStatusView.text = getString(R.string.wallet_swap_loading_available_offers)
+        thread(name = "available-direct-offer-list") {
+            val offers = NativeWalletBridge.availableDirectOffers(handle)
+            runOnUiThread {
+                if (walletHandle != handle) return@runOnUiThread
+                if (offers == null) {
+                    bitcoinStatusView.text = getString(R.string.wallet_swap_available_failed)
+                } else if (offers.isEmpty()) {
+                    bitcoinStatusView.text = getString(R.string.wallet_swap_no_available_offers)
+                } else {
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.wallet_swap_available_offers)
+                        .setItems(offers.map(::directOfferLabel).toTypedArray()) { _, index ->
+                            showDirectOfferTakeForm(offers[index])
+                        }
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    private fun directOfferLabel(offer: NativeDirectOfferSummary): String =
+        if (offer.makerSellsHns) {
+            "${formatHnsBaseUnits(offer.hnsAmountDollarydoos.toString())} HNS → ${offer.btcAmountSats} sats · ${offer.offerId.take(12)}…"
+        } else {
+            "${offer.btcAmountSats} sats → ${formatHnsBaseUnits(offer.hnsAmountDollarydoos.toString())} HNS · ${offer.offerId.take(12)}…"
+        }
+
+    private fun showDirectOfferTakeForm(offer: NativeDirectOfferSummary) {
+        val bitcoin = offer.receivedAsset == "btc"
+        showWalletActionForm(
+            R.string.wallet_swap_take_offer,
+            listOf(WalletActionInput(
+                if (bitcoin) R.string.wallet_swap_take_btc_fee_reserve_hint
+                else R.string.wallet_swap_take_hns_fee_reserve_hint,
+                numeric = bitcoin,
+                initial = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_MAXIMUM_FEE_SATS.toString()
+                else DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
+            )),
+        ) { values ->
+            val reserve = if (bitcoin) values.single().toLongOrNull()
+            else parsePositiveHnsToBaseUnits(values.single())?.toLongOrNull()
+            if (reserve == null || reserve <= 0L) {
+                bitcoinStatusView.text = getString(R.string.wallet_swap_take_prepare_failed)
+            } else {
+                prepareDirectOfferTake(offer, reserve)
+            }
+        }
+    }
+
     private fun showActiveBtcForHnsOffers() {
         val handle = walletHandle
         if (handle == INVALID_HANDLE || busy) return
@@ -4535,7 +4649,12 @@ class WalletActivity : ComponentActivity() {
             .setTitle(R.string.wallet_swap_execution_title)
             .setMessage(message)
             .setNegativeButton(R.string.action_cancel, null)
-        if (execution.state == "first_funding_pending" && execution.firstChain == "bitcoin") {
+        val fundingChain = when (execution.state) {
+            "first_funding_pending" -> execution.firstChain
+            "second_funding_pending" -> execution.secondChain
+            else -> null
+        }
+        if (fundingChain == "bitcoin") {
             builder.setPositiveButton(R.string.wallet_swap_fund_bitcoin) { _, _ ->
                 showWalletActionForm(
                     R.string.wallet_swap_fund_bitcoin,
@@ -4546,7 +4665,7 @@ class WalletActivity : ComponentActivity() {
                     else prepareBtcForHnsFunding(execution, fee)
                 }
             }
-        } else if (execution.state == "second_funding_pending" && execution.secondChain == "handshake") {
+        } else if (fundingChain == "handshake") {
             builder.setPositiveButton(R.string.wallet_swap_fund_hns) { _, _ ->
                 showWalletActionForm(
                     R.string.wallet_swap_fund_hns,
@@ -4896,6 +5015,205 @@ class WalletActivity : ComponentActivity() {
                     }
                 }
             }
+            .show()
+    }
+
+    private fun confirmCancelDirectOffer(offer: NativeDirectOfferSummary) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_swap_cancel_title)
+            .setMessage(getString(
+                R.string.wallet_swap_cancel_direct_message,
+                directOfferLabel(offer),
+                offer.offerId,
+            ))
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.wallet_swap_cancel_offer) { _, _ ->
+                val handle = walletHandle
+                thread(name = "direct-offer-cancel") {
+                    val cancelled = NativeWalletBridge.cancelBtcForHnsOffer(handle, offer.offerId)
+                    runOnUiThread {
+                        if (walletHandle == handle) {
+                            bitcoinStatusView.text = getString(
+                                if (cancelled) R.string.wallet_swap_cancelled
+                                else R.string.wallet_swap_cancel_failed,
+                            )
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun prepareHnsForBtcOffer(
+        hnsAmountDollarydoos: Long,
+        btcAmountSats: Long,
+        hnsFeeReserveDollarydoos: Long,
+        listingLifetimeSeconds: Long,
+    ) {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = {
+                val lease = currentStorageLease() ?: return@requireWalletAuthentication
+                val handle = walletHandle
+                if (!beginOperation(lease, getString(R.string.wallet_swap_preparing), resetReads = false)) return@requireWalletAuthentication
+                val epoch = lifecycleEpoch
+                thread(name = "hns-btc-offer-prepare") {
+                    val approval = NativeWalletBridge.prepareHnsForBtcOffer(
+                        handle, hnsAmountDollarydoos, btcAmountSats,
+                        hnsFeeReserveDollarydoos, listingLifetimeSeconds,
+                    )
+                    runOnUiThread {
+                        if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
+                            approval?.let {
+                                NativeWalletBridge.rejectHnsForBtcOffer(handle, it.actionToken)
+                                it.close()
+                            }
+                            releaseStorageLeaseAfterOperation(lease)
+                        } else if (approval == null) {
+                            busy = false
+                            bitcoinStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)
+                            releaseStorageLeaseAfterOperation(lease)
+                        } else {
+                            showHnsForBtcOfferApproval(approval, lease, epoch)
+                        }
+                    }
+                }
+            },
+        )
+    }
+
+    private fun showHnsForBtcOfferApproval(
+        approval: NativeHnsForBtcOfferApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+    ) {
+        var settled = false
+        fun reject() {
+            if (settled) return
+            settled = true
+            thread(name = "hns-btc-offer-reject") {
+                NativeWalletBridge.rejectHnsForBtcOffer(walletHandle, approval.actionToken)
+                runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_swap_hns_approval_title)
+            .setMessage(getString(
+                R.string.wallet_swap_hns_approval_message,
+                formatHnsBaseUnits(approval.hnsAmountDollarydoos.toString()),
+                approval.btcAmountSats,
+                formatHnsBaseUnits(approval.hnsFeeReserveDollarydoos.toString()),
+                formatHnsBaseUnits(approval.totalHnsCommitmentDollarydoos.toString()),
+            ))
+            .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
+            .setPositiveButton(R.string.wallet_swap_publish) { _, _ ->
+                if (settled) return@setPositiveButton
+                settled = true
+                thread(name = "hns-btc-offer-publish") {
+                    val published = NativeWalletBridge.approveHnsForBtcOffer(
+                        walletHandle, approval.actionToken,
+                    )
+                    runOnUiThread {
+                        if (operationIsCurrent(epoch, lease)) {
+                            busy = false
+                            bitcoinStatusView.text = if (published == null) {
+                                getString(R.string.wallet_swap_publish_failed)
+                            } else {
+                                getString(R.string.wallet_swap_hns_published, published.offerId.take(12))
+                            }
+                        }
+                        releaseStorageLeaseAfterOperation(lease)
+                    }
+                }
+            }
+            .setOnCancelListener { reject() }
+            .show()
+    }
+
+    private fun prepareDirectOfferTake(offer: NativeDirectOfferSummary, feeReserve: Long) {
+        requireWalletAuthentication(
+            getString(R.string.wallet_auth_transaction_title),
+            getString(R.string.wallet_auth_transaction_message),
+            action = {
+                val lease = currentStorageLease() ?: return@requireWalletAuthentication
+                val handle = walletHandle
+                if (!beginOperation(lease, getString(R.string.wallet_swap_take_preparing), resetReads = false)) return@requireWalletAuthentication
+                val epoch = lifecycleEpoch
+                thread(name = "direct-offer-take-prepare") {
+                    val approval = NativeWalletBridge.prepareDirectOfferTake(
+                        handle, offer.offerId, feeReserve,
+                    )
+                    runOnUiThread {
+                        if (!operationIsCurrent(epoch, lease) || walletHandle != handle) {
+                            approval?.let {
+                                NativeWalletBridge.rejectDirectOfferTake(handle, it.actionToken)
+                                it.close()
+                            }
+                            releaseStorageLeaseAfterOperation(lease)
+                        } else if (approval == null || approval.offer.offerId != offer.offerId) {
+                            approval?.let {
+                                NativeWalletBridge.rejectDirectOfferTake(handle, it.actionToken)
+                                it.close()
+                            }
+                            busy = false
+                            bitcoinStatusView.text = getString(R.string.wallet_swap_take_prepare_failed)
+                            releaseStorageLeaseAfterOperation(lease)
+                        } else {
+                            showDirectOfferTakeApproval(approval, lease, epoch)
+                        }
+                    }
+                }
+            },
+        )
+    }
+
+    private fun showDirectOfferTakeApproval(
+        approval: NativeDirectOfferTakeApproval,
+        lease: WalletStorageOwnershipGate.Lease,
+        epoch: Long,
+    ) {
+        var settled = false
+        fun reject() {
+            if (settled) return
+            settled = true
+            thread(name = "direct-offer-take-reject") {
+                NativeWalletBridge.rejectDirectOfferTake(walletHandle, approval.actionToken)
+                runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.wallet_swap_take_approval_title)
+            .setMessage(getString(
+                R.string.wallet_swap_take_approval_message,
+                directOfferLabel(approval.offer),
+                approval.offer.receivedAmount,
+                approval.offer.receivedAsset.uppercase(),
+                approval.receivedFeeReserve,
+                approval.totalReceivedAssetCommitment,
+            ))
+            .setNegativeButton(R.string.action_reject) { _, _ -> reject() }
+            .setPositiveButton(R.string.wallet_swap_take_confirm) { _, _ ->
+                if (settled) return@setPositiveButton
+                settled = true
+                thread(name = "direct-offer-take-approve") {
+                    val accepted = NativeWalletBridge.approveDirectOfferTake(
+                        walletHandle, approval.actionToken,
+                    )
+                    runOnUiThread {
+                        if (operationIsCurrent(epoch, lease)) {
+                            busy = false
+                            bitcoinStatusView.text = if (accepted == null) {
+                                getString(R.string.wallet_swap_take_failed)
+                            } else {
+                                getString(R.string.wallet_swap_take_sent, accepted.sessionId.take(12))
+                            }
+                        }
+                        releaseStorageLeaseAfterOperation(lease)
+                    }
+                }
+            }
+            .setOnCancelListener { reject() }
             .show()
     }
 

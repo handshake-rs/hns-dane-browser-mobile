@@ -782,6 +782,31 @@
     <string name="wallet_name_back_to_wallet_summary" translatable="false">Return to balances and recent activity</string>
     <string name="wallet_dashboard_send_bitcoin" translatable="false">Send Bitcoin</string>
     <string name="wallet_swap_sell_btc" translatable="false">Sell BTC for HNS</string>
+    <string name="wallet_swap_sell_hns" translatable="false">Sell HNS for BTC</string>
+    <string name="wallet_swap_available_offers" translatable="false">Available swap offers</string>
+    <string name="wallet_swap_my_offers" translatable="false">My active swap offers</string>
+    <string name="wallet_swap_hns_offered_hint" translatable="false">HNS offered</string>
+    <string name="wallet_swap_btc_requested_hint" translatable="false">BTC requested (sats)</string>
+    <string name="wallet_swap_hns_fee_reserve_hint" translatable="false">HNS fee reserve</string>
+    <string name="wallet_swap_hns_prepare_failed" translatable="false">The HNS-for-BTC listing was not prepared. Synchronized HNS must cover active listings, this principal, and its fee reserve.</string>
+    <string name="wallet_swap_hns_approval_title" translatable="false">Publish HNS-for-BTC offer?</string>
+    <string name="wallet_swap_hns_approval_message" translatable="false">Offer %1$s HNS for exactly %2$d sats. Keep %3$s HNS outside the principal for fees. Total HNS commitment: %4$s HNS. Publishing signs and shares the fixed terms; it does not fund the atomic swap.</string>
+    <string name="wallet_swap_hns_published" translatable="false">HNS-for-BTC offer %1$s… is active and will be announced to connected swap peers.</string>
+    <string name="wallet_swap_loading_my_offers" translatable="false">Loading authenticated local swap offers…</string>
+    <string name="wallet_swap_loading_available_offers" translatable="false">Loading authenticated offers received from swap peers…</string>
+    <string name="wallet_swap_available_failed" translatable="false">Available peer offers could not be authenticated.</string>
+    <string name="wallet_swap_no_available_offers" translatable="false">No active offers from other swap peers are available yet.</string>
+    <string name="wallet_swap_take_offer" translatable="false">Accept exact swap offer</string>
+    <string name="wallet_swap_take_btc_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats)</string>
+    <string name="wallet_swap_take_hns_fee_reserve_hint" translatable="false">HNS fee reserve</string>
+    <string name="wallet_swap_take_preparing" translatable="false">Preparing exact signed offer acceptance…</string>
+    <string name="wallet_swap_take_prepare_failed" translatable="false">The offer acceptance could not be prepared. Check the connected peer, synchronized balance, and fee reserve.</string>
+    <string name="wallet_swap_take_approval_title" translatable="false">Accept this atomic-swap offer?</string>
+    <string name="wallet_swap_take_approval_message" translatable="false">Offer: %1$s\n\nYou will provide %2$d base units of %3$s plus a fee reserve of %4$d, for a total commitment of %5$d base units. This signs an exact take and starts session negotiation; it does not yet broadcast funding.</string>
+    <string name="wallet_swap_take_confirm" translatable="false">Accept offer</string>
+    <string name="wallet_swap_take_failed" translatable="false">The signed acceptance was not sent. The peer may have disconnected or the offer may have expired.</string>
+    <string name="wallet_swap_take_sent" translatable="false">Offer accepted. Atomic-swap session %1$s… is negotiating with the maker.</string>
+    <string name="wallet_swap_cancel_direct_message" translatable="false">Withdraw %1$s?\n\nOffer ID: %2$s. Cancellation releases the local reservation but cannot cancel an already accepted session.</string>
     <string name="wallet_swap_btc_amount_hint" translatable="false">BTC offered (sats)</string>
     <string name="wallet_swap_hns_amount_hint" translatable="false">HNS requested</string>
     <string name="wallet_swap_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats)</string>

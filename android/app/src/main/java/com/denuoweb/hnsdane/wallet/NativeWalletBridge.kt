@@ -325,6 +325,89 @@ internal object NativeWalletBridge {
         }
     }
 
+    fun prepareHnsForBtcOffer(
+        handle: Long,
+        hnsAmountDollarydoos: Long,
+        btcAmountSats: Long,
+        hnsFeeReserveDollarydoos: Long,
+        listingLifetimeSeconds: Long,
+    ): NativeHnsForBtcOfferApproval? {
+        if (!isValidHandle(handle) || !isAvailable || hnsAmountDollarydoos <= 0L ||
+            btcAmountSats <= 0L || hnsFeeReserveDollarydoos <= 0L || listingLifetimeSeconds <= 0L
+        ) return null
+        val bundle = runCatching {
+            nativePrepareHnsForBtcOffer(
+                handle, hnsAmountDollarydoos, btcAmountSats,
+                hnsFeeReserveDollarydoos, listingLifetimeSeconds,
+            )
+        }.getOrNull() ?: return null
+        return try { NativeBitcoinWalletBundle.hnsForBtcApproval(bundle) }
+        finally { bundle.fill(0) }
+    }
+
+    fun approveHnsForBtcOffer(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): NativeDirectOfferSummary? = actionToken.consume { tokenAscii ->
+        if (!isValidHandle(handle) || !isAvailable) return@consume null
+        val bundle = runCatching { nativeApproveHnsForBtcOffer(handle, tokenAscii) }.getOrNull()
+            ?: return@consume null
+        try { NativeBitcoinWalletBundle.directOfferSummary(bundle) }
+        finally { bundle.fill(0) }
+    }
+
+    fun rejectHnsForBtcOffer(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
+        actionToken.consume { tokenAscii ->
+            isValidHandle(handle) && isAvailable &&
+                runCatching { nativeRejectHnsForBtcOffer(handle, tokenAscii) }.getOrDefault(false)
+        } ?: false
+
+    fun localDirectOffers(handle: Long): List<NativeDirectOfferSummary>? =
+        if (isValidHandle(handle) && isAvailable) {
+            val bundle = runCatching { nativeLocalDirectOffers(handle) }.getOrNull() ?: return null
+            try { NativeBitcoinWalletBundle.directOffers(bundle) }
+            finally { bundle.fill(0) }
+        } else null
+
+    fun availableDirectOffers(handle: Long): List<NativeDirectOfferSummary>? =
+        if (isValidHandle(handle) && isAvailable) {
+            val bundle = runCatching { nativeAvailableDirectOffers(handle) }.getOrNull() ?: return null
+            try { NativeBitcoinWalletBundle.directOffers(bundle) }
+            finally { bundle.fill(0) }
+        } else null
+
+    fun prepareDirectOfferTake(
+        handle: Long,
+        offerId: String,
+        receivedFeeReserve: Long,
+    ): NativeDirectOfferTakeApproval? {
+        if (!isValidHandle(handle) || !isAvailable || receivedFeeReserve <= 0L ||
+            offerId.length != 64 || offerId.any { it !in '0'..'9' && it !in 'a'..'f' }
+        ) return null
+        val bundle = runCatching {
+            nativePrepareDirectOfferTake(handle, offerId, receivedFeeReserve)
+        }.getOrNull() ?: return null
+        return try { NativeBitcoinWalletBundle.directOfferTakeApproval(bundle) }
+        finally { bundle.fill(0) }
+    }
+
+    fun approveDirectOfferTake(
+        handle: Long,
+        actionToken: NativeHnsValueActionToken,
+    ): NativeDirectOfferTakeSummary? = actionToken.consume { tokenAscii ->
+        if (!isValidHandle(handle) || !isAvailable) return@consume null
+        val bundle = runCatching { nativeApproveDirectOfferTake(handle, tokenAscii) }.getOrNull()
+            ?: return@consume null
+        try { NativeBitcoinWalletBundle.directOfferTakeSummary(bundle) }
+        finally { bundle.fill(0) }
+    }
+
+    fun rejectDirectOfferTake(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
+        actionToken.consume { tokenAscii ->
+            isValidHandle(handle) && isAvailable &&
+                runCatching { nativeRejectDirectOfferTake(handle, tokenAscii) }.getOrDefault(false)
+        } ?: false
+
     fun rejectBtcForHnsOffer(handle: Long, actionToken: NativeHnsValueActionToken): Boolean =
         actionToken.consume { tokenAscii ->
             isValidHandle(handle) && isAvailable &&
@@ -1196,13 +1279,59 @@ internal object NativeWalletBridge {
     ): ByteArray?
 
     @JvmStatic
+    private external fun nativePrepareHnsForBtcOffer(
+        handle: Long,
+        hnsAmountDollarydoos: Long,
+        btcAmountSats: Long,
+        hnsFeeReserveDollarydoos: Long,
+        listingLifetimeSeconds: Long,
+    ): ByteArray?
+
+    @JvmStatic
     private external fun nativeApproveBtcForHnsOffer(
         handle: Long,
         actionTokenAscii: ByteArray,
     ): ByteArray?
 
     @JvmStatic
+    private external fun nativeApproveHnsForBtcOffer(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
     private external fun nativeRejectBtcForHnsOffer(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativeRejectHnsForBtcOffer(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativeLocalDirectOffers(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeAvailableDirectOffers(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativePrepareDirectOfferTake(
+        handle: Long,
+        offerId: String,
+        receivedFeeReserve: Long,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeApproveDirectOfferTake(
+        handle: Long,
+        actionTokenAscii: ByteArray,
+    ): ByteArray?
+
+    @JvmStatic
+    private external fun nativeRejectDirectOfferTake(
         handle: Long,
         actionTokenAscii: ByteArray,
     ): Boolean

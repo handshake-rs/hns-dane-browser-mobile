@@ -139,6 +139,7 @@ internal data class NativeBitcoinHtlcFundingApproval(
 internal data class NativeBitcoinHtlcFundingReceipt(
     val sessionId: String,
     val txid: String,
+    val outputIndex: Int,
     val attemptCount: Int,
     val submittedAtUnix: Long?,
 )
@@ -159,6 +160,7 @@ internal data class NativeHnsHtlcFundingApproval(
 internal data class NativeHnsHtlcFundingReceipt(
     val sessionId: String,
     val transactionId: String,
+    val outputIndex: Int,
     val acceptedAtUnix: Long,
 )
 
@@ -204,6 +206,58 @@ internal data class NativeBtcForHnsOfferSummary(
     val btcAmountSats: Long,
     val hnsAmountDollarydoos: Long,
     val bitcoinFeeReserveSats: Long,
+    val createdAtUnix: Long,
+    val expiresAtUnix: Long,
+)
+
+internal data class NativeHnsForBtcOfferApproval(
+    val actionToken: NativeHnsValueActionToken,
+    val hnsAmountDollarydoos: Long,
+    val btcAmountSats: Long,
+    val hnsFeeReserveDollarydoos: Long,
+    val totalHnsCommitmentDollarydoos: Long,
+    val offerExpiresAtUnix: Long,
+    val approvalExpiresAtUnix: Long,
+    val connectedPeerRequiredForAnnouncement: Boolean,
+) : AutoCloseable {
+    override fun close() = actionToken.close()
+}
+
+internal data class NativeDirectOfferSummary(
+    val offerId: String,
+    val sessionId: String,
+    val makerSellsHns: Boolean,
+    val offeredAsset: String,
+    val offeredAmount: Long,
+    val receivedAsset: String,
+    val receivedAmount: Long,
+    val btcAmountSats: Long,
+    val hnsAmountDollarydoos: Long,
+    val offeredFeeReserve: Long?,
+    val local: Boolean,
+    val createdAtUnix: Long,
+    val expiresAtUnix: Long,
+)
+
+internal data class NativeDirectOfferTakeApproval(
+    val actionToken: NativeHnsValueActionToken,
+    val offer: NativeDirectOfferSummary,
+    val receivedFeeReserve: Long,
+    val totalReceivedAssetCommitment: Long,
+    val takeExpiresAtUnix: Long,
+    val approvalExpiresAtUnix: Long,
+) : AutoCloseable {
+    override fun close() = actionToken.close()
+}
+
+internal data class NativeDirectOfferTakeSummary(
+    val offerId: String,
+    val sessionId: String,
+    val offeredAsset: String,
+    val offeredAmount: Long,
+    val receivedAsset: String,
+    val receivedAmount: Long,
+    val receivedFeeReserve: Long,
     val createdAtUnix: Long,
     val expiresAtUnix: Long,
 )
@@ -471,15 +525,18 @@ internal object NativeBitcoinWalletBundle {
     }
 
     fun htlcFundingReceipt(bundle: ByteArray): NativeBitcoinHtlcFundingReceipt? = parse(bundle) { json ->
-        if (!hasExactKeys(json, setOf("sessionId", "txid", "attemptCount", "submittedAtUnix"))) {
+        if (!hasExactKeys(json, setOf(
+            "sessionId", "txid", "outputIndex", "attemptCount", "submittedAtUnix",
+        ))) {
             return@parse null
         }
         val sessionId = hexHash(json.optString("sessionId", "")) ?: return@parse null
         val txid = hexHash(json.optString("txid", "")) ?: return@parse null
+        val outputIndex = json.optInt("outputIndex", -1).takeIf { it >= 0 } ?: return@parse null
         val attempts = json.optInt("attemptCount", -1).takeIf { it in 1..16 } ?: return@parse null
         val submitted = if (json.isNull("submittedAtUnix")) null else
             positiveLong(json, "submittedAtUnix") ?: return@parse null
-        NativeBitcoinHtlcFundingReceipt(sessionId, txid, attempts, submitted)
+        NativeBitcoinHtlcFundingReceipt(sessionId, txid, outputIndex, attempts, submitted)
     }
 
     fun hnsHtlcFundingApproval(bundle: ByteArray): NativeHnsHtlcFundingApproval? = parse(bundle) { json ->
@@ -510,12 +567,15 @@ internal object NativeBitcoinWalletBundle {
     }
 
     fun hnsHtlcFundingReceipt(bundle: ByteArray): NativeHnsHtlcFundingReceipt? = parse(bundle) { json ->
-        if (!hasExactKeys(json, setOf("sessionId", "transactionId", "acceptedAtUnix"))) {
+        if (!hasExactKeys(json, setOf(
+            "sessionId", "transactionId", "outputIndex", "acceptedAtUnix",
+        ))) {
             return@parse null
         }
         NativeHnsHtlcFundingReceipt(
             hexHash(json.optString("sessionId", "")) ?: return@parse null,
             hexHash(json.optString("transactionId", "")) ?: return@parse null,
+            json.optInt("outputIndex", -1).takeIf { it >= 0 } ?: return@parse null,
             positiveLong(json, "acceptedAtUnix") ?: return@parse null,
         )
     }
@@ -629,6 +689,98 @@ internal object NativeBitcoinWalletBundle {
         }
     }
 
+    fun hnsForBtcApproval(bundle: ByteArray): NativeHnsForBtcOfferApproval? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf(
+            "actionToken", "hnsAmountDollarydoos", "btcAmountSats",
+            "hnsFeeReserveDollarydoos", "totalHnsCommitmentDollarydoos",
+            "offerExpiresAtUnix", "approvalExpiresAtUnix",
+            "connectedPeerRequiredForAnnouncement",
+        ))) return@parse null
+        val token = NativeHnsValueActionToken.takeOwnership(
+            json.optString("actionToken", "").toByteArray(Charsets.US_ASCII),
+        ) ?: return@parse null
+        val hns = positiveLong(json, "hnsAmountDollarydoos")
+        val btc = positiveLong(json, "btcAmountSats")
+        val reserve = positiveLong(json, "hnsFeeReserveDollarydoos")
+        val total = positiveLong(json, "totalHnsCommitmentDollarydoos")
+        val offerExpiry = positiveLong(json, "offerExpiresAtUnix")
+        val approvalExpiry = positiveLong(json, "approvalExpiresAtUnix")
+        val peerRequired = json.opt("connectedPeerRequiredForAnnouncement") as? Boolean
+        if (hns == null || btc == null || reserve == null || total == null ||
+            offerExpiry == null || approvalExpiry == null || peerRequired == null ||
+            hns > Long.MAX_VALUE - reserve || hns + reserve != total
+        ) {
+            token.close()
+            return@parse null
+        }
+        NativeHnsForBtcOfferApproval(
+            token, hns, btc, reserve, total, offerExpiry, approvalExpiry, peerRequired,
+        )
+    }
+
+    fun directOffers(bundle: ByteArray): List<NativeDirectOfferSummary>? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf("offers"))) return@parse null
+        val array = json.optJSONArray("offers") ?: return@parse null
+        if (array.length() > 1_024) return@parse null
+        buildList(array.length()) {
+            for (index in 0 until array.length()) {
+                add(parseDirectOffer(array.optJSONObject(index) ?: return@parse null)
+                    ?: return@parse null)
+            }
+        }
+    }
+
+    fun directOfferSummary(bundle: ByteArray): NativeDirectOfferSummary? = parse(bundle) {
+        parseDirectOffer(it)
+    }
+
+    fun directOfferTakeApproval(bundle: ByteArray): NativeDirectOfferTakeApproval? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf(
+            "actionToken", "offer", "receivedFeeReserve", "totalReceivedAssetCommitment",
+            "takeExpiresAtUnix", "approvalExpiresAtUnix",
+        ))) return@parse null
+        val token = NativeHnsValueActionToken.takeOwnership(
+            json.optString("actionToken", "").toByteArray(Charsets.US_ASCII),
+        ) ?: return@parse null
+        val offer = parseDirectOffer(json.optJSONObject("offer") ?: run { token.close(); return@parse null })
+        val reserve = positiveLong(json, "receivedFeeReserve")
+        val total = positiveLong(json, "totalReceivedAssetCommitment")
+        val takeExpiry = positiveLong(json, "takeExpiresAtUnix")
+        val approvalExpiry = positiveLong(json, "approvalExpiresAtUnix")
+        if (offer == null || reserve == null || total == null || takeExpiry == null || approvalExpiry == null ||
+            offer.receivedAmount > Long.MAX_VALUE - reserve || offer.receivedAmount + reserve != total
+        ) {
+            token.close()
+            return@parse null
+        }
+        NativeDirectOfferTakeApproval(token, offer, reserve, total, takeExpiry, approvalExpiry)
+    }
+
+    fun directOfferTakeSummary(bundle: ByteArray): NativeDirectOfferTakeSummary? = parse(bundle) { json ->
+        if (!hasExactKeys(json, setOf(
+            "offerId", "sessionId", "offeredAsset", "offeredAmount", "receivedAsset",
+            "receivedAmount", "receivedFeeReserve", "createdAtUnix", "expiresAtUnix",
+        ))) return@parse null
+        val offeredAsset = json.optString("offeredAsset", "").takeIf { it in SHAKESCAPE_ASSETS }
+            ?: return@parse null
+        val receivedAsset = json.optString("receivedAsset", "").takeIf {
+            it in SHAKESCAPE_ASSETS && it != offeredAsset
+        } ?: return@parse null
+        val created = positiveLong(json, "createdAtUnix") ?: return@parse null
+        val expires = positiveLong(json, "expiresAtUnix")?.takeIf { it > created } ?: return@parse null
+        NativeDirectOfferTakeSummary(
+            hexHash(json.optString("offerId", "")) ?: return@parse null,
+            hexHash(json.optString("sessionId", "")) ?: return@parse null,
+            offeredAsset,
+            positiveLong(json, "offeredAmount") ?: return@parse null,
+            receivedAsset,
+            positiveLong(json, "receivedAmount") ?: return@parse null,
+            positiveLong(json, "receivedFeeReserve") ?: return@parse null,
+            created,
+            expires,
+        )
+    }
+
     fun shakescapeExecutions(bundle: ByteArray): NativeShakescapeExecutionStatus? = parse(bundle) { json ->
         if (!hasExactKeys(json, setOf("executions", "bitcoinBroadcastRecovery"))) return@parse null
         val array = json.optJSONArray("executions") ?: return@parse null
@@ -686,6 +838,38 @@ internal object NativeBitcoinWalletBundle {
             positiveLong(json, "bitcoinFeeReserveSats") ?: return null,
             created,
             expires,
+        )
+    }
+
+    private fun parseDirectOffer(json: JSONObject): NativeDirectOfferSummary? {
+        if (!hasExactKeys(json, setOf(
+            "offerId", "sessionId", "makerSellsHns", "offeredAsset", "offeredAmount",
+            "receivedAsset", "receivedAmount", "btcAmountSats", "hnsAmountDollarydoos",
+            "offeredFeeReserve", "local", "createdAtUnix", "expiresAtUnix",
+        ))) return null
+        val offeredAsset = json.optString("offeredAsset", "").takeIf { it in SHAKESCAPE_ASSETS }
+            ?: return null
+        val receivedAsset = json.optString("receivedAsset", "").takeIf {
+            it in SHAKESCAPE_ASSETS && it != offeredAsset
+        } ?: return null
+        val makerSellsHns = json.opt("makerSellsHns") as? Boolean ?: return null
+        if (makerSellsHns != (offeredAsset == "hns")) return null
+        val offered = positiveLong(json, "offeredAmount") ?: return null
+        val received = positiveLong(json, "receivedAmount") ?: return null
+        val btc = positiveLong(json, "btcAmountSats") ?: return null
+        val hns = positiveLong(json, "hnsAmountDollarydoos") ?: return null
+        if ((offeredAsset == "btc" && (btc != offered || hns != received)) ||
+            (offeredAsset == "hns" && (hns != offered || btc != received))
+        ) return null
+        val reserve = if (json.isNull("offeredFeeReserve")) null else
+            positiveLong(json, "offeredFeeReserve") ?: return null
+        val created = positiveLong(json, "createdAtUnix") ?: return null
+        val expires = positiveLong(json, "expiresAtUnix")?.takeIf { it > created } ?: return null
+        return NativeDirectOfferSummary(
+            hexHash(json.optString("offerId", "")) ?: return null,
+            hexHash(json.optString("sessionId", "")) ?: return null,
+            makerSellsHns, offeredAsset, offered, receivedAsset, received, btc, hns,
+            reserve, json.opt("local") as? Boolean ?: return null, created, expires,
         )
     }
 

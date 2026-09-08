@@ -997,6 +997,40 @@ impl AndroidWalletController {
         bundle
     }
 
+    fn prepare_hns_for_btc_offer(
+        &mut self,
+        hns_amount_dollarydoos: u64,
+        btc_amount_sats: u64,
+        hns_fee_reserve_dollarydoos: u64,
+        listing_lifetime_seconds: u64,
+    ) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            controller,
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let confirmed_dollarydoos =
+            u64::try_from(controller.synchronize().ok()?.balance.base_units.get()).ok()?;
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
+        let approval = shakescape_sessions
+            .prepare_hns_for_btc_offer(
+                confirmed_dollarydoos,
+                hns_amount_dollarydoos,
+                btc_amount_sats,
+                hns_fee_reserve_dollarydoos,
+                listing_lifetime_seconds,
+                now_unix,
+            )
+            .ok()?;
+        let mut json = serde_json::to_vec(&approval).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
     fn approve_btc_for_hns_offer(&mut self, action_token: &str) -> Option<Vec<u8>> {
         let Self::DirectValue {
             shakescape_sessions,
@@ -1021,6 +1055,30 @@ impl AndroidWalletController {
         bundle
     }
 
+    fn approve_hns_for_btc_offer(&mut self, action_token: &str) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
+        let summary = shakescape_sessions
+            .approve_hns_for_btc_offer(action_token, now_unix)
+            .ok()?;
+        if let Some(peer) = shakescape_peer.as_mut() {
+            shakescape_sessions
+                .announce_direct_offer_inventory(peer, now_unix)
+                .ok()?;
+        }
+        let mut json = serde_json::to_vec(&summary).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
     fn reject_btc_for_hns_offer(&mut self, action_token: &str) -> bool {
         let Self::DirectValue {
             shakescape_sessions,
@@ -1031,6 +1089,123 @@ impl AndroidWalletController {
         };
         shakescape_sessions
             .reject_btc_for_hns_offer(action_token)
+            .is_ok()
+    }
+
+    fn reject_hns_for_btc_offer(&mut self, action_token: &str) -> bool {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        shakescape_sessions
+            .reject_hns_for_btc_offer(action_token)
+            .is_ok()
+    }
+
+    fn local_direct_offers(&self) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let offers = shakescape_sessions
+            .local_direct_offers(HnsReadSystemClock.now_unix().ok()?)
+            .ok()?;
+        let mut json = serde_json::to_vec(&serde_json::json!({ "offers": offers })).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    fn available_direct_offers(&self) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let offers = shakescape_sessions
+            .available_direct_offers(HnsReadSystemClock.now_unix().ok()?)
+            .ok()?;
+        let mut json = serde_json::to_vec(&serde_json::json!({ "offers": offers })).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    fn prepare_direct_offer_take(
+        &mut self,
+        offer_id: &str,
+        confirmed_btc_sats: u64,
+        received_fee_reserve: u64,
+    ) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            controller,
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        if shakescape_peer.is_none() {
+            return None;
+        }
+        let confirmed_hns_dollarydoos =
+            u64::try_from(controller.synchronize().ok()?.balance.base_units.get()).ok()?;
+        let approval = shakescape_sessions
+            .prepare_direct_offer_take(
+                offer_id,
+                confirmed_btc_sats,
+                confirmed_hns_dollarydoos,
+                received_fee_reserve,
+                HnsReadSystemClock.now_unix().ok()?,
+            )
+            .ok()?;
+        let mut json = serde_json::to_vec(&approval).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    fn approve_direct_offer_take(&mut self, action_token: &str) -> Option<Vec<u8>> {
+        let Self::DirectValue {
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let summary = shakescape_sessions
+            .approve_direct_offer_take(
+                action_token,
+                shakescape_peer.as_mut()?,
+                HnsReadSystemClock.now_unix().ok()?,
+            )
+            .ok()?;
+        let mut json = serde_json::to_vec(&summary).ok()?;
+        let bundle = bitcoin_json_bundle(json.as_slice());
+        json.fill(0);
+        bundle
+    }
+
+    fn reject_direct_offer_take(&mut self, action_token: &str) -> bool {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        shakescape_sessions
+            .reject_direct_offer_take(action_token)
             .is_ok()
     }
 
@@ -1125,6 +1300,12 @@ impl AndroidWalletController {
         };
         shakescape_sessions
             .authorize_local_btc_first_funding(session_id, HnsReadSystemClock.now_unix().ok()?)
+            .or_else(|_| {
+                shakescape_sessions.authorize_local_btc_second_funding(
+                    session_id,
+                    HnsReadSystemClock.now_unix().unwrap_or(0),
+                )
+            })
             .ok()
     }
 
@@ -1186,6 +1367,29 @@ impl AndroidWalletController {
         )
     }
 
+    fn complete_next_counterparty_hns_watch(&mut self) -> bool {
+        let Self::DirectValue {
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
+            return false;
+        };
+        let Ok(Some(permit)) = shakescape_sessions.next_counterparty_hns_watch(now_unix) else {
+            return false;
+        };
+        let Some(peer) = shakescape_peer.as_mut() else {
+            return false;
+        };
+        shakescape_sessions
+            .complete_counterparty_hns_watch(permit, peer, now_unix)
+            .is_ok()
+    }
+
     fn pending_first_bitcoin_funding_sessions(&self) -> Option<Vec<SessionId>> {
         let Self::DirectValue {
             shakescape_sessions,
@@ -1235,6 +1439,12 @@ impl AndroidWalletController {
         };
         let permit = shakescape_sessions
             .authorize_local_hns_second_funding(session_id, HnsReadSystemClock.now_unix().ok()?)
+            .or_else(|_| {
+                shakescape_sessions.authorize_local_hns_first_funding(
+                    session_id,
+                    HnsReadSystemClock.now_unix().unwrap_or(0),
+                )
+            })
             .ok()?;
         let approval = controller
             .prepare_shakescape_hns_funding(permit, maximum_fee_dollarydoos)
@@ -1246,12 +1456,39 @@ impl AndroidWalletController {
     }
 
     fn approve_hns_for_btc_funding(&mut self, action_token: &str) -> Option<Vec<u8>> {
-        let Self::DirectValue { controller, .. } = self else {
+        let Self::DirectValue {
+            controller,
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
             return None;
         };
         let receipt = controller
             .approve_shakescape_hns_funding(action_token)
             .ok()?;
+        if let (Some(session_id), Some(transaction_id), Some(peer)) = (
+            canonical_session_id(receipt.session_id.as_str()),
+            canonical_hash_32(receipt.transaction_id.as_str()),
+            shakescape_peer.as_mut(),
+        ) {
+            if let Err(error) = shakescape_sessions.announce_local_funding(
+                peer,
+                session_id,
+                transaction_id,
+                receipt.output_index,
+                receipt.accepted_at_unix,
+            ) {
+                android_log_error(&format!(
+                    "HNS swap funding was broadcast but its peer locator could not be announced: {error}"
+                ));
+            }
+        } else {
+            android_log_error(
+                "HNS swap funding was broadcast without an active peer for its funding locator",
+            );
+        }
         let mut json = serde_json::to_vec(&receipt).ok()?;
         let bundle = bitcoin_json_bundle(&json);
         json.fill(0);
@@ -3541,6 +3778,14 @@ fn canonical_action_token(bytes: Vec<u8>) -> Option<SensitiveString> {
 }
 
 fn canonical_session_id(token: &str) -> Option<SessionId> {
+    let value = canonical_hash_32(token)?;
+    value
+        .iter()
+        .any(|byte| *byte != 0)
+        .then(|| SessionId::new(value))
+}
+
+fn canonical_hash_32(token: &str) -> Option<[u8; 32]> {
     if token.len() != 64
         || token
             .bytes()
@@ -3557,10 +3802,7 @@ fn canonical_session_id(token: &str) -> Option<SessionId> {
         };
         value[index] = (nibble(pair[0]) << 4) | nibble(pair[1]);
     }
-    value
-        .iter()
-        .any(|byte| *byte != 0)
-        .then(|| SessionId::new(value))
+    value.iter().any(|byte| *byte != 0).then_some(value)
 }
 
 fn bounded_exact_wallet_name(mut bytes: Vec<u8>) -> Option<SensitiveString> {
@@ -6127,6 +6369,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         };
         let serviced = controller.service_direct_shakescape_once();
         let resumed_hns = controller.resume_approved_hns_settlements();
+        let hns_watch_ready = controller.complete_next_counterparty_hns_watch();
         let permit = controller.next_counterparty_bitcoin_watch().ok().flatten();
         drop(controller);
         let resumed = record
@@ -6137,7 +6380,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             })
             .is_some_and(|count| count != 0);
         let Some(permit) = permit else {
-            return serviced || resumed || resumed_hns;
+            return serviced || resumed || resumed_hns || hns_watch_ready;
         };
         let registered = record
             .bitcoin_try_if_active()
@@ -6150,7 +6393,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             })
             .unwrap_or(false);
         if !registered {
-            return serviced || resumed || resumed_hns;
+            return serviced || resumed || resumed_hns || hns_watch_ready;
         }
         record.controller_if_active().is_some_and(|mut controller| {
             controller
@@ -6159,6 +6402,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         }) || serviced
             || resumed
             || resumed_hns
+            || hns_watch_ready
     }))
     .unwrap_or(false)
     .into()
@@ -6340,6 +6584,38 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareHnsForBtcOffer(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    hns_amount_dollarydoos: jlong,
+    btc_amount_sats: jlong,
+    hns_fee_reserve_dollarydoos: jlong,
+    listing_lifetime_seconds: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let hns_amount_dollarydoos = u64::try_from(hns_amount_dollarydoos).ok()?;
+        let btc_amount_sats = u64::try_from(btc_amount_sats).ok()?;
+        let hns_fee_reserve_dollarydoos = u64::try_from(hns_fee_reserve_dollarydoos).ok()?;
+        let listing_lifetime_seconds = u64::try_from(listing_lifetime_seconds).ok()?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.prepare_hns_for_btc_offer(
+            hns_amount_dollarydoos,
+            btc_amount_sats,
+            hns_fee_reserve_dollarydoos,
+            listing_lifetime_seconds,
+        )?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveBtcForHnsOffer(
     mut env: JNIEnv<'_>,
     _class: JClass<'_>,
@@ -6356,6 +6632,31 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let record = wallet_from_handle(handle)?;
         let mut controller = record.controller_if_active()?;
         let mut bundle = controller.approve_btc_for_hns_offer(token.0.as_str())?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveHnsForBtcOffer(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = canonical_action_token(android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.approve_hns_for_btc_offer(token.0.as_str())?;
         let array = env.byte_array_from_slice(bundle.as_slice()).ok();
         bundle.fill(0);
         array.map(JByteArray::into_raw)
@@ -6388,6 +6689,165 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             return false;
         };
         controller.reject_btc_for_hns_offer(token.0.as_str())
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectHnsForBtcOffer(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )
+        .and_then(canonical_action_token);
+        let Some(token) = token else { return false };
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.reject_hns_for_btc_offer(token.0.as_str())
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeLocalDirectOffers(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let controller = record.controller_if_active()?;
+        let mut bundle = controller.local_direct_offers()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeAvailableDirectOffers(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let record = wallet_from_handle(handle)?;
+        let controller = record.controller_if_active()?;
+        let mut bundle = controller.available_direct_offers()?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareDirectOfferTake(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    offer_id: JString<'_>,
+    received_fee_reserve: jlong,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let received_fee_reserve = u64::try_from(received_fee_reserve).ok()?;
+        let offer_id = env
+            .get_string(&offer_id)
+            .ok()?
+            .to_string_lossy()
+            .into_owned();
+        if offer_id.len() != 64
+            || !offer_id
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return None;
+        }
+        let record = wallet_from_handle(handle)?;
+        let confirmed_btc_sats = {
+            let bitcoin = record.bitcoin_if_active()?;
+            bitcoin.as_ref()?.snapshot().ok()?.confirmed_sats
+        };
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.prepare_direct_offer_take(
+            offer_id.as_str(),
+            confirmed_btc_sats,
+            received_fee_reserve,
+        )?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeApproveDirectOfferTake(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jbyteArray {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = canonical_action_token(android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )?)?;
+        let record = wallet_from_handle(handle)?;
+        let mut controller = record.controller_if_active()?;
+        let mut bundle = controller.approve_direct_offer_take(token.0.as_str())?;
+        let array = env.byte_array_from_slice(bundle.as_slice()).ok();
+        bundle.fill(0);
+        array.map(JByteArray::into_raw)
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(std::ptr::null_mut())
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeRejectDirectOfferTake(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    action_token_ascii: JByteArray<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let token = android_wallet_consumed_bytes(
+            &mut env,
+            &action_token_ascii,
+            ANDROID_WALLET_ACTION_TOKEN_BYTES,
+        )
+        .and_then(canonical_action_token);
+        let Some(token) = token else { return false };
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.reject_direct_offer_take(token.0.as_str())
     }))
     .unwrap_or(false)
     .into()
@@ -6944,6 +7404,42 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             .as_mut()?
             .approve_shakescape_htlc_funding(token.0.as_str())
             .ok()?;
+        drop(bitcoin);
+        if let (Some(session_id), Some(transaction_id), Some(mut controller)) = (
+            canonical_session_id(receipt.session_id.as_str()),
+            canonical_hash_32(receipt.txid.as_str()),
+            record.controller_if_active(),
+        ) {
+            let announced = if let AndroidWalletController::DirectValue {
+                shakescape_sessions,
+                shakescape_peer,
+                ..
+            } = &mut *controller
+            {
+                shakescape_peer.as_mut().is_some_and(|peer| {
+                    shakescape_sessions
+                        .announce_local_funding(
+                            peer,
+                            session_id,
+                            transaction_id,
+                            receipt.output_index,
+                            HnsReadSystemClock.now_unix().unwrap_or(0),
+                        )
+                        .is_ok()
+                })
+            } else {
+                false
+            };
+            if !announced {
+                android_log_error(
+                    "Bitcoin swap funding was broadcast but its peer locator could not be announced",
+                );
+            }
+        } else {
+            android_log_error(
+                "Bitcoin swap funding was broadcast without an active peer for its funding locator",
+            );
+        }
         let mut json = serde_json::to_vec(&receipt).ok()?;
         let mut bundle = bitcoin_json_bundle(json.as_slice())?;
         json.fill(0);
