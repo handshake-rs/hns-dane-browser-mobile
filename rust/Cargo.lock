@@ -1312,7 +1312,7 @@ dependencies = [
 name = "hns-browser-chain"
 version = "0.2.3"
 dependencies = [
- "hns-browser-primitives 0.2.2",
+ "hns-browser-primitives",
  "rusqlite",
  "thiserror 2.0.20",
 ]
@@ -1321,22 +1321,9 @@ dependencies = [
 name = "hns-browser-dane"
 version = "0.2.2"
 dependencies = [
- "hns-browser-dnssec 0.2.2",
- "hns-browser-primitives 0.2.2",
- "hns-browser-urkel 0.2.2",
- "sha2",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "hns-browser-dane"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62ad07b8758f1c7f0442c303179dd3e095bd58178a0fbf68f6db246e11f0c6ec"
-dependencies = [
- "hns-browser-dnssec 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "hns-browser-primitives 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "hns-browser-urkel 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-dnssec",
+ "hns-browser-primitives",
+ "hns-browser-urkel",
  "sha2",
  "thiserror 2.0.20",
 ]
@@ -1345,23 +1332,7 @@ dependencies = [
 name = "hns-browser-dnssec"
 version = "0.2.2"
 dependencies = [
- "hns-browser-primitives 0.2.2",
- "num-bigint",
- "num-traits",
- "p256",
- "ring",
- "sha1",
- "sha2",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "hns-browser-dnssec"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "147ec51710989e72dd7eda41d1459803fc3dfe84718a5b14026acb19f0e57221"
-dependencies = [
- "hns-browser-primitives 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-primitives",
  "num-bigint",
  "num-traits",
  "p256",
@@ -1374,15 +1345,13 @@ dependencies = [
 [[package]]
 name = "hns-browser-gateway"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daab85f1edf6570408d7dcf7a858b1dc344038affe9a0c9eb16c2cd85b28c23e"
 dependencies = [
- "hns-browser-dane 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "hns-browser-primitives 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-dane",
+ "hns-browser-primitives",
  "hns-browser-resolver",
  "hns-browser-transport",
  "hns-icann-dane",
- "hns-namespace-resolution 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-namespace-resolution",
  "subtle",
  "thiserror 2.0.20",
 ]
@@ -1390,12 +1359,10 @@ dependencies = [
 [[package]]
 name = "hns-browser-loopback-proxy"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d65d661d7a79ea9d097485af949e73c0c6d0129d57fbc1a1d95d3756c243266"
 dependencies = [
  "base64 0.22.1",
- "hns-browser-dane 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "hns-browser-primitives 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-dane",
+ "hns-browser-primitives",
  "hns-browser-resolver",
  "httparse",
  "idna",
@@ -1411,12 +1378,10 @@ dependencies = [
 [[package]]
 name = "hns-browser-observability"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82110170b92aca81e85e35c9cae4747c43332c4a2ae6e74e92bb863e5c183b32"
 dependencies = [
  "hns-browser-runtime",
  "hns-icann-dane",
- "hns-namespace-resolution 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-namespace-resolution",
  "hns-resolution-policy",
  "thiserror 2.0.20",
 ]
@@ -1426,8 +1391,8 @@ name = "hns-browser-p2p"
 version = "0.2.3"
 dependencies = [
  "getrandom 0.3.4",
- "hns-browser-primitives 0.2.2",
- "hns-browser-urkel 0.2.2",
+ "hns-browser-primitives",
+ "hns-browser-urkel",
  "rusqlite",
  "thiserror 2.0.20",
 ]
@@ -1435,21 +1400,6 @@ dependencies = [
 [[package]]
 name = "hns-browser-primitives"
 version = "0.2.2"
-dependencies = [
- "blake2",
- "hex",
- "num-bigint",
- "num-traits",
- "serde",
- "sha3",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "hns-browser-primitives"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38ab8bf42f3e4de99f007c8bd53c5d39519dad68cebe95791a0654a226fd8d47"
 dependencies = [
  "blake2",
  "hex",
@@ -1464,11 +1414,11 @@ dependencies = [
 name = "hns-browser-resolver"
 version = "0.2.3"
 dependencies = [
- "hns-browser-dane 0.2.2",
- "hns-browser-dnssec 0.2.2",
- "hns-browser-primitives 0.2.2",
- "hns-cache 0.2.2",
- "hns-namespace-resolution 0.2.3",
+ "hns-browser-dane",
+ "hns-browser-dnssec",
+ "hns-browser-primitives",
+ "hns-cache",
+ "hns-namespace-resolution",
  "rusqlite",
  "thiserror 2.0.20",
 ]
@@ -1476,33 +1426,27 @@ dependencies = [
 [[package]]
 name = "hns-browser-runtime"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbdc7aecafbfdb12e6314d06016f5e6a8a3fb799da880da0e8b746156e55895a"
 
 [[package]]
 name = "hns-browser-sync"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3da6c592fe537ef692da0cc03e9d4118fdab097aac19a88f33adf5184ed2428"
 dependencies = [
  "hns-browser-chain",
  "hns-browser-p2p",
- "hns-browser-primitives 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "hns-browser-urkel 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-primitives",
+ "hns-browser-urkel",
  "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "hns-browser-transport"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "229e21bdfbb6463c15c291faecf099db19e716ec956a2d36ada2a388cca4223b"
 dependencies = [
  "bytes",
  "h2",
  "h3",
  "h3-quinn",
- "hns-browser-dane 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-dane",
  "hns-icann-dane",
  "http",
  "quinn",
@@ -1518,17 +1462,7 @@ dependencies = [
 name = "hns-browser-urkel"
 version = "0.2.2"
 dependencies = [
- "hns-browser-primitives 0.2.2",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "hns-browser-urkel"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0a9fdf6d94b31f5cf9defe3c958f72c923d4151672e755a93034f1c108ca61c"
-dependencies = [
- "hns-browser-primitives 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-primitives",
  "thiserror 2.0.20",
 ]
 
@@ -1536,18 +1470,7 @@ dependencies = [
 name = "hns-cache"
 version = "0.2.2"
 dependencies = [
- "hns-dns-wire 0.2.2",
- "sha2",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "hns-cache"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5b0ea892e4894f5312839d66370cac8e8e602aedea3fdad21cf669c6f1e7e33"
-dependencies = [
- "hns-dns-wire 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-dns-wire",
  "sha2",
  "thiserror 2.0.20",
 ]
@@ -1566,12 +1489,6 @@ dependencies = [
 [[package]]
 name = "hns-dns-wire"
 version = "0.2.2"
-
-[[package]]
-name = "hns-dns-wire"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfaf23f3344407a3be6db09fe9a70e172c65287a7675934526a4f3b1ab397e59"
 
 [[package]]
 name = "hns-encoding"
@@ -1596,8 +1513,6 @@ dependencies = [
 [[package]]
 name = "hns-icann-dane"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b2f04230b8a103f2ca77a26a26164b6c212d8edd429541adaf0481dcfb38473"
 
 [[package]]
 name = "hns-light-chain"
@@ -1693,21 +1608,21 @@ dependencies = [
  "crab_nat",
  "getifs",
  "hns-browser-chain",
- "hns-browser-dane 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "hns-browser-dnssec 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-dane",
+ "hns-browser-dnssec",
  "hns-browser-gateway",
  "hns-browser-loopback-proxy",
  "hns-browser-observability",
  "hns-browser-p2p",
- "hns-browser-primitives 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-primitives",
  "hns-browser-resolver",
  "hns-browser-runtime",
  "hns-browser-sync",
  "hns-browser-transport",
- "hns-browser-urkel 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "hns-cache 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-browser-urkel",
+ "hns-cache",
  "hns-icann-dane",
- "hns-namespace-resolution 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hns-namespace-resolution",
  "hns-resolution-policy",
  "httparse",
  "igd-next",
@@ -1721,12 +1636,6 @@ dependencies = [
 [[package]]
 name = "hns-namespace-resolution"
 version = "0.2.3"
-
-[[package]]
-name = "hns-namespace-resolution"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cb311521721c2ef69bca2585a43b31964ccabb87fb28b2e9d9898e4184ef526"
 
 [[package]]
 name = "hns-p2p-experimental"
@@ -1770,8 +1679,6 @@ dependencies = [
 [[package]]
 name = "hns-resolution-policy"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72d16a1c6f1f71659236fbe83e9eecbda95550a08f0514cba7c9deb11bf4eb3f"
 
 [[package]]
 name = "hns-script"

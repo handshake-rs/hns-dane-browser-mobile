@@ -49,6 +49,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ViewCompat
 import java.net.Inet4Address
 import com.denuoweb.hnsdane.BuildConfig
 import com.denuoweb.hnsdane.HnsDaneApplication
@@ -2423,7 +2424,7 @@ class WalletActivity : ComponentActivity() {
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(themeColors().primaryText)
                 setPadding(uiDp(2), 0, uiDp(2), uiDp(14))
-                accessibilityHeading = true
+                ViewCompat.setAccessibilityHeading(this, true)
             })
             message?.takeIf { it.isNotBlank() }?.let { detail ->
                 addView(
@@ -2598,7 +2599,7 @@ class WalletActivity : ComponentActivity() {
             letterSpacing = 0.08f
             setTextColor(themeColors().secondaryText)
             setPadding(uiDp(3), uiDp(5), uiDp(3), uiDp(8))
-            accessibilityHeading = true
+            ViewCompat.setAccessibilityHeading(this, true)
         }
 
     private fun openExistingWallet() {
@@ -4291,7 +4292,7 @@ class WalletActivity : ComponentActivity() {
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(themeColors().primaryText)
                 setPadding(uiDp(2), 0, uiDp(2), uiDp(14))
-                accessibilityHeading = true
+                ViewCompat.setAccessibilityHeading(this, true)
             })
         }
         val inputs = fields.map { field ->
