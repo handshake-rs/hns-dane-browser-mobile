@@ -9,6 +9,9 @@ import CoreImage
 private let defaultHnsMaximumFee = "1"
 private let defaultHnsMaximumFeeBaseUnits = "1000000"
 private let directShakescapeNetworkMaintenanceTicks = 30
+// Immutable next-release UI gate. The native Shakedex runtime remains wired
+// so the dashboard card can be restored without a wallet migration.
+private let showShakedexWalletCard = false
 
 /// Native wallet-control surface.  Every HNS peer, consensus, block scan,
 /// signing, and broadcast operation remains in the Rust controller; UIKit
@@ -668,15 +671,19 @@ final class WalletViewController: UIViewController {
             enabled: !isOperating,
             action: { [weak self] in self?.showBitcoinDashboard() }
         )
-        let shakedexTile = dashboardTile(
-            title: "Shakedex",
-            summary: directShakescapeStatusSnapshot?.peerEndpoint == nil
-                ? "No board peer connected"
-                : "Board peer connected",
-            enabled: !isOperating,
-            action: { [weak self] in self?.showShakedexDashboard() }
-        )
-        dashboardStack.addArrangedSubview(dashboardTileRow(bitcoinTile, shakedexTile))
+        if showShakedexWalletCard {
+            let shakedexTile = dashboardTile(
+                title: "Shakedex",
+                summary: directShakescapeStatusSnapshot?.peerEndpoint == nil
+                    ? "No board peer connected"
+                    : "Board peer connected",
+                enabled: !isOperating,
+                action: { [weak self] in self?.showShakedexDashboard() }
+            )
+            dashboardStack.addArrangedSubview(dashboardTileRow(bitcoinTile, shakedexTile))
+        } else {
+            dashboardStack.addArrangedSubview(bitcoinTile)
+        }
         dashboardStack.addArrangedSubview(dashboardCard(
             title: "Recent activity",
             body: [historyLabel, dashboardButton(

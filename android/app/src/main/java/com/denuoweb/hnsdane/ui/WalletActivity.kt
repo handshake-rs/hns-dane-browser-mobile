@@ -181,6 +181,10 @@ internal fun newWalletBirthdayHeight(
 internal const val EXTRA_HANDSHAKE_PAYMENT_URI =
     "com.denuoweb.hnsdane.extra.HANDSHAKE_PAYMENT_URI"
 
+// Immutable next-release UI gate. The native Shakedex runtime remains wired
+// so the dashboard card can be restored without a wallet migration.
+private const val SHOW_SHAKEDEX_WALLET_CARD = false
+
 /** Dedicated native controller for one complete Handshake wallet and Shakedex account. */
 class WalletActivity : ComponentActivity() {
     private lateinit var keyStore: AndroidWalletKeyStore
@@ -1188,16 +1192,27 @@ class WalletActivity : ComponentActivity() {
             walletTile,
         ))
         if (!locked) {
-            dashboardContent.addView(walletTileRow(
-                dashboardTile(
-                    title = getString(R.string.wallet_dashboard_bitcoin),
-                    summary = bitcoinSummary(),
-                ) { showBitcoinDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
-                dashboardTile(
-                    title = getString(R.string.wallet_dashboard_shakedex),
-                    summary = shakedexSummary(),
-                ) { showShakedexDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
-            ))
+            val bitcoinTile = dashboardTile(
+                title = getString(R.string.wallet_dashboard_bitcoin),
+                summary = bitcoinSummary(),
+            ) { showBitcoinDashboard() }.disabledWhenWalletHandoff(!actionsAvailable)
+            if (SHOW_SHAKEDEX_WALLET_CARD) {
+                dashboardContent.addView(walletTileRow(
+                    bitcoinTile,
+                    dashboardTile(
+                        title = getString(R.string.wallet_dashboard_shakedex),
+                        summary = shakedexSummary(),
+                    ) { showShakedexDashboard() }.disabledWhenWalletHandoff(!actionsAvailable),
+                ))
+            } else {
+                dashboardContent.addView(
+                    bitcoinTile,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { bottomMargin = uiDp(8) },
+                )
+            }
         }
     }
 
