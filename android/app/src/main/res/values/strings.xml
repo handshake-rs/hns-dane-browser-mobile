@@ -804,6 +804,8 @@
     <string name="wallet_swap_take_prepare_failed" translatable="false">The offer acceptance could not be prepared. Check the connected peer, synchronized balance, and fee reserve.</string>
     <string name="wallet_swap_take_insufficient_btc" translatable="false">This offer requires %1$d sats plus a %2$d sat Bitcoin fee reserve (%3$d sats total), but this wallet has %4$d confirmed sats.</string>
     <string name="wallet_swap_take_insufficient_hns" translatable="false">This offer requires %1$s HNS plus a %2$s HNS fee reserve (%3$s HNS total), but this wallet has %4$s HNS spendable.</string>
+    <string name="wallet_swap_take_reserved_btc" translatable="false">This offer requires %1$d sats total and the wallet has %2$d confirmed sats, but earlier accepted swaps reserve enough Bitcoin that the combined commitments cannot be funded. Complete or refund an existing swap, or add confirmed Bitcoin.</string>
+    <string name="wallet_swap_take_reserved_hns" translatable="false">This offer requires %1$s HNS total and the wallet has %2$s HNS confirmed, but earlier accepted swaps reserve enough HNS that the combined commitments cannot be funded. Complete or refund an existing swap, or add confirmed HNS.</string>
     <string name="wallet_swap_take_approval_title" translatable="false">Accept this atomic-swap offer?</string>
     <string name="wallet_swap_take_approval_message" translatable="false">Offer: %1$s\n\nYou will provide %2$d base units of %3$s plus a fee reserve of %4$d, for a total commitment of %5$d base units. This signs an exact take and starts session negotiation; it does not yet broadcast funding.</string>
     <string name="wallet_swap_take_confirm" translatable="false">Accept offer</string>

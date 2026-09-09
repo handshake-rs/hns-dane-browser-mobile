@@ -5367,7 +5367,15 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_direct_offer_take(
         let approval = entry
             .controller
             .prepare_direct_offer_take(&offer_id, confirmed_btc_sats, received_fee_reserve)
-            .map_err(|_| wallet_runtime_failure("direct offer take preparation failed"))?;
+            .map_err(|error| match error {
+                MobileWalletError::InsufficientBitcoinForDirectOffer => wallet_runtime_failure(
+                    "confirmed Bitcoin does not cover this offer, its fee reserve, and existing accepted swap reservations",
+                ),
+                MobileWalletError::InsufficientHnsForDirectOffer => wallet_runtime_failure(
+                    "confirmed HNS does not cover this offer, its fee reserve, and existing accepted swap reservations",
+                ),
+                _ => wallet_runtime_failure("direct offer take preparation failed"),
+            })?;
         let bundle = wallet_bitcoin_bundle(&approval)?;
         let output = allocate_output(&bundle.0, true)?;
         unsafe { write_output(out_approval_bundle, output) };

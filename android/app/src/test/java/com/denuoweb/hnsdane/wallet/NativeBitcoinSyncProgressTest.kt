@@ -116,6 +116,30 @@ class NativeBitcoinSyncProgressTest {
     }
 
     @Test
+    fun parses_only_exact_direct_offer_insufficient_funding_results() {
+        val hns = NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+            """{"failure":"insufficientHns","receivedAsset":"hns","confirmedAmount":226400}""",
+        )) as? NativeDirectOfferTakePreparation.InsufficientFunds
+        requireNotNull(hns)
+        assertEquals("hns", hns.receivedAsset)
+        assertEquals(226_400L, hns.confirmedAmount)
+
+        val bitcoin = NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+            """{"failure":"insufficientBitcoin","receivedAsset":"btc","confirmedAmount":0}""",
+        )) as? NativeDirectOfferTakePreparation.InsufficientFunds
+        requireNotNull(bitcoin)
+        assertEquals("btc", bitcoin.receivedAsset)
+        assertEquals(0L, bitcoin.confirmedAmount)
+
+        assertNull(NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+            """{"failure":"insufficientHns","receivedAsset":"btc","confirmedAmount":226400}""",
+        )))
+        assertNull(NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+            """{"failure":"insufficientHns","receivedAsset":"hns","confirmedAmount":226400,"detail":"untrusted"}""",
+        )))
+    }
+
+    @Test
     fun parses_exact_btc_for_hns_approval_and_active_offer() {
         val approval = NativeBitcoinWalletBundle.btcForHnsApproval(bundle(
             """{"actionToken":"${"ab".repeat(32)}","btcAmountSats":9000,"hnsAmountDollarydoos":2000000,"bitcoinFeeReserveSats":1000,"totalBitcoinCommitmentSats":10000,"offerExpiresAtUnix":2000,"approvalExpiresAtUnix":1100,"connectedPeerRequiredForAnnouncement":true}""",

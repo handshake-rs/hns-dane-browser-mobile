@@ -384,14 +384,14 @@ internal object NativeWalletBridge {
         handle: Long,
         offerId: String,
         receivedFeeReserve: Long,
-    ): NativeDirectOfferTakeApproval? {
+    ): NativeDirectOfferTakePreparation? {
         if (!isValidHandle(handle) || !isAvailable || receivedFeeReserve <= 0L ||
             offerId.length != 64 || offerId.any { it !in '0'..'9' && it !in 'a'..'f' }
         ) return null
         val bundle = runCatching {
             nativePrepareDirectOfferTake(handle, offerId, receivedFeeReserve)
         }.getOrNull() ?: return null
-        return try { NativeBitcoinWalletBundle.directOfferTakeApproval(bundle) }
+        return try { NativeBitcoinWalletBundle.directOfferTakePreparation(bundle) }
         finally { bundle.fill(0) }
     }
 

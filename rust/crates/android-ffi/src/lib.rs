@@ -1218,7 +1218,24 @@ impl AndroidWalletController {
                 android_log_error(&format!(
                     "direct-offer take policy rejected preparation: {error}; confirmed_btc_sats={confirmed_btc_sats} confirmed_hns_dollarydoos={confirmed_hns_dollarydoos} received_fee_reserve={received_fee_reserve}"
                 ));
-                return None;
+                let (failure, received_asset, confirmed_amount) = match error {
+                    MobileWalletError::InsufficientBitcoinForDirectOffer => {
+                        ("insufficientBitcoin", "btc", confirmed_btc_sats)
+                    }
+                    MobileWalletError::InsufficientHnsForDirectOffer => {
+                        ("insufficientHns", "hns", confirmed_hns_dollarydoos)
+                    }
+                    _ => return None,
+                };
+                let mut json = serde_json::to_vec(&json!({
+                    "failure": failure,
+                    "receivedAsset": received_asset,
+                    "confirmedAmount": confirmed_amount,
+                }))
+                .ok()?;
+                let bundle = bitcoin_json_bundle(json.as_slice());
+                json.fill(0);
+                return bundle;
             }
         };
         let mut json = serde_json::to_vec(&approval).ok()?;

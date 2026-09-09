@@ -250,6 +250,16 @@ internal data class NativeDirectOfferTakeApproval(
     override fun close() = actionToken.close()
 }
 
+internal sealed interface NativeDirectOfferTakePreparation {
+    data class Approval(val value: NativeDirectOfferTakeApproval) :
+        NativeDirectOfferTakePreparation
+
+    data class InsufficientFunds(
+        val receivedAsset: String,
+        val confirmedAmount: Long,
+    ) : NativeDirectOfferTakePreparation
+}
+
 internal data class NativeDirectOfferTakeSummary(
     val offerId: String,
     val sessionId: String,
@@ -734,7 +744,19 @@ internal object NativeBitcoinWalletBundle {
         parseDirectOffer(it)
     }
 
-    fun directOfferTakeApproval(bundle: ByteArray): NativeDirectOfferTakeApproval? = parse(bundle) { json ->
+    fun directOfferTakePreparation(bundle: ByteArray): NativeDirectOfferTakePreparation? = parse(bundle) { json ->
+        if (hasExactKeys(json, setOf("failure", "receivedAsset", "confirmedAmount"))) {
+            val failure = json.optString("failure", "")
+            val receivedAsset = json.optString("receivedAsset", "").takeIf {
+                it == "btc" && failure == "insufficientBitcoin" ||
+                    it == "hns" && failure == "insufficientHns"
+            } ?: return@parse null
+            val confirmed = nonnegativeLong(json, "confirmedAmount") ?: return@parse null
+            return@parse NativeDirectOfferTakePreparation.InsufficientFunds(
+                receivedAsset,
+                confirmed,
+            )
+        }
         if (!hasExactKeys(json, setOf(
             "actionToken", "offer", "receivedFeeReserve", "totalReceivedAssetCommitment",
             "takeExpiresAtUnix", "approvalExpiresAtUnix",
@@ -753,7 +775,9 @@ internal object NativeBitcoinWalletBundle {
             token.close()
             return@parse null
         }
-        NativeDirectOfferTakeApproval(token, offer, reserve, total, takeExpiry, approvalExpiry)
+        NativeDirectOfferTakePreparation.Approval(
+            NativeDirectOfferTakeApproval(token, offer, reserve, total, takeExpiry, approvalExpiry)
+        )
     }
 
     fun directOfferTakeSummary(bundle: ByteArray): NativeDirectOfferTakeSummary? = parse(bundle) { json ->
