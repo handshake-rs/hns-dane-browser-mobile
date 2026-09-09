@@ -78,6 +78,7 @@ import com.denuoweb.hnsdane.wallet.NativeHnsHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeSwapSettlementApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
 import com.denuoweb.hnsdane.wallet.NativeWalletDirectShakescapeConnectResult
+import com.denuoweb.hnsdane.wallet.NativeWalletDirectShakescapeStatus
 import com.denuoweb.hnsdane.wallet.directShakescapeControls
 import com.denuoweb.hnsdane.wallet.NativeWalletBridge
 import com.denuoweb.hnsdane.wallet.NativeWalletHnsCatchupProgress
@@ -319,6 +320,12 @@ class WalletActivity : ComponentActivity() {
     private var pendingOutgoingRefreshAttemptedHeight: Long? = null
     private var latestObservedBrowserHeaderHeight: Long? = null
     private var directShakescapePeerEndpoint: String? = null
+    /**
+     * Last successfully decoded operational transport snapshot. Native direct
+     * service/status calls deliberately share one non-blocking controller
+     * exclusion domain, so a null read means "busy", not "disconnected".
+     */
+    private var directShakescapeTransportStatus: NativeWalletDirectShakescapeStatus? = null
     private var pendingQrBitmap: Bitmap? = null
     private var displayedLiveHnsSyncStage: NativeWalletHnsLiveSyncProgress.Stage? = null
     private var displayedLiveHnsSyncStageSinceMillis = 0L
@@ -2358,7 +2365,8 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun showShakedexDashboard() {
-        val transport = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
+        refreshDirectShakescapeStatus()
+        val transport = directShakescapeTransportStatus
         val transportControls = directShakescapeControls(transport)
         val paired = transport?.peerEndpoint != null
         val connectionActions = mutableListOf(
@@ -4178,13 +4186,14 @@ class WalletActivity : ComponentActivity() {
     /** Refresh live transport state and report whether the dashboard's peer
      * projection changed. Historical pairing text is never connection proof. */
     private fun refreshDirectShakescapeStatus(): Boolean {
-        val status = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
+        val status = freshDirectShakescapeStatus(walletHandle) ?: return false
+        directShakescapeTransportStatus = status
         val previousPeerEndpoint = directShakescapePeerEndpoint
-        directShakescapePeerEndpoint = status?.peerEndpoint
+        directShakescapePeerEndpoint = status.peerEndpoint
         if (previousPeerEndpoint != null && directShakescapePeerEndpoint == null) {
             shakedexQueryStatusView.text = getString(R.string.wallet_direct_shakescape_no_peer)
         }
-        val reachability = status?.let { current ->
+        val reachability = status.let { current ->
             when {
                 current.advertised -> getString(
                     R.string.wallet_direct_shakescape_reachability_advertised,
@@ -4221,9 +4230,8 @@ class WalletActivity : ComponentActivity() {
                     current.candidateCount,
                 )
             }
-        }.orEmpty()
+        }
         directShakescapeStatusView.text = when {
-            status == null -> getString(R.string.wallet_direct_shakescape_unavailable)
             !status.unlocked -> getString(R.string.wallet_direct_shakescape_locked)
             status.listenerPort == null -> getString(
                 R.string.wallet_direct_shakescape_host_unavailable,
@@ -4247,6 +4255,29 @@ class WalletActivity : ComponentActivity() {
             )
         }
         return previousPeerEndpoint != directShakescapePeerEndpoint
+    }
+
+    /** Bound a transient native try-lock miss without treating it as state. */
+    private fun freshDirectShakescapeStatus(
+        handle: Long,
+    ): NativeWalletDirectShakescapeStatus? {
+        if (handle == INVALID_HANDLE) return null
+        repeat(5) { attempt ->
+            NativeWalletBridge.walletOwnedDirectShakescapeStatus(handle)?.let { return it }
+            if (attempt < 4) Thread.sleep(10)
+        }
+        return null
+    }
+
+    private fun clearDirectShakescapeStatusProjection(locked: Boolean) {
+        directShakescapeTransportStatus = null
+        directShakescapePeerEndpoint = null
+        if (::directShakescapeStatusView.isInitialized) {
+            directShakescapeStatusView.text = getString(
+                if (locked) R.string.wallet_direct_shakescape_locked
+                else R.string.wallet_direct_shakescape_unavailable,
+            )
+        }
     }
 
     private fun renderBitcoinSnapshot(snapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot) {
@@ -6189,11 +6220,11 @@ class WalletActivity : ComponentActivity() {
     private fun directShakescapeContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
         val lease = currentStorageLease() ?: return null
         val handle = walletHandle
-        val status = NativeWalletBridge.status(handle)
+        val status = freshValueActionStatus(handle)
         return (lease to handle).takeIf {
             handle != INVALID_HANDLE && status != null && !status.locked &&
                 unconfirmedDatabaseKey == null &&
-                NativeWalletBridge.walletOwnedDirectShakescapeStatus(handle) != null
+                freshDirectShakescapeStatus(handle) != null
         }
     }
 
@@ -7199,12 +7230,12 @@ class WalletActivity : ComponentActivity() {
         if (status.locked) {
             dismissWalletPopupsForLock()
             walletHnsJourney.walletLocked()
+            clearDirectShakescapeStatusProjection(locked = true)
             localPaymentReceiveTarget = null
             statusView.text = getString(R.string.wallet_status_locked)
             accountView.text = getString(R.string.wallet_account_locked)
             resetReadProjection(R.string.wallet_reads_locked)
             resetBitcoinProjection()
-            refreshDirectShakescapeStatus()
             renderWalletDashboard()
             return
         }
@@ -7692,6 +7723,7 @@ class WalletActivity : ComponentActivity() {
     private fun detachWalletController(): Long {
         val handle = walletHandle
         walletHandle = INVALID_HANDLE
+        clearDirectShakescapeStatusProjection(locked = false)
         localPaymentReceiveTarget = null
         walletControllerIsReopenedDurable = false
         walletHnsJourney.controllerRetired()

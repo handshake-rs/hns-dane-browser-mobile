@@ -3132,7 +3132,12 @@ final class WalletViewController: UIViewController {
             WalletMenuAction(title: "Finalize purchase", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showFinalizePurchaseForm() },
         ]
         if shakedexActionMayStart {
-            if shakescapeStatus?.listenerPort == nil {
+            // No snapshot can mean the native non-blocking controller read was
+            // busy. Only an affirmative unlocked status with no bound port is
+            // evidence that listener recovery should be offered.
+            if let shakescapeStatus,
+               shakescapeStatus.unlocked,
+               shakescapeStatus.listenerPort == nil {
                 actions.insert(WalletMenuAction(title: "Retry listener", enabled: paired) { [weak self] in
                     self?.retryDirectShakescapeListener()
                 }, at: 1)
@@ -3627,8 +3632,14 @@ final class WalletViewController: UIViewController {
                       self.walletAuthorityGeneration == authority,
                       self.wallet.map({ ObjectIdentifier($0) }) == identity else { return }
                 let previousPeerEndpoint = self.directShakescapeStatusSnapshot?.peerEndpoint
-                self.directShakescapeStatusSnapshot = status
-                if previousPeerEndpoint != status?.peerEndpoint {
+                // A failed try-lock is scheduling contention, not a transport
+                // transition. Retain the last validated snapshot until native
+                // code affirmatively reports a new state or wallet authority
+                // is locked/retired by updateDirectShakescapeServiceTimer().
+                if let status {
+                    self.directShakescapeStatusSnapshot = status
+                }
+                if let status, previousPeerEndpoint != status.peerEndpoint {
                     self.renderWalletDashboard()
                 }
                 self.directShakescapeServiceTicks =

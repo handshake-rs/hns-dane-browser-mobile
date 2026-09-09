@@ -31,7 +31,10 @@ internal data class NativeWalletDirectShakescapeControls(
 internal fun directShakescapeControls(
     status: NativeWalletDirectShakescapeStatus?,
 ): NativeWalletDirectShakescapeControls = NativeWalletDirectShakescapeControls(
-    retryListener = status?.listenerPort == null,
+    // A missing status is a non-blocking native controller-lock miss, not an
+    // affirmative listener failure. Offer Retry only after a valid unlocked
+    // snapshot explicitly reports that no listener is bound.
+    retryListener = status?.let { it.unlocked && it.listenerPort == null } == true,
     disconnectPeer = status?.peerEndpoint != null,
 )
 

@@ -11,8 +11,42 @@ class NativeWalletDirectSynchronizationTest {
     @Test
     fun directShakescapeDashboardExposesRecoveryAndDisconnectControlsWhenApplicable() {
         assertEquals(
-            NativeWalletDirectShakescapeControls(retryListener = true, disconnectPeer = false),
+            NativeWalletDirectShakescapeControls(retryListener = false, disconnectPeer = false),
             directShakescapeControls(null),
+        )
+        assertEquals(
+            NativeWalletDirectShakescapeControls(retryListener = true, disconnectPeer = false),
+            directShakescapeControls(
+                NativeWalletDirectShakescapeStatus(
+                    unlocked = true,
+                    listenerPort = null,
+                    peerEndpoint = null,
+                    peerCount = 0,
+                    candidateCount = 0,
+                    publiclyReachable = false,
+                    publicIpv6 = false,
+                    routerMapped = false,
+                    advertised = false,
+                    networkServiceReady = false,
+                ),
+            ),
+        )
+        assertEquals(
+            NativeWalletDirectShakescapeControls(retryListener = false, disconnectPeer = false),
+            directShakescapeControls(
+                NativeWalletDirectShakescapeStatus(
+                    unlocked = false,
+                    listenerPort = null,
+                    peerEndpoint = null,
+                    peerCount = 0,
+                    candidateCount = 0,
+                    publiclyReachable = false,
+                    publicIpv6 = false,
+                    routerMapped = false,
+                    advertised = false,
+                    networkServiceReady = false,
+                ),
+            ),
         )
         assertEquals(
             NativeWalletDirectShakescapeControls(retryListener = false, disconnectPeer = false),
