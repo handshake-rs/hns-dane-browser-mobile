@@ -1415,6 +1415,21 @@ impl AndroidWalletController {
             .ok()
     }
 
+    fn fail_expired_unfunded_executions(&mut self) -> bool {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        HnsReadSystemClock.now_unix().is_ok_and(|now_unix| {
+            shakescape_sessions
+                .fail_expired_unfunded_executions(now_unix)
+                .is_ok_and(|count| count != 0)
+        })
+    }
+
     fn authorize_btc_for_hns_first_funding(
         &mut self,
         session_id: SessionId,
@@ -6624,6 +6639,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
+        let expired = controller.fail_expired_unfunded_executions();
         let serviced = controller.service_direct_shakescape_once();
         let resumed_hns = controller.resume_approved_hns_settlements();
         let hns_watch_ready = controller.complete_next_counterparty_hns_watch();
@@ -6637,7 +6653,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             })
             .is_some_and(|count| count != 0);
         let Some(permit) = permit else {
-            return serviced || resumed || resumed_hns || hns_watch_ready;
+            return expired || serviced || resumed || resumed_hns || hns_watch_ready;
         };
         let registered = record
             .bitcoin_try_if_active()
@@ -6650,13 +6666,14 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             })
             .unwrap_or(false);
         if !registered {
-            return serviced || resumed || resumed_hns || hns_watch_ready;
+            return expired || serviced || resumed || resumed_hns || hns_watch_ready;
         }
         record.controller_if_active().is_some_and(|mut controller| {
             controller
                 .complete_counterparty_bitcoin_watch(permit)
                 .is_ok()
-        }) || serviced
+        }) || expired
+            || serviced
             || resumed
             || resumed_hns
             || hns_watch_ready
