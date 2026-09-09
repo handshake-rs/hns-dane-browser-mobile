@@ -4856,9 +4856,14 @@ class WalletActivity : ComponentActivity() {
                         "${it.state.replace('_', ' ')} · ${it.offeredAmount} ${it.offeredAsset.uppercase()} → ${it.receivedAmount} ${it.receivedAsset.uppercase()} · ${it.sessionId.take(12)}…"
                     }
                     val labels = (pendingLabels + executionLabels).toTypedArray()
+                    // AlertDialog's message ScrollView and selectable ListView
+                    // are mutually exclusive content modes on Android. Setting
+                    // both leaves the recovery message visible while silently
+                    // suppressing every acceptance/execution row. Keep the
+                    // recovery projection on the Bitcoin card and reserve this
+                    // dialog's content area for the actionable inventory.
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_executions)
-                        .setMessage(bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))
                         .setItems(labels) { _, index ->
                             if (index < status.pendingAcceptances.size) {
                                 confirmAbandonPendingAcceptance(status.pendingAcceptances[index])
