@@ -450,6 +450,9 @@
     <string name="wallet_pending_outgoing_actions_disabled" translatable="false">Send and Receive are temporarily unavailable while the outgoing transaction is pending.</string>
     <string name="wallet_reads_balance" translatable="false">%1$s HNS spendable now</string>
     <string name="wallet_reads_balance_with_pending" translatable="false">%1$s HNS spendable now\n%2$s HNS pending outgoing\nTransaction Pending, please wait.</string>
+    <string name="wallet_reads_balance_confirmed" translatable="false">%1$s HNS confirmed on chain</string>
+    <string name="wallet_reads_balance_confirmed_with_pending" translatable="false">%1$s HNS confirmed on chain\n%2$s HNS pending outgoing\nTransaction Pending, please wait.</string>
+    <string name="wallet_reads_swap_reserved" translatable="false">%1$s HNS reserved by active or unfunded swap commitments\n%2$s HNS available after swap reservations</string>
     <string name="wallet_reads_receive_unavailable" translatable="false">A payment receive address is not available yet.</string>
     <string name="wallet_reads_receive" translatable="false">%1$s\nDerivation index %2$d</string>
     <string name="wallet_reads_receive_local" translatable="false">%1$s\nDerivation index %2$d\nReady to receive HNS locally. Synchronize before trusting balance/history or sending.</string>
@@ -798,14 +801,14 @@
     <string name="wallet_swap_available_failed" translatable="false">Available peer offers could not be authenticated.</string>
     <string name="wallet_swap_no_available_offers" translatable="false">No active offers from other swap peers are available yet.</string>
     <string name="wallet_swap_take_offer" translatable="false">Accept exact swap offer</string>
-    <string name="wallet_swap_take_btc_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats)</string>
+    <string name="wallet_swap_take_btc_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats, minimum 1000)</string>
     <string name="wallet_swap_take_hns_fee_reserve_hint" translatable="false">HNS fee reserve</string>
     <string name="wallet_swap_take_preparing" translatable="false">Preparing exact signed offer acceptance…</string>
     <string name="wallet_swap_take_prepare_failed" translatable="false">The offer acceptance could not be prepared. Check the connected peer, synchronized balance, and fee reserve.</string>
     <string name="wallet_swap_take_insufficient_btc" translatable="false">This offer requires %1$d sats plus a %2$d sat Bitcoin fee reserve (%3$d sats total), but this wallet has %4$d confirmed sats.</string>
     <string name="wallet_swap_take_insufficient_hns" translatable="false">This offer requires %1$s HNS plus a %2$s HNS fee reserve (%3$s HNS total), but this wallet has %4$s HNS spendable.</string>
-    <string name="wallet_swap_take_reserved_btc" translatable="false">This offer requires %1$d sats total and the wallet has %2$d confirmed sats, but earlier accepted swaps reserve enough Bitcoin that the combined commitments cannot be funded. Complete or refund an existing swap, or add confirmed Bitcoin.</string>
-    <string name="wallet_swap_take_reserved_hns" translatable="false">This offer requires %1$s HNS total and the wallet has %2$s HNS confirmed, but earlier accepted swaps reserve enough HNS that the combined commitments cannot be funded. Complete or refund an existing swap, or add confirmed HNS.</string>
+    <string name="wallet_swap_take_reserved_btc" translatable="false">This offer requires %1$d sats total and the wallet has %2$d confirmed sats, but earlier swap commitments reserve enough Bitcoin that the combined commitments cannot be funded. Open Atomic swap executions to abandon an unfunded acceptance, complete or refund a funded swap, or add confirmed Bitcoin.</string>
+    <string name="wallet_swap_take_reserved_hns" translatable="false">This offer requires %1$s HNS total and the wallet has %2$s HNS confirmed, but earlier swap commitments reserve enough HNS that the combined commitments cannot be funded. Open Atomic swap executions to abandon an unfunded acceptance, complete or refund a funded swap, or add confirmed HNS.</string>
     <string name="wallet_swap_take_approval_title" translatable="false">Accept this atomic-swap offer?</string>
     <string name="wallet_swap_take_approval_message" translatable="false">Offer: %1$s\n\nYou will provide %2$d base units of %3$s plus a fee reserve of %4$d, for a total commitment of %5$d base units. This signs an exact take and starts session negotiation; it does not yet broadcast funding.</string>
     <string name="wallet_swap_take_confirm" translatable="false">Accept offer</string>
@@ -814,7 +817,7 @@
     <string name="wallet_swap_cancel_direct_message" translatable="false">Withdraw %1$s?\n\nOffer ID: %2$s. Cancellation releases the local reservation but cannot cancel an already accepted session.</string>
     <string name="wallet_swap_btc_amount_hint" translatable="false">BTC offered (sats, minimum 330)</string>
     <string name="wallet_swap_hns_amount_hint" translatable="false">HNS requested (minimum 0.000546)</string>
-    <string name="wallet_swap_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats)</string>
+    <string name="wallet_swap_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats, minimum 1000)</string>
     <string name="wallet_swap_lifetime_hours_hint" translatable="false">Listing lifetime (hours, 1–168)</string>
     <string name="wallet_swap_preparing" translatable="false">Preparing exact BTC-for-HNS listing…</string>
     <string name="wallet_swap_prepare_failed" translatable="false">The listing was not prepared. Confirmed BTC must cover active listings, this principal, and its fee reserve.</string>
@@ -835,9 +838,17 @@
     <string name="wallet_swap_cancelled" translatable="false">The BTC-for-HNS offer was cancelled and its local reservation was released.</string>
     <string name="wallet_swap_cancel_failed" translatable="false">The offer was not cancelled. It may have expired or entered a swap session.</string>
     <string name="wallet_swap_executions" translatable="false">Atomic swap executions</string>
+    <string name="wallet_swap_coin_actions" translatable="false">Coin Swap Actions</string>
+    <string name="wallet_swap_name_actions" translatable="false">Name Swap Actions</string>
     <string name="wallet_swap_loading_executions" translatable="false">Loading durable atomic swap state…</string>
     <string name="wallet_swap_execution_list_failed" translatable="false">Durable atomic swap state could not be authenticated.</string>
     <string name="wallet_swap_no_executions" translatable="false">There are no accepted atomic swap executions.</string>
+    <string name="wallet_swap_pending_acceptance" translatable="false">Unfunded acceptance · %1$s → %2$s · reserves %3$s · %4$s…</string>
+    <string name="wallet_swap_abandon_acceptance_title" translatable="false">Abandon unfunded acceptance?</string>
+    <string name="wallet_swap_abandon_acceptance_message" translatable="false">This acceptance has not reached countersigned swap terms and has not funded either chain. Abandoning it releases %1$s reserved by session %2$s. A delayed maker proposal for this session will be rejected permanently. This cannot abandon a terms-frozen or funded swap.</string>
+    <string name="wallet_swap_abandon_acceptance" translatable="false">Abandon and release funds</string>
+    <string name="wallet_swap_acceptance_abandoned" translatable="false">The unfunded acceptance was abandoned and its reserved funds were released.</string>
+    <string name="wallet_swap_acceptance_abandon_failed" translatable="false">The acceptance could not be abandoned. It may already have reached countersigned or funded swap state.</string>
     <string name="wallet_swap_no_executions_waiting" translatable="false">There are no negotiated atomic-swap executions on this wallet yet. If a take was just accepted, keep both maker and taker wallets unlocked and connected while the signed session proposal and acceptance are exchanged.</string>
     <string name="wallet_swap_execution_title" translatable="false">Atomic swap status</string>
     <string name="wallet_swap_execution_detail" translatable="false">Session: %1$s\nState: %2$s\nFunding order: %3$s, then %4$s\nFirst funding confirmed: %5$s\nSecond funding confirmed: %6$s\n\nOnly locally verified chain evidence advances this status.</string>

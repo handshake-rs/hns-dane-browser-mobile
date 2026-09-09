@@ -4407,7 +4407,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(hnsReceipt.attemptCount, nil)
 
         let recoveryJSON = """
-        {"executions":[],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":2400}}
+        {"executions":[],"pendingAcceptances":[],"bitcoinBroadcastRecovery":{"totalApproved":3,"unobservedPrepared":1,"unobservedSubmissionStarted":1,"unobservedSubmitted":0,"observed":1,"highestAttemptCount":2,"lastChangedAtUnix":2400}}
         """
         let status = try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self, from: Data(recoveryJSON.utf8)
@@ -4418,13 +4418,13 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertThrowsError(try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data("""
-            {"executions":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":2400}}
+            {"executions":[],"pendingAcceptances":[],"bitcoinBroadcastRecovery":{"totalApproved":2,"unobservedPrepared":1,"unobservedSubmissionStarted":0,"unobservedSubmitted":0,"observed":0,"highestAttemptCount":0,"lastChangedAtUnix":2400}}
             """.utf8)
         ))
         XCTAssertThrowsError(try JSONDecoder().decode(
             NativeShakescapeExecutionStatus.self,
             from: Data("""
-            {"executions":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}
+            {"executions":[],"pendingAcceptances":[],"bitcoinBroadcastRecovery":null,"peer":"untrusted"}
             """.utf8)
         ))
 

@@ -9,6 +9,7 @@ import CoreImage
 private let defaultHnsMaximumFee = "1"
 private let defaultHnsMaximumFeeBaseUnits = "1000000"
 private let minimumBitcoinHtlcSats: UInt64 = 330
+private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
 private let minimumHnsSwapDollarydoos: UInt64 = 546
 private let directShakescapeNetworkMaintenanceTicks = 30
 private let showShakedexWalletCard = true
@@ -817,7 +818,7 @@ final class WalletViewController: UIViewController {
                 self?.showNameReceiveAddress()
             }
         }
-        present(viewer, animated: true)
+        walletPresentationHost.present(viewer, animated: true)
     }
 
     private func showNameReceiveAddress() {
@@ -835,11 +836,11 @@ final class WalletViewController: UIViewController {
             )
         })
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func showBitcoinDashboard() {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         let activitySummary: String
         if let snapshot = bitcoinSnapshot {
             let count = Int(snapshot.recentActivityTotal)
@@ -880,17 +881,24 @@ final class WalletViewController: UIViewController {
         presentWalletMenu(
             title: "Bitcoin",
             rows: [
-                WalletMenuRow(title: "Status", detail: bitcoinStatusLabel.text ?? "Status unavailable."),
-                WalletMenuRow(title: "Balance", detail: bitcoinBalanceLabel.text ?? "Balance unavailable."),
-                WalletMenuRow(title: "Receive address", detail: bitcoinReceiveLabel.text ?? "Receive address unavailable."),
+                WalletMenuRow(title: "Status", detail: bitcoinStatusLabel.text ?? "Status unavailable.") { [weak self] in
+                    self?.bitcoinStatusLabel.text ?? "Status unavailable."
+                },
+                WalletMenuRow(title: "Balance", detail: bitcoinBalanceLabel.text ?? "Balance unavailable.") { [weak self] in
+                    self?.bitcoinBalanceLabel.text ?? "Balance unavailable."
+                },
+                WalletMenuRow(title: "Receive address", detail: bitcoinReceiveLabel.text ?? "Receive address unavailable.") { [weak self] in
+                    self?.bitcoinReceiveLabel.text ?? "Receive address unavailable."
+                },
                 WalletMenuRow(title: "Recent activity", detail: activitySummary),
             ],
-            actions: actions
+            actions: actions,
+            retainForChildActions: true
         )
     }
 
     private func showBitcoinActivity() {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         guard let snapshot = bitcoinSnapshot else {
             showErrorMessage("Synchronize Bitcoin to load recent activity.")
             return
@@ -1314,7 +1322,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     @objc private func showBtcForHnsOfferForm() {
@@ -1339,7 +1347,12 @@ final class WalletViewController: UIViewController {
                     initialValue: String(minimumBitcoinHtlcSats)
                 ),
                 WalletSheetFormField(label: "HNS requested (minimum 0.000546)", placeholder: "HNS", keyboardType: .decimalPad),
-                WalletSheetFormField(label: "Bitcoin fee reserve", placeholder: "Satoshis", keyboardType: .numberPad),
+                WalletSheetFormField(
+                    label: "Bitcoin fee reserve (minimum 1000 sats)",
+                    placeholder: "Satoshis",
+                    keyboardType: .numberPad,
+                    initialValue: String(minimumBitcoinFeeReserveSats)
+                ),
                 WalletSheetFormField(
                     label: "Listing lifetime",
                     placeholder: "Hours (1–168)",
@@ -1354,10 +1367,10 @@ final class WalletViewController: UIViewController {
                   let btc = UInt64(fields[0]), btc >= minimumBitcoinHtlcSats,
                   let hnsText = Self.positiveHnsBaseUnits(fields[1]),
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
-                  let reserve = UInt64(fields[2]), reserve > 0,
+                  let reserve = UInt64(fields[2]), reserve >= minimumBitcoinFeeReserveSats,
                   let hours = UInt64(fields[3]), (1...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
-                self?.showErrorMessage("Enter at least 330 BTC sats, at least 0.000546 HNS, a positive fee reserve, and 1–168 hours.")
+                self?.showErrorMessage("Enter at least 330 BTC sats, at least 0.000546 HNS, a Bitcoin fee reserve of at least 1000 sats, and 1–168 hours.")
                 return
             }
             self.isOperating = true
@@ -1446,7 +1459,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     @objc private func showActiveBtcForHnsOffers() {
@@ -1478,7 +1491,7 @@ final class WalletViewController: UIViewController {
                         })
                     }
                     alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-                    self.present(alert, animated: true)
+                    self.walletPresentationHost.present(alert, animated: true)
                 case .failure(let error):
                     self.bitcoinStatusLabel.text = "Active BTC-for-HNS offers could not be authenticated."
                     self.showError(error)
@@ -1610,7 +1623,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func directOfferLabel(_ offer: NativeDirectOfferSummary) -> String {
@@ -1676,7 +1689,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func showAvailableDirectOffers() {
@@ -1721,10 +1734,10 @@ final class WalletViewController: UIViewController {
             title: "Take direct offer",
             message: directOfferLabel(offer),
             fields: [WalletSheetFormField(
-                label: reserveIsBitcoin ? "Bitcoin fee reserve" : "HNS fee reserve",
+                label: reserveIsBitcoin ? "Bitcoin fee reserve (minimum 1000 sats)" : "HNS fee reserve",
                 placeholder: reserveIsBitcoin ? "Satoshis" : "HNS",
                 keyboardType: reserveIsBitcoin ? .numberPad : .decimalPad,
-                initialValue: reserveIsBitcoin ? "1000" : defaultHnsMaximumFee
+                initialValue: reserveIsBitcoin ? String(minimumBitcoinFeeReserveSats) : defaultHnsMaximumFee
             )],
             primaryTitle: "Review take"
         ) { [weak self] fields in
@@ -1732,8 +1745,13 @@ final class WalletViewController: UIViewController {
             let reserve = reserveIsBitcoin
                 ? UInt64(value)
                 : Self.positiveHnsBaseUnits(value).flatMap { UInt64($0) }
-            guard let reserve, reserve > 0 else {
-                self.showErrorMessage("Enter a positive fee reserve in the received asset.")
+            guard let reserve, reserve > 0,
+                  !reserveIsBitcoin || reserve >= minimumBitcoinFeeReserveSats else {
+                self.showErrorMessage(
+                    reserveIsBitcoin
+                        ? "Enter a Bitcoin fee reserve of at least 1000 sats."
+                        : "Enter a positive HNS fee reserve."
+                )
                 return
             }
             self.authenticateWalletAction(reason: "Authenticate before accepting a direct swap offer") {
@@ -1820,7 +1838,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     @objc private func showShakescapeExecutions() {
@@ -1831,7 +1849,8 @@ final class WalletViewController: UIViewController {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
-                case .success(let status) where status.executions.isEmpty:
+                case .success(let status) where
+                    status.executions.isEmpty && status.pendingAcceptances.isEmpty:
                     let message = "There are no negotiated atomic-swap executions on this wallet yet. If a take was just accepted, keep both maker and taker wallets unlocked and connected while the signed session proposal and acceptance are exchanged.\n\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))"
                     self.bitcoinStatusLabel.text = message
                     let alert = UIAlertController(
@@ -1840,7 +1859,7 @@ final class WalletViewController: UIViewController {
                         preferredStyle: .alert
                     )
                     alert.addAction(UIAlertAction(title: "OK", style: .default))
-                    self.present(alert, animated: true)
+                    self.walletPresentationHost.present(alert, animated: true)
                 case .success(let status):
                     self.bitcoinStatusLabel.text = self.bitcoinBroadcastRecoveryText(
                         status.bitcoinBroadcastRecovery
@@ -1850,6 +1869,17 @@ final class WalletViewController: UIViewController {
                         message: "Statuses advance only from independently verified chain evidence.\n\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))",
                         preferredStyle: .alert
                     )
+                    for take in status.pendingAcceptances {
+                        let offered = self.swapAmount(take.offeredAmount, asset: take.offeredAsset)
+                        let received = self.swapAmount(take.receivedAmount, asset: take.receivedAsset)
+                        alert.addAction(UIAlertAction(
+                            title: "Unfunded acceptance · \(offered) → \(received) · \(take.sessionId.prefix(12))…",
+                            style: .default
+                        ) { [weak self, weak wallet] _ in
+                            guard let self, let wallet, self.wallet === wallet else { return }
+                            self.confirmAbandonPendingAcceptance(take, wallet: wallet)
+                        })
+                    }
                     for execution in status.executions {
                         alert.addAction(UIAlertAction(
                             title: "\(execution.state.replacingOccurrences(of: "_", with: " ")) · \(execution.sessionId.prefix(12))…",
@@ -1860,13 +1890,56 @@ final class WalletViewController: UIViewController {
                         })
                     }
                     alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-                    self.present(alert, animated: true)
+                    self.walletPresentationHost.present(alert, animated: true)
                 case .failure(let error):
                     self.bitcoinStatusLabel.text = "Durable atomic swap state could not be authenticated."
                     self.showError(error)
                 }
             }
         }
+    }
+
+    private func swapAmount(_ amount: UInt64, asset: String) -> String {
+        if asset == "hns" {
+            return "\(WalletReadPresenter.formatHnsBaseUnits(String(amount))) HNS"
+        }
+        return "\(amount) sats"
+    }
+
+    private func confirmAbandonPendingAcceptance(
+        _ take: NativeDirectOfferTakeSummary,
+        wallet: RustNativeWallet
+    ) {
+        let total = take.receivedAmount.addingReportingOverflow(take.receivedFeeReserve)
+        guard !total.overflow else { return }
+        let alert = UIAlertController(
+            title: "Abandon unfunded acceptance?",
+            message: "This acceptance has not reached countersigned terms and has not funded either chain. Abandoning it releases \(swapAmount(total.partialValue, asset: take.receivedAsset)) reserved by session \(take.sessionId). A delayed maker proposal for this session will be rejected permanently. Terms-frozen or funded swaps cannot be abandoned here.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Keep acceptance", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Abandon and release funds", style: .destructive) {
+            [weak self, weak wallet] _ in
+            guard let self, let wallet, self.wallet === wallet else { return }
+            DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+                let outcome = Result {
+                    try wallet.abandonPendingDirectOfferTake(sessionId: take.sessionId)
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.wallet === wallet else { return }
+                    switch outcome {
+                    case .success:
+                        self.bitcoinStatusLabel.text = "The unfunded acceptance was abandoned and its reserved funds were released."
+                        if let snapshot = self.latestReadSnapshot { self.publish(snapshot) }
+                    case .failure(let error):
+                        self.bitcoinStatusLabel.text = "The acceptance could not be abandoned. It may already have reached countersigned or funded state."
+                        self.showError(error)
+                    }
+                    self.refreshButtonStates()
+                }
+            }
+        })
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func bitcoinBroadcastRecoveryText(
@@ -1916,7 +1989,7 @@ final class WalletViewController: UIViewController {
                 self.showSwapSettlementActions(execution, wallet: wallet)
             })
         }
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func showSwapSettlementActions(
@@ -1953,7 +2026,7 @@ final class WalletViewController: UIViewController {
             })
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func showSwapSettlementFee(
@@ -2012,7 +2085,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func presentSwapSettlementApproval(
@@ -2077,7 +2150,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func showHnsForBtcFundingFee(
@@ -2137,7 +2210,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func presentHnsForBtcFundingApproval(
@@ -2194,7 +2267,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func showBtcForHnsFundingFee(
@@ -2253,7 +2326,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func presentBtcForHnsFundingApproval(
@@ -2305,7 +2378,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func confirmCancelBtcForHnsOffer(
@@ -2341,7 +2414,7 @@ final class WalletViewController: UIViewController {
                 }
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func renderBitcoinSnapshot(_ snapshot: NativeBitcoinWalletSnapshot) {
@@ -2450,11 +2523,11 @@ final class WalletViewController: UIViewController {
             self.beginHnsSendReview(request)
         })
         hnsSendFormAlert = alert
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     @objc private func scanHandshakePaymentQr() {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         let scanner = HandshakeQrScannerViewController()
         scanner.onResult = { [weak self, weak scanner] value in
             guard let self else { return }
@@ -2471,7 +2544,7 @@ final class WalletViewController: UIViewController {
                 self.schedulePendingPaymentPresentation()
             }
         }
-        present(scanner, animated: true)
+        walletPresentationHost.present(scanner, animated: true)
     }
 
     private func schedulePendingPaymentPresentation() {
@@ -2727,7 +2800,7 @@ final class WalletViewController: UIViewController {
             )
         })
         hnsSendApprovalAlert = alert
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func approveHnsSendApproval(
@@ -2940,7 +3013,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showTrackedNameOptionsMenu() {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         var actions: [WalletMenuAction] = []
         if importNameButton.isEnabled {
             actions.append(WalletMenuAction(title: "Track exact HNS name") { [weak self] in
@@ -2961,7 +3034,8 @@ final class WalletViewController: UIViewController {
                 title: "Tracked names",
                 detail: nameImportStatusLabel.text ?? "Name import status unavailable."
             )],
-            actions: actions
+            actions: actions,
+            retainForChildActions: true
         )
     }
 
@@ -2980,7 +3054,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showNameActionMenu() {
-        guard hnsValueActionMayStart, presentedViewController == nil else { return }
+        guard hnsValueActionMayStart, walletCanPresentChild else { return }
         presentWalletMenu(
             title: "Name actions",
             rows: [WalletMenuRow(
@@ -2991,12 +3065,13 @@ final class WalletViewController: UIViewController {
                 WalletMenuAction(title: "Transfer name") { [weak self] in self?.showTransferNameForm() },
                 WalletMenuAction(title: "Finalize transfer") { [weak self] in self?.showFinalizeNameForm() },
                 WalletMenuAction(title: "Set records") { [weak self] in self?.showSetNameRecordsForm() },
-            ]
+            ],
+            retainForChildActions: true
         )
     }
 
     private func showShakedexDashboard() {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         let shakescapeStatus = shakedexActionMayStart ? directShakescapeStatusSnapshot : nil
         let transportLine: String
         if let shakescapeStatus {
@@ -3028,46 +3103,44 @@ final class WalletViewController: UIViewController {
         let summary = shakedexActionMayStart
             ? "Offers and purchase steps remain in the direct native HNS controller. No page or provider can request them."
             : "Unlock and synchronize the direct HNS wallet before querying offers or preparing a purchase step."
-        var actions: [WalletMenuAction] = []
-        if bitcoinSellForHnsButton.isEnabled {
-            actions.append(WalletMenuAction(title: "Sell BTC for HNS") { [weak self] in
+        let paired = shakescapeStatus?.peerEndpoint != nil
+        var actions: [WalletMenuAction] = [
+            WalletMenuAction(title: "Pair or replace swap peer", dismissBeforeAction: true) { [weak self] in
+                self?.showPairDirectShakescapeForm()
+            },
+            WalletMenuAction(title: "Sell BTC for HNS", section: "Coin Swap Actions", enabled: paired) { [weak self] in
                 self?.showBtcForHnsOfferForm()
-            })
-        }
-        if shakedexActionMayStart {
-            actions.append(WalletMenuAction(title: "Sell HNS for BTC") { [weak self] in
+            },
+            WalletMenuAction(title: "Sell HNS for BTC", section: "Coin Swap Actions", enabled: paired) { [weak self] in
                 self?.showHnsForBtcOfferForm()
-            })
-            actions.append(WalletMenuAction(title: "Available BTC/HNS swap offers") { [weak self] in
+            },
+            WalletMenuAction(title: "Available BTC/HNS swap offers", section: "Coin Swap Actions", enabled: paired) { [weak self] in
                 self?.showAvailableDirectOffers()
-            })
-            actions.append(WalletMenuAction(title: "My active BTC/HNS swap offers") { [weak self] in
+            },
+            WalletMenuAction(title: "My active BTC/HNS swap offers", section: "Coin Swap Actions", enabled: paired) { [weak self] in
                 self?.showMyDirectOffers()
-            })
-        }
-        if bitcoinExecutionsButton.isEnabled {
-            actions.append(WalletMenuAction(title: "Atomic swap executions") { [weak self] in
+            },
+            WalletMenuAction(title: "Atomic swap executions", section: "Coin Swap Actions", enabled: paired) { [weak self] in
                 self?.showShakescapeExecutions()
-            })
-        }
+            },
+            WalletMenuAction(title: "Create fixed-price offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showCreateOfferForm() },
+            WalletMenuAction(title: "Cancel offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showCancelOfferForm() },
+            WalletMenuAction(title: "Recover name from offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showRecoverNameForm() },
+            WalletMenuAction(title: "List Handshake name-sale offers", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showListOffersForm() },
+            WalletMenuAction(title: "Get session", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showGetSessionForm() },
+            WalletMenuAction(title: "Accept offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showAcceptOfferForm() },
+            WalletMenuAction(title: "Finalize purchase", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showFinalizePurchaseForm() },
+        ]
         if shakedexActionMayStart {
-            actions.append(WalletMenuAction(title: "Create fixed-price offer") { [weak self] in self?.showCreateOfferForm() })
-            actions.append(WalletMenuAction(title: "Cancel offer") { [weak self] in self?.showCancelOfferForm() })
-            actions.append(WalletMenuAction(title: "Recover name from offer") { [weak self] in self?.showRecoverNameForm() })
-            actions.append(WalletMenuAction(title: "List Handshake name-sale offers") { [weak self] in self?.showListOffersForm() })
-            actions.append(WalletMenuAction(title: "Get session") { [weak self] in self?.showGetSessionForm() })
-            actions.append(WalletMenuAction(title: "Accept offer") { [weak self] in self?.showAcceptOfferForm() })
-            actions.append(WalletMenuAction(title: "Finalize purchase") { [weak self] in self?.showFinalizePurchaseForm() })
-            actions.append(WalletMenuAction(title: "Pair direct peer") { [weak self] in self?.showPairDirectShakescapeForm() })
             if shakescapeStatus?.listenerPort == nil {
-                actions.append(WalletMenuAction(title: "Retry listener") { [weak self] in
+                actions.insert(WalletMenuAction(title: "Retry listener", enabled: paired) { [weak self] in
                     self?.retryDirectShakescapeListener()
-                })
+                }, at: 1)
             }
             if shakescapeStatus?.peerEndpoint != nil {
-                actions.append(WalletMenuAction(title: "Disconnect peer", style: .destructive) { [weak self] in
+                actions.insert(WalletMenuAction(title: "Disconnect peer", style: .destructive) { [weak self] in
                     self?.disconnectDirectShakescapePeer()
-                })
+                }, at: 1)
             }
         }
         presentWalletMenu(
@@ -3076,24 +3149,45 @@ final class WalletViewController: UIViewController {
                 WalletMenuRow(title: "Native control", detail: summary),
                 WalletMenuRow(title: "Direct transport", detail: transportLine),
             ],
-            actions: actions
+            actions: actions,
+            retainForChildActions: true
         )
     }
 
     private func presentWalletMenu(
         title: String,
         rows: [WalletMenuRow],
-        actions: [WalletMenuAction]
+        actions: [WalletMenuAction],
+        retainForChildActions: Bool = false
     ) {
-        guard presentedViewController == nil else { return }
-        let menu = WalletMenuViewController(title: title, rows: rows, actions: actions)
+        let host = walletPresentationHost
+        guard host === self || host is WalletMenuViewController else { return }
+        let menu = WalletMenuViewController(
+            title: title,
+            rows: rows,
+            actions: actions,
+            dismissBeforeAction: !retainForChildActions
+        )
         menu.modalPresentationStyle = .pageSheet
         if let sheet = menu.sheetPresentationController {
             sheet.detents = [.medium(), .large()]
             sheet.prefersGrabberVisible = true
             sheet.preferredCornerRadius = 24
         }
-        present(menu, animated: true)
+        host.present(menu, animated: true)
+    }
+
+    private var walletPresentationHost: UIViewController {
+        var host: UIViewController = self
+        while let presented = host.presentedViewController, !presented.isBeingDismissed {
+            host = presented
+        }
+        return host
+    }
+
+    private var walletCanPresentChild: Bool {
+        let host = walletPresentationHost
+        return host === self || host is WalletMenuViewController
     }
 
     @discardableResult
@@ -3105,7 +3199,8 @@ final class WalletViewController: UIViewController {
         primaryStyle: WalletMenuActionStyle = .standard,
         onSubmit: @escaping @MainActor ([String]) -> Void
     ) -> WalletFormViewController? {
-        guard presentedViewController == nil else { return nil }
+        guard walletCanPresentChild else { return nil }
+        let host = walletPresentationHost
         let form = WalletFormViewController(
             title: title,
             message: message,
@@ -3120,7 +3215,7 @@ final class WalletViewController: UIViewController {
             sheet.prefersGrabberVisible = true
             sheet.preferredCornerRadius = 24
         }
-        present(form, animated: true)
+        host.present(form, animated: true)
         return form
     }
 
@@ -3138,7 +3233,7 @@ final class WalletViewController: UIViewController {
             completion(values)
             return
         }
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         let fieldDefinition = fields[index]
         presentWalletForm(
             title: title,
@@ -3220,7 +3315,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showSetNameRecordsForm() {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         let editor = NameRecordsEditorViewController { [weak self] name, records, feeText in
             guard let self,
                   let fee = Self.positiveHnsBaseUnits(feeText) else {
@@ -3235,7 +3330,7 @@ final class WalletViewController: UIViewController {
         }
         let navigation = UINavigationController(rootViewController: editor)
         navigation.modalPresentationStyle = .formSheet
-        present(navigation, animated: true)
+        walletPresentationHost.present(navigation, animated: true)
     }
 
     private func showCreateOfferForm() {
@@ -3416,6 +3511,7 @@ final class WalletViewController: UIViewController {
                 case .exchangeFailed:
                     self.readStatusLabel.text = "The peer connected but rejected the bounded P2P swap exchange."
                 }
+                self.showShakedexDashboard()
             case .failure(let error):
                 self.readStatusLabel.text = "P2P swap pairing failed without changing wallet or chain state."
                 self.showError(error)
@@ -3665,7 +3761,7 @@ final class WalletViewController: UIViewController {
             )
         })
         hnsValueApprovalAlert = alert
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func approveHnsValueApproval(
@@ -3833,7 +3929,7 @@ final class WalletViewController: UIViewController {
     private func showNativeHnsResult(title: String, json: String) {
         let alert = UIAlertController(title: title, message: json, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     @objc private func showWalletActivity() {
@@ -3879,7 +3975,7 @@ final class WalletViewController: UIViewController {
     }
 
     private func showWalletManagement() {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         var actions: [WalletMenuAction] = []
         let canStopSynchronization = hnsCatchupRetryPending ||
             WalletHnsSyncPresentationCache.canRequestCancellation(networkID: network.rawValue)
@@ -4016,7 +4112,7 @@ final class WalletViewController: UIViewController {
                 )
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func restoreWalletAfterAuthentication(
@@ -4163,7 +4259,7 @@ final class WalletViewController: UIViewController {
             })
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func persistConfirmedWallet() {
@@ -4217,7 +4313,7 @@ final class WalletViewController: UIViewController {
                 preferredStyle: .alert
             )
             alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-            present(alert, animated: true)
+            walletPresentationHost.present(alert, animated: true)
         } catch {
             showError(error)
         }
@@ -4524,7 +4620,7 @@ final class WalletViewController: UIViewController {
 
     @objc private func requestExactHnsNameImport() {
         let current = currentWalletNameImportState()
-        guard presentedViewController == nil,
+        guard walletCanPresentChild,
               let expected = current.authority,
               walletNameImportMayStart(expected: expected, current: current) else {
             nameImportStatusLabel.text =
@@ -4670,7 +4766,7 @@ final class WalletViewController: UIViewController {
 
     private func requestMultipleHnsNameImport() {
         let current = currentWalletNameImportState()
-        guard presentedViewController == nil,
+        guard walletCanPresentChild,
               let expected = current.authority,
               walletNameImportMayStart(expected: expected, current: current) else {
             nameImportStatusLabel.text =
@@ -4680,14 +4776,14 @@ final class WalletViewController: UIViewController {
         let editor = WalletMultipleNameImportEditorViewController { [weak self] names in
             self?.showMultipleHnsNameImportReview(names: names, authority: expected)
         }
-        present(UINavigationController(rootViewController: editor), animated: true)
+        walletPresentationHost.present(UINavigationController(rootViewController: editor), animated: true)
     }
 
     private func showMultipleHnsNameImportReview(
         names: [String],
         authority: WalletNameImportAuthority
     ) {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         let current = currentWalletNameImportState()
         guard walletNameImportMayStart(expected: authority, current: current) else {
             nameImportStatusLabel.text =
@@ -4704,7 +4800,7 @@ final class WalletViewController: UIViewController {
             }
             self.beginMultipleHnsNameImport(names: names, authority: authority)
         }
-        present(UINavigationController(rootViewController: review), animated: true)
+        walletPresentationHost.present(UINavigationController(rootViewController: review), animated: true)
     }
 
     private func beginMultipleHnsNameImport(
@@ -4805,7 +4901,7 @@ final class WalletViewController: UIViewController {
     }
 
     @objc private func requestConfirmedWalletDeletion() {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         if hnsCatchupRetryPending || WalletHnsSyncPresentationCache.canRequestCancellation(
             networkID: network.rawValue
         ) {
@@ -4827,7 +4923,7 @@ final class WalletViewController: UIViewController {
             alert.addAction(UIAlertAction(title: "Continue", style: .destructive) { [weak self] _ in
                 self?.presentTypedDeletionConfirmation(expected: authority)
             })
-            present(alert, animated: true)
+            walletPresentationHost.present(alert, animated: true)
         } catch {
             showError(error)
         }
@@ -4864,7 +4960,7 @@ final class WalletViewController: UIViewController {
             }
             self.refreshState()
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func presentTypedDeletionConfirmation(
@@ -4917,7 +5013,7 @@ final class WalletViewController: UIViewController {
                 self.showError(error)
             }
         })
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 
     private func currentConfirmedDeletionAuthority(
@@ -5127,7 +5223,25 @@ final class WalletViewController: UIViewController {
         recentActivityPageOffset = 0
         receiveTargets = WalletReceiveTargets(snapshot: snapshot)
         readStatusLabel.text = presentation.status
-        balanceLabel.text = presentation.balance
+        let swapReserved = (try? wallet?.reservedHnsForDirectOffers()) ?? 0
+        if swapReserved > 0 {
+            let spendable = UInt64(balance.spendableBaseUnits) ?? 0
+            let available = spendable >= swapReserved ? spendable - swapReserved : 0
+            var balanceLines = [
+                "\(WalletReadPresenter.formatHnsBaseUnits(balance.spendableBaseUnits)) HNS confirmed on chain",
+                "\(WalletReadPresenter.formatHnsBaseUnits(String(swapReserved))) HNS reserved by active or unfunded swap commitments",
+                "\(WalletReadPresenter.formatHnsBaseUnits(String(available))) HNS available after swap reservations",
+            ]
+            if balance.hasPendingOutgoing {
+                balanceLines.append(
+                    "\(WalletReadPresenter.formatHnsBaseUnits(balance.pendingOutgoingBaseUnits)) HNS pending outgoing"
+                )
+                balanceLines.append("Transaction Pending, please wait.")
+            }
+            balanceLabel.text = balanceLines.joined(separator: "\n")
+        } else {
+            balanceLabel.text = presentation.balance
+        }
         paymentReceiveLabel.text = presentation.paymentReceive
         nameReceiveLabel.text = presentation.nameReceive
         historyLabel.text = presentation.history
@@ -6128,20 +6242,31 @@ final class WalletViewController: UIViewController {
     }
 
     private func showErrorMessage(_ message: String) {
-        guard presentedViewController == nil else { return }
+        guard walletCanPresentChild else { return }
         let alert = UIAlertController(
             title: "Wallet unavailable",
             message: message,
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "OK", style: .default))
-        present(alert, animated: true)
+        walletPresentationHost.present(alert, animated: true)
     }
 }
 
 private struct WalletMenuRow {
     let title: String
     let detail: String
+    let liveDetail: (@MainActor () -> String)?
+
+    init(
+        title: String,
+        detail: String,
+        liveDetail: (@MainActor () -> String)? = nil
+    ) {
+        self.title = title
+        self.detail = detail
+        self.liveDetail = liveDetail
+    }
 }
 
 private enum WalletMenuActionStyle: Equatable {
@@ -6177,15 +6302,24 @@ private struct WalletSheetFormField {
 private struct WalletMenuAction {
     let title: String
     let style: WalletMenuActionStyle
+    let section: String?
+    let enabled: Bool
+    let dismissBeforeAction: Bool?
     let handler: @MainActor () -> Void
 
     init(
         title: String,
         style: WalletMenuActionStyle = .standard,
+        section: String? = nil,
+        enabled: Bool = true,
+        dismissBeforeAction: Bool? = nil,
         handler: @escaping @MainActor () -> Void
     ) {
         self.title = title
         self.style = style
+        self.section = section
+        self.enabled = enabled
+        self.dismissBeforeAction = dismissBeforeAction
         self.handler = handler
     }
 }
@@ -6195,11 +6329,20 @@ private final class WalletMenuViewController: UIViewController {
     private let menuTitle: String
     private let rows: [WalletMenuRow]
     private let actions: [WalletMenuAction]
+    private let dismissBeforeAction: Bool
+    private var liveDetails: [(UILabel, @MainActor () -> String)] = []
+    private var liveDetailTimer: Timer?
 
-    init(title: String, rows: [WalletMenuRow], actions: [WalletMenuAction]) {
+    init(
+        title: String,
+        rows: [WalletMenuRow],
+        actions: [WalletMenuAction],
+        dismissBeforeAction: Bool
+    ) {
         menuTitle = title
         self.rows = rows
         self.actions = actions
+        self.dismissBeforeAction = dismissBeforeAction
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -6240,14 +6383,28 @@ private final class WalletMenuViewController: UIViewController {
 
         rows.forEach { content.addArrangedSubview(detailCard(for: $0)) }
 
-        if !actions.isEmpty {
-            let actionHeading = sectionHeading("Actions")
-            content.addArrangedSubview(actionHeading)
-            content.setCustomSpacing(8, after: actionHeading)
+        if !liveDetails.isEmpty {
+            liveDetailTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
+                [weak self] _ in
+                guard let self else { return }
+                self.liveDetails.forEach { label, provider in label.text = provider() }
+            }
         }
 
+        var currentSection: String?
         for (index, action) in actions.enumerated() {
-            content.addArrangedSubview(actionButton(for: action, emphasized: index == 0))
+            let section = action.section ?? "Actions"
+            if section != currentSection {
+                let actionHeading = sectionHeading(section)
+                content.addArrangedSubview(actionHeading)
+                content.setCustomSpacing(8, after: actionHeading)
+                currentSection = section
+            }
+            content.addArrangedSubview(actionButton(
+                for: action,
+                emphasized: index == 0,
+                dismissBeforeAction: action.dismissBeforeAction ?? dismissBeforeAction
+            ))
         }
 
         let done = actionButton(
@@ -6273,6 +6430,10 @@ private final class WalletMenuViewController: UIViewController {
             content.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -18),
             content.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -36),
         ])
+    }
+
+    deinit {
+        liveDetailTimer?.invalidate()
     }
 
     private func detailCard(for row: WalletMenuRow) -> UIView {
@@ -6301,6 +6462,9 @@ private final class WalletMenuViewController: UIViewController {
         detail.textColor = .label
         detail.numberOfLines = 0
         card.addArrangedSubview(detail)
+        if let provider = row.liveDetail {
+            liveDetails.append((detail, provider))
+        }
         return card
     }
 
@@ -6344,6 +6508,8 @@ private final class WalletMenuViewController: UIViewController {
         button.configuration = configuration
         button.contentHorizontalAlignment = .leading
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+        button.isEnabled = action.enabled
+        button.alpha = action.enabled ? 1 : 0.5
         button.addAction(UIAction { [weak self] _ in
             guard let self else { return }
             if dismissBeforeAction {

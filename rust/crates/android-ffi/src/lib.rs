@@ -1317,9 +1317,14 @@ impl AndroidWalletController {
         else {
             return None;
         };
+        let now_unix = HnsReadSystemClock.now_unix().ok()?;
         let executions = shakescape_sessions.durable_executions().ok()?;
+        let pending_acceptances = shakescape_sessions
+            .pending_direct_offer_takes(now_unix)
+            .ok()?;
         let mut json = serde_json::to_vec(&serde_json::json!({
             "executions": executions,
+            "pendingAcceptances": pending_acceptances,
             "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
         }))
         .ok()?;
@@ -1356,6 +1361,35 @@ impl AndroidWalletController {
         // The authenticated cancellation is durable locally. Periodic board
         // reconciliation retries its tombstone on every current/future peer.
         true
+    }
+
+    fn abandon_pending_direct_offer_take(&mut self, session_id: &str) -> bool {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
+            return false;
+        };
+        shakescape_sessions
+            .abandon_pending_direct_offer_take(session_id, now_unix)
+            .is_ok()
+    }
+
+    fn reserved_hns_for_direct_offers(&self) -> Option<u64> {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Some(0);
+        };
+        shakescape_sessions
+            .reserved_hns_dollarydoos(HnsReadSystemClock.now_unix().ok()?)
+            .ok()
     }
 
     fn reserved_bitcoin_for_direct_offers(&self) -> Option<u64> {
@@ -7107,6 +7141,54 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
     }))
     .unwrap_or(false)
     .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeAbandonPendingDirectOfferTake(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+    session_id: JString<'_>,
+) -> jboolean {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Ok(session_id) = env.get_string(&session_id) else {
+            return false;
+        };
+        let session_id = session_id.to_string_lossy();
+        if session_id.len() != 64
+            || !session_id
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return false;
+        }
+        let Some(record) = wallet_from_handle(handle) else {
+            return false;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            return false;
+        };
+        controller.abandon_pending_direct_offer_take(&session_id)
+    }))
+    .unwrap_or(false)
+    .into()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativeReservedHnsForDirectOffers(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jlong {
+    catch_unwind(AssertUnwindSafe(|| {
+        wallet_from_handle(handle)?
+            .controller_if_active()?
+            .reserved_hns_for_direct_offers()
+            .and_then(|value| i64::try_from(value).ok())
+    }))
+    .ok()
+    .flatten()
+    .unwrap_or(-1)
 }
 
 #[unsafe(no_mangle)]

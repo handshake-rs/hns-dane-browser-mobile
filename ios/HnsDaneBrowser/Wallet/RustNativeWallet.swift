@@ -684,19 +684,23 @@ struct NativeBitcoinBroadcastRecovery: Decodable, Equatable, Sendable {
 
 struct NativeShakescapeExecutionStatus: Decodable, Equatable, Sendable {
     let executions: [NativeShakescapeExecutionSummary]
+    let pendingAcceptances: [NativeDirectOfferTakeSummary]
     let bitcoinBroadcastRecovery: NativeBitcoinBroadcastRecovery?
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case executions, bitcoinBroadcastRecovery
+        case executions, pendingAcceptances, bitcoinBroadcastRecovery
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.strictContainer(keyedBy: CodingKeys.self)
         executions = try container.decode([NativeShakescapeExecutionSummary].self, forKey: .executions)
+        pendingAcceptances = try container.decode(
+            [NativeDirectOfferTakeSummary].self, forKey: .pendingAcceptances
+        )
         bitcoinBroadcastRecovery = try container.decodeIfPresent(
             NativeBitcoinBroadcastRecovery.self, forKey: .bitcoinBroadcastRecovery
         )
-        guard executions.count <= 1_024 else {
+        guard executions.count <= 1_024, pendingAcceptances.count <= 1_024 else {
             throw NativeWalletBridgeError.invalidOutput("too many durable Shakescape executions")
         }
     }
@@ -3794,6 +3798,27 @@ final class RustNativeWallet: @unchecked Sendable {
         ) { handle, output in
             hns_browser_wallet_shakescape_executions(handle, output)
         }
+    }
+
+    func abandonPendingDirectOfferTake(sessionId: String) throws {
+        var session = Array(sessionId.utf8)
+        defer { WalletSecretBytes.wipe(&session) }
+        let result = try session.withUnsafeBufferPointer { bytes in
+            hns_browser_wallet_abandon_pending_direct_offer_take(
+                try liveHandle(),
+                HnsBrowserSlice(ptr: bytes.baseAddress, len: UInt64(bytes.count))
+            )
+        }
+        try NativeWalletBridge.check(result, operation: "unfunded acceptance abandonment")
+    }
+
+    func reservedHnsForDirectOffers() throws -> UInt64 {
+        var reserved: UInt64 = 0
+        try NativeWalletBridge.check(
+            hns_browser_wallet_reserved_hns_for_direct_offers(try liveHandle(), &reserved),
+            operation: "reserved HNS lookup"
+        )
+        return reserved
     }
 
     func cancelBtcForHnsOffer(offerId: String) throws {

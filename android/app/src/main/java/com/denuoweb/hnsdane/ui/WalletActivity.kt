@@ -2176,6 +2176,7 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.row_wallet_finalize_name) to ::showFinalizeNameForm,
                 getString(R.string.row_wallet_set_records) to ::showSetNameRecordsForm,
             ),
+            dismissOnAction = false,
         )
     }
 
@@ -2348,6 +2349,7 @@ class WalletActivity : ComponentActivity() {
             title = title,
             rows = rows.map { (label, detail) -> label to detail },
             actions = actions,
+            dismissOnAction = false,
         ) {
             rows.forEach { (_, detail) ->
                 (detail.parent as? ViewGroup)?.removeView(detail)
@@ -2358,31 +2360,30 @@ class WalletActivity : ComponentActivity() {
     private fun showShakedexDashboard() {
         val transport = NativeWalletBridge.walletOwnedDirectShakescapeStatus(walletHandle)
         val transportControls = directShakescapeControls(transport)
-        val actions = mutableListOf<Pair<String, () -> Unit>>(
-            getString(R.string.wallet_swap_sell_btc) to ::showBtcForHnsOfferForm,
-            getString(R.string.wallet_swap_sell_hns) to ::showHnsForBtcOfferForm,
-            getString(R.string.wallet_swap_available_offers) to ::showAvailableDirectOffers,
-            getString(R.string.wallet_swap_my_offers) to ::showMyDirectOffers,
-            getString(R.string.wallet_swap_executions) to ::showShakescapeExecutions,
-            getString(R.string.row_wallet_create_offer) to ::showCreateOfferForm,
-            getString(R.string.row_wallet_cancel_offer) to ::showCancelOfferForm,
-            getString(R.string.row_wallet_recover_name) to ::showRecoverNameForm,
-            getString(R.string.row_wallet_list_offers) to ::showListOffersForm,
-            getString(R.string.row_wallet_accept_offer) to ::showAcceptOfferForm,
-            getString(R.string.row_wallet_finalize_purchase) to ::showFinalizePurchaseForm,
-            getString(R.string.row_wallet_pair_direct_shakescape) to ::showPairDirectShakescapeForm,
-            getString(R.string.row_wallet_get_session) to ::showGetSessionForm,
+        val paired = transport?.peerEndpoint != null
+        val connectionActions = mutableListOf(
+            WalletModalAction(
+                getString(R.string.row_wallet_pair_direct_shakescape),
+                action = ::showPairDirectShakescapeForm,
+                dismissParent = true,
+            ),
         ).apply {
             if (transportControls.retryListener) {
                 add(
-                    getString(R.string.row_wallet_retry_direct_shakescape_host) to
-                        ::retryWalletOwnedDirectShakescapeListener,
+                    WalletModalAction(
+                        getString(R.string.row_wallet_retry_direct_shakescape_host),
+                        enabled = paired,
+                        action = ::retryWalletOwnedDirectShakescapeListener,
+                    ),
                 )
             }
             if (transportControls.disconnectPeer) {
                 add(
-                    getString(R.string.row_wallet_disconnect_direct_shakescape) to
-                        ::disconnectWalletOwnedDirectShakescape,
+                    WalletModalAction(
+                        getString(R.string.row_wallet_disconnect_direct_shakescape),
+                        enabled = paired,
+                        action = ::disconnectWalletOwnedDirectShakescape,
+                    ),
                 )
             }
         }
@@ -2392,7 +2393,35 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.row_wallet_direct_shakescape_host) to directShakescapeStatusView.text.toString(),
                 getString(R.string.row_wallet_shakedex_status) to shakedexQueryStatusView.text.toString(),
             ),
-            actions = actions,
+            actionSections = listOf(
+                WalletModalActionSection(
+                    getString(R.string.wallet_modal_actions),
+                    connectionActions,
+                ),
+                WalletModalActionSection(
+                    getString(R.string.wallet_swap_coin_actions),
+                    listOf(
+                        WalletModalAction(getString(R.string.wallet_swap_sell_btc), paired, ::showBtcForHnsOfferForm),
+                        WalletModalAction(getString(R.string.wallet_swap_sell_hns), paired, ::showHnsForBtcOfferForm),
+                        WalletModalAction(getString(R.string.wallet_swap_available_offers), paired, ::showAvailableDirectOffers),
+                        WalletModalAction(getString(R.string.wallet_swap_my_offers), paired, ::showMyDirectOffers),
+                        WalletModalAction(getString(R.string.wallet_swap_executions), paired, ::showShakescapeExecutions),
+                    ),
+                ),
+                WalletModalActionSection(
+                    getString(R.string.wallet_swap_name_actions),
+                    listOf(
+                        WalletModalAction(getString(R.string.row_wallet_create_offer), paired, ::showCreateOfferForm),
+                        WalletModalAction(getString(R.string.row_wallet_cancel_offer), paired, ::showCancelOfferForm),
+                        WalletModalAction(getString(R.string.row_wallet_recover_name), paired, ::showRecoverNameForm),
+                        WalletModalAction(getString(R.string.row_wallet_list_offers), paired, ::showListOffersForm),
+                        WalletModalAction(getString(R.string.row_wallet_accept_offer), paired, ::showAcceptOfferForm),
+                        WalletModalAction(getString(R.string.row_wallet_finalize_purchase), paired, ::showFinalizePurchaseForm),
+                        WalletModalAction(getString(R.string.row_wallet_get_session), paired, ::showGetSessionForm),
+                    ),
+                ),
+            ),
+            dismissOnAction = false,
         )
     }
 
@@ -2400,6 +2429,8 @@ class WalletActivity : ComponentActivity() {
         title: String,
         rows: List<Pair<String, String>>,
         actions: List<Pair<String, () -> Unit>> = emptyList(),
+        actionSections: List<WalletModalActionSection> = emptyList(),
+        dismissOnAction: Boolean = true,
     ) {
         showWalletModal(
             title = title,
@@ -2412,6 +2443,8 @@ class WalletActivity : ComponentActivity() {
                 }
             },
             actions = actions,
+            actionSections = actionSections,
+            dismissOnAction = dismissOnAction,
         )
     }
 
@@ -2542,6 +2575,8 @@ class WalletActivity : ComponentActivity() {
         title: String,
         rows: List<Pair<String, View>>,
         actions: List<Pair<String, () -> Unit>>,
+        actionSections: List<WalletModalActionSection> = emptyList(),
+        dismissOnAction: Boolean = true,
         onDismiss: () -> Unit = {},
     ) {
         lateinit var dialog: AlertDialog
@@ -2569,10 +2604,11 @@ class WalletActivity : ComponentActivity() {
             if (actions.isNotEmpty()) {
                 addView(walletModalSectionHeading(getString(R.string.wallet_modal_actions)))
             }
+            var actionIndex = 0
             actions.forEachIndexed { index, (label, action) ->
                 addView(
                     dashboardActionButton(label, secondary = index != 0) {
-                        dialog.dismiss()
+                        if (dismissOnAction) dialog.dismiss()
                         action()
                     }.apply {
                         textSize = 14f
@@ -2583,6 +2619,27 @@ class WalletActivity : ComponentActivity() {
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                     ).apply { bottomMargin = uiDp(8) },
                 )
+                actionIndex += 1
+            }
+            actionSections.forEach { section ->
+                if (section.actions.isEmpty()) return@forEach
+                addView(walletModalSectionHeading(section.title))
+                section.actions.forEach { item ->
+                    addView(
+                        dashboardActionButton(item.label, secondary = actionIndex != 0) {
+                            if (dismissOnAction || item.dismissParent) dialog.dismiss()
+                            item.action()
+                        }.disabledWhenWalletHandoff(!item.enabled).apply {
+                            textSize = 14f
+                            minimumHeight = uiDp(48)
+                        },
+                        LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                        ).apply { bottomMargin = uiDp(8) },
+                    )
+                    actionIndex += 1
+                }
             }
             addView(
                 dashboardActionButton(
@@ -4327,6 +4384,18 @@ class WalletActivity : ComponentActivity() {
         val maxCharacters: Int = MAX_VALUE_ACTION_INPUT_CHARACTERS,
     )
 
+    private data class WalletModalAction(
+        val label: String,
+        val enabled: Boolean = true,
+        val action: () -> Unit,
+        val dismissParent: Boolean = false,
+    )
+
+    private data class WalletModalActionSection(
+        val title: String,
+        val actions: List<WalletModalAction>,
+    )
+
     /** One validated public HNS payment request retained only across its sync/review flow. */
     private data class WalletHnsSendInput(
         val recipient: String,
@@ -4495,7 +4564,11 @@ class WalletActivity : ComponentActivity() {
                     initial = NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS.toString(),
                 ),
                 WalletActionInput(R.string.wallet_swap_hns_amount_hint),
-                WalletActionInput(R.string.wallet_swap_fee_reserve_hint, numeric = true),
+                WalletActionInput(
+                    R.string.wallet_swap_fee_reserve_hint,
+                    numeric = true,
+                    initial = NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS.toString(),
+                ),
                 WalletActionInput(R.string.wallet_swap_lifetime_hours_hint, initial = "24", numeric = true),
             ),
         ) { values ->
@@ -4503,7 +4576,9 @@ class WalletActivity : ComponentActivity() {
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
             val hns = parsePositiveHnsToBaseUnits(values[1])?.toLongOrNull()
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
-            val reserve = values[2].toLongOrNull()?.takeIf { it > 0L }
+            val reserve = values[2].toLongOrNull()?.takeIf {
+                it >= NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+            }
             val lifetime = values[3].toLongOrNull()
                 ?.takeIf { it in 1L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
@@ -4626,13 +4701,15 @@ class WalletActivity : ComponentActivity() {
                 if (bitcoin) R.string.wallet_swap_take_btc_fee_reserve_hint
                 else R.string.wallet_swap_take_hns_fee_reserve_hint,
                 numeric = bitcoin,
-                initial = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_MAXIMUM_FEE_SATS.toString()
+                initial = if (bitcoin) NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS.toString()
                 else DEFAULT_HNS_MAXIMUM_FEE,
             )),
         ) { values ->
             val reserve = if (bitcoin) values.single().toLongOrNull()
             else parsePositiveHnsToBaseUnits(values.single())?.toLongOrNull()
-            if (reserve == null || reserve <= 0L) {
+            if (reserve == null || reserve <= 0L ||
+                bitcoin && reserve < NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+            ) {
                 bitcoinStatusView.text = getString(R.string.wallet_swap_take_prepare_failed)
             } else {
                 val available = if (bitcoin) {
@@ -4724,7 +4801,7 @@ class WalletActivity : ComponentActivity() {
                         .setMessage(message)
                         .setPositiveButton(android.R.string.ok, null)
                         .show()
-                } else if (status.executions.isEmpty()) {
+                } else if (status.executions.isEmpty() && status.pendingAcceptances.isEmpty()) {
                     val message = getString(R.string.wallet_swap_no_executions_waiting) +
                         "\n\n" + bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
                     bitcoinStatusView.text = message
@@ -4735,18 +4812,78 @@ class WalletActivity : ComponentActivity() {
                         .show()
                 } else {
                     bitcoinStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
-                    val labels = status.executions.map {
+                    val pendingLabels = status.pendingAcceptances.map {
+                        getString(
+                            R.string.wallet_swap_pending_acceptance,
+                            formatSwapAmount(it.offeredAsset, it.offeredAmount),
+                            formatSwapAmount(it.receivedAsset, it.receivedAmount),
+                            formatSwapAmount(it.receivedAsset, it.receivedFeeReserve),
+                            it.sessionId.take(12),
+                        )
+                    }
+                    val executionLabels = status.executions.map {
                         "${it.state.replace('_', ' ')} · ${it.offeredAmount} ${it.offeredAsset.uppercase()} → ${it.receivedAmount} ${it.receivedAsset.uppercase()} · ${it.sessionId.take(12)}…"
-                    }.toTypedArray()
+                    }
+                    val labels = (pendingLabels + executionLabels).toTypedArray()
                     walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_executions)
                         .setMessage(bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))
-                        .setItems(labels) { _, index -> showShakescapeExecution(status.executions[index]) }
+                        .setItems(labels) { _, index ->
+                            if (index < status.pendingAcceptances.size) {
+                                confirmAbandonPendingAcceptance(status.pendingAcceptances[index])
+                            } else {
+                                showShakescapeExecution(
+                                    status.executions[index - status.pendingAcceptances.size],
+                                )
+                            }
+                        }
                         .setNegativeButton(R.string.action_cancel, null)
                         .show()
                 }
             }
         }
+    }
+
+    private fun formatSwapAmount(asset: String, amount: Long): String =
+        if (asset == "hns") {
+            "${formatHnsBaseUnits(amount.toString())} HNS"
+        } else {
+            "$amount sats"
+        }
+
+    private fun confirmAbandonPendingAcceptance(take: com.denuoweb.hnsdane.wallet.NativeDirectOfferTakeSummary) {
+        walletAlertDialogBuilder()
+            .setTitle(R.string.wallet_swap_abandon_acceptance_title)
+            .setMessage(getString(
+                R.string.wallet_swap_abandon_acceptance_message,
+                formatSwapAmount(
+                    take.receivedAsset,
+                    (take.receivedAmount + take.receivedFeeReserve).coerceAtLeast(0L),
+                ),
+                take.sessionId,
+            ))
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.wallet_swap_abandon_acceptance) { _, _ ->
+                val handle = walletHandle
+                thread(name = "direct-take-abandon") {
+                    val abandoned = NativeWalletBridge.abandonPendingDirectOfferTake(
+                        handle,
+                        take.sessionId,
+                    )
+                    runOnUiThread {
+                        if (walletHandle != handle) return@runOnUiThread
+                        bitcoinStatusView.text = getString(
+                            if (abandoned) R.string.wallet_swap_acceptance_abandoned
+                            else R.string.wallet_swap_acceptance_abandon_failed,
+                        )
+                        if (abandoned) {
+                            latestReadSnapshot?.let(::renderReadSnapshot)
+                        }
+                        showShakescapeExecutions()
+                    }
+                }
+            }
+            .show()
     }
 
     private fun bitcoinBroadcastRecoveryText(
@@ -5218,6 +5355,7 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val handle = walletHandle
         var settled = false
         fun reject() {
             if (settled) return
@@ -5242,10 +5380,10 @@ class WalletActivity : ComponentActivity() {
                 settled = true
                 thread(name = "hns-btc-offer-publish") {
                     val published = NativeWalletBridge.approveHnsForBtcOffer(
-                        walletHandle, approval.actionToken,
+                        handle, approval.actionToken,
                     )
                     runOnUiThread {
-                        if (operationIsCurrent(epoch, lease)) {
+                        if (walletHandle == handle) {
                             busy = false
                             bitcoinStatusView.text = if (published == null) {
                                 getString(R.string.wallet_swap_publish_failed)
@@ -5475,6 +5613,7 @@ class WalletActivity : ComponentActivity() {
                 } else if (exact == null) {
                     busy = false
                     bitcoinStatusView.text = getString(R.string.wallet_swap_prepare_failed)
+                    releaseStorageLeaseAfterOperation(lease)
                 } else {
                     showBtcForHnsOfferApproval(exact, lease, epoch)
                 }
@@ -5487,6 +5626,7 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val handle = walletHandle
         val expiry = runCatching {
             DateFormat.getDateTimeInstance().format(
                 Date(Math.multiplyExact(approval.offerExpiresAtUnix, 1_000L)),
@@ -5521,11 +5661,11 @@ class WalletActivity : ComponentActivity() {
                 bitcoinStatusView.text = getString(R.string.wallet_swap_publishing)
                 thread(name = "bitcoin-hns-offer-publish") {
                     val published = NativeWalletBridge.approveBtcForHnsOffer(
-                        walletHandle,
+                        handle,
                         approval.actionToken,
                     )
                     runOnUiThread {
-                        if (!operationIsCurrent(epoch, lease)) {
+                        if (walletHandle != handle) {
                             releaseStorageLeaseAfterOperation(lease)
                             return@runOnUiThread
                         }
@@ -5535,6 +5675,7 @@ class WalletActivity : ComponentActivity() {
                         } else {
                             getString(R.string.wallet_swap_published, published.offerId.take(12))
                         }
+                        releaseStorageLeaseAfterOperation(lease)
                     }
                 }
             }
@@ -5912,6 +6053,7 @@ class WalletActivity : ComponentActivity() {
                 busy = false
                 refreshControllerState(resetReads = false)
                 shakedexQueryStatusView.text = directShakescapeConnectionMessage(result)
+                showShakedexDashboard()
             }
         }
     }
@@ -8071,8 +8213,7 @@ class WalletActivity : ComponentActivity() {
             pendingOutgoingRefreshAttemptedHeight = null
             clearPendingOutgoingRecovery()
         }
-        balanceView.textSize = if (balance.hasPendingOutgoing) 18f else 24f
-        balanceView.text = when {
+        val onChainBalanceText = when {
             balance.hasPendingOutgoing -> getString(
                 R.string.wallet_reads_balance_with_pending,
                 formatHnsBaseUnits(balance.spendableBaseUnits),
@@ -8082,6 +8223,31 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_reads_balance,
                 formatHnsBaseUnits(balance.spendableBaseUnits),
             )
+        }
+        val swapReserved = NativeWalletBridge.reservedHnsForDirectOffers(walletHandle) ?: 0L
+        balanceView.textSize = if (balance.hasPendingOutgoing || swapReserved > 0L) 18f else 24f
+        balanceView.text = if (swapReserved > 0L) {
+            val spendable = balance.spendableBaseUnits.toLongOrNull() ?: 0L
+            val available = (spendable - swapReserved).coerceAtLeast(0L)
+            val confirmedText = if (balance.hasPendingOutgoing) {
+                getString(
+                    R.string.wallet_reads_balance_confirmed_with_pending,
+                    formatHnsBaseUnits(balance.spendableBaseUnits),
+                    formatHnsBaseUnits(balance.pendingOutgoingBaseUnits),
+                )
+            } else {
+                getString(
+                    R.string.wallet_reads_balance_confirmed,
+                    formatHnsBaseUnits(balance.spendableBaseUnits),
+                )
+            }
+            confirmedText + "\n" + getString(
+                R.string.wallet_reads_swap_reserved,
+                formatHnsBaseUnits(swapReserved.toString()),
+                formatHnsBaseUnits(available.toString()),
+            )
+        } else {
+            onChainBalanceText
         }
         paymentReceiveView.text = getString(
             R.string.wallet_reads_receive,

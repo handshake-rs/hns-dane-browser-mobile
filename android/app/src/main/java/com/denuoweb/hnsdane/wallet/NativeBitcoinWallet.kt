@@ -305,6 +305,7 @@ internal data class NativeBitcoinBroadcastRecovery(
 
 internal data class NativeShakescapeExecutionStatus(
     val executions: List<NativeShakescapeExecutionSummary>,
+    val pendingAcceptances: List<NativeDirectOfferTakeSummary>,
     val bitcoinBroadcastRecovery: NativeBitcoinBroadcastRecovery?,
 )
 
@@ -780,33 +781,39 @@ internal object NativeBitcoinWalletBundle {
         )
     }
 
-    fun directOfferTakeSummary(bundle: ByteArray): NativeDirectOfferTakeSummary? = parse(bundle) { json ->
+    fun directOfferTakeSummary(bundle: ByteArray): NativeDirectOfferTakeSummary? = parse(bundle) {
+        parseDirectOfferTakeSummary(it)
+    }
+
+    private fun parseDirectOfferTakeSummary(json: JSONObject): NativeDirectOfferTakeSummary? {
         if (!hasExactKeys(json, setOf(
             "offerId", "sessionId", "offeredAsset", "offeredAmount", "receivedAsset",
             "receivedAmount", "receivedFeeReserve", "createdAtUnix", "expiresAtUnix",
-        ))) return@parse null
+        ))) return null
         val offeredAsset = json.optString("offeredAsset", "").takeIf { it in SHAKESCAPE_ASSETS }
-            ?: return@parse null
+            ?: return null
         val receivedAsset = json.optString("receivedAsset", "").takeIf {
             it in SHAKESCAPE_ASSETS && it != offeredAsset
-        } ?: return@parse null
-        val created = positiveLong(json, "createdAtUnix") ?: return@parse null
-        val expires = positiveLong(json, "expiresAtUnix")?.takeIf { it > created } ?: return@parse null
-        NativeDirectOfferTakeSummary(
-            hexHash(json.optString("offerId", "")) ?: return@parse null,
-            hexHash(json.optString("sessionId", "")) ?: return@parse null,
+        } ?: return null
+        val created = positiveLong(json, "createdAtUnix") ?: return null
+        val expires = positiveLong(json, "expiresAtUnix")?.takeIf { it > created } ?: return null
+        return NativeDirectOfferTakeSummary(
+            hexHash(json.optString("offerId", "")) ?: return null,
+            hexHash(json.optString("sessionId", "")) ?: return null,
             offeredAsset,
-            positiveLong(json, "offeredAmount") ?: return@parse null,
+            positiveLong(json, "offeredAmount") ?: return null,
             receivedAsset,
-            positiveLong(json, "receivedAmount") ?: return@parse null,
-            positiveLong(json, "receivedFeeReserve") ?: return@parse null,
+            positiveLong(json, "receivedAmount") ?: return null,
+            positiveLong(json, "receivedFeeReserve") ?: return null,
             created,
             expires,
         )
     }
 
     fun shakescapeExecutions(bundle: ByteArray): NativeShakescapeExecutionStatus? = parse(bundle) { json ->
-        if (!hasExactKeys(json, setOf("executions", "bitcoinBroadcastRecovery"))) return@parse null
+        if (!hasExactKeys(json, setOf(
+            "executions", "pendingAcceptances", "bitcoinBroadcastRecovery",
+        ))) return@parse null
         val array = json.optJSONArray("executions") ?: return@parse null
         if (array.length() > 1_024) return@parse null
         val executions = buildList(array.length()) {
@@ -814,12 +821,22 @@ internal object NativeBitcoinWalletBundle {
                 add(parseShakescapeExecution(array.optJSONObject(index) ?: return@parse null) ?: return@parse null)
             }
         }
+        val pendingArray = json.optJSONArray("pendingAcceptances") ?: return@parse null
+        if (pendingArray.length() > 1_024) return@parse null
+        val pending = buildList(pendingArray.length()) {
+            for (index in 0 until pendingArray.length()) {
+                val take = parseDirectOfferTakeSummary(
+                    pendingArray.optJSONObject(index) ?: return@parse null,
+                ) ?: return@parse null
+                add(take)
+            }
+        }
         val recovery = if (json.isNull("bitcoinBroadcastRecovery")) null else {
             parseBroadcastRecovery(
                 json.optJSONObject("bitcoinBroadcastRecovery") ?: return@parse null
             ) ?: return@parse null
         }
-        NativeShakescapeExecutionStatus(executions, recovery)
+        NativeShakescapeExecutionStatus(executions, pending, recovery)
     }
 
     private fun parseBroadcastRecovery(json: JSONObject): NativeBitcoinBroadcastRecovery? {

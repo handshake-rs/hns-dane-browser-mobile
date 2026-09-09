@@ -585,6 +585,12 @@ HnsBrowserResult hns_browser_wallet_local_btc_for_hns_offers(
 HnsBrowserResult hns_browser_wallet_shakescape_executions(
     HnsBrowserWalletHandle wallet,
     HnsBrowserBuffer *out_executions_bundle);
+HnsBrowserResult hns_browser_wallet_abandon_pending_direct_offer_take(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserSlice session_id);
+HnsBrowserResult hns_browser_wallet_reserved_hns_for_direct_offers(
+    HnsBrowserWalletHandle wallet,
+    uint64_t *out_reserved_dollarydoos);
 HnsBrowserResult hns_browser_wallet_cancel_btc_for_hns_offer(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice offer_id);

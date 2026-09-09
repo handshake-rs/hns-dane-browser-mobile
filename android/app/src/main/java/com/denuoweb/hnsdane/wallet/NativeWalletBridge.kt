@@ -25,6 +25,8 @@ internal object NativeWalletBridge {
     const val MINIMUM_HNS_SWAP_DOLLARYDOOS = 546L
     /** Lowest selectable maximum fee for a direct Bitcoin send. */
     const val MINIMUM_BITCOIN_MAXIMUM_FEE_SATS = 1_000L
+    /** Lowest Bitcoin fee reserve accepted in direct atomic-swap terms. */
+    const val MINIMUM_BITCOIN_FEE_RESERVE_SATS = 1_000L
 
     val isAvailable: Boolean
         get() = NativeBridge.isLoaded
@@ -448,6 +450,22 @@ internal object NativeWalletBridge {
         isValidHandle(handle) && isAvailable &&
             offerId.length == 64 && offerId.all { it in '0'..'9' || it in 'a'..'f' } &&
             runCatching { nativeCancelBtcForHnsOffer(handle, offerId) }.getOrDefault(false)
+
+    fun abandonPendingDirectOfferTake(handle: Long, sessionId: String): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            sessionId.length == 64 && sessionId.all { it in '0'..'9' || it in 'a'..'f' } &&
+            runCatching {
+                nativeAbandonPendingDirectOfferTake(handle, sessionId)
+            }.getOrDefault(false)
+
+    fun reservedHnsForDirectOffers(handle: Long): Long? =
+        if (isValidHandle(handle) && isAvailable) {
+            runCatching { nativeReservedHnsForDirectOffers(handle) }
+                .getOrNull()
+                ?.takeIf { it >= 0L }
+        } else {
+            null
+        }
 
     /** Consumes one exact UTF-8 name for the trusted native read controller only. */
     fun importHnsNameExactText(handle: Long, exactUtf8: ByteArray): NativeWalletName? = try {
@@ -1345,6 +1363,15 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeShakescapeExecutions(handle: Long): ByteArray?
+
+    @JvmStatic
+    private external fun nativeAbandonPendingDirectOfferTake(
+        handle: Long,
+        sessionId: String,
+    ): Boolean
+
+    @JvmStatic
+    private external fun nativeReservedHnsForDirectOffers(handle: Long): Long
 
     @JvmStatic
     private external fun nativeCancelBtcForHnsOffer(handle: Long, offerId: String): Boolean

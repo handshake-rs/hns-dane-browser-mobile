@@ -1454,6 +1454,19 @@ impl NativeWalletController {
         shakescape_sessions.durable_executions()
     }
 
+    fn pending_direct_offer_takes(
+        &self,
+    ) -> Result<Vec<hns_wallet_mobile::MobileDirectOfferTakeSummary>, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions.pending_direct_offer_takes(HnsReadSystemClock.now_unix()?)
+    }
+
     fn pending_first_bitcoin_funding_sessions(&self) -> Result<Vec<SessionId>, MobileWalletError> {
         let Self::DirectHnsValue {
             shakescape_sessions,
@@ -1670,6 +1683,33 @@ impl NativeWalletController {
         }
         // Periodic inventory reconciliation retries the durable tombstone.
         Ok(())
+    }
+
+    fn abandon_pending_direct_offer_take(
+        &mut self,
+        session_id: &str,
+    ) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions
+            .abandon_pending_direct_offer_take(session_id, HnsReadSystemClock.now_unix()?)
+            .map(|_| ())
+    }
+
+    fn reserved_hns_for_direct_offers(&self) -> Result<u64, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Ok(0);
+        };
+        shakescape_sessions.reserved_hns_dollarydoos(HnsReadSystemClock.now_unix()?)
     }
 
     fn reserved_bitcoin_for_direct_offers(&self) -> Result<u64, MobileWalletError> {
@@ -5563,6 +5603,10 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
             .controller
             .shakescape_executions()
             .map_err(|_| wallet_runtime_failure("Shakescape execution listing failed"))?;
+        let pending_acceptances = entry
+            .controller
+            .pending_direct_offer_takes()
+            .map_err(|_| wallet_runtime_failure("pending Shakescape acceptance listing failed"))?;
         drop(entry);
         let bitcoin_broadcast_recovery =
             wallet_bitcoin_control_entry(wallet)
@@ -5575,6 +5619,7 @@ pub unsafe extern "C" fn hns_browser_wallet_shakescape_executions(
                 });
         let bundle = wallet_bitcoin_bundle(&json!({
             "executions": executions,
+            "pendingAcceptances": pending_acceptances,
             "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
         }))?;
         let output = allocate_output(&bundle.0, true)?;
@@ -5599,6 +5644,52 @@ pub unsafe extern "C" fn hns_browser_wallet_cancel_btc_for_hns_offer(
             .controller
             .cancel_btc_for_hns_offer(&offer_id)
             .map_err(|_| wallet_runtime_failure("BTC-for-HNS offer cancellation failed"))
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Durably abandons one pre-execution local direct-offer acceptance.
+///
+/// # Safety
+/// `session_id` must remain readable for its declared length.
+pub unsafe extern "C" fn hns_browser_wallet_abandon_pending_direct_offer_take(
+    wallet: HnsBrowserWalletHandle,
+    session_id: HnsBrowserSlice,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        let session_id = unsafe { wallet_action_token(session_id) }?;
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        entry
+            .controller
+            .abandon_pending_direct_offer_take(&session_id)
+            .map_err(|_| wallet_runtime_failure("unfunded acceptance abandonment failed"))
+    })
+}
+
+#[unsafe(no_mangle)]
+/// Returns HNS base units reserved by active offers and accepted takes.
+///
+/// # Safety
+/// `out_reserved_dollarydoos` must point to writable `uint64_t` storage.
+pub unsafe extern "C" fn hns_browser_wallet_reserved_hns_for_direct_offers(
+    wallet: HnsBrowserWalletHandle,
+    out_reserved_dollarydoos: *mut u64,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        if out_reserved_dollarydoos.is_null() {
+            return Err(FfiFailure::invalid("reserved HNS output is null"));
+        }
+        let entry = wallet_entry(wallet)?;
+        let entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let reserved = entry
+            .controller
+            .reserved_hns_for_direct_offers()
+            .map_err(|_| wallet_runtime_failure("reserved HNS lookup failed"))?;
+        unsafe { *out_reserved_dollarydoos = reserved };
+        Ok(())
     })
 }
 
@@ -7708,6 +7799,8 @@ mod tests {
             "hns_browser_wallet_approve_direct_offer_take",
             "hns_browser_wallet_reject_direct_offer_take",
             "hns_browser_wallet_shakescape_executions",
+            "hns_browser_wallet_abandon_pending_direct_offer_take",
+            "hns_browser_wallet_reserved_hns_for_direct_offers",
             "hns_browser_wallet_unlock",
             "hns_browser_wallet_lock",
             "hns_browser_wallet_take_recovery_phrase",
