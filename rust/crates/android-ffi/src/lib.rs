@@ -132,6 +132,10 @@ const MINIMUM_ANDROID_BITCOIN_MAXIMUM_FEE_SATS: u64 = 1_000;
 const MAX_ANDROID_WALLET_NAME_BYTES: usize = 63;
 const MAX_ANDROID_WALLET_RECIPIENT_BYTES: usize = 512;
 const MAX_ANDROID_SHAKESCAPE_ENDPOINT_BYTES: usize = 128;
+/// Retry an explicitly paired board endpoint after a transient transport
+/// failure. The address is public configuration, not wallet authority, and is
+/// retained only by the live controller until the user disconnects it.
+const ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS: u64 = 5;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION: u8 = 2;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES: usize = 12;
@@ -371,6 +375,8 @@ enum AndroidWalletController {
         shakescape_public_endpoint: Option<SocketAddr>,
         shakescape_last_peer_maintenance_at: Option<u64>,
         shakescape_last_offer_inventory_at: Option<u64>,
+        shakescape_paired_endpoint: Option<SocketAddr>,
+        shakescape_next_paired_reconnect_at: Option<u64>,
         shakescape_peer: Option<HnsDirectShakescapePeer>,
         shakescape_replication_peers: Vec<HnsDirectShakescapePeer>,
         inbound_network_peers: Vec<HnsInboundNetworkPeer>,
@@ -573,6 +579,8 @@ impl AndroidWalletController {
                 shakescape_public_endpoint: _,
                 shakescape_last_peer_maintenance_at: _,
                 shakescape_last_offer_inventory_at: _,
+                shakescape_paired_endpoint: _,
+                shakescape_next_paired_reconnect_at: _,
                 shakescape_peer,
                 shakescape_replication_peers,
                 inbound_network_peers,
@@ -817,6 +825,8 @@ impl AndroidWalletController {
                     shakescape_public_endpoint: None,
                     shakescape_last_peer_maintenance_at: None,
                     shakescape_last_offer_inventory_at: None,
+                    shakescape_paired_endpoint: None,
+                    shakescape_next_paired_reconnect_at: None,
                     shakescape_peer: None,
                     shakescape_replication_peers: Vec::new(),
                     inbound_network_peers: Vec::new(),
@@ -1782,6 +1792,8 @@ impl AndroidWalletController {
         let Self::DirectValue {
             shakescape_peer,
             shakescape_replication_peers,
+            shakescape_paired_endpoint,
+            shakescape_next_paired_reconnect_at,
             ..
         } = self
         else {
@@ -1790,7 +1802,9 @@ impl AndroidWalletController {
         let disconnected =
             shakescape_peer.take().is_some() || !shakescape_replication_peers.is_empty();
         shakescape_replication_peers.clear();
-        disconnected
+        let pairing_cleared = shakescape_paired_endpoint.take().is_some();
+        shakescape_next_paired_reconnect_at.take();
+        disconnected || pairing_cleared
     }
 
     fn resume_approved_hns_settlements(&self) -> bool {
@@ -1816,6 +1830,8 @@ impl AndroidWalletController {
             shakescape_public_endpoint,
             shakescape_last_peer_maintenance_at,
             shakescape_last_offer_inventory_at,
+            shakescape_paired_endpoint,
+            shakescape_next_paired_reconnect_at,
             shakescape_peer,
             shakescape_replication_peers,
             inbound_network_peers,
@@ -1975,6 +1991,9 @@ impl AndroidWalletController {
             if accepted == Some(false) {
                 shakescape_peer.take();
                 promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers);
+                *shakescape_next_paired_reconnect_at = Some(
+                    now_unix.saturating_add(ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
+                );
             } else if accepted == Some(true) {
                 if board_changed {
                     for peer in shakescape_replication_peers.iter_mut() {
@@ -2032,6 +2051,10 @@ impl AndroidWalletController {
                 None => replication_index = replication_index.saturating_add(1),
                 Some(false) => {
                     shakescape_replication_peers.swap_remove(replication_index);
+                    *shakescape_next_paired_reconnect_at = Some(
+                        now_unix
+                            .saturating_add(ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
+                    );
                 }
                 Some(true) => {
                     if board_changed {
@@ -2084,6 +2107,57 @@ impl AndroidWalletController {
                 Ok(None) => {}
                 Err(error) => android_log_error(&format!(
                     "wallet-owned discovered ShakeScape peer was unavailable: {error}"
+                )),
+            }
+        }
+        let paired_is_connected = shakescape_paired_endpoint.is_some_and(|endpoint| {
+            shakescape_peer
+                .as_ref()
+                .is_some_and(|peer| peer.address() == endpoint)
+                || shakescape_replication_peers
+                    .iter()
+                    .any(|peer| peer.address() == endpoint)
+        });
+        let paired_reconnect_due = shakescape_paired_endpoint.filter(|_| {
+            !paired_is_connected
+                && shakescape_next_paired_reconnect_at.is_none_or(|next| now_unix >= next)
+        });
+        if let Some(address) = paired_reconnect_due {
+            *shakescape_next_paired_reconnect_at =
+                Some(now_unix.saturating_add(ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS));
+            let mut config = HnsDirectPeerConfig::for_network(controller.account_config().network);
+            config.connect_timeout = ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT;
+            config.allow_private_addresses = true;
+            config.static_peers.push(address);
+            match HnsDirectShakescapePeer::connect(&config, address, height, now_unix) {
+                Ok(mut peer) => {
+                    if controller
+                        .begin_wallet_owned_direct_shakedex(&mut peer)
+                        .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
+                        .and_then(|_| {
+                            shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix)
+                        })
+                        .is_ok()
+                    {
+                        if shakescape_peer.is_none() {
+                            *shakescape_peer = Some(peer);
+                        } else {
+                            shakescape_replication_peers.push(peer);
+                        }
+                        shakescape_next_paired_reconnect_at.take();
+                        android_log_info(
+                            "hns-shakescape",
+                            &format!("reconnected explicitly paired swap peer {address}"),
+                        );
+                        return true;
+                    } else {
+                        android_log_error(&format!(
+                            "wallet-owned paired Shakescape exchange retry failed for {address}"
+                        ));
+                    }
+                }
+                Err(error) => android_log_error(&format!(
+                    "wallet-owned paired Shakescape transport retry failed for {address}: {error}"
                 )),
             }
         }
@@ -2143,6 +2217,8 @@ impl AndroidWalletController {
             coordinator,
             controller,
             shakescape_sessions,
+            shakescape_paired_endpoint,
+            shakescape_next_paired_reconnect_at,
             shakescape_peer,
             ..
         } = self
@@ -2216,6 +2292,8 @@ impl AndroidWalletController {
             AndroidDirectShakescapeConnectOutcome::Connected
         };
         let peer_endpoint = peer.address();
+        *shakescape_paired_endpoint = Some(address);
+        shakescape_next_paired_reconnect_at.take();
         *shakescape_peer = Some(peer);
         AndroidDirectShakescapeConnectResult {
             outcome,
