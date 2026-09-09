@@ -59,6 +59,19 @@ internal fun walletBackgroundHnsSyncMayRetain(
 ): Boolean = hasActiveReadOnlyHnsSync && foregroundServiceActive
 
 /**
+ * A completed foreground operation borrows the Activity's existing lease; it
+ * does not consume it. The lease remains the authority for subsequent sync,
+ * signing, and direct-board servicing until the session/controller is
+ * affirmatively retired. Stale callbacks and failed setup paths own no such
+ * live triple and may release normally.
+ */
+internal fun walletOperationRetainsStorageLease(
+    sessionActive: Boolean,
+    ownsCurrentLease: Boolean,
+    hasController: Boolean,
+): Boolean = sessionActive && ownsCurrentLease && hasController
+
+/**
  * Records leases whose release is owned by native-controller retirement rather
  * than the stale operation callback. Membership is retained for this short
  * Activity lifetime so a duplicate callback can never release the same lease.

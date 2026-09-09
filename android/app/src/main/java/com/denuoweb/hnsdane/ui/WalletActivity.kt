@@ -136,6 +136,7 @@ import com.denuoweb.hnsdane.wallet.walletNameImportMayBegin
 import com.denuoweb.hnsdane.wallet.walletNameImportMayPublish
 import com.denuoweb.hnsdane.wallet.walletPendingOutgoingRefreshHeight
 import com.denuoweb.hnsdane.wallet.walletBackgroundHnsSyncMayRetain
+import com.denuoweb.hnsdane.wallet.walletOperationRetainsStorageLease
 import com.denuoweb.hnsdane.wallet.walletReadMayPublish
 import com.denuoweb.hnsdane.wallet.walletReadBootstrapMayInstall
 import com.denuoweb.hnsdane.wallet.walletReadCodeLabel
@@ -5542,13 +5543,20 @@ class WalletActivity : ComponentActivity() {
         lease: WalletStorageOwnershipGate.Lease,
         epoch: Long,
     ) {
+        val handle = walletHandle
         var settled = false
         fun reject() {
             if (settled) return
             settled = true
             thread(name = "direct-offer-take-reject") {
-                NativeWalletBridge.rejectDirectOfferTake(walletHandle, approval.actionToken)
-                runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
+                NativeWalletBridge.rejectDirectOfferTake(handle, approval.actionToken)
+                runOnUiThread {
+                    if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
+                        busy = false
+                        refreshControllerState(resetReads = false)
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                }
             }
         }
         walletAlertDialogBuilder()
@@ -5567,11 +5575,12 @@ class WalletActivity : ComponentActivity() {
                 settled = true
                 thread(name = "direct-offer-take-approve") {
                     val accepted = NativeWalletBridge.approveDirectOfferTake(
-                        walletHandle, approval.actionToken,
+                        handle, approval.actionToken,
                     )
                     runOnUiThread {
-                        if (operationIsCurrent(epoch, lease)) {
+                        if (operationIsCurrent(epoch, lease) && walletHandle == handle) {
                             busy = false
+                            refreshControllerState(resetReads = false)
                             bitcoinStatusView.text = if (accepted == null) {
                                 getString(R.string.wallet_swap_take_failed)
                             } else {
@@ -7223,6 +7232,15 @@ class WalletActivity : ComponentActivity() {
     private fun refreshControllerState(resetReads: Boolean = true) {
         val status = NativeWalletBridge.status(walletHandle)
         if (status == null) {
+            // Native status is a deliberate try-lock. A direct service tick or
+            // just-finished value operation can make one read miss without
+            // changing wallet authority. Preserve the last proof-bound chain
+            // snapshot whenever this Activity still owns a live controller;
+            // action preflights independently require a fresh native status.
+            if (walletHandle != INVALID_HANDLE && currentStorageLease() != null) {
+                renderWalletDashboard()
+                return
+            }
             localPaymentReceiveTarget = null
             statusView.text = getString(R.string.wallet_status_unavailable)
             accountView.text = getString(R.string.wallet_account_unavailable)
@@ -7758,7 +7776,12 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun releaseStorageLeaseAfterOperation(lease: WalletStorageOwnershipGate.Lease) {
-        if (leaseReleaseHandoff.operationMayRelease(lease)) {
+        val retain = walletOperationRetainsStorageLease(
+            sessionActive = walletSessionIsActive(),
+            ownsCurrentLease = currentStorageLease() === lease,
+            hasController = walletHandle != INVALID_HANDLE,
+        )
+        if (!retain && leaseReleaseHandoff.operationMayRelease(lease)) {
             releaseStorageLease(lease)
         }
     }

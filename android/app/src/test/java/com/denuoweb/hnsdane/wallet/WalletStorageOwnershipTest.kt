@@ -140,6 +140,14 @@ class WalletStorageOwnershipTest {
     }
 
     @Test
+    fun completedOperationRetainsOnlyAnActiveOwnedControllerLease() {
+        assertTrue(walletOperationRetainsStorageLease(true, true, true))
+        assertFalse(walletOperationRetainsStorageLease(false, true, true))
+        assertFalse(walletOperationRetainsStorageLease(true, false, true))
+        assertFalse(walletOperationRetainsStorageLease(true, true, false))
+    }
+
+    @Test
     fun controllerRetirementOwnsItsLeaseReleaseExactlyOnce() {
         val storage = WalletStorageOwnershipGate()
         val owner = storage.newOwner("/wallet/mainnet/wallet.sqlite3") {}
