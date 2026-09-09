@@ -1881,7 +1881,9 @@ impl AndroidWalletController {
             if announced != 0 {
                 android_log_info(
                     "hns-shakescape",
-                    &format!("reconciled direct-offer inventory with {announced} board peers"),
+                    &format!(
+                        "reconciled direct-offer inventory and unfunded sessions with {announced} board peers"
+                    ),
                 );
             }
         }
@@ -1949,9 +1951,19 @@ impl AndroidWalletController {
                         }),
                 ),
                 Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
-                    shakescape_sessions
-                        .service_direct_envelope(peer, envelope.as_slice(), now_unix)
-                        .is_ok(),
+                    match shakescape_sessions.service_direct_envelope(
+                        peer,
+                        envelope.as_slice(),
+                        now_unix,
+                    ) {
+                        Ok(_) => true,
+                        Err(error) => {
+                            android_log_error(&format!(
+                                "wallet-owned Shakescape cross-chain message was rejected: {error}"
+                            ));
+                            false
+                        }
+                    },
                 ),
                 Err(error) => {
                     android_log_error(&format!(
@@ -1994,11 +2006,26 @@ impl AndroidWalletController {
                             }),
                     ),
                     Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
-                        shakescape_sessions
-                            .service_direct_envelope(peer, envelope.as_slice(), now_unix)
-                            .is_ok(),
+                        match shakescape_sessions.service_direct_envelope(
+                            peer,
+                            envelope.as_slice(),
+                            now_unix,
+                        ) {
+                            Ok(_) => true,
+                            Err(error) => {
+                                android_log_error(&format!(
+                                    "wallet-owned replicated Shakescape cross-chain message was rejected: {error}"
+                                ));
+                                false
+                            }
+                        },
                     ),
-                    Err(_) => Some(false),
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "wallet-owned replicated Shakescape peer message was rejected: {error}"
+                        ));
+                        Some(false)
+                    }
                 }
             };
             match accepted {
