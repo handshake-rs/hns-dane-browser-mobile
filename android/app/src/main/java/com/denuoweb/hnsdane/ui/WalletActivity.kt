@@ -4488,14 +4488,20 @@ class WalletActivity : ComponentActivity() {
         showWalletActionForm(
             R.string.wallet_swap_sell_btc,
             listOf(
-                WalletActionInput(R.string.wallet_swap_btc_amount_hint, numeric = true),
+                WalletActionInput(
+                    R.string.wallet_swap_btc_amount_hint,
+                    numeric = true,
+                    initial = NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS.toString(),
+                ),
                 WalletActionInput(R.string.wallet_swap_hns_amount_hint),
                 WalletActionInput(R.string.wallet_swap_fee_reserve_hint, numeric = true),
                 WalletActionInput(R.string.wallet_swap_lifetime_hours_hint, initial = "24", numeric = true),
             ),
         ) { values ->
-            val btc = values[0].toLongOrNull()?.takeIf { it > 0L }
-            val hns = parsePositiveHnsToBaseUnits(values[1])?.toLongOrNull()?.takeIf { it > 0L }
+            val btc = values[0].toLongOrNull()
+                ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
+            val hns = parsePositiveHnsToBaseUnits(values[1])?.toLongOrNull()
+                ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
             val reserve = values[2].toLongOrNull()?.takeIf { it > 0L }
             val lifetime = values[3].toLongOrNull()
                 ?.takeIf { it in 1L..168L }
@@ -4513,7 +4519,11 @@ class WalletActivity : ComponentActivity() {
             R.string.wallet_swap_sell_hns,
             listOf(
                 WalletActionInput(R.string.wallet_swap_hns_offered_hint),
-                WalletActionInput(R.string.wallet_swap_btc_requested_hint, numeric = true),
+                WalletActionInput(
+                    R.string.wallet_swap_btc_requested_hint,
+                    numeric = true,
+                    initial = NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS.toString(),
+                ),
                 WalletActionInput(
                     R.string.wallet_swap_hns_fee_reserve_hint,
                     initial = DEFAULT_HNS_MAXIMUM_FEE,
@@ -4525,8 +4535,10 @@ class WalletActivity : ComponentActivity() {
                 ),
             ),
         ) { values ->
-            val hns = parsePositiveHnsToBaseUnits(values[0])?.toLongOrNull()?.takeIf { it > 0L }
-            val btc = values[1].toLongOrNull()?.takeIf { it > 0L }
+            val hns = parsePositiveHnsToBaseUnits(values[0])?.toLongOrNull()
+                ?.takeIf { it >= NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS }
+            val btc = values[1].toLongOrNull()
+                ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
             val reserve = parsePositiveHnsToBaseUnits(values[2])?.toLongOrNull()?.takeIf { it > 0L }
             val lifetime = values[3].toLongOrNull()
                 ?.takeIf { it in 1L..168L }
@@ -4704,10 +4716,22 @@ class WalletActivity : ComponentActivity() {
             runOnUiThread {
                 if (walletHandle != handle) return@runOnUiThread
                 if (status == null) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_execution_list_failed)
+                    val message = getString(R.string.wallet_swap_execution_list_failed)
+                    bitcoinStatusView.text = message
+                    walletAlertDialogBuilder()
+                        .setTitle(R.string.wallet_swap_executions)
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
                 } else if (status.executions.isEmpty()) {
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_no_executions) +
-                        "\n" + bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
+                    val message = getString(R.string.wallet_swap_no_executions_waiting) +
+                        "\n\n" + bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
+                    bitcoinStatusView.text = message
+                    walletAlertDialogBuilder()
+                        .setTitle(R.string.wallet_swap_executions)
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
                 } else {
                     bitcoinStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
                     val labels = status.executions.map {
@@ -7333,6 +7357,19 @@ class WalletActivity : ComponentActivity() {
         ) {
             return false
         }
+        if (walletCredentialTransitionMayRetain(
+                authenticationPending = pendingWalletAuthentication != null,
+                ownsCurrentLease = ProcessWalletStorageOwnership.isCurrent(lease.owner, lease),
+            )
+        ) {
+            // ConfirmDeviceCredential is a system-owned Activity. Keep this
+            // exact controller and lease across that bounded round trip so
+            // the authenticated continuation does not return to a newly
+            // locked wallet. The ordinary 30-second background retirement is
+            // still scheduled and onStart cancels it only when this Activity
+            // actually returns.
+            return ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
+        }
         if (hasActiveWalletHnsSynchronization()) {
             // A bounded direct sync owns the native controller mutex. Calling
             // status() or hasHnsReads() here would contend with that exact
@@ -8497,6 +8534,12 @@ internal fun recoveryWordChoices(
  * authority indefinitely when Shakescape remains in the background.
  */
 internal const val WALLET_APP_SWITCH_RETENTION_MILLIS = 30_000L
+
+/** A system credential screen may retain only the exact current wallet lease. */
+internal fun walletCredentialTransitionMayRetain(
+    authenticationPending: Boolean,
+    ownsCurrentLease: Boolean,
+): Boolean = authenticationPending && ownsCurrentLease
 
 /** Idle signing authority never survives an explicit Wallet -> Browser transition. */
 internal fun walletIdleSessionMayRetainAcrossScreen(browserNavigationRequested: Boolean): Boolean =

@@ -89,6 +89,8 @@ class NativeBitcoinSyncProgressTest {
     @Test
     fun parses_only_bounded_actionable_bitcoin_send_preparation_results() {
         assertEquals(1_000L, NativeWalletBridge.MINIMUM_BITCOIN_MAXIMUM_FEE_SATS)
+        assertEquals(330L, NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS)
+        assertEquals(546L, NativeWalletBridge.MINIMUM_HNS_SWAP_DOLLARYDOOS)
 
         val rejected = NativeBitcoinWalletBundle.sendPreparation(bundle(
             """{"outcome":"rejected","reason":"fee_cap_below_minimum"}""",

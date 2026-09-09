@@ -1315,6 +1315,7 @@ impl AndroidWalletController {
         let Self::DirectValue {
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -1329,11 +1330,15 @@ impl AndroidWalletController {
         {
             return false;
         }
-        shakescape_peer.as_mut().is_none_or(|peer| {
-            shakescape_sessions
-                .announce_direct_offer_cancellation(peer, offer_id)
-                .is_ok()
-        })
+        if let Some(peer) = shakescape_peer.as_mut() {
+            let _ = shakescape_sessions.announce_direct_offer_cancellation(peer, offer_id);
+        }
+        for peer in shakescape_replication_peers {
+            let _ = shakescape_sessions.announce_direct_offer_cancellation(peer, offer_id);
+        }
+        // The authenticated cancellation is durable locally. Periodic board
+        // reconciliation retries its tombstone on every current/future peer.
+        true
     }
 
     fn reserved_bitcoin_for_direct_offers(&self) -> Option<u64> {

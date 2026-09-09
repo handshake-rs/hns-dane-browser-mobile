@@ -8,6 +8,8 @@ import CoreImage
 
 private let defaultHnsMaximumFee = "1"
 private let defaultHnsMaximumFeeBaseUnits = "1000000"
+private let minimumBitcoinHtlcSats: UInt64 = 330
+private let minimumHnsSwapDollarydoos: UInt64 = 546
 private let directShakescapeNetworkMaintenanceTicks = 30
 private let showShakedexWalletCard = true
 
@@ -1330,8 +1332,13 @@ final class WalletViewController: UIViewController {
             title: "Sell BTC for HNS",
             message: "Create one exact, indivisible direct-board offer. Confirmed Bitcoin must cover the principal, active offers, and the separate fee reserve.",
             fields: [
-                WalletSheetFormField(label: "BTC offered", placeholder: "Satoshis", keyboardType: .numberPad),
-                WalletSheetFormField(label: "HNS requested", placeholder: "HNS", keyboardType: .decimalPad),
+                WalletSheetFormField(
+                    label: "BTC offered (minimum 330 sats)",
+                    placeholder: "Satoshis",
+                    keyboardType: .numberPad,
+                    initialValue: String(minimumBitcoinHtlcSats)
+                ),
+                WalletSheetFormField(label: "HNS requested (minimum 0.000546)", placeholder: "HNS", keyboardType: .decimalPad),
                 WalletSheetFormField(label: "Bitcoin fee reserve", placeholder: "Satoshis", keyboardType: .numberPad),
                 WalletSheetFormField(
                     label: "Listing lifetime",
@@ -1344,13 +1351,13 @@ final class WalletViewController: UIViewController {
         ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet,
                   fields.count == 4,
-                  let btc = UInt64(fields[0]), btc > 0,
+                  let btc = UInt64(fields[0]), btc >= minimumBitcoinHtlcSats,
                   let hnsText = Self.positiveHnsBaseUnits(fields[1]),
-                  let hns = UInt64(hnsText), hns > 0,
+                  let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
                   let reserve = UInt64(fields[2]), reserve > 0,
                   let hours = UInt64(fields[3]), (1...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
-                self?.showErrorMessage("Enter positive BTC sats, HNS with at most six decimals, a positive fee reserve, and 1–168 hours.")
+                self?.showErrorMessage("Enter at least 330 BTC sats, at least 0.000546 HNS, a positive fee reserve, and 1–168 hours.")
                 return
             }
             self.isOperating = true
@@ -1494,8 +1501,13 @@ final class WalletViewController: UIViewController {
             title: "Sell HNS for BTC",
             message: "Create one exact, indivisible direct-board offer. Confirmed HNS must cover the principal, active offers, and the separate fee reserve.",
             fields: [
-                WalletSheetFormField(label: "HNS offered", placeholder: "HNS", keyboardType: .decimalPad),
-                WalletSheetFormField(label: "BTC requested", placeholder: "Satoshis", keyboardType: .numberPad),
+                WalletSheetFormField(label: "HNS offered (minimum 0.000546)", placeholder: "HNS", keyboardType: .decimalPad),
+                WalletSheetFormField(
+                    label: "BTC requested (minimum 330 sats)",
+                    placeholder: "Satoshis",
+                    keyboardType: .numberPad,
+                    initialValue: String(minimumBitcoinHtlcSats)
+                ),
                 WalletSheetFormField(
                     label: "HNS fee reserve", placeholder: "HNS", keyboardType: .decimalPad,
                     initialValue: defaultHnsMaximumFee
@@ -1509,12 +1521,12 @@ final class WalletViewController: UIViewController {
         ) { [weak self, weak wallet] fields in
             guard let self, let wallet, self.wallet === wallet, fields.count == 4,
                   let hnsText = Self.positiveHnsBaseUnits(fields[0]),
-                  let hns = UInt64(hnsText), hns > 0,
-                  let btc = UInt64(fields[1]), btc > 0,
+                  let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
+                  let btc = UInt64(fields[1]), btc >= minimumBitcoinHtlcSats,
                   let reserveText = Self.positiveHnsBaseUnits(fields[2]),
                   let reserve = UInt64(reserveText), reserve > 0,
                   let hours = UInt64(fields[3]), (1...168).contains(hours) else {
-                self?.showErrorMessage("Enter positive HNS with at most six decimals, positive BTC sats, a positive HNS fee reserve, and 1–168 hours.")
+                self?.showErrorMessage("Enter at least 0.000546 HNS, at least 330 BTC sats, a positive HNS fee reserve, and 1–168 hours.")
                 return
             }
             self.isOperating = true
@@ -1820,7 +1832,15 @@ final class WalletViewController: UIViewController {
                 guard let self, self.wallet === wallet else { return }
                 switch outcome {
                 case .success(let status) where status.executions.isEmpty:
-                    self.bitcoinStatusLabel.text = "There are no accepted atomic swap executions.\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))"
+                    let message = "There are no negotiated atomic-swap executions on this wallet yet. If a take was just accepted, keep both maker and taker wallets unlocked and connected while the signed session proposal and acceptance are exchanged.\n\n\(self.bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery))"
+                    self.bitcoinStatusLabel.text = message
+                    let alert = UIAlertController(
+                        title: "Atomic swap executions",
+                        message: message,
+                        preferredStyle: .alert
+                    )
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(alert, animated: true)
                 case .success(let status):
                     self.bitcoinStatusLabel.text = self.bitcoinBroadcastRecoveryText(
                         status.bitcoinBroadcastRecovery

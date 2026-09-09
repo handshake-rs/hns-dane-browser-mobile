@@ -1654,6 +1654,7 @@ impl NativeWalletController {
         let Self::DirectHnsValue {
             shakescape_sessions,
             shakescape_peer,
+            shakescape_replication_peers,
             ..
         } = self
         else {
@@ -1662,8 +1663,12 @@ impl NativeWalletController {
         let now_unix = HnsReadSystemClock.now_unix()?;
         shakescape_sessions.cancel_local_btc_for_hns_offer(offer_id, now_unix)?;
         if let Some(peer) = shakescape_peer.as_mut() {
-            shakescape_sessions.announce_direct_offer_cancellation(peer, offer_id)?;
+            let _ = shakescape_sessions.announce_direct_offer_cancellation(peer, offer_id);
         }
+        for peer in shakescape_replication_peers {
+            let _ = shakescape_sessions.announce_direct_offer_cancellation(peer, offer_id);
+        }
+        // Periodic inventory reconciliation retries the durable tombstone.
         Ok(())
     }
 

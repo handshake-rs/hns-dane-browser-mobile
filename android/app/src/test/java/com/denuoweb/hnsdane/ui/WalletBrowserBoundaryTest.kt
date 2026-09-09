@@ -14,4 +14,11 @@ class WalletBrowserBoundaryTest {
     fun ordinaryNonBrowserTransitionCanUseExistingBoundedGrace() {
         assertTrue(walletIdleSessionMayRetainAcrossScreen(browserNavigationRequested = false))
     }
+
+    @Test
+    fun systemCredentialTransitionRetainsOnlyTheCurrentWalletLease() {
+        assertTrue(walletCredentialTransitionMayRetain(true, true))
+        assertFalse(walletCredentialTransitionMayRetain(false, true))
+        assertFalse(walletCredentialTransitionMayRetain(true, false))
+    }
 }

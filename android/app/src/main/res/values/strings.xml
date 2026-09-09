@@ -786,8 +786,8 @@
     <string name="wallet_swap_sell_hns" translatable="false">Sell HNS for BTC</string>
     <string name="wallet_swap_available_offers" translatable="false">Available BTC/HNS swap offers</string>
     <string name="wallet_swap_my_offers" translatable="false">My active BTC/HNS swap offers</string>
-    <string name="wallet_swap_hns_offered_hint" translatable="false">HNS offered</string>
-    <string name="wallet_swap_btc_requested_hint" translatable="false">BTC requested (sats)</string>
+    <string name="wallet_swap_hns_offered_hint" translatable="false">HNS offered (minimum 0.000546)</string>
+    <string name="wallet_swap_btc_requested_hint" translatable="false">BTC requested (sats, minimum 330)</string>
     <string name="wallet_swap_hns_fee_reserve_hint" translatable="false">HNS fee reserve</string>
     <string name="wallet_swap_hns_prepare_failed" translatable="false">The HNS-for-BTC listing was not prepared. Synchronized HNS must cover active listings, this principal, and its fee reserve.</string>
     <string name="wallet_swap_hns_approval_title" translatable="false">Publish HNS-for-BTC offer?</string>
@@ -810,8 +810,8 @@
     <string name="wallet_swap_take_failed" translatable="false">The signed acceptance was not sent. The peer may have disconnected or the offer may have expired.</string>
     <string name="wallet_swap_take_sent" translatable="false">Offer accepted. Atomic-swap session %1$s… is negotiating with the maker.</string>
     <string name="wallet_swap_cancel_direct_message" translatable="false">Withdraw %1$s?\n\nOffer ID: %2$s. Cancellation releases the local reservation but cannot cancel an already accepted session.</string>
-    <string name="wallet_swap_btc_amount_hint" translatable="false">BTC offered (sats)</string>
-    <string name="wallet_swap_hns_amount_hint" translatable="false">HNS requested</string>
+    <string name="wallet_swap_btc_amount_hint" translatable="false">BTC offered (sats, minimum 330)</string>
+    <string name="wallet_swap_hns_amount_hint" translatable="false">HNS requested (minimum 0.000546)</string>
     <string name="wallet_swap_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats)</string>
     <string name="wallet_swap_lifetime_hours_hint" translatable="false">Listing lifetime (hours, 1–168)</string>
     <string name="wallet_swap_preparing" translatable="false">Preparing exact BTC-for-HNS listing…</string>
@@ -836,6 +836,7 @@
     <string name="wallet_swap_loading_executions" translatable="false">Loading durable atomic swap state…</string>
     <string name="wallet_swap_execution_list_failed" translatable="false">Durable atomic swap state could not be authenticated.</string>
     <string name="wallet_swap_no_executions" translatable="false">There are no accepted atomic swap executions.</string>
+    <string name="wallet_swap_no_executions_waiting" translatable="false">There are no negotiated atomic-swap executions on this wallet yet. If a take was just accepted, keep both maker and taker wallets unlocked and connected while the signed session proposal and acceptance are exchanged.</string>
     <string name="wallet_swap_execution_title" translatable="false">Atomic swap status</string>
     <string name="wallet_swap_execution_detail" translatable="false">Session: %1$s\nState: %2$s\nFunding order: %3$s, then %4$s\nFirst funding confirmed: %5$s\nSecond funding confirmed: %6$s\n\nOnly locally verified chain evidence advances this status.</string>
     <string name="wallet_swap_recovery_unavailable" translatable="false">Bitcoin broadcast recovery status is temporarily unavailable while the Bitcoin controller is busy or inactive.</string>
