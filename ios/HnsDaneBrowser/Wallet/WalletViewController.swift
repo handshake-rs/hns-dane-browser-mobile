@@ -1968,14 +1968,16 @@ final class WalletViewController: UIViewController {
         """
         let alert = UIAlertController(title: "Atomic swap status", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Done", style: .cancel))
-        if execution.state == "first_funding_pending" && execution.firstChain == "bitcoin" {
+        if execution.state == "first_funding_pending" && execution.localRole == "maker" &&
+            execution.firstChain == "bitcoin" {
             alert.addAction(UIAlertAction(title: "Prepare Bitcoin funding", style: .destructive) {
                 [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.showBtcForHnsFundingFee(execution, wallet: wallet)
             })
         }
-        if execution.state == "second_funding_pending" && execution.secondChain == "handshake" {
+        if execution.state == "second_funding_pending" && execution.localRole == "taker" &&
+            execution.secondChain == "handshake" {
             alert.addAction(UIAlertAction(title: "Prepare HNS funding", style: .destructive) {
                 [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }

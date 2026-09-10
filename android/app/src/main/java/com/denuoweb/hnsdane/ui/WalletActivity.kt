@@ -74,6 +74,7 @@ import com.denuoweb.hnsdane.wallet.NativeDirectOfferTakeApproval
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferTakePreparation
 import com.denuoweb.hnsdane.wallet.NativeHnsForBtcOfferApproval
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
+import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
 import com.denuoweb.hnsdane.wallet.NativeHnsHtlcFundingApproval
 import com.denuoweb.hnsdane.wallet.NativeSwapSettlementApproval
 import com.denuoweb.hnsdane.wallet.NativeShakedexQuery
@@ -232,6 +233,7 @@ class WalletActivity : ComponentActivity() {
     private lateinit var bitcoinActivityView: TextView
     private lateinit var valueActionStatusView: TextView
     private lateinit var shakedexQueryStatusView: TextView
+    private lateinit var shakedexExecutionStatusView: TextView
     private lateinit var directShakescapeStatusView: TextView
     private var restoreInput: EditText? = null
     private lateinit var recoveryView: RecoveryPhraseView
@@ -394,6 +396,9 @@ class WalletActivity : ComponentActivity() {
     private var bitcoinSnapshot: com.denuoweb.hnsdane.wallet.NativeBitcoinWalletSnapshot? = null
     private var bitcoinSyncStopRequested = false
     private var bitcoinBirthdayResetInProgress = false
+    private var latestShakescapeExecutionStatus: NativeShakescapeExecutionStatus? = null
+    private var activeShakescapeDashboardSummary: String? = null
+    private var lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
     @Volatile
     private var bitcoinSyncProgressWatcher: AtomicBoolean? = null
     private var walletForegroundSyncServiceActive = false
@@ -470,6 +475,7 @@ class WalletActivity : ComponentActivity() {
         bitcoinActivityView = walletReadSummary(R.string.wallet_bitcoin_activity_unavailable)
         valueActionStatusView = walletReadSummary(R.string.wallet_value_actions_unavailable)
         shakedexQueryStatusView = walletReadSummary(R.string.wallet_shakedex_queries_unavailable)
+        shakedexExecutionStatusView = walletReadSummary(R.string.wallet_swap_status_unavailable)
         directShakescapeStatusView = walletReadSummary(R.string.wallet_direct_shakescape_unavailable)
         recoveryView = RecoveryPhraseView(this)
         dashboardContent = LinearLayout(this).apply {
@@ -1290,7 +1296,7 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun shakedexSummary(): String =
-        if (directShakescapePeerEndpoint != null) {
+        activeShakescapeDashboardSummary ?: if (directShakescapePeerEndpoint != null) {
             getString(R.string.wallet_dashboard_connected)
         } else {
             getString(R.string.wallet_dashboard_not_connected)
@@ -2400,6 +2406,7 @@ class WalletActivity : ComponentActivity() {
             title = getString(R.string.wallet_dashboard_shakedex),
             rows = listOf(
                 getString(R.string.row_wallet_direct_shakescape_host) to directShakescapeStatusView.text.toString(),
+                getString(R.string.row_wallet_swap_progress) to shakedexExecutionStatusView.text.toString(),
                 getString(R.string.row_wallet_shakedex_status) to shakedexQueryStatusView.text.toString(),
             ),
             actionSections = listOf(
@@ -3344,12 +3351,20 @@ class WalletActivity : ComponentActivity() {
                     NativeWalletBridge.serviceWalletOwnedDirectShakescape(handle)
                     serviceTicks += 1
                     if (serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0) {
+                        val executionStatus = NativeWalletBridge.shakescapeExecutions(handle)
                         runOnUiThread {
                             if (
                                 directShakescapeWorkerHandle == handle &&
                                     operationIsCurrent(epoch, lease) && walletHandle == handle
                             ) {
-                                if (refreshDirectShakescapeStatus()) {
+                                val transportChanged = refreshDirectShakescapeStatus()
+                                val executionChanged = executionStatus?.let {
+                                    refreshShakescapeExecutionStatus(it)
+                                } ?: false
+                                val automaticSyncStarted = executionStatus?.let {
+                                    maybeStartAutomaticSwapBitcoinSync(it)
+                                } ?: false
+                                if (transportChanged || executionChanged || automaticSyncStarted) {
                                     renderWalletDashboard()
                                 }
                             }
@@ -4270,13 +4285,120 @@ class WalletActivity : ComponentActivity() {
         return null
     }
 
+    /** Project durable settlement progress into the ShakeDex card itself.
+     * Pairing is transport; this is the locally verified execution state. */
+    private fun refreshShakescapeExecutionStatus(
+        status: NativeShakescapeExecutionStatus,
+    ): Boolean {
+        val previous = shakedexExecutionStatusView.text.toString()
+        latestShakescapeExecutionStatus = status
+        val terminal = setOf("completed", "refunded", "failed")
+        val execution = status.executions
+            .filterNot { it.state in terminal }
+            .maxByOrNull { it.lastVerifiedAtUnix }
+        val pending = status.pendingAcceptances.maxByOrNull { it.createdAtUnix }
+        activeShakescapeDashboardSummary = when {
+            execution != null -> getString(
+                R.string.wallet_dashboard_swap_active,
+                execution.state.replace('_', ' '),
+            )
+            pending != null -> getString(R.string.wallet_dashboard_swap_negotiating)
+            else -> null
+        }
+        shakedexExecutionStatusView.text = when {
+            execution != null -> getString(
+                R.string.wallet_swap_status_active,
+                swapExecutionStage(execution),
+                formatSwapAmount(execution.offeredAsset, execution.offeredAmount),
+                formatSwapAmount(execution.receivedAsset, execution.receivedAmount),
+                execution.sessionId.take(12),
+            )
+            pending != null -> getString(
+                R.string.wallet_swap_status_negotiating,
+                formatSwapAmount(pending.offeredAsset, pending.offeredAmount),
+                formatSwapAmount(pending.receivedAsset, pending.receivedAmount),
+                pending.sessionId.take(12),
+            )
+            status.executions.isNotEmpty() -> {
+                val latest = status.executions.maxByOrNull { it.lastVerifiedAtUnix }!!
+                getString(
+                    R.string.wallet_swap_status_terminal,
+                    latest.state.replace('_', ' '),
+                    latest.sessionId.take(12),
+                    latest.failureReason ?: getString(R.string.wallet_swap_status_no_failure),
+                )
+            }
+            else -> getString(R.string.wallet_swap_status_none)
+        }
+        return previous != shakedexExecutionStatusView.text.toString()
+    }
+
+    private fun swapExecutionStage(execution: NativeShakescapeExecutionSummary): String {
+        val first = execution.firstChain.replaceFirstChar { it.uppercase() }
+        val second = execution.secondChain.replaceFirstChar { it.uppercase() }
+        return when (execution.state) {
+            "terms_frozen", "refunds_prepared" -> if (walletBitcoinSyncInProgress) {
+                getString(R.string.wallet_swap_stage_terms_syncing)
+            } else {
+                getString(R.string.wallet_swap_stage_terms_waiting)
+            }
+            "first_funding_pending" -> if (execution.localRole == "maker") {
+                getString(R.string.wallet_swap_stage_funding_ready_here, first)
+            } else {
+                getString(R.string.wallet_swap_stage_waiting_counterparty_funding, first)
+            }
+            "first_funded" -> getString(R.string.wallet_swap_stage_first_funded, first)
+            "second_funding_pending" -> if (execution.localRole == "taker") {
+                getString(R.string.wallet_swap_stage_funding_ready_here, second)
+            } else {
+                getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
+            }
+            "both_funded" -> getString(R.string.wallet_swap_stage_both_funded)
+            "first_redeemed", "secret_observed" -> getString(R.string.wallet_swap_stage_settling)
+            "refund_eligible", "refund_broadcast" -> getString(R.string.wallet_swap_stage_refunding)
+            else -> execution.state.replace('_', ' ')
+        }
+    }
+
+    /** Keep both swap participants' compact-filter/watch state current while
+     * an execution is live. This is read-only synchronization; funding and
+     * settlement remain behind explicit native approval dialogs. */
+    private fun maybeStartAutomaticSwapBitcoinSync(
+        status: NativeShakescapeExecutionStatus,
+    ): Boolean {
+        val live = status.executions.any {
+            it.state !in setOf("completed", "refunded", "failed")
+        } || status.pendingAcceptances.isNotEmpty()
+        if (!live || walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress || busy ||
+            walletHandle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(walletHandle)
+        ) return false
+        val now = SystemClock.elapsedRealtime()
+        if (lastAutomaticSwapBitcoinSyncAtElapsedMillis != Long.MIN_VALUE &&
+            now - lastAutomaticSwapBitcoinSyncAtElapsedMillis < SWAP_BITCOIN_AUTO_SYNC_INTERVAL_MILLIS
+        ) return false
+        lastAutomaticSwapBitcoinSyncAtElapsedMillis = now
+        Log.i(TAG, "Starting automatic Bitcoin synchronization for active atomic swap state")
+        synchronizeBitcoin()
+        refreshShakescapeExecutionStatus(status)
+        return walletBitcoinSyncInProgress
+    }
+
     private fun clearDirectShakescapeStatusProjection(locked: Boolean) {
         directShakescapeTransportStatus = null
         directShakescapePeerEndpoint = null
+        latestShakescapeExecutionStatus = null
+        activeShakescapeDashboardSummary = null
+        lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
         if (::directShakescapeStatusView.isInitialized) {
             directShakescapeStatusView.text = getString(
                 if (locked) R.string.wallet_direct_shakescape_locked
                 else R.string.wallet_direct_shakescape_unavailable,
+            )
+        }
+        if (::shakedexExecutionStatusView.isInitialized) {
+            shakedexExecutionStatusView.text = getString(
+                if (locked) R.string.wallet_swap_status_locked
+                else R.string.wallet_swap_status_unavailable,
             )
         }
     }
@@ -4954,8 +5076,12 @@ class WalletActivity : ComponentActivity() {
             .setMessage(message)
             .setNegativeButton(R.string.action_cancel, null)
         val fundingChain = when (execution.state) {
-            "first_funding_pending" -> execution.firstChain
-            "second_funding_pending" -> execution.secondChain
+            "first_funding_pending" -> execution.firstChain.takeIf {
+                execution.localRole == "maker"
+            }
+            "second_funding_pending" -> execution.secondChain.takeIf {
+                execution.localRole == "taker"
+            }
             else -> null
         }
         if (fundingChain == "bitcoin") {
@@ -8750,6 +8876,7 @@ class WalletActivity : ComponentActivity() {
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS = 3_000L
         const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L
+        const val SWAP_BITCOIN_AUTO_SYNC_INTERVAL_MILLIS = 30_000L
         const val HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS = 3
         const val HNS_POST_BROADCAST_VERIFICATION_INTERVAL_MILLIS = 1_000L
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5

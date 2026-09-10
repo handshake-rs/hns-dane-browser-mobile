@@ -454,6 +454,7 @@ struct NativeDirectOfferSummary: Decodable, Equatable, Sendable {
     let offeredAmount: UInt64
     let receivedAsset: String
     let receivedAmount: UInt64
+    let localRole: String
     let btcAmountSats: UInt64
     let hnsAmountDollarydoos: UInt64
     let offeredFeeReserve: UInt64?
@@ -596,7 +597,7 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case sessionId, revision, state, firstChain, secondChain, offeredAsset, offeredAmount
-        case receivedAsset, receivedAmount, firstRefundAtUnix, secondRefundAtUnix
+        case receivedAsset, receivedAmount, localRole, firstRefundAtUnix, secondRefundAtUnix
         case firstFundingConfirmed, secondFundingConfirmed, firstRedemptionConfirmed
         case secondRedemptionConfirmed, refundConfirmed, lastVerifiedAtUnix, failureReason
     }
@@ -612,6 +613,7 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
         offeredAmount = try container.decode(UInt64.self, forKey: .offeredAmount)
         receivedAsset = try container.decode(String.self, forKey: .receivedAsset)
         receivedAmount = try container.decode(UInt64.self, forKey: .receivedAmount)
+        localRole = try container.decode(String.self, forKey: .localRole)
         firstRefundAtUnix = try container.decode(UInt64.self, forKey: .firstRefundAtUnix)
         secondRefundAtUnix = try container.decode(UInt64.self, forKey: .secondRefundAtUnix)
         firstFundingConfirmed = try container.decode(Bool.self, forKey: .firstFundingConfirmed)
@@ -632,7 +634,8 @@ struct NativeShakescapeExecutionSummary: Decodable, Equatable, Sendable {
               validStates.contains(state), ["bitcoin", "handshake"].contains(firstChain),
               ["bitcoin", "handshake"].contains(secondChain), firstChain != secondChain,
               ["btc", "hns"].contains(offeredAsset), ["btc", "hns"].contains(receivedAsset),
-              offeredAsset != receivedAsset, offeredAmount > 0, receivedAmount > 0,
+              offeredAsset != receivedAsset, ["maker", "taker"].contains(localRole),
+              offeredAmount > 0, receivedAmount > 0,
               firstRefundAtUnix > secondRefundAtUnix, lastVerifiedAtUnix > 0,
               failureReason.map { !$0.isEmpty && $0.count <= 256 } ?? true else {
             throw NativeWalletBridgeError.invalidOutput("invalid durable Shakescape execution")

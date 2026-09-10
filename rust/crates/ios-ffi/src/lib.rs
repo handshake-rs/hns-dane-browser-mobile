@@ -1747,6 +1747,19 @@ impl NativeWalletController {
             .map(|count| count != 0)
     }
 
+    fn advance_local_first_funding_readiness(&mut self) -> Result<bool, MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Ok(false);
+        };
+        shakescape_sessions
+            .advance_local_first_funding_readiness(HnsReadSystemClock.now_unix()?)
+            .map(|count| count != 0)
+    }
+
     fn authorize_btc_for_hns_first_funding(
         &mut self,
         session_id: SessionId,
@@ -5172,7 +5185,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
 ) -> HnsBrowserResult {
     ffi_call(|| {
         require_output(out_serviced)?;
-        let (reconciled, serviced, resumed_hns, permit) = {
+        let (reconciled, serviced, funding_ready, resumed_hns, permit) = {
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
@@ -5181,13 +5194,17 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
                 .reconcile_direct_offer_lifecycle()
                 .map_err(|_| FfiFailure::internal())?;
             let serviced = entry.controller.service_direct_shakescape_once();
+            let funding_ready = entry
+                .controller
+                .advance_local_first_funding_readiness()
+                .map_err(|_| FfiFailure::internal())?;
             let resumed_hns = entry.controller.resume_approved_hns_settlements();
             let permit = entry
                 .controller
                 .next_counterparty_bitcoin_watch()
                 .ok()
                 .flatten();
-            (reconciled, serviced, resumed_hns, permit)
+            (reconciled, serviced, funding_ready, resumed_hns, permit)
         };
         let resumed = {
             let control = wallet_bitcoin_control_entry(wallet)?;
@@ -5227,7 +5244,9 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
         } else {
             false
         };
-        let serviced = u8::from(reconciled || serviced || completed || resumed || resumed_hns);
+        let serviced = u8::from(
+            reconciled || serviced || funding_ready || completed || resumed || resumed_hns,
+        );
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_serviced, serviced) };
         Ok(())

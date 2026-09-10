@@ -358,6 +358,7 @@
     <string name="row_wallet_recover_name" translatable="false">Recover name</string>
     <string name="row_wallet_recover_name_summary" translatable="false">Execute the seller recovery path when its refund conditions are satisfied.</string>
     <string name="row_wallet_shakedex_status" translatable="false">Handshake name-market query result</string>
+    <string name="row_wallet_swap_progress" translatable="false">Atomic swap progress</string>
     <string name="row_wallet_list_offers" translatable="false">List Handshake name-sale offers</string>
     <string name="row_wallet_list_offers_summary" translatable="false">Read the current authenticated Swap Board offer page and copy a listing ID.</string>
     <string name="row_wallet_get_session" translatable="false">Inspect trade session</string>
@@ -851,6 +852,23 @@
     <string name="wallet_swap_acceptance_abandon_failed" translatable="false">The acceptance could not be abandoned. It may already have reached countersigned or funded swap state.</string>
     <string name="wallet_swap_no_executions_waiting" translatable="false">There are no negotiated atomic-swap executions on this wallet yet. If a take was just accepted, keep both maker and taker wallets unlocked and connected while the signed session proposal and acceptance are exchanged.</string>
     <string name="wallet_swap_execution_title" translatable="false">Atomic swap status</string>
+    <string name="wallet_swap_status_unavailable" translatable="false">Atomic swap progress is unavailable while the wallet is inactive.</string>
+    <string name="wallet_swap_status_locked" translatable="false">Unlock the wallet to resume atomic swap negotiation and chain verification.</string>
+    <string name="wallet_swap_status_none" translatable="false">No atomic swap is currently active.</string>
+    <string name="wallet_swap_status_active" translatable="false">%1$s\n%2$s → %3$s\nSession %4$s…</string>
+    <string name="wallet_swap_status_negotiating" translatable="false">Negotiating countersigned terms for %1$s → %2$s.\nSession %3$s…</string>
+    <string name="wallet_swap_status_terminal" translatable="false">No active swap. Latest execution: %1$s · session %2$s…\n%3$s</string>
+    <string name="wallet_swap_status_no_failure" translatable="false">The execution reached a terminal state.</string>
+    <string name="wallet_dashboard_swap_active" translatable="false">Connected · swap %1$s</string>
+    <string name="wallet_dashboard_swap_negotiating" translatable="false">Connected · swap negotiating</string>
+    <string name="wallet_swap_stage_terms_syncing" translatable="false">Terms frozen · Bitcoin synchronization is installing and validating the exact swap watch</string>
+    <string name="wallet_swap_stage_terms_waiting" translatable="false">Terms frozen · automatic Bitcoin synchronization/watch preparation is next</string>
+    <string name="wallet_swap_stage_funding_ready_here" translatable="false">%1$s funding is ready for approval on this wallet</string>
+    <string name="wallet_swap_stage_waiting_counterparty_funding" translatable="false">Waiting for the counterparty to fund %1$s</string>
+    <string name="wallet_swap_stage_first_funded" translatable="false">%1$s funding verified · preparing the second-chain lock</string>
+    <string name="wallet_swap_stage_both_funded" translatable="false">Both funding transactions are verified · settlement is ready</string>
+    <string name="wallet_swap_stage_settling" translatable="false">Settlement is in progress with locally verified redemption evidence</string>
+    <string name="wallet_swap_stage_refunding" translatable="false">The swap is on its timeout-refund path</string>
     <string name="wallet_swap_execution_detail" translatable="false">Session: %1$s\nState: %2$s\nFunding order: %3$s, then %4$s\nFirst funding confirmed: %5$s\nSecond funding confirmed: %6$s\n\nOnly locally verified chain evidence advances this status.</string>
     <string name="wallet_swap_recovery_unavailable" translatable="false">Bitcoin broadcast recovery status is temporarily unavailable while the Bitcoin controller is busy or inactive.</string>
     <string name="wallet_swap_recovery_none" translatable="false">No approved Bitcoin transaction is awaiting durable broadcast recovery.</string>

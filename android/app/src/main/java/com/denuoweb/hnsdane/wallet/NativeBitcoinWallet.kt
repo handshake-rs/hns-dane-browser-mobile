@@ -282,6 +282,7 @@ internal data class NativeShakescapeExecutionSummary(
     val offeredAmount: Long,
     val receivedAsset: String,
     val receivedAmount: Long,
+    val localRole: String,
     val firstRefundAtUnix: Long,
     val secondRefundAtUnix: Long,
     val firstFundingConfirmed: Boolean,
@@ -918,6 +919,7 @@ internal object NativeBitcoinWalletBundle {
         if (!hasExactKeys(json, setOf(
             "sessionId", "revision", "state", "firstChain", "secondChain",
             "offeredAsset", "offeredAmount", "receivedAsset", "receivedAmount",
+            "localRole",
             "firstRefundAtUnix", "secondRefundAtUnix", "firstFundingConfirmed",
             "secondFundingConfirmed", "firstRedemptionConfirmed", "secondRedemptionConfirmed",
             "refundConfirmed", "lastVerifiedAtUnix", "failureReason",
@@ -931,6 +933,8 @@ internal object NativeBitcoinWalletBundle {
         val offeredAsset = json.optString("offeredAsset", "").takeIf { it in SHAKESCAPE_ASSETS }
             ?: return null
         val receivedAsset = json.optString("receivedAsset", "").takeIf { it in SHAKESCAPE_ASSETS }
+            ?: return null
+        val localRole = json.optString("localRole", "").takeIf { it in setOf("maker", "taker") }
             ?: return null
         val firstRefund = positiveLong(json, "firstRefundAtUnix") ?: return null
         val secondRefund = positiveLong(json, "secondRefundAtUnix") ?: return null
@@ -950,6 +954,7 @@ internal object NativeBitcoinWalletBundle {
             offeredAmount = positiveLong(json, "offeredAmount") ?: return null,
             receivedAsset = receivedAsset,
             receivedAmount = positiveLong(json, "receivedAmount") ?: return null,
+            localRole = localRole,
             firstRefundAtUnix = firstRefund,
             secondRefundAtUnix = secondRefund,
             firstFundingConfirmed = exactBoolean(json, "firstFundingConfirmed") ?: return null,
