@@ -10,6 +10,7 @@ internal data class NativeWalletDirectShakescapeStatus(
     val peerEndpoint: String?,
     val peerCount: Int,
     val candidateCount: Int,
+    val discoveredPeers: List<String>,
     val publiclyReachable: Boolean,
     val publicIpv6: Boolean,
     val routerMapped: Boolean,
@@ -73,7 +74,7 @@ private object NativeWalletDirectShakescapeParser {
     )
 
     fun parseStatus(bundle: ByteArray): NativeWalletDirectShakescapeStatus? = runCatching {
-        require(bundle.size in HEADER_BYTES..(HEADER_BYTES + MAX_ENDPOINT_BYTES))
+        require(bundle.size in (HEADER_BYTES + 2)..MAX_STATUS_BUNDLE_BYTES)
         require(statusMagic.indices.all { index -> bundle[index] == statusMagic[index] })
         val input = ByteBuffer.wrap(bundle, 4, HEADER_BYTES - 4).order(ByteOrder.BIG_ENDIAN)
         require(input.get().toInt() and 0xff == STATUS_VERSION)
@@ -82,8 +83,19 @@ private object NativeWalletDirectShakescapeParser {
         val peerCount = input.get().toInt() and 0xff
         val candidateCount = input.get().toInt() and 0xff
         val port = input.short.toInt() and 0xffff
-        val endpointLength = input.short.toInt() and 0xffff
-        require(bundle.size == HEADER_BYTES + endpointLength)
+        val payloadLength = input.short.toInt() and 0xffff
+        require(bundle.size == HEADER_BYTES + payloadLength)
+        val payload = ByteBuffer.wrap(bundle, HEADER_BYTES, payloadLength).order(ByteOrder.BIG_ENDIAN)
+        val endpointLength = payload.get().toInt() and 0xff
+        val peerEndpoint = endpoint(payload, endpointLength)
+        val discoveredCount = payload.get().toInt() and 0xff
+        require(discoveredCount in 0..MAX_DISCOVERED_PEERS)
+        require(discoveredCount <= candidateCount)
+        val discoveredPeers = List(discoveredCount) {
+            endpoint(payload, payload.get().toInt() and 0xff).also { require(it.isNotEmpty()) }
+        }
+        require(!payload.hasRemaining())
+        require(discoveredPeers.distinct().size == discoveredPeers.size)
         val unlocked = flags and STATUS_UNLOCKED != 0
         val listening = flags and STATUS_LISTENING != 0
         val paired = flags and STATUS_PAIRED != 0
@@ -97,16 +109,17 @@ private object NativeWalletDirectShakescapeParser {
                 (!listening && !paired && !publiclyReachable && !advertised && !networkServiceReady),
         )
         require((port != 0) == listening)
-        require((endpointLength != 0) == paired)
+        require(peerEndpoint.isNotEmpty() == paired)
         require((peerCount != 0) == paired)
         require(!routerMapped || publiclyReachable)
         require(!advertised || (publiclyReachable && networkServiceReady))
         NativeWalletDirectShakescapeStatus(
             unlocked = unlocked,
             listenerPort = port.takeIf { listening },
-            peerEndpoint = endpoint(bundle, endpointLength).takeIf { paired },
+            peerEndpoint = peerEndpoint.takeIf { paired },
             peerCount = peerCount,
             candidateCount = candidateCount,
+            discoveredPeers = discoveredPeers,
             publiclyReachable = publiclyReachable,
             publicIpv6 = publicIpv6,
             routerMapped = routerMapped,
@@ -133,7 +146,10 @@ private object NativeWalletDirectShakescapeParser {
         val endpointLength = input.short.toInt() and 0xffff
         require(input.short.toInt() == 0)
         require(bundle.size == HEADER_BYTES + endpointLength)
-        val endpoint = endpoint(bundle, endpointLength)
+        val endpoint = endpoint(
+            ByteBuffer.wrap(bundle, HEADER_BYTES, endpointLength).order(ByteOrder.BIG_ENDIAN),
+            endpointLength,
+        )
         val success = outcome == NativeWalletDirectShakescapeConnectResult.Outcome.Connected ||
             outcome == NativeWalletDirectShakescapeConnectResult.Outcome.Replaced
         require(success == endpoint.isNotEmpty())
@@ -143,9 +159,11 @@ private object NativeWalletDirectShakescapeParser {
         )
     }.getOrNull()
 
-    private fun endpoint(bundle: ByteArray, length: Int): String {
+    private fun endpoint(input: ByteBuffer, length: Int): String {
         require(length in 0..MAX_ENDPOINT_BYTES)
-        val bytes = bundle.copyOfRange(HEADER_BYTES, bundle.size)
+        require(input.remaining() >= length)
+        val bytes = ByteArray(length)
+        input.get(bytes)
         try {
             val value = bytes.toString(Charsets.UTF_8)
             require(value.toByteArray(Charsets.UTF_8).contentEquals(bytes))
@@ -156,10 +174,13 @@ private object NativeWalletDirectShakescapeParser {
         }
     }
 
-    private const val STATUS_VERSION = 2
+    private const val STATUS_VERSION = 3
     private const val CONNECT_VERSION = 1
     private const val HEADER_BYTES = 12
     private const val MAX_ENDPOINT_BYTES = 128
+    private const val MAX_DISCOVERED_PEERS = 3
+    private const val MAX_STATUS_BUNDLE_BYTES =
+        HEADER_BYTES + 2 + MAX_ENDPOINT_BYTES + MAX_DISCOVERED_PEERS * (1 + MAX_ENDPOINT_BYTES)
     private const val STATUS_UNLOCKED = 1
     private const val STATUS_LISTENING = 1 shl 1
     private const val STATUS_PAIRED = 1 shl 2

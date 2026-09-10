@@ -624,6 +624,10 @@
     <string name="wallet_shakedex_queries_failed" translatable="false">The Shakedex query could not be completed from the current direct peer and wallet state.</string>
     <string name="wallet_shakedex_queries_result" translatable="false">Authenticated Handshake name-market result:&#10;%1$s</string>
     <string name="wallet_direct_shakescape_endpoint_hint" translatable="false">IPv4:port or [IPv6]:port</string>
+    <string name="wallet_direct_shakescape_recent_peers" translatable="false">Recent peers</string>
+    <string name="wallet_direct_shakescape_discovered_peers" translatable="false">ShakeScape peers found during sync</string>
+    <string name="wallet_direct_shakescape_no_recent_peers" translatable="false">No recently connected peers.</string>
+    <string name="wallet_direct_shakescape_no_discovered_peers" translatable="false">No ShakeScape peers have been discovered during sync yet.</string>
     <string name="wallet_direct_shakescape_unavailable" translatable="false">P2P swap hosting is unavailable until this wallet-owned direct HNS controller is installed and unlocked.</string>
     <string name="wallet_direct_shakescape_locked" translatable="false">Unlock the wallet to host or pair a swap peer.</string>
     <string name="wallet_direct_shakescape_host_listening" translatable="false">Listening for swap and Handshake peers on port %1$d.&#10;%2$s&#10;%3$s</string>

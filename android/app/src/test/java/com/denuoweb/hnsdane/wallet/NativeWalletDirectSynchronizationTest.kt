@@ -23,6 +23,7 @@ class NativeWalletDirectSynchronizationTest {
                     peerEndpoint = null,
                     peerCount = 0,
                     candidateCount = 0,
+                    discoveredPeers = emptyList(),
                     publiclyReachable = false,
                     publicIpv6 = false,
                     routerMapped = false,
@@ -40,6 +41,7 @@ class NativeWalletDirectSynchronizationTest {
                     peerEndpoint = null,
                     peerCount = 0,
                     candidateCount = 0,
+                    discoveredPeers = emptyList(),
                     publiclyReachable = false,
                     publicIpv6 = false,
                     routerMapped = false,
@@ -57,6 +59,7 @@ class NativeWalletDirectSynchronizationTest {
                     peerEndpoint = null,
                     peerCount = 0,
                     candidateCount = 0,
+                    discoveredPeers = emptyList(),
                     publiclyReachable = false,
                     publicIpv6 = false,
                     routerMapped = false,
@@ -74,6 +77,7 @@ class NativeWalletDirectSynchronizationTest {
                     peerEndpoint = "198.51.100.7:12038",
                     peerCount = 1,
                     candidateCount = 0,
+                    discoveredPeers = emptyList(),
                     publiclyReachable = false,
                     publicIpv6 = false,
                     routerMapped = false,
@@ -196,11 +200,17 @@ class NativeWalletDirectSynchronizationTest {
             flags = 0b111,
             listenerPort = 12_038,
             endpoint = "198.51.100.7:12038",
+            candidateCount = 2,
+            discoveredPeers = listOf("203.0.113.8:12038", "[2001:db8::8]:12038"),
         )
         val status = NativeWalletBridge.parseAndWipeWalletOwnedDirectShakescapeStatusBundle(statusBundle)
         assertTrue(status?.unlocked == true)
         assertEquals(12_038, status?.listenerPort)
         assertEquals("198.51.100.7:12038", status?.peerEndpoint)
+        assertEquals(
+            listOf("203.0.113.8:12038", "[2001:db8::8]:12038"),
+            status?.discoveredPeers,
+        )
         assertTrue(statusBundle.all { it == 0.toByte() })
 
         val ipv6CandidateBundle = directShakescapeStatusBundle(
@@ -215,6 +225,22 @@ class NativeWalletDirectSynchronizationTest {
         assertTrue(ipv6Candidate?.publiclyReachable == false)
         assertTrue(ipv6Candidate?.advertised == false)
         assertTrue(ipv6CandidateBundle.all { it == 0.toByte() })
+
+        val tooManyCandidates = directShakescapeStatusBundle(
+            flags = 0b11,
+            listenerPort = 12_038,
+            endpoint = "",
+            peerCount = 0,
+            candidateCount = 4,
+            discoveredPeers = listOf(
+                "203.0.113.1:12038",
+                "203.0.113.2:12038",
+                "203.0.113.3:12038",
+                "203.0.113.4:12038",
+            ),
+        )
+        assertNull(NativeWalletBridge.parseAndWipeWalletOwnedDirectShakescapeStatusBundle(tooManyCandidates))
+        assertTrue(tooManyCandidates.all { it == 0.toByte() })
 
         val replacementBundle = directShakescapeConnectBundle(
             code = 2,
@@ -280,17 +306,26 @@ class NativeWalletDirectSynchronizationTest {
         endpoint: String,
         peerCount: Int = 1,
         candidateCount: Int = 0,
+        discoveredPeers: List<String> = emptyList(),
     ): ByteArray {
         val endpointBytes = endpoint.toByteArray(Charsets.US_ASCII)
-        return ByteBuffer.allocate(12 + endpointBytes.size).order(ByteOrder.BIG_ENDIAN).apply {
+        val discoveredBytes = discoveredPeers.map { it.toByteArray(Charsets.US_ASCII) }
+        val payloadSize = 2 + endpointBytes.size + discoveredBytes.sumOf { 1 + it.size }
+        return ByteBuffer.allocate(12 + payloadSize).order(ByteOrder.BIG_ENDIAN).apply {
             put(byteArrayOf('H'.code.toByte(), 'N'.code.toByte(), 'D'.code.toByte(), 'S'.code.toByte()))
-            put(2)
+            put(3)
             put(flags.toByte())
             put(peerCount.toByte())
             put(candidateCount.toByte())
             putShort(listenerPort.toShort())
-            putShort(endpointBytes.size.toShort())
+            putShort(payloadSize.toShort())
+            put(endpointBytes.size.toByte())
             put(endpointBytes)
+            put(discoveredBytes.size.toByte())
+            discoveredBytes.forEach { bytes ->
+                put(bytes.size.toByte())
+                put(bytes)
+            }
         }.array()
     }
 

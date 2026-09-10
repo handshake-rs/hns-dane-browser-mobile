@@ -137,8 +137,9 @@ const MAX_ANDROID_SHAKESCAPE_ENDPOINT_BYTES: usize = 128;
 /// retained only by the live controller until the user disconnects it.
 const ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS: u64 = 5;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC: &[u8; 4] = b"HNDS";
-const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION: u8 = 2;
+const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION: u8 = 3;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES: usize = 12;
+const MAX_WALLET_DIRECT_SHAKESCAPE_DISCOVERED_PEERS: usize = 3;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_UNLOCKED: u8 = 1;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_LISTENING: u8 = 1 << 1;
 const WALLET_DIRECT_SHAKESCAPE_STATUS_PAIRED: u8 = 1 << 2;
@@ -953,6 +954,9 @@ impl AndroidWalletController {
             .map(|reachability| reachability.snapshot());
         *shakescape_public_endpoint = reachability.and_then(|snapshot| snapshot.endpoint);
         let now_unix = HnsReadSystemClock.now_unix().ok();
+        let candidates = now_unix
+            .and_then(|now_unix| coordinator.shakescape_candidates(now_unix).ok())
+            .unwrap_or_default();
         let discovery =
             now_unix.and_then(|now_unix| coordinator.shakescape_discovery_status(now_unix).ok());
         let network_ready = now_unix.is_some_and(|now_unix| {
@@ -969,6 +973,11 @@ impl AndroidWalletController {
             discovery
                 .as_ref()
                 .map_or(0, |status| status.candidates_known),
+            &candidates
+                .iter()
+                .take(MAX_WALLET_DIRECT_SHAKESCAPE_DISCOVERED_PEERS)
+                .map(|candidate| candidate.address)
+                .collect::<Vec<_>>(),
             reachability.is_some_and(|snapshot| snapshot.endpoint.is_some()),
             reachability.is_some_and(|snapshot| snapshot.public_ipv6.is_some()),
             reachability.is_some_and(|snapshot| snapshot.mapped_ipv4.is_some()),
@@ -4561,6 +4570,7 @@ fn wallet_direct_shakescape_status_bundle(
     peer_endpoint: Option<SocketAddr>,
     peer_count: usize,
     candidate_count: usize,
+    discovered_peers: &[SocketAddr],
     reachable: bool,
     public_ipv6: bool,
     router_mapped: bool,
@@ -4575,6 +4585,7 @@ fn wallet_direct_shakescape_status_bundle(
             || peer_endpoint.is_some()
             || peer_count != 0
             || candidate_count != 0
+            || !discovered_peers.is_empty()
             || reachable
             || public_ipv6
             || router_mapped
@@ -4593,7 +4604,27 @@ fn wallet_direct_shakescape_status_bundle(
     {
         return None;
     }
-    let peer_length = u16::try_from(peer_endpoint.len()).ok()?;
+    if discovered_peers.len() > MAX_WALLET_DIRECT_SHAKESCAPE_DISCOVERED_PEERS
+        || discovered_peers.len() > candidate_count
+    {
+        return None;
+    }
+    let discovered_peers = discovered_peers
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    if discovered_peers.iter().any(|endpoint| {
+        endpoint.len() > MAX_ANDROID_SHAKESCAPE_ENDPOINT_BYTES
+            || endpoint.is_empty()
+            || !endpoint.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
+    }) || discovered_peers
+        .iter()
+        .collect::<std::collections::HashSet<_>>()
+        .len()
+        != discovered_peers.len()
+    {
+        return None;
+    }
     let mut flags = if unlocked {
         WALLET_DIRECT_SHAKESCAPE_STATUS_UNLOCKED
     } else {
@@ -4622,18 +4653,32 @@ fn wallet_direct_shakescape_status_bundle(
     }
     let peer_count = u8::try_from(peer_count).ok()?;
     let candidate_count = u8::try_from(candidate_count.min(u8::MAX.into())).ok()?;
-    let mut bundle = Vec::with_capacity(
-        WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES + peer_endpoint.len(),
+    let mut payload = Vec::with_capacity(
+        2 + peer_endpoint.len()
+            + discovered_peers
+                .iter()
+                .map(|endpoint| 1 + endpoint.len())
+                .sum::<usize>(),
     );
+    payload.push(u8::try_from(peer_endpoint.len()).ok()?);
+    payload.extend_from_slice(peer_endpoint.as_bytes());
+    payload.push(u8::try_from(discovered_peers.len()).ok()?);
+    for endpoint in &discovered_peers {
+        payload.push(u8::try_from(endpoint.len()).ok()?);
+        payload.extend_from_slice(endpoint.as_bytes());
+    }
+    let payload_length = u16::try_from(payload.len()).ok()?;
+    let mut bundle =
+        Vec::with_capacity(WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES + payload.len());
     bundle.extend_from_slice(WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_MAGIC);
     bundle.push(WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_VERSION);
     bundle.push(flags);
     bundle.push(peer_count);
     bundle.push(candidate_count);
     bundle.extend_from_slice(&listener_port.unwrap_or(0).to_be_bytes());
-    bundle.extend_from_slice(&peer_length.to_be_bytes());
-    bundle.extend_from_slice(peer_endpoint.as_bytes());
-    (bundle.len() == WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES + peer_endpoint.len())
+    bundle.extend_from_slice(&payload_length.to_be_bytes());
+    bundle.extend_from_slice(&payload);
+    (bundle.len() == WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES + payload.len())
         .then_some(bundle)
 }
 
@@ -9200,12 +9245,17 @@ mod tests {
     #[test]
     fn direct_shakescape_transport_bundles_preserve_listener_peer_and_replace_outcomes() {
         let listener = "198.51.100.7:12038".parse().expect("socket endpoint");
+        let discovered = [
+            "203.0.113.8:12038".parse().expect("discovered endpoint"),
+            "[2001:db8::8]:12038".parse().expect("discovered endpoint"),
+        ];
         let status = wallet_direct_shakescape_status_bundle(
             true,
             Some(12_038),
             Some(listener),
             3,
             4,
+            &discovered,
             true,
             true,
             true,
@@ -9222,10 +9272,10 @@ mod tests {
             u16::from_be_bytes(status[8..10].try_into().expect("listener port")),
             12_038
         );
-        assert_eq!(
-            std::str::from_utf8(&status[WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES..])
-                .expect("visible endpoint"),
-            "198.51.100.7:12038"
+        assert!(
+            status[WALLET_DIRECT_SHAKESCAPE_STATUS_BUNDLE_HEADER_BYTES..]
+                .windows(b"203.0.113.8:12038".len())
+                .any(|window| window == b"203.0.113.8:12038")
         );
         let ipv6_candidate = wallet_direct_shakescape_status_bundle(
             true,
@@ -9233,6 +9283,7 @@ mod tests {
             None,
             0,
             0,
+            &[],
             false,
             true,
             false,
@@ -9278,6 +9329,7 @@ mod tests {
                 None,
                 0,
                 0,
+                &[],
                 false,
                 false,
                 false,

@@ -4296,8 +4296,10 @@ final class BrowserRuntimeControlTests: XCTestCase {
 
     func testNativeDirectShakescapeBundlesRejectTransportShapeDrift() throws {
         let endpoint = Array("198.51.100.7:12038".utf8)
-        var status = Array("HNDS".utf8) + [2, 0b111, 1, 0, 0x2f, 0x06]
-        status += [UInt8(endpoint.count >> 8), UInt8(endpoint.count & 0xff)] + endpoint
+        let discovered = Array("203.0.113.8:12038".utf8)
+        let payload = [UInt8(endpoint.count)] + endpoint + [1, UInt8(discovered.count)] + discovered
+        var status = Array("HNDS".utf8) + [3, 0b111, 1, 1, 0x2f, 0x06]
+        status += [UInt8(payload.count >> 8), UInt8(payload.count & 0xff)] + payload
         XCTAssertEqual(
             try NativeDirectShakescapeBundle.status(status),
             NativeDirectShakescapeStatus(
@@ -4305,7 +4307,8 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 listenerPort: 12_038,
                 peerEndpoint: "198.51.100.7:12038",
                 peerCount: 1,
-                candidateCount: 0,
+                candidateCount: 1,
+                discoveredPeers: ["203.0.113.8:12038"],
                 publiclyReachable: false,
                 publicIpv6: false,
                 routerMapped: false,
@@ -4314,7 +4317,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             )
         )
 
-        let ipv6Candidate = Array("HNDS".utf8) + [2, 0b1001_0011, 0, 0, 0x2f, 0x06, 0, 0]
+        let ipv6Candidate = Array("HNDS".utf8) + [3, 0b1001_0011, 0, 0, 0x2f, 0x06, 0, 2, 0, 0]
         XCTAssertEqual(
             try NativeDirectShakescapeBundle.status(ipv6Candidate),
             NativeDirectShakescapeStatus(
@@ -4323,6 +4326,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 peerEndpoint: nil,
                 peerCount: 0,
                 candidateCount: 0,
+                discoveredPeers: [],
                 publiclyReachable: false,
                 publicIpv6: true,
                 routerMapped: false,
@@ -4330,6 +4334,16 @@ final class BrowserRuntimeControlTests: XCTestCase {
                 networkServiceReady: true
             )
         )
+
+        let tooManyPayload = [UInt8(0), 4]
+            + (1...4).flatMap { index -> [UInt8] in
+                let candidate = Array("203.0.113.\(index):12038".utf8)
+                return [UInt8(candidate.count)] + candidate
+            }
+        var tooMany = Array("HNDS".utf8) + [3, 0b11, 0, 4, 0x2f, 0x06]
+        tooMany += [UInt8(tooManyPayload.count >> 8), UInt8(tooManyPayload.count & 0xff)]
+            + tooManyPayload
+        XCTAssertThrowsError(try NativeDirectShakescapeBundle.status(tooMany))
 
         var connected = Array("HNDC".utf8) + [1, 1, 0, 0]
         connected += [UInt8(endpoint.count >> 8), UInt8(endpoint.count & 0xff), 0, 0] + endpoint
@@ -4341,7 +4355,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
             )
         )
         var unknownVersion = status
-        unknownVersion[4] = 3
+        unknownVersion[4] = 4
         XCTAssertThrowsError(try NativeDirectShakescapeBundle.status(unknownVersion))
         var badReserved = connected
         badReserved[11] = 1

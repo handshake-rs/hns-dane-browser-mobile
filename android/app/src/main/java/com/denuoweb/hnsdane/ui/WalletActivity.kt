@@ -323,6 +323,8 @@ class WalletActivity : ComponentActivity() {
     private var pendingOutgoingRefreshAttemptedHeight: Long? = null
     private var latestObservedBrowserHeaderHeight: Long? = null
     private var directShakescapePeerEndpoint: String? = null
+    /** Most recently successful outbound board endpoints, newest first. */
+    private val recentDirectShakescapePeers = ArrayDeque<String>(3)
     /**
      * Last successfully decoded operational transport snapshot. Native direct
      * service/status calls deliberately share one non-blocking controller
@@ -4206,6 +4208,7 @@ class WalletActivity : ComponentActivity() {
         directShakescapeTransportStatus = status
         val previousPeerEndpoint = directShakescapePeerEndpoint
         directShakescapePeerEndpoint = status.peerEndpoint
+        status.peerEndpoint?.let(::rememberDirectShakescapePeer)
         if (previousPeerEndpoint != null && directShakescapePeerEndpoint == null) {
             shakedexQueryStatusView.text = getString(R.string.wallet_direct_shakescape_no_peer)
         }
@@ -6183,11 +6186,88 @@ class WalletActivity : ComponentActivity() {
         queryWalletShakedex(NativeShakedexQuery.GetSession(values[0]))
     }
 
-    private fun showPairDirectShakescapeForm() = showWalletActionForm(
-        R.string.row_wallet_pair_direct_shakescape,
-        listOf(WalletActionInput(R.string.wallet_direct_shakescape_endpoint_hint)),
-    ) { values ->
-        connectWalletOwnedDirectShakescape(values[0])
+    private fun showPairDirectShakescapeForm() {
+        if (busy) {
+            showWalletBusyFeedback()
+            return
+        }
+        val endpointInput = EditText(this).apply {
+            hint = getString(R.string.wallet_direct_shakescape_endpoint_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            filters = arrayOf(InputFilter.LengthFilter(MAX_DIRECT_SHAKESCAPE_ENDPOINT_CHARACTERS))
+            setSingleLine(true)
+            setTextColor(themeColors().primaryText)
+            setHintTextColor(themeColors().secondaryText)
+        }
+        val recent = recentDirectShakescapePeers.take(MAX_VISIBLE_DIRECT_SHAKESCAPE_PEERS)
+        val discovered = directShakescapeTransportStatus?.discoveredPeers
+            .orEmpty()
+            .filterNot(recent::contains)
+            .take(MAX_VISIBLE_DIRECT_SHAKESCAPE_PEERS)
+        showWalletFormDialog(
+            title = getString(R.string.row_wallet_pair_direct_shakescape),
+            fields = listOf(
+                getString(R.string.wallet_direct_shakescape_endpoint_hint) to endpointInput,
+                getString(R.string.wallet_direct_shakescape_recent_peers) to
+                    directShakescapePeerChoices(
+                        recent,
+                        getString(R.string.wallet_direct_shakescape_no_recent_peers),
+                        endpointInput,
+                    ),
+                getString(R.string.wallet_direct_shakescape_discovered_peers) to
+                    directShakescapePeerChoices(
+                        discovered,
+                        getString(R.string.wallet_direct_shakescape_no_discovered_peers),
+                        endpointInput,
+                    ),
+            ),
+            primaryLabel = getString(R.string.action_prepare),
+            onPrimary = { dialog ->
+                val endpoint = endpointInput.text?.toString().orEmpty()
+                wipeEditable(endpointInput.text)
+                dialog.dismiss()
+                connectWalletOwnedDirectShakescape(endpoint)
+            },
+            onDismiss = { wipeEditable(endpointInput.text) },
+        )
+    }
+
+    private fun directShakescapePeerChoices(
+        peers: List<String>,
+        emptyMessage: String,
+        endpointInput: EditText,
+    ): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        if (peers.isEmpty()) {
+            addView(TextView(this@WalletActivity).apply {
+                text = emptyMessage
+                textSize = 14f
+                setTextColor(themeColors().secondaryText)
+            })
+        } else {
+            peers.forEachIndexed { index, endpoint ->
+                addView(
+                    dashboardActionButton(endpoint, secondary = true) {
+                        endpointInput.setText(endpoint)
+                        endpointInput.setSelection(endpoint.length)
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply {
+                        if (index + 1 < peers.size) bottomMargin = uiDp(8)
+                    },
+                )
+            }
+        }
+    }
+
+    private fun rememberDirectShakescapePeer(endpoint: String) {
+        recentDirectShakescapePeers.remove(endpoint)
+        recentDirectShakescapePeers.addFirst(endpoint)
+        while (recentDirectShakescapePeers.size > MAX_VISIBLE_DIRECT_SHAKESCAPE_PEERS) {
+            recentDirectShakescapePeers.removeLast()
+        }
     }
 
     private fun connectWalletOwnedDirectShakescape(endpoint: String) {
@@ -6224,6 +6304,7 @@ class WalletActivity : ComponentActivity() {
                 busy = false
                 refreshControllerState(resetReads = false)
                 shakedexQueryStatusView.text = directShakescapeConnectionMessage(result)
+                result?.peerEndpoint?.let(::rememberDirectShakescapePeer)
                 showShakedexDashboard()
             }
         }
@@ -8873,6 +8954,8 @@ class WalletActivity : ComponentActivity() {
         const val DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS = 20
         const val DIRECT_SHAKESCAPE_NETWORK_MAINTENANCE_TICKS = 120
         const val DIRECT_SHAKESCAPE_LISTEN_PORT = 12_038
+        const val MAX_VISIBLE_DIRECT_SHAKESCAPE_PEERS = 3
+        const val MAX_DIRECT_SHAKESCAPE_ENDPOINT_CHARACTERS = 128
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS = 3_000L
         const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L

@@ -12,6 +12,7 @@ private let minimumBitcoinHtlcSats: UInt64 = 330
 private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
 private let minimumHnsSwapDollarydoos: UInt64 = 546
 private let directShakescapeNetworkMaintenanceTicks = 30
+private let maximumVisibleDirectShakescapePeers = 3
 private let showShakedexWalletCard = true
 
 /// Native wallet-control surface.  Every HNS peer, consensus, block scan,
@@ -103,6 +104,7 @@ final class WalletViewController: UIViewController {
     private var directShakescapeServiceInFlight = false
     private var directShakescapeServiceTicks = 0
     private var directShakescapeStatusSnapshot: NativeDirectShakescapeStatus?
+    private var recentDirectShakescapePeers: [String] = []
     private var hnsSyncPresentationTimer: Timer?
     private var bitcoinSyncInProgress = false
     private var bitcoinSyncStopRequested = false
@@ -3202,6 +3204,7 @@ final class WalletViewController: UIViewController {
         title: String,
         message: String? = nil,
         fields: [WalletSheetFormField],
+        selectionSections: [WalletSheetSelectionSection] = [],
         primaryTitle: String,
         primaryStyle: WalletMenuActionStyle = .standard,
         onSubmit: @escaping @MainActor ([String]) -> Void
@@ -3212,6 +3215,7 @@ final class WalletViewController: UIViewController {
             title: title,
             message: message,
             fields: fields,
+            selectionSections: selectionSections,
             primaryTitle: primaryTitle,
             primaryStyle: primaryStyle,
             onSubmit: onSubmit
@@ -3486,9 +3490,32 @@ final class WalletViewController: UIViewController {
     }
 
     private func showPairDirectShakescapeForm() {
-        collectHnsValueForm(
+        let recent = Array(recentDirectShakescapePeers.prefix(maximumVisibleDirectShakescapePeers))
+        let discovered = Array(
+            (directShakescapeStatusSnapshot?.discoveredPeers ?? [])
+                .filter { !recent.contains($0) }
+                .prefix(maximumVisibleDirectShakescapePeers)
+        )
+        presentWalletForm(
             title: "Pair swap peer",
-            fields: [.init(label: "IP-literal endpoint", placeholder: "192.0.2.1:12038")]
+            fields: [.init(
+                label: "IP-literal endpoint",
+                placeholder: "192.0.2.1:12038",
+                accessibilityIdentifier: "wallet.shakescape.endpoint"
+            )],
+            selectionSections: [
+                .init(
+                    title: "Recent peers",
+                    options: recent,
+                    emptyMessage: "No recently connected peers."
+                ),
+                .init(
+                    title: "ShakeScape peers found during sync",
+                    options: discovered,
+                    emptyMessage: "No ShakeScape peers have been discovered during sync yet."
+                ),
+            ],
+            primaryTitle: "Review"
         ) { [weak self] values in
             guard let self, let endpoint = values.first else { return }
             self.connectDirectShakescapePeer(endpoint)
@@ -3502,6 +3529,9 @@ final class WalletViewController: UIViewController {
             guard let self else { return }
             switch result {
             case .success(let connection):
+                if let endpoint = connection.peerEndpoint {
+                    self.rememberDirectShakescapePeer(endpoint)
+                }
                 switch connection.outcome {
                 case .connected:
                     self.readStatusLabel.text =
@@ -3640,6 +3670,9 @@ final class WalletViewController: UIViewController {
                 // is locked/retired by updateDirectShakescapeServiceTimer().
                 if let status {
                     self.directShakescapeStatusSnapshot = status
+                    if let endpoint = status.peerEndpoint {
+                        self.rememberDirectShakescapePeer(endpoint)
+                    }
                 }
                 if let status, previousPeerEndpoint != status.peerEndpoint {
                     self.renderWalletDashboard()
@@ -3652,6 +3685,16 @@ final class WalletViewController: UIViewController {
                     self.synchronizeWalletReads(resumeAutomaticSync: false)
                 }
             }
+        }
+    }
+
+    private func rememberDirectShakescapePeer(_ endpoint: String) {
+        recentDirectShakescapePeers.removeAll { $0 == endpoint }
+        recentDirectShakescapePeers.insert(endpoint, at: 0)
+        if recentDirectShakescapePeers.count > maximumVisibleDirectShakescapePeers {
+            recentDirectShakescapePeers.removeLast(
+                recentDirectShakescapePeers.count - maximumVisibleDirectShakescapePeers
+            )
         }
     }
 
@@ -6312,6 +6355,12 @@ private struct WalletSheetFormField {
     }
 }
 
+private struct WalletSheetSelectionSection {
+    let title: String
+    let options: [String]
+    let emptyMessage: String
+}
+
 private struct WalletMenuAction {
     let title: String
     let style: WalletMenuActionStyle
@@ -6540,6 +6589,7 @@ private final class WalletFormViewController: UIViewController {
     private let formTitle: String
     private let message: String?
     private let fields: [WalletSheetFormField]
+    private let selectionSections: [WalletSheetSelectionSection]
     private let primaryTitle: String
     private let primaryStyle: WalletMenuActionStyle
     private let onSubmit: @MainActor ([String]) -> Void
@@ -6549,6 +6599,7 @@ private final class WalletFormViewController: UIViewController {
         title: String,
         message: String?,
         fields: [WalletSheetFormField],
+        selectionSections: [WalletSheetSelectionSection],
         primaryTitle: String,
         primaryStyle: WalletMenuActionStyle,
         onSubmit: @escaping @MainActor ([String]) -> Void
@@ -6556,6 +6607,7 @@ private final class WalletFormViewController: UIViewController {
         formTitle = title
         self.message = message
         self.fields = fields
+        self.selectionSections = selectionSections
         self.primaryTitle = primaryTitle
         self.primaryStyle = primaryStyle
         self.onSubmit = onSubmit
@@ -6625,6 +6677,30 @@ private final class WalletFormViewController: UIViewController {
             field.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
             textFields.append(field)
             content.addArrangedSubview(card(title: definition.label, content: field))
+        }
+
+        for section in selectionSections {
+            let choices = UIStackView()
+            choices.axis = .vertical
+            choices.spacing = 8
+            if section.options.isEmpty {
+                let empty = UILabel()
+                empty.text = section.emptyMessage
+                empty.font = .preferredFont(forTextStyle: .body)
+                empty.adjustsFontForContentSizeCategory = true
+                empty.textColor = .secondaryLabel
+                empty.numberOfLines = 0
+                choices.addArrangedSubview(empty)
+            } else {
+                for endpoint in section.options.prefix(maximumVisibleDirectShakescapePeers) {
+                    let choice = button(title: endpoint, style: .standard, emphasized: false)
+                    choice.addAction(UIAction { [weak self] _ in
+                        self?.select(endpoint: endpoint)
+                    }, for: .touchUpInside)
+                    choices.addArrangedSubview(choice)
+                }
+            }
+            content.addArrangedSubview(card(title: section.title, content: choices))
         }
 
         let actionHeading = sectionHeading("Actions")
@@ -6721,6 +6797,12 @@ private final class WalletFormViewController: UIViewController {
         let values = textFields.map { $0.text ?? "" }
         clearFields()
         dismiss(animated: true) { [onSubmit] in onSubmit(values) }
+    }
+
+    private func select(endpoint: String) {
+        guard let field = textFields.first else { return }
+        field.text = endpoint
+        field.sendActions(for: .editingChanged)
     }
 
     private func cancel() {

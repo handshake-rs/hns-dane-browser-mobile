@@ -1941,6 +1941,7 @@ struct NativeDirectShakescapeStatus: Equatable, Sendable {
     let peerEndpoint: String?
     let peerCount: UInt8
     let candidateCount: UInt8
+    let discoveredPeers: [String]
     let publiclyReachable: Bool
     let publicIpv6: Bool
     let routerMapped: Bool
@@ -1965,15 +1966,45 @@ struct NativeDirectShakescapeConnectResult: Equatable, Sendable {
 enum NativeDirectShakescapeBundle {
     private static let headerBytes = 12
     private static let maximumEndpointBytes = 128
+    private static let maximumDiscoveredPeers = 3
 
     static func status(_ bundle: [UInt8]) throws -> NativeDirectShakescapeStatus {
-        let endpoint = try validated(
-            bundle,
-            magic: Array("HNDS".utf8),
-            version: 2,
-            lengthOffset: 10,
-            reservedCounters: false
-        )
+        let maximumBundleBytes = headerBytes + 2 + maximumEndpointBytes
+            + maximumDiscoveredPeers * (1 + maximumEndpointBytes)
+        guard bundle.count >= headerBytes + 2,
+              bundle.count <= maximumBundleBytes,
+              Array(bundle[0..<4]) == Array("HNDS".utf8),
+              bundle[4] == 3 else { throw invalid() }
+        let payloadLength = Int(UInt16(bundle[10]) << 8 | UInt16(bundle[11]))
+        guard bundle.count == headerBytes + payloadLength else { throw invalid() }
+        var cursor = headerBytes
+        func readEndpoint() throws -> String {
+            guard cursor < bundle.count else { throw invalid() }
+            let length = Int(bundle[cursor])
+            cursor += 1
+            guard length <= maximumEndpointBytes,
+                  cursor + length <= bundle.count else { throw invalid() }
+            let bytes = Array(bundle[cursor..<(cursor + length)])
+            cursor += length
+            guard let endpoint = String(bytes: bytes, encoding: .utf8),
+                  endpoint.utf8.elementsEqual(bytes),
+                  endpoint.utf8.allSatisfy({ (0x21...0x7e).contains($0) }) else { throw invalid() }
+            return endpoint
+        }
+        let endpoint = try readEndpoint()
+        guard cursor < bundle.count else { throw invalid() }
+        let discoveredCount = Int(bundle[cursor])
+        cursor += 1
+        guard discoveredCount <= maximumDiscoveredPeers,
+              discoveredCount <= Int(bundle[7]) else { throw invalid() }
+        var discoveredPeers: [String] = []
+        for _ in 0..<discoveredCount {
+            let candidate = try readEndpoint()
+            guard !candidate.isEmpty else { throw invalid() }
+            discoveredPeers.append(candidate)
+        }
+        guard cursor == bundle.count,
+              Set(discoveredPeers).count == discoveredPeers.count else { throw invalid() }
         let flags = bundle[5]
         guard flags & ~UInt8(0b1111_1111) == 0 else { throw invalid() }
         let unlocked = flags & 1 != 0
@@ -1999,6 +2030,7 @@ enum NativeDirectShakescapeBundle {
             peerEndpoint: paired ? endpoint : nil,
             peerCount: peerCount,
             candidateCount: candidateCount,
+            discoveredPeers: discoveredPeers,
             publiclyReachable: publiclyReachable,
             publicIpv6: publicIpv6,
             routerMapped: routerMapped,
