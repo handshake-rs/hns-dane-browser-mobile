@@ -43,6 +43,7 @@ data class HnsSyncProgress(
      */
     private val displayStatus: String
         get() = when {
+            status == "outbound_port_blocked" -> status
             isCurrent -> "up_to_date"
             isAuthorityReady -> "name_state_ready"
             syncInFlight -> "syncing"
@@ -248,12 +249,14 @@ data class HnsSyncProgress(
             "error" -> context.getString(R.string.sync_status_error)
             "seed_failed" -> context.getString(R.string.sync_status_seed_failed)
             "peer_failed" -> context.getString(R.string.sync_status_peer_failed)
+            "outbound_port_blocked" -> context.getString(R.string.sync_status_outbound_port_blocked)
             else -> displayStatus.replace('_', ' ')
         }
 
     companion object {
         private val CURRENT_STATUSES = setOf("up_to_date", "synced", "attempted")
-        private val RETRY_STATUSES = setOf("error", "peer_failed", "seed_failed")
+        private val RETRY_STATUSES =
+            setOf("error", "peer_failed", "seed_failed", "outbound_port_blocked")
         private const val CURRENT_SCHEMA_VERSION = 3L
         private const val REQUIRED_FRESHNESS_THRESHOLD_BLOCKS = 2L
         private const val REQUIRED_TARGET_PEER_GROUPS = 3L

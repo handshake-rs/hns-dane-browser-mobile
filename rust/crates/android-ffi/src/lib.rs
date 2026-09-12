@@ -101,6 +101,7 @@ const WALLET_HNS_SYNC_CATCHUP_BYTES: usize = 20;
 const WALLET_HNS_SYNC_HEADER_CURRENT: u8 = 1;
 const WALLET_HNS_SYNC_HEADER_SYNCING: u8 = 2;
 const WALLET_HNS_SYNC_HEADER_DEGRADED: u8 = 3;
+const WALLET_HNS_SYNC_HEADER_OUTBOUND_PORT_BLOCKED: u8 = 4;
 /// A read-only, non-authoritative mailbox for a direct wallet sync that is
 /// currently holding the controller mutex. The UI reads this instead of
 /// contending for the controller while a peer round is in flight.
@@ -4329,6 +4330,7 @@ fn direct_hns_transport_error_is_retryable(error: &HnsDirectPeerError) -> bool {
             error,
             HnsDirectPeerError::Peer(_)
                 | HnsDirectPeerError::Io(_)
+                | HnsDirectPeerError::OutboundPortLikelyBlocked { .. }
                 | HnsDirectPeerError::NoReadyPeers
                 | HnsDirectPeerError::ResponseEventLimit
                 | HnsDirectPeerError::UnexpectedPeerEvent
@@ -4354,7 +4356,11 @@ fn direct_hns_transport_catchup(
     // A remote transport failure means that the currently persisted header
     // view cannot be promoted to a live, peer-agreed wallet read. The Kotlin
     // projection then explains the recovery path and withholds every value.
-    progress.header_state = WALLET_HNS_SYNC_HEADER_DEGRADED;
+    progress.header_state = if error.likely_blocked_outbound_port() == Some(12_038) {
+        WALLET_HNS_SYNC_HEADER_OUTBOUND_PORT_BLOCKED
+    } else {
+        WALLET_HNS_SYNC_HEADER_DEGRADED
+    };
     Ok(AndroidHnsSynchronization::CatchingUp(progress))
 }
 
@@ -4489,6 +4495,7 @@ fn wallet_hns_sync_catchup_bundle(progress: AndroidHnsCatchupProgress) -> Option
         WALLET_HNS_SYNC_HEADER_CURRENT
             | WALLET_HNS_SYNC_HEADER_SYNCING
             | WALLET_HNS_SYNC_HEADER_DEGRADED
+            | WALLET_HNS_SYNC_HEADER_OUTBOUND_PORT_BLOCKED
     ) || progress.scanned_height.is_some_and(|height| {
         height < progress.birthday_height || height > progress.scan_target_height
     }) {
@@ -8898,6 +8905,16 @@ mod tests {
                 250,
                 0,
             ]
+        );
+
+        let blocked = wallet_hns_sync_catchup_bundle(AndroidHnsCatchupProgress {
+            header_state: WALLET_HNS_SYNC_HEADER_OUTBOUND_PORT_BLOCKED,
+            ..progress
+        })
+        .expect("blocked-port catchup bundle");
+        assert_eq!(
+            blocked[WALLET_HNS_SYNC_BUNDLE_HEADER_BYTES],
+            WALLET_HNS_SYNC_HEADER_OUTBOUND_PORT_BLOCKED,
         );
 
         assert!(

@@ -4497,17 +4497,24 @@ final class WalletViewController: UIViewController {
                 case .catchingUp(let progress):
                     self.clearReadProjection()
                     self.renderHnsCatchup(progress)
-                    // Keep every value action disabled across the bounded
-                    // checkpoint gap. This remains one logical sync until the
-                    // next round starts or lifecycle authority is revoked.
-                    self.isOperating = true
-                    self.hnsCatchupRetryPending = true
-                    self.scheduleHnsCatchupRetry(
-                        lease: lease,
-                        wallet: wallet,
-                        generation: generation,
-                        authorityGeneration: authorityGeneration
-                    )
+                    if progress.headerState != .outboundPortBlocked {
+                        // Keep every value action disabled across the bounded
+                        // checkpoint gap. This remains one logical sync until
+                        // the next round starts or authority is revoked.
+                        self.isOperating = true
+                        self.hnsCatchupRetryPending = true
+                        self.scheduleHnsCatchupRetry(
+                            lease: lease,
+                            wallet: wallet,
+                            generation: generation,
+                            authorityGeneration: authorityGeneration
+                        )
+                    } else {
+                        // This foreground attempt cannot make progress on the
+                        // current path. Let a later explicit synchronization
+                        // retry after the network or VPN route changes.
+                        self.hnsCatchupRetryPending = false
+                    }
                 case .cancelled:
                     self.readStatusLabel.text = "HNS synchronization stopped. Existing synchronized balances remain available."
                 case .failure(let detail):
@@ -4535,6 +4542,8 @@ final class WalletViewController: UIViewController {
             readStatusLabel.text = "Verifying direct peer headers at \(progress.headerTipHeight). Wallet scan checkpoint \(scanned) of \(progress.targetHeight); continuing automatically."
         case .degraded:
             readStatusLabel.text = "Direct peers checkpointed at verified height \(progress.headerTipHeight). Retrying from the durable checkpoint."
+        case .outboundPortBlocked:
+            readStatusLabel.text = "The current network appears to block outbound TCP port 12038. Handshake synchronization cannot reach public peers. Try another network or a VPN/exit node, then synchronize again."
         }
     }
 

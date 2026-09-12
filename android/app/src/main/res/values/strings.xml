@@ -121,6 +121,7 @@
     <string name="sync_status_error">error</string>
     <string name="sync_status_seed_failed">seed failed</string>
     <string name="sync_status_peer_failed">peer failed</string>
+    <string name="sync_status_outbound_port_blocked">network blocks outbound TCP 12038</string>
     <string name="sync_progress_preparing">Preparing Handshake synchronization…</string>
     <string name="sync_progress_target">target %1$s</string>
     <string name="sync_progress_best_peer_height">bestPeerHeight %1$s</string>
@@ -388,6 +389,7 @@
     <string name="wallet_status_locking" translatable="false">Locking native wallet…</string>
     <string name="wallet_status_deleting" translatable="false">Deleting the confirmed native wallet…</string>
     <string name="wallet_status_syncing_reads" translatable="false">Synchronizing read-only HNS wallet…</string>
+    <string name="wallet_status_outbound_12038_blocked" translatable="false">Handshake synchronization is blocked by this network.</string>
     <string name="wallet_reads_sync_stopped_checkpoint" translatable="false">HNS synchronization stopped. The last completed durable checkpoint was retained.</string>
     <string name="wallet_status_stopping_sync" translatable="false">Stopping HNS synchronization…</string>
     <string name="wallet_reads_stopping_at_safe_checkpoint" translatable="false">The stop request is active. No additional synchronization batch will start; the last completed durable checkpoint is retained. Protected storage remains owned only while the active atomic call unwinds.</string>
@@ -443,6 +445,7 @@
     <string name="wallet_reads_catching_up_before_birthday" translatable="false">Verified headers are at height %1$d and are catching up toward this restored wallet’s birthday height %2$d. Wallet scanning will begin after the headers reach that height.</string>
     <string name="wallet_reads_catching_up_scan" translatable="false">Verified chain headers are current. Wallet history has scanned through %1$d of %2$d. Synchronization will continue automatically from this checkpoint.</string>
     <string name="wallet_reads_catching_up_degraded" translatable="false">Direct peers did not reach current header agreement at local height %1$d. Automatic synchronization will retry with replacement peers.</string>
+    <string name="wallet_reads_outbound_12038_blocked" translatable="false">The current network appears to block outbound TCP port 12038. Handshake synchronization cannot reach public peers. Try another network or a VPN/exit node, then synchronize again.</string>
     <string name="wallet_reads_ready" translatable="false">Handshake wallet state is ready at height %1$d.</string>
     <string name="wallet_reads_balance_unavailable" translatable="false">Balance is not available until a verified wallet snapshot completes.</string>
     <string name="wallet_reads_balance_syncing" translatable="false">Balance is waiting for the active direct-peer verification and wallet scan to finish.</string>

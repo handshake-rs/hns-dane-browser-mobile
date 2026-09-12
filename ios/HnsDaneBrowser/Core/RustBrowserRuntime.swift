@@ -389,7 +389,9 @@ final class RustBrowserRuntime: BrowserRuntime {
             && hasAuthoritativeCurrentness
 
         let headline: String
-        if syncInFlight && !hasAuthoritativeTreeRoot {
+        if status == "outbound_port_blocked" {
+            headline = "Network blocks outbound TCP 12038"
+        } else if syncInFlight && !hasAuthoritativeTreeRoot {
             headline = "Syncing Handshake headers"
         } else if isCurrent {
             headline = "Handshake headers current"

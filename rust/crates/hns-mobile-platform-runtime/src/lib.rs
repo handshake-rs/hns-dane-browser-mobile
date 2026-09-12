@@ -107,8 +107,8 @@ enum NamespaceRootState {
     Failed,
 }
 use hns_sync::{
-    HeaderSyncCoordinator, HeaderSyncRunner, HeaderSyncRunnerConfig, ProofScheduler,
-    TcpHeaderPeerConnector, VerifiedResourceValue as SyncVerifiedResourceValue,
+    HeaderPeerFailure, HeaderSyncCoordinator, HeaderSyncRunner, HeaderSyncRunnerConfig,
+    ProofScheduler, TcpHeaderPeerConnector, VerifiedResourceValue as SyncVerifiedResourceValue,
     VerifiedResourceValueSink,
 };
 
@@ -15882,18 +15882,32 @@ fn run_sync_once(
         );
     let (resource_cache_entries, resource_cache_bytes) = resource_cache_stats(&base)?;
     let failed = result.failures.len();
-    let status = classify_sync_status(
-        result.attempted,
+    let blocked_port_peer_count = likely_blocked_mainnet_header_port(
+        network_kind,
         result.successful,
         result.accepted,
-        failed,
-        seed_error.is_some(),
-        best_height,
-        currentness.target_height,
+        &result.failures,
     );
+    let status = if blocked_port_peer_count.is_some() {
+        "outbound_port_blocked"
+    } else {
+        classify_sync_status(
+            result.attempted,
+            result.successful,
+            result.accepted,
+            failed,
+            seed_error.is_some(),
+            best_height,
+            currentness.target_height,
+        )
+    };
     let all_attempted_peers_failed =
         result.attempted > 0 && result.successful == 0 && result.accepted == 0 && failed > 0;
-    let error = if all_attempted_peers_failed {
+    let error = if let Some(peer_count) = blocked_port_peer_count {
+        Some(format!(
+            "The current network appears to block outbound TCP port 12038: all {peer_count} distinct Handshake peers timed out. Try another network or a VPN/exit node."
+        ))
+    } else if all_attempted_peers_failed {
         let context = if status == "up_to_date" {
             "the retained verified chain remains current against non-expired corroborated peer evidence"
         } else {
@@ -15952,6 +15966,31 @@ fn run_sync_once(
             })
             .collect(),
     })
+}
+
+fn likely_blocked_mainnet_header_port(
+    network: NetworkKind,
+    successful: usize,
+    accepted: usize,
+    failures: &[HeaderPeerFailure],
+) -> Option<usize> {
+    if network != NetworkKind::Mainnet || successful != 0 || accepted != 0 {
+        return None;
+    }
+    let mut distinct_peers = HashSet::new();
+    for failure in failures {
+        let normalized_error = failure.error.to_ascii_lowercase();
+        if failure.address.port() != 12_038
+            || failure.stage.as_str() != "connect"
+            || !(normalized_error.contains("timedout")
+                || normalized_error.contains("timed out")
+                || normalized_error.contains("timed_out"))
+        {
+            return None;
+        }
+        distinct_peers.insert(failure.address.ip());
+    }
+    (distinct_peers.len() >= 3).then_some(distinct_peers.len())
 }
 
 fn mobile_header_sync_runner_config(
@@ -21978,6 +22017,44 @@ mod tests {
             "seed_failed",
         );
         assert_eq!(classify_sync_status(0, 0, 0, 0, false, None, None), "idle");
+    }
+
+    #[test]
+    fn header_port_diagnosis_requires_three_distinct_mainnet_connect_timeouts() {
+        let timed_out = |address: &str| HeaderPeerFailure {
+            address: address.parse().unwrap(),
+            stage: hns_sync::HeaderPeerFailureStage::Connect,
+            error: "network I/O error: TimedOut".to_owned(),
+        };
+        let failures = vec![
+            timed_out("1.1.1.1:12038"),
+            timed_out("8.8.8.8:12038"),
+            timed_out("9.9.9.9:12038"),
+        ];
+
+        assert_eq!(
+            likely_blocked_mainnet_header_port(NetworkKind::Mainnet, 0, 0, &failures),
+            Some(3),
+        );
+        assert_eq!(
+            likely_blocked_mainnet_header_port(NetworkKind::Mainnet, 0, 0, &failures[..2]),
+            None,
+        );
+        assert_eq!(
+            likely_blocked_mainnet_header_port(NetworkKind::Mainnet, 1, 0, &failures),
+            None,
+        );
+        assert_eq!(
+            likely_blocked_mainnet_header_port(NetworkKind::Testnet, 0, 0, &failures),
+            None,
+        );
+
+        let mut mixed = failures;
+        mixed[2].error = "network I/O error: ConnectionRefused".to_owned();
+        assert_eq!(
+            likely_blocked_mainnet_header_port(NetworkKind::Mainnet, 0, 0, &mixed),
+            None,
+        );
     }
 
     #[test]

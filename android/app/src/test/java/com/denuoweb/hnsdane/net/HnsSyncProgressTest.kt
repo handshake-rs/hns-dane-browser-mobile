@@ -297,4 +297,18 @@ class HnsSyncProgressTest {
 
         assertTrue(progress.shouldRetrySoon)
     }
+
+    @Test
+    fun blockedHandshakePortIsActionableInsteadOfIndefiniteSyncing() {
+        val progress = HnsSyncProgress.fromJson(
+            """{"syncStatusSchemaVersion":3,"network":"mainnet","status":"outbound_port_blocked","attempted":1,"successful":0,"accepted":0,"failed":4,"bestHeight":346758,"effectiveTargetHeight":346758,"lagBlocks":0,"freshness":"current","freshnessThresholdBlocks":2,"treeIntervalBlocks":36,"authoritativeTreeRootHeight":346753,"localTreeRootHeight":346753,"treeRootReady":true,"blocksUntilAuthoritativeTreeRoot":0,"targetSource":"corroboratedPeers","targetPeerGroups":3,"targetEvidenceExpired":false}""",
+        )
+
+        assertEquals("outbound_port_blocked", progress.status)
+        assertTrue(progress.isAuthorityReady)
+        assertTrue(progress.requiresAttention)
+        assertTrue(progress.shouldRetrySoon)
+        assertFalse(progress.isCurrent)
+        assertTrue(progress.summary().startsWith("outbound_port_blocked"))
+    }
 }

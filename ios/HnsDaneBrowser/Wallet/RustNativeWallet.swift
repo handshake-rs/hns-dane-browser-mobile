@@ -928,6 +928,7 @@ struct NativeHnsCatchupProgress: Equatable, Sendable {
         case current = 1
         case syncing = 2
         case degraded = 3
+        case outboundPortBlocked = 4
     }
 
     let headerState: HeaderState

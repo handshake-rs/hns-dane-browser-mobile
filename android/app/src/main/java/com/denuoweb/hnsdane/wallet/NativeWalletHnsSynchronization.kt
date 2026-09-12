@@ -37,6 +37,7 @@ internal data class NativeWalletHnsCatchupProgress(
         Current,
         Syncing,
         Degraded,
+        OutboundPortBlocked,
     }
 }
 
@@ -86,6 +87,8 @@ private object NativeWalletHnsSynchronizationParser {
             HEADER_CURRENT -> NativeWalletHnsCatchupProgress.HeaderState.Current
             HEADER_SYNCING -> NativeWalletHnsCatchupProgress.HeaderState.Syncing
             HEADER_DEGRADED -> NativeWalletHnsCatchupProgress.HeaderState.Degraded
+            HEADER_OUTBOUND_PORT_BLOCKED ->
+                NativeWalletHnsCatchupProgress.HeaderState.OutboundPortBlocked
             else -> throw IllegalArgumentException("unknown header catch-up state")
         }
         val hasScannedHeight = when (value.get().toInt() and 0xff) {
@@ -124,6 +127,7 @@ private object NativeWalletHnsSynchronizationParser {
     private const val HEADER_CURRENT = 1
     private const val HEADER_SYNCING = 2
     private const val HEADER_DEGRADED = 3
+    private const val HEADER_OUTBOUND_PORT_BLOCKED = 4
     private const val HEADER_BYTES = 12
     private const val CATCHUP_BYTES = 20
     private const val MAX_BUNDLE_BYTES = HEADER_BYTES + 12 + 4 * 1024 * 1024

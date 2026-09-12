@@ -875,7 +875,7 @@ class WalletActivity : ComponentActivity() {
             WalletDashboardMode.UnlockedWallet ->
                 if (showingNamesPage && latestReadSnapshot != null) {
                     renderNamesPage(
-                        actionsAvailable = availability.mutations,
+                        navigationAvailable = availability.navigation,
                     )
                 } else {
                     renderUnlockedWalletDashboard(
@@ -1031,10 +1031,10 @@ class WalletActivity : ComponentActivity() {
         if (actionsAvailable) schedulePendingPaymentPresentation()
     }
 
-    private fun renderNamesPage(actionsAvailable: Boolean) {
+    private fun renderNamesPage(navigationAvailable: Boolean) {
         val snapshot = latestReadSnapshot ?: run {
             showingNamesPage = false
-            renderUnlockedWalletDashboard(actionsAvailable)
+            renderUnlockedWalletDashboard(navigationAvailable)
             return
         }
         addCellularDataWarningIfNeeded(walletUnlocked = true)
@@ -1060,7 +1060,7 @@ class WalletActivity : ComponentActivity() {
 
         if (showingTrackedNameSearch) {
             val search = trackedNameSearchField(
-                actionsAvailable = actionsAvailable,
+                actionsAvailable = navigationAvailable,
                 total = total,
             )
             dashboardContent.addView(search, LinearLayout.LayoutParams(
@@ -1098,7 +1098,7 @@ class WalletActivity : ComponentActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
         ))
-        renderNamesGalleryFooter(actionsAvailable, total)
+        renderNamesGalleryFooter(navigationAvailable, total)
         // The footer must be populated and visible before its window position
         // can define the remaining card viewport.
         fitNameCardToViewport(nameCard)
@@ -3840,19 +3840,30 @@ class WalletActivity : ComponentActivity() {
                                 "${synchronization.catchup.scannedHeight ?: synchronization.catchup.birthdayHeight} " +
                                 "of ${synchronization.catchup.scanTargetHeight}",
                         )
-                        // A bounded checkpoint is an internal yield, not an
-                        // unlock or terminal wallet state. Install the retry
-                        // token before rendering so the dashboard remains one
-                        // continuous synchronization with value actions
-                        // disabled throughout the short checkpoint gap.
-                        scheduleHnsCatchupRetry(
-                            lease,
-                            handle,
-                            epoch,
-                            authorityGeneration,
-                            synchronization.catchup.headerState,
-                        )
-                        statusView.text = getString(R.string.wallet_status_syncing_reads)
+                        if (
+                            synchronization.catchup.headerState !=
+                                NativeWalletHnsCatchupProgress.HeaderState.OutboundPortBlocked
+                        ) {
+                            // A bounded checkpoint is an internal yield, not
+                            // an unlock or terminal wallet state. Keep value
+                            // actions disabled across its short retry gap.
+                            scheduleHnsCatchupRetry(
+                                lease,
+                                handle,
+                                epoch,
+                                authorityGeneration,
+                                synchronization.catchup.headerState,
+                            )
+                            statusView.text = getString(R.string.wallet_status_syncing_reads)
+                        } else {
+                            // A path-wide port diagnosis is terminal for this
+                            // foreground attempt. The user can change network
+                            // and explicitly synchronize again; do not spin an
+                            // inert two-second retry loop.
+                            hnsCatchupRetry?.set(false)
+                            hnsCatchupRetry = null
+                            statusView.text = getString(R.string.wallet_status_outbound_12038_blocked)
+                        }
                         renderReadCatchup(synchronization.catchup)
                     }
                     else -> {
@@ -8260,6 +8271,10 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_reads_catching_up_degraded,
                 progress.headerTipHeight,
             )
+
+            NativeWalletHnsCatchupProgress.HeaderState.OutboundPortBlocked -> getString(
+                R.string.wallet_reads_outbound_12038_blocked,
+            )
         }
         renderWalletDashboard()
     }
@@ -8452,6 +8467,10 @@ class WalletActivity : ComponentActivity() {
             NativeWalletHnsCatchupProgress.HeaderState.Degraded -> getString(
                 R.string.wallet_reads_catching_up_degraded,
                 progress.headerTipHeight,
+            )
+
+            NativeWalletHnsCatchupProgress.HeaderState.OutboundPortBlocked -> getString(
+                R.string.wallet_reads_outbound_12038_blocked,
             )
         }
     }
@@ -9003,7 +9022,10 @@ internal fun walletValueActionMayReuseVerifiedSnapshot(
 internal fun directHnsCatchupRetryDelayMillis(
     headerState: NativeWalletHnsCatchupProgress.HeaderState,
 ): Long =
-    if (headerState == NativeWalletHnsCatchupProgress.HeaderState.Degraded) {
+    if (
+        headerState == NativeWalletHnsCatchupProgress.HeaderState.Degraded ||
+            headerState == NativeWalletHnsCatchupProgress.HeaderState.OutboundPortBlocked
+    ) {
         HNS_CATCHUP_DEGRADED_RETRY_DELAY_MILLIS
     } else {
         HNS_CATCHUP_PROGRESS_RETRY_DELAY_MILLIS

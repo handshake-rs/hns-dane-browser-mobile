@@ -108,6 +108,24 @@ class NativeWalletDirectSynchronizationTest {
     }
 
     @Test
+    fun catchupBundlePreservesOutboundHandshakePortDiagnosis() {
+        val bundle = catchupBundle(
+            headerState = 4,
+            birthdayHeight = 0,
+            scannedHeight = null,
+            scanTargetHeight = 64_000,
+        )
+
+        val parsed = NativeWalletBridge.parseAndWipeHnsSynchronizationBundle(bundle)
+
+        assertEquals(
+            NativeWalletHnsCatchupProgress.HeaderState.OutboundPortBlocked,
+            parsed?.catchup?.headerState,
+        )
+        assertTrue(bundle.all { it == 0.toByte() })
+    }
+
+    @Test
     fun malformedCatchupCannotBecomeASnapshotOrProgressProjection() {
         val bundle = catchupBundle(
             headerState = 1,

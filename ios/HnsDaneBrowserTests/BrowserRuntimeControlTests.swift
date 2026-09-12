@@ -173,6 +173,25 @@ final class BrowserRuntimeControlTests: XCTestCase {
             ))
         )
 
+        let blockedPort = try NativeHnsSynchronization.decode(bundle:
+            hnsSynchronizationCatchupBundle(
+                headerState: 4,
+                birthdayHeight: 1_000,
+                scannedHeight: nil,
+                targetHeight: 64_000
+            )
+        )
+        XCTAssertEqual(
+            blockedPort,
+            .catchingUp(NativeHnsCatchupProgress(
+                headerState: .outboundPortBlocked,
+                headerTipHeight: 64_000,
+                birthdayHeight: 1_000,
+                scannedHeight: nil,
+                targetHeight: 64_000
+            ))
+        )
+
         XCTAssertThrowsError(try NativeHnsSynchronization.decode(bundle:
             hnsSynchronizationCatchupBundle(
                 headerState: 1,
@@ -3184,6 +3203,21 @@ final class BrowserRuntimeControlTests: XCTestCase {
             summary.syncGateProgressText,
             "Current block: 324,000\nTarget block: 336,900 (estimated until peers agree)"
         )
+    }
+
+    func testSyncDiagnosticNamesBlockedHandshakePort() throws {
+        let detail = "The current network appears to block outbound TCP port 12038."
+        var blocked = publicAuthorityStatus(status: "outbound_port_blocked")
+        blocked["error"] = detail
+        blocked["successful"] = 0
+        blocked["accepted"] = 0
+        blocked["failed"] = 4
+        let summary = try RustBrowserRuntime.syncSummary(from: blocked)
+
+        XCTAssertTrue(summary.hasAuthoritativeTreeRoot)
+        XCTAssertEqual(summary.headline, "Network blocks outbound TCP 12038")
+        XCTAssertEqual(summary.detail, detail)
+        XCTAssertFalse(summary.isCurrent)
     }
 
     func testIOSRecognizesAndroidCurrentSyncStates() throws {
