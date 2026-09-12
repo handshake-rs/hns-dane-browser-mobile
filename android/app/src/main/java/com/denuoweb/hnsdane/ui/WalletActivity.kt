@@ -6282,8 +6282,17 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun connectWalletOwnedDirectShakescape(endpoint: String) {
+        val normalizedEndpoint = endpoint.trim()
         val (lease, handle) = directShakescapeContext() ?: run {
-            directShakescapeStatusView.text = getString(R.string.wallet_direct_shakescape_unavailable)
+            val message = getString(R.string.wallet_direct_shakescape_unavailable)
+            directShakescapeStatusView.text = message
+            shakedexQueryStatusView.text = message
+            Log.w(
+                TAG,
+                "Direct Shakescape pairing stopped before native connection because the " +
+                    "wallet operation context was unavailable",
+            )
+            showShakedexDashboard()
             return
         }
         if (!beginOperation(
@@ -6291,12 +6300,24 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_status_connecting_direct_shakescape),
                 resetReads = false,
             )
-        ) return
+        ) {
+            Log.w(
+                TAG,
+                "Direct Shakescape pairing stopped at the operation gate: " +
+                    "busy=$busy hnsSync=${hasActiveWalletHnsSynchronization()}",
+            )
+            showShakedexDashboard()
+            return
+        }
         shakedexQueryStatusView.text = getString(R.string.wallet_direct_shakescape_connecting)
         val epoch = lifecycleEpoch
         val authorityGeneration = walletAuthorityGeneration
         thread(name = "hns-wallet-direct-shakescape-connect") {
-            val result = NativeWalletBridge.connectWalletOwnedDirectShakescape(handle, endpoint)
+            Log.i(TAG, "Starting native direct Shakescape pairing with $normalizedEndpoint")
+            val result = NativeWalletBridge.connectWalletOwnedDirectShakescape(
+                handle,
+                normalizedEndpoint,
+            )
             runOnUiThread {
                 val mayPublish = walletReadMayPublish(
                     expectedEpoch = epoch,
@@ -6316,6 +6337,16 @@ class WalletActivity : ComponentActivity() {
                 refreshControllerState(resetReads = false)
                 shakedexQueryStatusView.text = directShakescapeConnectionMessage(result)
                 result?.peerEndpoint?.let(::rememberDirectShakescapePeer)
+                val outcome = result?.outcome?.name ?: "BridgeFailed"
+                if (result?.peerEndpoint != null) {
+                    Log.i(
+                        TAG,
+                        "Native direct Shakescape pairing completed: " +
+                            "outcome=$outcome peer=${result.peerEndpoint}",
+                    )
+                } else {
+                    Log.w(TAG, "Native direct Shakescape pairing completed: outcome=$outcome")
+                }
                 showShakedexDashboard()
             }
         }
@@ -6452,11 +6483,12 @@ class WalletActivity : ComponentActivity() {
     private fun directShakescapeContext(): Pair<WalletStorageOwnershipGate.Lease, Long>? {
         val lease = currentStorageLease() ?: return null
         val handle = walletHandle
-        val status = freshValueActionStatus(handle)
         return (lease to handle).takeIf {
-            handle != INVALID_HANDLE && status != null && !status.locked &&
-                unconfirmedDatabaseKey == null &&
-                freshDirectShakescapeStatus(handle) != null
+            walletDirectShakescapeOperationMayBegin(
+                hasCurrentLease = true,
+                hasController = handle != INVALID_HANDLE,
+                hasUnconfirmedKey = unconfirmedDatabaseKey != null,
+            )
         }
     }
 
@@ -9151,6 +9183,19 @@ internal fun walletDirectShakescapeWorkerMustStop(nativeLocked: Boolean?): Boole
 
 internal fun walletDirectShakescapeWorkerMayService(nativeLocked: Boolean?): Boolean =
     nativeLocked == false
+
+/**
+ * A UI transport operation needs stable Java-owned lifetime authority only.
+ * Native connect/retry/disconnect calls take the controller's blocking mutex
+ * and authoritatively report a locked or unsupported controller. Requiring a
+ * preceding non-blocking native status read creates a false rejection whenever
+ * the foreground Shakescape service tick momentarily owns that mutex.
+ */
+internal fun walletDirectShakescapeOperationMayBegin(
+    hasCurrentLease: Boolean,
+    hasController: Boolean,
+    hasUnconfirmedKey: Boolean,
+): Boolean = hasCurrentLease && hasController && !hasUnconfirmedKey
 
 internal fun walletPullToSyncMayStart(
     windowHasFocus: Boolean,

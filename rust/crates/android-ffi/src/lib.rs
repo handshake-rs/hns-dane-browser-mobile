@@ -2315,12 +2315,14 @@ impl AndroidWalletController {
                 };
             }
         };
-        if controller
+        if let Err(error) = controller
             .begin_wallet_owned_direct_shakedex(&mut peer)
             .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
             .and_then(|_| shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
-            .is_err()
         {
+            android_log_error(&format!(
+                "wallet-owned Shakescape registry exchange failed for {address}: {error}"
+            ));
             return AndroidDirectShakescapeConnectResult {
                 outcome: AndroidDirectShakescapeConnectOutcome::ExchangeFailed,
                 peer_endpoint: None,

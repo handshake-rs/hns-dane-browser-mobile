@@ -23,6 +23,42 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
+    fun direct_pairing_preflight_does_not_depend_on_a_transient_native_status_read() {
+        assertEquals(
+            true,
+            walletDirectShakescapeOperationMayBegin(
+                hasCurrentLease = true,
+                hasController = true,
+                hasUnconfirmedKey = false,
+            ),
+        )
+        assertEquals(
+            false,
+            walletDirectShakescapeOperationMayBegin(
+                hasCurrentLease = false,
+                hasController = true,
+                hasUnconfirmedKey = false,
+            ),
+        )
+        assertEquals(
+            false,
+            walletDirectShakescapeOperationMayBegin(
+                hasCurrentLease = true,
+                hasController = false,
+                hasUnconfirmedKey = false,
+            ),
+        )
+        assertEquals(
+            false,
+            walletDirectShakescapeOperationMayBegin(
+                hasCurrentLease = true,
+                hasController = true,
+                hasUnconfirmedKey = true,
+            ),
+        )
+    }
+
+    @Test
     fun direct_offer_take_funding_includes_the_received_asset_and_fee_reserve() {
         assertEquals(150_000L, directOfferTakeRequiredFunding(100_000L, 50_000L))
         assertNull(directOfferTakeRequiredFunding(Long.MAX_VALUE, 1L))
