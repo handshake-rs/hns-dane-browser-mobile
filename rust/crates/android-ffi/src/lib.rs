@@ -2017,30 +2017,66 @@ impl AndroidWalletController {
                 Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                     request_id,
                     message,
-                })) => Some(
-                    match controller
-                        .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                    {
-                        Ok(report) => {
-                            board_changed =
-                                report.offers_admitted != 0 || report.cancellations_admitted != 0;
-                            true
-                        }
-                        Err(error) => {
-                            // The peer multiplexer has already authenticated and
-                            // decoded the frame. Board admission can still fail
-                            // because this light wallet lacks current chain evidence
-                            // for a remote seller or because its local store is
-                            // temporarily unavailable. Neither condition makes the
-                            // negotiated peer malicious or unreachable, so retain
-                            // the socket and let later inventory/sync rounds retry.
-                            android_log_error(&format!(
-                                "wallet-owned Shakescape name-market message could not be admitted locally; peer retained: {error}"
-                            ));
-                            true
-                        }
-                    },
-                ),
+                })) => {
+                    let retry_message = message.clone();
+                    Some(
+                        match controller
+                            .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+                        {
+                            Ok(report) => {
+                                board_changed = report.offers_admitted != 0
+                                    || report.cancellations_admitted != 0;
+                                true
+                            }
+                            Err(initial_error) => {
+                                // Remote seller locks commonly predate a new light
+                                // wallet's birthday. Fetch only the listing name's
+                                // current-root proof, owner block, and uncommitted
+                                // name-tree interval from independent ordinary HNS
+                                // peers, then retry the exact already-decoded message.
+                                match coordinator.synchronize_name_market_message_evidence(
+                                    &retry_message,
+                                    now_unix,
+                                ) {
+                                    Ok(admitted) => match controller
+                                        .service_wallet_owned_direct_shakedex_message(
+                                            peer,
+                                            request_id,
+                                            retry_message,
+                                        ) {
+                                        Ok(report) => {
+                                            board_changed = report.offers_admitted != 0
+                                                || report.cancellations_admitted != 0;
+                                            android_log_info(
+                                                "hns-shakescape",
+                                                &format!(
+                                                    "verified remote name-lock evidence transactions={admitted}; name-market admission retry succeeded"
+                                                ),
+                                            );
+                                            true
+                                        }
+                                        Err(retry_error) => {
+                                            android_log_error(&format!(
+                                                "wallet-owned Shakescape name-market admission still failed after verified evidence backfill; peer retained: initial={initial_error}; retry={retry_error}"
+                                            ));
+                                            true
+                                        }
+                                    },
+                                    Err(evidence_error) => {
+                                        // Board failure is not a transport failure.
+                                        // Keep the authenticated socket so a later
+                                        // inventory round can retry after HNS peers
+                                        // or chain evidence become available.
+                                        android_log_error(&format!(
+                                            "wallet-owned Shakescape name-market message could not be admitted locally; peer retained: {initial_error}; verified evidence backfill failed: {evidence_error}"
+                                        ));
+                                        true
+                                    }
+                                }
+                            }
+                        },
+                    )
+                }
                 Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
                     match shakescape_sessions.service_direct_envelope(
                         peer,
@@ -2090,23 +2126,57 @@ impl AndroidWalletController {
                     Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                         request_id,
                         message,
-                    })) => Some(
-                        match controller
-                            .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                        {
-                            Ok(report) => {
-                                board_changed = report.offers_admitted != 0
-                                    || report.cancellations_admitted != 0;
-                                true
-                            }
-                            Err(error) => {
-                                android_log_error(&format!(
-                                    "wallet-owned replicated Shakescape name-market message could not be admitted locally; peer retained: {error}"
-                                ));
-                                true
-                            }
-                        },
-                    ),
+                    })) => {
+                        let retry_message = message.clone();
+                        Some(
+                            match controller.service_wallet_owned_direct_shakedex_message(
+                                peer, request_id, message,
+                            ) {
+                                Ok(report) => {
+                                    board_changed = report.offers_admitted != 0
+                                        || report.cancellations_admitted != 0;
+                                    true
+                                }
+                                Err(initial_error) => {
+                                    match coordinator.synchronize_name_market_message_evidence(
+                                        &retry_message,
+                                        now_unix,
+                                    ) {
+                                        Ok(admitted) => match controller
+                                            .service_wallet_owned_direct_shakedex_message(
+                                                peer,
+                                                request_id,
+                                                retry_message,
+                                            ) {
+                                            Ok(report) => {
+                                                board_changed = report.offers_admitted != 0
+                                                    || report.cancellations_admitted != 0;
+                                                android_log_info(
+                                                    "hns-shakescape",
+                                                    &format!(
+                                                        "verified replicated remote name-lock evidence transactions={admitted}; name-market admission retry succeeded"
+                                                    ),
+                                                );
+                                                true
+                                            }
+                                            Err(retry_error) => {
+                                                android_log_error(&format!(
+                                                    "wallet-owned replicated Shakescape name-market admission still failed after verified evidence backfill; peer retained: initial={initial_error}; retry={retry_error}"
+                                                ));
+                                                true
+                                            }
+                                        },
+                                        Err(evidence_error) => {
+                                            android_log_error(&format!(
+                                                "wallet-owned replicated Shakescape name-market message could not be admitted locally; peer retained: {initial_error}; verified evidence backfill failed: {evidence_error}"
+                                            ));
+                                            true
+                                        }
+                                    }
+                                }
+                            },
+                        )
+                    }
                     Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
                         match shakescape_sessions.service_direct_envelope(
                             peer,

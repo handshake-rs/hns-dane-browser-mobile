@@ -1940,15 +1940,40 @@ impl NativeWalletController {
                 Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                     request_id,
                     message,
-                })) => Some(
-                    controller
-                        .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                        .is_ok_and(|report| {
-                            board_changed =
-                                report.offers_admitted != 0 || report.cancellations_admitted != 0;
-                            true
-                        }),
-                ),
+                })) => {
+                    let retry_message = message.clone();
+                    Some(
+                        match controller
+                            .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+                        {
+                            Ok(report) => {
+                                board_changed = report.offers_admitted != 0
+                                    || report.cancellations_admitted != 0;
+                                true
+                            }
+                            Err(_) => match coordinator
+                                .synchronize_name_market_message_evidence(&retry_message, now_unix)
+                            {
+                                Ok(_) => controller
+                                    .service_wallet_owned_direct_shakedex_message(
+                                        peer,
+                                        request_id,
+                                        retry_message,
+                                    )
+                                    .map(|report| {
+                                        board_changed = report.offers_admitted != 0
+                                            || report.cancellations_admitted != 0;
+                                        true
+                                    })
+                                    // A board/evidence failure is not a transport
+                                    // failure. Retain the authenticated socket for
+                                    // later inventory and chain-evidence retries.
+                                    .unwrap_or(true),
+                                Err(_) => true,
+                            },
+                        },
+                    )
+                }
                 Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
                     shakescape_sessions
                         .service_direct_envelope(peer, envelope.as_slice(), now_unix)
@@ -1982,15 +2007,39 @@ impl NativeWalletController {
                     Ok(Some(HnsDirectShakescapeMessage::NameMarket {
                         request_id,
                         message,
-                    })) => Some(
-                        controller
-                            .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                            .is_ok_and(|report| {
-                                board_changed = report.offers_admitted != 0
-                                    || report.cancellations_admitted != 0;
-                                true
-                            }),
-                    ),
+                    })) => {
+                        let retry_message = message.clone();
+                        Some(
+                            match controller.service_wallet_owned_direct_shakedex_message(
+                                peer, request_id, message,
+                            ) {
+                                Ok(report) => {
+                                    board_changed = report.offers_admitted != 0
+                                        || report.cancellations_admitted != 0;
+                                    true
+                                }
+                                Err(_) => match coordinator
+                                    .synchronize_name_market_message_evidence(
+                                        &retry_message,
+                                        now_unix,
+                                    ) {
+                                    Ok(_) => controller
+                                        .service_wallet_owned_direct_shakedex_message(
+                                            peer,
+                                            request_id,
+                                            retry_message,
+                                        )
+                                        .map(|report| {
+                                            board_changed = report.offers_admitted != 0
+                                                || report.cancellations_admitted != 0;
+                                            true
+                                        })
+                                        .unwrap_or(true),
+                                    Err(_) => true,
+                                },
+                            },
+                        )
+                    }
                     Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
                         shakescape_sessions
                             .service_direct_envelope(peer, envelope.as_slice(), now_unix)
