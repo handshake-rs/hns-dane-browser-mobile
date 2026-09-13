@@ -6851,8 +6851,9 @@ class WalletActivity : ComponentActivity() {
 
     private fun queryWalletShakedex(query: NativeShakedexQuery) {
         val (lease, handle) = valueActionContext() ?: run {
-            shakedexQueryStatusView.text =
-                getString(R.string.wallet_shakedex_queries_requires_sync)
+            val message = getString(R.string.wallet_shakedex_queries_requires_sync)
+            shakedexQueryStatusView.text = message
+            showShakedexQueryResult(query, message)
             return
         }
         if (!beginOperation(
@@ -6883,13 +6884,42 @@ class WalletActivity : ComponentActivity() {
                 }
                 busy = false
                 refreshControllerState(resetReads = false)
-                shakedexQueryStatusView.text = if (result == null) {
+                val message = if (result == null) {
                     getString(R.string.wallet_shakedex_queries_failed)
                 } else {
                     getString(R.string.wallet_shakedex_queries_result, result.displayJson)
                 }
+                shakedexQueryStatusView.text = message
+                Log.i(
+                    TAG,
+                    "Authenticated Shakedex ${shakedexQueryKind(query)} completed: " +
+                        "success=${result != null}",
+                )
+                showShakedexQueryResult(query, message)
             }
         }
+    }
+
+    /**
+     * The ShakeDex dashboard copies its status strings into a modal snapshot.
+     * An asynchronous board query must therefore present its own result above
+     * the retained dashboard; updating only the backing card leaves the user
+     * looking at an unrelated, stale Atomic Swap Progress row.
+     */
+    private fun showShakedexQueryResult(query: NativeShakedexQuery, message: String) {
+        val title = when (query) {
+            is NativeShakedexQuery.ListOffers -> R.string.row_wallet_list_offers
+            is NativeShakedexQuery.GetSession -> R.string.row_wallet_get_session
+        }
+        walletDetailDialog(
+            title = getString(title),
+            rows = listOf(getString(R.string.wallet_modal_details) to message),
+        )
+    }
+
+    private fun shakedexQueryKind(query: NativeShakedexQuery): String = when (query) {
+        is NativeShakedexQuery.ListOffers -> "offer-list query"
+        is NativeShakedexQuery.GetSession -> "session query"
     }
 
     private fun prepareWalletSend(request: WalletHnsSendInput?) {
