@@ -2018,13 +2018,28 @@ impl AndroidWalletController {
                     request_id,
                     message,
                 })) => Some(
-                    controller
+                    match controller
                         .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                        .is_ok_and(|report| {
+                    {
+                        Ok(report) => {
                             board_changed =
                                 report.offers_admitted != 0 || report.cancellations_admitted != 0;
                             true
-                        }),
+                        }
+                        Err(error) => {
+                            // The peer multiplexer has already authenticated and
+                            // decoded the frame. Board admission can still fail
+                            // because this light wallet lacks current chain evidence
+                            // for a remote seller or because its local store is
+                            // temporarily unavailable. Neither condition makes the
+                            // negotiated peer malicious or unreachable, so retain
+                            // the socket and let later inventory/sync rounds retry.
+                            android_log_error(&format!(
+                                "wallet-owned Shakescape name-market message could not be admitted locally; peer retained: {error}"
+                            ));
+                            true
+                        }
+                    },
                 ),
                 Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
                     match shakescape_sessions.service_direct_envelope(
@@ -2076,13 +2091,21 @@ impl AndroidWalletController {
                         request_id,
                         message,
                     })) => Some(
-                        controller
+                        match controller
                             .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                            .is_ok_and(|report| {
+                        {
+                            Ok(report) => {
                                 board_changed = report.offers_admitted != 0
                                     || report.cancellations_admitted != 0;
                                 true
-                            }),
+                            }
+                            Err(error) => {
+                                android_log_error(&format!(
+                                    "wallet-owned replicated Shakescape name-market message could not be admitted locally; peer retained: {error}"
+                                ));
+                                true
+                            }
+                        },
                     ),
                     Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
                         match shakescape_sessions.service_direct_envelope(
