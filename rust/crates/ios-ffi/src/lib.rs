@@ -1888,9 +1888,11 @@ impl NativeWalletController {
         }) {
             *shakescape_last_offer_inventory_at = Some(now_unix);
             if let Some(peer) = shakescape_peer.as_mut() {
+                let _ = controller.announce_wallet_owned_direct_shakedex(peer);
                 let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
             }
             for peer in shakescape_replication_peers.iter_mut() {
+                let _ = controller.announce_wallet_owned_direct_shakedex(peer);
                 let _ = shakescape_sessions.announce_direct_offer_inventory(peer, now_unix);
             }
         }
@@ -3224,6 +3226,10 @@ fn synchronize_wallet_owned_direct_hns(
     coordinator
         .finalize_unknown_wallet_birthday(birthday_now_unix)
         .map_err(|_| wallet_runtime_failure("direct HNS birthday finalization failed"))?;
+    // Marketplace recovery is intentionally best-effort here: the verified
+    // HNS snapshot remains valid if a separate ShakeDex workflow is corrupt or
+    // temporarily unavailable, and the next synchronization retries recovery.
+    let _ = controller.recover_shakedex_after_reconcile();
     Ok(snapshot)
 }
 

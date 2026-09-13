@@ -208,10 +208,11 @@ const ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 /// controller retirement never waits behind a long-lived peer exchange.
 const ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const ANDROID_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
-/// Reconcile the small, bounded direct-offer inventory often enough that a
-/// relay restart or a replaced primary socket cannot strand an active offer.
-/// An inventory contains only opaque offer IDs and the peer requests any
-/// missing signed records through the existing correlated exchange.
+/// Reconcile due name-market publications and the small, bounded direct-offer
+/// inventory often enough that a late FINALIZE, relay restart, or replaced
+/// primary socket cannot strand an active offer. Inventory contains only
+/// opaque offer IDs and the peer requests missing signed records through the
+/// existing correlated exchange.
 const ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 15;
 const MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS: usize = 8;
 const MAX_ANDROID_INBOUND_NETWORK_PEERS: usize = 8;
@@ -1917,28 +1918,47 @@ impl AndroidWalletController {
             now_unix >= last.saturating_add(ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS)
         }) {
             *shakescape_last_offer_inventory_at = Some(now_unix);
-            let mut announced = 0usize;
+            let mut name_market_publications = 0usize;
+            let mut direct_inventory_peers = 0usize;
             if let Some(peer) = shakescape_peer.as_mut() {
+                match controller.announce_wallet_owned_direct_shakedex(peer) {
+                    Ok(Some(_)) => {
+                        name_market_publications = name_market_publications.saturating_add(1)
+                    }
+                    Ok(None) => {}
+                    Err(error) => android_log_error(&format!(
+                        "wallet-owned due name-market publication was not announced: {error}"
+                    )),
+                }
                 if shakescape_sessions
                     .announce_direct_offer_inventory(peer, now_unix)
                     .is_ok()
                 {
-                    announced = announced.saturating_add(1);
+                    direct_inventory_peers = direct_inventory_peers.saturating_add(1);
                 }
             }
             for peer in shakescape_replication_peers.iter_mut() {
+                match controller.announce_wallet_owned_direct_shakedex(peer) {
+                    Ok(Some(_)) => {
+                        name_market_publications = name_market_publications.saturating_add(1)
+                    }
+                    Ok(None) => {}
+                    Err(error) => android_log_error(&format!(
+                        "wallet-owned replicated name-market publication was not announced: {error}"
+                    )),
+                }
                 if shakescape_sessions
                     .announce_direct_offer_inventory(peer, now_unix)
                     .is_ok()
                 {
-                    announced = announced.saturating_add(1);
+                    direct_inventory_peers = direct_inventory_peers.saturating_add(1);
                 }
             }
-            if announced != 0 {
+            if name_market_publications != 0 || direct_inventory_peers != 0 {
                 android_log_info(
                     "hns-shakescape",
                     &format!(
-                        "reconciled direct-offer inventory and unfunded sessions with {announced} board peers"
+                        "reconciled due name-market publications={name_market_publications} and direct-offer inventory with {direct_inventory_peers} board peers"
                     ),
                 );
             }
@@ -2631,6 +2651,14 @@ impl AndroidWalletController {
                     android_log_wallet_scan_metrics(&format!(
                         "wallet_hns_finalization stage=birthday_set height={height}"
                     ));
+                }
+                match controller.recover_shakedex_after_reconcile() {
+                    Ok(()) => android_log_wallet_scan_metrics(
+                        "wallet_hns_finalization stage=shakedex_publications_recovered",
+                    ),
+                    Err(error) => android_log_error(&format!(
+                        "wallet HNS snapshot completed but Shakedex publication recovery remains pending: {error}"
+                    )),
                 }
                 android_log_wallet_scan_metrics("wallet_hns_finalization stage=snapshot_complete");
                 Ok(AndroidHnsSynchronization::Ready(Box::new(snapshot)))
