@@ -73,6 +73,8 @@ import com.denuoweb.hnsdane.wallet.NativeDirectOfferSummary
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferTakeApproval
 import com.denuoweb.hnsdane.wallet.NativeDirectOfferTakePreparation
 import com.denuoweb.hnsdane.wallet.NativeHnsForBtcOfferApproval
+import com.denuoweb.hnsdane.wallet.NativeShakedexNameOffer
+import com.denuoweb.hnsdane.wallet.NativeShakedexQueryResult
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionSummary
 import com.denuoweb.hnsdane.wallet.NativeShakescapeExecutionStatus
 import com.denuoweb.hnsdane.wallet.NativeHnsHtlcFundingApproval
@@ -4548,6 +4550,7 @@ class WalletActivity : ComponentActivity() {
         val numeric: Boolean = false,
         val decimal: Boolean = true,
         val initial: String = "",
+        val readOnly: Boolean = false,
         val multiline: Boolean = false,
         val maxCharacters: Int = MAX_VALUE_ACTION_INPUT_CHARACTERS,
     )
@@ -4620,6 +4623,11 @@ class WalletActivity : ComponentActivity() {
                     gravity = Gravity.TOP or Gravity.START
                 }
                 if (field.initial.isNotEmpty()) setText(field.initial)
+                if (field.readOnly) {
+                    isFocusable = false
+                    isCursorVisible = false
+                    isLongClickable = false
+                }
                 setTextColor(themeColors().primaryText)
                 setHintTextColor(themeColors().secondaryText)
             }.also { input ->
@@ -6124,10 +6132,16 @@ class WalletActivity : ComponentActivity() {
         prepareWalletValueAction(NativeHnsValueIntent.CancelOffer(values[0]))
     }
 
-    private fun showAcceptOfferForm() = showWalletActionForm(
+    private fun showAcceptOfferForm() = showAcceptOfferForm(selectedOffer = null)
+
+    private fun showAcceptOfferForm(selectedOffer: NativeShakedexNameOffer?) = showWalletActionForm(
         R.string.row_wallet_accept_offer,
         listOf(
-            WalletActionInput(R.string.wallet_action_listing_hint),
+            WalletActionInput(
+                R.string.wallet_action_listing_hint,
+                initial = selectedOffer?.listingId.orEmpty(),
+                readOnly = selectedOffer != null,
+            ),
             WalletActionInput(
                 R.string.wallet_action_maximum_fee_hint,
                 numeric = true,
@@ -6853,7 +6867,7 @@ class WalletActivity : ComponentActivity() {
         val (lease, handle) = valueActionContext() ?: run {
             val message = getString(R.string.wallet_shakedex_queries_requires_sync)
             shakedexQueryStatusView.text = message
-            showShakedexQueryResult(query, message)
+            showShakedexQueryResult(query, result = null, message = message)
             return
         }
         if (!beginOperation(
@@ -6884,8 +6898,21 @@ class WalletActivity : ComponentActivity() {
                 }
                 busy = false
                 refreshControllerState(resetReads = false)
+                val offerPage = if (query is NativeShakedexQuery.ListOffers) {
+                    result?.offerPage()
+                } else {
+                    null
+                }
                 val message = if (result == null) {
                     getString(R.string.wallet_shakedex_queries_failed)
+                } else if (query is NativeShakedexQuery.ListOffers && offerPage == null) {
+                    getString(R.string.wallet_shakedex_offer_page_invalid)
+                } else if (offerPage != null) {
+                    getString(
+                        R.string.wallet_shakedex_offer_page_summary,
+                        offerPage.offers.size,
+                        offerPage.boardRevision,
+                    )
                 } else {
                     getString(R.string.wallet_shakedex_queries_result, result.displayJson)
                 }
@@ -6895,7 +6922,7 @@ class WalletActivity : ComponentActivity() {
                     "Authenticated Shakedex ${shakedexQueryKind(query)} completed: " +
                         "success=${result != null}",
                 )
-                showShakedexQueryResult(query, message)
+                showShakedexQueryResult(query, result, message)
             }
         }
     }
@@ -6906,7 +6933,17 @@ class WalletActivity : ComponentActivity() {
      * the retained dashboard; updating only the backing card leaves the user
      * looking at an unrelated, stale Atomic Swap Progress row.
      */
-    private fun showShakedexQueryResult(query: NativeShakedexQuery, message: String) {
+    private fun showShakedexQueryResult(
+        query: NativeShakedexQuery,
+        result: NativeShakedexQueryResult?,
+        message: String,
+    ) {
+        if (query is NativeShakedexQuery.ListOffers) {
+            result?.offerPage()?.let {
+                showShakedexOfferPicker(it.boardRevision, it.offers, it.nextCursor)
+                return
+            }
+        }
         val title = when (query) {
             is NativeShakedexQuery.ListOffers -> R.string.row_wallet_list_offers
             is NativeShakedexQuery.GetSession -> R.string.row_wallet_get_session
@@ -6914,6 +6951,60 @@ class WalletActivity : ComponentActivity() {
         walletDetailDialog(
             title = getString(title),
             rows = listOf(getString(R.string.wallet_modal_details) to message),
+        )
+    }
+
+    private fun showShakedexOfferPicker(
+        boardRevision: Long,
+        offers: List<NativeShakedexNameOffer>,
+        nextCursor: String?,
+    ) {
+        val summary = if (offers.isEmpty()) {
+            getString(R.string.wallet_shakedex_offer_page_empty, boardRevision)
+        } else {
+            getString(R.string.wallet_shakedex_offer_page_select, offers.size, boardRevision)
+        }
+        val actions = offers.map { offer ->
+            val expiry = runCatching {
+                DateFormat.getDateTimeInstance().format(
+                    Date(Math.multiplyExact(offer.expiresAtUnix, 1_000L)),
+                )
+            }.getOrElse { offer.expiresAtUnix.toString() }
+            WalletModalAction(
+                label = getString(
+                    R.string.wallet_shakedex_offer_choice,
+                    offer.name,
+                    formatHnsBaseUnits(offer.priceBaseUnits),
+                    formatHnsBaseUnits(offer.marketplaceFeeBaseUnits),
+                    expiry,
+                ),
+                action = { showAcceptOfferForm(offer) },
+            )
+        }
+        walletDetailDialog(
+            title = getString(R.string.row_wallet_list_offers),
+            rows = listOf(getString(R.string.wallet_modal_details) to summary),
+            actionSections = buildList {
+                if (actions.isNotEmpty()) {
+                    add(WalletModalActionSection(
+                        getString(R.string.wallet_shakedex_available_name_offers),
+                        actions,
+                    ))
+                }
+                if (nextCursor != null) {
+                    add(WalletModalActionSection(
+                        getString(R.string.wallet_shakedex_more_offers),
+                        listOf(WalletModalAction(
+                            getString(R.string.wallet_shakedex_next_offer_page),
+                            action = {
+                                queryWalletShakedex(
+                                    NativeShakedexQuery.ListOffers(nextCursor, DEFAULT_OFFER_PAGE_SIZE),
+                                )
+                            },
+                        )),
+                    ))
+                }
+            },
         )
     }
 
@@ -9025,8 +9116,8 @@ class WalletActivity : ComponentActivity() {
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
         const val MAX_SEND_RECIPIENT_BYTES = 512
-        const val DEFAULT_HNS_MAXIMUM_FEE = "1"
-        const val DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS = "1000000"
+        const val DEFAULT_HNS_MAXIMUM_FEE = "0.01"
+        const val DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS = "10000"
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L

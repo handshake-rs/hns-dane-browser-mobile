@@ -6,8 +6,8 @@ import Network
 @preconcurrency import AVFoundation
 import CoreImage
 
-private let defaultHnsMaximumFee = "1"
-private let defaultHnsMaximumFeeBaseUnits = "1000000"
+private let defaultHnsMaximumFee = "0.01"
+private let defaultHnsMaximumFeeBaseUnits = "10000"
 private let minimumBitcoinHtlcSats: UInt64 = 330
 private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
 private let minimumHnsSwapDollarydoos: UInt64 = 546
@@ -3254,7 +3254,14 @@ final class WalletViewController: UIViewController {
                 placeholder: fieldDefinition.placeholder,
                 keyboardType: fieldDefinition.numeric ? .decimalPad : .asciiCapable,
                 initialValue: fieldDefinition.initialValue,
-                accessibilityIdentifier: "wallet.hns-value.\(index)"
+                accessibilityIdentifier: "wallet.hns-value.\(index)",
+                configure: { field in
+                    field.isEnabled = fieldDefinition.editable
+                    if !fieldDefinition.editable {
+                        field.textColor = .secondaryLabel
+                        field.clearButtonMode = .never
+                    }
+                }
             )],
             primaryTitle: index + 1 == fields.count ? "Review" : "Next"
         ) { [weak self] submitted in
@@ -3414,10 +3421,19 @@ final class WalletViewController: UIViewController {
     }
 
     private func showAcceptOfferForm() {
+        showAcceptOfferForm(selectedOffer: nil)
+    }
+
+    private func showAcceptOfferForm(selectedOffer: NativeShakedexNameOffer?) {
         collectHnsValueForm(
             title: "Accept offer",
             fields: [
-                .init(label: "Listing ID", placeholder: "64 lowercase hex characters"),
+                .init(
+                    label: "Listing ID",
+                    placeholder: "64 lowercase hex characters",
+                    initialValue: selectedOffer?.listingID,
+                    editable: selectedOffer == nil
+                ),
                 .init(
                     label: "Maximum fee cap in HNS",
                     placeholder: defaultHnsMaximumFee,
@@ -3972,7 +3988,16 @@ final class WalletViewController: UIViewController {
                 switch outcome {
                 case .success(let result):
                     self.readStatusLabel.text = "Shakedex query completed through the native wallet."
-                    self.showNativeHnsResult(title: "Shakedex result", json: result.displayJSON)
+                    if case .listOffers = query {
+                        do {
+                            self.showShakedexOfferPicker(try result.offerPage())
+                        } catch {
+                            self.readStatusLabel.text = "The authenticated offer page did not match the supported schema."
+                            self.showError(error)
+                        }
+                    } else {
+                        self.showNativeHnsResult(title: "Shakedex result", json: result.displayJSON)
+                    }
                 case .failure(let error):
                     self.readStatusLabel.text = "Shakedex query failed. Synchronize before retrying."
                     self.showError(error)
@@ -3980,6 +4005,34 @@ final class WalletViewController: UIViewController {
                 self.refreshButtonStates()
             }
         }
+    }
+
+    private func showShakedexOfferPicker(_ page: NativeShakedexOfferPage) {
+        let detail = page.offers.isEmpty
+            ? "No authenticated Handshake name-sale offers are available at board revision \(page.boardRevision)."
+            : "Select one of \(page.offers.count) authenticated offers from board revision \(page.boardRevision) to prepare its exact native purchase review."
+        var actions = page.offers.map { offer in
+            let expiry = DateFormatter.localizedString(
+                from: Date(timeIntervalSince1970: TimeInterval(offer.expiresAtUnix)),
+                dateStyle: .medium,
+                timeStyle: .medium
+            )
+            let title = "\(offer.name)\nPrice \(WalletReadPresenter.formatHnsBaseUnits(offer.priceBaseUnits)) HNS · marketplace fee \(WalletReadPresenter.formatHnsBaseUnits(offer.marketplaceFeeBaseUnits)) HNS\nExpires \(expiry)"
+            return WalletMenuAction(title: title, section: "Available Name-Sale Offers") { [weak self] in
+                self?.showAcceptOfferForm(selectedOffer: offer)
+            }
+        }
+        if let cursor = page.nextCursor {
+            actions.append(WalletMenuAction(title: "Load next authenticated page", section: "More Offers") { [weak self] in
+                self?.beginShakedexQuery(.listOffers(cursor: cursor, limit: 32))
+            })
+        }
+        presentWalletMenu(
+            title: "Handshake name-sale offers",
+            rows: [WalletMenuRow(title: "Authenticated board", detail: detail)],
+            actions: actions,
+            retainForChildActions: false
+        )
     }
 
     private func showNativeHnsResult(title: String, json: String) {
@@ -6578,6 +6631,8 @@ private final class WalletMenuViewController: UIViewController {
         let button = UIButton(type: .system)
         button.configuration = configuration
         button.contentHorizontalAlignment = .leading
+        button.titleLabel?.numberOfLines = 0
+        button.titleLabel?.lineBreakMode = .byWordWrapping
         button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
         button.isEnabled = action.enabled
         button.alpha = action.enabled ? 1 : 0.5
@@ -7123,17 +7178,20 @@ private struct WalletHnsValueFormField: Sendable {
     let placeholder: String
     let numeric: Bool
     let initialValue: String?
+    let editable: Bool
 
     init(
         label: String,
         placeholder: String,
         numeric: Bool = false,
-        initialValue: String? = nil
+        initialValue: String? = nil,
+        editable: Bool = true
     ) {
         self.label = label
         self.placeholder = placeholder
         self.numeric = numeric
         self.initialValue = initialValue
+        self.editable = editable
     }
 }
 

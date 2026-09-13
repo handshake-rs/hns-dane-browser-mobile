@@ -177,11 +177,73 @@ internal data class NativeHnsValueResult(val displayJson: String) {
 
 /** Bounded provider result produced only by a closed native Shakedex query. */
 internal data class NativeShakedexQueryResult(val displayJson: String) {
+    fun offerPage(): NativeShakedexOfferPage? = runCatching {
+        val value = JSONObject(displayJson).apply {
+            requireExactKeys("boardRevision", "offers", "nextCursor")
+        }
+        val offersJson = value.getJSONArray("offers").also {
+            require(it.length() <= MAX_OFFER_PAGE_SIZE)
+        }
+        val offers = List(offersJson.length()) { index ->
+            val offer = offersJson.getJSONObject(index).apply {
+                requireExactKeys(
+                    "listingId",
+                    "name",
+                    "price",
+                    "marketplaceFee",
+                    "sellerPaymentAddress",
+                    "createdAtUnix",
+                    "expiresAtUnix",
+                )
+            }
+            val createdAtUnix = exactUnsignedLong(offer.get("createdAtUnix"))
+                .also { require(it > 0L) }
+            NativeShakedexNameOffer(
+                listingId = offer.getString("listingId").requireObjectId(),
+                name = offer.getString("name").requirePublicText(MAX_NAME_CHARACTERS),
+                priceBaseUnits = offer.getString("price").requireBaseUnits(nonzero = true),
+                marketplaceFeeBaseUnits = offer.getString("marketplaceFee")
+                    .requireBaseUnits(nonzero = false),
+                sellerPaymentAddress = offer.getString("sellerPaymentAddress")
+                    .requirePublicText(MAX_RECIPIENT_CHARACTERS),
+                createdAtUnix = createdAtUnix,
+                expiresAtUnix = exactUnsignedLong(offer.get("expiresAtUnix"))
+                    .also { require(it > createdAtUnix) },
+            )
+        }
+        val nextCursor = value.opt("nextCursor")
+            .takeUnless { it == null || it === JSONObject.NULL }
+            ?.let { (it as? String)?.requireObjectId() ?: error("cursor is not text") }
+        NativeShakedexOfferPage(
+            boardRevision = exactUnsignedLong(value.get("boardRevision")),
+            offers = offers,
+            nextCursor = nextCursor,
+        )
+    }.getOrNull()
+
     companion object {
         fun parse(bundle: ByteArray): NativeShakedexQueryResult? =
             parseDisplayJsonBundle(bundle, "HNVQ")?.let(::NativeShakedexQueryResult)
     }
 }
+
+/** Strict public projection of one authenticated fixed-price name listing. */
+internal data class NativeShakedexNameOffer(
+    val listingId: String,
+    val name: String,
+    val priceBaseUnits: String,
+    val marketplaceFeeBaseUnits: String,
+    val sellerPaymentAddress: String,
+    val createdAtUnix: Long,
+    val expiresAtUnix: Long,
+)
+
+/** Strict, bounded page used by the platform offer picker. */
+internal data class NativeShakedexOfferPage(
+    val boardRevision: Long,
+    val offers: List<NativeShakedexNameOffer>,
+    val nextCursor: String?,
+)
 
 internal fun NativeHnsValueIntent.encodeJson(): ByteArray? = runCatching {
     val value = when (this) {

@@ -4328,6 +4328,35 @@ final class BrowserRuntimeControlTests: XCTestCase {
         ))
     }
 
+    func testShakedexOfferPickerProjectionAcceptsOnlyTheExactBoundedPage() throws {
+        let listing = String(repeating: "ab", count: 32)
+        let valid = """
+        {"boardRevision":7,"offers":[{"listingId":"\(listing)","name":"24hour","price":"100000","marketplaceFee":"0","sellerPaymentAddress":"hs1qfixture","createdAtUnix":1789280076,"expiresAtUnix":1789884876}],"nextCursor":null}
+        """
+        let result = try NativeShakedexQueryResult.decode(
+            bundle: hnsValueBundle(magic: "HNVQ", json: valid)
+        )
+        let page = try result.offerPage()
+        XCTAssertEqual(page.boardRevision, 7)
+        XCTAssertEqual(page.offers.count, 1)
+        XCTAssertEqual(page.offers[0].listingID, listing)
+        XCTAssertEqual(page.offers[0].name, "24hour")
+        XCTAssertEqual(page.offers[0].priceBaseUnits, "100000")
+
+        XCTAssertThrowsError(try NativeShakedexQueryResult(
+            displayJSON: valid.replacingOccurrences(
+                of: "\"nextCursor\":null",
+                with: "\"nextCursor\":null,\"untrusted\":true"
+            )
+        ).offerPage())
+        XCTAssertThrowsError(try NativeShakedexQueryResult(
+            displayJSON: valid.replacingOccurrences(of: listing, with: listing.uppercased())
+        ).offerPage())
+        XCTAssertThrowsError(try NativeShakedexQueryResult(
+            displayJSON: valid.replacingOccurrences(of: "\"price\":\"100000\"", with: "\"price\":\"0100000\"")
+        ).offerPage())
+    }
+
     func testNativeDirectShakescapeBundlesRejectTransportShapeDrift() throws {
         let endpoint = Array("198.51.100.7:12038".utf8)
         let discovered = Array("203.0.113.8:12038".utf8)

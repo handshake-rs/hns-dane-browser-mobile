@@ -1934,6 +1934,77 @@ struct NativeHnsValueResult: Sendable {
 
 struct NativeShakedexQueryResult: Sendable {
     let displayJSON: String
+
+    func offerPage() throws -> NativeShakedexOfferPage {
+        guard let data = displayJSON.data(using: .utf8) else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Shakedex offer-page encoding")
+        }
+        return try JSONDecoder().decode(NativeShakedexOfferPage.self, from: data)
+    }
+}
+
+struct NativeShakedexNameOffer: Decodable, Sendable {
+    let listingID: String
+    let name: String
+    let priceBaseUnits: String
+    let marketplaceFeeBaseUnits: String
+    let sellerPaymentAddress: String
+    let createdAtUnix: UInt64
+    let expiresAtUnix: UInt64
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case listingID = "listingId"
+        case name, sellerPaymentAddress, createdAtUnix, expiresAtUnix
+        case priceBaseUnits = "price"
+        case marketplaceFeeBaseUnits = "marketplaceFee"
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        listingID = try value.decode(String.self, forKey: .listingID)
+        name = try value.decode(String.self, forKey: .name)
+        priceBaseUnits = try value.decode(String.self, forKey: .priceBaseUnits)
+        marketplaceFeeBaseUnits = try value.decode(String.self, forKey: .marketplaceFeeBaseUnits)
+        sellerPaymentAddress = try value.decode(String.self, forKey: .sellerPaymentAddress)
+        createdAtUnix = try value.decode(UInt64.self, forKey: .createdAtUnix)
+        expiresAtUnix = try value.decode(UInt64.self, forKey: .expiresAtUnix)
+        guard NativeHnsValueIntent.isObjectID(listingID),
+              Self.isPublicText(name, maximum: 63),
+              NativeHnsReadSnapshot.Amount.isCanonicalBaseUnits(priceBaseUnits),
+              priceBaseUnits != "0",
+              NativeHnsReadSnapshot.Amount.isCanonicalBaseUnits(marketplaceFeeBaseUnits),
+              Self.isPublicText(sellerPaymentAddress, maximum: 512),
+              createdAtUnix > 0,
+              expiresAtUnix > createdAtUnix else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Shakedex name offer")
+        }
+    }
+
+    private static func isPublicText(_ value: String, maximum: Int) -> Bool {
+        let bytes = Array(value.utf8)
+        return (1...maximum).contains(bytes.count) && bytes.allSatisfy { (0x21...0x7e).contains($0) }
+    }
+}
+
+struct NativeShakedexOfferPage: Decodable, Sendable {
+    let boardRevision: UInt64
+    let offers: [NativeShakedexNameOffer]
+    let nextCursor: String?
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case boardRevision, offers, nextCursor
+    }
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.strictContainer(keyedBy: CodingKeys.self)
+        boardRevision = try value.decode(UInt64.self, forKey: .boardRevision)
+        offers = try value.decode([NativeShakedexNameOffer].self, forKey: .offers)
+        nextCursor = try value.decodeIfPresent(String.self, forKey: .nextCursor)
+        guard offers.count <= 64,
+              nextCursor.map(NativeHnsValueIntent.isObjectID) ?? true else {
+            throw NativeWalletBridgeError.invalidOutput("invalid Shakedex offer page")
+        }
+    }
 }
 
 struct NativeDirectShakescapeStatus: Equatable, Sendable {

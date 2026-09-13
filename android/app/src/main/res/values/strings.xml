@@ -626,6 +626,14 @@
     <string name="wallet_shakedex_queries_loading" translatable="false">Refreshing the authenticated Shakedex board or session…</string>
     <string name="wallet_shakedex_queries_failed" translatable="false">The Shakedex query could not be completed from the current direct peer and wallet state.</string>
     <string name="wallet_shakedex_queries_result" translatable="false">Authenticated Handshake name-market result:&#10;%1$s</string>
+    <string name="wallet_shakedex_offer_page_invalid" translatable="false">The authenticated offer page did not match the exact supported schema and was not made selectable.</string>
+    <string name="wallet_shakedex_offer_page_summary" translatable="false">%1$d authenticated name-sale offer(s) at board revision %2$d.</string>
+    <string name="wallet_shakedex_offer_page_empty" translatable="false">No authenticated Handshake name-sale offers are available at board revision %1$d.</string>
+    <string name="wallet_shakedex_offer_page_select" translatable="false">Select one of %1$d authenticated offers from board revision %2$d to prepare its exact native purchase review.</string>
+    <string name="wallet_shakedex_available_name_offers" translatable="false">Available name-sale offers</string>
+    <string name="wallet_shakedex_offer_choice" translatable="false">%1$s&#10;Price %2$s HNS · marketplace fee %3$s HNS&#10;Expires %4$s</string>
+    <string name="wallet_shakedex_more_offers" translatable="false">More offers</string>
+    <string name="wallet_shakedex_next_offer_page" translatable="false">Load next authenticated page</string>
     <string name="wallet_direct_shakescape_endpoint_hint" translatable="false">IPv4:port or [IPv6]:port</string>
     <string name="wallet_direct_shakescape_recent_peers" translatable="false">Recent peers</string>
     <string name="wallet_direct_shakescape_discovered_peers" translatable="false">ShakeScape peers found during sync</string>
