@@ -3132,7 +3132,6 @@ final class WalletViewController: UIViewController {
             WalletMenuAction(title: "Recover name from offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showRecoverNameForm() },
             WalletMenuAction(title: "List Handshake name-sale offers", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showListOffersForm() },
             WalletMenuAction(title: "Get session", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showGetSessionForm() },
-            WalletMenuAction(title: "Accept offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showAcceptOfferForm() },
             WalletMenuAction(title: "Finalize purchase", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showFinalizePurchaseForm() },
         ]
         if shakedexActionMayStart {
@@ -3420,19 +3419,15 @@ final class WalletViewController: UIViewController {
         }
     }
 
-    private func showAcceptOfferForm() {
-        showAcceptOfferForm(selectedOffer: nil)
-    }
-
-    private func showAcceptOfferForm(selectedOffer: NativeShakedexNameOffer?) {
+    private func showAcceptOfferForm(selectedOffer: NativeShakedexNameOffer) {
         collectHnsValueForm(
             title: "Accept offer",
             fields: [
                 .init(
                     label: "Listing ID",
                     placeholder: "64 lowercase hex characters",
-                    initialValue: selectedOffer?.listingID,
-                    editable: selectedOffer == nil
+                    initialValue: selectedOffer.listingID,
+                    editable: false
                 ),
                 .init(
                     label: "Maximum fee cap in HNS",

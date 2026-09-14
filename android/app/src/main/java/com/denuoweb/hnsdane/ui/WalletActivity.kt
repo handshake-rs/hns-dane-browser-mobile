@@ -2435,7 +2435,6 @@ class WalletActivity : ComponentActivity() {
                         WalletModalAction(getString(R.string.row_wallet_cancel_offer), paired, ::showCancelOfferForm),
                         WalletModalAction(getString(R.string.row_wallet_recover_name), paired, ::showRecoverNameForm),
                         WalletModalAction(getString(R.string.row_wallet_list_offers), paired, ::showListOffersForm),
-                        WalletModalAction(getString(R.string.row_wallet_accept_offer), paired, ::showAcceptOfferForm),
                         WalletModalAction(getString(R.string.row_wallet_finalize_purchase), paired, ::showFinalizePurchaseForm),
                         WalletModalAction(getString(R.string.row_wallet_get_session), paired, ::showGetSessionForm),
                     ),
@@ -6132,15 +6131,13 @@ class WalletActivity : ComponentActivity() {
         prepareWalletValueAction(NativeHnsValueIntent.CancelOffer(values[0]))
     }
 
-    private fun showAcceptOfferForm() = showAcceptOfferForm(selectedOffer = null)
-
-    private fun showAcceptOfferForm(selectedOffer: NativeShakedexNameOffer?) = showWalletActionForm(
+    private fun showAcceptOfferForm(selectedOffer: NativeShakedexNameOffer) = showWalletActionForm(
         R.string.row_wallet_accept_offer,
         listOf(
             WalletActionInput(
                 R.string.wallet_action_listing_hint,
-                initial = selectedOffer?.listingId.orEmpty(),
-                readOnly = selectedOffer != null,
+                initial = selectedOffer.listingId,
+                readOnly = true,
             ),
             WalletActionInput(
                 R.string.wallet_action_maximum_fee_hint,
