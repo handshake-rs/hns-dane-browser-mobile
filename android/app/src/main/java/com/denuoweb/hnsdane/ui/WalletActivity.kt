@@ -631,6 +631,20 @@ class WalletActivity : ComponentActivity() {
             // verified snapshot that finished while another app screen was
             // visible instead of resetting it to a misleading empty state.
             refreshControllerState(resetReads = false)
+            // The device-credential Activity can briefly stop this Activity.
+            // The service worker normally survives that retained transition,
+            // but an already-scheduled worker exit may race onStart. Starting
+            // is idempotent, so always repair a missing worker here.
+            if (
+                NativeWalletBridge.status(walletHandle)?.locked == false &&
+                    NativeWalletBridge.directHnsRollbackFloor(walletHandle) != null
+            ) {
+                startWalletOwnedDirectShakescapeWorker(
+                    walletHandle,
+                    checkNotNull(currentStorageLease()),
+                    lifecycleEpoch,
+                )
+            }
             return
         }
         Log.i(TAG, "Starting a WalletActivity storage session; no retained direct HNS controller is available")
@@ -675,6 +689,11 @@ class WalletActivity : ComponentActivity() {
                 "hnsSync=$walletHnsSyncInProgress bitcoinSync=$walletBitcoinSyncInProgress " +
                 "busy=$busy",
         )
+        // Publish retained ownership before clearing foreground. Otherwise
+        // the peer worker can observe both flags false in this narrow window,
+        // exit, and leave an unlocked wallet presenting stale peer state after
+        // the device-credential Activity returns.
+        retainingInAppWalletSession = retainInAppSession
         foreground = false
         stopWalletNetworkMonitoring()
         browserSyncObservation?.close()
@@ -691,7 +710,6 @@ class WalletActivity : ComponentActivity() {
             // whether the process has actually gone background. Preserve the
             // current lease across an in-app transition, then retire it after
             // that lifecycle report only if no app Activity remains visible.
-            retainingInAppWalletSession = true
             dismissWalletDeletionDialog()
             dismissSendApproval(rejectNative = false)
             dismissValueApproval(rejectNative = false)
@@ -4757,7 +4775,7 @@ class WalletActivity : ComponentActivity() {
                 it >= NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
             }
             val lifetime = values[3].toLongOrNull()
-                ?.takeIf { it in 1L..168L }
+                ?.takeIf { it in 2L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
             if (btc == null || hns == null || reserve == null || lifetime == null) {
                 bitcoinStatusView.text = getString(R.string.wallet_swap_prepare_failed)
@@ -4794,7 +4812,7 @@ class WalletActivity : ComponentActivity() {
                 ?.takeIf { it >= NativeWalletBridge.MINIMUM_BITCOIN_HTLC_SATS }
             val reserve = parsePositiveHnsToBaseUnits(values[2])?.toLongOrNull()?.takeIf { it > 0L }
             val lifetime = values[3].toLongOrNull()
-                ?.takeIf { it in 1L..168L }
+                ?.takeIf { it in 2L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
             if (hns == null || btc == null || reserve == null || lifetime == null) {
                 bitcoinStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)

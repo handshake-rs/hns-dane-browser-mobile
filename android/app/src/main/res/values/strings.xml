@@ -834,7 +834,7 @@
     <string name="wallet_swap_btc_amount_hint" translatable="false">BTC offered (sats, minimum 330)</string>
     <string name="wallet_swap_hns_amount_hint" translatable="false">HNS requested (minimum 0.000546)</string>
     <string name="wallet_swap_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats, minimum 1000)</string>
-    <string name="wallet_swap_lifetime_hours_hint" translatable="false">Listing lifetime (hours, 1–168)</string>
+    <string name="wallet_swap_lifetime_hours_hint" translatable="false">Listing lifetime (hours, 2–168)</string>
     <string name="wallet_swap_preparing" translatable="false">Preparing exact BTC-for-HNS listing…</string>
     <string name="wallet_swap_prepare_failed" translatable="false">The listing was not prepared. Confirmed BTC must cover active listings, this principal, and its fee reserve.</string>
     <string name="wallet_swap_approval_title" translatable="false">Publish BTC-for-HNS offer?</string>

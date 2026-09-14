@@ -1361,7 +1361,7 @@ final class WalletViewController: UIViewController {
                 ),
                 WalletSheetFormField(
                     label: "Listing lifetime",
-                    placeholder: "Hours (1–168)",
+                    placeholder: "Hours (2–168)",
                     keyboardType: .numberPad,
                     initialValue: "24"
                 ),
@@ -1374,9 +1374,9 @@ final class WalletViewController: UIViewController {
                   let hnsText = Self.positiveHnsBaseUnits(fields[1]),
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
                   let reserve = UInt64(fields[2]), reserve >= minimumBitcoinFeeReserveSats,
-                  let hours = UInt64(fields[3]), (1...168).contains(hours),
+                  let hours = UInt64(fields[3]), (2...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
-                self?.showErrorMessage("Enter at least 330 BTC sats, at least 0.000546 HNS, a Bitcoin fee reserve of at least 1000 sats, and 1–168 hours.")
+                self?.showErrorMessage("Enter at least 330 BTC sats, at least 0.000546 HNS, a Bitcoin fee reserve of at least 1000 sats, and 2–168 hours.")
                 return
             }
             self.isOperating = true
@@ -1532,7 +1532,7 @@ final class WalletViewController: UIViewController {
                     initialValue: defaultHnsMaximumFee
                 ),
                 WalletSheetFormField(
-                    label: "Listing lifetime", placeholder: "Hours (1–168)", keyboardType: .numberPad,
+                    label: "Listing lifetime", placeholder: "Hours (2–168)", keyboardType: .numberPad,
                     initialValue: "24"
                 ),
             ],
@@ -1544,8 +1544,8 @@ final class WalletViewController: UIViewController {
                   let btc = UInt64(fields[1]), btc >= minimumBitcoinHtlcSats,
                   let reserveText = Self.positiveHnsBaseUnits(fields[2]),
                   let reserve = UInt64(reserveText), reserve > 0,
-                  let hours = UInt64(fields[3]), (1...168).contains(hours) else {
-                self?.showErrorMessage("Enter at least 0.000546 HNS, at least 330 BTC sats, a positive HNS fee reserve, and 1–168 hours.")
+                  let hours = UInt64(fields[3]), (2...168).contains(hours) else {
+                self?.showErrorMessage("Enter at least 0.000546 HNS, at least 330 BTC sats, a positive HNS fee reserve, and 2–168 hours.")
                 return
             }
             self.isOperating = true
