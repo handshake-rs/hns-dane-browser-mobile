@@ -9113,8 +9113,8 @@ class WalletActivity : ComponentActivity() {
         const val SAFE_FULL_RESCAN_BIRTHDAY = 0L
         const val MAX_VISIBLE_READ_ITEMS = 20
         const val MAX_SEND_RECIPIENT_BYTES = 512
-        const val DEFAULT_HNS_MAXIMUM_FEE = "0.01"
-        const val DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS = "10000"
+        const val DEFAULT_HNS_MAXIMUM_FEE = "0.1"
+        const val DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS = "100000"
         const val MAX_VALUE_ACTION_INPUT_CHARACTERS = 512
         const val MAX_RESOURCE_EDITOR_CHARACTERS = 4 * 1024
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L

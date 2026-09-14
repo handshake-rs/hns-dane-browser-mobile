@@ -6,8 +6,8 @@ import Network
 @preconcurrency import AVFoundation
 import CoreImage
 
-private let defaultHnsMaximumFee = "0.01"
-private let defaultHnsMaximumFeeBaseUnits = "10000"
+private let defaultHnsMaximumFee = "0.1"
+private let defaultHnsMaximumFeeBaseUnits = "100000"
 private let minimumBitcoinHtlcSats: UInt64 = 330
 private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
 private let minimumHnsSwapDollarydoos: UInt64 = 546
