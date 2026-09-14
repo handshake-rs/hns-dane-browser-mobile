@@ -25,6 +25,25 @@ class NativeWalletNameRecordsActionTest {
     }
 
     @Test
+    fun offerAcceptanceCommitsASeparateAutomaticFinalizeFeeCap() {
+        val encoded = NativeHnsValueIntent.AcceptOffer(
+            listingId = "ab".repeat(32),
+            maximumFeeBaseUnits = "100000",
+            automaticFinalizeMaximumFeeBaseUnits = "120000",
+        ).encodeJson()
+        val value = JSONObject(requireNotNull(encoded).toString(Charsets.UTF_8))
+        assertEquals(
+            setOf(
+                "action", "listingId", "maximumFee", "automaticFinalizeMaximumFee",
+            ),
+            value.keys().asSequence().toSet(),
+        )
+        assertEquals("acceptOffer", value.getString("action"))
+        assertEquals("100000", value.getString("maximumFee"))
+        assertEquals("120000", value.getString("automaticFinalizeMaximumFee"))
+    }
+
+    @Test
     fun nameUpdateApprovalDisplaysTheExactValidatedResource() {
         val resourceHex = "0004c0000201"
         val summary = JSONObject()

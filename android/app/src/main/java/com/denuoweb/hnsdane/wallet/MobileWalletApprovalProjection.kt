@@ -70,6 +70,7 @@ internal sealed class WalletApprovalSummary(val kind: String) {
         val payment: WalletApprovalAmount,
         val recipient: String,
         val maximumFee: WalletApprovalAmount,
+        val automaticFinalizeMaximumFee: WalletApprovalAmount?,
         val warnings: List<String>,
     ) : WalletApprovalSummary("nameMarketPurchase")
 
@@ -307,6 +308,9 @@ internal object MobileWalletApprovalProjection {
                 addAmount("Payment", summary.payment)
                 add("Recipient", summary.recipient)
                 addAmount("Maximum fee", summary.maximumFee)
+                summary.automaticFinalizeMaximumFee?.let {
+                    addAmount("Automatic FINALIZE fee cap", it)
+                }
                 addWarnings(summary.warnings)
                 "Approve name purchase"
             }
@@ -512,17 +516,24 @@ internal object MobileWalletApprovalProjection {
     private fun validateNameMarketPurchase(candidate: JSONObject): WalletApprovalSummary.NameMarketPurchase {
         requireExactFields(
             candidate,
-            "kind", "name", "listingId", "payment", "recipient", "maximumFee", "warnings",
+            "kind", "name", "listingId", "payment", "recipient", "maximumFee",
+            "automaticFinalizeMaximumFee", "warnings",
         )
         val payment = amount(candidate.opt("payment"), allowZero = false)
         val maximumFee = amount(candidate.opt("maximumFee"), allowZero = true)
-        if (payment.asset != "HNS" || maximumFee.asset != "HNS") fail()
+        val automaticFinalizeMaximumFee = candidate.opt("automaticFinalizeMaximumFee")
+            .takeUnless { it == null || it === JSONObject.NULL }
+            ?.let { amount(it, allowZero = false) }
+        if (payment.asset != "HNS" || maximumFee.asset != "HNS" ||
+            automaticFinalizeMaximumFee?.asset?.let { it != "HNS" } == true
+        ) fail()
         return WalletApprovalSummary.NameMarketPurchase(
             publicString(candidate.opt("name")),
             publicString(candidate.opt("listingId")),
             payment,
             publicString(candidate.opt("recipient")),
             maximumFee,
+            automaticFinalizeMaximumFee,
             warnings(candidate.opt("warnings")),
         )
     }

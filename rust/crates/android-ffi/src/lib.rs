@@ -2947,6 +2947,14 @@ impl AndroidWalletController {
         }
     }
 
+    fn prepare_next_shakedex_finalize(&mut self) -> Option<Vec<u8>> {
+        match self {
+            Self::Value(controller) => prepare_next_shakedex_finalize(controller),
+            Self::DirectValue { controller, .. } => prepare_next_shakedex_finalize(controller),
+            Self::Lifecycle(_) | Self::Reads(_) | Self::Failed => None,
+        }
+    }
+
     fn query_shakedex(&mut self, query: MobileShakedexQuery) -> Option<Vec<u8>> {
         match self {
             Self::Value(controller) => query_shakedex(controller, query),
@@ -2997,6 +3005,29 @@ fn prepare_hns_value_action<B: HnsBackend>(
             return None;
         }
     };
+    wallet_value_approval_bundle_for_controller(controller, approval)
+}
+
+fn prepare_next_shakedex_finalize<B: HnsBackend>(
+    controller: &mut MobileHnsValueController<B>,
+) -> Option<Vec<u8>> {
+    let approval = match controller.prepare_next_shakedex_finalize() {
+        Ok(Some(approval)) => approval,
+        Ok(None) => return None,
+        Err(error) => {
+            android_log_error(&format!(
+                "tracked Shakedex FINALIZE preparation failed: {error}"
+            ));
+            return None;
+        }
+    };
+    wallet_value_approval_bundle_for_controller(controller, approval)
+}
+
+fn wallet_value_approval_bundle_for_controller<B: HnsBackend>(
+    controller: &mut MobileHnsValueController<B>,
+    approval: hns_wallet_mobile::MobileHnsValueApproval,
+) -> Option<Vec<u8>> {
     if approval.summary.validate().is_err() {
         android_log_error("wallet HNS value approval failed its native summary validation");
         let _ = controller.lock();
@@ -8541,6 +8572,54 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         Ok(array) => array.unwrap_or(std::ptr::null_mut()),
         Err(_) => {
             android_log_error("wallet HNS value JNI preparation panicked and failed closed");
+            std::ptr::null_mut()
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativePrepareNextShakedexFinalize(
+    env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    handle: jlong,
+) -> jbyteArray {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let Some(record) = wallet_from_handle(handle) else {
+            android_log_error(
+                "tracked Shakedex FINALIZE preparation could not resolve its wallet handle",
+            );
+            return None;
+        };
+        let Some(mut controller) = record.controller_if_active() else {
+            android_log_error(
+                "tracked Shakedex FINALIZE preparation could not acquire its active controller",
+            );
+            return None;
+        };
+        // A null return is the ordinary no-work result. The controller only
+        // owns a pending approval when this returns an encoded bundle.
+        let mut bundle = controller.prepare_next_shakedex_finalize()?;
+        let array = match env.byte_array_from_slice(bundle.as_slice()) {
+            Ok(array) => Some(array),
+            Err(error) => {
+                android_log_error(&format!(
+                    "tracked Shakedex FINALIZE preparation could not publish its bundle: {error}"
+                ));
+                None
+            }
+        };
+        bundle.fill(0);
+        if array.is_none() {
+            // Preparation installed an exact one-shot approval, so failure to
+            // publish its review projection must invalidate that authority.
+            let _ = controller.lock();
+        }
+        array.map(JByteArray::into_raw)
+    }));
+    match result {
+        Ok(array) => array.unwrap_or(std::ptr::null_mut()),
+        Err(_) => {
+            android_log_error("tracked Shakedex FINALIZE JNI preparation panicked");
             std::ptr::null_mut()
         }
     }

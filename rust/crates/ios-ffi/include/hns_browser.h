@@ -498,6 +498,14 @@ HnsBrowserResult hns_browser_wallet_prepare_hns_value_action(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice intent_json,
     HnsBrowserBuffer *out_approval_bundle);
+/*
+ * Prepares a mature name purchase made before automatic FINALIZE fee
+ * authorization existed. An OK result with an empty buffer means no legacy
+ * purchase currently needs approval.
+ */
+HnsBrowserResult hns_browser_wallet_prepare_next_shakedex_finalize(
+    HnsBrowserWalletHandle wallet,
+    HnsBrowserBuffer *out_approval_bundle);
 HnsBrowserResult hns_browser_wallet_approve_hns_value_action_result(
     HnsBrowserWalletHandle wallet,
     HnsBrowserSlice action_token,

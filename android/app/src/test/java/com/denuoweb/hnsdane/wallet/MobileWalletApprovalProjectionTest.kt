@@ -348,6 +348,7 @@ class MobileWalletApprovalProjectionTest {
                 .put("payment", amount("HNS", "500"))
                 .put("recipient", "hs1qseller")
                 .put("maximumFee", amount("HNS", "2"))
+                .put("automaticFinalizeMaximumFee", amount("HNS", "3"))
                 .put("warnings", array("settlementCanBeDelayed")),
         ),
         fixture(
@@ -474,7 +475,10 @@ class MobileWalletApprovalProjectionTest {
                 ),
             "nameMarketPurchase" to (
                 "Approve name purchase" to
-                    listOf("Name", "Listing ID", "Payment", "Recipient", "Maximum fee", "Warnings")
+                    listOf(
+                        "Name", "Listing ID", "Payment", "Recipient", "Maximum fee",
+                        "Automatic FINALIZE fee cap", "Warnings",
+                    )
                 ),
             "directOffer" to (
                 "Approve direct offer" to

@@ -4237,6 +4237,24 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertEqual(update.expectedApprovalKind, .nameUpdate)
         XCTAssertFalse(update.requiresShakedex)
 
+        let acceptance = NativeHnsValueIntent.acceptOffer(
+            listingID: String(repeating: "ab", count: 32),
+            maximumFeeBaseUnits: "100000",
+            automaticFinalizeMaximumFeeBaseUnits: "120000"
+        )
+        let acceptanceObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(try acceptance.encodedBytes()))
+                as? [String: Any]
+        )
+        XCTAssertEqual(
+            Set(acceptanceObject.keys),
+            ["action", "listingId", "maximumFee", "automaticFinalizeMaximumFee"]
+        )
+        XCTAssertEqual(acceptanceObject["action"] as? String, "acceptOffer")
+        XCTAssertEqual(acceptanceObject["automaticFinalizeMaximumFee"] as? String, "120000")
+        XCTAssertEqual(acceptance.expectedApprovalKind, .nameMarketPurchase)
+        XCTAssertTrue(acceptance.requiresShakedex)
+
         XCTAssertThrowsError(try NativeHnsValueIntent.transferName(
             name: "alpha",
             recipient: "recipient with spaces",

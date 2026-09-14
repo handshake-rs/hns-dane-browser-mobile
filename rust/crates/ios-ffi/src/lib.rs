@@ -5116,6 +5116,74 @@ pub unsafe extern "C" fn hns_browser_wallet_prepare_hns_value_action(
     })
 }
 
+/// Prepares the next mature pre-upgrade Shakedex purchase directly from the
+/// wallet's tracked workflow state. This avoids asking the user for an opaque
+/// buyer-session identifier. An empty successful output means no legacy
+/// purchase is currently eligible; new purchases finalize automatically under
+/// the fee cap approved with their original acceptance.
+///
+/// # Safety
+/// `out_approval_bundle` must point to one writable owned-buffer value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hns_browser_wallet_prepare_next_shakedex_finalize(
+    wallet: HnsBrowserWalletHandle,
+    out_approval_bundle: *mut HnsBrowserBuffer,
+) -> HnsBrowserResult {
+    ffi_call(|| {
+        require_output(out_approval_bundle)?;
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_approval_bundle, HnsBrowserBuffer::empty()) };
+        let entry = wallet_entry(wallet)?;
+        let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+        ensure_wallet_active(&entry)?;
+        let NativeWalletController::DirectHnsValue { controller, .. } = &mut entry.controller
+        else {
+            return Err(FfiFailure::new(
+                HNS_BROWSER_RESULT_NOT_READY,
+                "direct HNS wallet is not configured",
+            ));
+        };
+        let Some(approval) = controller
+            .prepare_next_shakedex_finalize()
+            .map_err(|_| direct_hns_not_ready("tracked Shakedex FINALIZE is not ready"))?
+        else {
+            return Ok(());
+        };
+        if approval.summary.validate().is_err() {
+            let _ = controller.lock();
+            return Err(wallet_runtime_failure(
+                "tracked Shakedex FINALIZE approval is invalid",
+            ));
+        }
+        let mut json = serde_json::to_vec(&approval)
+            .map_err(|_| wallet_runtime_failure("unable to encode tracked FINALIZE approval"))?;
+        let bundle = match wallet_json_bundle(
+            json.as_slice(),
+            WALLET_VALUE_APPROVAL_BUNDLE_MAGIC,
+            WALLET_VALUE_APPROVAL_BUNDLE_VERSION,
+            MAX_WALLET_VALUE_APPROVAL_JSON_BYTES,
+        ) {
+            Ok(bundle) => bundle,
+            Err(error) => {
+                json.fill(0);
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        json.fill(0);
+        let output = match allocate_output(&bundle.0, true) {
+            Ok(output) => output,
+            Err(error) => {
+                let _ = controller.lock();
+                return Err(error);
+            }
+        };
+        // SAFETY: Null was rejected above and the C contract requires writable output.
+        unsafe { write_output(out_approval_bundle, output) };
+        Ok(())
+    })
+}
+
 /// Runs one bounded local Shakedex query through the configured direct HNS
 /// controller. Its HNVQ-v1 result remains native-only and is not a page
 /// provider response. Queries do not authorize a transaction and do not
@@ -7980,6 +8048,7 @@ mod tests {
             "hns_browser_wallet_approve_hns_send",
             "hns_browser_wallet_reject_hns_send",
             "hns_browser_wallet_prepare_hns_value_action",
+            "hns_browser_wallet_prepare_next_shakedex_finalize",
             "hns_browser_wallet_approve_hns_value_action_result",
             "hns_browser_wallet_query_shakedex",
             "hns_browser_wallet_direct_shakescape_status",

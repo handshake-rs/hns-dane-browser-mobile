@@ -1733,7 +1733,11 @@ enum NativeHnsValueIntent: Sendable {
         listingLifetimeSeconds: UInt64
     )
     case cancelOffer(sellerSessionID: String)
-    case acceptOffer(listingID: String, maximumFeeBaseUnits: String)
+    case acceptOffer(
+        listingID: String,
+        maximumFeeBaseUnits: String,
+        automaticFinalizeMaximumFeeBaseUnits: String
+    )
     case finalizePurchase(sessionID: String, maximumFeeBaseUnits: String)
     case recoverName(sellerSessionID: String, maximumFeeBaseUnits: String)
 
@@ -1828,14 +1832,16 @@ enum NativeHnsValueIntent: Sendable {
                 throw NativeWalletBridgeError.invalidOutput("invalid name-offer seller session")
             }
             object = ["action": "cancelOffer", "sellerSessionId": sellerSessionID]
-        case let .acceptOffer(listingID, maximumFee):
-            guard Self.isObjectID(listingID), Self.isPositiveBaseUnits(maximumFee) else {
+        case let .acceptOffer(listingID, maximumFee, automaticFinalizeMaximumFee):
+            guard Self.isObjectID(listingID), Self.isPositiveBaseUnits(maximumFee),
+                  Self.isPositiveBaseUnits(automaticFinalizeMaximumFee) else {
                 throw NativeWalletBridgeError.invalidOutput("invalid name-offer acceptance input")
             }
             object = [
                 "action": "acceptOffer",
                 "listingId": listingID,
                 "maximumFee": maximumFee,
+                "automaticFinalizeMaximumFee": automaticFinalizeMaximumFee,
             ]
         case let .finalizePurchase(sessionID, maximumFee):
             guard Self.isObjectID(sessionID), Self.isPositiveBaseUnits(maximumFee) else {
@@ -4032,6 +4038,31 @@ final class RustNativeWallet: @unchecked Sendable {
             // A completed native prepare owns an executable action token. A
             // malformed display projection therefore locks rather than leaves
             // that action available without a human-readable review.
+            try? lock()
+            throw error
+        }
+    }
+
+    /// Returns an exact one-shot approval for the next mature purchase made
+    /// before automatic FINALIZE authorization existed. New purchases do not
+    /// surface here because their committed fee cap permits native recovery to
+    /// complete them automatically.
+    func prepareNextShakedexFinalize() throws -> NativeHnsValueApproval? {
+        var output = HnsBrowserBuffer()
+        let result = hns_browser_wallet_prepare_next_shakedex_finalize(
+            try liveHandle(),
+            &output
+        )
+        defer { NativeWalletBridge.free(output) }
+        try NativeWalletBridge.check(result, operation: "tracked Shakedex FINALIZE preparation")
+        guard output.len != 0 else { return nil }
+        do {
+            var bundle = try NativeWalletBridge.bytes(copying: output)
+            defer { WalletSecretBytes.wipe(&bundle) }
+            return try NativeHnsValueApproval.decode(bundle: bundle)
+        } catch {
+            // A nonempty native result installed an executable one-shot token.
+            // Lock if UIKit cannot project the exact review safely.
             try? lock()
             throw error
         }

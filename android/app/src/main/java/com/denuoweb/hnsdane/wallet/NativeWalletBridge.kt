@@ -663,6 +663,25 @@ internal object NativeWalletBridge {
         }
     }
 
+    /**
+     * Prepares the next mature purchase created before automatic FINALIZE
+     * authorization was added. Null means that no such purchase is ready.
+     */
+    fun prepareNextShakedexFinalize(handle: Long): NativeHnsValueApproval? {
+        if (!isAvailable || !isValidHandle(handle)) return null
+        val bundle = runCatching { nativePrepareNextShakedexFinalize(handle) }
+            .onFailure { error ->
+                Log.e(TAG, "Tracked Shakedex FINALIZE JNI call threw", error)
+            }
+            .getOrNull() ?: return null
+        val approval = parseAndWipeHnsValueApprovalBundle(bundle)
+        if (approval == null) {
+            Log.e(TAG, "Tracked Shakedex FINALIZE rejected its native approval projection")
+            lock(handle)
+        }
+        return approval
+    }
+
     fun queryShakedex(
         handle: Long,
         query: NativeShakedexQuery,
@@ -1535,6 +1554,9 @@ internal object NativeWalletBridge {
         handle: Long,
         intentJson: ByteArray,
     ): ByteArray?
+
+    @JvmStatic
+    private external fun nativePrepareNextShakedexFinalize(handle: Long): ByteArray?
 
     @JvmStatic
     private external fun nativeQueryShakedex(

@@ -94,6 +94,7 @@ enum WalletApprovalSummaryV3: Equatable {
         payment: WalletApprovalAmountV2,
         recipient: String,
         maximumFee: WalletApprovalAmountV2,
+        automaticFinalizeMaximumFee: WalletApprovalAmountV2?,
         warnings: [WalletApprovalWarningV2]
     )
     case directOffer(
@@ -290,13 +291,18 @@ enum WalletApprovalProjectionV3 {
             addAmount("Price", price)
             addAmount("Maximum fee", maximumFee)
             addWarnings(warnings)
-        case let .nameMarketPurchase(name, listingID, payment, recipient, maximumFee, warnings):
+        case let .nameMarketPurchase(
+            name, listingID, payment, recipient, maximumFee, automaticFinalizeMaximumFee, warnings
+        ):
             title = "Approve name purchase"
             add("Name", name)
             add("Listing ID", listingID)
             addAmount("Payment", payment)
             add("Recipient", recipient)
             addAmount("Maximum fee", maximumFee)
+            if let automaticFinalizeMaximumFee {
+                addAmount("Automatic FINALIZE fee cap", automaticFinalizeMaximumFee)
+            }
             addWarnings(warnings)
         case let .directOffer(action, directOfferID, offered, received, maximumFee, warnings):
             title = "Approve direct offer"
@@ -446,17 +452,29 @@ enum WalletApprovalProjectionV3 {
             try requireMethod(method, ["nameMarket_acceptOffer", "nameMarket_finalizePurchase"])
             try requireExactFields(
                 value,
-                ["kind", "name", "listingId", "payment", "recipient", "maximumFee", "warnings"]
+                [
+                    "kind", "name", "listingId", "payment", "recipient", "maximumFee",
+                    "automaticFinalizeMaximumFee", "warnings",
+                ]
             )
             let payment = try amount(value["payment"], allowZero: false)
             let maximumFee = try amount(value["maximumFee"], allowZero: true)
-            guard payment.asset == .hns, maximumFee.asset == .hns else { throw invalidApproval() }
+            let automaticFinalizeMaximumFee: WalletApprovalAmountV2?
+            if let rawFee = value["automaticFinalizeMaximumFee"], !(rawFee is NSNull) {
+                automaticFinalizeMaximumFee = try amount(rawFee, allowZero: false)
+            } else {
+                automaticFinalizeMaximumFee = nil
+            }
+            guard payment.asset == .hns, maximumFee.asset == .hns,
+                  automaticFinalizeMaximumFee == nil ||
+                    automaticFinalizeMaximumFee?.asset == .hns else { throw invalidApproval() }
             return .nameMarketPurchase(
                 name: try publicString(value["name"]),
                 listingID: try publicString(value["listingId"]),
                 payment: payment,
                 recipient: try publicString(value["recipient"]),
                 maximumFee: maximumFee,
+                automaticFinalizeMaximumFee: automaticFinalizeMaximumFee,
                 warnings: try warnings(value["warnings"])
             )
         case "directOffer":

@@ -509,7 +509,8 @@ final class WalletProviderProtocolTests: XCTestCase {
                 [
                     "kind": "nameMarketPurchase", "name": "example", "listingId": "listing-1",
                     "payment": amount("HNS", "5000"), "recipient": "hs1qseller",
-                    "maximumFee": amount("HNS", "50"), "warnings": [],
+                    "maximumFee": amount("HNS", "50"),
+                    "automaticFinalizeMaximumFee": amount("HNS", "60"), "warnings": [],
                 ]
             ),
             (
@@ -597,8 +598,11 @@ final class WalletProviderProtocolTests: XCTestCase {
             ),
             "nameMarketPurchase": (
                 "Approve name purchase",
-                ["Name", "Listing ID", "Payment", "Recipient", "Maximum fee"],
-                ["example", "listing-1", "5000 HNS", "hs1qseller", "50 HNS"]
+                [
+                    "Name", "Listing ID", "Payment", "Recipient", "Maximum fee",
+                    "Automatic FINALIZE fee cap",
+                ],
+                ["example", "listing-1", "5000 HNS", "hs1qseller", "50 HNS", "60 HNS"]
             ),
             "directOffer": (
                 "Approve direct offer",

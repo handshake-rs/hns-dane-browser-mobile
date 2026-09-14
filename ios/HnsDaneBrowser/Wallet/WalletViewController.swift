@@ -100,6 +100,8 @@ final class WalletViewController: UIViewController {
     private var pendingHnsSendApproval: NativeHnsSendApproval?
     private weak var hnsValueApprovalAlert: UIAlertController?
     private var pendingHnsValueApproval: NativeHnsValueApproval?
+    private var trackedShakedexFinalizePromptAttempts: Set<String> = []
+    private var trackedShakedexFinalizeApprovalTransactionID: String?
     private var directShakescapeServiceTimer: Timer?
     private var directShakescapeServiceInFlight = false
     private var directShakescapeServiceTicks = 0
@@ -692,11 +694,13 @@ final class WalletViewController: UIViewController {
             action: { [weak self] in self?.showBitcoinDashboard() }
         )
         if showShakedexWalletCard {
+            let shakedexSummary = finalizeNotices.first.map(formatFinalizeNotice)
+                ?? (directShakescapeStatusSnapshot?.peerEndpoint == nil
+                    ? "No board peer connected"
+                    : "Board peer connected")
             let shakedexTile = dashboardTile(
                 title: "Shakedex",
-                summary: directShakescapeStatusSnapshot?.peerEndpoint == nil
-                    ? "No board peer connected"
-                    : "Board peer connected",
+                summary: shakedexSummary,
                 enabled: !isOperating,
                 action: { [weak self] in self?.showShakedexDashboard() }
             )
@@ -2756,6 +2760,7 @@ final class WalletViewController: UIViewController {
                         authorityGeneration: authorityGeneration
                     )
                 case .failure(let error):
+                    self.trackedShakedexFinalizePromptAttempts.remove(notice.transactionID)
                     self.isOperating = false
                     self.refreshState()
                     self.readStatusLabel.text = "HNS send review could not be prepared. Synchronize again before retrying."
@@ -3132,7 +3137,6 @@ final class WalletViewController: UIViewController {
             WalletMenuAction(title: "Recover name from offer", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showRecoverNameForm() },
             WalletMenuAction(title: "List Handshake name-sale offers", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showListOffersForm() },
             WalletMenuAction(title: "Get session", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showGetSessionForm() },
-            WalletMenuAction(title: "Finalize purchase", section: "Name Swap Actions", enabled: paired) { [weak self] in self?.showFinalizePurchaseForm() },
         ]
         if shakedexActionMayStart {
             // No snapshot can mean the native non-blocking controller read was
@@ -3443,32 +3447,11 @@ final class WalletViewController: UIViewController {
                 self?.showErrorMessage("Enter the listing ID and a positive maximum fee.")
                 return
             }
-            self.beginHnsValueAction(.acceptOffer(listingID: values[0], maximumFeeBaseUnits: fee))
-        }
-    }
-
-    private func showFinalizePurchaseForm() {
-        collectHnsValueForm(
-            title: "Finalize purchase",
-            fields: [
-                .init(label: "Session ID", placeholder: "64 lowercase hex characters"),
-                .init(
-                    label: "Maximum fee cap in HNS",
-                    placeholder: defaultHnsMaximumFee,
-                    numeric: true,
-                    initialValue: defaultHnsMaximumFee
-                ),
-            ]
-        ) { [weak self] values in
-            guard let self,
-                  values.count == 2,
-                  let fee = Self.positiveHnsBaseUnits(values[1]) else {
-                self?.showErrorMessage("Enter the session ID and a positive maximum fee.")
-                return
-            }
-            self.beginHnsValueAction(
-                .finalizePurchase(sessionID: values[0], maximumFeeBaseUnits: fee)
-            )
+            self.beginHnsValueAction(.acceptOffer(
+                listingID: values[0],
+                maximumFeeBaseUnits: fee,
+                automaticFinalizeMaximumFeeBaseUnits: fee
+            ))
         }
     }
 
@@ -3795,8 +3778,10 @@ final class WalletViewController: UIViewController {
         walletIdentity: ObjectIdentifier,
         authorityGeneration: UInt64
     ) {
-        dismissPendingHnsValueApproval(rejectNatively: true)
-        pendingHnsValueApproval = approval
+        if pendingHnsValueApproval?.actionToken !== approval.actionToken {
+            dismissPendingHnsValueApproval(rejectNatively: true)
+            pendingHnsValueApproval = approval
+        }
         let date = Date(timeIntervalSince1970: TimeInterval(approval.expiresAtUnix))
         let expiry = DateFormatter.localizedString(
             from: date,
@@ -3841,6 +3826,7 @@ final class WalletViewController: UIViewController {
         guard pendingHnsValueApproval?.actionToken === approval.actionToken,
               let wallet else { return }
         pendingHnsValueApproval = nil
+        trackedShakedexFinalizeApprovalTransactionID = nil
         hnsValueApprovalAlert = nil
         readStatusLabel.text = "Executing the approved native HNS action…"
         let keychain = keychain
@@ -3895,6 +3881,10 @@ final class WalletViewController: UIViewController {
         guard pendingHnsValueApproval?.actionToken === approval.actionToken,
               let wallet else { return }
         pendingHnsValueApproval = nil
+        if let transactionID = trackedShakedexFinalizeApprovalTransactionID {
+            trackedShakedexFinalizePromptAttempts.remove(transactionID)
+        }
+        trackedShakedexFinalizeApprovalTransactionID = nil
         hnsValueApprovalAlert = nil
         DispatchQueue.global(qos: .userInitiated).async {
             let outcome = Result { try wallet.rejectHnsValueAction(approval.actionToken) }
@@ -3929,6 +3919,11 @@ final class WalletViewController: UIViewController {
     private func dismissPendingHnsValueApproval(rejectNatively: Bool) {
         let approval = pendingHnsValueApproval
         pendingHnsValueApproval = nil
+        if rejectNatively,
+           let transactionID = trackedShakedexFinalizeApprovalTransactionID {
+            trackedShakedexFinalizePromptAttempts.remove(transactionID)
+        }
+        trackedShakedexFinalizeApprovalTransactionID = nil
         hnsValueApprovalAlert?.dismiss(animated: false)
         hnsValueApprovalAlert = nil
         guard let approval else { return }
@@ -4425,6 +4420,7 @@ final class WalletViewController: UIViewController {
 
     private func authenticateWalletAction(
         reason: String,
+        cancelled: @escaping @MainActor @Sendable () -> Void = {},
         authorized: @escaping @MainActor @Sendable () -> Void
     ) {
         guard !walletAuthenticationInProgress else { return }
@@ -4446,10 +4442,13 @@ final class WalletViewController: UIViewController {
                 self.walletAuthenticationInProgress = false
                 if approved {
                     authorized()
-                } else if errorCode != .userCancel,
-                          errorCode != .systemCancel,
-                          errorCode != .appCancel {
-                    self.showErrorMessage(errorMessage ?? "Wallet authentication failed.")
+                } else {
+                    cancelled()
+                    if errorCode != .userCancel,
+                       errorCode != .systemCancel,
+                       errorCode != .appCancel {
+                        self.showErrorMessage(errorMessage ?? "Wallet authentication failed.")
+                    }
                 }
                 self.refreshButtonStates()
             }
@@ -5369,6 +5368,110 @@ final class WalletViewController: UIViewController {
             loadCompleteNameGallery(snapshot: snapshot, into: gallery)
         }
         maybeRefreshPendingOutgoingAfterNewBlock()
+        scheduleTrackedShakedexFinalizeApproval(snapshot)
+    }
+
+    /// New purchases carry an approval-bound automatic FINALIZE fee cap and
+    /// native recovery submits them during synchronization. A pre-upgrade
+    /// purchase has no such authority, so its durable workflow raises one
+    /// exact approval without exposing an internal buyer-session ID.
+    private func scheduleTrackedShakedexFinalizeApproval(_ snapshot: NativeHnsReadSnapshot) {
+        guard let notice = snapshot.finalizeNotices.first(where: {
+            $0.phase == "finalizeAvailable" &&
+                !trackedShakedexFinalizePromptAttempts.contains($0.transactionID)
+        }),
+        !isOperating,
+        !walletAuthenticationInProgress,
+        pendingHnsValueApproval == nil,
+        hnsValueActionMayStart,
+        shakedexAvailable,
+        let lease = storageLease,
+        let wallet else { return }
+
+        trackedShakedexFinalizePromptAttempts.insert(notice.transactionID)
+        isOperating = true
+        readGeneration &+= 1
+        let generation = readGeneration
+        let walletIdentity = ObjectIdentifier(wallet)
+        let authorityGeneration = walletAuthorityGeneration
+        readStatusLabel.text =
+            "Preparing the tracked pre-upgrade name purchase for its one final approval…"
+        refreshButtonStates()
+
+        DispatchQueue.global(qos: .userInitiated).async { [wallet] in
+            let outcome: Result<NativeHnsValueApproval?, Error> = Result {
+                let approval = try wallet.prepareNextShakedexFinalize()
+                guard let approval else { return nil }
+                guard approval.kind == .nameMarketPurchase else {
+                    try? wallet.rejectHnsValueAction(approval.actionToken)
+                    try? wallet.lock()
+                    throw NativeWalletBridgeError.invalidOutput(
+                        "tracked FINALIZE changed its native approval kind"
+                    )
+                }
+                return approval
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                let mayPublish = walletReadMayPublish(
+                    expectedGeneration: generation,
+                    currentGeneration: self.readGeneration,
+                    expectedLease: lease,
+                    currentLease: self.storageLease,
+                    expectedWalletIdentity: walletIdentity,
+                    currentWalletIdentity: self.wallet.map { ObjectIdentifier($0) },
+                    expectedAuthorityGeneration: authorityGeneration,
+                    currentAuthorityGeneration: self.walletAuthorityGeneration,
+                    viewIsVisible: self.walletAuthorityRequested && self.viewIfLoaded?.window != nil
+                )
+                guard mayPublish else {
+                    if case .success(let approval?) = outcome {
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            try? wallet.rejectHnsValueAction(approval.actionToken)
+                        }
+                    }
+                    return
+                }
+                switch outcome {
+                case .success(nil):
+                    self.isOperating = false
+                    self.refreshState()
+                    self.readStatusLabel.text = WalletReadPresenter.present(snapshot).status
+                    self.refreshButtonStates()
+                case .success(let approval?):
+                    self.pendingHnsValueApproval = approval
+                    self.trackedShakedexFinalizeApprovalTransactionID = notice.transactionID
+                    self.authenticateWalletAction(
+                        reason: "Authenticate to review and complete the tracked purchase of \(notice.name). No session ID is required.",
+                        cancelled: { [weak self] in
+                            self?.rejectHnsValueApproval(
+                                approval,
+                                lease: lease,
+                                generation: generation,
+                                walletIdentity: walletIdentity,
+                                authorityGeneration: authorityGeneration
+                            )
+                        }
+                    ) { [weak self] in
+                        guard let self else { return }
+                        self.showHnsValueApproval(
+                            approval,
+                            lease: lease,
+                            generation: generation,
+                            walletIdentity: walletIdentity,
+                            authorityGeneration: authorityGeneration
+                        )
+                    }
+                case .failure(let error):
+                    self.isOperating = false
+                    self.refreshState()
+                    self.readStatusLabel.text =
+                        "The tracked name purchase could not be prepared for FINALIZE. Synchronize before retrying."
+                    self.showError(error)
+                    self.refreshButtonStates()
+                }
+            }
+        }
     }
 
     private func startPendingOutgoingRefreshObserver() {
@@ -5439,9 +5542,9 @@ final class WalletViewController: UIViewController {
         case "transferPending":
             return "\(notice.name): TRANSFER submitted and awaiting confirmation. Transaction \(notice.transactionID). Current block \(notice.currentHeight)."
         case "finalizeWaiting":
-            return "\(notice.name): TRANSFER confirmed. FINALIZE remains pending. Current block \(notice.currentHeight); FINALIZE becomes available at block \(notice.finalizeEligibleHeight ?? 0). Transfer transaction \(notice.transactionID)."
+            return "\(notice.name): TRANSFER confirmed and tracked. Current block \(notice.currentHeight); FINALIZE becomes available at block \(notice.finalizeEligibleHeight ?? 0). Transfer transaction \(notice.transactionID)."
         case "finalizeAvailable":
-            return "\(notice.name): FINALIZE is available now. Current block \(notice.currentHeight); eligible since block \(notice.finalizeEligibleHeight ?? 0). This notice remains until FINALIZE is confirmed. Transfer transaction \(notice.transactionID)."
+            return "\(notice.name): FINALIZE is available now and remains tracked until it is submitted and confirmed. Current block \(notice.currentHeight); eligible since block \(notice.finalizeEligibleHeight ?? 0). Transfer transaction \(notice.transactionID)."
         case "finalizePending":
             return "\(notice.name): FINALIZE submitted and awaiting confirmation. Transaction \(notice.transactionID). Current block \(notice.currentHeight). This notice remains until completion is verified."
         default:

@@ -302,6 +302,8 @@ class WalletActivity : ComponentActivity() {
     private var pendingSendApproval: NativeHnsSendApproval? = null
     private var valueApprovalDialog: AlertDialog? = null
     private var pendingValueApproval: NativeHnsValueApproval? = null
+    private val trackedShakedexFinalizePromptAttempts = mutableSetOf<String>()
+    private var trackedShakedexFinalizeApprovalTransactionId: String? = null
     private var latestReadSnapshot: NativeWalletReadSnapshot? = null
     private var loadedTrackedNames: List<NativeWalletName> = emptyList()
     private var trackedNamePageOffset: Int = 0
@@ -1300,7 +1302,8 @@ class WalletActivity : ComponentActivity() {
         }
 
     private fun shakedexSummary(): String =
-        activeShakescapeDashboardSummary ?: if (directShakescapePeerEndpoint != null) {
+        latestReadSnapshot?.finalizeNotices?.firstOrNull()?.let(::formatFinalizeNotice)
+            ?: activeShakescapeDashboardSummary ?: if (directShakescapePeerEndpoint != null) {
             getString(R.string.wallet_dashboard_connected)
         } else {
             getString(R.string.wallet_dashboard_not_connected)
@@ -2435,7 +2438,6 @@ class WalletActivity : ComponentActivity() {
                         WalletModalAction(getString(R.string.row_wallet_cancel_offer), paired, ::showCancelOfferForm),
                         WalletModalAction(getString(R.string.row_wallet_recover_name), paired, ::showRecoverNameForm),
                         WalletModalAction(getString(R.string.row_wallet_list_offers), paired, ::showListOffersForm),
-                        WalletModalAction(getString(R.string.row_wallet_finalize_purchase), paired, ::showFinalizePurchaseForm),
                         WalletModalAction(getString(R.string.row_wallet_get_session), paired, ::showGetSessionForm),
                     ),
                 ),
@@ -6148,23 +6150,7 @@ class WalletActivity : ComponentActivity() {
     ) { values ->
         val fee = parsePositiveHnsToBaseUnits(values[1])
         if (fee == null) return@showWalletActionForm invalidValueActionInput()
-        prepareWalletValueAction(NativeHnsValueIntent.AcceptOffer(values[0], fee))
-    }
-
-    private fun showFinalizePurchaseForm() = showWalletActionForm(
-        R.string.row_wallet_finalize_purchase,
-        listOf(
-            WalletActionInput(R.string.wallet_action_session_hint),
-            WalletActionInput(
-                R.string.wallet_action_maximum_fee_hint,
-                numeric = true,
-                initial = DEFAULT_HNS_MAXIMUM_FEE,
-            ),
-        ),
-    ) { values ->
-        val fee = parsePositiveHnsToBaseUnits(values[1])
-        if (fee == null) return@showWalletActionForm invalidValueActionInput()
-        prepareWalletValueAction(NativeHnsValueIntent.FinalizePurchase(values[0], fee))
+        prepareWalletValueAction(NativeHnsValueIntent.AcceptOffer(values[0], fee, fee))
     }
 
     private fun showRecoverNameForm() = showWalletActionForm(
@@ -6687,8 +6673,10 @@ class WalletActivity : ComponentActivity() {
         epoch: Long,
         authorityGeneration: Long,
     ) {
-        dismissValueApproval(rejectNative = true)
-        pendingValueApproval = approval
+        if (pendingValueApproval !== approval) {
+            dismissValueApproval(rejectNative = true)
+            pendingValueApproval = approval
+        }
         val expires = runCatching {
             DateFormat.getDateTimeInstance().format(
                 Date(Math.multiplyExact(approval.expiresAtUnix, 1_000L)),
@@ -6729,6 +6717,7 @@ class WalletActivity : ComponentActivity() {
     ) {
         if (pendingValueApproval !== approval) return
         pendingValueApproval = null
+        trackedShakedexFinalizeApprovalTransactionId = null
         valueActionStatusView.text = getString(R.string.wallet_value_actions_executing)
         val handle = walletHandle
         val pendingRefreshFloor = latestReadSnapshot?.height
@@ -6808,6 +6797,10 @@ class WalletActivity : ComponentActivity() {
     ) {
         if (pendingValueApproval !== approval) return
         pendingValueApproval = null
+        trackedShakedexFinalizeApprovalTransactionId?.let(
+            trackedShakedexFinalizePromptAttempts::remove,
+        )
+        trackedShakedexFinalizeApprovalTransactionId = null
         val handle = walletHandle
         thread(name = "hns-wallet-value-reject") {
             val rejected = NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
@@ -6841,6 +6834,12 @@ class WalletActivity : ComponentActivity() {
     private fun dismissValueApproval(rejectNative: Boolean) {
         val approval = pendingValueApproval
         pendingValueApproval = null
+        if (rejectNative) {
+            trackedShakedexFinalizeApprovalTransactionId?.let(
+                trackedShakedexFinalizePromptAttempts::remove,
+            )
+        }
+        trackedShakedexFinalizeApprovalTransactionId = null
         val dialog = valueApprovalDialog
         valueApprovalDialog = null
         dialog?.setOnCancelListener(null)
@@ -8723,6 +8722,7 @@ class WalletActivity : ComponentActivity() {
         }
         renderWalletDashboard()
         maybeRefreshPendingOutgoingAfterNewBlock()
+        scheduleTrackedShakedexFinalizeApproval(snapshot)
     }
 
     private fun startPendingOutgoingRefreshObserver() {
@@ -8742,6 +8742,108 @@ class WalletActivity : ComponentActivity() {
                     height,
                 )
                 maybeRefreshPendingOutgoingAfterNewBlock()
+            }
+        }
+    }
+
+    /**
+     * Purchases accepted after this release carry an approval-bound automatic
+     * FINALIZE fee cap and are submitted by native recovery during sync. A
+     * pre-upgrade purchase has no such authority, so discover it from durable
+     * workflow state and raise one ordinary exact approval without asking the
+     * user to locate or paste an internal buyer-session identifier.
+     */
+    private fun scheduleTrackedShakedexFinalizeApproval(snapshot: NativeWalletReadSnapshot) {
+        val notice = snapshot.finalizeNotices.firstOrNull {
+            it.phase == "finalizeAvailable" &&
+                it.transactionId !in trackedShakedexFinalizePromptAttempts
+        } ?: return
+        if (
+            busy || walletHnsSyncInProgress || pendingValueApproval != null ||
+                pendingWalletAuthentication != null
+        ) return
+        val (lease, handle) = valueActionContext(requiresShakedex = true) ?: return
+        if (!trackedShakedexFinalizePromptAttempts.add(notice.transactionId)) return
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_status_preparing_value_action),
+                resetReads = false,
+            )
+        ) {
+            trackedShakedexFinalizePromptAttempts.remove(notice.transactionId)
+            return
+        }
+        valueActionStatusView.text = getString(R.string.wallet_finalize_notice_preparing_legacy)
+        val epoch = lifecycleEpoch
+        val authorityGeneration = walletAuthorityGeneration
+        thread(name = "hns-wallet-tracked-finalize-prepare") {
+            val approval = NativeWalletBridge.prepareNextShakedexFinalize(handle)
+            val exact = approval?.takeIf {
+                it.kind == NativeHnsValueApprovalKind.NAME_MARKET_PURCHASE
+            }
+            if (approval != null && exact == null) {
+                NativeWalletBridge.rejectHnsValueAction(handle, approval.actionToken)
+                approval.close()
+                NativeWalletBridge.lock(handle)
+            }
+            runOnUiThread {
+                val mayPublish = walletOperationMayPublish(
+                    epoch,
+                    lease,
+                    handle,
+                    authorityGeneration,
+                )
+                if (!mayPublish) {
+                    exact?.let {
+                        NativeWalletBridge.rejectHnsValueAction(handle, it.actionToken)
+                        it.close()
+                    }
+                    releaseStorageLeaseAfterOperation(lease)
+                    return@runOnUiThread
+                }
+                if (exact == null) {
+                    busy = false
+                    refreshControllerState(resetReads = false)
+                    valueActionStatusView.text = getString(
+                        R.string.wallet_value_actions_ready,
+                        snapshot.height,
+                    )
+                    return@runOnUiThread
+                }
+                pendingValueApproval = exact
+                trackedShakedexFinalizeApprovalTransactionId = notice.transactionId
+                requireWalletAuthentication(
+                    getString(R.string.wallet_auth_transaction_title),
+                    getString(R.string.wallet_finalize_notice_authenticate_legacy, notice.name),
+                    action = {
+                        if (
+                            pendingValueApproval === exact &&
+                                walletOperationMayPublish(
+                                    epoch,
+                                    lease,
+                                    handle,
+                                    authorityGeneration,
+                                )
+                        ) {
+                            showValueApproval(exact, lease, epoch, authorityGeneration)
+                        } else {
+                            rejectPreparedValueAction(
+                                exact,
+                                lease,
+                                epoch,
+                                authorityGeneration,
+                            )
+                        }
+                    },
+                    cancelled = {
+                        rejectPreparedValueAction(
+                            exact,
+                            lease,
+                            epoch,
+                            authorityGeneration,
+                        )
+                    },
+                )
             }
         }
     }

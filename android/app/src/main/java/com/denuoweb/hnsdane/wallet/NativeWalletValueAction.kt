@@ -121,6 +121,7 @@ internal sealed interface NativeHnsValueIntent {
     data class AcceptOffer(
         val listingId: String,
         val maximumFeeBaseUnits: String,
+        val automaticFinalizeMaximumFeeBaseUnits: String,
     ) : NativeHnsValueIntent
 
     data class FinalizePurchase(
@@ -283,6 +284,10 @@ internal fun NativeHnsValueIntent.encodeJson(): ByteArray? = runCatching {
             .put("action", "acceptOffer")
             .put("listingId", listingId.requireObjectId())
             .put("maximumFee", maximumFeeBaseUnits.requireBaseUnits(nonzero = true))
+            .put(
+                "automaticFinalizeMaximumFee",
+                automaticFinalizeMaximumFeeBaseUnits.requireBaseUnits(nonzero = true),
+            )
         is NativeHnsValueIntent.FinalizePurchase -> JSONObject()
             .put("action", "finalizePurchase")
             .put("sessionId", sessionId.requireObjectId())
