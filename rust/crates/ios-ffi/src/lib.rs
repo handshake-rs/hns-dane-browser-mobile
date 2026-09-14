@@ -1797,6 +1797,44 @@ impl NativeWalletController {
         shakescape_sessions.next_counterparty_bitcoin_watch(HnsReadSystemClock.now_unix()?)
     }
 
+    fn install_active_hns_htlc_watch_set(&self) -> Result<bool, MobileWalletError> {
+        let Self::DirectHnsValue {
+            coordinator,
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Ok(false);
+        };
+        shakescape_sessions
+            .install_active_hns_htlc_watch_set(coordinator, HnsReadSystemClock.now_unix()?)
+    }
+
+    fn complete_next_counterparty_hns_watch(&mut self) -> Result<bool, MobileWalletError> {
+        let Self::DirectHnsValue {
+            coordinator,
+            shakescape_sessions,
+            shakescape_peer,
+            ..
+        } = self
+        else {
+            return Ok(false);
+        };
+        let now_unix = HnsReadSystemClock.now_unix()?;
+        let Some(permit) = shakescape_sessions.next_counterparty_hns_watch(now_unix)? else {
+            return Ok(false);
+        };
+        // The signed watch acknowledgement is a protocol safety promise. Do
+        // not send it until the exact session-derived P2WSH program is durable
+        // in the authenticated direct HNS filter.
+        shakescape_sessions.install_active_hns_htlc_watch_set(coordinator, now_unix)?;
+        let peer = shakescape_peer
+            .as_mut()
+            .ok_or(MobileWalletError::ControllerFailed)?;
+        shakescape_sessions.complete_counterparty_hns_watch(permit, peer, now_unix)?;
+        Ok(true)
+    }
+
     fn complete_counterparty_bitcoin_watch(
         &mut self,
         permit: MobileShakescapeBitcoinWatchPermit,
@@ -5353,7 +5391,15 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
 ) -> HnsBrowserResult {
     ffi_call(|| {
         require_output(out_serviced)?;
-        let (reconciled, serviced, funding_ready, resumed_hns, permit) = {
+        let (
+            reconciled,
+            serviced,
+            hns_watch_set_changed,
+            funding_ready,
+            resumed_hns,
+            hns_watch_ready,
+            permit,
+        ) = {
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
@@ -5362,17 +5408,33 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
                 .reconcile_direct_offer_lifecycle()
                 .map_err(|_| FfiFailure::internal())?;
             let serviced = entry.controller.service_direct_shakescape_once();
+            let hns_watch_set_changed = entry
+                .controller
+                .install_active_hns_htlc_watch_set()
+                .unwrap_or(false);
             let funding_ready = entry
                 .controller
                 .advance_local_first_funding_readiness()
                 .map_err(|_| FfiFailure::internal())?;
             let resumed_hns = entry.controller.resume_approved_hns_settlements();
+            let hns_watch_ready = entry
+                .controller
+                .complete_next_counterparty_hns_watch()
+                .unwrap_or(false);
             let permit = entry
                 .controller
                 .next_counterparty_bitcoin_watch()
                 .ok()
                 .flatten();
-            (reconciled, serviced, funding_ready, resumed_hns, permit)
+            (
+                reconciled,
+                serviced,
+                hns_watch_set_changed,
+                funding_ready,
+                resumed_hns,
+                hns_watch_ready,
+                permit,
+            )
         };
         let resumed = {
             let control = wallet_bitcoin_control_entry(wallet)?;
@@ -5413,7 +5475,14 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
             false
         };
         let serviced = u8::from(
-            reconciled || serviced || funding_ready || completed || resumed || resumed_hns,
+            reconciled
+                || serviced
+                || hns_watch_set_changed
+                || funding_ready
+                || completed
+                || resumed
+                || resumed_hns
+                || hns_watch_ready,
         );
         // SAFETY: Null was rejected above and the C contract requires writable output.
         unsafe { write_output(out_serviced, serviced) };
@@ -6433,8 +6502,17 @@ pub unsafe extern "C" fn hns_browser_wallet_synchronize_hns_reads(
             NativeWalletController::DirectHnsValue {
                 coordinator,
                 controller,
+                shakescape_sessions,
                 ..
             } => {
+                let now_unix = HnsReadSystemClock
+                    .now_unix()
+                    .map_err(|_| wallet_runtime_failure("direct HNS clock is unavailable"))?;
+                shakescape_sessions
+                    .install_active_hns_htlc_watch_set(coordinator, now_unix)
+                    .map_err(|_| {
+                        wallet_runtime_failure("active ShakeScape HNS watch installation failed")
+                    })?;
                 synchronize_wallet_owned_direct_hns(coordinator, controller, sync_control.as_ref())?
             }
             NativeWalletController::Lifecycle(_) => {

@@ -1338,17 +1338,46 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        let now_unix = HnsReadSystemClock.now_unix().ok()?;
-        let executions = shakescape_sessions.durable_executions().ok()?;
-        let pending_acceptances = shakescape_sessions
-            .pending_direct_offer_takes(now_unix)
-            .ok()?;
-        let mut json = serde_json::to_vec(&serde_json::json!({
+        let now_unix = match HnsReadSystemClock.now_unix() {
+            Ok(now_unix) => now_unix,
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape execution refresh could not read network time: {error}"
+                ));
+                return None;
+            }
+        };
+        let executions = match shakescape_sessions.durable_executions() {
+            Ok(executions) => executions,
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape execution refresh could not load durable executions: {error}"
+                ));
+                return None;
+            }
+        };
+        let pending_acceptances = match shakescape_sessions.pending_direct_offer_takes(now_unix) {
+            Ok(pending_acceptances) => pending_acceptances,
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape execution refresh could not load pending acceptances: {error}"
+                ));
+                return None;
+            }
+        };
+        let mut json = match serde_json::to_vec(&serde_json::json!({
             "executions": executions,
             "pendingAcceptances": pending_acceptances,
             "bitcoinBroadcastRecovery": bitcoin_broadcast_recovery,
-        }))
-        .ok()?;
+        })) {
+            Ok(json) => json,
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape execution refresh could not encode its status: {error}"
+                ));
+                return None;
+            }
+        };
         let bundle = bitcoin_json_bundle(json.as_slice());
         json.fill(0);
         bundle
@@ -1538,6 +1567,7 @@ impl AndroidWalletController {
 
     fn complete_next_counterparty_hns_watch(&mut self) -> bool {
         let Self::DirectValue {
+            coordinator,
             shakescape_sessions,
             shakescape_peer,
             ..
@@ -1551,12 +1581,51 @@ impl AndroidWalletController {
         let Ok(Some(permit)) = shakescape_sessions.next_counterparty_hns_watch(now_unix) else {
             return false;
         };
+        if let Err(error) =
+            shakescape_sessions.install_active_hns_htlc_watch_set(coordinator, now_unix)
+        {
+            android_log_error(&format!(
+                "ShakeScape HNS watch acknowledgement withheld because the authenticated direct filter could not be installed: {error}"
+            ));
+            return false;
+        }
         let Some(peer) = shakescape_peer.as_mut() else {
             return false;
         };
         shakescape_sessions
             .complete_counterparty_hns_watch(permit, peer, now_unix)
             .is_ok()
+    }
+
+    fn install_active_hns_htlc_watch_set(&self) -> bool {
+        let Self::DirectValue {
+            coordinator,
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
+            return false;
+        };
+        match shakescape_sessions.install_active_hns_htlc_watch_set(coordinator, now_unix) {
+            Ok(changed) => {
+                if changed {
+                    android_log_info(
+                        "hns-shakescape",
+                        "installed authenticated active HNS HTLC watches; wallet scan rewound for complete local verification",
+                    );
+                }
+                changed
+            }
+            Err(error) => {
+                android_log_error(&format!(
+                    "authenticated active HNS HTLC watch installation failed: {error}"
+                ));
+                false
+            }
+        }
     }
 
     fn pending_first_bitcoin_funding_sessions(&self) -> Option<Vec<SessionId>> {
@@ -1567,9 +1636,15 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        shakescape_sessions
-            .pending_first_bitcoin_funding_sessions()
-            .ok()
+        match shakescape_sessions.pending_first_bitcoin_funding_sessions() {
+            Ok(sessions) => Some(sessions),
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape execution refresh could not enumerate pending Bitcoin funding: {error}"
+                ));
+                None
+            }
+        }
     }
 
     fn apply_verified_bitcoin_funding(
@@ -1735,24 +1810,37 @@ impl AndroidWalletController {
         else {
             return false;
         };
-        let Ok(permits) = shakescape_sessions.pending_second_hns_funding_verifications() else {
-            return false;
+        let permits = match shakescape_sessions.pending_second_hns_funding_verifications() {
+            Ok(permits) => permits,
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape HNS funding reconciliation could not enumerate pending verifications: {error}"
+                ));
+                return false;
+            }
         };
         for permit in permits {
             let session_id = permit.session_id();
-            let Ok(verified) = controller.verified_shakescape_hns_funding(permit) else {
-                return false;
+            let verified = match controller.verified_shakescape_hns_funding(permit) {
+                Ok(verified) => verified,
+                Err(error) => {
+                    android_log_error(&format!(
+                        "ShakeScape HNS funding verification failed for session {session_id:?}: {error}"
+                    ));
+                    return false;
+                }
             };
-            if let Some(lock) = verified
-                && shakescape_sessions
-                    .apply_local_verified_hns_funding(
-                        session_id,
-                        lock,
-                        HnsReadSystemClock.now_unix().unwrap_or(0),
-                    )
-                    .is_err()
-            {
-                return false;
+            if let Some(lock) = verified {
+                if let Err(error) = shakescape_sessions.apply_local_verified_hns_funding(
+                    session_id,
+                    lock,
+                    HnsReadSystemClock.now_unix().unwrap_or(0),
+                ) {
+                    android_log_error(&format!(
+                        "ShakeScape verified HNS funding could not be retained for session {session_id:?}: {error}"
+                    ));
+                    return false;
+                }
             }
         }
         true
@@ -1795,7 +1883,15 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        shakescape_sessions.pending_bitcoin_spend_sessions().ok()
+        match shakescape_sessions.pending_bitcoin_spend_sessions() {
+            Ok(sessions) => Some(sessions),
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape execution refresh could not enumerate pending Bitcoin spends: {error}"
+                ));
+                None
+            }
+        }
     }
 
     fn apply_verified_bitcoin_spend(
@@ -2471,8 +2567,17 @@ impl AndroidWalletController {
             Self::DirectValue {
                 coordinator,
                 controller,
+                shakescape_sessions,
                 ..
             } => (|| -> Result<_, MobileWalletError> {
+                let watch_now_unix = HnsReadSystemClock.now_unix()?;
+                if shakescape_sessions
+                    .install_active_hns_htlc_watch_set(coordinator, watch_now_unix)?
+                {
+                    android_log_wallet_scan_metrics(
+                        "wallet_hns_scan stage=active_htlc_watch_set_installed",
+                    );
+                }
                 // Converge through the direct peers until they agree that no
                 // extension remains. Both the round count and every peer
                 // response are bounded; a later sync resumes if a much older
@@ -6862,6 +6967,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         };
         let reconciled = controller.reconcile_direct_offer_lifecycle();
         let serviced = controller.service_direct_shakescape_once();
+        let hns_watch_set_changed = controller.install_active_hns_htlc_watch_set();
         let funding_ready = controller.advance_local_first_funding_readiness();
         let resumed_hns = controller.resume_approved_hns_settlements();
         let hns_watch_ready = controller.complete_next_counterparty_hns_watch();
@@ -6871,12 +6977,21 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             .bitcoin_try_if_active()
             .and_then(|slot| {
                 slot.as_ref()
-                    .and_then(|bitcoin| bitcoin.resume_approved_broadcasts().ok())
+                    .and_then(|bitcoin| match bitcoin.resume_approved_broadcasts() {
+                        Ok(count) => Some(count),
+                        Err(error) => {
+                            android_log_error(&format!(
+                                "durable Bitcoin broadcast recovery failed: {error}"
+                            ));
+                            None
+                        }
+                    })
             })
             .is_some_and(|count| count != 0);
         let Some(permit) = permit else {
             return reconciled
                 || serviced
+                || hns_watch_set_changed
                 || funding_ready
                 || resumed
                 || resumed_hns
@@ -6895,6 +7010,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         if !registered {
             return reconciled
                 || serviced
+                || hns_watch_set_changed
                 || funding_ready
                 || resumed
                 || resumed_hns
@@ -6906,6 +7022,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 .is_ok()
         }) || reconciled
             || serviced
+            || hns_watch_set_changed
             || funding_ready
             || resumed
             || resumed_hns
@@ -7923,10 +8040,19 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             controller.authorize_btc_for_hns_first_funding(session_id)?
         };
         let mut bitcoin = record.bitcoin_try_if_active()?;
-        let approval = bitcoin
+        let approval = match bitcoin
             .as_mut()?
             .prepare_shakescape_htlc_funding(permit, maximum_fee_sats)
-            .ok()?;
+        {
+            Ok(approval) => approval,
+            Err(error) => {
+                android_log_error(&format!(
+                    "Bitcoin HTLC funding preparation failed for session {}: {error}",
+                    session.0
+                ));
+                return None;
+            }
+        };
         let mut json = serde_json::to_vec(&approval).ok()?;
         let mut bundle = bitcoin_json_bundle(json.as_slice())?;
         json.fill(0);
@@ -7955,10 +8081,18 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let token = canonical_action_token(token)?;
         let record = wallet_from_handle(handle)?;
         let mut bitcoin = record.bitcoin_try_if_active()?;
-        let receipt = bitcoin
+        let receipt = match bitcoin
             .as_mut()?
             .approve_shakescape_htlc_funding(token.0.as_str())
-            .ok()?;
+        {
+            Ok(receipt) => receipt,
+            Err(error) => {
+                android_log_error(&format!(
+                    "Bitcoin HTLC funding submission failed: {error}"
+                ));
+                return None;
+            }
+        };
         drop(bitcoin);
         if let (Some(session_id), Some(transaction_id), Some(mut controller)) = (
             canonical_session_id(receipt.session_id.as_str()),

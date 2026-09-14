@@ -3802,6 +3802,18 @@ class WalletActivity : ComponentActivity() {
             } else {
                 null
             }
+            // A completed HNS snapshot is also the authority boundary for
+            // verified HNS swap funding/spends. Reconcile the durable swap
+            // journal immediately while the controller is known to be
+            // unlocked instead of waiting for a direct-peer service tick or
+            // an enabled "Atomic swap executions" button. The latter may be
+            // unavailable while the peer is offline, exactly when refund and
+            // recovery state still needs to remain visible.
+            val executionStatus = if (synchronization?.snapshot != null) {
+                NativeWalletBridge.shakescapeExecutions(handle)
+            } else {
+                null
+            }
             poller.set(false)
             when {
                 synchronization?.snapshot != null ->
@@ -3853,6 +3865,7 @@ class WalletActivity : ComponentActivity() {
                         refreshControllerState(resetReads = false)
                         Log.i(TAG, "Direct HNS synchronization reached a verified wallet snapshot")
                         renderReadSnapshot(synchronization.snapshot)
+                        executionStatus?.let(::refreshShakescapeExecutionStatus)
                     }
                     synchronization.catchup != null -> {
                         Log.i(
@@ -4382,7 +4395,11 @@ class WalletActivity : ComponentActivity() {
             } else {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_funding, first)
             }
-            "first_funded" -> getString(R.string.wallet_swap_stage_first_funded, first)
+            "first_funded" -> if (execution.localRole == "taker") {
+                getString(R.string.wallet_swap_stage_funding_ready_here, second)
+            } else {
+                getString(R.string.wallet_swap_stage_first_funded, first)
+            }
             "second_funding_pending" -> if (execution.localRole == "taker") {
                 getString(R.string.wallet_swap_stage_funding_ready_here, second)
             } else {
@@ -4404,7 +4421,20 @@ class WalletActivity : ComponentActivity() {
         val live = status.executions.any {
             it.state !in setOf("completed", "refunded", "failed")
         } || status.pendingAcceptances.isNotEmpty()
-        if (!live || walletBitcoinSyncInProgress || bitcoinBirthdayResetInProgress || busy ||
+        // Funding preparation and a direct Bitcoin scan both require exclusive
+        // access to the native Bitcoin controller. Once the protocol has made
+        // Bitcoin funding actionable on this wallet, leave that controller
+        // available for the explicit, authenticated funding action. Starting
+        // another automatic scan here otherwise makes the funding request lose
+        // the controller race and return without an approval.
+        val localBitcoinFundingReady = status.executions.any {
+            (it.state == "first_funding_pending" && it.localRole == "maker" &&
+                it.firstChain == "bitcoin") ||
+                (it.state == "second_funding_pending" && it.localRole == "taker" &&
+                    it.secondChain == "bitcoin")
+        }
+        if (!live || localBitcoinFundingReady || walletBitcoinSyncInProgress ||
+            bitcoinBirthdayResetInProgress || busy ||
             walletHandle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(walletHandle)
         ) return false
         val now = SystemClock.elapsedRealtime()
@@ -4777,7 +4807,10 @@ class WalletActivity : ComponentActivity() {
             val lifetime = values[3].toLongOrNull()
                 ?.takeIf { it in 2L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
-            if (btc == null || hns == null || reserve == null || lifetime == null) {
+            if (btc == null || hns == null || reserve == null || btc < reserve ||
+                btc - reserve < NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS ||
+                lifetime == null
+            ) {
                 bitcoinStatusView.text = getString(R.string.wallet_swap_prepare_failed)
                 return@showWalletActionForm
             }
@@ -4814,7 +4847,12 @@ class WalletActivity : ComponentActivity() {
             val lifetime = values[3].toLongOrNull()
                 ?.takeIf { it in 2L..168L }
                 ?.let { runCatching { Math.multiplyExact(it, 3_600L) }.getOrNull() }
-            if (hns == null || btc == null || reserve == null || lifetime == null) {
+            if (hns == null || btc == null || reserve == null ||
+                reserve < NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS ||
+                hns < reserve ||
+                hns - reserve < NativeWalletBridge.HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS ||
+                lifetime == null
+            ) {
                 bitcoinStatusView.text = getString(R.string.wallet_swap_hns_prepare_failed)
                 return@showWalletActionForm
             }
@@ -4902,8 +4940,17 @@ class WalletActivity : ComponentActivity() {
         ) { values ->
             val reserve = if (bitcoin) values.single().toLongOrNull()
             else parsePositiveHnsToBaseUnits(values.single())?.toLongOrNull()
-            if (reserve == null || reserve <= 0L ||
-                bitcoin && reserve < NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS
+            val leavesSpendableOutput = reserve != null && offer.receivedAmount >= reserve &&
+                if (bitcoin) {
+                    offer.receivedAmount - reserve >=
+                        NativeWalletBridge.BITCOIN_HTLC_RECEIVER_DUST_SATS
+                } else {
+                    offer.receivedAmount - reserve >=
+                        NativeWalletBridge.HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS
+                }
+            if (reserve == null || reserve <= 0L || !leavesSpendableOutput ||
+                bitcoin && reserve < NativeWalletBridge.MINIMUM_BITCOIN_FEE_RESERVE_SATS ||
+                !bitcoin && reserve < NativeWalletBridge.MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS
             ) {
                 bitcoinStatusView.text = getString(R.string.wallet_swap_take_prepare_failed)
             } else {
@@ -5120,6 +5167,13 @@ class WalletActivity : ComponentActivity() {
             "first_funding_pending" -> execution.firstChain.takeIf {
                 execution.localRole == "maker"
             }
+            // Preparing the taker's second-chain lock is the operation that
+            // durably applies SecondFundingReady. Waiting until the execution
+            // already says `second_funding_pending` hides the only action that
+            // can make that transition and deadlocks every two-chain swap.
+            "first_funded" -> execution.secondChain.takeIf {
+                execution.localRole == "taker"
+            }
             "second_funding_pending" -> execution.secondChain.takeIf {
                 execution.localRole == "taker"
             }
@@ -5318,7 +5372,9 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                 } else if (approval == null) {
                     busy = false
+                    statusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
                     bitcoinStatusView.text = getString(R.string.wallet_swap_funding_prepare_failed)
+                    releaseStorageLeaseAfterOperation(lease)
                 } else {
                     showBtcForHnsFundingApproval(approval, lease, epoch)
                 }

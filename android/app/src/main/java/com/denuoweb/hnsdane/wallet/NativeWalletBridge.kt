@@ -19,14 +19,20 @@ internal object NativeWalletBridge {
     const val NETWORK_MAINNET = 1
     const val NETWORK_TESTNET = 2
     const val NETWORK_REGTEST = 3
-    /** Smallest Bitcoin HTLC output accepted by the atomic-swap protocol. */
-    const val MINIMUM_BITCOIN_HTLC_SATS = 330L
-    /** Smallest spendable HNS output accepted for a mobile atomic swap. */
-    const val MINIMUM_HNS_SWAP_DOLLARYDOOS = 546L
+    const val BITCOIN_HTLC_RECEIVER_DUST_SATS = 330L
+    const val HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS = 546L
     /** Lowest selectable maximum fee for a direct Bitcoin send. */
     const val MINIMUM_BITCOIN_MAXIMUM_FEE_SATS = 1_000L
     /** Lowest Bitcoin fee reserve accepted in direct atomic-swap terms. */
     const val MINIMUM_BITCOIN_FEE_RESERVE_SATS = 1_000L
+    /** Lowest HNS fee reserve accepted in direct atomic-swap terms. */
+    const val MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS = 100_000L
+    /** Smallest gross Bitcoin HTLC that remains spendable after its reserve. */
+    const val MINIMUM_BITCOIN_HTLC_SATS =
+        BITCOIN_HTLC_RECEIVER_DUST_SATS + MINIMUM_BITCOIN_FEE_RESERVE_SATS
+    /** Smallest gross HNS HTLC that remains spendable after its reserve. */
+    const val MINIMUM_HNS_SWAP_DOLLARYDOOS =
+        HNS_SWAP_RECEIVER_DUST_DOLLARYDOOS + MINIMUM_HNS_FEE_RESERVE_DOLLARYDOOS
 
     val isAvailable: Boolean
         get() = NativeBridge.isLoaded
@@ -435,10 +441,21 @@ internal object NativeWalletBridge {
 
     fun shakescapeExecutions(handle: Long): NativeShakescapeExecutionStatus? =
         if (isValidHandle(handle) && isAvailable) {
-            val bundle = runCatching { nativeShakescapeExecutions(handle) }.getOrNull()
-                ?: return null
+            val bundle = runCatching { nativeShakescapeExecutions(handle) }
+                .onFailure { error ->
+                    Log.e(TAG, "ShakeScape execution JNI refresh threw", error)
+                }
+                .getOrNull()
+                ?: run {
+                    Log.e(TAG, "ShakeScape execution JNI refresh returned no status bundle")
+                    return null
+                }
             try {
-                NativeBitcoinWalletBundle.shakescapeExecutions(bundle)
+                NativeBitcoinWalletBundle.shakescapeExecutions(bundle).also { status ->
+                    if (status == null) {
+                        Log.e(TAG, "ShakeScape execution status bundle failed Kotlin validation")
+                    }
+                }
             } finally {
                 bundle.fill(0)
             }

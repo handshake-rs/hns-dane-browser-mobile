@@ -805,8 +805,8 @@
     <string name="wallet_swap_sell_hns" translatable="false">Sell HNS for BTC</string>
     <string name="wallet_swap_available_offers" translatable="false">Available BTC/HNS swap offers</string>
     <string name="wallet_swap_my_offers" translatable="false">My active BTC/HNS swap offers</string>
-    <string name="wallet_swap_hns_offered_hint" translatable="false">HNS offered (minimum 0.000546)</string>
-    <string name="wallet_swap_btc_requested_hint" translatable="false">BTC requested (sats, minimum 330)</string>
+    <string name="wallet_swap_hns_offered_hint" translatable="false">HNS locked (minimum 0.100546 including fee reserve)</string>
+    <string name="wallet_swap_btc_requested_hint" translatable="false">BTC locked (sats, minimum 1330 including fee reserve)</string>
     <string name="wallet_swap_hns_fee_reserve_hint" translatable="false">HNS fee reserve</string>
     <string name="wallet_swap_hns_prepare_failed" translatable="false">The HNS-for-BTC listing was not prepared. Synchronized HNS must cover active listings, this principal, and its fee reserve.</string>
     <string name="wallet_swap_hns_approval_title" translatable="false">Publish HNS-for-BTC offer?</string>
@@ -831,8 +831,8 @@
     <string name="wallet_swap_take_failed" translatable="false">The signed acceptance was not sent. The peer may have disconnected or the offer may have expired.</string>
     <string name="wallet_swap_take_sent" translatable="false">Offer accepted. Atomic-swap session %1$s… is negotiating with the maker.</string>
     <string name="wallet_swap_cancel_direct_message" translatable="false">Withdraw %1$s?\n\nOffer ID: %2$s. Cancellation releases the local reservation but cannot cancel an already accepted session.</string>
-    <string name="wallet_swap_btc_amount_hint" translatable="false">BTC offered (sats, minimum 330)</string>
-    <string name="wallet_swap_hns_amount_hint" translatable="false">HNS requested (minimum 0.000546)</string>
+    <string name="wallet_swap_btc_amount_hint" translatable="false">BTC locked (sats, minimum 1330 including fee reserve)</string>
+    <string name="wallet_swap_hns_amount_hint" translatable="false">HNS locked (minimum 0.100546 including fee reserve)</string>
     <string name="wallet_swap_fee_reserve_hint" translatable="false">Bitcoin fee reserve (sats, minimum 1000)</string>
     <string name="wallet_swap_lifetime_hours_hint" translatable="false">Listing lifetime (hours, 2–168)</string>
     <string name="wallet_swap_preparing" translatable="false">Preparing exact BTC-for-HNS listing…</string>

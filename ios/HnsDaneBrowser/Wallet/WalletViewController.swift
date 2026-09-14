@@ -8,9 +8,13 @@ import CoreImage
 
 private let defaultHnsMaximumFee = "0.1"
 private let defaultHnsMaximumFeeBaseUnits = "100000"
-private let minimumBitcoinHtlcSats: UInt64 = 330
+private let bitcoinHtlcReceiverDustSats: UInt64 = 330
 private let minimumBitcoinFeeReserveSats: UInt64 = 1_000
-private let minimumHnsSwapDollarydoos: UInt64 = 546
+private let hnsSwapReceiverDustDollarydoos: UInt64 = 546
+private let minimumHnsFeeReserveDollarydoos: UInt64 = 100_000
+private let minimumBitcoinHtlcSats = bitcoinHtlcReceiverDustSats + minimumBitcoinFeeReserveSats
+private let minimumHnsSwapDollarydoos =
+    hnsSwapReceiverDustDollarydoos + minimumHnsFeeReserveDollarydoos
 private let directShakescapeNetworkMaintenanceTicks = 30
 private let maximumVisibleDirectShakescapePeers = 3
 private let showShakedexWalletCard = true
@@ -1347,12 +1351,12 @@ final class WalletViewController: UIViewController {
             message: "Create one exact, indivisible direct-board offer. Confirmed Bitcoin must cover the principal, active offers, and the separate fee reserve.",
             fields: [
                 WalletSheetFormField(
-                    label: "BTC offered (minimum 330 sats)",
+                    label: "BTC locked (minimum 1330 sats including fee reserve)",
                     placeholder: "Satoshis",
                     keyboardType: .numberPad,
                     initialValue: String(minimumBitcoinHtlcSats)
                 ),
-                WalletSheetFormField(label: "HNS requested (minimum 0.000546)", placeholder: "HNS", keyboardType: .decimalPad),
+                WalletSheetFormField(label: "HNS locked (minimum 0.100546 including fee reserve)", placeholder: "HNS", keyboardType: .decimalPad),
                 WalletSheetFormField(
                     label: "Bitcoin fee reserve (minimum 1000 sats)",
                     placeholder: "Satoshis",
@@ -1374,9 +1378,10 @@ final class WalletViewController: UIViewController {
                   let hnsText = Self.positiveHnsBaseUnits(fields[1]),
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
                   let reserve = UInt64(fields[2]), reserve >= minimumBitcoinFeeReserveSats,
+                  btc >= reserve, btc - reserve >= bitcoinHtlcReceiverDustSats,
                   let hours = UInt64(fields[3]), (2...168).contains(hours),
                   hours <= UInt64.max / 3_600 else {
-                self?.showErrorMessage("Enter at least 330 BTC sats, at least 0.000546 HNS, a Bitcoin fee reserve of at least 1000 sats, and 2–168 hours.")
+                self?.showErrorMessage("Enter a BTC lock of at least 1330 sats, an HNS lock of at least 0.100546, a Bitcoin fee reserve of at least 1000 sats, and 2–168 hours.")
                 return
             }
             self.isOperating = true
@@ -1520,9 +1525,9 @@ final class WalletViewController: UIViewController {
             title: "Sell HNS for BTC",
             message: "Create one exact, indivisible direct-board offer. Confirmed HNS must cover the principal, active offers, and the separate fee reserve.",
             fields: [
-                WalletSheetFormField(label: "HNS offered (minimum 0.000546)", placeholder: "HNS", keyboardType: .decimalPad),
+                WalletSheetFormField(label: "HNS locked (minimum 0.100546 including fee reserve)", placeholder: "HNS", keyboardType: .decimalPad),
                 WalletSheetFormField(
-                    label: "BTC requested (minimum 330 sats)",
+                    label: "BTC locked (minimum 1330 sats including fee reserve)",
                     placeholder: "Satoshis",
                     keyboardType: .numberPad,
                     initialValue: String(minimumBitcoinHtlcSats)
@@ -1543,9 +1548,10 @@ final class WalletViewController: UIViewController {
                   let hns = UInt64(hnsText), hns >= minimumHnsSwapDollarydoos,
                   let btc = UInt64(fields[1]), btc >= minimumBitcoinHtlcSats,
                   let reserveText = Self.positiveHnsBaseUnits(fields[2]),
-                  let reserve = UInt64(reserveText), reserve > 0,
+                  let reserve = UInt64(reserveText), reserve >= minimumHnsFeeReserveDollarydoos,
+                  hns >= reserve, hns - reserve >= hnsSwapReceiverDustDollarydoos,
                   let hours = UInt64(fields[3]), (2...168).contains(hours) else {
-                self?.showErrorMessage("Enter at least 0.000546 HNS, at least 330 BTC sats, a positive HNS fee reserve, and 2–168 hours.")
+                self?.showErrorMessage("Enter an HNS lock of at least 0.100546, a BTC lock of at least 1330 sats, an HNS fee reserve of at least 0.1 HNS, and 2–168 hours.")
                 return
             }
             self.isOperating = true
@@ -1751,12 +1757,19 @@ final class WalletViewController: UIViewController {
             let reserve = reserveIsBitcoin
                 ? UInt64(value)
                 : Self.positiveHnsBaseUnits(value).flatMap { UInt64($0) }
-            guard let reserve, reserve > 0,
-                  !reserveIsBitcoin || reserve >= minimumBitcoinFeeReserveSats else {
+            let minimumReserve = reserveIsBitcoin
+                ? minimumBitcoinFeeReserveSats
+                : minimumHnsFeeReserveDollarydoos
+            let receiverDust = reserveIsBitcoin
+                ? bitcoinHtlcReceiverDustSats
+                : hnsSwapReceiverDustDollarydoos
+            guard let reserve, reserve >= minimumReserve,
+                  offer.receivedAmount >= reserve,
+                  offer.receivedAmount - reserve >= receiverDust else {
                 self.showErrorMessage(
                     reserveIsBitcoin
                         ? "Enter a Bitcoin fee reserve of at least 1000 sats."
-                        : "Enter a positive HNS fee reserve."
+                        : "Enter an HNS fee reserve of at least 0.1 HNS; the lock must still leave 0.000546 HNS after that reserve."
                 )
                 return
             }
