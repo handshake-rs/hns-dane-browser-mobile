@@ -245,6 +245,11 @@ class WalletActivity : ComponentActivity() {
     private var walletHandle = INVALID_HANDLE
     private var walletAuthorityGeneration = 0L
     private var walletControllerIsReopenedDurable = false
+    // Read by the wallet-owned networking worker and written by the UI/action
+    // threads.  Visibility matters: a stale `false` lets a multi-frame network
+    // drain repeatedly reacquire the native controller while an authorized
+    // transaction is waiting to commit.
+    @Volatile
     private var busy = false
         set(value) {
             if (field == value) return
@@ -405,6 +410,7 @@ class WalletActivity : ComponentActivity() {
     private var latestShakescapeExecutionStatus: NativeShakescapeExecutionStatus? = null
     private var activeShakescapeDashboardSummary: String? = null
     private var lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
+    private var lastAutomaticSwapBitcoinSyncFingerprint: String? = null
     private var automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
     @Volatile
     private var bitcoinSyncProgressWatcher: AtomicBoolean? = null
@@ -3375,7 +3381,24 @@ class WalletActivity : ComponentActivity() {
                             routerRouteInitialized = true
                         }
                     }
-                    NativeWalletBridge.serviceWalletOwnedDirectShakescape(handle)
+                    // One native call services at most one complete frame. A board
+                    // reconciliation can legitimately contain inventory, retained
+                    // cancellation proofs, and session-recovery envelopes. Draining
+                    // only one frame per foreground tick lets those periodic batches
+                    // arrive faster than they are consumed and can strand a requested
+                    // offer response behind an ever-growing socket backlog. Continue
+                    // only while native proves that it serviced useful work; the first
+                    // idle poll ends the burst, so an idle wallet remains inexpensive
+                    // and lock/busy checks still run at the outer 250 ms boundary.
+                    var directFramesServiced = 0
+                    while (
+                        directFramesServiced < MAX_DIRECT_SHAKESCAPE_FRAMES_PER_TICK &&
+                            !busy &&
+                            !walletHnsSyncInProgress &&
+                            NativeWalletBridge.serviceWalletOwnedDirectShakescape(handle)
+                    ) {
+                        directFramesServiced += 1
+                    }
                     serviceTicks += 1
                     if (serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0) {
                         val executionStatus = NativeWalletBridge.shakescapeExecutions(handle)
@@ -4399,12 +4422,12 @@ class WalletActivity : ComponentActivity() {
     private fun swapExecutionStage(execution: NativeShakescapeExecutionSummary): String {
         val first = execution.firstChain.replaceFirstChar { it.uppercase() }
         val second = execution.secondChain.replaceFirstChar { it.uppercase() }
+        if (walletBitcoinSyncInProgress) {
+            return getString(R.string.wallet_swap_stage_bitcoin_syncing)
+        }
         return when (execution.state) {
-            "terms_frozen", "refunds_prepared" -> if (walletBitcoinSyncInProgress) {
-                getString(R.string.wallet_swap_stage_terms_syncing)
-            } else {
+            "terms_frozen", "refunds_prepared" ->
                 getString(R.string.wallet_swap_stage_terms_waiting)
-            }
             "first_funding_pending" -> if (execution.localRole == "maker") {
                 getString(R.string.wallet_swap_stage_funding_ready_here, first)
             } else {
@@ -4433,28 +4456,33 @@ class WalletActivity : ComponentActivity() {
     private fun maybeStartAutomaticSwapBitcoinSync(
         status: NativeShakescapeExecutionStatus,
     ): Boolean {
-        val live = status.executions.any {
-            it.state !in setOf("completed", "refunded", "failed")
-        } || status.pendingAcceptances.isNotEmpty()
-        if (!live) {
+        val terminal = setOf("completed", "refunded", "failed")
+        val liveExecutions = status.executions.filter { it.state !in terminal }
+        if (liveExecutions.isEmpty() && status.pendingAcceptances.isEmpty()) {
             automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
+            lastAutomaticSwapBitcoinSyncFingerprint = null
             return false
+        }
+        val fingerprint = buildString {
+            liveExecutions.sortedBy { it.sessionId }.forEach {
+                append(it.sessionId).append(':').append(it.revision).append(':')
+                    .append(it.state).append(';')
+            }
+            status.pendingAcceptances.sortedBy { it.sessionId }.forEach {
+                append(it.sessionId).append(':').append(it.createdAtUnix).append(';')
+            }
+        }
+        if (fingerprint != lastAutomaticSwapBitcoinSyncFingerprint) {
+            lastAutomaticSwapBitcoinSyncFingerprint = fingerprint
+            lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
         }
         val now = SystemClock.elapsedRealtime()
         if (now < automaticSwapBitcoinSyncPausedUntilElapsedMillis) return false
-        // Funding preparation and a direct Bitcoin scan both require exclusive
-        // access to the native Bitcoin controller. Once the protocol has made
-        // Bitcoin funding actionable on this wallet, leave that controller
-        // available for the explicit, authenticated funding action. Starting
-        // another automatic scan here otherwise makes the funding request lose
-        // the controller race and return without an approval.
-        val localBitcoinFundingReady = status.executions.any {
-            (it.state == "first_funding_pending" && it.localRole == "maker" &&
-                it.firstChain == "bitcoin") ||
-                (it.state == "second_funding_pending" && it.localRole == "taker" &&
-                    it.secondChain == "bitcoin")
-        }
-        if (localBitcoinFundingReady || walletBitcoinSyncInProgress ||
+        // A new protocol revision, including a transition that makes local
+        // Bitcoin funding actionable, must first establish Kyoto's durable
+        // Ready checkpoint. The dashboard disables value actions while this
+        // bounded scan owns the controller, so preparation cannot race it.
+        if (walletBitcoinSyncInProgress ||
             bitcoinBirthdayResetInProgress || busy ||
             walletHandle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(walletHandle)
         ) return false
@@ -4474,6 +4502,7 @@ class WalletActivity : ComponentActivity() {
         latestShakescapeExecutionStatus = null
         activeShakescapeDashboardSummary = null
         lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
+        lastAutomaticSwapBitcoinSyncFingerprint = null
         automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
         if (::directShakescapeStatusView.isInitialized) {
             directShakescapeStatusView.text = getString(
@@ -5350,6 +5379,7 @@ class WalletActivity : ComponentActivity() {
                     runOnUiThread {
                         if (operationIsCurrent(epoch, lease)) {
                             busy = false
+                            refreshControllerState(resetReads = false)
                             bitcoinStatusView.text = if (receipt == null) {
                                 getString(R.string.wallet_swap_settlement_broadcast_failed)
                             } else {
@@ -5901,6 +5931,7 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                 } else if (exact == null) {
                     busy = false
+                    refreshControllerState(resetReads = false)
                     bitcoinStatusView.text = getString(R.string.wallet_swap_prepare_failed)
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
@@ -9317,6 +9348,7 @@ class WalletActivity : ComponentActivity() {
         const val DEFAULT_LISTING_LIFETIME_SECONDS = 7 * 24 * 60 * 60L
         const val DEFAULT_OFFER_PAGE_SIZE = 32
         const val DIRECT_SHAKESCAPE_FOREGROUND_TICK_MILLIS = 250L
+        const val MAX_DIRECT_SHAKESCAPE_FRAMES_PER_TICK = 16
         const val DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS = 20
         const val DIRECT_SHAKESCAPE_NETWORK_MAINTENANCE_TICKS = 120
         const val DIRECT_SHAKESCAPE_LISTEN_PORT = 12_038
@@ -9325,7 +9357,7 @@ class WalletActivity : ComponentActivity() {
         const val LIVE_HNS_SYNC_PROGRESS_POLL_MILLIS = 500L
         const val MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS = 3_000L
         const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L
-        const val SWAP_BITCOIN_AUTO_SYNC_INTERVAL_MILLIS = 30_000L
+        const val SWAP_BITCOIN_AUTO_SYNC_INTERVAL_MILLIS = 15 * 60_000L
         // Stop must leave enough time to open, review, authenticate, and start
         // a Bitcoin value operation. Without this guard the 250 ms direct-peer
         // tick can immediately reacquire the controller after a successful

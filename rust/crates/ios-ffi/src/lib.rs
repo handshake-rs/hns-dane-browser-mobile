@@ -187,7 +187,10 @@ const WALLET_HNS_SYNC_FINALIZING: u8 = 4;
 const IOS_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 const IOS_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const IOS_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
-const IOS_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 15;
+// Initial negotiation already replays complete durable recovery state. Keep
+// periodic replay as a five-minute loss/reconnect safety net so it cannot
+// create an ever-growing duplicate queue on a slower peer.
+const IOS_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 5 * 60;
 const MAX_IOS_DIRECT_SHAKESCAPE_PEERS: usize = 8;
 const MAX_IOS_INBOUND_NETWORK_PEERS: usize = 8;
 
@@ -1754,6 +1757,36 @@ impl NativeWalletController {
         shakescape_sessions
             .reconcile_direct_offer_lifecycle(HnsReadSystemClock.now_unix()?)
             .map(|count| count != 0)
+    }
+
+    fn expired_local_bitcoin_first_funding_permits(
+        &self,
+    ) -> Result<Vec<hns_wallet_mobile::MobileShakescapeBitcoinAbsencePermit>, MobileWalletError>
+    {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Ok(Vec::new());
+        };
+        shakescape_sessions
+            .expired_local_bitcoin_first_funding_permits(HnsReadSystemClock.now_unix()?)
+    }
+
+    fn apply_unfunded_bitcoin_proof(
+        &mut self,
+        proof: hns_wallet_mobile::MobileShakescapeUnfundedBitcoinProof,
+    ) -> Result<(), MobileWalletError> {
+        let Self::DirectHnsValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Err(MobileWalletError::ControllerFailed);
+        };
+        shakescape_sessions
+            .fail_expired_local_bitcoin_first_funding(proof, HnsReadSystemClock.now_unix()?)
     }
 
     fn advance_local_first_funding_readiness(&mut self) -> Result<bool, MobileWalletError> {
@@ -5408,6 +5441,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
             funding_ready,
             resumed_hns,
             hns_watch_ready,
+            expired_bitcoin_first,
             permit,
         ) = {
             let entry = wallet_entry(wallet)?;
@@ -5431,6 +5465,10 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
                 .controller
                 .complete_next_counterparty_hns_watch()
                 .unwrap_or(false);
+            let expired_bitcoin_first = entry
+                .controller
+                .expired_local_bitcoin_first_funding_permits()
+                .map_err(|_| FfiFailure::internal())?;
             let permit = entry
                 .controller
                 .next_counterparty_bitcoin_watch()
@@ -5443,8 +5481,40 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
                 funding_ready,
                 resumed_hns,
                 hns_watch_ready,
+                expired_bitcoin_first,
                 permit,
             )
+        };
+        let unfunded_proofs = {
+            let control = wallet_bitcoin_control_entry(wallet)?;
+            match control.controller.try_lock() {
+                Ok(slot) => slot
+                    .as_ref()
+                    .map(|bitcoin| {
+                        expired_bitcoin_first
+                            .into_iter()
+                            .filter_map(|permit| {
+                                bitcoin
+                                    .prove_shakescape_htlc_unfunded(&permit)
+                                    .ok()
+                                    .flatten()
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default(),
+                Err(TryLockError::WouldBlock) => Vec::new(),
+                Err(TryLockError::Poisoned(_)) => return Err(FfiFailure::internal()),
+            }
+        };
+        let expired_bitcoin_released = if unfunded_proofs.is_empty() {
+            false
+        } else {
+            let entry = wallet_entry(wallet)?;
+            let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
+            ensure_wallet_active(&entry)?;
+            unfunded_proofs.into_iter().fold(false, |changed, proof| {
+                entry.controller.apply_unfunded_bitcoin_proof(proof).is_ok() || changed
+            })
         };
         let resumed = {
             let control = wallet_bitcoin_control_entry(wallet)?;
@@ -5486,6 +5556,7 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
         };
         let serviced = u8::from(
             reconciled
+                || expired_bitcoin_released
                 || serviced
                 || hns_watch_set_changed
                 || funding_ready

@@ -90,6 +90,9 @@ inherits = "release"
 panic = "unwind"
 
 [patch.crates-io]
+# The wallet's reviewed Kyoto transport announces and flushes each approved
+# transaction to every active BIP339 peer and retains both payload indexes.
+bip157 = { path = "../../hns-wallet-rs/vendor/bip157" }
 # Keep the mobile product on the adjacent serving-capable light peer session
 # used by the wallet workspace. This remains hns-light-p2p 0.2.3 and changes
 # only how already-decoded inbound standard requests reach the service owner.

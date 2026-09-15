@@ -208,12 +208,12 @@ const ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 /// controller retirement never waits behind a long-lived peer exchange.
 const ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const ANDROID_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
-/// Reconcile due name-market publications and the small, bounded direct-offer
-/// inventory often enough that a late FINALIZE, relay restart, or replaced
-/// primary socket cannot strand an active offer. Inventory contains only
-/// opaque offer IDs and the peer requests missing signed records through the
-/// existing correlated exchange.
-const ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 15;
+/// A newly negotiated socket receives recovery state immediately. Periodic
+/// replay is only a disconnect/lost-frame safety net, and includes exact
+/// signed offers, tombstones, takes, and session envelopes. Re-enqueuing that
+/// batch every few seconds can outrun a resource-constrained peer and strand
+/// request/reply traffic behind an unbounded duplicate backlog.
+const ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS: u64 = 5 * 60;
 const MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS: usize = 8;
 const MAX_ANDROID_INBOUND_NETWORK_PEERS: usize = 8;
 
@@ -1022,16 +1022,22 @@ impl AndroidWalletController {
             return None;
         };
         let now_unix = HnsReadSystemClock.now_unix().ok()?;
-        let approval = shakescape_sessions
-            .prepare_btc_for_hns_offer(
-                confirmed_sats,
-                btc_amount_sats,
-                hns_amount_dollarydoos,
-                bitcoin_fee_reserve_sats,
-                listing_lifetime_seconds,
-                now_unix,
-            )
-            .ok()?;
+        let approval = match shakescape_sessions.prepare_btc_for_hns_offer(
+            confirmed_sats,
+            btc_amount_sats,
+            hns_amount_dollarydoos,
+            bitcoin_fee_reserve_sats,
+            listing_lifetime_seconds,
+            now_unix,
+        ) {
+            Ok(approval) => approval,
+            Err(error) => {
+                android_log_error(&format!(
+                    "BTC-for-HNS offer preparation failed: {error}; confirmed={confirmed_sats}; amount={btc_amount_sats}; fee-reserve={bitcoin_fee_reserve_sats}"
+                ));
+                return None;
+            }
+        };
         let mut json = serde_json::to_vec(&approval).ok()?;
         let bundle = bitcoin_json_bundle(json.as_slice());
         json.fill(0);
@@ -1480,6 +1486,61 @@ impl AndroidWalletController {
         }
     }
 
+    fn expired_local_bitcoin_first_funding_permits(
+        &self,
+    ) -> Vec<hns_wallet_mobile::MobileShakescapeBitcoinAbsencePermit> {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return Vec::new();
+        };
+        let Some(now_unix) = HnsReadSystemClock.now_unix().ok() else {
+            return Vec::new();
+        };
+        match shakescape_sessions.expired_local_bitcoin_first_funding_permits(now_unix) {
+            Ok(permits) => permits,
+            Err(error) => {
+                android_log_error(&format!(
+                    "expired Bitcoin-first swap enumeration failed: {error}"
+                ));
+                Vec::new()
+            }
+        }
+    }
+
+    fn apply_unfunded_bitcoin_proof(
+        &mut self,
+        proof: hns_wallet_mobile::MobileShakescapeUnfundedBitcoinProof,
+    ) -> bool {
+        let Self::DirectValue {
+            shakescape_sessions,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let Some(now_unix) = HnsReadSystemClock.now_unix().ok() else {
+            return false;
+        };
+        match shakescape_sessions.fail_expired_local_bitcoin_first_funding(proof, now_unix) {
+            Ok(()) => {
+                android_log_info(
+                    "hns-shakescape",
+                    "released an expired Bitcoin-first swap reservation after verified chain and broadcast-journal absence",
+                );
+                true
+            }
+            Err(error) => {
+                android_log_error(&format!(
+                    "verified expired Bitcoin-first swap cleanup failed: {error}"
+                ));
+                false
+            }
+        }
+    }
+
     fn advance_local_first_funding_readiness(&mut self) -> bool {
         let Self::DirectValue {
             shakescape_sessions,
@@ -1506,15 +1567,29 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        shakescape_sessions
-            .authorize_local_btc_first_funding(session_id, HnsReadSystemClock.now_unix().ok()?)
-            .or_else(|_| {
-                shakescape_sessions.authorize_local_btc_second_funding(
-                    session_id,
-                    HnsReadSystemClock.now_unix().unwrap_or(0),
-                )
-            })
-            .ok()
+        let now_unix = match HnsReadSystemClock.now_unix() {
+            Ok(now_unix) => now_unix,
+            Err(error) => {
+                android_log_error(&format!(
+                    "Bitcoin HTLC funding authorization could not read the system clock: {error}"
+                ));
+                return None;
+            }
+        };
+        match shakescape_sessions.authorize_local_btc_first_funding(session_id, now_unix) {
+            Ok(permit) => Some(permit),
+            Err(first_error) => {
+                match shakescape_sessions.authorize_local_btc_second_funding(session_id, now_unix) {
+                    Ok(permit) => Some(permit),
+                    Err(second_error) => {
+                        android_log_error(&format!(
+                            "Bitcoin HTLC funding authorization rejected: first-chain={first_error}; second-chain={second_error}",
+                        ));
+                        None
+                    }
+                }
+            }
+        }
     }
 
     fn authorize_bitcoin_swap_settlement(
@@ -1773,16 +1848,37 @@ impl AndroidWalletController {
             return None;
         };
         let permit = match action {
-            hns_wallet_mobile::MobileShakescapeSettlementAction::Redeem => shakescape_sessions
-                .authorize_local_hns_redeem(session_id)
-                .ok()?,
-            hns_wallet_mobile::MobileShakescapeSettlementAction::Refund => shakescape_sessions
-                .authorize_local_hns_refund(session_id)
-                .ok()?,
+            hns_wallet_mobile::MobileShakescapeSettlementAction::Redeem => {
+                match shakescape_sessions.authorize_local_hns_redeem(session_id) {
+                    Ok(permit) => permit,
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "HNS HTLC redeem authorization failed: {error}"
+                        ));
+                        return None;
+                    }
+                }
+            }
+            hns_wallet_mobile::MobileShakescapeSettlementAction::Refund => {
+                match shakescape_sessions.authorize_local_hns_refund(session_id) {
+                    Ok(permit) => permit,
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "HNS HTLC refund authorization failed: {error}"
+                        ));
+                        return None;
+                    }
+                }
+            }
         };
-        let approval = controller
-            .prepare_shakescape_hns_settlement(permit, maximum_fee_dollarydoos)
-            .ok()?;
+        let approval =
+            match controller.prepare_shakescape_hns_settlement(permit, maximum_fee_dollarydoos) {
+                Ok(approval) => approval,
+                Err(error) => {
+                    android_log_error(&format!("HNS HTLC settlement preparation failed: {error}"));
+                    return None;
+                }
+            };
         let mut json = serde_json::to_vec(&approval).ok()?;
         let bundle = bitcoin_json_bundle(&json);
         json.fill(0);
@@ -2040,7 +2136,7 @@ impl AndroidWalletController {
                     shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)
                 {
                     direct_inventory_peers = direct_inventory_peers.saturating_add(1);
-                    if report.pending_takes != 0 {
+                    if report.active_offers != 0 || report.pending_takes != 0 {
                         android_log_info(
                             "hns-shakescape",
                             &format!(
@@ -2068,7 +2164,7 @@ impl AndroidWalletController {
                     shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)
                 {
                     direct_inventory_peers = direct_inventory_peers.saturating_add(1);
-                    if report.pending_takes != 0 {
+                    if report.active_offers != 0 || report.pending_takes != 0 {
                         android_log_info(
                             "hns-shakescape",
                             &format!(
@@ -7033,6 +7129,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
+        let expired_bitcoin_first = controller.expired_local_bitcoin_first_funding_permits();
         let reconciled = controller.reconcile_direct_offer_lifecycle();
         let serviced = controller.service_direct_shakescape_once();
         let hns_watch_set_changed = controller.install_active_hns_htlc_watch_set();
@@ -7041,6 +7138,40 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let hns_watch_ready = controller.complete_next_counterparty_hns_watch();
         let permit = controller.next_counterparty_bitcoin_watch().ok().flatten();
         drop(controller);
+        let unfunded_proofs = record
+            .bitcoin_try_if_active()
+            .and_then(|slot| {
+                slot.as_ref().map(|bitcoin| {
+                    expired_bitcoin_first
+                        .into_iter()
+                        .filter_map(|permit| {
+                            match bitcoin.prove_shakescape_htlc_unfunded(&permit) {
+                                Ok(proof) => proof,
+                                Err(error) => {
+                                    android_log_error(&format!(
+                                        "expired Bitcoin-first swap proof failed: {error}"
+                                    ));
+                                    None
+                                }
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .unwrap_or_default();
+        let expired_bitcoin_released = if unfunded_proofs.is_empty() {
+            false
+        } else {
+            record
+                .controller_try_if_active()
+                .is_some_and(|mut controller| {
+                    unfunded_proofs
+                        .into_iter()
+                        .fold(false, |changed, proof| {
+                            controller.apply_unfunded_bitcoin_proof(proof) || changed
+                        })
+                })
+        };
         let resumed = record
             .bitcoin_try_if_active()
             .and_then(|slot| {
@@ -7058,6 +7189,7 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             .is_some_and(|count| count != 0);
         let Some(permit) = permit else {
             return reconciled
+                || expired_bitcoin_released
                 || serviced
                 || hns_watch_set_changed
                 || funding_ready
@@ -8125,16 +8257,42 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let maximum_fee_sats =
             android_wallet_consumed_bytes(&mut env, &maximum_fee_sats_ascii, 20)?;
         let maximum_fee_sats = canonical_nonzero_sats(maximum_fee_sats)?;
-        let record = wallet_from_handle(handle)?;
+        let record = wallet_from_handle(handle).or_else(|| {
+            android_log_error("Bitcoin HTLC funding preparation has no active wallet record");
+            None
+        })?;
         let permit = {
-            let mut controller = record.controller_if_active()?;
-            controller.authorize_btc_for_hns_first_funding(session_id)?
+            let mut controller = record.controller_if_active().or_else(|| {
+                android_log_error(
+                    "Bitcoin HTLC funding preparation could not acquire the active HNS controller",
+                );
+                None
+            })?;
+            controller
+                .authorize_btc_for_hns_first_funding(session_id)
+                .or_else(|| {
+                    android_log_error(&format!(
+                        "Bitcoin HTLC funding preparation was not authorized for session {}",
+                        session.0
+                    ));
+                    None
+                })?
         };
-        let mut bitcoin = record.bitcoin_try_if_active()?;
-        let approval = match bitcoin
-            .as_mut()?
-            .prepare_shakescape_htlc_funding(permit, maximum_fee_sats)
-        {
+        // Preparing an explicitly authenticated value action runs on its own
+        // worker thread. Wait for a bounded background snapshot/service read to
+        // release the Bitcoin controller instead of spuriously rejecting the
+        // action because a try-lock happened to lose that race.
+        let mut bitcoin = record.bitcoin_if_active().or_else(|| {
+            android_log_error(
+                "Bitcoin HTLC funding preparation could not acquire the active Bitcoin controller",
+            );
+            None
+        })?;
+        let bitcoin = bitcoin.as_mut().or_else(|| {
+            android_log_error("Bitcoin HTLC funding preparation has no active Bitcoin runtime");
+            None
+        })?;
+        let approval = match bitcoin.prepare_shakescape_htlc_funding(permit, maximum_fee_sats) {
             Ok(approval) => approval,
             Err(error) => {
                 android_log_error(&format!(
@@ -8358,16 +8516,39 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let session_id = canonical_session_id(canonical_action_token(session)?.0.as_str())?;
         let fee = android_wallet_consumed_bytes(&mut env, &maximum_fee_ascii, 20)?;
         let maximum_fee = canonical_nonzero_sats(fee)?;
-        let record = wallet_from_handle(handle)?;
+        let record = wallet_from_handle(handle).or_else(|| {
+            android_log_error("Bitcoin HTLC settlement preparation has no active wallet record");
+            None
+        })?;
         let permit = {
-            let controller = record.controller_if_active()?;
-            controller.authorize_bitcoin_swap_settlement(session_id, redeem != 0)?
+            let controller = record.controller_if_active().or_else(|| {
+                android_log_error("Bitcoin HTLC settlement preparation could not acquire the active HNS controller");
+                None
+            })?;
+            controller
+                .authorize_bitcoin_swap_settlement(session_id, redeem != 0)
+                .or_else(|| {
+                    android_log_error("Bitcoin HTLC settlement preparation was not authorized for the selected session and action");
+                    None
+                })?
         };
-        let mut bitcoin = record.bitcoin_try_if_active()?;
-        let approval = bitcoin
-            .as_mut()?
-            .prepare_shakescape_htlc_settlement(permit, maximum_fee)
-            .ok()?;
+        let mut bitcoin = record.bitcoin_if_active().or_else(|| {
+            android_log_error("Bitcoin HTLC settlement preparation could not acquire the active Bitcoin controller");
+            None
+        })?;
+        let bitcoin = bitcoin.as_mut().or_else(|| {
+            android_log_error("Bitcoin HTLC settlement preparation has no active Bitcoin runtime");
+            None
+        })?;
+        let approval = match bitcoin.prepare_shakescape_htlc_settlement(permit, maximum_fee) {
+            Ok(approval) => approval,
+            Err(error) => {
+                android_log_error(&format!(
+                    "Bitcoin HTLC settlement preparation failed: {error}"
+                ));
+                return None;
+            }
+        };
         let mut json = serde_json::to_vec(&approval).ok()?;
         let mut bundle = bitcoin_json_bundle(&json)?;
         json.fill(0);

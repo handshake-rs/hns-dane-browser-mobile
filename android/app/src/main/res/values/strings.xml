@@ -877,6 +877,7 @@
     <string name="wallet_dashboard_swap_active" translatable="false">Connected · swap %1$s</string>
     <string name="wallet_dashboard_swap_negotiating" translatable="false">Connected · swap negotiating</string>
     <string name="wallet_swap_stage_terms_syncing" translatable="false">Terms frozen · Bitcoin synchronization is installing and validating the exact swap watch</string>
+    <string name="wallet_swap_stage_bitcoin_syncing" translatable="false">Bitcoin synchronization is validating the exact swap state…</string>
     <string name="wallet_swap_stage_terms_waiting" translatable="false">Terms frozen · automatic Bitcoin synchronization/watch preparation is next</string>
     <string name="wallet_swap_stage_funding_ready_here" translatable="false">%1$s funding is ready for approval on this wallet</string>
     <string name="wallet_swap_stage_waiting_counterparty_funding" translatable="false">Waiting for the counterparty to fund %1$s</string>

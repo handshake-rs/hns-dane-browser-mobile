@@ -647,6 +647,10 @@ val buildRustAndroid = tasks.register<Exec>("buildRustAndroid") {
             include("**/*.rs")
             include("**/*.toml")
         },
+        fileTree(rootDir.resolve("../hns-wallet-rs/vendor/bip157")) {
+            include("src/**/*.rs")
+            include("Cargo.toml")
+        },
         rootDir.resolve("rust/Cargo.toml"),
         rootDir.resolve("rust/Cargo.lock"),
         rootDir.resolve("rust/rust-toolchain.toml"),
