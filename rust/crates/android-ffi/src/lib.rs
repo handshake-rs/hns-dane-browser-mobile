@@ -7021,16 +7021,32 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 || resumed_hns
                 || hns_watch_ready;
         };
-        let registered = record
-            .bitcoin_try_if_active()
-            .and_then(|mut slot| {
-                slot.as_mut().map(|bitcoin| {
-                    bitcoin
-                        .register_counterparty_shakescape_htlc_watch(&permit)
-                        .is_ok()
-                })
-            })
-            .unwrap_or(false);
+        let registered = match record.bitcoin_try_if_active() {
+            Some(mut slot) => match slot.as_mut() {
+                Some(bitcoin) => match bitcoin.register_counterparty_shakescape_htlc_watch(&permit)
+                {
+                    Ok(()) => true,
+                    Err(error) => {
+                        android_log_error(&format!(
+                            "ShakeScape Bitcoin HTLC watch registration is waiting for a ready Bitcoin runtime: {error}"
+                        ));
+                        false
+                    }
+                },
+                None => {
+                    android_log_error(
+                        "ShakeScape Bitcoin HTLC watch registration is waiting for an active Bitcoin runtime",
+                    );
+                    false
+                }
+            },
+            None => {
+                android_log_error(
+                    "ShakeScape Bitcoin HTLC watch registration is waiting for the Bitcoin controller",
+                );
+                false
+            }
+        };
         if !registered {
             return reconciled
                 || serviced
@@ -7040,11 +7056,18 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
                 || resumed_hns
                 || hns_watch_ready;
         }
-        record.controller_if_active().is_some_and(|mut controller| {
-            controller
-                .complete_counterparty_bitcoin_watch(permit)
-                .is_ok()
-        }) || reconciled
+        let watch_acknowledged = record.controller_if_active().is_some_and(|mut controller| {
+            match controller.complete_counterparty_bitcoin_watch(permit) {
+                Ok(()) => true,
+                Err(error) => {
+                    android_log_error(&format!(
+                        "ShakeScape Bitcoin HTLC watch was installed but its authenticated acknowledgement could not be sent: {error}"
+                    ));
+                    false
+                }
+            }
+        });
+        watch_acknowledged || reconciled
             || serviced
             || hns_watch_set_changed
             || funding_ready

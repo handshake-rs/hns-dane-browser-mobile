@@ -4081,6 +4081,15 @@ class WalletActivity : ComponentActivity() {
                         "Direct Bitcoin synchronization reached checkpoint " +
                             "${synchronization.checkpointHeight}",
                     )
+                    // A newly accepted atomic swap may have been waiting for
+                    // this cycle to return Kyoto to a durable Ready phase so
+                    // the foreground peer worker can install its exact HTLC
+                    // watch. Count completion—not only start—as the latest
+                    // automatic-sync activity. Otherwise a scan lasting longer
+                    // than the cadence is immediately reacquired by the next
+                    // status refresh, starving watch installation indefinitely.
+                    lastAutomaticSwapBitcoinSyncAtElapsedMillis =
+                        SystemClock.elapsedRealtime()
                     renderBitcoinSnapshot(synchronization.snapshot)
                     bitcoinStatusView.text = getString(
                         R.string.wallet_bitcoin_synchronized,
