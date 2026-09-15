@@ -2092,6 +2092,80 @@ impl AndroidWalletController {
                 return false;
             }
         };
+        // Accept latency-sensitive inbound work before periodic HSD peer
+        // maintenance, ADDR discovery, and board inventory. Those bounded
+        // maintenance operations may still be CPU-heavy on older 32-bit
+        // phones; leaving accept at the tail lets a completed Brontide socket
+        // accumulate application bytes while the peer incorrectly appears
+        // unpaired. Once admitted, later ticks service the authenticated peer
+        // through the ordinary primary/replica paths below.
+        if let Some(listener) = shakescape_listener.as_ref() {
+            let height = match coordinator.rollback_floor() {
+                Ok(floor) => floor.height,
+                Err(error) => {
+                    android_log_error(&format!(
+                        "wallet-owned Shakescape height unavailable: {error}"
+                    ));
+                    return false;
+                }
+            };
+            let admitted = match listener.accept_next_mobile(height, now_unix) {
+                Ok(peer) => peer,
+                Err(error) => {
+                    android_log_error(&format!(
+                        "wallet-owned inbound NETWORK peer rejected: {error}"
+                    ));
+                    return false;
+                }
+            };
+            if let Some(admitted) = admitted {
+                match admitted {
+                    HnsInboundMobilePeer::Network(peer) => {
+                        let network_service_ready = coordinator
+                            .minimal_network_service_ready(now_unix)
+                            .unwrap_or(false);
+                        if network_service_ready
+                            && inbound_network_peers.len() < MAX_ANDROID_INBOUND_NETWORK_PEERS
+                        {
+                            inbound_network_peers.push(peer);
+                            return true;
+                        }
+                    }
+                    HnsInboundMobilePeer::Shakescape(mut peer) => {
+                        if usize::from(shakescape_peer.is_some())
+                            .saturating_add(shakescape_replication_peers.len())
+                            >= MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS
+                        {
+                            return false;
+                        }
+                        if controller
+                            .begin_wallet_owned_direct_shakedex(&mut peer)
+                            .and_then(|_| {
+                                controller.announce_wallet_owned_direct_shakedex(&mut peer)
+                            })
+                            .and_then(|_| {
+                                shakescape_sessions
+                                    .announce_direct_offer_inventory(&mut peer, now_unix)
+                            })
+                            .is_err()
+                        {
+                            return false;
+                        }
+                        let address = peer.address();
+                        if shakescape_peer.is_none() {
+                            *shakescape_peer = Some(peer);
+                        } else {
+                            shakescape_replication_peers.push(peer);
+                        }
+                        android_log_info(
+                            "hns-shakescape",
+                            &format!("accepted inbound ShakeScape peer {address}"),
+                        );
+                        return true;
+                    }
+                }
+            }
+        }
         let connected_hsd_peers = coordinator
             .shakescape_discovery_status(now_unix)
             .map_or(0, |status| status.hsd_peers_connected);
@@ -2480,7 +2554,7 @@ impl AndroidWalletController {
                 }
             }
         }
-        let Some(listener) = shakescape_listener.as_ref() else {
+        let Some(_listener) = shakescape_listener.as_ref() else {
             return false;
         };
         let height = match coordinator.rollback_floor() {
@@ -2570,47 +2644,7 @@ impl AndroidWalletController {
                 )),
             }
         }
-        let admitted = match listener.accept_next_mobile(height, now_unix) {
-            Ok(Some(peer)) => peer,
-            Ok(None) => return false,
-            Err(error) => {
-                android_log_error(&format!(
-                    "wallet-owned inbound NETWORK peer rejected: {error}"
-                ));
-                return false;
-            }
-        };
-        let mut peer = match admitted {
-            HnsInboundMobilePeer::Network(peer) => {
-                if network_service_ready
-                    && inbound_network_peers.len() < MAX_ANDROID_INBOUND_NETWORK_PEERS
-                {
-                    inbound_network_peers.push(peer);
-                    return true;
-                }
-                return false;
-            }
-            HnsInboundMobilePeer::Shakescape(peer) => peer,
-        };
-        if usize::from(shakescape_peer.is_some()).saturating_add(shakescape_replication_peers.len())
-            >= MAX_ANDROID_DIRECT_SHAKESCAPE_PEERS
-        {
-            return false;
-        }
-        if controller
-            .begin_wallet_owned_direct_shakedex(&mut peer)
-            .and_then(|_| controller.announce_wallet_owned_direct_shakedex(&mut peer))
-            .and_then(|_| shakescape_sessions.announce_direct_offer_inventory(&mut peer, now_unix))
-            .is_err()
-        {
-            return false;
-        }
-        if shakescape_peer.is_none() {
-            *shakescape_peer = Some(peer);
-        } else {
-            shakescape_replication_peers.push(peer);
-        }
-        true
+        false
     }
 
     /// Connect one exact, user-paired direct board endpoint. The endpoint is
