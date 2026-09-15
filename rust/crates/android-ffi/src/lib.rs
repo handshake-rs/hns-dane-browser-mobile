@@ -226,6 +226,129 @@ fn promote_direct_shakescape_primary<T>(primary: &mut Option<T>, replicas: &mut 
     }
     primary.is_some()
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AndroidDirectPeerService {
+    Idle,
+    Retain { board_changed: bool },
+    Drop,
+}
+
+/// Service one already-negotiated board peer without running unrelated HSD
+/// discovery or reachability maintenance first. A queued recovery batch is
+/// latency-sensitive and bounded by the transport decoder; maintenance runs
+/// only after every connected peer reports idle.
+fn service_connected_shakescape_peer(
+    peer: &mut HnsDirectShakescapePeer,
+    coordinator: &mut HnsDirectPeerCoordinator,
+    controller: &mut MobileHnsValueController<EmbeddedHnsBackend>,
+    shakescape_sessions: &MobileShakescapeSessionController,
+    now_unix: u64,
+) -> AndroidDirectPeerService {
+    match peer.try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix) {
+        Ok(None) => AndroidDirectPeerService::Idle,
+        Ok(Some(HnsDirectShakescapeMessage::NameMarket {
+            request_id,
+            message,
+        })) => {
+            let retry_message = message.clone();
+            match controller.service_wallet_owned_direct_shakedex_message(peer, request_id, message)
+            {
+                Ok(report) => AndroidDirectPeerService::Retain {
+                    board_changed: report.offers_admitted != 0
+                        || report.cancellations_admitted != 0,
+                },
+                Err(initial_error) => {
+                    // A listing lock can predate a new light-wallet birthday.
+                    // Fetch only its authenticated current-root evidence, then
+                    // retry the already-decoded message. Board admission
+                    // failure never invalidates an authenticated transport.
+                    match coordinator
+                        .synchronize_name_market_message_evidence(&retry_message, now_unix)
+                    {
+                        Ok(admitted) => match controller
+                            .service_wallet_owned_direct_shakedex_message(
+                                peer,
+                                request_id,
+                                retry_message,
+                            ) {
+                            Ok(report) => {
+                                android_log_info(
+                                    "hns-shakescape",
+                                    &format!(
+                                        "verified remote name-lock evidence transactions={admitted}; name-market admission retry succeeded"
+                                    ),
+                                );
+                                AndroidDirectPeerService::Retain {
+                                    board_changed: report.offers_admitted != 0
+                                        || report.cancellations_admitted != 0,
+                                }
+                            }
+                            Err(retry_error) => {
+                                android_log_error(&format!(
+                                    "wallet-owned Shakescape name-market admission still failed after verified evidence backfill; peer retained: initial={initial_error}; retry={retry_error}"
+                                ));
+                                AndroidDirectPeerService::Retain {
+                                    board_changed: false,
+                                }
+                            }
+                        },
+                        Err(evidence_error) => {
+                            android_log_error(&format!(
+                                "wallet-owned Shakescape name-market message could not be admitted locally; peer retained: {initial_error}; verified evidence backfill failed: {evidence_error}"
+                            ));
+                            AndroidDirectPeerService::Retain {
+                                board_changed: false,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => {
+            match shakescape_sessions.service_direct_envelope(peer, envelope.as_slice(), now_unix) {
+                Ok(report) => {
+                    android_log_info(
+                        "hns-shakescape",
+                        &format!(
+                            "serviced direct envelope kind={:?} sent={} admitted={}",
+                            report.message_kind,
+                            report.messages_sent,
+                            report.admission.is_some(),
+                        ),
+                    );
+                    AndroidDirectPeerService::Retain {
+                        board_changed: false,
+                    }
+                }
+                Err(error) => {
+                    let invalidates_transport = error.invalidates_direct_shakescape_transport();
+                    android_log_error(&format!(
+                        "wallet-owned Shakescape cross-chain message was rejected; authenticated peer {}: {error}",
+                        if invalidates_transport {
+                            "discarded"
+                        } else {
+                            "retained"
+                        }
+                    ));
+                    if invalidates_transport {
+                        AndroidDirectPeerService::Drop
+                    } else {
+                        AndroidDirectPeerService::Retain {
+                            board_changed: false,
+                        }
+                    }
+                }
+            }
+        }
+        Err(error) => {
+            android_log_error(&format!(
+                "wallet-owned Shakescape peer message was rejected: {error}"
+            ));
+            AndroidDirectPeerService::Drop
+        }
+    }
+}
 const ANDROID_WALLET_ACTION_TOKEN_BYTES: usize = 64;
 const WALLET_NAME_IMPORT_BUNDLE_MAGIC: &[u8; 4] = b"HNWI";
 const WALLET_NAME_IMPORT_BUNDLE_VERSION: u8 = 1;
@@ -2166,6 +2289,82 @@ impl AndroidWalletController {
                 }
             }
         }
+        // Drain already-authenticated board traffic before starting any HSD
+        // maintenance. A direct peer can replay several durable recovery
+        // envelopes at once; processing one envelope per tight worker tick
+        // keeps that bounded while avoiding a full maintenance pass between
+        // consecutive frames.
+        if let Some(peer) = shakescape_peer.as_mut() {
+            match service_connected_shakescape_peer(
+                peer,
+                coordinator,
+                controller,
+                shakescape_sessions,
+                now_unix,
+            ) {
+                AndroidDirectPeerService::Idle => {}
+                AndroidDirectPeerService::Retain { board_changed } => {
+                    if board_changed {
+                        for replica in shakescape_replication_peers.iter_mut() {
+                            let _ = controller.begin_wallet_owned_direct_shakedex(replica);
+                        }
+                    }
+                    return true;
+                }
+                AndroidDirectPeerService::Drop => {
+                    shakescape_peer.take();
+                    promote_direct_shakescape_primary(
+                        shakescape_peer,
+                        shakescape_replication_peers,
+                    );
+                    *shakescape_next_paired_reconnect_at = Some(
+                        now_unix
+                            .saturating_add(ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
+                    );
+                    return true;
+                }
+            }
+        }
+        let mut replication_index = 0usize;
+        while replication_index < shakescape_replication_peers.len() {
+            let service = {
+                let peer = &mut shakescape_replication_peers[replication_index];
+                service_connected_shakescape_peer(
+                    peer,
+                    coordinator,
+                    controller,
+                    shakescape_sessions,
+                    now_unix,
+                )
+            };
+            match service {
+                AndroidDirectPeerService::Idle => {
+                    replication_index = replication_index.saturating_add(1)
+                }
+                AndroidDirectPeerService::Drop => {
+                    shakescape_replication_peers.swap_remove(replication_index);
+                    *shakescape_next_paired_reconnect_at = Some(
+                        now_unix
+                            .saturating_add(ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
+                    );
+                    return true;
+                }
+                AndroidDirectPeerService::Retain { board_changed } => {
+                    if board_changed {
+                        if let Some(primary) = shakescape_peer.as_mut() {
+                            let _ = controller.begin_wallet_owned_direct_shakedex(primary);
+                        }
+                        for (index, replica) in shakescape_replication_peers.iter_mut().enumerate()
+                        {
+                            if index != replication_index {
+                                let _ = controller.begin_wallet_owned_direct_shakedex(replica);
+                            }
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
         let connected_hsd_peers = coordinator
             .shakescape_discovery_status(now_unix)
             .map_or(0, |status| status.hsd_peers_connected);
@@ -2305,254 +2504,6 @@ impl AndroidWalletController {
             Err(error) => android_log_error(&format!(
                 "wallet-owned ShakeScape address discovery failed: {error}"
             )),
-        }
-        if let Some(peer) = shakescape_peer.as_mut() {
-            let mut board_changed = false;
-            let accepted = match peer
-                .try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix)
-            {
-                Ok(None) => None,
-                Ok(Some(HnsDirectShakescapeMessage::NameMarket {
-                    request_id,
-                    message,
-                })) => {
-                    let retry_message = message.clone();
-                    Some(
-                        match controller
-                            .service_wallet_owned_direct_shakedex_message(peer, request_id, message)
-                        {
-                            Ok(report) => {
-                                board_changed = report.offers_admitted != 0
-                                    || report.cancellations_admitted != 0;
-                                true
-                            }
-                            Err(initial_error) => {
-                                // Remote seller locks commonly predate a new light
-                                // wallet's birthday. Fetch only the listing name's
-                                // current-root proof, owner block, and uncommitted
-                                // name-tree interval from independent ordinary HNS
-                                // peers, then retry the exact already-decoded message.
-                                match coordinator.synchronize_name_market_message_evidence(
-                                    &retry_message,
-                                    now_unix,
-                                ) {
-                                    Ok(admitted) => match controller
-                                        .service_wallet_owned_direct_shakedex_message(
-                                            peer,
-                                            request_id,
-                                            retry_message,
-                                        ) {
-                                        Ok(report) => {
-                                            board_changed = report.offers_admitted != 0
-                                                || report.cancellations_admitted != 0;
-                                            android_log_info(
-                                                "hns-shakescape",
-                                                &format!(
-                                                    "verified remote name-lock evidence transactions={admitted}; name-market admission retry succeeded"
-                                                ),
-                                            );
-                                            true
-                                        }
-                                        Err(retry_error) => {
-                                            android_log_error(&format!(
-                                                "wallet-owned Shakescape name-market admission still failed after verified evidence backfill; peer retained: initial={initial_error}; retry={retry_error}"
-                                            ));
-                                            true
-                                        }
-                                    },
-                                    Err(evidence_error) => {
-                                        // Board failure is not a transport failure.
-                                        // Keep the authenticated socket so a later
-                                        // inventory round can retry after HNS peers
-                                        // or chain evidence become available.
-                                        android_log_error(&format!(
-                                            "wallet-owned Shakescape name-market message could not be admitted locally; peer retained: {initial_error}; verified evidence backfill failed: {evidence_error}"
-                                        ));
-                                        true
-                                    }
-                                }
-                            }
-                        },
-                    )
-                }
-                Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
-                    match shakescape_sessions.service_direct_envelope(
-                        peer,
-                        envelope.as_slice(),
-                        now_unix,
-                    ) {
-                        Ok(report) => {
-                            android_log_info(
-                                "hns-shakescape",
-                                &format!(
-                                    "serviced direct envelope kind={:?} sent={} admitted={}",
-                                    report.message_kind,
-                                    report.messages_sent,
-                                    report.admission.is_some(),
-                                ),
-                            );
-                            true
-                        }
-                        Err(error) => {
-                            android_log_error(&format!(
-                                "wallet-owned Shakescape cross-chain message was rejected; authenticated peer {}: {error}",
-                                if error.invalidates_direct_shakescape_transport() {
-                                    "discarded"
-                                } else {
-                                    "retained"
-                                }
-                            ));
-                            !error.invalidates_direct_shakescape_transport()
-                        }
-                    },
-                ),
-                Err(error) => {
-                    android_log_error(&format!(
-                        "wallet-owned Shakescape peer message was rejected: {error}"
-                    ));
-                    Some(false)
-                }
-            };
-            if accepted == Some(false) {
-                shakescape_peer.take();
-                promote_direct_shakescape_primary(shakescape_peer, shakescape_replication_peers);
-                *shakescape_next_paired_reconnect_at = Some(
-                    now_unix.saturating_add(ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
-                );
-            } else if accepted == Some(true) {
-                if board_changed {
-                    for peer in shakescape_replication_peers.iter_mut() {
-                        let _ = controller.begin_wallet_owned_direct_shakedex(peer);
-                    }
-                }
-                return true;
-            }
-        }
-        let mut replication_index = 0usize;
-        while replication_index < shakescape_replication_peers.len() {
-            let mut board_changed = false;
-            let accepted = {
-                let peer = &mut shakescape_replication_peers[replication_index];
-                match peer
-                    .try_receive_shakescape_message_serving_network(coordinator.backend(), now_unix)
-                {
-                    Ok(None) => None,
-                    Ok(Some(HnsDirectShakescapeMessage::NameMarket {
-                        request_id,
-                        message,
-                    })) => {
-                        let retry_message = message.clone();
-                        Some(
-                            match controller.service_wallet_owned_direct_shakedex_message(
-                                peer, request_id, message,
-                            ) {
-                                Ok(report) => {
-                                    board_changed = report.offers_admitted != 0
-                                        || report.cancellations_admitted != 0;
-                                    true
-                                }
-                                Err(initial_error) => {
-                                    match coordinator.synchronize_name_market_message_evidence(
-                                        &retry_message,
-                                        now_unix,
-                                    ) {
-                                        Ok(admitted) => match controller
-                                            .service_wallet_owned_direct_shakedex_message(
-                                                peer,
-                                                request_id,
-                                                retry_message,
-                                            ) {
-                                            Ok(report) => {
-                                                board_changed = report.offers_admitted != 0
-                                                    || report.cancellations_admitted != 0;
-                                                android_log_info(
-                                                    "hns-shakescape",
-                                                    &format!(
-                                                        "verified replicated remote name-lock evidence transactions={admitted}; name-market admission retry succeeded"
-                                                    ),
-                                                );
-                                                true
-                                            }
-                                            Err(retry_error) => {
-                                                android_log_error(&format!(
-                                                    "wallet-owned replicated Shakescape name-market admission still failed after verified evidence backfill; peer retained: initial={initial_error}; retry={retry_error}"
-                                                ));
-                                                true
-                                            }
-                                        },
-                                        Err(evidence_error) => {
-                                            android_log_error(&format!(
-                                                "wallet-owned replicated Shakescape name-market message could not be admitted locally; peer retained: {initial_error}; verified evidence backfill failed: {evidence_error}"
-                                            ));
-                                            true
-                                        }
-                                    }
-                                }
-                            },
-                        )
-                    }
-                    Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
-                        match shakescape_sessions.service_direct_envelope(
-                            peer,
-                            envelope.as_slice(),
-                            now_unix,
-                        ) {
-                            Ok(report) => {
-                                android_log_info(
-                                    "hns-shakescape",
-                                    &format!(
-                                        "serviced replicated direct envelope kind={:?} sent={} admitted={}",
-                                        report.message_kind,
-                                        report.messages_sent,
-                                        report.admission.is_some(),
-                                    ),
-                                );
-                                true
-                            }
-                            Err(error) => {
-                                android_log_error(&format!(
-                                    "wallet-owned replicated Shakescape cross-chain message was rejected; authenticated peer {}: {error}",
-                                    if error.invalidates_direct_shakescape_transport() {
-                                        "discarded"
-                                    } else {
-                                        "retained"
-                                    }
-                                ));
-                                !error.invalidates_direct_shakescape_transport()
-                            }
-                        },
-                    ),
-                    Err(error) => {
-                        android_log_error(&format!(
-                            "wallet-owned replicated Shakescape peer message was rejected: {error}"
-                        ));
-                        Some(false)
-                    }
-                }
-            };
-            match accepted {
-                None => replication_index = replication_index.saturating_add(1),
-                Some(false) => {
-                    shakescape_replication_peers.swap_remove(replication_index);
-                    *shakescape_next_paired_reconnect_at = Some(
-                        now_unix
-                            .saturating_add(ANDROID_SHAKESCAPE_PAIRED_RECONNECT_INTERVAL_SECONDS),
-                    );
-                }
-                Some(true) => {
-                    if board_changed {
-                        if let Some(peer) = shakescape_peer.as_mut() {
-                            let _ = controller.begin_wallet_owned_direct_shakedex(peer);
-                        }
-                        for (index, peer) in shakescape_replication_peers.iter_mut().enumerate() {
-                            if index != replication_index {
-                                let _ = controller.begin_wallet_owned_direct_shakedex(peer);
-                            }
-                        }
-                    }
-                    return true;
-                }
-            }
         }
         let Some(_listener) = shakescape_listener.as_ref() else {
             return false;
