@@ -2013,9 +2013,14 @@ impl NativeWalletController {
                     )
                 }
                 Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
-                    shakescape_sessions
-                        .service_direct_envelope(peer, envelope.as_slice(), now_unix)
-                        .is_ok(),
+                    match shakescape_sessions.service_direct_envelope(
+                        peer,
+                        envelope.as_slice(),
+                        now_unix,
+                    ) {
+                        Ok(_) => true,
+                        Err(error) => !error.invalidates_direct_shakescape_transport(),
+                    },
                 ),
                 Err(_) => Some(false),
             };
@@ -2079,9 +2084,14 @@ impl NativeWalletController {
                         )
                     }
                     Ok(Some(HnsDirectShakescapeMessage::CrossChain { envelope })) => Some(
-                        shakescape_sessions
-                            .service_direct_envelope(peer, envelope.as_slice(), now_unix)
-                            .is_ok(),
+                        match shakescape_sessions.service_direct_envelope(
+                            peer,
+                            envelope.as_slice(),
+                            now_unix,
+                        ) {
+                            Ok(_) => true,
+                            Err(error) => !error.invalidates_direct_shakescape_transport(),
+                        },
                     ),
                     Err(_) => Some(false),
                 }

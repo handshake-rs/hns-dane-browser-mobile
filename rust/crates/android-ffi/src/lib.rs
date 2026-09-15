@@ -2192,9 +2192,14 @@ impl AndroidWalletController {
                         Ok(_) => true,
                         Err(error) => {
                             android_log_error(&format!(
-                                "wallet-owned Shakescape cross-chain message was rejected: {error}"
+                                "wallet-owned Shakescape cross-chain message was rejected; authenticated peer {}: {error}",
+                                if error.invalidates_direct_shakescape_transport() {
+                                    "discarded"
+                                } else {
+                                    "retained"
+                                }
                             ));
-                            false
+                            !error.invalidates_direct_shakescape_transport()
                         }
                     },
                 ),
@@ -2292,9 +2297,14 @@ impl AndroidWalletController {
                             Ok(_) => true,
                             Err(error) => {
                                 android_log_error(&format!(
-                                    "wallet-owned replicated Shakescape cross-chain message was rejected: {error}"
+                                    "wallet-owned replicated Shakescape cross-chain message was rejected; authenticated peer {}: {error}",
+                                    if error.invalidates_direct_shakescape_transport() {
+                                        "discarded"
+                                    } else {
+                                        "retained"
+                                    }
                                 ));
-                                false
+                                !error.invalidates_direct_shakescape_transport()
                             }
                         },
                     ),
