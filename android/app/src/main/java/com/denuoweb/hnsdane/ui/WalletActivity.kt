@@ -405,6 +405,7 @@ class WalletActivity : ComponentActivity() {
     private var latestShakescapeExecutionStatus: NativeShakescapeExecutionStatus? = null
     private var activeShakescapeDashboardSummary: String? = null
     private var lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
+    private var automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
     @Volatile
     private var bitcoinSyncProgressWatcher: AtomicBoolean? = null
     private var walletForegroundSyncServiceActive = false
@@ -2227,7 +2228,10 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.action_stop_bitcoin_sync) to ::requestBitcoinSyncCancellation,
             )
         } else {
-            actions.add(getString(R.string.action_sync_wallet_reads) to ::synchronizeBitcoin)
+            actions.add(getString(R.string.action_sync_wallet_reads) to {
+                automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
+                synchronizeBitcoin()
+            })
         }
         if (bitcoinBirthdayMayStart()) {
             actions.add(
@@ -4099,6 +4103,8 @@ class WalletActivity : ComponentActivity() {
             .setPositiveButton(R.string.action_stop_sync) { _, _ ->
                 bitcoinSyncStopRequested = true
                 if (NativeWalletBridge.stopBitcoinSynchronization(walletHandle)) {
+                    automaticSwapBitcoinSyncPausedUntilElapsedMillis =
+                        SystemClock.elapsedRealtime() + SWAP_BITCOIN_STOP_OPERATION_GRACE_MILLIS
                     bitcoinStatusView.text = getString(R.string.wallet_bitcoin_sync_stopping)
                 } else {
                     bitcoinSyncStopRequested = false
@@ -4421,6 +4427,12 @@ class WalletActivity : ComponentActivity() {
         val live = status.executions.any {
             it.state !in setOf("completed", "refunded", "failed")
         } || status.pendingAcceptances.isNotEmpty()
+        if (!live) {
+            automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
+            return false
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (now < automaticSwapBitcoinSyncPausedUntilElapsedMillis) return false
         // Funding preparation and a direct Bitcoin scan both require exclusive
         // access to the native Bitcoin controller. Once the protocol has made
         // Bitcoin funding actionable on this wallet, leave that controller
@@ -4433,11 +4445,10 @@ class WalletActivity : ComponentActivity() {
                 (it.state == "second_funding_pending" && it.localRole == "taker" &&
                     it.secondChain == "bitcoin")
         }
-        if (!live || localBitcoinFundingReady || walletBitcoinSyncInProgress ||
+        if (localBitcoinFundingReady || walletBitcoinSyncInProgress ||
             bitcoinBirthdayResetInProgress || busy ||
             walletHandle == INVALID_HANDLE || !NativeWalletBridge.hasBitcoinValue(walletHandle)
         ) return false
-        val now = SystemClock.elapsedRealtime()
         if (lastAutomaticSwapBitcoinSyncAtElapsedMillis != Long.MIN_VALUE &&
             now - lastAutomaticSwapBitcoinSyncAtElapsedMillis < SWAP_BITCOIN_AUTO_SYNC_INTERVAL_MILLIS
         ) return false
@@ -4454,6 +4465,7 @@ class WalletActivity : ComponentActivity() {
         latestShakescapeExecutionStatus = null
         activeShakescapeDashboardSummary = null
         lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
+        automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
         if (::directShakescapeStatusView.isInitialized) {
             directShakescapeStatusView.text = getString(
                 if (locked) R.string.wallet_direct_shakescape_locked
@@ -9305,6 +9317,11 @@ class WalletActivity : ComponentActivity() {
         const val MINIMUM_HNS_SYNC_STAGE_VISIBILITY_MILLIS = 3_000L
         const val BITCOIN_SYNC_PROGRESS_POLL_MILLIS = 1_000L
         const val SWAP_BITCOIN_AUTO_SYNC_INTERVAL_MILLIS = 30_000L
+        // Stop must leave enough time to open, review, authenticate, and start
+        // a Bitcoin value operation. Without this guard the 250 ms direct-peer
+        // tick can immediately reacquire the controller after a successful
+        // cancellation, making every Bitcoin action appear inert.
+        const val SWAP_BITCOIN_STOP_OPERATION_GRACE_MILLIS = 5 * 60_000L
         const val HNS_POST_BROADCAST_VERIFICATION_ATTEMPTS = 3
         const val HNS_POST_BROADCAST_VERIFICATION_INTERVAL_MILLIS = 1_000L
         const val DIRECT_HNS_MAX_HEADER_AGREEMENT_RECOVERIES_PER_SYNC = 5
