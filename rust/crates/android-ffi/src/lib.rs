@@ -2036,11 +2036,22 @@ impl AndroidWalletController {
                         "wallet-owned due name-market publication was not announced: {error}"
                     )),
                 }
-                if shakescape_sessions
-                    .announce_direct_offer_inventory(peer, now_unix)
-                    .is_ok()
+                if let Ok(report) =
+                    shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)
                 {
                     direct_inventory_peers = direct_inventory_peers.saturating_add(1);
+                    if report.pending_takes != 0 {
+                        android_log_info(
+                            "hns-shakescape",
+                            &format!(
+                                "replayed direct-offer state: active_offers={} cancellations={} pending_takes={} session_envelopes={}",
+                                report.active_offers,
+                                report.cancellations,
+                                report.pending_takes,
+                                report.session_envelopes,
+                            ),
+                        );
+                    }
                 }
             }
             for peer in shakescape_replication_peers.iter_mut() {
@@ -2053,11 +2064,22 @@ impl AndroidWalletController {
                         "wallet-owned replicated name-market publication was not announced: {error}"
                     )),
                 }
-                if shakescape_sessions
-                    .announce_direct_offer_inventory(peer, now_unix)
-                    .is_ok()
+                if let Ok(report) =
+                    shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)
                 {
                     direct_inventory_peers = direct_inventory_peers.saturating_add(1);
+                    if report.pending_takes != 0 {
+                        android_log_info(
+                            "hns-shakescape",
+                            &format!(
+                                "replayed replicated direct-offer state: active_offers={} cancellations={} pending_takes={} session_envelopes={}",
+                                report.active_offers,
+                                report.cancellations,
+                                report.pending_takes,
+                                report.session_envelopes,
+                            ),
+                        );
+                    }
                 }
             }
             if name_market_publications != 0 || direct_inventory_peers != 0 {
@@ -2189,7 +2211,18 @@ impl AndroidWalletController {
                         envelope.as_slice(),
                         now_unix,
                     ) {
-                        Ok(_) => true,
+                        Ok(report) => {
+                            android_log_info(
+                                "hns-shakescape",
+                                &format!(
+                                    "serviced direct envelope kind={:?} sent={} admitted={}",
+                                    report.message_kind,
+                                    report.messages_sent,
+                                    report.admission.is_some(),
+                                ),
+                            );
+                            true
+                        }
                         Err(error) => {
                             android_log_error(&format!(
                                 "wallet-owned Shakescape cross-chain message was rejected; authenticated peer {}: {error}",
@@ -2294,7 +2327,18 @@ impl AndroidWalletController {
                             envelope.as_slice(),
                             now_unix,
                         ) {
-                            Ok(_) => true,
+                            Ok(report) => {
+                                android_log_info(
+                                    "hns-shakescape",
+                                    &format!(
+                                        "serviced replicated direct envelope kind={:?} sent={} admitted={}",
+                                        report.message_kind,
+                                        report.messages_sent,
+                                        report.admission.is_some(),
+                                    ),
+                                );
+                                true
+                            }
                             Err(error) => {
                                 android_log_error(&format!(
                                     "wallet-owned replicated Shakescape cross-chain message was rejected; authenticated peer {}: {error}",
