@@ -2216,16 +2216,15 @@ impl NativeWalletController {
                 return true;
             }
         }
-        if !network_service_ready {
-            return false;
-        }
         let admitted = match listener.accept_next_mobile(floor.height, now_unix) {
             Ok(Some(peer)) => peer,
             Ok(None) | Err(_) => return false,
         };
         let mut peer = match admitted {
             HnsInboundMobilePeer::Network(peer) => {
-                if inbound_network_peers.len() < MAX_IOS_INBOUND_NETWORK_PEERS {
+                if network_service_ready
+                    && inbound_network_peers.len() < MAX_IOS_INBOUND_NETWORK_PEERS
+                {
                     inbound_network_peers.push(peer);
                     return true;
                 }
