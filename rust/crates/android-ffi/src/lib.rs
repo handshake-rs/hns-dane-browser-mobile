@@ -1463,11 +1463,21 @@ impl AndroidWalletController {
         else {
             return false;
         };
-        HnsReadSystemClock.now_unix().is_ok_and(|now_unix| {
-            shakescape_sessions
-                .reconcile_direct_offer_lifecycle(now_unix)
-                .is_ok_and(|count| count != 0)
-        })
+        let Ok(now_unix) = HnsReadSystemClock.now_unix() else {
+            android_log_error(
+                "direct ShakeScape lifecycle reconciliation could not read the system clock",
+            );
+            return false;
+        };
+        match shakescape_sessions.reconcile_direct_offer_lifecycle(now_unix) {
+            Ok(count) => count != 0,
+            Err(error) => {
+                android_log_error(&format!(
+                    "direct ShakeScape lifecycle reconciliation failed: {error}"
+                ));
+                false
+            }
+        }
     }
 
     fn advance_local_first_funding_readiness(&mut self) -> bool {
@@ -2571,12 +2581,16 @@ impl AndroidWalletController {
                 ..
             } => (|| -> Result<_, MobileWalletError> {
                 let watch_now_unix = HnsReadSystemClock.now_unix()?;
-                if shakescape_sessions
-                    .install_active_hns_htlc_watch_set(coordinator, watch_now_unix)?
+                match shakescape_sessions
+                    .install_active_hns_htlc_watch_set(coordinator, watch_now_unix)
                 {
-                    android_log_wallet_scan_metrics(
+                    Ok(true) => android_log_wallet_scan_metrics(
                         "wallet_hns_scan stage=active_htlc_watch_set_installed",
-                    );
+                    ),
+                    Ok(false) => {}
+                    Err(error) => android_log_error(&format!(
+                        "wallet HNS synchronization is continuing without ShakeScape execution recovery because the authenticated active HTLC watch set could not be loaded: {error}"
+                    )),
                 }
                 // Converge through the direct peers until they agree that no
                 // extension remains. Both the round count and every peer
