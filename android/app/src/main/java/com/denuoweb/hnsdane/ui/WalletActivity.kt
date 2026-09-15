@@ -3399,8 +3399,20 @@ class WalletActivity : ComponentActivity() {
                     ) {
                         directFramesServiced += 1
                     }
+                    val transportWorkServiced = directFramesServiced != 0
+                    val reconciliationChanged = if (
+                        transportWorkServiced ||
+                            serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0
+                    ) {
+                        NativeWalletBridge.reconcileWalletOwnedDirectShakescape(handle)
+                    } else {
+                        false
+                    }
                     serviceTicks += 1
-                    if (serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0) {
+                    if (
+                        transportWorkServiced || reconciliationChanged ||
+                            serviceTicks % DIRECT_SHAKESCAPE_STATUS_REFRESH_TICKS == 0
+                    ) {
                         val executionStatus = NativeWalletBridge.shakescapeExecutions(handle)
                         runOnUiThread {
                             if (

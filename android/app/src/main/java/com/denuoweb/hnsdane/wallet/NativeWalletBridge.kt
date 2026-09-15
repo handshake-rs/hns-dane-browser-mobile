@@ -246,6 +246,15 @@ internal object NativeWalletBridge {
             runCatching { nativeServiceWalletOwnedDirectShakescape(handle) }.getOrDefault(false)
 
     /**
+     * Reconciles durable swap lifecycle, watch, and approved-broadcast state.
+     * The foreground worker invokes this once after a bounded transport burst,
+     * never once per queued peer frame.
+     */
+    fun reconcileWalletOwnedDirectShakescape(handle: Long): Boolean =
+        isValidHandle(handle) && isAvailable &&
+            runCatching { nativeReconcileWalletOwnedDirectShakescape(handle) }.getOrDefault(false)
+
+    /**
      * Supplies the active Android LAN route without relying on restricted
      * route-netlink access. Null clears router mapping on cellular/no network.
      */
@@ -1307,6 +1316,9 @@ internal object NativeWalletBridge {
 
     @JvmStatic
     private external fun nativeServiceWalletOwnedDirectShakescape(handle: Long): Boolean
+
+    @JvmStatic
+    private external fun nativeReconcileWalletOwnedDirectShakescape(handle: Long): Boolean
 
     @JvmStatic
     private external fun nativeUpdateWalletOwnedDirectShakescapeRouterRoute(
