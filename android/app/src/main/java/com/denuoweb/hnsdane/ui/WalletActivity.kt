@@ -5615,7 +5615,11 @@ class WalletActivity : ComponentActivity() {
                     releaseStorageLeaseAfterOperation(lease)
                 } else if (approval == null) {
                     busy = false
-                    bitcoinStatusView.text = getString(R.string.wallet_swap_hns_funding_prepare_failed)
+                    val failure = getString(R.string.wallet_swap_hns_funding_prepare_failed)
+                    statusView.text = failure
+                    bitcoinStatusView.text = failure
+                    renderWalletDashboard()
+                    releaseStorageLeaseAfterOperation(lease)
                 } else {
                     showHnsForBtcFundingApproval(approval, lease, epoch)
                 }

@@ -1889,19 +1889,51 @@ impl AndroidWalletController {
         else {
             return None;
         };
-        let permit = shakescape_sessions
-            .authorize_local_hns_second_funding(session_id, HnsReadSystemClock.now_unix().ok()?)
-            .or_else(|_| {
-                shakescape_sessions.authorize_local_hns_first_funding(
-                    session_id,
-                    HnsReadSystemClock.now_unix().unwrap_or(0),
-                )
-            })
-            .ok()?;
-        let approval = controller
+        let now_unix = match HnsReadSystemClock.now_unix() {
+            Ok(now_unix) => now_unix,
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape HNS funding preparation could not read network time for session {session_id:?}: {error}"
+                ));
+                return None;
+            }
+        };
+        let permit = match shakescape_sessions
+            .authorize_local_hns_second_funding(session_id, now_unix)
+        {
+            Ok(permit) => permit,
+            Err(second_error) => {
+                match shakescape_sessions.authorize_local_hns_first_funding(session_id, now_unix) {
+                    Ok(permit) => permit,
+                    Err(first_error) => {
+                        android_log_error(&format!(
+                            "ShakeScape HNS funding authorization failed for session {session_id:?}: second-funding={second_error}; first-funding={first_error}"
+                        ));
+                        return None;
+                    }
+                }
+            }
+        };
+        let approval = match controller
             .prepare_shakescape_hns_funding(permit, maximum_fee_dollarydoos)
-            .ok()?;
-        let mut json = serde_json::to_vec(&approval).ok()?;
+        {
+            Ok(approval) => approval,
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape HNS funding transaction preparation failed for session {session_id:?}: {error}"
+                ));
+                return None;
+            }
+        };
+        let mut json = match serde_json::to_vec(&approval) {
+            Ok(json) => json,
+            Err(error) => {
+                android_log_error(&format!(
+                    "ShakeScape HNS funding approval encoding failed for session {session_id:?}: {error}"
+                ));
+                return None;
+            }
+        };
         let bundle = bitcoin_json_bundle(&json);
         json.fill(0);
         bundle
