@@ -1348,7 +1348,7 @@ final class WalletViewController: UIViewController {
               !bitcoinBirthdayResetInProgress, !isOperating else { return }
         presentWalletForm(
             title: "Sell BTC for HNS",
-            message: "Create one exact, indivisible direct-board offer. Confirmed Bitcoin must cover the principal, active offers, and the separate fee reserve.",
+            message: "Create one exact, indivisible direct-board offer. Confirmed Bitcoin must cover active offers and the complete locked amount, which includes its fee reserve.",
             fields: [
                 WalletSheetFormField(
                     label: "BTC locked (minimum 1330 sats including fee reserve)",
@@ -1403,7 +1403,7 @@ final class WalletViewController: UIViewController {
                     case .success(let approval):
                         self.presentBtcForHnsOfferApproval(approval, wallet: wallet)
                     case .failure(let error):
-                        self.bitcoinStatusLabel.text = "The listing was not prepared. Confirmed BTC must cover active listings, this principal, and its fee reserve."
+                        self.bitcoinStatusLabel.text = "The listing was not prepared. Confirmed BTC must cover active listings and this complete locked amount, which includes its fee reserve."
                         self.showError(error)
                     }
                     self.refreshButtonStates()
@@ -1425,10 +1425,10 @@ final class WalletViewController: UIViewController {
             timeStyle: .medium
         )
         let message = """
-        Offer: \(approval.btcAmountSats) sats
+        Bitcoin locked: \(approval.btcAmountSats) sats
         Receive exactly: \(hns) HNS
-        Bitcoin fee reserve: \(approval.bitcoinFeeReserveSats) sats
-        Total Bitcoin commitment: \(approval.totalBitcoinCommitmentSats) sats
+        Maximum fee reserve included in lock: \(approval.bitcoinFeeReserveSats) sats
+        Total Bitcoin locked: \(approval.totalBitcoinCommitmentSats) sats
         Listing expires: \(expiry)
 
         Publishing signs and shares fixed terms. It does not broadcast a Bitcoin funding transaction. Settlement requires a connected swap peer and a separately approved atomic-swap session.
@@ -1523,7 +1523,7 @@ final class WalletViewController: UIViewController {
         guard let wallet, shakedexActionMayStart, bitcoinValueAvailable else { return }
         presentWalletForm(
             title: "Sell HNS for BTC",
-            message: "Create one exact, indivisible direct-board offer. Confirmed HNS must cover the principal, active offers, and the separate fee reserve.",
+            message: "Create one exact, indivisible direct-board offer. Confirmed HNS must cover active offers and the complete locked amount, which includes its fee reserve.",
             fields: [
                 WalletSheetFormField(label: "HNS locked (minimum 0.100546 including fee reserve)", placeholder: "HNS", keyboardType: .decimalPad),
                 WalletSheetFormField(
@@ -1592,10 +1592,10 @@ final class WalletViewController: UIViewController {
         let reserve = WalletReadPresenter.formatHnsBaseUnits(String(approval.hnsFeeReserveDollarydoos))
         let total = WalletReadPresenter.formatHnsBaseUnits(String(approval.totalHnsCommitmentDollarydoos))
         let message = """
-        Offer exactly: \(offered) HNS
+        HNS locked: \(offered) HNS
         Receive exactly: \(approval.btcAmountSats) sats
-        HNS fee reserve: \(reserve) HNS
-        Total HNS commitment: \(total) HNS
+        Maximum fee reserve included in lock: \(reserve) HNS
+        Total HNS locked: \(total) HNS
 
         Publishing signs and shares fixed terms. It does not broadcast an HNS funding transaction. Settlement requires a connected swap peer and a separately approved atomic-swap session.
         """
@@ -1816,8 +1816,8 @@ final class WalletViewController: UIViewController {
         pendingDirectOfferTakeApproval = approval
         let message = """
         \(directOfferLabel(approval.offer))
-        Fee reserve: \(approval.receivedFeeReserve) \(approval.offer.receivedAsset.uppercased())
-        Total commitment: \(approval.totalReceivedAssetCommitment) \(approval.offer.receivedAsset.uppercased())
+        Maximum fee reserve included in lock: \(approval.receivedFeeReserve) \(approval.offer.receivedAsset.uppercased())
+        Total locked commitment: \(approval.totalReceivedAssetCommitment) \(approval.offer.receivedAsset.uppercased())
 
         Accepting sends an exact signed take to the connected peer and creates durable atomic-swap state. Funding still requires separate transaction approval.
         """
@@ -1929,11 +1929,9 @@ final class WalletViewController: UIViewController {
         _ take: NativeDirectOfferTakeSummary,
         wallet: RustNativeWallet
     ) {
-        let total = take.receivedAmount.addingReportingOverflow(take.receivedFeeReserve)
-        guard !total.overflow else { return }
         let alert = UIAlertController(
             title: "Abandon unfunded acceptance?",
-            message: "This acceptance has not reached countersigned terms and has not funded either chain. Abandoning it releases \(swapAmount(total.partialValue, asset: take.receivedAsset)) reserved by session \(take.sessionId). A delayed maker proposal for this session will be rejected permanently. Terms-frozen or funded swaps cannot be abandoned here.",
+            message: "This acceptance has not reached countersigned terms and has not funded either chain. Abandoning it releases \(swapAmount(take.receivedAmount, asset: take.receivedAsset)) reserved by session \(take.sessionId). A delayed maker proposal for this session will be rejected permanently. Terms-frozen or funded swaps cannot be abandoned here.",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "Keep acceptance", style: .cancel))

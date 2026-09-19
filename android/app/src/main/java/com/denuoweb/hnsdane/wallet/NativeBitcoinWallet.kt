@@ -685,7 +685,7 @@ internal object NativeBitcoinWalletBundle {
         if (
             btc == null || hns == null || reserve == null || total == null ||
             offerExpiry == null || approvalExpiry == null || peerRequired == null ||
-            btc > Long.MAX_VALUE - reserve || btc + reserve != total
+            btc <= reserve || btc != total
         ) {
             token.close()
             return@parse null
@@ -730,7 +730,7 @@ internal object NativeBitcoinWalletBundle {
         val peerRequired = json.opt("connectedPeerRequiredForAnnouncement") as? Boolean
         if (hns == null || btc == null || reserve == null || total == null ||
             offerExpiry == null || approvalExpiry == null || peerRequired == null ||
-            hns > Long.MAX_VALUE - reserve || hns + reserve != total
+            hns <= reserve || hns != total
         ) {
             token.close()
             return@parse null
@@ -782,7 +782,7 @@ internal object NativeBitcoinWalletBundle {
         val takeExpiry = positiveLong(json, "takeExpiresAtUnix")
         val approvalExpiry = positiveLong(json, "approvalExpiresAtUnix")
         if (offer == null || reserve == null || total == null || takeExpiry == null || approvalExpiry == null ||
-            offer.receivedAmount > Long.MAX_VALUE - reserve || offer.receivedAmount + reserve != total
+            offer.receivedAmount <= reserve || offer.receivedAmount != total
         ) {
             token.close()
             return@parse null

@@ -146,11 +146,11 @@ class NativeBitcoinSyncProgressTest {
     @Test
     fun parses_exact_btc_for_hns_approval_and_active_offer() {
         val approval = NativeBitcoinWalletBundle.btcForHnsApproval(bundle(
-            """{"actionToken":"${"ab".repeat(32)}","btcAmountSats":9000,"hnsAmountDollarydoos":2000000,"bitcoinFeeReserveSats":1000,"totalBitcoinCommitmentSats":10000,"offerExpiresAtUnix":2000,"approvalExpiresAtUnix":1100,"connectedPeerRequiredForAnnouncement":true}""",
+            """{"actionToken":"${"ab".repeat(32)}","btcAmountSats":9000,"hnsAmountDollarydoos":2000000,"bitcoinFeeReserveSats":1000,"totalBitcoinCommitmentSats":9000,"offerExpiresAtUnix":2000,"approvalExpiresAtUnix":1100,"connectedPeerRequiredForAnnouncement":true}""",
         ))
         requireNotNull(approval)
         assertEquals(9_000L, approval.btcAmountSats)
-        assertEquals(10_000L, approval.totalBitcoinCommitmentSats)
+        assertEquals(9_000L, approval.totalBitcoinCommitmentSats)
         approval.close()
 
         val offerId = "12".repeat(32)
@@ -167,6 +167,28 @@ class NativeBitcoinSyncProgressTest {
     fun rejects_offer_approval_that_hides_an_incoherent_commitment() {
         assertNull(NativeBitcoinWalletBundle.btcForHnsApproval(bundle(
             """{"actionToken":"${"ab".repeat(32)}","btcAmountSats":9000,"hnsAmountDollarydoos":2000000,"bitcoinFeeReserveSats":1000,"totalBitcoinCommitmentSats":9999,"offerExpiresAtUnix":2000,"approvalExpiresAtUnix":1100,"connectedPeerRequiredForAnnouncement":true}""",
+        )))
+    }
+
+    @Test
+    fun parses_fee_reserves_as_part_of_the_exact_locked_amount() {
+        val hnsApproval = NativeBitcoinWalletBundle.hnsForBtcApproval(bundle(
+            """{"actionToken":"${"cd".repeat(32)}","hnsAmountDollarydoos":100546,"btcAmountSats":1330,"hnsFeeReserveDollarydoos":100000,"totalHnsCommitmentDollarydoos":100546,"offerExpiresAtUnix":2000,"approvalExpiresAtUnix":1100,"connectedPeerRequiredForAnnouncement":true}""",
+        ))
+        requireNotNull(hnsApproval)
+        assertEquals(100_546L, hnsApproval.totalHnsCommitmentDollarydoos)
+        hnsApproval.close()
+
+        val offer = """{"offerId":"${"12".repeat(32)}","sessionId":"${"34".repeat(32)}","makerSellsHns":false,"offeredAsset":"btc","offeredAmount":1330,"receivedAsset":"hns","receivedAmount":100546,"btcAmountSats":1330,"hnsAmountDollarydoos":100546,"offeredFeeReserve":1000,"local":false,"createdAtUnix":1000,"expiresAtUnix":2000}"""
+        val take = NativeBitcoinWalletBundle.directOfferTakePreparation(bundle(
+            """{"actionToken":"${"ef".repeat(32)}","offer":$offer,"receivedFeeReserve":100000,"totalReceivedAssetCommitment":100546,"takeExpiresAtUnix":2000,"approvalExpiresAtUnix":1100}""",
+        )) as? NativeDirectOfferTakePreparation.Approval
+        requireNotNull(take)
+        assertEquals(100_546L, take.value.totalReceivedAssetCommitment)
+        take.value.close()
+
+        assertNull(NativeBitcoinWalletBundle.hnsForBtcApproval(bundle(
+            """{"actionToken":"${"cd".repeat(32)}","hnsAmountDollarydoos":100546,"btcAmountSats":1330,"hnsFeeReserveDollarydoos":100000,"totalHnsCommitmentDollarydoos":200546,"offerExpiresAtUnix":2000,"approvalExpiresAtUnix":1100,"connectedPeerRequiredForAnnouncement":true}""",
         )))
     }
 

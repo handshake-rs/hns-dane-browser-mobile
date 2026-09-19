@@ -2557,9 +2557,9 @@ private struct NativeBtcForHnsOfferApprovalPayload: Decodable {
         connectedPeerRequiredForAnnouncement = try container.decode(
             Bool.self, forKey: .connectedPeerRequiredForAnnouncement
         )
-        guard btcAmountSats > 0, hnsAmountDollarydoos > 0, bitcoinFeeReserveSats > 0,
-              btcAmountSats <= UInt64.max - bitcoinFeeReserveSats,
-              btcAmountSats + bitcoinFeeReserveSats == totalBitcoinCommitmentSats,
+        guard btcAmountSats > bitcoinFeeReserveSats, hnsAmountDollarydoos > 0,
+              bitcoinFeeReserveSats > 0,
+              btcAmountSats == totalBitcoinCommitmentSats,
               offerExpiresAtUnix > 0, approvalExpiresAtUnix > 0 else {
             throw NativeWalletBridgeError.invalidOutput("invalid BTC-for-HNS offer approval")
         }
@@ -2618,9 +2618,9 @@ private struct NativeHnsForBtcOfferApprovalPayload: Decodable {
         connectedPeerRequiredForAnnouncement = try container.decode(
             Bool.self, forKey: .connectedPeerRequiredForAnnouncement
         )
-        guard hnsAmountDollarydoos > 0, btcAmountSats > 0, hnsFeeReserveDollarydoos > 0,
-              hnsAmountDollarydoos <= UInt64.max - hnsFeeReserveDollarydoos,
-              hnsAmountDollarydoos + hnsFeeReserveDollarydoos == totalHnsCommitmentDollarydoos,
+        guard hnsAmountDollarydoos > hnsFeeReserveDollarydoos, btcAmountSats > 0,
+              hnsFeeReserveDollarydoos > 0,
+              hnsAmountDollarydoos == totalHnsCommitmentDollarydoos,
               offerExpiresAtUnix > 0, approvalExpiresAtUnix > 0 else {
             throw NativeWalletBridgeError.invalidOutput("invalid HNS-for-BTC offer approval")
         }
@@ -2673,8 +2673,8 @@ private struct NativeDirectOfferTakeApprovalPayload: Decodable {
         takeExpiresAtUnix = try container.decode(UInt64.self, forKey: .takeExpiresAtUnix)
         approvalExpiresAtUnix = try container.decode(UInt64.self, forKey: .approvalExpiresAtUnix)
         guard receivedFeeReserve > 0,
-              offer.receivedAmount <= UInt64.max - receivedFeeReserve,
-              offer.receivedAmount + receivedFeeReserve == totalReceivedAssetCommitment,
+              offer.receivedAmount > receivedFeeReserve,
+              offer.receivedAmount == totalReceivedAssetCommitment,
               takeExpiresAtUnix > 0, approvalExpiresAtUnix > 0 else {
             throw NativeWalletBridgeError.invalidOutput("invalid direct offer take approval")
         }

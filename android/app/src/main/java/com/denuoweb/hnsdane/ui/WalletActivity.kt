@@ -197,8 +197,8 @@ private const val SHOW_SHAKEDEX_WALLET_CARD = true
 
 /** Exact received-asset commitment signed by a direct-offer taker. */
 internal fun directOfferTakeRequiredFunding(receivedAmount: Long, feeReserve: Long): Long? =
-    if (receivedAmount > 0L && feeReserve > 0L) {
-        runCatching { Math.addExact(receivedAmount, feeReserve) }.getOrNull()
+    if (receivedAmount > feeReserve && feeReserve > 0L) {
+        receivedAmount
     } else {
         null
     }
@@ -5206,7 +5206,7 @@ class WalletActivity : ComponentActivity() {
                 R.string.wallet_swap_abandon_acceptance_message,
                 formatSwapAmount(
                     take.receivedAsset,
-                    (take.receivedAmount + take.receivedFeeReserve).coerceAtLeast(0L),
+                    take.receivedAmount,
                 ),
                 take.sessionId,
             ))
