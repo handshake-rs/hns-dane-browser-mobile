@@ -5116,6 +5116,12 @@ class WalletActivity : ComponentActivity() {
                         .show()
                 } else {
                     bitcoinStatusView.text = bitcoinBroadcastRecoveryText(status.bitcoinBroadcastRecovery)
+                    val terminalStates = setOf("completed", "refunded", "failed")
+                    val orderedExecutions = status.executions.sortedWith(
+                        compareBy<NativeShakescapeExecutionSummary> {
+                            it.state in terminalStates
+                        }.thenByDescending { it.lastVerifiedAtUnix },
+                    )
                     val pendingLabels = status.pendingAcceptances.map {
                         getString(
                             R.string.wallet_swap_pending_acceptance,
@@ -5125,7 +5131,7 @@ class WalletActivity : ComponentActivity() {
                             it.sessionId.take(12),
                         )
                     }
-                    val executionLabels = status.executions.map {
+                    val executionLabels = orderedExecutions.map {
                         "${it.state.replace('_', ' ')} · ${it.offeredAmount} ${it.offeredAsset.uppercase()} → ${it.receivedAmount} ${it.receivedAsset.uppercase()} · ${it.sessionId.take(12)}…"
                     }
                     val labels = (pendingLabels + executionLabels).toTypedArray()
@@ -5142,7 +5148,7 @@ class WalletActivity : ComponentActivity() {
                                 confirmAbandonPendingAcceptance(status.pendingAcceptances[index])
                             } else {
                                 showShakescapeExecution(
-                                    status.executions[index - status.pendingAcceptances.size],
+                                    orderedExecutions[index - status.pendingAcceptances.size],
                                 )
                             }
                         }
