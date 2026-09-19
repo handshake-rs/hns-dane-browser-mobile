@@ -5555,11 +5555,14 @@ class WalletActivity : ComponentActivity() {
                     runOnUiThread {
                         if (operationIsCurrent(epoch, lease)) {
                             busy = false
-                            bitcoinStatusView.text = if (receipt == null) {
+                            val resultStatus = if (receipt == null) {
                                 getString(R.string.wallet_swap_funding_broadcast_failed)
                             } else {
                                 getString(R.string.wallet_swap_funding_submitted, receipt.txid.take(12))
                             }
+                            statusView.text = resultStatus
+                            bitcoinStatusView.text = resultStatus
+                            renderWalletDashboard()
                         }
                         releaseStorageLeaseAfterOperation(lease)
                     }
@@ -5642,11 +5645,14 @@ class WalletActivity : ComponentActivity() {
                     runOnUiThread {
                         if (operationIsCurrent(epoch, lease)) {
                             busy = false
-                            bitcoinStatusView.text = if (receipt == null) {
+                            val resultStatus = if (receipt == null) {
                                 getString(R.string.wallet_swap_hns_funding_broadcast_failed)
                             } else {
                                 getString(R.string.wallet_swap_hns_funding_submitted, receipt.transactionId.take(12))
                             }
+                            statusView.text = resultStatus
+                            bitcoinStatusView.text = resultStatus
+                            renderWalletDashboard()
                         }
                         releaseStorageLeaseAfterOperation(lease)
                     }
