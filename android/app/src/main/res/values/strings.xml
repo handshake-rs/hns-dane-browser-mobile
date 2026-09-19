@@ -881,7 +881,7 @@
     <string name="wallet_swap_stage_terms_waiting" translatable="false">Terms frozen · automatic Bitcoin synchronization/watch preparation is next</string>
     <string name="wallet_swap_stage_funding_ready_here" translatable="false">%1$s funding is ready for approval on this wallet</string>
     <string name="wallet_swap_stage_waiting_counterparty_funding" translatable="false">Waiting for the counterparty to fund %1$s</string>
-    <string name="wallet_swap_stage_first_funded" translatable="false">%1$s funding verified · preparing the second-chain lock</string>
+    <string name="wallet_swap_stage_refund_ready_here" translatable="false">%1$s refund is eligible after timeout · open Atomic swap executions</string>
     <string name="wallet_swap_stage_both_funded" translatable="false">Both funding transactions are verified · settlement is ready</string>
     <string name="wallet_swap_stage_settling" translatable="false">Settlement is in progress with locally verified redemption evidence</string>
     <string name="wallet_swap_stage_refunding" translatable="false">The swap is on its timeout-refund path</string>

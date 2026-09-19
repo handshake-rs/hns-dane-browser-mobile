@@ -4454,8 +4454,16 @@ class WalletActivity : ComponentActivity() {
             }
             "first_funded" -> if (execution.localRole == "taker") {
                 getString(R.string.wallet_swap_stage_funding_ready_here, second)
+            } else if (
+                System.currentTimeMillis() / 1_000L >= execution.firstRefundAtUnix
+            ) {
+                // The maker never prepares the second-chain lock. Once the
+                // signed first-chain timeout has elapsed, direct the maker to
+                // the exact native refund action instead of implying that a
+                // now-unsafe counterparty funding transition is in progress.
+                getString(R.string.wallet_swap_stage_refund_ready_here, first)
             } else {
-                getString(R.string.wallet_swap_stage_first_funded, first)
+                getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
             }
             "second_funding_pending" -> if (execution.localRole == "taker") {
                 getString(R.string.wallet_swap_stage_funding_ready_here, second)
