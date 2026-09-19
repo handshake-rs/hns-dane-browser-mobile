@@ -5247,10 +5247,14 @@ class WalletActivity : ComponentActivity() {
             R.string.wallet_swap_execution_detail,
             execution.sessionId,
             execution.state.replace('_', ' '),
+            execution.localRole,
             execution.firstChain,
             execution.secondChain,
             execution.firstFundingConfirmed.toString(),
             execution.secondFundingConfirmed.toString(),
+            execution.firstRefundAtUnix,
+            execution.secondRefundAtUnix,
+            execution.failureReason ?: getString(R.string.wallet_swap_failure_none),
         )
         val builder = walletAlertDialogBuilder()
             .setTitle(R.string.wallet_swap_execution_title)
@@ -5298,6 +5302,18 @@ class WalletActivity : ComponentActivity() {
                     else prepareHnsForBtcFunding(execution, fee)
                 }
             }
+        } else if (execution.state == "first_funded" && execution.localRole == "maker") {
+            // A counterparty can expire before observing the first-chain lock.
+            // Native policy authorizes only this maker's exact refund and
+            // enforces the signed timeout, so keep recovery reachable even
+            // though the execution never advanced to both-funded.
+            val bitcoin = execution.firstChain == "bitcoin"
+            builder.setPositiveButton(
+                if (bitcoin) R.string.wallet_swap_refund_bitcoin
+                else R.string.wallet_swap_refund_hns,
+            ) { _, _ ->
+                showSwapSettlementFeeForm(execution, "refund", bitcoin)
+            }
         } else if (execution.state in setOf("both_funded", "first_redeemed", "secret_observed")) {
             builder.setPositiveButton(R.string.wallet_swap_settlement_actions) { _, _ ->
                 showSwapSettlementActions(execution)
@@ -5318,25 +5334,33 @@ class WalletActivity : ComponentActivity() {
             .setItems(actions) { _, index ->
                 val bitcoin = index == 1 || index == 3
                 val action = if (index < 2) "redeem" else "refund"
-                showWalletActionForm(
-                    R.string.wallet_swap_settlement_fee_title,
-                    listOf(WalletActionInput(
-                        if (bitcoin) R.string.wallet_swap_settlement_btc_fee_hint
-                        else R.string.wallet_swap_settlement_hns_fee_hint,
-                        numeric = true,
-                        initial = if (bitcoin) "" else DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
-                    )),
-                ) { values ->
-                    val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
-                    if (fee == null) {
-                        bitcoinStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
-                    } else {
-                        prepareSwapSettlement(execution, action, bitcoin, fee)
-                    }
-                }
+                showSwapSettlementFeeForm(execution, action, bitcoin)
             }
             .setNegativeButton(R.string.action_cancel, null)
             .show()
+    }
+
+    private fun showSwapSettlementFeeForm(
+        execution: NativeShakescapeExecutionSummary,
+        action: String,
+        bitcoin: Boolean,
+    ) {
+        showWalletActionForm(
+            R.string.wallet_swap_settlement_fee_title,
+            listOf(WalletActionInput(
+                if (bitcoin) R.string.wallet_swap_settlement_btc_fee_hint
+                else R.string.wallet_swap_settlement_hns_fee_hint,
+                numeric = true,
+                initial = if (bitcoin) "" else DEFAULT_HNS_MAXIMUM_FEE_BASE_UNITS,
+            )),
+        ) { values ->
+            val fee = values.single().toLongOrNull()?.takeIf { it > 0L }
+            if (fee == null) {
+                bitcoinStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
+            } else {
+                prepareSwapSettlement(execution, action, bitcoin, fee)
+            }
+        }
     }
 
     private fun prepareSwapSettlement(

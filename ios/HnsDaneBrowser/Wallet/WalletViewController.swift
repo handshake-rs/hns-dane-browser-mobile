@@ -1979,9 +1979,13 @@ final class WalletViewController: UIViewController {
         let message = """
         Session: \(execution.sessionId)
         State: \(execution.state.replacingOccurrences(of: "_", with: " "))
+        Local role: \(execution.localRole)
         Funding order: \(execution.firstChain), then \(execution.secondChain)
         First funding confirmed: \(execution.firstFundingConfirmed)
         Second funding confirmed: \(execution.secondFundingConfirmed)
+        First-chain refund time: Unix \(execution.firstRefundAtUnix)
+        Second-chain refund time: Unix \(execution.secondRefundAtUnix)
+        Failure reason: \(execution.failureReason ?? "None")
 
         Only locally verified chain evidence advances this status.
         """
@@ -1995,12 +1999,30 @@ final class WalletViewController: UIViewController {
                 self.showBtcForHnsFundingFee(execution, wallet: wallet)
             })
         }
-        if execution.state == "second_funding_pending" && execution.localRole == "taker" &&
+        if ["first_funded", "second_funding_pending"].contains(execution.state) &&
+            execution.localRole == "taker" &&
             execution.secondChain == "handshake" {
             alert.addAction(UIAlertAction(title: "Prepare HNS funding", style: .destructive) {
                 [weak self, weak wallet] _ in
                 guard let self, let wallet, self.wallet === wallet else { return }
                 self.showHnsForBtcFundingFee(execution, wallet: wallet)
+            })
+        }
+        if execution.state == "first_funded" && execution.localRole == "maker" {
+            let bitcoin = execution.firstChain == "bitcoin"
+            alert.addAction(UIAlertAction(
+                title: bitcoin ? "Refund locked Bitcoin" : "Refund locked HNS",
+                style: .destructive
+            ) { [weak self, weak wallet] _ in
+                guard let self, let wallet, self.wallet === wallet else { return }
+                self.authenticateWalletAction(
+                    reason: "Authenticate before preparing an atomic-swap refund transaction"
+                ) { [weak self, weak wallet] in
+                    guard let self, let wallet, self.wallet === wallet else { return }
+                    self.showSwapSettlementFee(
+                        execution, action: .refund, bitcoin: bitcoin, wallet: wallet
+                    )
+                }
             })
         }
         if ["both_funded", "first_redeemed", "secret_observed"].contains(execution.state) {
