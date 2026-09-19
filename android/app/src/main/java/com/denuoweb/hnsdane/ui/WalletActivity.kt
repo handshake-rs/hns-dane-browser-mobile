@@ -5122,6 +5122,13 @@ class WalletActivity : ComponentActivity() {
                             it.state in terminalStates
                         }.thenByDescending { it.lastVerifiedAtUnix },
                     )
+                    val liveExecutions = orderedExecutions.filterNot {
+                        it.state in terminalStates
+                    }
+                    if (status.pendingAcceptances.isEmpty() && liveExecutions.size == 1) {
+                        showShakescapeExecution(liveExecutions.single())
+                        return@runOnUiThread
+                    }
                     val pendingLabels = status.pendingAcceptances.map {
                         getString(
                             R.string.wallet_swap_pending_acceptance,
