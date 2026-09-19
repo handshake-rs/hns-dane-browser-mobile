@@ -4447,13 +4447,22 @@ class WalletActivity : ComponentActivity() {
         return when (execution.state) {
             "terms_frozen", "refunds_prepared" ->
                 getString(R.string.wallet_swap_stage_terms_waiting)
-            "first_funding_pending" -> if (execution.localRole == "maker") {
+            "first_funding_pending" -> if (
+                execution.localRole == "maker" &&
+                System.currentTimeMillis() / 1_000L >= execution.fundingDeadlineUnix
+            ) {
+                getString(R.string.wallet_swap_stage_funding_expired)
+            } else if (execution.localRole == "maker") {
                 getString(R.string.wallet_swap_stage_funding_ready_here, first)
             } else {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_funding, first)
             }
             "first_funded" -> if (execution.localRole == "taker") {
-                getString(R.string.wallet_swap_stage_funding_ready_here, second)
+                if (System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix) {
+                    getString(R.string.wallet_swap_stage_funding_ready_here, second)
+                } else {
+                    getString(R.string.wallet_swap_stage_funding_expired)
+                }
             } else if (
                 System.currentTimeMillis() / 1_000L >= execution.firstRefundAtUnix
             ) {
@@ -5260,6 +5269,7 @@ class WalletActivity : ComponentActivity() {
             execution.secondChain,
             execution.firstFundingConfirmed.toString(),
             execution.secondFundingConfirmed.toString(),
+            execution.fundingDeadlineUnix,
             execution.firstRefundAtUnix,
             execution.secondRefundAtUnix,
             execution.failureReason ?: getString(R.string.wallet_swap_failure_none),
@@ -5270,14 +5280,16 @@ class WalletActivity : ComponentActivity() {
             .setNegativeButton(R.string.action_cancel, null)
         val fundingChain = when (execution.state) {
             "first_funding_pending" -> execution.firstChain.takeIf {
-                execution.localRole == "maker"
+                execution.localRole == "maker" &&
+                    System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix
             }
             // Preparing the taker's second-chain lock is the operation that
             // durably applies SecondFundingReady. Waiting until the execution
             // already says `second_funding_pending` hides the only action that
             // can make that transition and deadlocks every two-chain swap.
             "first_funded" -> execution.secondChain.takeIf {
-                execution.localRole == "taker"
+                execution.localRole == "taker" &&
+                    System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix
             }
             "second_funding_pending" -> execution.secondChain.takeIf {
                 execution.localRole == "taker"

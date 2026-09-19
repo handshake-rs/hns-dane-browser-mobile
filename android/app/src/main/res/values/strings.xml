@@ -880,12 +880,13 @@
     <string name="wallet_swap_stage_bitcoin_syncing" translatable="false">Bitcoin synchronization is validating the exact swap state…</string>
     <string name="wallet_swap_stage_terms_waiting" translatable="false">Terms frozen · automatic Bitcoin synchronization/watch preparation is next</string>
     <string name="wallet_swap_stage_funding_ready_here" translatable="false">%1$s funding is ready for approval on this wallet</string>
+    <string name="wallet_swap_stage_funding_expired" translatable="false">Funding window expired · no new local funding is allowed; any unfunded local reservation is released, and an existing first-chain lock can be refunded after timeout</string>
     <string name="wallet_swap_stage_waiting_counterparty_funding" translatable="false">Waiting for the counterparty to fund %1$s</string>
     <string name="wallet_swap_stage_refund_ready_here" translatable="false">%1$s refund is eligible after timeout · open Atomic swap executions</string>
     <string name="wallet_swap_stage_both_funded" translatable="false">Both funding transactions are verified · settlement is ready</string>
     <string name="wallet_swap_stage_settling" translatable="false">Settlement is in progress with locally verified redemption evidence</string>
     <string name="wallet_swap_stage_refunding" translatable="false">The swap is on its timeout-refund path</string>
-    <string name="wallet_swap_execution_detail" translatable="false">Session: %1$s\nState: %2$s\nLocal role: %3$s\nFunding order: %4$s, then %5$s\nFirst funding confirmed: %6$s\nSecond funding confirmed: %7$s\nFirst-chain refund time: Unix %8$d\nSecond-chain refund time: Unix %9$d\nFailure reason: %10$s\n\nOnly locally verified chain evidence advances this status.</string>
+    <string name="wallet_swap_execution_detail" translatable="false">Session: %1$s\nState: %2$s\nLocal role: %3$s\nFunding order: %4$s, then %5$s\nFirst funding confirmed: %6$s\nSecond funding confirmed: %7$s\nNew-funding deadline: Unix %8$d\nFirst-chain refund time: Unix %9$d\nSecond-chain refund time: Unix %10$d\nFailure reason: %11$s\n\nOnly locally verified chain evidence advances this status.</string>
     <string name="wallet_swap_failure_none" translatable="false">None</string>
     <string name="wallet_swap_recovery_unavailable" translatable="false">Bitcoin broadcast recovery status is temporarily unavailable while the Bitcoin controller is busy or inactive.</string>
     <string name="wallet_swap_recovery_none" translatable="false">No approved Bitcoin transaction is awaiting durable broadcast recovery.</string>

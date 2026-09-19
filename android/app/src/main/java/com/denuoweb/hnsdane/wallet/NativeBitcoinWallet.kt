@@ -283,6 +283,7 @@ internal data class NativeShakescapeExecutionSummary(
     val receivedAsset: String,
     val receivedAmount: Long,
     val localRole: String,
+    val fundingDeadlineUnix: Long,
     val firstRefundAtUnix: Long,
     val secondRefundAtUnix: Long,
     val firstFundingConfirmed: Boolean,
@@ -930,7 +931,7 @@ internal object NativeBitcoinWalletBundle {
             "sessionId", "revision", "state", "firstChain", "secondChain",
             "offeredAsset", "offeredAmount", "receivedAsset", "receivedAmount",
             "localRole",
-            "firstRefundAtUnix", "secondRefundAtUnix", "firstFundingConfirmed",
+            "fundingDeadlineUnix", "firstRefundAtUnix", "secondRefundAtUnix", "firstFundingConfirmed",
             "secondFundingConfirmed", "firstRedemptionConfirmed", "secondRedemptionConfirmed",
             "refundConfirmed", "lastVerifiedAtUnix", "failureReason",
         ))) return null
@@ -946,12 +947,15 @@ internal object NativeBitcoinWalletBundle {
             ?: return null
         val localRole = json.optString("localRole", "").takeIf { it in setOf("maker", "taker") }
             ?: return null
+        val fundingDeadline = positiveLong(json, "fundingDeadlineUnix") ?: return null
         val firstRefund = positiveLong(json, "firstRefundAtUnix") ?: return null
         val secondRefund = positiveLong(json, "secondRefundAtUnix") ?: return null
         val failure = if (json.isNull("failureReason")) null else
             json.optString("failureReason", "").takeIf { it.isNotEmpty() && it.length <= 256 }
                 ?: return null
-        if (firstChain == secondChain || offeredAsset == receivedAsset || firstRefund <= secondRefund) {
+        if (firstChain == secondChain || offeredAsset == receivedAsset ||
+            fundingDeadline >= secondRefund || firstRefund <= secondRefund
+        ) {
             return null
         }
         return NativeShakescapeExecutionSummary(
@@ -965,6 +969,7 @@ internal object NativeBitcoinWalletBundle {
             receivedAsset = receivedAsset,
             receivedAmount = positiveLong(json, "receivedAmount") ?: return null,
             localRole = localRole,
+            fundingDeadlineUnix = fundingDeadline,
             firstRefundAtUnix = firstRefund,
             secondRefundAtUnix = secondRefund,
             firstFundingConfirmed = exactBoolean(json, "firstFundingConfirmed") ?: return null,
