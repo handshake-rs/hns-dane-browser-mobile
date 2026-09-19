@@ -2119,11 +2119,13 @@ final class WalletViewController: UIViewController {
         pendingSwapSettlementIsBitcoin = bitcoin
         let unit = bitcoin ? "sats" : "dollarydoos"
         let message = """
-        Spend: \(approval.inputAmount) \(unit)
-        Return: \(approval.outputAmount) \(unit)
+        Transaction inputs: \(approval.inputAmount) \(unit)
+        Wallet-controlled output: \(approval.outputAmount) \(unit)
         Network fee: \(approval.fee) \(unit) (maximum \(approval.maximumFee))
         Transaction: \(approval.transactionId)
         Session: \(approval.sessionId)
+
+        The verified HTLC is included; additional wallet inputs may sponsor the network fee.
 
         Broadcast is irreversible. The swap advances only after independent local chain verification, not from this submission receipt.
         """
