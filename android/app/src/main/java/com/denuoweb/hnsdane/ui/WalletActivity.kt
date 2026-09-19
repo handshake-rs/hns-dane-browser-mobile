@@ -5161,10 +5161,13 @@ class WalletActivity : ComponentActivity() {
                         // ListView and immediately open an unrelated row.
                         // Admit a deliberate second activation only after the
                         // event that requested the picker has drained.
-                        picker.listView.isEnabled = false
+                        val itemClickListener = picker.listView.onItemClickListener
+                        picker.listView.onItemClickListener = null
                         picker.listView.postDelayed({
-                            if (picker.isShowing) picker.listView.isEnabled = true
-                        }, 300L)
+                            if (picker.isShowing) {
+                                picker.listView.onItemClickListener = itemClickListener
+                            }
+                        }, 500L)
                     }
                     picker.show()
                 }
