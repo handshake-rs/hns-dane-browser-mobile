@@ -5141,7 +5141,7 @@ class WalletActivity : ComponentActivity() {
                     // suppressing every acceptance/execution row. Keep the
                     // recovery projection on the Bitcoin card and reserve this
                     // dialog's content area for the actionable inventory.
-                    walletAlertDialogBuilder()
+                    val picker = walletAlertDialogBuilder()
                         .setTitle(R.string.wallet_swap_executions)
                         .setItems(labels) { _, index ->
                             if (index < status.pendingAcceptances.size) {
@@ -5153,7 +5153,20 @@ class WalletActivity : ComponentActivity() {
                             }
                         }
                         .setNegativeButton(R.string.action_cancel, null)
-                        .show()
+                        .create()
+                    picker.setOnShowListener {
+                        // The inventory is loaded on a native worker. On a
+                        // fast return, Android can deliver the originating
+                        // action's trailing release to the newly attached
+                        // ListView and immediately open an unrelated row.
+                        // Admit a deliberate second activation only after the
+                        // event that requested the picker has drained.
+                        picker.listView.isEnabled = false
+                        picker.listView.postDelayed({
+                            if (picker.isShowing) picker.listView.isEnabled = true
+                        }, 300L)
+                    }
+                    picker.show()
                 }
             }
         }
