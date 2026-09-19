@@ -5154,22 +5154,17 @@ class WalletActivity : ComponentActivity() {
                         }
                         .setNegativeButton(R.string.action_cancel, null)
                         .create()
-                    picker.setOnShowListener {
-                        // The inventory is loaded on a native worker. On a
-                        // fast return, Android can deliver the originating
-                        // action's trailing release to the newly attached
-                        // ListView and immediately open an unrelated row.
-                        // Admit a deliberate second activation only after the
-                        // event that requested the picker has drained.
-                        val itemClickListener = picker.listView.onItemClickListener
-                        picker.listView.onItemClickListener = null
-                        picker.listView.postDelayed({
-                            if (picker.isShowing) {
-                                picker.listView.onItemClickListener = itemClickListener
-                            }
-                        }, 500L)
-                    }
-                    picker.show()
+                    // The inventory is loaded on a native worker. On a fast
+                    // return, attaching its ListView immediately can let the
+                    // originating action's trailing release select whichever
+                    // execution occupies the same screen coordinate. Do not
+                    // attach an actionable window until that gesture has
+                    // unconditionally drained.
+                    window.decorView.postDelayed({
+                        if (!isFinishing && !isDestroyed && walletHandle == handle) {
+                            picker.show()
+                        }
+                    }, 500L)
                 }
             }
         }
