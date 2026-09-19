@@ -21,4 +21,11 @@ class WalletBrowserBoundaryTest {
         assertFalse(walletCredentialTransitionMayRetain(false, true))
         assertFalse(walletCredentialTransitionMayRetain(true, false))
     }
+
+    @Test
+    fun staleNativeCompletionCannotClearANewerWalletOperation() {
+        assertTrue(walletOperationCompletionOwnsBusyState(true, 8L, 8L))
+        assertFalse(walletOperationCompletionOwnsBusyState(true, 9L, 8L))
+        assertFalse(walletOperationCompletionOwnsBusyState(false, 8L, 8L))
+    }
 }

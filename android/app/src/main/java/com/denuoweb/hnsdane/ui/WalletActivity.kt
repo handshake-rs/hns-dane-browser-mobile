@@ -266,6 +266,13 @@ class WalletActivity : ComponentActivity() {
                 }
             }
         }
+    /**
+     * Monotonic identity for the UI operation that currently owns [busy]. A
+     * native result can return after Android stopped/restarted this Activity;
+     * that stale result may finish only its own busy state and must never
+     * clear a newer operation.
+     */
+    private var walletOperationSerial = 0L
     private var lifecycleEpoch = 0L
     private var foreground = false
     private lateinit var connectivityManager: ConnectivityManager
@@ -5357,7 +5364,13 @@ class WalletActivity : ComponentActivity() {
     ) {
         val lease = currentStorageLease() ?: return
         val handle = walletHandle
-        if (!beginOperation(lease, getString(R.string.wallet_swap_settlement_preparing), resetReads = false)) return
+        if (!beginOperation(
+                lease,
+                getString(R.string.wallet_swap_settlement_preparing),
+                resetReads = false,
+            )
+        ) return
+        val operationSerial = walletOperationSerial
         val epoch = lifecycleEpoch
         thread(name = "denuo-swap-settlement-prepare") {
             val approval = NativeWalletBridge.prepareSwapSettlement(
@@ -5369,13 +5382,16 @@ class WalletActivity : ComponentActivity() {
                         NativeWalletBridge.rejectSwapSettlement(handle, it.actionToken, bitcoin)
                         it.close()
                     }
+                    finishWalletOperationIfOwned(operationSerial)
                     releaseStorageLeaseAfterOperation(lease)
                 } else if (approval == null) {
-                    busy = false
+                    finishWalletOperationIfOwned(operationSerial)
                     bitcoinStatusView.text = getString(R.string.wallet_swap_settlement_prepare_failed)
                     releaseStorageLeaseAfterOperation(lease)
                 } else {
-                    showSwapSettlementApproval(approval, bitcoin, lease, epoch)
+                    showSwapSettlementApproval(
+                        approval, bitcoin, lease, handle, epoch, operationSerial,
+                    )
                 }
             }
         }
@@ -5385,15 +5401,20 @@ class WalletActivity : ComponentActivity() {
         approval: NativeSwapSettlementApproval,
         bitcoin: Boolean,
         lease: WalletStorageOwnershipGate.Lease,
+        handle: Long,
         epoch: Long,
+        operationSerial: Long,
     ) {
         var settled = false
         fun reject() {
             if (settled) return
             settled = true
             thread(name = "denuo-swap-settlement-reject") {
-                NativeWalletBridge.rejectSwapSettlement(walletHandle, approval.actionToken, bitcoin)
-                runOnUiThread { busy = false; releaseStorageLeaseAfterOperation(lease) }
+                NativeWalletBridge.rejectSwapSettlement(handle, approval.actionToken, bitcoin)
+                runOnUiThread {
+                    finishWalletOperationIfOwned(operationSerial)
+                    releaseStorageLeaseAfterOperation(lease)
+                }
             }
         }
         val unit = if (bitcoin) "sats" else "dollarydoos"
@@ -5410,11 +5431,12 @@ class WalletActivity : ComponentActivity() {
                 settled = true
                 thread(name = "denuo-swap-settlement-broadcast") {
                     val receipt = NativeWalletBridge.approveSwapSettlement(
-                        walletHandle, approval.actionToken, bitcoin,
+                        handle, approval.actionToken, bitcoin,
                     )
                     runOnUiThread {
-                        if (operationIsCurrent(epoch, lease)) {
-                            busy = false
+                        val current = operationIsCurrent(epoch, lease)
+                        finishWalletOperationIfOwned(operationSerial)
+                        if (current) {
                             refreshControllerState(resetReads = false)
                             bitcoinStatusView.text = if (receipt == null) {
                                 getString(R.string.wallet_swap_settlement_broadcast_failed)
@@ -8399,11 +8421,24 @@ class WalletActivity : ComponentActivity() {
             }
             return false
         }
+        check(walletOperationSerial < Long.MAX_VALUE) {
+            "Wallet operation serial exhausted"
+        }
+        walletOperationSerial += 1L
         busy = true
         statusView.text = status
         if (resetReads) resetReadProjection(R.string.wallet_reads_waiting_for_wallet)
         renderWalletDashboard()
         return true
+    }
+
+    private fun finishWalletOperationIfOwned(operationSerial: Long) {
+        if (walletOperationCompletionOwnsBusyState(
+                busy = busy,
+                currentOperationSerial = walletOperationSerial,
+                completingOperationSerial = operationSerial,
+            )
+        ) busy = false
     }
 
     private fun showWalletBusyFeedback() {
@@ -9760,6 +9795,12 @@ private class RecoveryPhraseView(context: Context) : View(context) {
         }
     }
 }
+
+internal fun walletOperationCompletionOwnsBusyState(
+    busy: Boolean,
+    currentOperationSerial: Long,
+    completingOperationSerial: Long,
+): Boolean = busy && currentOperationSerial == completingOperationSerial
 
 /** Retains a secret across exactly one synchronous dashboard reparent. */
 internal class OneShotSecretReparentRetention {
