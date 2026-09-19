@@ -7136,13 +7136,42 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
         let Some(mut controller) = record.controller_if_active() else {
             return false;
         };
+        android_log_info("hns-shakescape", "direct lifecycle stage=expired start");
         let expired_bitcoin_first = controller.expired_local_bitcoin_first_funding_permits();
+        android_log_info(
+            "hns-shakescape",
+            "direct lifecycle stage=reconcile start",
+        );
         let reconciled = controller.reconcile_direct_offer_lifecycle();
+        android_log_info(
+            "hns-shakescape",
+            "direct lifecycle stage=hns-watch-set start",
+        );
         let hns_watch_set_changed = controller.install_active_hns_htlc_watch_set();
+        android_log_info(
+            "hns-shakescape",
+            "direct lifecycle stage=funding-readiness start",
+        );
         let funding_ready = controller.advance_local_first_funding_readiness();
+        android_log_info(
+            "hns-shakescape",
+            "direct lifecycle stage=hns-settlement-resume start",
+        );
         let resumed_hns = controller.resume_approved_hns_settlements();
+        android_log_info(
+            "hns-shakescape",
+            "direct lifecycle stage=hns-watch-ack start",
+        );
         let hns_watch_ready = controller.complete_next_counterparty_hns_watch();
+        android_log_info(
+            "hns-shakescape",
+            "direct lifecycle stage=bitcoin-watch start",
+        );
         let permit = controller.next_counterparty_bitcoin_watch().ok().flatten();
+        android_log_info(
+            "hns-shakescape",
+            "direct lifecycle stage=controller complete",
+        );
         drop(controller);
         let unfunded_proofs = record
             .bitcoin_try_if_active()
