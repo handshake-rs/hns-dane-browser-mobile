@@ -52,7 +52,7 @@ ensure_checkout() {
 ensure_checkout \
   hns-wallet-rs \
   https://github.com/handshake-rs/hns-wallet-rs.git \
-  c322f3cdb86f0c2d60d548a10a68f41365b9c252
+  9e01e646a59c54d205c519e1494b148256707ea1
 ensure_checkout \
   hns-dane-engine \
   https://github.com/handshake-rs/hns-dane-engine.git \

@@ -34,7 +34,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
     def test_clean_builds_materialize_one_immutable_source_cohort(self) -> None:
         cohort = SOURCE_COHORT.read_text(encoding="utf-8")
         for repository, commit in (
-            ("hns-wallet-rs", "c322f3cdb86f0c2d60d548a10a68f41365b9c252"),
+            ("hns-wallet-rs", "9e01e646a59c54d205c519e1494b148256707ea1"),
             ("hns-dane-engine", "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b"),
             ("hns-rs", "f43f8dd325c221766787810fdd1fa3b3657689ca"),
         ):
@@ -62,7 +62,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("REVIEWED_LOCAL_SOURCE_ROOTS", notices_generator)
         for repository, commit in (
-            ("hns-wallet-rs", "c322f3cdb86f0c2d60d548a10a68f41365b9c252"),
+            ("hns-wallet-rs", "9e01e646a59c54d205c519e1494b148256707ea1"),
             ("hns-dane-engine", "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b"),
             ("hns-rs", "f43f8dd325c221766787810fdd1fa3b3657689ca"),
         ):

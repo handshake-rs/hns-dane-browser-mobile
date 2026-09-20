@@ -45,7 +45,7 @@ APPLICATION_MANIFESTS = {
     path.resolve() for path in (ROOT / "rust/crates").glob("*/Cargo.toml")
 }
 REVIEWED_LOCAL_SOURCE_ROOTS = {
-    (ROOT.parent / "hns-wallet-rs").resolve(): "c322f3cdb86f0c2d60d548a10a68f41365b9c252",
+    (ROOT.parent / "hns-wallet-rs").resolve(): "9e01e646a59c54d205c519e1494b148256707ea1",
     (ROOT.parent / "hns-dane-engine").resolve(): "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b",
     (ROOT.parent / "hns-rs").resolve(): "f43f8dd325c221766787810fdd1fa3b3657689ca",
 }
