@@ -434,9 +434,9 @@
     <string name="wallet_reads_live_retrying" translatable="false">Direct peers did not agree yet. Replacing peers and retrying %1$d of %2$d from verified local height %3$d.</string>
     <string name="wallet_reads_live_scanning" translatable="false">Verified headers are current at height %1$d. Scanning wallet activity through %2$d of %3$d.</string>
     <string name="wallet_reads_live_finalizing" translatable="false">Verified headers and wallet activity are current at height %1$d. Finalizing the read-only snapshot…</string>
-    <string name="wallet_sync_notification_channel" translatable="false">Wallet synchronization</string>
-    <string name="wallet_sync_notification_title" translatable="false">Synchronizing wallet</string>
-    <string name="wallet_sync_notification_text" translatable="false">Scanning verified Handshake or Bitcoin wallet activity.</string>
+    <string name="wallet_sync_notification_channel" translatable="false">Wallet network activity</string>
+    <string name="wallet_sync_notification_title" translatable="false">Wallet network is active</string>
+    <string name="wallet_sync_notification_text" translatable="false">Monitoring verified Handshake and Bitcoin state, including active atomic swaps.</string>
     <string name="wallet_reads_sync_failed" translatable="false">HNS synchronization did not complete. Balance and sending remain unavailable; the wallet stays unlocked and can retry direct verification.</string>
     <string name="wallet_reads_catching_up" translatable="false">HNS synchronization is continuing from its durable checkpoint. Balance and sending become available when verified headers and wallet scanning reach the current tip.</string>
     <string name="wallet_reads_catching_up_headers" translatable="false">Verified headers are at local height %1$d. Wallet history has scanned through %2$d of %3$d. Synchronization will continue automatically from this checkpoint.</string>
@@ -880,6 +880,8 @@
     <string name="wallet_swap_stage_bitcoin_syncing" translatable="false">Bitcoin synchronization is validating the exact swap state…</string>
     <string name="wallet_swap_stage_terms_waiting" translatable="false">Terms frozen · automatic Bitcoin synchronization/watch preparation is next</string>
     <string name="wallet_swap_stage_funding_ready_here" translatable="false">%1$s funding is ready for approval on this wallet</string>
+    <string name="wallet_swap_stage_funding_submitted" translatable="false">%1$s funding was submitted · waiting for independently verified confirmations</string>
+    <string name="wallet_swap_stage_funding_reorged" translatable="false">%1$s funding was reorganized out of the verified chain · waiting for wallet recovery before any new action</string>
     <string name="wallet_swap_stage_funding_expired" translatable="false">Funding window expired · no new local funding is allowed; any unfunded local reservation is released, and an existing first-chain lock can be refunded after timeout</string>
     <string name="wallet_swap_stage_waiting_counterparty_funding" translatable="false">Waiting for the counterparty to fund %1$s</string>
     <string name="wallet_swap_stage_refund_ready_here" translatable="false">%1$s refund is eligible after timeout · open Atomic swap executions</string>

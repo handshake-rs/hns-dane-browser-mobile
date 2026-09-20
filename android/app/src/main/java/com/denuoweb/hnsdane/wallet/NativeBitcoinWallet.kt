@@ -286,6 +286,7 @@ internal data class NativeShakescapeExecutionSummary(
     val fundingDeadlineUnix: Long,
     val firstRefundAtUnix: Long,
     val secondRefundAtUnix: Long,
+    val localFundingState: String?,
     val firstFundingConfirmed: Boolean,
     val secondFundingConfirmed: Boolean,
     val firstRedemptionConfirmed: Boolean,
@@ -931,7 +932,8 @@ internal object NativeBitcoinWalletBundle {
             "sessionId", "revision", "state", "firstChain", "secondChain",
             "offeredAsset", "offeredAmount", "receivedAsset", "receivedAmount",
             "localRole",
-            "fundingDeadlineUnix", "firstRefundAtUnix", "secondRefundAtUnix", "firstFundingConfirmed",
+            "fundingDeadlineUnix", "firstRefundAtUnix", "secondRefundAtUnix", "localFundingState",
+            "firstFundingConfirmed",
             "secondFundingConfirmed", "firstRedemptionConfirmed", "secondRedemptionConfirmed",
             "refundConfirmed", "lastVerifiedAtUnix", "failureReason",
         ))) return null
@@ -950,6 +952,10 @@ internal object NativeBitcoinWalletBundle {
         val fundingDeadline = positiveLong(json, "fundingDeadlineUnix") ?: return null
         val firstRefund = positiveLong(json, "firstRefundAtUnix") ?: return null
         val secondRefund = positiveLong(json, "secondRefundAtUnix") ?: return null
+        val localFundingState = if (json.isNull("localFundingState")) null else {
+            json.optString("localFundingState", "")
+                .takeIf { it in SHAKESCAPE_FUNDING_STATES } ?: return null
+        }
         val failure = if (json.isNull("failureReason")) null else
             json.optString("failureReason", "").takeIf { it.isNotEmpty() && it.length <= 256 }
                 ?: return null
@@ -972,6 +978,7 @@ internal object NativeBitcoinWalletBundle {
             fundingDeadlineUnix = fundingDeadline,
             firstRefundAtUnix = firstRefund,
             secondRefundAtUnix = secondRefund,
+            localFundingState = localFundingState,
             firstFundingConfirmed = exactBoolean(json, "firstFundingConfirmed") ?: return null,
             secondFundingConfirmed = exactBoolean(json, "secondFundingConfirmed") ?: return null,
             firstRedemptionConfirmed = exactBoolean(json, "firstRedemptionConfirmed") ?: return null,
@@ -1131,6 +1138,7 @@ internal object NativeBitcoinWalletBundle {
 
     private val SHAKESCAPE_CHAINS = setOf("bitcoin", "handshake")
     private val SHAKESCAPE_ASSETS = setOf("btc", "hns")
+    private val SHAKESCAPE_FUNDING_STATES = setOf("broadcast", "seen", "confirmed", "reorged")
     private val SHAKESCAPE_EXECUTION_STATES = setOf(
         "offer_published", "offer_take_received", "offer_reserved", "terms_frozen",
         "refunds_prepared", "first_funding_pending", "first_funded", "second_funding_pending",

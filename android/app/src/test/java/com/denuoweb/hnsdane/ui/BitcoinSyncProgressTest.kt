@@ -78,11 +78,13 @@ class BitcoinSyncProgressTest {
     }
 
     @Test
-    fun background_retention_requires_a_visible_service_for_either_read_only_sync() {
-        assertEquals(true, walletBackgroundSynchronizationMayRetain(true, false, true))
-        assertEquals(true, walletBackgroundSynchronizationMayRetain(false, true, true))
-        assertEquals(false, walletBackgroundSynchronizationMayRetain(false, true, false))
-        assertEquals(false, walletBackgroundSynchronizationMayRetain(false, false, true))
+    fun background_retention_requires_a_visible_service_for_sync_or_an_active_swap() {
+        assertEquals(true, walletBackgroundSynchronizationMayRetain(true, false, false, true))
+        assertEquals(true, walletBackgroundSynchronizationMayRetain(false, true, false, true))
+        assertEquals(true, walletBackgroundSynchronizationMayRetain(false, false, true, true))
+        assertEquals(false, walletBackgroundSynchronizationMayRetain(false, true, false, false))
+        assertEquals(false, walletBackgroundSynchronizationMayRetain(false, false, true, false))
+        assertEquals(false, walletBackgroundSynchronizationMayRetain(false, false, false, true))
     }
 
     @Test
@@ -113,6 +115,12 @@ class BitcoinSyncProgressTest {
     fun app_switch_retention_is_useful_but_bounded() {
         assertTrue(WALLET_APP_SWITCH_RETENTION_MILLIS >= 15_000L)
         assertTrue(WALLET_APP_SWITCH_RETENTION_MILLIS <= 60_000L)
+    }
+
+    @Test
+    fun active_swap_hns_monitoring_rechecks_well_inside_one_expected_block_interval() {
+        assertTrue(SWAP_HNS_AUTO_SYNC_INTERVAL_MILLIS >= 60_000L)
+        assertTrue(SWAP_HNS_AUTO_SYNC_INTERVAL_MILLIS <= 5 * 60_000L)
     }
 
     @Test

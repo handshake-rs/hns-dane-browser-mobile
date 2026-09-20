@@ -75,6 +75,7 @@
             tools:ignore="Instantiatable" />
         <activity
             android:name=".ui.WalletActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
             android:excludeFromRecents="true"
             android:exported="false"
             tools:ignore="Instantiatable" />

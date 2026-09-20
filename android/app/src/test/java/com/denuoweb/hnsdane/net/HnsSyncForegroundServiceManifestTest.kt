@@ -12,7 +12,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 class HnsSyncForegroundServiceManifestTest {
     @Test
-    fun manifestLimitsBackgroundWorkToVisibleReadOnlyWalletSync() {
+    fun manifestLimitsBackgroundWorkToAVisibleWalletNetworkService() {
         val document = DocumentBuilderFactory.newInstance()
             .apply { isNamespaceAware = true }
             .newDocumentBuilder()
@@ -20,7 +20,7 @@ class HnsSyncForegroundServiceManifestTest {
 
         // Atomic-swap stage alerts are local projections of the authenticated wallet journal.
         // Android 13+ requires this runtime permission even though no push service or persistent
-        // background signing authority is introduced.
+        // automatic transaction-signing path is introduced.
         assertTrue(document.getElementsByTagName("uses-permission").hasAndroidName(POST_NOTIFICATIONS))
         assertTrue(document.getElementsByTagName("uses-permission").hasAndroidName(FOREGROUND_SERVICE))
         assertTrue(document.getElementsByTagName("uses-permission").hasAndroidName(FOREGROUND_SERVICE_DATA_SYNC))
@@ -81,6 +81,10 @@ class HnsSyncForegroundServiceManifestTest {
         assertNotNull(wallet)
         assertEquals("false", wallet?.getAttributeNS(ANDROID_NS, "exported"))
         assertEquals("true", wallet?.getAttributeNS(ANDROID_NS, "excludeFromRecents"))
+        assertEquals(
+            setOf("keyboardHidden", "orientation", "screenSize"),
+            wallet?.getAttributeNS(ANDROID_NS, "configChanges")?.split('|')?.toSet(),
+        )
 
         val launcher = document.getElementsByTagName("activity")
             .elements()

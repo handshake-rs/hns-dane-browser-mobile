@@ -427,6 +427,8 @@ class WalletActivity : ComponentActivity() {
     private var bitcoinBirthdayResetInProgress = false
     private var latestShakescapeExecutionStatus: NativeShakescapeExecutionStatus? = null
     private var activeShakescapeDashboardSummary: String? = null
+    private var lastAutomaticSwapHnsSyncAtElapsedMillis = Long.MIN_VALUE
+    private var lastAutomaticSwapHnsSyncFingerprint: String? = null
     private var lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
     private var lastAutomaticSwapBitcoinSyncFingerprint: String? = null
     private var automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
@@ -3442,10 +3444,19 @@ class WalletActivity : ComponentActivity() {
                                 val executionChanged = executionStatus?.let {
                                     refreshShakescapeExecutionStatus(it)
                                 } ?: false
-                                val automaticSyncStarted = executionStatus?.let {
-                                    maybeStartAutomaticSwapBitcoinSync(it)
+                                val automaticHnsSyncStarted = executionStatus?.let {
+                                    maybeStartAutomaticSwapHnsSync(it)
                                 } ?: false
-                                if (transportChanged || executionChanged || automaticSyncStarted) {
+                                val automaticBitcoinSyncStarted = if (automaticHnsSyncStarted) {
+                                    false
+                                } else {
+                                    executionStatus?.let(::maybeStartAutomaticSwapBitcoinSync)
+                                        ?: false
+                                }
+                                if (
+                                    transportChanged || executionChanged ||
+                                        automaticHnsSyncStarted || automaticBitcoinSyncStarted
+                                ) {
                                     renderWalletDashboard()
                                 }
                             }
@@ -4417,6 +4428,13 @@ class WalletActivity : ComponentActivity() {
         val pending = status.pendingAcceptances.maxByOrNull { it.createdAtUnix }
         if (execution == null && pending == null) {
             activeSwapHnsRefreshAttemptedHeight = null
+            finishWalletForegroundSyncIfIdle()
+        } else {
+            // An accepted atomic swap is an explicit request to keep its
+            // authenticated peer and chain watches alive. Android requires a
+            // visible foreground service before that work may survive screen
+            // off; transaction signing still requires a separate approval.
+            startWalletForegroundSyncService("atomic swap monitoring")
         }
         activeShakescapeDashboardSummary = when {
             execution != null -> getString(
@@ -4480,6 +4498,9 @@ class WalletActivity : ComponentActivity() {
     ): String {
         val first = execution.firstChain.replaceFirstChar { it.uppercase() }
         val second = execution.secondChain.replaceFirstChar { it.uppercase() }
+        val localFundingSubmitted = execution.localFundingState == "broadcast" ||
+            execution.localFundingState == "seen" ||
+            execution.localFundingState == "confirmed"
         if (includeBitcoinSync && walletBitcoinSyncInProgress) {
             return getString(R.string.wallet_swap_stage_bitcoin_syncing)
         }
@@ -4491,6 +4512,14 @@ class WalletActivity : ComponentActivity() {
                 System.currentTimeMillis() / 1_000L >= execution.fundingDeadlineUnix
             ) {
                 getString(R.string.wallet_swap_stage_funding_expired)
+            } else if (
+                execution.localRole == "maker" && localFundingSubmitted
+            ) {
+                getString(R.string.wallet_swap_stage_funding_submitted, first)
+            } else if (
+                execution.localRole == "maker" && execution.localFundingState == "reorged"
+            ) {
+                getString(R.string.wallet_swap_stage_funding_reorged, first)
             } else if (execution.localRole == "maker") {
                 getString(R.string.wallet_swap_stage_funding_ready_here, first)
             } else {
@@ -4498,7 +4527,13 @@ class WalletActivity : ComponentActivity() {
             }
             "first_funded" -> if (execution.localRole == "taker") {
                 if (System.currentTimeMillis() / 1_000L < execution.fundingDeadlineUnix) {
-                    getString(R.string.wallet_swap_stage_funding_ready_here, second)
+                    if (localFundingSubmitted) {
+                        getString(R.string.wallet_swap_stage_funding_submitted, second)
+                    } else if (execution.localFundingState == "reorged") {
+                        getString(R.string.wallet_swap_stage_funding_reorged, second)
+                    } else {
+                        getString(R.string.wallet_swap_stage_funding_ready_here, second)
+                    }
                 } else {
                     getString(R.string.wallet_swap_stage_funding_expired)
                 }
@@ -4514,7 +4549,13 @@ class WalletActivity : ComponentActivity() {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
             }
             "second_funding_pending" -> if (execution.localRole == "taker") {
-                getString(R.string.wallet_swap_stage_funding_ready_here, second)
+                if (localFundingSubmitted) {
+                    getString(R.string.wallet_swap_stage_funding_submitted, second)
+                } else if (execution.localFundingState == "reorged") {
+                    getString(R.string.wallet_swap_stage_funding_reorged, second)
+                } else {
+                    getString(R.string.wallet_swap_stage_funding_ready_here, second)
+                }
             } else {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
             }
@@ -4535,6 +4576,64 @@ class WalletActivity : ComponentActivity() {
             "failed" -> getString(R.string.wallet_swap_stage_failed)
             else -> execution.state.replace('_', ' ')
         }
+    }
+
+    private fun hasLiveAtomicSwap(
+        status: NativeShakescapeExecutionStatus? = latestShakescapeExecutionStatus,
+    ): Boolean {
+        val projection = status ?: return false
+        val terminal = setOf("completed", "refunded", "failed")
+        return projection.pendingAcceptances.isNotEmpty() ||
+            projection.executions.any { it.state !in terminal }
+    }
+
+    /**
+     * Screen-off stops the browser Activity's header observer, but a live swap
+     * still has to discover HNS confirmations, redemptions, and refund state.
+     * Run a bounded native scan on a conservative cadence while the explicit
+     * atomic-swap foreground service retains this unlocked controller.
+     */
+    private fun maybeStartAutomaticSwapHnsSync(
+        status: NativeShakescapeExecutionStatus,
+    ): Boolean {
+        if (!hasLiveAtomicSwap(status)) {
+            lastAutomaticSwapHnsSyncAtElapsedMillis = Long.MIN_VALUE
+            lastAutomaticSwapHnsSyncFingerprint = null
+            return false
+        }
+        val fingerprint = buildString {
+            status.executions
+                .filter { it.state !in setOf("completed", "refunded", "failed") }
+                .sortedBy { it.sessionId }
+                .forEach {
+                    append(it.sessionId).append(':').append(it.revision).append(':')
+                        .append(it.state).append(';')
+                }
+            status.pendingAcceptances.sortedBy { it.sessionId }.forEach {
+                append(it.sessionId).append(':').append(it.createdAtUnix).append(';')
+            }
+        }
+        val previousFingerprint = lastAutomaticSwapHnsSyncFingerprint
+        if (fingerprint != previousFingerprint) {
+            lastAutomaticSwapHnsSyncFingerprint = fingerprint
+            if (previousFingerprint != null) {
+                lastAutomaticSwapHnsSyncAtElapsedMillis = Long.MIN_VALUE
+            }
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (
+            busy || walletHnsSyncInProgress || walletBitcoinSyncInProgress ||
+                walletHandle == INVALID_HANDLE || !NativeWalletBridge.hasHnsReads(walletHandle)
+        ) return false
+        if (
+            lastAutomaticSwapHnsSyncAtElapsedMillis != Long.MIN_VALUE &&
+                now - lastAutomaticSwapHnsSyncAtElapsedMillis <
+                SWAP_HNS_AUTO_SYNC_INTERVAL_MILLIS
+        ) return false
+        lastAutomaticSwapHnsSyncAtElapsedMillis = now
+        Log.i(TAG, "Starting automatic HNS synchronization for active atomic swap state")
+        synchronizeWalletReads()
+        return walletHnsSyncInProgress
     }
 
     /** Keep both swap participants' compact-filter/watch state current while
@@ -4588,6 +4687,8 @@ class WalletActivity : ComponentActivity() {
         directShakescapePeerEndpoint = null
         latestShakescapeExecutionStatus = null
         activeShakescapeDashboardSummary = null
+        lastAutomaticSwapHnsSyncAtElapsedMillis = Long.MIN_VALUE
+        lastAutomaticSwapHnsSyncFingerprint = null
         lastAutomaticSwapBitcoinSyncAtElapsedMillis = Long.MIN_VALUE
         lastAutomaticSwapBitcoinSyncFingerprint = null
         automaticSwapBitcoinSyncPausedUntilElapsedMillis = Long.MIN_VALUE
@@ -7907,6 +8008,7 @@ class WalletActivity : ComponentActivity() {
             return
         }
         if (status.locked) {
+            stopWalletForegroundSyncService()
             dismissWalletPopupsForLock()
             walletHnsJourney.walletLocked()
             clearDirectShakescapeStatusProjection(locked = true)
@@ -8252,7 +8354,10 @@ class WalletActivity : ComponentActivity() {
     }
 
     private fun finishWalletForegroundSyncIfIdle() {
-        if (hasActiveWalletHnsSynchronization() || walletBitcoinSyncInProgress) return
+        if (
+            hasActiveWalletHnsSynchronization() || walletBitcoinSyncInProgress ||
+                hasLiveAtomicSwap()
+        ) return
         stopWalletForegroundSyncService()
         if (retainingInAppWalletSession && !foreground && !isAppForeground()) {
             scheduleWalletRetirementIfApplicationBackgrounds()
@@ -8308,6 +8413,13 @@ class WalletActivity : ComponentActivity() {
             return walletForegroundSyncServiceActive &&
                 ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
         }
+        if (hasLiveAtomicSwap()) {
+            // Funding and settlement remain explicitly approval-gated, but
+            // the authenticated peer plus read-only chain watches must survive
+            // screen off or the two anonymous participants cannot progress.
+            return walletForegroundSyncServiceActive &&
+                ProcessWalletStorageOwnership.isCurrent(lease.owner, lease)
+        }
         if (!walletIdleSessionMayRetainAcrossScreen(browserNavigationRequested)) {
             // MainActivity renders attacker-controlled website content. Even
             // though no wallet WebView bridge is installed, retire idle
@@ -8350,6 +8462,7 @@ class WalletActivity : ComponentActivity() {
                         !walletBackgroundSynchronizationMayRetain(
                             hasActiveReadOnlyHnsSync = hasActiveWalletHnsSynchronization(),
                             hasActiveReadOnlyBitcoinSync = walletBitcoinSyncInProgress,
+                            hasActiveAtomicSwap = hasLiveAtomicSwap(),
                             foregroundServiceActive = walletForegroundSyncServiceActive,
                         )
                 ) {
@@ -8940,6 +9053,10 @@ class WalletActivity : ComponentActivity() {
         latestReadSnapshotAuthorityGeneration = walletAuthorityGeneration
         latestReadSnapshotEpoch = lifecycleEpoch
         latestReadSnapshotObservedAtElapsedMillis = SystemClock.elapsedRealtime()
+        if (hasLiveAtomicSwap()) {
+            lastAutomaticSwapHnsSyncAtElapsedMillis =
+                latestReadSnapshotObservedAtElapsedMillis
+        }
         readStatusView.text = getString(R.string.wallet_reads_ready, snapshot.height)
         val balance = snapshot.hnsBalanceProjection()
         if (balance.hasPendingOutgoing) {
@@ -9590,6 +9707,7 @@ class WalletActivity : ComponentActivity() {
 
 internal const val HNS_CATCHUP_PROGRESS_RETRY_DELAY_MILLIS = 2_000L
 internal const val HNS_CATCHUP_DEGRADED_RETRY_DELAY_MILLIS = 30_000L
+internal const val SWAP_HNS_AUTO_SYNC_INTERVAL_MILLIS = 2 * 60_000L
 internal const val WALLET_VALUE_ACTION_SNAPSHOT_REUSE_MILLIS = 60_000L
 
 /**
@@ -9797,9 +9915,11 @@ internal fun walletPageOffset(
 internal fun walletBackgroundSynchronizationMayRetain(
     hasActiveReadOnlyHnsSync: Boolean,
     hasActiveReadOnlyBitcoinSync: Boolean,
+    hasActiveAtomicSwap: Boolean,
     foregroundServiceActive: Boolean,
 ): Boolean =
-    foregroundServiceActive && (hasActiveReadOnlyHnsSync || hasActiveReadOnlyBitcoinSync)
+    foregroundServiceActive &&
+        (hasActiveReadOnlyHnsSync || hasActiveReadOnlyBitcoinSync || hasActiveAtomicSwap)
 
 internal data class WalletDashboardAvailability(
     val navigation: Boolean,
