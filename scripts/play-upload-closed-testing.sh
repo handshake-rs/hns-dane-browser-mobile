@@ -13,6 +13,7 @@ fi
 package_name="${PLAY_PACKAGE:-com.denuoweb.hnsdane}"
 track_name="${PLAY_TRACK:-}"
 release_status="${PLAY_RELEASE_STATUS:-draft}"
+quota_project="${PLAY_QUOTA_PROJECT:-}"
 aab_path="${1:-dist/play-store/hns-dane-browser-v1.0.5-play-upload-signed.aab}"
 release_name="${PLAY_RELEASE_NAME:-Shakescape 1.0.5}"
 release_notes="${PLAY_RELEASE_NOTES:-1.0.5 improves wallet synchronization and name tracking, including Unicode Handshake names, lifecycle status, raw records, and clearer native name controls.}"
@@ -106,6 +107,13 @@ tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 auth_header="$tmpdir/authorization.txt"
 printf 'Authorization: Bearer %s\n' "$access_token" >"$auth_header"
+if [[ -n "$quota_project" ]]; then
+  if [[ ! "$quota_project" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
+    echo "PLAY_QUOTA_PROJECT is not a valid Google Cloud project ID." >&2
+    exit 2
+  fi
+  printf 'X-Goog-User-Project: %s\n' "$quota_project" >>"$auth_header"
+fi
 unset access_token PLAY_ACCESS_TOKEN
 
 json_get() {

@@ -3217,7 +3217,7 @@ final class BrowserRuntimeControlTests: XCTestCase {
         XCTAssertTrue(summary.hasAuthoritativeTreeRoot)
         XCTAssertEqual(summary.headline, "Network blocks outbound TCP 12038")
         XCTAssertEqual(summary.detail, detail)
-        XCTAssertFalse(summary.isCurrent)
+        XCTAssertFalse(summary.isCaughtUp)
     }
 
     func testIOSRecognizesAndroidCurrentSyncStates() throws {
