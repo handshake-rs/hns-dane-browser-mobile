@@ -362,6 +362,16 @@ class WalletActivity : ComponentActivity() {
         }
         refreshDirectShakescapeStatus()
     }
+    private lateinit var atomicSwapNotifications: AtomicSwapNotificationCoordinator
+    private var atomicSwapNotificationPermissionRequestInFlight = false
+    private val atomicSwapNotificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        atomicSwapNotificationPermissionRequestInFlight = false
+        if (granted && ::atomicSwapNotifications.isInitialized) {
+            latestShakescapeExecutionStatus?.let(::publishAtomicSwapNotifications)
+        }
+    }
     private val walletAuthentication = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -440,6 +450,7 @@ class WalletActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         savedInstanceState?.clear()
         super.onCreate(null)
+        atomicSwapNotifications = AtomicSwapNotificationCoordinator(applicationContext)
         // Production wallets must not leak recovery material, addresses, or
         // balances through screenshots and screen recording. Debug builds are
         // intentionally capturable so their UI and synchronization behavior
@@ -4397,6 +4408,7 @@ class WalletActivity : ComponentActivity() {
     ): Boolean {
         val previous = shakedexExecutionStatusView.text.toString()
         latestShakescapeExecutionStatus = status
+        publishAtomicSwapNotifications(status)
         val terminal = setOf("completed", "refunded", "failed")
         val execution = status.executions
             .filterNot { it.state in terminal }
@@ -4438,10 +4450,33 @@ class WalletActivity : ComponentActivity() {
         return previous != shakedexExecutionStatusView.text.toString()
     }
 
-    private fun swapExecutionStage(execution: NativeShakescapeExecutionSummary): String {
+    private fun publishAtomicSwapNotifications(status: NativeShakescapeExecutionStatus) {
+        if (!::atomicSwapNotifications.isInitialized) return
+        val permissionNeeded = atomicSwapNotifications.reconcile(
+            status,
+            ::swapExecutionNotificationStage,
+        )
+        if (
+            permissionNeeded && !atomicSwapNotificationPermissionRequestInFlight &&
+                atomicSwapNotifications.shouldRequestPermission()
+        ) {
+            atomicSwapNotificationPermissionRequestInFlight = true
+            atomicSwapNotifications.markPermissionRequested()
+            atomicSwapNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    private fun swapExecutionNotificationStage(
+        execution: NativeShakescapeExecutionSummary,
+    ): String = swapExecutionStage(execution, includeBitcoinSync = false)
+
+    private fun swapExecutionStage(
+        execution: NativeShakescapeExecutionSummary,
+        includeBitcoinSync: Boolean = true,
+    ): String {
         val first = execution.firstChain.replaceFirstChar { it.uppercase() }
         val second = execution.secondChain.replaceFirstChar { it.uppercase() }
-        if (walletBitcoinSyncInProgress) {
+        if (includeBitcoinSync && walletBitcoinSyncInProgress) {
             return getString(R.string.wallet_swap_stage_bitcoin_syncing)
         }
         return when (execution.state) {
@@ -4479,9 +4514,21 @@ class WalletActivity : ComponentActivity() {
             } else {
                 getString(R.string.wallet_swap_stage_waiting_counterparty_funding, second)
             }
-            "both_funded" -> getString(R.string.wallet_swap_stage_both_funded)
-            "first_redeemed", "secret_observed" -> getString(R.string.wallet_swap_stage_settling)
+            "both_funded" -> if (execution.localRole == "maker") {
+                getString(R.string.wallet_swap_stage_redeem_ready_here, second)
+            } else {
+                getString(R.string.wallet_swap_stage_waiting_counterparty_redeem, second)
+            }
+            "first_redeemed", "secret_observed" -> if (execution.localRole == "taker") {
+                getString(R.string.wallet_swap_stage_secret_redeem_ready_here, first)
+            } else {
+                getString(R.string.wallet_swap_stage_waiting_counterparty_final_redeem, first)
+            }
+            "second_redeemed" -> getString(R.string.wallet_swap_stage_second_redeemed)
+            "completed" -> getString(R.string.wallet_swap_stage_completed)
             "refund_eligible", "refund_broadcast" -> getString(R.string.wallet_swap_stage_refunding)
+            "refunded" -> getString(R.string.wallet_swap_stage_refunded)
+            "failed" -> getString(R.string.wallet_swap_stage_failed)
             else -> execution.state.replace('_', ' ')
         }
     }

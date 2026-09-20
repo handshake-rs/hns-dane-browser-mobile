@@ -1,7 +1,6 @@
 package com.denuoweb.hnsdane.net
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -19,7 +18,10 @@ class HnsSyncForegroundServiceManifestTest {
             .newDocumentBuilder()
             .parse(locateManifest())
 
-        assertFalse(document.getElementsByTagName("uses-permission").hasAndroidName(POST_NOTIFICATIONS))
+        // Atomic-swap stage alerts are local projections of the authenticated wallet journal.
+        // Android 13+ requires this runtime permission even though no push service or persistent
+        // background signing authority is introduced.
+        assertTrue(document.getElementsByTagName("uses-permission").hasAndroidName(POST_NOTIFICATIONS))
         assertTrue(document.getElementsByTagName("uses-permission").hasAndroidName(FOREGROUND_SERVICE))
         assertTrue(document.getElementsByTagName("uses-permission").hasAndroidName(FOREGROUND_SERVICE_DATA_SYNC))
 

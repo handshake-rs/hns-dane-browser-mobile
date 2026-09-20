@@ -886,6 +886,23 @@
     <string name="wallet_swap_stage_both_funded" translatable="false">Both funding transactions are verified · settlement is ready</string>
     <string name="wallet_swap_stage_settling" translatable="false">Settlement is in progress with locally verified redemption evidence</string>
     <string name="wallet_swap_stage_refunding" translatable="false">The swap is on its timeout-refund path</string>
+    <string name="wallet_swap_stage_redeem_ready_here" translatable="false">Both funding transactions are verified · redeem received %1$s now</string>
+    <string name="wallet_swap_stage_waiting_counterparty_redeem" translatable="false">Both funding transactions are verified · waiting for the counterparty to redeem %1$s</string>
+    <string name="wallet_swap_stage_secret_redeem_ready_here" translatable="false">Swap secret verified · redeem received %1$s now</string>
+    <string name="wallet_swap_stage_waiting_counterparty_final_redeem" translatable="false">Swap secret revealed · waiting for the counterparty to redeem %1$s</string>
+    <string name="wallet_swap_stage_second_redeemed" translatable="false">Both redemptions were observed · waiting for final verified completion</string>
+    <string name="wallet_swap_stage_completed" translatable="false">Atomic swap completed with both redemptions locally verified</string>
+    <string name="wallet_swap_stage_refunded" translatable="false">Atomic swap refund completed and locally verified</string>
+    <string name="wallet_swap_stage_failed" translatable="false">Atomic swap failed · open the execution for the authenticated failure reason</string>
+    <string name="wallet_swap_notification_channel" translatable="false">Atomic swaps</string>
+    <string name="wallet_swap_notification_channel_description" translatable="false">Actionable funding, redemption, refund, and completion updates for locally verified atomic swaps.</string>
+    <string name="wallet_swap_notification_action_required" translatable="false">Atomic swap action required</string>
+    <string name="wallet_swap_notification_updated" translatable="false">Atomic swap updated</string>
+    <string name="wallet_swap_notification_completed" translatable="false">Atomic swap completed</string>
+    <string name="wallet_swap_notification_refunded" translatable="false">Atomic swap refunded</string>
+    <string name="wallet_swap_notification_failed" translatable="false">Atomic swap needs attention</string>
+    <string name="wallet_swap_notification_negotiating" translatable="false">Offer accepted · negotiating countersigned terms for session %1$s…</string>
+    <string name="wallet_swap_notification_stage" translatable="false">%1$s · Session %2$s…</string>
     <string name="wallet_swap_execution_detail" translatable="false">Session: %1$s\nState: %2$s\nLocal role: %3$s\nFunding order: %4$s, then %5$s\nFirst funding confirmed: %6$s\nSecond funding confirmed: %7$s\nNew-funding deadline: Unix %8$d\nFirst-chain refund time: Unix %9$d\nSecond-chain refund time: Unix %10$d\nFailure reason: %11$s\n\nOnly locally verified chain evidence advances this status.</string>
     <string name="wallet_swap_failure_none" translatable="false">None</string>
     <string name="wallet_swap_recovery_unavailable" translatable="false">Bitcoin broadcast recovery status is temporarily unavailable while the Bitcoin controller is busy or inactive.</string>

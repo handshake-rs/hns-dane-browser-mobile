@@ -760,6 +760,11 @@ androidComponents {
             // Gradle runs natively on ARM64. Device-test variants retain the
             // release-profile Rust symbols and therefore need no AGP strip.
             variant.packaging.jniLibs.keepDebugSymbols.add("**/libhns_dane_browser_ffi.so")
+            // Physical debug devices can be storage-constrained, and PackageInstaller reserves
+            // several times the APK size while staging an update. Compress (but do not strip)
+            // the intact native library in debuggable APKs and let Android extract it at install
+            // time. Release/Play variants retain modern directly loadable native packaging.
+            variant.packaging.jniLibs.useLegacyPackaging.set(true)
         }
     }
 }
