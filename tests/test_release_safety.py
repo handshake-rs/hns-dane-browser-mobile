@@ -202,6 +202,12 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
         self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.5$")
         self.assertRegex(project, r"(?m)^\s*CURRENT_PROJECT_VERSION: 66$")
+        self.assertIn("- sdk: SystemConfiguration.framework", project)
+
+        xcode_project = (
+            ROOT / "ios/HnsDaneBrowser.xcodeproj/project.pbxproj"
+        ).read_text(encoding="utf-8")
+        self.assertIn("SystemConfiguration.framework in Frameworks", xcode_project)
 
         upload = (ROOT / "scripts/upload-ios-app-store.sh").read_text(
             encoding="utf-8"

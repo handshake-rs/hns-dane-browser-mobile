@@ -35,6 +35,7 @@
 		B10000000000000000000013 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000015 /* Network.framework */; };
 		B10000000000000000000014 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000016 /* WebKit.framework */; };
 		B10000000000000000000015 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F10000000000000000000017 /* Security.framework */; };
+		B40000000000000000000001 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F40000000000000000000001 /* SystemConfiguration.framework */; };
 		B10000000000000000000020 /* BrowserAuthenticationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000020 /* BrowserAuthenticationPolicyTests.swift */; };
 		B10000000000000000000021 /* BrowserProxyStateMachineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000021 /* BrowserProxyStateMachineTests.swift */; };
 		B10000000000000000000022 /* HeaderSnapshotBootstrapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000000000000000000022 /* HeaderSnapshotBootstrapperTests.swift */; };
@@ -100,6 +101,7 @@
 		F10000000000000000000015 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
 		F10000000000000000000016 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
 		F10000000000000000000017 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		F40000000000000000000001 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		F10000000000000000000018 /* HnsDaneBrowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HnsDaneBrowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F10000000000000000000019 /* HnsDaneBrowserTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HnsDaneBrowserTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F10000000000000000000020 /* BrowserAuthenticationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserAuthenticationPolicyTests.swift; sourceTree = "<group>"; };
@@ -143,6 +145,7 @@
 				B10000000000000000000013 /* Network.framework in Frameworks */,
 				B10000000000000000000014 /* WebKit.framework in Frameworks */,
 				B10000000000000000000015 /* Security.framework in Frameworks */,
+				B40000000000000000000001 /* SystemConfiguration.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -298,6 +301,7 @@
 				F10000000000000000000015 /* Network.framework */,
 				F10000000000000000000016 /* WebKit.framework */,
 				F10000000000000000000017 /* Security.framework */,
+				F40000000000000000000001 /* SystemConfiguration.framework */,
 				F10000000000000000000024 /* XCTest.framework */,
 			);
 			name = Frameworks;

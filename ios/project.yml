@@ -33,6 +33,10 @@ targets:
         embed: false
         link: true
       - sdk: libz.tbd
+      - sdk: Network.framework
+      - sdk: WebKit.framework
+      - sdk: Security.framework
+      - sdk: SystemConfiguration.framework
     info:
       path: HnsDaneBrowser/Support/Info.plist
     settings:
