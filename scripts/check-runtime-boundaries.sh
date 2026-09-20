@@ -160,10 +160,10 @@ ios_header_bootstrapper="$ROOT_DIR/ios/HnsDaneBrowser/Core/HeaderSnapshotBootstr
 ios_wallet_protocol="$ROOT_DIR/ios/HnsDaneBrowser/Wallet/WalletProviderProtocol.swift"
 
 android_shakedex_wallet_card_gate="$(sed -n \
-  's/^private const val SHOW_SHAKEDEX_WALLET_CARD = \(true\|false\)$/\1/p' \
+  's/^private const val SHOW_SHAKEDEX_WALLET_CARD = //p' \
   "$android_wallet_activity")"
 ios_shakedex_wallet_card_gate="$(sed -n \
-  's/^private let showShakedexWalletCard = \(true\|false\)$/\1/p' \
+  's/^private let showShakedexWalletCard = //p' \
   "$ios_wallet_controller")"
 if [[ -z "$android_shakedex_wallet_card_gate" || -z "$ios_shakedex_wallet_card_gate" ||
   "$android_shakedex_wallet_card_gate" != "$ios_shakedex_wallet_card_gate" ]]; then
