@@ -41,6 +41,14 @@ RUST_MANIFEST_INPUTS = tuple(
     for path in sorted((ROOT / "rust/crates").glob("*/Cargo.toml"))
 )
 INPUT_PATHS = LOCKED_INPUT_PATHS + RUST_MANIFEST_INPUTS
+APPLICATION_MANIFESTS = {
+    path.resolve() for path in (ROOT / "rust/crates").glob("*/Cargo.toml")
+}
+REVIEWED_LOCAL_SOURCE_ROOTS = {
+    (ROOT.parent / "hns-wallet-rs").resolve(): "c322f3cdb86f0c2d60d548a10a68f41365b9c252",
+    (ROOT.parent / "hns-dane-engine").resolve(): "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b",
+    (ROOT.parent / "hns-rs").resolve(): "f43f8dd325c221766787810fdd1fa3b3657689ca",
+}
 LICENSE_FILE_PREFIXES = ("LICENSE", "LICENCE", "COPYING", "NOTICE", "COPYRIGHT")
 MAX_NOTICE_FILE_SIZE = 512 * 1024
 RUST_SHIPPING_TARGETS = (
@@ -229,11 +237,12 @@ def shipping_rust_packages(metadata: dict, root_package: str) -> list[dict]:
             if any(kind["kind"] != "dev" for kind in dependency["dep_kinds"]):
                 pending.append(dependency["pkg"])
 
-    third_party = [
-        packages[package_id]
-        for package_id in reachable
-        if packages[package_id]["source"] is not None
-    ]
+    third_party = []
+    for package_id in reachable:
+        package = packages[package_id]
+        manifest = Path(package["manifest_path"]).resolve()
+        if package["source"] is not None or manifest not in APPLICATION_MANIFESTS:
+            third_party.append(package)
     third_party.sort(key=lambda package: (package["name"].casefold(), package["version"]))
     if not third_party:
         raise RuntimeError(
@@ -433,9 +442,24 @@ def rust_package_license_files(package: dict) -> list[tuple[str, str]]:
     package_dir = Path(package["manifest_path"]).resolve().parent
     if isinstance(source, str) and source:
         return package_license_files(package, package_dir)
+    for source_root, expected_commit in REVIEWED_LOCAL_SOURCE_ROOTS.items():
+        try:
+            package_dir.relative_to(source_root)
+        except ValueError:
+            continue
+        actual_commit = subprocess.check_output(
+            ["git", "-C", str(source_root), "rev-parse", "HEAD"],
+            text=True,
+        ).strip()
+        if actual_commit != expected_commit:
+            raise RuntimeError(
+                f"Reviewed local source {source_root.name} is at {actual_commit}, "
+                f"expected {expected_commit}."
+            )
+        return package_license_files(package, source_root)
     raise RuntimeError(
-        f"Missing Cargo source for third-party package {package['name']} "
-        f"{package['version']}: {source}"
+        f"Unreviewed local Cargo source for third-party package {package['name']} "
+        f"{package['version']}: {package_dir}"
     )
 
 

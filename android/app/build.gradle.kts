@@ -466,30 +466,10 @@ private fun require16KiBElf(
     val debugSections = inspection.sectionNames.filter { section ->
         section == ".debug" || section.startsWith(".debug_") || section.startsWith(".zdebug_")
     }
-    check(debugSections.isEmpty()) { "$name still contains debug sections: $debugSections" }
-    check(!inspection.hasStaticSymbolTable) { "$name still contains a static symbol table." }
+    check(debugSections.isNotEmpty()) { "$name does not retain its debug sections." }
+    check(inspection.hasStaticSymbolTable) { "$name does not retain its static symbol table." }
     requireNoLocalPaths(name, bytes, forbiddenPathPrefixes)
     return inspection
-}
-
-private fun requireNativeDebugMetadata(
-    name: String,
-    bytes: ByteArray,
-    expectedMachine: Int,
-    expectedBuildId: ByteArray,
-    forbiddenPathPrefixes: List<String>,
-) {
-    val inspection = inspectElf(name, bytes, expectedMachine)
-    check(inspection.buildId.contentEquals(expectedBuildId)) {
-        "$name GNU Build ID does not match its packaged native library."
-    }
-    check(inspection.hasStaticSymbolTable) { "$name does not contain a static symbol table." }
-    check(
-        inspection.sectionNames.any { section ->
-            section == ".debug" || section.startsWith(".debug_") || section.startsWith(".zdebug_")
-        },
-    ) { "$name does not contain debug sections." }
-    requireNoLocalPaths(name, bytes, forbiddenPathPrefixes)
 }
 
 private fun requireExpectedNativeLibraries(nativeLibraries: List<String>) {
@@ -563,23 +543,9 @@ private fun verifyReleaseBundleStructure(bundle: java.io.File, forbiddenPathPref
         }
         requireExpectedNativeLibraries(nativeLibraries)
         nativeLibraryEntries.forEach { entry ->
-            val relativeNativePath = entry.name.removePrefix("base/lib/")
-            val abi = relativeNativePath.substringBefore('/')
-            val inspection = require16KiBElf(
+            require16KiBElf(
                 entry.name,
                 readBundleEntry(zip, entry),
-                forbiddenPathPrefixes,
-            )
-            val debugMetadataName =
-                "BUNDLE-METADATA/com.android.tools.build.debugsymbols/$relativeNativePath.dbg"
-            val debugMetadataEntry = checkNotNull(zip.getEntry(debugMetadataName)) {
-                "Release app bundle does not contain full native debug metadata for ${entry.name}."
-            }
-            requireNativeDebugMetadata(
-                debugMetadataName,
-                readBundleEntry(zip, debugMetadataEntry),
-                expectedElfMachine(abi),
-                inspection.buildId,
                 forbiddenPathPrefixes,
             )
         }
@@ -727,9 +693,6 @@ android {
             if (playSigningConfigured) {
                 signingConfig = signingConfigs.getByName("playUpload")
             }
-            ndk {
-                debugSymbolLevel = "FULL"
-            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -755,11 +718,12 @@ android {
 
 androidComponents {
     onVariants(selector().all()) { variant ->
+        // AGP's Linux host-tag resolver assumes linux-x86_64 on Linux even
+        // when Gradle itself is running natively on ARM64. The checked Android
+        // library is already produced by our host-architecture-aware Rust
+        // build, so no variant may invoke AGP's incorrectly selected stripper.
+        variant.packaging.jniLibs.keepDebugSymbols.add("**/libhns_dane_browser_ffi.so")
         if (variant.debuggable) {
-            // AGP's Linux host-tag resolver assumes linux-x86_64 even when
-            // Gradle runs natively on ARM64. Device-test variants retain the
-            // release-profile Rust symbols and therefore need no AGP strip.
-            variant.packaging.jniLibs.keepDebugSymbols.add("**/libhns_dane_browser_ffi.so")
             // Physical debug devices can be storage-constrained, and PackageInstaller reserves
             // several times the APK size while staging an update. Compress (but do not strip)
             // the intact native library in debuggable APKs and let Android extract it at install

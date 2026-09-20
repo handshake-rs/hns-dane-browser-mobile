@@ -56,12 +56,35 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         for workflow in (ROOT / ".github/workflows").glob("*.yml"):
             self.assertNotIn("1.92.0", workflow.read_text(encoding="utf-8"))
 
+        notices_generator = (
+            ROOT / "scripts/generate-third-party-notices.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("REVIEWED_LOCAL_SOURCE_ROOTS", notices_generator)
+        for repository, commit in (
+            ("hns-wallet-rs", "c322f3cdb86f0c2d60d548a10a68f41365b9c252"),
+            ("hns-dane-engine", "bf6855aba037dcb3720e0624c04eb7ee1e09cb5b"),
+            ("hns-rs", "f43f8dd325c221766787810fdd1fa3b3657689ca"),
+        ):
+            self.assertIn(repository, notices_generator)
+            self.assertIn(commit, notices_generator)
+
     def test_platform_identity_and_reviewed_wallet_source_pin(self) -> None:
         gradle = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         self.assertRegex(gradle, r"(?m)^\s*versionName = \"1\.0\.5\"$")
         self.assertRegex(gradle, r"(?m)^\s*versionCode = 57$")
         self.assertIn(
             '?: listOf("armeabi-v7a", "arm64-v8a")',
+            gradle,
+        )
+        self.assertNotIn("debugSymbolLevel", gradle)
+        self.assertIn(
+            'onVariants(selector().all()) { variant ->\n'
+            '        // AGP\'s Linux host-tag resolver assumes linux-x86_64',
+            gradle,
+        )
+        self.assertIn(
+            'variant.packaging.jniLibs.keepDebugSymbols.add('
+            '"**/libhns_dane_browser_ffi.so")',
             gradle,
         )
         self.assertIn(
