@@ -140,6 +140,18 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("--component llvm-tools-preview", ci_workflow)
         self.assertEqual(ci_workflow.count("armv7-linux-androideabi"), 2)
+        screenshot_workflow = SCREENSHOT_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn(
+            "rustup toolchain install 1.98.1 --profile minimal "
+            "--component llvm-tools-preview",
+            screenshot_workflow,
+        )
+        upload_workflow = UPLOAD_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn(
+            "rustup toolchain install 1.98.1 --profile minimal "
+            "--component llvm-tools-preview",
+            upload_workflow,
+        )
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
             manifest = tomllib.load(source)
