@@ -258,6 +258,11 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             '\\(progress.verifiedHeaderHeight)."',
             ios_wallet,
         )
+        self.assertNotIn(
+            "case .failure(let error):\n"
+            "                    self.trackedShakedexFinalizePromptAttempts.remove(notice.transactionID)",
+            ios_wallet,
+        )
         self.assertIn("#if DEBUG\n        false\n        #else", ios_wallet)
         self.assertIn("#if !DEBUG", ios_wallet)
 

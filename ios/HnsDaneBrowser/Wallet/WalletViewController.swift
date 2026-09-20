@@ -2946,7 +2946,6 @@ final class WalletViewController: UIViewController {
                         authorityGeneration: authorityGeneration
                     )
                 case .failure(let error):
-                    self.trackedShakedexFinalizePromptAttempts.remove(notice.transactionID)
                     self.isOperating = false
                     self.refreshState()
                     self.readStatusLabel.text = "HNS send review could not be prepared. Synchronize again before retrying."
