@@ -208,6 +208,12 @@ const ANDROID_DIRECT_SHAKESCAPE_LISTEN_PORT: u16 = 12_038;
 /// controller retirement never waits behind a long-lived peer exchange.
 const ANDROID_DIRECT_SHAKESCAPE_SOCKET_TIMEOUT: Duration = Duration::from_secs(2);
 const ANDROID_SHAKESCAPE_HSD_PEER_MAINTENANCE_INTERVAL_SECONDS: u64 = 30;
+/// A live atomic swap must rebuild a relay's volatile maker/taker route after
+/// either endpoint or the relay reconnects. Each wallet replays only its own
+/// signed packets, so several alternating rounds may be needed when both
+/// phones reconnect at once. Keep that recovery interactive while retaining
+/// the slower cadence for ordinary public offer inventory.
+const ANDROID_SHAKESCAPE_ACTIVE_SWAP_RECONCILIATION_INTERVAL_SECONDS: u64 = 15;
 /// A newly negotiated socket receives recovery state immediately. Periodic
 /// replay is only a disconnect/lost-frame safety net, and includes exact
 /// signed offers, tombstones, takes, and session envelopes. Re-enqueuing that
@@ -2421,9 +2427,17 @@ impl AndroidWalletController {
                 )),
             }
         }
-        if shakescape_last_offer_inventory_at.is_none_or(|last| {
-            now_unix >= last.saturating_add(ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS)
-        }) {
+        let offer_inventory_interval = if shakescape_sessions
+            .has_direct_swap_reconciliation(now_unix)
+            .unwrap_or(false)
+        {
+            ANDROID_SHAKESCAPE_ACTIVE_SWAP_RECONCILIATION_INTERVAL_SECONDS
+        } else {
+            ANDROID_SHAKESCAPE_OFFER_INVENTORY_INTERVAL_SECONDS
+        };
+        if shakescape_last_offer_inventory_at
+            .is_none_or(|last| now_unix >= last.saturating_add(offer_inventory_interval))
+        {
             *shakescape_last_offer_inventory_at = Some(now_unix);
             let mut name_market_publications = 0usize;
             let mut direct_inventory_peers = 0usize;
@@ -2441,7 +2455,10 @@ impl AndroidWalletController {
                     shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)
                 {
                     direct_inventory_peers = direct_inventory_peers.saturating_add(1);
-                    if report.active_offers != 0 || report.pending_takes != 0 {
+                    if report.active_offers != 0
+                        || report.pending_takes != 0
+                        || report.session_envelopes != 0
+                    {
                         android_log_info(
                             "hns-shakescape",
                             &format!(
@@ -2469,7 +2486,10 @@ impl AndroidWalletController {
                     shakescape_sessions.announce_direct_offer_inventory(peer, now_unix)
                 {
                     direct_inventory_peers = direct_inventory_peers.saturating_add(1);
-                    if report.active_offers != 0 || report.pending_takes != 0 {
+                    if report.active_offers != 0
+                        || report.pending_takes != 0
+                        || report.session_envelopes != 0
+                    {
                         android_log_info(
                             "hns-shakescape",
                             &format!(
