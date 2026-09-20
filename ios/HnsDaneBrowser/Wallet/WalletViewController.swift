@@ -63,7 +63,7 @@ private final class AtomicSwapNotificationCoordinator {
             case "completed": title = "Atomic swap completed"
             case "refunded": title = "Atomic swap refunded"
             case "failed": title = "Atomic swap needs attention"
-            default where stage.localizedCaseInsensitiveContains("ready") ||
+            case _ where stage.localizedCaseInsensitiveContains("ready") ||
                 stage.localizedCaseInsensitiveContains("redeem"):
                 title = "Atomic swap action required"
             default: title = "Atomic swap updated"
