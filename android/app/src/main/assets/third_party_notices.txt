@@ -31,7 +31,7 @@ Generated input SHA-256:
   rust/Cargo.lock = 5a25c0319ddfa1cd8b7aed5e6a20a382cf3abb02da6f4986ef1df4462c50fcf7
   android/gradle/libs.versions.toml = 6e6aa686c60e39364e82418f57bb4e2cb0b1cdc420db5dc20dcb48b9f9e58214
   android/app/gradle.lockfile = af2b566239607d09657d3a5930a2d60e9a765d3a1cae7bbf212080b592766ab3
-  android/gradle/verification-metadata.xml = c52bf6580e7cbc231e06a9b68facbbcb7cba2ab978851c4e9c9e1d9e3d80f27b
+  android/gradle/verification-metadata.xml = 904a6b05ddaea646070bd1a7d077a5bcaf415cb3c71605e5549042e60651df52
   rust/crates/android-ffi/Cargo.toml = 7b9d094fb71e56aa3b967bad12dc40cae284878c0459a69c40eeebee128a4cba
   rust/crates/hns-mobile-platform-runtime/Cargo.toml = f505fd405c3760b41bae07dfd8f46c5182c83b5b055b1febb2afedf946f797a7
   rust/crates/ios-ffi/Cargo.toml = 43803888cb9a38bf9aa28544fdaddcc6a658e4ca36edde10befbd2b0bf1fcb6d

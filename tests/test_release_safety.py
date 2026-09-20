@@ -88,6 +88,26 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             '"**/libhns_dane_browser_ffi.so")',
             gradle,
         )
+        version_catalog = (ROOT / "android/gradle/libs.versions.toml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('agp = "9.4.0"', version_catalog)
+        verification_metadata = (
+            ROOT / "android/gradle/verification-metadata.xml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            '<component group="com.android.tools.build" name="aapt2" '
+            'version="9.4.0-15978811">',
+            verification_metadata,
+        )
+        self.assertIn(
+            'f5bebd466ecf14d341fd465f2756a16d86052f29eb4532003d5ff7bcffd08de5',
+            verification_metadata,
+        )
+        self.assertIn(
+            '5d3820b1ddbbc1dae97aab61cce5cbcb81221dec3e0b71f692e86056502baf14',
+            verification_metadata,
+        )
         self.assertIn(
             '"base/lib/armeabi-v7a/libhns_dane_browser_ffi.so"',
             gradle,
