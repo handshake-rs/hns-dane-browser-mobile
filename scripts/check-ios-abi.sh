@@ -10,16 +10,25 @@ SOURCE="$CRATE_DIR/src/lib.rs"
 TARGET_DIR="${HNS_IOS_ABI_TARGET_DIR:-${CARGO_TARGET_DIR:-$ROOT_DIR/rust/target}}"
 CC_BIN="${CC:-cc}"
 CXX_BIN="${CXX:-c++}"
-NM_BIN="${NM:-nm}"
 
 export CARGO_INCREMENTAL=0
 
-for command in cargo "$CC_BIN" "$CXX_BIN" "$NM_BIN" comm sed sort; do
+for command in cargo rustc "$CC_BIN" "$CXX_BIN" comm sed sort; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "ERROR: required iOS ABI check command is unavailable: $command" >&2
     exit 2
   fi
 done
+
+rust_host="$(
+  rustc "+$RUST_TOOLCHAIN" -vV | sed -n 's/^host: //p'
+)"
+rust_sysroot="$(rustc "+$RUST_TOOLCHAIN" --print sysroot)"
+LLVM_NM_BIN="${LLVM_NM:-$rust_sysroot/lib/rustlib/$rust_host/bin/llvm-nm}"
+if [[ -z "$rust_host" || ! -x "$LLVM_NM_BIN" ]]; then
+  echo "ERROR: Rust $RUST_TOOLCHAIN llvm-nm is required; install llvm-tools-preview." >&2
+  exit 2
+fi
 
 CARGO_TARGET_DIR="$TARGET_DIR" \
   cargo "+$RUST_TOOLCHAIN" test --locked --manifest-path "$MANIFEST" --package ios-ffi
@@ -66,7 +75,7 @@ if [[ -n "$symbol_difference" ]]; then
 fi
 
 archive_symbols="$({
-  "$NM_BIN" -g "$archive" 2>/dev/null || "$NM_BIN" "$archive"
+  "$LLVM_NM_BIN" --extern-only --defined-only "$archive"
 } | sed -nE 's/.*[[:space:]]_?(hns_browser_[a-z0-9_]+)$/\1/p' | sort -u)"
 
 while IFS= read -r symbol; do

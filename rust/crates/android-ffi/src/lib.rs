@@ -501,7 +501,7 @@ enum AndroidWalletController {
     DirectValue {
         coordinator: HnsDirectPeerCoordinator,
         controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
-        shakescape_sessions: MobileShakescapeSessionController,
+        shakescape_sessions: Box<MobileShakescapeSessionController>,
         shakescape_listener: Option<HnsDirectShakescapeListener>,
         shakescape_reachability: Option<Box<ShakescapeReachabilityCascade>>,
         shakescape_public_endpoint: Option<SocketAddr>,
@@ -951,7 +951,7 @@ impl AndroidWalletController {
                 *self = Self::DirectValue {
                     coordinator,
                     controller: Box::new(controller),
-                    shakescape_sessions,
+                    shakescape_sessions: Box::new(shakescape_sessions),
                     shakescape_listener: None,
                     shakescape_reachability: None,
                     shakescape_public_endpoint: None,
@@ -1065,7 +1065,6 @@ impl AndroidWalletController {
             shakescape_public_endpoint,
             shakescape_peer,
             shakescape_replication_peers,
-            inbound_network_peers: _,
             ..
         } = self
         else {
@@ -2097,17 +2096,17 @@ impl AndroidWalletController {
                     return false;
                 }
             };
-            if let Some(lock) = verified {
-                if let Err(error) = shakescape_sessions.apply_local_verified_hns_funding(
+            if let Some(lock) = verified
+                && let Err(error) = shakescape_sessions.apply_local_verified_hns_funding(
                     session_id,
                     lock,
                     HnsReadSystemClock.now_unix().unwrap_or(0),
-                ) {
-                    android_log_error(&format!(
-                        "ShakeScape verified HNS funding could not be retained for session {session_id:?}: {error}"
-                    ));
-                    return false;
-                }
+                )
+            {
+                android_log_error(&format!(
+                    "ShakeScape verified HNS funding could not be retained for session {session_id:?}: {error}"
+                ));
+                return false;
             }
         }
         true
@@ -4550,7 +4549,7 @@ fn canonical_hash_32(token: &str) -> Option<[u8; 32]> {
         return None;
     }
     let mut value = [0_u8; 32];
-    for (index, pair) in token.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in token.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         let nibble = |byte| match byte {
             b'0'..=b'9' => byte - b'0',
             b'a'..=b'f' => byte - b'a' + 10,
@@ -7252,11 +7251,11 @@ pub extern "system" fn Java_com_denuoweb_hnsdane_wallet_NativeWalletBridge_nativ
             record
                 .controller_try_if_active()
                 .is_some_and(|mut controller| {
-                    unfunded_proofs
-                        .into_iter()
-                        .fold(false, |changed, proof| {
-                            controller.apply_unfunded_bitcoin_proof(proof) || changed
-                        })
+                    let mut changed = false;
+                    for proof in unfunded_proofs {
+                        changed |= controller.apply_unfunded_bitcoin_proof(proof);
+                    }
+                    changed
                 })
         };
         let resumed = record

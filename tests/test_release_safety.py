@@ -107,7 +107,18 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
             ROOT / "scripts/check-runtime-boundaries.sh"
         ).read_text(encoding="utf-8")
         self.assertNotIn(r"\(true\|false\)", runtime_boundaries)
+        ios_gate = RUN_IOS_GATE.read_text(encoding="utf-8")
+        self.assertIn("--component llvm-tools-preview", ios_gate)
+        for relative in (
+            "scripts/check-ios-abi.sh",
+            "scripts/build-rust-ios.sh",
+        ):
+            apple_builder = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn("/bin/llvm-nm", apple_builder)
+            self.assertIn("--extern-only --defined-only", apple_builder)
+            self.assertNotIn("xcrun nm", apple_builder)
         ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("--component llvm-tools-preview", ci_workflow)
         self.assertEqual(ci_workflow.count("armv7-linux-androideabi"), 2)
 
         with (ROOT / "rust/Cargo.toml").open("rb") as source:
@@ -121,6 +132,7 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         with (ROOT / "rust/Cargo.lock").open("rb") as source:
             locked_packages = tomllib.load(source)["package"]
         locked_by_name = {package["name"]: package for package in locked_packages}
+        self.assertEqual(locked_by_name["rustls"]["version"], "0.23.45")
         self.assertEqual(locked_by_name["hns-wallet-mobile"]["version"], "0.2.3")
         self.assertNotIn("source", locked_by_name["hns-wallet-mobile"])
 
@@ -150,6 +162,10 @@ class ReleaseCandidateMetadataTests(unittest.TestCase):
         self.assertNotIn("abf11ff3b16920c08f3c0b6d32d2e1af7cbe37b2", lockfile)
         self.assertNotIn("2229be849557d58a8eb723bcc03349f0f2df9796", lockfile)
         self.assertNotIn("b24b66c382de53330ec21dd3137e056a2bea3e2d", lockfile)
+
+        with (ROOT / "rust/deny.toml").open("rb") as source:
+            deny = tomllib.load(source)
+        self.assertEqual(deny["advisories"]["ignore"], ["RUSTSEC-2024-0436"])
 
         project = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
         self.assertRegex(project, r"(?m)^\s*MARKETING_VERSION: 1\.0\.5$")

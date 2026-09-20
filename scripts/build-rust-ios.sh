@@ -61,7 +61,7 @@ if [[ ! -x "$PLIST_BUDDY" ]]; then
   echo "ERROR: required property-list reader is unavailable: $PLIST_BUDDY" >&2
   exit 2
 fi
-for xcode_tool in lipo nm; do
+for xcode_tool in lipo; do
   if ! xcrun --find "$xcode_tool" >/dev/null 2>&1; then
     echo "ERROR: required Xcode tool is unavailable: $xcode_tool" >&2
     exit 2
@@ -74,6 +74,16 @@ configured_toolchain="$(
 )"
 if [[ "$configured_toolchain" != "$RUST_TOOLCHAIN" ]]; then
   echo "ERROR: rust/rust-toolchain.toml must pin Rust $RUST_TOOLCHAIN." >&2
+  exit 2
+fi
+
+rust_host="$(
+  rustc "+$RUST_TOOLCHAIN" -vV | sed -n 's/^host: //p'
+)"
+rust_sysroot="$(rustc "+$RUST_TOOLCHAIN" --print sysroot)"
+LLVM_NM_BIN="${LLVM_NM:-$rust_sysroot/lib/rustlib/$rust_host/bin/llvm-nm}"
+if [[ -z "$rust_host" || ! -x "$LLVM_NM_BIN" ]]; then
+  echo "ERROR: Rust $RUST_TOOLCHAIN llvm-nm is required; install llvm-tools-preview." >&2
   exit 2
 fi
 
@@ -129,7 +139,7 @@ verify_archive_abi() {
   local archive_symbols symbol_difference
 
   archive_symbols="$({
-    xcrun nm -gU "$archive" 2>/dev/null
+    "$LLVM_NM_BIN" --extern-only --defined-only "$archive"
   } | sed -nE 's/.*[[:space:]]_?(hns_browser_[a-z0-9_]+)$/\1/p' | sort -u)"
   if [[ -z "$archive_symbols" ]]; then
     echo "ERROR: Apple archive contains no exported HNS browser ABI: $archive" >&2

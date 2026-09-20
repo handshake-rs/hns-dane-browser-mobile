@@ -4,7 +4,12 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+# `paste` is an unmaintained proc-macro dependency of both maintained
+# reachability dependencies: getifs 0.6.1 and portmapper 0.19.3/netwatch. The
+# advisory declares no vulnerability and offers no compatible safe upgrade.
+# Keep this exception exact so every vulnerability and every other
+# unmaintained dependency remains denied.
+ignore = ["RUSTSEC-2024-0436"]
 
 [licenses]
 version = 2

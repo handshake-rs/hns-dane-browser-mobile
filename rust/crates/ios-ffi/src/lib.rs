@@ -803,7 +803,7 @@ enum NativeWalletController {
     DirectHnsValue {
         coordinator: HnsDirectPeerCoordinator,
         controller: Box<MobileHnsValueController<EmbeddedHnsBackend>>,
-        shakescape_sessions: MobileShakescapeSessionController,
+        shakescape_sessions: Box<MobileShakescapeSessionController>,
         shakescape_listener: Option<HnsDirectShakescapeListener>,
         shakescape_reachability: Option<Box<ShakescapeReachabilityCascade>>,
         shakescape_public_endpoint: Option<SocketAddr>,
@@ -1040,7 +1040,7 @@ impl NativeWalletController {
         *self = Self::DirectHnsValue {
             coordinator,
             controller: Box::new(controller),
-            shakescape_sessions,
+            shakescape_sessions: Box::new(shakescape_sessions),
             shakescape_listener: None,
             shakescape_reachability: None,
             shakescape_public_endpoint: None,
@@ -1183,7 +1183,6 @@ impl NativeWalletController {
             shakescape_public_endpoint,
             shakescape_peer,
             shakescape_replication_peers,
-            inbound_network_peers: _,
             ..
         } = self
         else {
@@ -3428,7 +3427,7 @@ unsafe fn wallet_session_id(slice: HnsBrowserSlice) -> Result<SessionId, FfiFail
     // typed protocol identity before crossing a wallet authority boundary.
     let mut encoded = unsafe { wallet_action_token(slice) }?.into_bytes();
     let mut decoded = [0_u8; 32];
-    for (index, pair) in encoded.chunks_exact(2).enumerate() {
+    for (index, pair) in encoded.as_chunks::<2>().0.iter().enumerate() {
         let nibble = |byte: u8| match byte {
             b'0'..=b'9' => Some(byte - b'0'),
             b'a'..=b'f' => Some(byte - b'a' + 10),
@@ -5511,9 +5510,11 @@ pub unsafe extern "C" fn hns_browser_wallet_service_direct_shakescape(
             let entry = wallet_entry(wallet)?;
             let mut entry = entry.lock().map_err(|_| FfiFailure::internal())?;
             ensure_wallet_active(&entry)?;
-            unfunded_proofs.into_iter().fold(false, |changed, proof| {
-                entry.controller.apply_unfunded_bitcoin_proof(proof).is_ok() || changed
-            })
+            let mut changed = false;
+            for proof in unfunded_proofs {
+                changed |= entry.controller.apply_unfunded_bitcoin_proof(proof).is_ok();
+            }
+            changed
         };
         let resumed = {
             let control = wallet_bitcoin_control_entry(wallet)?;

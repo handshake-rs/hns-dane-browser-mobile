@@ -554,7 +554,7 @@ fn preferred_external_port(route: ShakescapeRouterRoute, local_port: NonZeroU16)
         .wrapping_mul(257)
         .wrapping_add(local_port.get())
         % DYNAMIC_PORT_COUNT;
-    NonZeroU16::new(DYNAMIC_PORT_START + offset).expect("the dynamic port range is nonzero")
+    NonZeroU16::MIN.saturating_add(DYNAMIC_PORT_START - 1 + offset)
 }
 
 /// Reject private, carrier-NAT, link-local, documentation, multicast, and
