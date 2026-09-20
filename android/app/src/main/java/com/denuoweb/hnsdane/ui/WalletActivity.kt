@@ -338,6 +338,7 @@ class WalletActivity : ComponentActivity() {
     private var pendingOutgoingSnapshotHeight: Long? = null
     private var pendingOutgoingRefreshAttemptedHeight: Long? = null
     private var latestObservedBrowserHeaderHeight: Long? = null
+    private var activeSwapHnsRefreshAttemptedHeight: Long? = null
     private var directShakescapePeerEndpoint: String? = null
     /** Most recently successful outbound board endpoints, newest first. */
     private val recentDirectShakescapePeers = ArrayDeque<String>(3)
@@ -4414,6 +4415,9 @@ class WalletActivity : ComponentActivity() {
             .filterNot { it.state in terminal }
             .maxByOrNull { it.lastVerifiedAtUnix }
         val pending = status.pendingAcceptances.maxByOrNull { it.createdAtUnix }
+        if (execution == null && pending == null) {
+            activeSwapHnsRefreshAttemptedHeight = null
+        }
         activeShakescapeDashboardSummary = when {
             execution != null -> getString(
                 R.string.wallet_dashboard_swap_active,
@@ -9020,6 +9024,7 @@ class WalletActivity : ComponentActivity() {
         }
         renderWalletDashboard()
         maybeRefreshPendingOutgoingAfterNewBlock()
+        maybeRefreshActiveSwapAfterNewBlock()
         scheduleTrackedShakedexFinalizeApproval(snapshot)
     }
 
@@ -9040,8 +9045,46 @@ class WalletActivity : ComponentActivity() {
                     height,
                 )
                 maybeRefreshPendingOutgoingAfterNewBlock()
+                maybeRefreshActiveSwapAfterNewBlock()
             }
         }
+    }
+
+    /**
+     * A live cross-chain swap must observe HNS confirmations, redemptions, and
+     * refund eligibility without requiring either participant to open the
+     * execution dialog. The browser already maintains an authenticated header
+     * view; each newly observed height therefore schedules at most one bounded
+     * wallet scan while this unlocked foreground wallet has a live session.
+     *
+     * This does not trust the browser projection as settlement evidence. It
+     * only uses the new height as a wake-up signal; native wallet scanning and
+     * the execution journal still verify every state transition independently.
+     */
+    private fun maybeRefreshActiveSwapAfterNewBlock() {
+        val status = latestShakescapeExecutionStatus ?: return
+        val terminal = setOf("completed", "refunded", "failed")
+        val hasLiveSwap = status.pendingAcceptances.isNotEmpty() ||
+            status.executions.any { it.state !in terminal }
+        if (!hasLiveSwap || pendingOutgoingSnapshotHeight != null) return
+        val refreshHeight = walletActiveSwapHnsRefreshHeight(
+            snapshotHeight = latestReadSnapshot?.height,
+            observedHeaderHeight = latestObservedBrowserHeaderHeight,
+            attemptedHeaderHeight = activeSwapHnsRefreshAttemptedHeight,
+        ) ?: return
+        val handle = walletHandle
+        if (
+            !foreground || busy || walletHnsSyncInProgress ||
+                currentStorageLease() == null || handle == INVALID_HANDLE ||
+                NativeWalletBridge.status(handle)?.locked != false ||
+                !NativeWalletBridge.hasHnsReads(handle)
+        ) return
+        activeSwapHnsRefreshAttemptedHeight = refreshHeight
+        Log.i(
+            TAG,
+            "Refreshing active atomic swap after verified Handshake height $refreshHeight",
+        )
+        synchronizeWalletReads()
     }
 
     /**
@@ -9569,6 +9612,21 @@ internal fun walletValueActionMayReuseVerifiedSnapshot(
         nowElapsedMillis - snapshotObservedAtElapsedMillis <=
         WALLET_VALUE_ACTION_SNAPSHOT_REUSE_MILLIS &&
         (latestObservedHeaderHeight == null || snapshotHeight >= latestObservedHeaderHeight)
+
+/**
+ * Return a newly observed HNS height only when the wallet snapshot has not
+ * authenticated it and this active-swap watcher has not already requested it.
+ */
+internal fun walletActiveSwapHnsRefreshHeight(
+    snapshotHeight: Long?,
+    observedHeaderHeight: Long?,
+    attemptedHeaderHeight: Long?,
+): Long? {
+    val observed = observedHeaderHeight ?: return null
+    if (snapshotHeight != null && observed <= snapshotHeight) return null
+    if (attemptedHeaderHeight != null && observed <= attemptedHeaderHeight) return null
+    return observed
+}
 
 /**
  * A checkpoint that advanced authenticated state can resume promptly. A
