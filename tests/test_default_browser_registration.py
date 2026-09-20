@@ -62,7 +62,7 @@ class DefaultBrowserRegistrationTests(unittest.TestCase):
             )
         )
 
-    def test_ios_default_browser_activation_stays_dormant_until_approved(self) -> None:
+    def test_ios_registers_web_schemes_without_unapproved_entitlements(self) -> None:
         with IOS_INFO.open("rb") as source:
             info = plistlib.load(source)
         registered_schemes = {
@@ -71,7 +71,7 @@ class DefaultBrowserRegistrationTests(unittest.TestCase):
             for scheme in url_type.get("CFBundleURLSchemes", [])
         }
         self.assertIn("handshake", registered_schemes)
-        self.assertFalse({"http", "https"} & registered_schemes)
+        self.assertTrue({"http", "https"} <= registered_schemes)
 
         project = IOS_PROJECT.read_text(encoding="utf-8")
         self.assertNotIn("HnsDaneBrowser.entitlements", project)
